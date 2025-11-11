@@ -180,8 +180,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-doc/部署与启动（qiaoyun）/3 环境准备与部署.md
-qiaoyun/runner/qiaoyun_start.sh
+
 qiaoyun/runner/qiaoyun_start.sh
 connector/ecloud/ecloud_start.sh
 conf/config.json
