@@ -140,44 +140,65 @@ class QiaoyunPostAnalyzeAgent(DouBaoLLMAgent):
 
             return upsert_one(key, value, metadata)
         
-        if self.resp["CharacterPublicSettings"] != "无":
-            splits = self.resp["CharacterPublicSettings"].split("<换行>")
+        cps = self.resp.get("CharacterPublicSettings", "无")
+        if cps and cps != "无":
+            splits = cps.split("<换行>")
             for split in splits:
                 upsert_vector(split, "character_global")
-        if self.resp["CharacterPrivateSettings"] != "无":
-            splits = self.resp["CharacterPrivateSettings"].split("<换行>")
+
+        cprs = self.resp.get("CharacterPrivateSettings", "无")
+        if cprs and cprs != "无":
+            splits = cprs.split("<换行>")
             for split in splits:
                 upsert_vector(split, "character_private")
-        if self.resp["CharacterKnowledges"] != "无":
-            splits = self.resp["CharacterKnowledges"].split("<换行>")
+
+        cks = self.resp.get("CharacterKnowledges", "无")
+        if cks and cks != "无":
+            splits = cks.split("<换行>")
             for split in splits:
                 upsert_vector(split, "chatacter_knowledge")
-        if self.resp["UserSettings"] != "无":
-            splits = self.resp["UserSettings"].split("<换行>")
+
+        us = self.resp.get("UserSettings", "无")
+        if us and us != "无":
+            splits = us.split("<换行>")
             for split in splits:
                 upsert_vector(split, "user")
 
-        if self.resp["UserRealName"] != "无":
-            self.context["relation"]["user_info"]["realname"] = self.resp["UserRealName"]
-        if self.resp["UserHobbyName"] != "无":
-            self.context["relation"]["user_info"]["hobbyname"] = self.resp["UserHobbyName"]
-        if self.resp["UserDescription"] != "无":
-            self.context["relation"]["user_info"]["description"] = self.resp["UserDescription"]
+        urn = self.resp.get("UserRealName", "无")
+        if urn and urn != "无":
+            self.context["relation"]["user_info"]["realname"] = urn
 
-        if self.resp["CharacterPurpose"] != "无":
-            self.context["relation"]["character_info"]["shortterm_purpose"] = self.resp["CharacterPurpose"]
-        if self.resp["CharacterAttitude"] != "无":
-            self.context["relation"]["character_info"]["attitude"] = self.resp["CharacterAttitude"]
+        uhn = self.resp.get("UserHobbyName", "无")
+        if uhn and uhn != "无":
+            self.context["relation"]["user_info"]["hobbyname"] = uhn
 
-        if self.resp["RelationDescription"] != "无":
-            self.context["relation"]["relationship"]["description"] = self.resp["RelationDescription"]
-        
-        if int(self.resp["Dislike"]) is not None:
-            if int(self.resp["Dislike"]) >= 0:
-                self.context["relation"]["relationship"]["dislike"] = self.context["relation"]["relationship"]["dislike"] + int(self.resp["Dislike"]) - 5
+        ud = self.resp.get("UserDescription", "无")
+        if ud and ud != "无":
+            self.context["relation"]["user_info"]["description"] = ud
+
+        cp = self.resp.get("CharacterPurpose", "无")
+        if cp and cp != "无":
+            self.context["relation"]["character_info"]["shortterm_purpose"] = cp
+
+        ca = self.resp.get("CharacterAttitude", "无")
+        if ca and ca != "无":
+            self.context["relation"]["character_info"]["attitude"] = ca
+
+        rd = self.resp.get("RelationDescription", "无")
+        if rd and rd != "无":
+            self.context["relation"]["relationship"]["description"] = rd
+
+        dislike_raw = self.resp.get("Dislike", None)
+        try:
+            dislike_delta = int(dislike_raw) if dislike_raw is not None else None
+        except (ValueError, TypeError):
+            dislike_delta = None
+
+        if dislike_delta is not None:
+            if dislike_delta >= 0:
+                self.context["relation"]["relationship"]["dislike"] = self.context["relation"]["relationship"]["dislike"] + dislike_delta - 5
             else:
-                self.context["relation"]["relationship"]["dislike"] = self.context["relation"]["relationship"]["dislike"] + int(self.resp["Dislike"])
-            
+                self.context["relation"]["relationship"]["dislike"] = self.context["relation"]["relationship"]["dislike"] + dislike_delta
             if self.context["relation"]["relationship"]["dislike"] < 0:
                 self.context["relation"]["relationship"]["dislike"] = 0
             if self.context["relation"]["relationship"]["dislike"] > 100:
