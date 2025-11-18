@@ -30,6 +30,18 @@ class QiaoyunChatAgent(BaseAgent):
     def __init__(self, context = None, max_retries = 3, name = None):
         super().__init__(context, max_retries, name)
     
+    def _normalize_mm(self, mm):
+        if not isinstance(mm, list) or len(mm) == 0:
+            return [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+        normalized = []
+        for item in mm:
+            if isinstance(item, dict):
+                content = str(item.get("content", ""))
+            else:
+                content = str(item)
+            normalized.append({"type": "text", "content": content})
+        return normalized
+    
     def _execute(self):
         # 清零
         self.context["conversation"]["conversation_info"]["future"]["proactive_times"] = 0
@@ -59,8 +71,8 @@ class QiaoyunChatAgent(BaseAgent):
             logger.info(result["resp"])
             self.resp = result["resp"] if result["resp"] else {}
             mm = self.resp.get("MultiModalResponses")
-            if not isinstance(mm, list) or len(mm) == 0:
-                mm = [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+            mm = self._normalize_mm(mm)
+            self.resp["MultiModalResponses"] = mm
             self.context["MultiModalResponses"] = mm
         
         # 如果涉及到可扩展内容，有概率调用细化链路
@@ -82,6 +94,7 @@ class QiaoyunChatAgent(BaseAgent):
                 refine_mm = result["resp"] if isinstance(result["resp"], list) else None
                 if not refine_mm:
                     refine_mm = [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+                refine_mm = self._normalize_mm(refine_mm)
                 self.resp["MultiModalResponses"] = refine_mm
                 self.context["MultiModalResponses"] = refine_mm
         
