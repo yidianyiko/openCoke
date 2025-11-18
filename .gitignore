@@ -185,3 +185,4 @@ qiaoyun/runner/qiaoyun_start.sh
 qiaoyun/runner/qiaoyun_start.sh
 connector/ecloud/ecloud_start.sh
 conf/config.json
+.trae/documents/
