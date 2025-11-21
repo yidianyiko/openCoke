@@ -47,7 +47,15 @@ lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
 
 async def background_handler():
-    disable_daily = (os.getenv("DISABLE_DAILY_TASKS", "false").lower() == "true") or (CONF.get("disable_daily_tasks") == True)
+    # 细粒度控制：分别控制 daily 和 background 功能
+    disable_daily_agents = (os.getenv("DISABLE_DAILY_AGENTS", "false").lower() == "true") or (CONF.get("disable_daily_agents") == True)
+    disable_background_agents = (os.getenv("DISABLE_BACKGROUND_AGENTS", "false").lower() == "true") or (CONF.get("disable_background_agents") == True)
+    
+    # 兼容旧配置：如果设置了 DISABLE_DAILY_TASKS，则同时禁用两者
+    if (os.getenv("DISABLE_DAILY_TASKS", "false").lower() == "true") or (CONF.get("disable_daily_tasks") == True):
+        disable_daily_agents = True
+        disable_background_agents = True
+    
     is_decrease = False
     is_proactive = False
     # 一些固定处理
@@ -60,15 +68,17 @@ async def background_handler():
     if mod == 0:
         is_proactive = True
 
-    if is_decrease and (not disable_daily):
+    # === Daily Agent 相关功能 ===
+    if is_decrease and (not disable_daily_agents):
         decrease_all()
     
-    if not disable_daily:
+    if not disable_daily_agents:
         handle_status()
     else:
         mongo.update_many("inputmessages", {"to_user": target_user_id, "status": "hold"}, {"$set": {"status": "pending"}})
 
-    if not disable_daily:
+    # 每日新闻生成（Daily Agent）
+    if not disable_daily_agents:
         target_timestamp = int(time.time()) + 7200
         target_date = date2str(target_timestamp)
         find = mongo.find_one("dailynews", {"date": target_date, "cid": target_user_id})
@@ -89,11 +99,17 @@ async def background_handler():
                     continue
                 logger.info(result["resp"])
     
-    if is_proactive and (not disable_daily):
+    if is_proactive and (not disable_daily_agents):
         handle_proactive_message()
     
-    if not disable_daily:
+    # === Background Agent 相关功能 ===
+    # 未来消息派发（Background Agent）
+    if not disable_background_agents:
         handle_pending_future_message()
+    
+    # 提醒任务派发（Background Agent）
+    if not disable_background_agents:
+        handle_pending_reminders()
 
 def is_new_message_coming_in(u_id, c_id, platform):
     input_messages = read_all_inputmessages(u_id, c_id, platform, "pending")
@@ -440,3 +456,122 @@ if __name__ == "__main__":
     print(current_scripts)
     print(now)
 
+
+
+def handle_pending_reminders():
+    """处理待触发的提醒任务"""
+    from dao.reminder_dao import ReminderDAO
+    from util.time_util import calculate_next_recurrence
+    
+    reminder_dao = ReminderDAO()
+    lock = None
+    
+    try:
+        now = int(time.time())
+        reminders = reminder_dao.find_pending_reminders(now)
+        
+        if len(reminders) == 0:
+            return
+        
+        logger.info(f"发现 {len(reminders)} 个待触发的提醒")
+        
+        for reminder in reminders:
+            try:
+                conversation_id = reminder["conversation_id"]
+                
+                # 获取锁
+                lock = lock_manager.acquire_lock("conversation", conversation_id, timeout=120, max_wait=1)
+                if lock is None:
+                    continue
+                
+                # 获取会话和用户信息
+                conversation = conversation_dao.get_conversation_by_id(conversation_id)
+                if not conversation:
+                    logger.warning(f"会话不存在: {conversation_id}")
+                    continue
+                
+                user = user_dao.get_user_by_id(reminder["user_id"])
+                character = user_dao.get_user_by_id(reminder["character_id"])
+                
+                if not user or not character:
+                    logger.warning(f"用户或角色不存在")
+                    continue
+                
+                # 准备上下文
+                context = context_prepare(user, character, conversation)
+                
+                # 检查是否被拉黑
+                if context["relation"]["relationship"]["dislike"] >= 100:
+                    logger.info(f"用户已拉黑，跳过提醒")
+                    reminder_dao.cancel_reminder(reminder["reminder_id"])
+                    continue
+                
+                # 发送提醒消息
+                expect_output_timestamp = int(time.time())
+                message_text = reminder["action_template"]
+                
+                outputmessage = send_message_via_context(
+                    context,
+                    message=message_text,
+                    message_type="text",
+                    expect_output_timestamp=expect_output_timestamp
+                )
+                
+                if outputmessage:
+                    logger.info(f"提醒已发送: {reminder['title']}")
+                    
+                    # 更新会话历史
+                    conversation["conversation_info"]["chat_history"].append(outputmessage)
+                    if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                        conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                    
+                    conversation_dao.update_conversation_info(
+                        conversation_id,
+                        conversation["conversation_info"]
+                    )
+                    
+                    # 标记为已触发
+                    reminder_dao.mark_as_triggered(reminder["reminder_id"])
+                    
+                    # 处理周期提醒
+                    recurrence = reminder.get("recurrence", {})
+                    if recurrence.get("enabled"):
+                        next_time = calculate_next_recurrence(
+                            reminder["next_trigger_time"],
+                            recurrence.get("type", "daily"),
+                            recurrence.get("interval", 1)
+                        )
+                        
+                        if next_time:
+                            # 检查是否超过结束时间或次数限制
+                            end_time = recurrence.get("end_time")
+                            max_count = recurrence.get("max_count")
+                            triggered_count = reminder.get("triggered_count", 0) + 1
+                            
+                            should_continue = True
+                            if end_time and next_time > end_time:
+                                should_continue = False
+                            if max_count and triggered_count >= max_count:
+                                should_continue = False
+                            
+                            if should_continue:
+                                reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
+                                logger.info(f"周期提醒已续订: {reminder['title']} -> {next_time}")
+                            else:
+                                reminder_dao.complete_reminder(reminder["reminder_id"])
+                                logger.info(f"周期提醒已完成: {reminder['title']}")
+                    else:
+                        # 非周期提醒，标记为完成
+                        reminder_dao.complete_reminder(reminder["reminder_id"])
+                
+            except Exception as e:
+                logger.error(f"处理提醒失败: {traceback.format_exc()}")
+            finally:
+                if lock:
+                    lock_manager.release_lock("conversation", conversation_id)
+                    lock = None
+    
+    except Exception as e:
+        logger.error(f"提醒处理异常: {traceback.format_exc()}")
+    finally:
+        reminder_dao.close()

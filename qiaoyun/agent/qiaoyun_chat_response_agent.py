@@ -22,7 +22,8 @@ from qiaoyun.prompt.chat_taskprompt import *
 from qiaoyun.prompt.chat_contextprompt import *
 from qiaoyun.prompt.chat_noticeprompt import *
 
-from util.time_util import str2timestamp
+from util.time_util import str2timestamp, parse_relative_time, is_time_in_past
+from dao.reminder_dao import ReminderDAO
 
 doubao_client = Ark(
     base_url="https://ark.cn-beijing.volces.com/api/v3",
@@ -141,6 +142,64 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                     },
                 }
             },
+            "DetectedReminders": {
+                "type": "array",
+                "description": "从用户消息中识别到的提醒任务列表，如果没有识别到则为空数组",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "提醒的简短标题，如'开会'、'吃药'、'写报告'"
+                        },
+                        "time_original": {
+                            "type": "string",
+                            "description": "用户原始的时间表达，如'明天下午3点'、'30分钟后'、'每天早上8点'"
+                        },
+                        "time_resolved": {
+                            "type": "string",
+                            "description": "解析后的绝对时间，格式：xxxx年xx月xx日xx时xx分，如果无法确定则留空"
+                        },
+                        "time_type": {
+                            "type": "string",
+                            "enum": ["absolute", "relative", "ambiguous"],
+                            "description": "时间类型：absolute=绝对时间(2024年12月1日)，relative=相对时间(30分钟后)，ambiguous=模糊时间(1:43)"
+                        },
+                        "requires_confirmation": {
+                            "type": "boolean",
+                            "description": "是否需要用户确认，如'1:43'不确定上午下午，或时间已过期"
+                        },
+                        "confirmation_prompt": {
+                            "type": "string",
+                            "description": "需要确认时的提示语，如'你是说明天下午1点43分吗？'"
+                        },
+                        "recurrence": {
+                            "type": "object",
+                            "description": "周期信息，如果不是周期提醒则为null或enabled=false",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "是否启用周期"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["daily", "weekly", "monthly", "yearly"],
+                                    "description": "周期类型：每天/每周/每月/每年"
+                                },
+                                "interval": {
+                                    "type": "number",
+                                    "description": "间隔数，如每2天则为2，默认为1"
+                                }
+                            }
+                        },
+                        "action_template": {
+                            "type": "string",
+                            "description": "到期时要说的话，如'该开会了'、'记得吃药哦'"
+                        }
+                    },
+                    "required": ["title", "time_original", "action_template"]
+                }
+            },
         }
     }
 
@@ -171,6 +230,9 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
         if self.context["relation"]["relationship"]["trustness"] < 0:
             self.context["relation"]["relationship"]["trustness"] = 0
 
+        # 处理提醒任务
+        self._handle_reminders()
+
         # Future Response
         if "proactive_times" not in self.context["conversation"]["conversation_info"]["future"]:
             self.context["conversation"]["conversation_info"]["future"]["proactive_times"] = 0
@@ -192,4 +254,100 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
             else:
                 self.context["conversation"]["conversation_info"]["future"]["timestamp"] = None
                 self.context["conversation"]["conversation_info"]["future"]["action"] = None
+    
+    def _handle_reminders(self):
+        """处理识别到的提醒任务"""
+        import uuid
+        
+        reminders = self.resp.get("DetectedReminders", [])
+        if not reminders:
+            return
+        
+        reminder_dao = ReminderDAO()
+        conversation_id = str(self.context["conversation"]["_id"])
+        user_id = str(self.context["user"]["_id"])
+        character_id = str(self.context["character"]["_id"])
+        
+        confirmed_reminders = []
+        needs_confirmation = []
+        
+        for reminder in reminders:
+            try:
+                # 解析时间
+                timestamp = self._parse_reminder_time(reminder)
+                
+                # 判断是否需要确认
+                if reminder.get("requires_confirmation") or timestamp is None or is_time_in_past(timestamp):
+                    needs_confirmation.append(reminder)
+                    continue
+                
+                # 创建提醒记录
+                reminder_doc = {
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "character_id": character_id,
+                    "reminder_id": str(uuid.uuid4()),
+                    "title": reminder.get("title", "提醒"),
+                    "action_template": reminder.get("action_template", f"提醒：{reminder.get('title')}"),
+                    "next_trigger_time": timestamp,
+                    "time_original": reminder.get("time_original", ""),
+                    "timezone": "Asia/Shanghai",
+                    "recurrence": reminder.get("recurrence", {"enabled": False}),
+                    "status": "confirmed",
+                    "requires_confirmation": False
+                }
+                
+                # 保存到数据库
+                reminder_dao.create_reminder(reminder_doc)
+                confirmed_reminders.append(reminder)
+                logger.info(f"创建提醒: {reminder['title']} at {timestamp}")
+                
+            except Exception as e:
+                logger.error(f"处理提醒失败: {traceback.format_exc()}")
+        
+        # 追加确认问题到回复
+        if needs_confirmation:
+            confirmation_text = "\n\n"
+            for r in needs_confirmation:
+                prompt = r.get("confirmation_prompt", f"你是说{r.get('time_original')}提醒你{r.get('title')}吗？")
+                confirmation_text += prompt + "\n"
+            
+            # 追加到最后一条文本消息
+            if self.resp.get("MultiModalResponses"):
+                for response in reversed(self.resp["MultiModalResponses"]):
+                    if response.get("type") == "text":
+                        response["content"] += confirmation_text
+                        break
+        
+        reminder_dao.close()
+    
+    def _parse_reminder_time(self, reminder):
+        """
+        解析提醒时间
+        
+        Args:
+            reminder: 提醒对象
+            
+        Returns:
+            int: 时间戳，失败返回 None
+        """
+        # 优先使用已解析的时间
+        if reminder.get("time_resolved"):
+            timestamp = str2timestamp(reminder["time_resolved"])
+            if timestamp:
+                return timestamp
+        
+        # 尝试解析相对时间
+        time_original = reminder.get("time_original", "")
+        if reminder.get("time_type") == "relative":
+            timestamp = parse_relative_time(time_original)
+            if timestamp:
+                return timestamp
+        
+        # 尝试直接解析
+        timestamp = str2timestamp(time_original)
+        if timestamp:
+            return timestamp
+        
+        return None
 
