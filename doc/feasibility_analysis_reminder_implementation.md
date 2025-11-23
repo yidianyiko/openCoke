@@ -6,6 +6,11 @@
 
 ---
 
+## 更新说明
+
+- 不再计划编写 `doc/reminder_usage_guide.md` 与 `doc/reminder_implementation_plan.md`，以本文件与代码为主要参考。
+- 模糊时间的识别与分类由 LLM 完成；工具层仅解析明确的绝对/相对时间，不对模糊表达进行检测。遇到无法解析或不确定的表达，由 Agent 走确认流程。
+
 ## 目录
 
 1. [方案概述](#1-方案概述)
@@ -181,18 +186,19 @@ def handle_pending_future_message():
 
 #### 3.1.2 时间解析（可行）
 
-**方案**：在 `_posthandle` 中解析时间字符串。
+**方案**：在 `_posthandle` 中解析时间字符串（工具层仅负责明确的绝对/相对时间解析，模糊不在工具层判断）。
 
 **可行性**：⭐⭐⭐⭐
 - 已有 `util/time_util.py` 的 `str2timestamp` 函数
 - 支持中文时间格式："2024年12月05日09时00分"
 - 可扩展相对时间解析
+- 模糊表达由 LLM 标注为 `time_type=ambiguous` 或 `requires_confirmation=true`，不由工具层判断
 
 **实现难度**：中等（需增强相对时间解析）
 
 #### 3.1.3 模糊确认机制（可行）
 
-**方案**：`requires_confirmation=true` 时在 `ChatResponse` 中追加确认问题。
+**方案**：当 LLM 输出 `time_type=ambiguous` 或 `requires_confirmation=true` 时，在 `ChatResponse/MultiModalResponses` 中追加确认问题（工具层不进行“模糊检测”）。
 
 **可行性**：⭐⭐⭐⭐
 - 可在 `_posthandle` 中修改 `MultiModalResponses`

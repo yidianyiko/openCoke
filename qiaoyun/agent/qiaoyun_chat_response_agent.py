@@ -39,11 +39,10 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
     "\n" + \
     TASKPROMPT_微信对话 + "\n" + \
     TASKPROMPT_微信对话_推理要求_纯文本 + "\n" + \
+    TASKPROMPT_提醒识别 + "\n" + \
     "\n" + \
     "## 上下文" + "\n" + \
     CONTEXTPROMPT_时间 + "\n" + \
-    "\n" + \
-    CONTEXTPROMPT_新闻 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_人物信息 + "\n" + \
     "\n" + \
@@ -52,8 +51,6 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
     CONTEXTPROMPT_用户资料 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_人物知识和技能 + "\n" + \
-    "\n" + \
-    CONTEXTPROMPT_人物手机相册 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_人物状态 + "\n" + \
     "\n" + \

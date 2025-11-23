@@ -2,7 +2,7 @@
 CONTEXTPROMPT_时间 = '''### 小说中的当前时间
 （24小时制）{conversation[conversation_info][time_str]}'''
 
-CONTEXTPROMPT_新闻 = '''### 今日新闻
+CONTEXTPROMPT_新闻 = '''
 {news_str}
 '''
 

@@ -68,8 +68,7 @@ def date2str(timestamp, week=False):
     
     return result
 
-def
- parse_relative_time(text, base_timestamp=None):
+def parse_relative_time(text, base_timestamp=None):
     """
     解析相对时间表达
     
