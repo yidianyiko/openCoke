@@ -197,6 +197,55 @@ class TestReminderIntegration(unittest.TestCase):
         dao.delete_reminder(reminder["reminder_id"])
         dao.close()
 
+    def test_cancel_and_reschedule_via_ops(self):
+        """模拟对话层的取消与改期逻辑（DAO层验证）"""
+        dao = ReminderDAO()
+        base_title = "买菜提醒"
+        now = int(time.time())
+        r1_id = dao.create_reminder({
+            "conversation_id": "conv_ops",
+            "user_id": "user_ops",
+            "character_id": "char_ops",
+            "title": base_title,
+            "next_trigger_time": now + 3600,
+            "time_original": "1小时后",
+            "timezone": "Asia/Shanghai",
+            "recurrence": {"enabled": False},
+            "action_template": "去买菜"
+        })
+        r1 = dao.get_reminder_by_object_id(r1_id)
+
+        # 取消
+        ok_cancel = dao.cancel_reminder(r1["reminder_id"])
+        self.assertTrue(ok_cancel)
+        cancelled = dao.get_reminder_by_id(r1["reminder_id"])
+        self.assertEqual(cancelled["status"], "cancelled")
+
+        # 重新创建一个用于改期
+        r2_id = dao.create_reminder({
+            "conversation_id": "conv_ops",
+            "user_id": "user_ops",
+            "character_id": "char_ops",
+            "title": base_title,
+            "next_trigger_time": now + 7200,
+            "time_original": "2小时后",
+            "timezone": "Asia/Shanghai",
+            "recurrence": {"enabled": False},
+            "action_template": "去买菜"
+        })
+        r2 = dao.get_reminder_by_object_id(r2_id)
+
+        new_time = now + 10800
+        ok_reschedule = dao.reschedule_reminder(r2["reminder_id"], new_time)
+        self.assertTrue(ok_reschedule)
+        updated = dao.get_reminder_by_id(r2["reminder_id"])
+        self.assertEqual(updated["next_trigger_time"], new_time)
+
+        # 清理
+        dao.delete_reminder(r1["reminder_id"])
+        dao.delete_reminder(r2["reminder_id"])
+        dao.close()
+
 
 if __name__ == "__main__":
     unittest.main()
