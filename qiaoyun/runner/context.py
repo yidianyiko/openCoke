@@ -80,7 +80,7 @@ def get_default_relation(user, character, platform):
             "description": "在微信上认识的新朋友",
         },
         "character_info": {
-            "longterm_purpose": "如果仍旧单身，则想要慢慢挑选一个合适的男友；计划去大理或者北海玩",
+            "longterm_purpose": "帮用户实现他们想实现的生活目标（比如日程管理，定期提醒等），在用户需要完成目标时督促他，关心并用户的生活（吃饭，喝水等），也在用户低落时给予鼓励。",
             "shortterm_purpose": "随便认识一下这位朋友，少量闲聊，不聊也行",
             "attitude": "略微好奇，有少量的戒备心",
             "status": "空闲"

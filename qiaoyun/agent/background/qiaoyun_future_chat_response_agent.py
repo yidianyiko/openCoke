@@ -79,7 +79,7 @@ class QiaoyunFutureChatResponseAgent(DouBaoLLMAgent):
             },
             "ChatResponse": {
                 "type": "string",
-                "description": "角色的回复，你可以在句子之间使用<换行>来表示分段，用来表示换行。"
+                "description": "角色的回复，像发微信一样，一句话分成多条发送。"
             },
             # "RefinedChatResponse": {
             #     "type": "string",

@@ -176,8 +176,8 @@ async def main_handler():
                     expect_output_timestamp = int(time.time())
                     resp = result.get("resp") or {}
                     multimodal_responses = resp.get("MultiModalResponses") or []
-                    if not isinstance(multimodal_responses, list) or len(multimodal_responses) == 0:
-                        multimodal_responses = [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+                    if not isinstance(multimodal_responses, list):
+                        multimodal_responses = []
 
                     multimodal_responses_index = 0
                     for multimodal_response in multimodal_responses:
@@ -284,15 +284,7 @@ async def main_handler():
                 conversation["conversation_info"]["chat_history"].append(input_message)
             conversation["conversation_info"]["input_messages"] = []
 
-            if len(resp_messages) == 0:
-                outputmessage = send_message_via_context(
-                    context,
-                    message="我现在网有点卡，晚点回你哈",
-                    message_type="text",
-                    expect_output_timestamp = int(time.time())
-                )
-                if outputmessage is not None:
-                    resp_messages.append(outputmessage)
+            # 当没有生成回复时，不再发送兜底文本，保持为空
 
             for resp_message in resp_messages:
                 conversation["conversation_info"]["chat_history"].append(resp_message)

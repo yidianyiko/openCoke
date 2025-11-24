@@ -32,13 +32,15 @@ class QiaoyunChatAgent(BaseAgent):
     
     def _normalize_mm(self, mm):
         if not isinstance(mm, list) or len(mm) == 0:
-            return [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+            return []
         normalized = []
         for item in mm:
             if isinstance(item, dict):
                 content = str(item.get("content", ""))
             else:
                 content = str(item)
+            if content.strip() == "":
+                continue
             normalized.append({"type": "text", "content": content})
         return normalized
     
@@ -93,7 +95,7 @@ class QiaoyunChatAgent(BaseAgent):
                 logger.info(result["resp"])
                 refine_mm = result["resp"] if isinstance(result["resp"], list) else None
                 if not refine_mm:
-                    refine_mm = [{"type": "text", "content": "我现在网有点卡，晚点回你哈"}]
+                    refine_mm = []
                 refine_mm = self._normalize_mm(refine_mm)
                 self.resp["MultiModalResponses"] = refine_mm
                 self.context["MultiModalResponses"] = refine_mm
