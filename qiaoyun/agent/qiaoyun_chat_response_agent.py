@@ -289,9 +289,12 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                         "status": "confirmed",
                         "requires_confirmation": False
                     }
-                    reminder_dao.create_reminder(reminder_doc)
+                    rid = reminder_dao.create_reminder(reminder_doc)
                     confirmed_reminders.append(reminder)
-                    logger.info("创建提醒:" + str(reminder.get("title")) + " at " + str(timestamp))
+                    if rid:
+                        logger.info("创建提醒成功:" + str(reminder.get("title")) + " id=" + str(rid) + " at " + str(timestamp))
+                    else:
+                        logger.warning("创建提醒失败:" + str(reminder.get("title")) + " at " + str(timestamp))
                 elif op == "delete":
                     target = reminder.get("target", {})
                     target_id = target.get("reminder_id")
@@ -302,15 +305,16 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                         candidates = reminder_dao.find_reminders_by_user(user_id)
                         by_title = target.get("by_title")
                         by_time_hint = target.get("by_time_hint")
-                        by_status = target.get("by_status")
+                        by_status = target.get("by_status") or "confirmed"
                         filtered = []
+                        by_title_lower = str(by_title).lower() if by_title else None
                         for c in candidates:
                             if by_status and c.get("status") != by_status:
                                 continue
                             ok = True
-                            if by_title:
+                            if by_title_lower is not None:
                                 t = str(c.get("title", ""))
-                                if by_title not in t:
+                                if by_title_lower not in t.lower():
                                     ok = False
                             if ok and by_time_hint:
                                 hint_ts = str2timestamp(by_time_hint) or parse_relative_time(by_time_hint)
@@ -337,9 +341,14 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                             "time_original": reminder.get("time_original", "")
                         })
                         continue
-                    reminder_dao.delete_reminder(matched["reminder_id"])
-                    msg = "已删除提醒：" + str(matched.get("title", ""))
+                    ok = reminder_dao.delete_reminder(matched["reminder_id"])
                     confirmed_reminders.append(reminder)
+                    if ok:
+                        logger.info("删除提醒成功:" + str(matched.get("title", "")))
+                        msg = "已删除提醒：" + str(matched.get("title", ""))
+                    else:
+                        logger.warning("删除提醒失败或不存在:" + str(matched.get("title", "")))
+                        msg = "未找到或删除失败：" + str(matched.get("title", ""))
                     if self.resp.get("MultiModalResponses"):
                         for response in reversed(self.resp["MultiModalResponses"]):
                             if response.get("type") == "text":
@@ -355,15 +364,16 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                         candidates = reminder_dao.find_reminders_by_user(user_id)
                         by_title = target.get("by_title")
                         by_time_hint = target.get("by_time_hint")
-                        by_status = target.get("by_status")
+                        by_status = target.get("by_status") or "confirmed"
                         filtered = []
+                        by_title_lower = str(by_title).lower() if by_title else None
                         for c in candidates:
                             if by_status and c.get("status") != by_status:
                                 continue
                             ok = True
-                            if by_title:
+                            if by_title_lower is not None:
                                 t = str(c.get("title", ""))
-                                if by_title not in t:
+                                if by_title_lower not in t.lower():
                                     ok = False
                             if ok and by_time_hint:
                                 hint_ts = str2timestamp(by_time_hint) or parse_relative_time(by_time_hint)
@@ -416,7 +426,11 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                             "time_original": reminder.get("time_original", "")
                         })
                         continue
-                    reminder_dao.update_reminder(matched["reminder_id"], update_data)
+                    ok = reminder_dao.update_reminder(matched["reminder_id"], update_data)
+                    if ok:
+                        logger.info("更新提醒成功:" + str(matched.get("title", "")))
+                    else:
+                        logger.warning("更新提醒失败或不存在:" + str(matched.get("title", "")))
                     confirmed_reminders.append(reminder)
                     msg = "已更新提醒：" + str(matched.get("title", ""))
                     if self.resp.get("MultiModalResponses"):
@@ -430,7 +444,11 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                     items = reminder_dao.find_reminders_by_user(user_id, status=status)
                     by_title = list_filter.get("by_title")
                     if by_title:
-                        items = [c for c in items if by_title in str(c.get("title", ""))]
+                        by_title_lower = str(by_title).lower()
+                        items = [c for c in items if by_title_lower in str(c.get("title", "")).lower()]
+                    logger.info("提醒列表查询: count=" + str(len(items)) + 
+                                " status=" + str(status or "all") + 
+                                (" title_like=" + by_title if by_title else ""))
                     msg_lines = ["提醒列表："]
                     for c in items[:50]:
                         t = str(c.get("title", ""))
@@ -497,17 +515,18 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
         enabled = bool(rec.get("enabled", False))
         rtype = rec.get("type") or rec.get("frequency")
         interval = rec.get("interval", 1)
-        unit = rec.get("unit")
         time_of_day = rec.get("time_of_day")
         weekdays = rec.get("weekdays")
         month_days = rec.get("month_days")
         norm = {"enabled": enabled}
         if rtype:
-            norm["type"] = rtype
+            # 将 minute 统一映射为 interval（分钟），便于后端计算
+            if rtype == "minute":
+                norm["type"] = "interval"
+            else:
+                norm["type"] = rtype
         if interval is not None:
             norm["interval"] = interval
-        if unit:
-            norm["unit"] = unit
         if time_of_day:
             norm["time_of_day"] = time_of_day
         if weekdays:
