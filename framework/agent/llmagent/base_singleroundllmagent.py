@@ -186,6 +186,17 @@ class BaseSingleRoundLLMAgent(BaseAgent):
         
         # Store the full raw response in context
         self.context["llm_response"] = response
+        try:
+            logger.info(f"Agent {self.name}: Raw LLM response: {response}")
+        except Exception:
+            pass
+        try:
+            msg_preview = response.choices[0].message
+            logger.info(f"Agent {self.name}: LLM message content: {getattr(msg_preview, 'content', None)}")
+            logger.info(f"Agent {self.name}: LLM tool_calls: {getattr(msg_preview, 'tool_calls', None)}")
+            logger.info(f"Agent {self.name}: LLM function_call: {getattr(msg_preview, 'function_call', None)}")
+        except Exception:
+            pass
         
         # Process the response based on whether function call was used
         if self.output_schema:

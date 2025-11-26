@@ -147,71 +147,55 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                     "properties": {
                         "operation": {
                             "type": "string",
-                            "enum": ["create", "cancel", "reschedule"],
-                            "description": "针对提醒的操作类型，默认create"
+                            "enum": ["create", "update", "delete", "list"],
+                            "description": "提醒操作类型"
                         },
                         "target": {
                             "type": "object",
-                            "description": "用于定位既有提醒的目标（取消/改期）",
+                            "description": "用于定位既有提醒的目标（update/delete）",
                             "properties": {
                                 "reminder_id": {"type": "string"},
                                 "by_title": {"type": "string"},
                                 "by_time_hint": {"type": "string"}
                             }
                         },
-                        "title": {
-                            "type": "string",
-                            "description": "提醒的简短标题，如'开会'、'吃药'、'写报告'"
-                        },
-                        "time_original": {
-                            "type": "string",
-                            "description": "用户原始的时间表达，如'明天下午3点'、'30分钟后'、'每天早上8点'"
-                        },
-                        "time_resolved": {
-                            "type": "string",
-                            "description": "解析后的绝对时间，格式：xxxx年xx月xx日xx时xx分，如果无法确定则留空"
-                        },
-                        "time_type": {
-                            "type": "string",
-                            "enum": ["absolute", "relative", "ambiguous"],
-                            "description": "时间类型：absolute=绝对时间(2024年12月1日)，relative=相对时间(30分钟后)，ambiguous=模糊时间(1:43)"
-                        },
-                        "requires_confirmation": {
-                            "type": "boolean",
-                            "description": "是否需要用户确认，如'1:43'不确定上午下午，或时间已过期"
-                        },
-                        "confirmation_prompt": {
-                            "type": "string",
-                            "description": "需要确认时的提示语，如'你是说明天下午1点43分吗？'"
-                        },
+                        "title": {"type": "string"},
+                        "time_original": {"type": "string"},
+                        "time_resolved": {"type": "string"},
+                        "requires_confirmation": {"type": "boolean"},
+                        "confirmation_prompt": {"type": "string"},
                         "recurrence": {
                             "type": "object",
-                            "description": "周期信息，如果不是周期提醒则为null或enabled=false",
                             "properties": {
-                                "enabled": {
-                                    "type": "boolean",
-                                    "description": "是否启用周期"
-                                },
-                                "type": {
-                                    "type": "string",
-                                    "enum": ["daily", "weekly", "monthly", "yearly"],
-                                    "description": "周期类型：每天/每周/每月/每年"
-                                },
-                                "interval": {
-                                    "type": "number",
-                                    "description": "间隔数，如每2天则为2，默认为1"
-                                }
+                                "enabled": {"type": "boolean"},
+                                "type": {"type": "string", "enum": ["daily", "weekly", "monthly", "yearly", "interval"]},
+                                "interval": {"type": "number"}
                             }
                         },
-                        "action_template": {
-                            "type": "string",
-                            "description": "到期时要说的话，如'该开会了'、'记得吃药哦'"
+                        "action_template": {"type": "string"},
+                        "update_fields": {
+                            "type": "object",
+                            "description": "当operation为update时的更新内容",
+                            "additionalProperties": True
+                        },
+                        "list_filter": {
+                            "type": "object",
+                            "description": "当operation为list时的过滤条件",
+                            "additionalProperties": True
                         }
                     },
-                    "required": ["title", "time_original", "action_template"]
+                    "required": ["operation"]
                 }
             },
-        }
+        },
+        "required": [
+            "InnerMonologue",
+            "MultiModalResponses",
+            "ChatCatelogue",
+            "RelationChange",
+            "FutureResponse",
+            "DetectedReminders"
+        ]
     }
 
     def __init__(self, context=None, client=doubao_client, systemp_template=default_systemp_template, userp_template=default_userp_template, output_schema=default_output_schema, default_input=None, max_retries=3, name=None, stream=False, model="doubao_1.5_pro", extra_args=None):
@@ -289,24 +273,26 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                     if reminder.get("requires_confirmation") or timestamp is None or is_time_in_past(timestamp):
                         needs_confirmation.append(reminder)
                         continue
+                    rec = reminder.get("recurrence", {"enabled": False})
+                    rec = self._normalize_recurrence(rec)
                     reminder_doc = {
                         "conversation_id": conversation_id,
                         "user_id": user_id,
                         "character_id": character_id,
                         "reminder_id": str(uuid.uuid4()),
                         "title": reminder.get("title", "提醒"),
-                        "action_template": reminder.get("action_template", f"提醒：{reminder.get('title')}"),
+                        "action_template": reminder.get("action_template", f"提醒：{reminder.get('title')}") ,
                         "next_trigger_time": timestamp,
                         "time_original": reminder.get("time_original", ""),
                         "timezone": "Asia/Shanghai",
-                        "recurrence": reminder.get("recurrence", {"enabled": False}),
+                        "recurrence": rec,
                         "status": "confirmed",
                         "requires_confirmation": False
                     }
                     reminder_dao.create_reminder(reminder_doc)
                     confirmed_reminders.append(reminder)
                     logger.info("创建提醒:" + str(reminder.get("title")) + " at " + str(timestamp))
-                elif op == "cancel":
+                elif op == "delete":
                     target = reminder.get("target", {})
                     target_id = target.get("reminder_id")
                     matched = None
@@ -316,9 +302,10 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                         candidates = reminder_dao.find_reminders_by_user(user_id)
                         by_title = target.get("by_title")
                         by_time_hint = target.get("by_time_hint")
+                        by_status = target.get("by_status")
                         filtered = []
                         for c in candidates:
-                            if c.get("status") not in ["confirmed", "pending"]:
+                            if by_status and c.get("status") != by_status:
                                 continue
                             ok = True
                             if by_title:
@@ -345,20 +332,20 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                             matched = None
                     if matched is None:
                         needs_confirmation.append({
-                            "confirmation_prompt": reminder.get("confirmation_prompt") or "要取消哪个提醒？请补充标题或时间。",
+                            "confirmation_prompt": reminder.get("confirmation_prompt") or "要删除哪个提醒？请补充标题或时间。",
                             "title": reminder.get("title", ""),
                             "time_original": reminder.get("time_original", "")
                         })
                         continue
-                    reminder_dao.cancel_reminder(matched["reminder_id"])
+                    reminder_dao.delete_reminder(matched["reminder_id"])
+                    msg = "已删除提醒：" + str(matched.get("title", ""))
                     confirmed_reminders.append(reminder)
-                    msg = "已取消提醒：" + str(matched.get("title", ""))
                     if self.resp.get("MultiModalResponses"):
                         for response in reversed(self.resp["MultiModalResponses"]):
                             if response.get("type") == "text":
                                 response["content"] += "\n\n" + msg
                                 break
-                elif op == "reschedule":
+                elif op == "update":
                     target = reminder.get("target", {})
                     target_id = target.get("reminder_id")
                     matched = None
@@ -368,9 +355,10 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                         candidates = reminder_dao.find_reminders_by_user(user_id)
                         by_title = target.get("by_title")
                         by_time_hint = target.get("by_time_hint")
+                        by_status = target.get("by_status")
                         filtered = []
                         for c in candidates:
-                            if c.get("status") not in ["confirmed", "pending"]:
+                            if by_status and c.get("status") != by_status:
                                 continue
                             ok = True
                             if by_title:
@@ -395,17 +383,62 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                             matched = None
                         else:
                             matched = None
-                    new_ts = self._parse_reminder_time(reminder)
-                    if matched is None or new_ts is None or is_time_in_past(new_ts) or reminder.get("requires_confirmation"):
+                    update_fields = reminder.get("update_fields", {})
+                    update_data = {}
+                    # 支持标题/文案/周期/状态
+                    if "title" in update_fields:
+                        update_data["title"] = update_fields.get("title")
+                    if "action_template" in update_fields:
+                        update_data["action_template"] = update_fields.get("action_template")
+                    if "recurrence" in update_fields:
+                        update_data["recurrence"] = self._normalize_recurrence(update_fields.get("recurrence", {}))
+                    if "status" in update_fields:
+                        update_data["status"] = update_fields.get("status")
+                    # 时间更新
+                    ts_candidate = None
+                    if update_fields.get("time_resolved"):
+                        ts_candidate = str2timestamp(update_fields.get("time_resolved"))
+                    if ts_candidate is None and update_fields.get("time_original"):
+                        ts_candidate = parse_relative_time(update_fields.get("time_original")) or str2timestamp(update_fields.get("time_original"))
+                    if ts_candidate is not None:
+                        if is_time_in_past(ts_candidate):
+                                needs_confirmation.append({
+                                    "confirmation_prompt": reminder.get("confirmation_prompt") or "新的时间已过期，请确认是否更新。",
+                                    "title": matched.get("title", ""),
+                                    "time_original": update_fields.get("time_original", "")
+                                })
+                                continue
+                        update_data["next_trigger_time"] = ts_candidate
+                    if not update_data:
                         needs_confirmation.append({
-                            "confirmation_prompt": reminder.get("confirmation_prompt") or "需要把提醒改到什么时候？",
-                            "title": reminder.get("title", ""),
+                            "confirmation_prompt": reminder.get("confirmation_prompt") or "请说明要更新哪些内容（标题/文案/周期/时间/状态）。",
+                            "title": matched.get("title", ""),
                             "time_original": reminder.get("time_original", "")
                         })
                         continue
-                    reminder_dao.reschedule_reminder(matched["reminder_id"], new_ts)
+                    reminder_dao.update_reminder(matched["reminder_id"], update_data)
                     confirmed_reminders.append(reminder)
-                    msg = "已改期提醒：" + str(matched.get("title", ""))
+                    msg = "已更新提醒：" + str(matched.get("title", ""))
+                    if self.resp.get("MultiModalResponses"):
+                        for response in reversed(self.resp["MultiModalResponses"]):
+                            if response.get("type") == "text":
+                                response["content"] += "\n\n" + msg
+                                break
+                elif op == "list":
+                    list_filter = reminder.get("list_filter", {})
+                    status = list_filter.get("by_status")
+                    items = reminder_dao.find_reminders_by_user(user_id, status=status)
+                    by_title = list_filter.get("by_title")
+                    if by_title:
+                        items = [c for c in items if by_title in str(c.get("title", ""))]
+                    msg_lines = ["提醒列表："]
+                    for c in items[:50]:
+                        t = str(c.get("title", ""))
+                        st = str(c.get("status", ""))
+                        ts = int(c.get("next_trigger_time", 0))
+                        from util.time_util import format_time_friendly
+                        msg_lines.append(f"- {t} · {st} · {format_time_friendly(ts)}")
+                    msg = "\n".join(msg_lines) if len(msg_lines) > 1 else "暂无提醒"
                     if self.resp.get("MultiModalResponses"):
                         for response in reversed(self.resp["MultiModalResponses"]):
                             if response.get("type") == "text":
@@ -447,17 +480,38 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
             if timestamp:
                 return timestamp
         
-        # 尝试解析相对时间
+        # 尝试解析时间（不依赖 time_type）
         time_original = reminder.get("time_original", "")
-        if reminder.get("time_type") == "relative":
-            timestamp = parse_relative_time(time_original)
-            if timestamp:
-                return timestamp
-        
-        # 尝试直接解析
+        timestamp = parse_relative_time(time_original)
+        if timestamp:
+            return timestamp
         timestamp = str2timestamp(time_original)
         if timestamp:
             return timestamp
         
         return None
 
+    def _normalize_recurrence(self, rec):
+        if not isinstance(rec, dict):
+            return {"enabled": False}
+        enabled = bool(rec.get("enabled", False))
+        rtype = rec.get("type") or rec.get("frequency")
+        interval = rec.get("interval", 1)
+        unit = rec.get("unit")
+        time_of_day = rec.get("time_of_day")
+        weekdays = rec.get("weekdays")
+        month_days = rec.get("month_days")
+        norm = {"enabled": enabled}
+        if rtype:
+            norm["type"] = rtype
+        if interval is not None:
+            norm["interval"] = interval
+        if unit:
+            norm["unit"] = unit
+        if time_of_day:
+            norm["time_of_day"] = time_of_day
+        if weekdays:
+            norm["weekdays"] = weekdays
+        if month_days:
+            norm["month_days"] = month_days
+        return norm

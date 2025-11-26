@@ -36,8 +36,8 @@ TASKPROMPT_微信对话_优化 = '''我正在写一本小说，{character[platfo
 ```
 '''
 
-TASKPROMPT_微信对话_推理要求_纯文本 = '''1. InnerMonologue。推测{character[platforms][wechat][nickname]}的内心独白情况，描述该角色在此场合下的内心思考过程。如果对方提出一些不符合关系或者相对隐私的想法或者要求，你可以表示质疑，反感或者追问缘由。
-2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断，也需要参考上面的心情变化和内心独白；注意在不同的亲密度和人物关系下，可能回复的内容也有所不同。注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。
+TASKPROMPT_微信对话_推理要求_纯文本 = '''1. InnerMonologue。
+2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断；注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。
 3. MultiModalResponses。重新审视一下ChatResponse的内容并且优化生成MultiModalResponses。要求如下：
 - MultiModalResponses是个数组，可以包含多种不同类型消息的混排；类型包括：text。
 - 关于消息类型选择：通常{character[platforms][wechat][nickname]}发送的消息以”text“为主；- 选择text类型时，必须包含content字段，可以使用<换行>规则来进行换行。你也可能输出多个text消息，来表示分段输出。
@@ -60,36 +60,53 @@ TASKPROMPT_微信对话_推理要求_纯文本 = '''1. InnerMonologue。推测{c
     {{"type": "text", "content": "这是另一条文本消息"}},
 ]
 ```
-4. ChatCatelogue。在MultiModalResponses当中是否涉及{character[platforms][wechat][nickname]}所熟悉的知识，或者涉及她的专业知识，或者她的人设或者故事。如果是，请输出“是”；否则，输出“否”。
+4. ChatCatelogue。输出“否”。
 5. RelationChange。根据最新的聊天情况，推断他们的关系变化，包括亲密度和信任度的变化，这个数值变化通常在-5到5之间。如果他们的聊天中并没有明显关系升级迹象，你应该保持这个数值变化为0。
 - Closeness。亲密度数值变化。
 - Trustness。信任度数值变化。
-6. FutureResponse。根据最新的聊天情况，当{character[platforms][wechat][nickname]}回复了MultiModalResponses之后，假设{user[platforms][wechat][nickname]}在此之后一直没有任何回复，{character[platforms][wechat][nickname]}在未来什么时间可能进行再次的未来主动消息。其中FutureResponseTime是{character[platforms][wechat][nickname]}再次主动的消息时间，格式为xxxx年xx月xx日xx时xx分，FutureResponseAction是再次主动消息的大致内容。
+6. FutureResponse。根据最新的聊天情况，当{character[platforms][wechat][nickname]}回复了MultiModalResponses之后，假设{user[platforms][wechat][nickname]}在此之后一直没有任何回复，{character[platforms][wechat][nickname]}在未来什么时间（避免在夜间 22:00 到次日5：00）可能进行再次的未来主动消息。其中FutureResponseTime是{character[platforms][wechat][nickname]}再次主动的消息时间，格式为xxxx年xx月xx日xx时xx分，FutureResponseAction是再次主动消息的大致内容。
 此处你可以分为以下几种情况处理：
 a 如果对话没有结束，并且{character[platforms][wechat][nickname]}最新对话中正在发问，未来主动消息时间你可以设置在5-10分钟后，切换话题引起注意，或者随机聊一些事件（例如一两件新闻时事）。
-b 如果对话没有结束，但是{character[platforms][wechat][nickname]}最新对话中并没有发问，未来主动消息时间你可以设置得更远一些（例如10-30分钟），并且可以重新换个话题（例如一两件新闻时事）。
-c 如果对话已经倾向于结束了，那么你可以设置未来主动消息时间在半天后，1天或者几天后的一个比较合理的时间（避免夜间），可以新启动一个话题，延续话题，或者进行一些有趣的分享等等。
+b 如果对话没有结束，但是{character[platforms][wechat][nickname]}最新对话中并没有发问，未来主动消息时间你可以设置得更远一些（例如120-130分钟），并且可以重新换个话题（例如一两件新闻时事）。
+c 如果对话已经倾向于结束了，那么你可以设置未来主动消息时间在半天后的一个比较合理的时间（避免夜间），可以新启动一个话题，延续话题，或者进行一些有趣的分享等等。
 d 你也可以自由发挥。
 e 应该避免跟{character[platforms][wechat][nickname]}在历史对话中的内容雷同，也应该避免跟MultiModalResponses当中的内容雷同，可以根据自己的知识或者感兴趣的部分提出新的话题，或者尝试发现一些矛盾，盲点，可关注事项等。
 - FutureResponseTime。未来主动的消息时间，格式为xxxx年xx月xx日xx时xx分。
 - FutureResponseAction。未来主动消息的大致内容，大约10-20个字。
 f 如果你认为不需要进行未来对话，那么你可以FutureResponseAction你应该输出为“无”。'''
 
-TASKPROMPT_提醒识别 = '''7. DetectedReminders。请在该字段中输出本次消息识别到提醒任务数组；若没有识别到提醒，则输出空数组[]。每个提醒对象包含以下字段：
-- operation：对提醒的操作类型，取值为“create”“cancel”“reschedule”；默认“create”
-- target：当operation为“cancel”或“reschedule”时，用于定位既有提醒的目标对象，包含：reminder_id（可选）、by_title（可选）、by_time_hint（可选）
-- title：提醒的简短标题，如“刷牙”“喝水”“开会”
-- time_original：用户的原始时间表达，如“明天早上九点”“五分钟后”
-- time_type：时间类型，取值为“absolute”“relative”“ambiguous”
-- time_resolved：解析后的绝对时间，格式必须为“xxxx年xx月xx日xx时xx分”；当 time_type=ambiguous 或无法解析时留空
-- requires_confirmation：是否需要确认（时间模糊、冲突或已过期时设为 true）
+TASKPROMPT_提醒识别 = '''7. DetectedReminders。该字段非常重要，一定要重点输出。当{character[platforms][wechat][nickname]}最新的聊天给消息包含“提醒/通知/叫我/闹钟/别忘了”等类似关键词时，请在该字段中输出本次消息识别到提醒任务数组；若没有识别到提醒，则输出空数组[]。每个提醒对象包含以下字段（简化为CRUD）：
+- operation：操作类型，取值为“create”“update”“delete”“list”
+- target：目标定位对象（用于update/delete），包含：reminder_id（可选）、by_title（可选）、by_time_hint（可选）、by_status（可选）
+- title：提醒标题（create 必需；update 可选）
+- time_original：用户原始时间表达（create/update 可选）
+- time_resolved：解析后的绝对时间（create/update ，requires_confirmation 为 false 则为必选），格式“xxxx年xx月xx日xx时xx分”
+- requires_confirmation：是否需要确认（时间模糊、冲突或已过期设为 true）
 - confirmation_prompt：需要确认时的自然语言询问
-- recurrence：周期信息对象；非周期则为 {{"enabled": false}}
-- action_template：到期时发送的提醒文案，如“记得刷牙”
-识别规则：当用户消息包含“提醒/通知/叫我/闹钟/别忘了”等表达，或包含相对时间（如“X分钟后”“X小时后”）与行为动词时，判定为提醒。若用户表达“取消提醒/别提醒了/把XX提醒删掉”等，或“把XX提醒改到.../改期/推迟”等，则输出 operation 对应的对象：
-- cancel：尽量定位目标（target），若无法唯一定位或语义含糊，requires_confirmation=true，并给出confirmation_prompt；不更改其他字段
-- reschedule：将新的时间表达写入 time_original/time_type/time_resolved；若解析不明确或为过去时间，requires_confirmation=true，并给出confirmation_prompt
-时间解析优先输出绝对时间到 time_resolved，格式严格为“xxxx年xx月xx日xx时xx分”。相对时间以当前消息时间为基准计算并写入 time_resolved。模糊或不完整时间设为 time_type=ambiguous 且 requires_confirmation=true。周期词出现时填充 recurrence。所有输出为严格 JSON；除定义的字段外不输出其他自由文本。'''
+- recurrence：周期对象；支持自然周期与间隔：
+87→  {{"enabled": false, "type": "daily|weekly|monthly|yearly|interval", "interval": 1}}
+- action_template：到期提醒文案（create/update 可选）
+- update_fields：当 operation="update" 时的更新内容（可包含 title、action_template、recurrence、time_original、time_resolved、status）
+识别规则：当用户消息包含“提醒/通知/叫我/闹钟/别忘了”等表达，或包含相对时间与行为动词时，判定为提醒。各操作要求：
+- create：创建新的提醒，提供标题与时间（绝对或相对）；解析不明确或过去时间则 requires_confirmation=true
+- update：更新标题/文案/周期/时间/状态；内容写入 update_fields；解析不明确或过去时间则 requires_confirmation=true
+- delete：删除该提醒；无法唯一定位则 requires_confirmation=true
+- list：查看提醒列表或待触发项；根据用户意图设置 list_filter
+时间解析由模型完成并输出绝对时间到 time_resolved；所有输出为严格 JSON；除定义的字段外不输出其他自由文本。
+
+示例（严格 JSON，数组形式）：
+```
+[
+  {{"operation": "create", "title": "开会", "time_original": "明天上午9点", "time_resolved": "2025年11月26日09时00分", "requires_confirmation": false, "confirmation_prompt": "", "recurrence": {{"enabled": false}}, "action_template": "该开会了"}}
+]
+```
+
+```
+[
+  {{"operation": "update", "target": {{"by_title": "开会"}}, "update_fields": {{"time_original": "后天上午10点", "recurrence": {{"enabled": false}}}}, "requires_confirmation": false}}
+]
+```
+'''
 
 TASKPROMPT_语义理解 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生感情和亲密关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；可以发语音，发图片。
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，此时我需要你根据”上下文“等相关信息，尝试从一些资料库中查询一些必要的资料。你需要按照格式要求，输出你要针对该资料库进行查询的入参（例如关键字，条件等），如果不需要进行查询，你需要针对该资料库的查询入参应该为"空"。注意所需要进行的查询，需要跟”上下文“中的信息有关，尤其是历史对话。

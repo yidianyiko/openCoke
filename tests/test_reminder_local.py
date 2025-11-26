@@ -167,30 +167,31 @@ for rec_type, interval, desc in test_recurrences:
 print()
 
 # 测试 9: 模拟 Agent 输出
-print("【测试 9】模拟 Agent 识别提醒...")
+print("【测试 9】模拟 Agent 识别提醒（新Schema）...")
 mock_agent_output = {
     "DetectedReminders": [
         {
+            "operation": "create",
             "title": "开会",
-            "time_original": "明天下午3点",
-            "time_resolved": (datetime.now() + timedelta(days=1)).replace(hour=15, minute=0).strftime("%Y年%m月%d日%H时%M分"),
-            "time_type": "absolute",
+            "time_original": "明天上午9点",
+            "time_resolved": (datetime.now() + timedelta(days=1)).replace(hour=9, minute=0).strftime("%Y年%m月%d日%H时%M分"),
             "requires_confirmation": False,
             "recurrence": {"enabled": False},
-            "action_template": "该开会了哦"
+            "action_template": "该开会了"
         },
         {
-            "title": "吃药",
-            "time_original": "每天早上8点",
-            "time_resolved": (datetime.now() + timedelta(days=1)).replace(hour=8, minute=0).strftime("%Y年%m月%d日%H时%M分"),
-            "time_type": "absolute",
-            "requires_confirmation": False,
-            "recurrence": {
-                "enabled": True,
-                "type": "daily",
-                "interval": 1
-            },
-            "action_template": "早上好，记得吃药哦~"
+            "operation": "update",
+            "target": {"by_title": "开会"},
+            "update_fields": {"time_original": "后天上午10点"},
+            "requires_confirmation": False
+        },
+        {
+            "operation": "list",
+            "list_filter": {"by_status": "confirmed"}
+        },
+        {
+            "operation": "delete",
+            "target": {"by_title": "开会"}
         }
     ]
 }
@@ -202,26 +203,53 @@ print()
 # 解析并创建提醒
 for reminder in mock_agent_output["DetectedReminders"]:
     try:
-        timestamp = str2timestamp(reminder["time_resolved"])
-        if timestamp:
-            reminder_doc = {
-                "conversation_id": "test_conv_mock",
-                "user_id": "test_user_mock",
-                "character_id": "test_char_mock",
-                "title": reminder["title"],
-                "action_template": reminder["action_template"],
-                "next_trigger_time": timestamp,
-                "time_original": reminder["time_original"],
-                "timezone": "Asia/Shanghai",
-                "recurrence": reminder.get("recurrence", {"enabled": False}),
-                "status": "confirmed",
-                "requires_confirmation": False
-            }
-            
-            rid = dao.create_reminder(reminder_doc)
-            print(f"✅ 创建提醒: {reminder['title']} at {format_time_friendly(timestamp)}")
+        op = reminder.get("operation", "create")
+        if op == "create":
+            timestamp = str2timestamp(reminder.get("time_resolved", "")) or parse_relative_time(reminder.get("time_original", ""))
+            if timestamp:
+                reminder_doc = {
+                    "conversation_id": "test_conv_mock",
+                    "user_id": "test_user_mock",
+                    "character_id": "test_char_mock",
+                    "title": reminder["title"],
+                    "action_template": reminder.get("action_template", f"提醒：{reminder['title']}") ,
+                    "next_trigger_time": timestamp,
+                    "time_original": reminder.get("time_original", ""),
+                    "timezone": "Asia/Shanghai",
+                    "recurrence": reminder.get("recurrence", {"enabled": False}),
+                    "status": "confirmed",
+                    "requires_confirmation": False
+                }
+                rid = dao.create_reminder(reminder_doc)
+                print(f"✅ 创建提醒: {reminder['title']} at {format_time_friendly(timestamp)}")
+        elif op == "list":
+            status = reminder.get("list_filter", {}).get("by_status")
+            items = dao.find_reminders_by_user("test_user_mock", status=status)
+            print(f"✅ 列表: 共 {len(items)} 项")
+        elif op == "delete":
+            items = dao.find_reminders_by_user("test_user_mock")
+            target = reminder.get("target", {})
+            by_title = target.get("by_title")
+            for r in items:
+                if by_title and by_title in r.get("title", ""):
+                    dao.delete_reminder(r["reminder_id"])
+                    print(f"✅ 删除提醒: {r['title']}")
+        elif op == "update":
+            items = dao.find_reminders_by_user("test_user_mock")
+            target = reminder.get("target", {})
+            by_title = target.get("by_title")
+            update_fields = reminder.get("update_fields", {})
+            for r in items:
+                if by_title and by_title in r.get("title", ""):
+                    update_data = {}
+                    if update_fields.get("time_original"):
+                        ts = parse_relative_time(update_fields["time_original"]) or str2timestamp(update_fields["time_original"])
+                        if ts:
+                            update_data["next_trigger_time"] = ts
+                    dao.update_reminder(r["reminder_id"], update_data)
+                    print(f"✅ 更新提醒: {r['title']}")
     except Exception as e:
-        print(f"❌ 创建提醒失败 ({reminder['title']}): {e}")
+        print(f"❌ 处理失败: {e}")
 
 print()
 
