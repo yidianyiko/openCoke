@@ -17,6 +17,7 @@ from conf.config import CONF
 from volcenginesdkarkruntime import Ark
 
 from qiaoyun.agent.qiaoyun_query_rewrite_agent import QiaoyunQueryRewriteAgent
+from qiaoyun.agent.qiaoyun_detected_reminders_agent import DetectedRemindersAgent
 from qiaoyun.agent.qiaoyun_context_retrieve_agent import QiaoyunContextRetrieveAgent
 from qiaoyun.agent.qiaoyun_chat_response_agent import QiaoyunChatResponseAgent
 from qiaoyun.agent.qiaoyun_post_analyze_agent import QiaoyunPostAnalyzeAgent
@@ -56,7 +57,14 @@ class QiaoyunChatAgent(BaseAgent):
                 continue
             self.context["query_rewrite"] = result["resp"]
         
-        # 上下文拉取
+        # 前置提醒代理
+        c = DetectedRemindersAgent(self.context)
+        results = c.run()
+        for result in results:
+            if result["status"] != AgentStatus.FINISHED.value:
+                continue
+
+        # 上下文拉取（在提醒执行后，确保检索到最新状态）
         c = QiaoyunContextRetrieveAgent(self.context)
         results = c.run()
         for result in results:
@@ -110,9 +118,3 @@ class QiaoyunChatAgent(BaseAgent):
             if result["status"] != AgentStatus.FINISHED.value:
                 continue
             logger.info(result["resp"])
-
-
-
-        
-
-        

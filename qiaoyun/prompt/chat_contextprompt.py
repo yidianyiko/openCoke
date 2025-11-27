@@ -22,6 +22,9 @@ CONTEXTPROMPT_人物资料 = '''### {character[platforms][wechat][nickname]}的�
 CONTEXTPROMPT_用户资料 = '''### {user[platforms][wechat][nickname]}的人物资料
 {context_retrieve[user]}'''
 
+CONTEXTPROMPT_待办提醒 = '''### {user[platforms][wechat][nickname]}的待办提醒
+{context_retrieve[confirmed_reminders]}'''
+
 CONTEXTPROMPT_人物知识和技能 = '''### {character[platforms][wechat][nickname]}的人物知识和技能
 {context_retrieve[character_knowledge]}'''
 
@@ -87,4 +90,3 @@ CONTEXTPROMPT_最新聊天消息_双方 = '''### {user[platforms][wechat][nickna
 
 CONTEXTPROMPT_规划行动 = '''### {character[platforms][wechat][nickname]}的规划行动
 {conversation[conversation_info][future][action]}'''
-

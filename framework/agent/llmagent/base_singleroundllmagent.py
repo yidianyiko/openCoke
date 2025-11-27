@@ -134,7 +134,7 @@ class BaseSingleRoundLLMAgent(BaseAgent):
             {"role": "system", "content": self.context["systemp"]},
             {"role": "user", "content": self.context["userp"]}
         ]
-        logger.info(self.context["userp"])
+        # logger.info(self.context["userp"])
         
         # Prepare function call configuration if output_schema is provided
         functions = None

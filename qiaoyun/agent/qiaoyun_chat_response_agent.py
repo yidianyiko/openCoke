@@ -50,6 +50,8 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
     "\n" + \
     CONTEXTPROMPT_用户资料 + "\n" + \
     "\n" + \
+    CONTEXTPROMPT_待办提醒 + "\n" + \
+    "\n" + \
     CONTEXTPROMPT_人物知识和技能 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_人物状态 + "\n" + \
@@ -139,54 +141,7 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                     },
                 }
             },
-            "DetectedReminders": {
-                "type": "array",
-                "description": "从用户消息中识别到的提醒任务列表，如果没有识别到则为空数组",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "operation": {
-                            "type": "string",
-                            "enum": ["create", "update", "delete", "list"],
-                            "description": "提醒操作类型"
-                        },
-                        "target": {
-                            "type": "object",
-                            "description": "用于定位既有提醒的目标（update/delete）",
-                            "properties": {
-                                "reminder_id": {"type": "string"},
-                                "by_title": {"type": "string"},
-                                "by_time_hint": {"type": "string"}
-                            }
-                        },
-                        "title": {"type": "string"},
-                        "time_original": {"type": "string"},
-                        "time_resolved": {"type": "string"},
-                        "requires_confirmation": {"type": "boolean"},
-                        "confirmation_prompt": {"type": "string"},
-                        "recurrence": {
-                            "type": "object",
-                            "properties": {
-                                "enabled": {"type": "boolean"},
-                                "type": {"type": "string", "enum": ["daily", "weekly", "monthly", "yearly", "interval"]},
-                                "interval": {"type": "number"}
-                            }
-                        },
-                        "action_template": {"type": "string"},
-                        "update_fields": {
-                            "type": "object",
-                            "description": "当operation为update时的更新内容",
-                            "additionalProperties": True
-                        },
-                        "list_filter": {
-                            "type": "object",
-                            "description": "当operation为list时的过滤条件",
-                            "additionalProperties": True
-                        }
-                    },
-                    "required": ["operation"]
-                }
-            },
+            
         },
         "required": [
             "InnerMonologue",
@@ -194,7 +149,7 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
             "ChatCatelogue",
             "RelationChange",
             "FutureResponse",
-            "DetectedReminders"
+            
         ]
     }
 
@@ -224,9 +179,25 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
             self.context["relation"]["relationship"]["trustness"] = 100
         if self.context["relation"]["relationship"]["trustness"] < 0:
             self.context["relation"]["relationship"]["trustness"] = 0
-
-        # 处理提醒任务
-        self._handle_reminders()
+            
+        # 禁用提醒处理，改为消费前置代理输出
+        # 消费前置提醒代理的输出，附加用户文案与确认提示
+        try:
+            rem_ctx = self.context.get("reminders", {})
+            ui_msgs = rem_ctx.get("ui_messages", []) or []
+            needs_conf = rem_ctx.get("needs_confirmation", []) or []
+            append_text = ""
+            for m in ui_msgs:
+                append_text += "\n\n" + str(m)
+            if needs_conf:
+                append_text += "\n\n" + "\n".join(needs_conf)
+            if append_text and self.resp.get("MultiModalResponses"):
+                for response in reversed(self.resp["MultiModalResponses"]):
+                    if response.get("type") == "text":
+                        response["content"] += append_text
+                        break
+        except Exception:
+            logger.warning("append reminders ui_messages failed")
 
         # Future Response
         if "proactive_times" not in self.context["conversation"]["conversation_info"]["future"]:
@@ -251,236 +222,7 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
                 self.context["conversation"]["conversation_info"]["future"]["action"] = None
     
     def _handle_reminders(self):
-        import uuid
-        
-        reminders = self.resp.get("DetectedReminders", [])
-        if not reminders:
-            return
-        
-        reminder_dao = ReminderDAO()
-        conversation_id = str(self.context["conversation"]["_id"])
-        user_id = str(self.context["user"]["_id"])
-        character_id = str(self.context["character"]["_id"])
-        
-        confirmed_reminders = []
-        needs_confirmation = []
-        
-        for reminder in reminders:
-            try:
-                op = reminder.get("operation", "create")
-                if op == "create":
-                    timestamp = self._parse_reminder_time(reminder)
-                    if reminder.get("requires_confirmation") or timestamp is None or is_time_in_past(timestamp):
-                        needs_confirmation.append(reminder)
-                        continue
-                    rec = reminder.get("recurrence", {"enabled": False})
-                    rec = self._normalize_recurrence(rec)
-                    reminder_doc = {
-                        "conversation_id": conversation_id,
-                        "user_id": user_id,
-                        "character_id": character_id,
-                        "reminder_id": str(uuid.uuid4()),
-                        "title": reminder.get("title", "提醒"),
-                        "action_template": reminder.get("action_template", f"提醒：{reminder.get('title')}") ,
-                        "next_trigger_time": timestamp,
-                        "time_original": reminder.get("time_original", ""),
-                        "timezone": "Asia/Shanghai",
-                        "recurrence": rec,
-                        "status": "confirmed",
-                        "requires_confirmation": False
-                    }
-                    rid = reminder_dao.create_reminder(reminder_doc)
-                    confirmed_reminders.append(reminder)
-                    if rid:
-                        logger.info("创建提醒成功:" + str(reminder.get("title")) + " id=" + str(rid) + " at " + str(timestamp))
-                    else:
-                        logger.warning("创建提醒失败:" + str(reminder.get("title")) + " at " + str(timestamp))
-                elif op == "delete":
-                    target = reminder.get("target", {})
-                    target_id = target.get("reminder_id")
-                    matched = None
-                    if target_id:
-                        matched = reminder_dao.get_reminder_by_id(target_id)
-                    if matched is None:
-                        candidates = reminder_dao.find_reminders_by_user(user_id)
-                        by_title = target.get("by_title")
-                        by_time_hint = target.get("by_time_hint")
-                        by_status = target.get("by_status") or "confirmed"
-                        filtered = []
-                        by_title_lower = str(by_title).lower() if by_title else None
-                        for c in candidates:
-                            if by_status and c.get("status") != by_status:
-                                continue
-                            ok = True
-                            if by_title_lower is not None:
-                                t = str(c.get("title", ""))
-                                if by_title_lower not in t.lower():
-                                    ok = False
-                            if ok and by_time_hint:
-                                hint_ts = str2timestamp(by_time_hint) or parse_relative_time(by_time_hint)
-                                if hint_ts:
-                                    if abs(int(c.get("next_trigger_time", 0)) - int(hint_ts)) > 1800:
-                                        ok = False
-                            if ok:
-                                filtered.append(c)
-                        if len(filtered) == 1:
-                            matched = filtered[0]
-                        elif len(filtered) > 1:
-                            needs_confirmation.append({
-                                "confirmation_prompt": reminder.get("confirmation_prompt") or "有多个匹配的提醒，请指明更具体的标题或时间。",
-                                "title": reminder.get("title", ""),
-                                "time_original": reminder.get("time_original", "")
-                            })
-                            matched = None
-                        else:
-                            matched = None
-                    if matched is None:
-                        needs_confirmation.append({
-                            "confirmation_prompt": reminder.get("confirmation_prompt") or "要删除哪个提醒？请补充标题或时间。",
-                            "title": reminder.get("title", ""),
-                            "time_original": reminder.get("time_original", "")
-                        })
-                        continue
-                    ok = reminder_dao.delete_reminder(matched["reminder_id"])
-                    confirmed_reminders.append(reminder)
-                    if ok:
-                        logger.info("删除提醒成功:" + str(matched.get("title", "")))
-                        msg = "已删除提醒：" + str(matched.get("title", ""))
-                    else:
-                        logger.warning("删除提醒失败或不存在:" + str(matched.get("title", "")))
-                        msg = "未找到或删除失败：" + str(matched.get("title", ""))
-                    if self.resp.get("MultiModalResponses"):
-                        for response in reversed(self.resp["MultiModalResponses"]):
-                            if response.get("type") == "text":
-                                response["content"] += "\n\n" + msg
-                                break
-                elif op == "update":
-                    target = reminder.get("target", {})
-                    target_id = target.get("reminder_id")
-                    matched = None
-                    if target_id:
-                        matched = reminder_dao.get_reminder_by_id(target_id)
-                    if matched is None:
-                        candidates = reminder_dao.find_reminders_by_user(user_id)
-                        by_title = target.get("by_title")
-                        by_time_hint = target.get("by_time_hint")
-                        by_status = target.get("by_status") or "confirmed"
-                        filtered = []
-                        by_title_lower = str(by_title).lower() if by_title else None
-                        for c in candidates:
-                            if by_status and c.get("status") != by_status:
-                                continue
-                            ok = True
-                            if by_title_lower is not None:
-                                t = str(c.get("title", ""))
-                                if by_title_lower not in t.lower():
-                                    ok = False
-                            if ok and by_time_hint:
-                                hint_ts = str2timestamp(by_time_hint) or parse_relative_time(by_time_hint)
-                                if hint_ts:
-                                    if abs(int(c.get("next_trigger_time", 0)) - int(hint_ts)) > 1800:
-                                        ok = False
-                            if ok:
-                                filtered.append(c)
-                        if len(filtered) == 1:
-                            matched = filtered[0]
-                        elif len(filtered) > 1:
-                            needs_confirmation.append({
-                                "confirmation_prompt": reminder.get("confirmation_prompt") or "有多个匹配的提醒，请指明更具体的标题或时间。",
-                                "title": reminder.get("title", ""),
-                                "time_original": reminder.get("time_original", "")
-                            })
-                            matched = None
-                        else:
-                            matched = None
-                    update_fields = reminder.get("update_fields", {})
-                    update_data = {}
-                    # 支持标题/文案/周期/状态
-                    if "title" in update_fields:
-                        update_data["title"] = update_fields.get("title")
-                    if "action_template" in update_fields:
-                        update_data["action_template"] = update_fields.get("action_template")
-                    if "recurrence" in update_fields:
-                        update_data["recurrence"] = self._normalize_recurrence(update_fields.get("recurrence", {}))
-                    if "status" in update_fields:
-                        update_data["status"] = update_fields.get("status")
-                    # 时间更新
-                    ts_candidate = None
-                    if update_fields.get("time_resolved"):
-                        ts_candidate = str2timestamp(update_fields.get("time_resolved"))
-                    if ts_candidate is None and update_fields.get("time_original"):
-                        ts_candidate = parse_relative_time(update_fields.get("time_original")) or str2timestamp(update_fields.get("time_original"))
-                    if ts_candidate is not None:
-                        if is_time_in_past(ts_candidate):
-                                needs_confirmation.append({
-                                    "confirmation_prompt": reminder.get("confirmation_prompt") or "新的时间已过期，请确认是否更新。",
-                                    "title": matched.get("title", ""),
-                                    "time_original": update_fields.get("time_original", "")
-                                })
-                                continue
-                        update_data["next_trigger_time"] = ts_candidate
-                    if not update_data:
-                        needs_confirmation.append({
-                            "confirmation_prompt": reminder.get("confirmation_prompt") or "请说明要更新哪些内容（标题/文案/周期/时间/状态）。",
-                            "title": matched.get("title", ""),
-                            "time_original": reminder.get("time_original", "")
-                        })
-                        continue
-                    ok = reminder_dao.update_reminder(matched["reminder_id"], update_data)
-                    if ok:
-                        logger.info("更新提醒成功:" + str(matched.get("title", "")))
-                    else:
-                        logger.warning("更新提醒失败或不存在:" + str(matched.get("title", "")))
-                    confirmed_reminders.append(reminder)
-                    msg = "已更新提醒：" + str(matched.get("title", ""))
-                    if self.resp.get("MultiModalResponses"):
-                        for response in reversed(self.resp["MultiModalResponses"]):
-                            if response.get("type") == "text":
-                                response["content"] += "\n\n" + msg
-                                break
-                elif op == "list":
-                    list_filter = reminder.get("list_filter", {})
-                    status = list_filter.get("by_status")
-                    items = reminder_dao.find_reminders_by_user(user_id, status=status)
-                    by_title = list_filter.get("by_title")
-                    if by_title:
-                        by_title_lower = str(by_title).lower()
-                        items = [c for c in items if by_title_lower in str(c.get("title", "")).lower()]
-                    logger.info("提醒列表查询: count=" + str(len(items)) + 
-                                " status=" + str(status or "all") + 
-                                (" title_like=" + by_title if by_title else ""))
-                    msg_lines = ["提醒列表："]
-                    for c in items[:50]:
-                        t = str(c.get("title", ""))
-                        st = str(c.get("status", ""))
-                        ts = int(c.get("next_trigger_time", 0))
-                        from util.time_util import format_time_friendly
-                        msg_lines.append(f"- {t} · {st} · {format_time_friendly(ts)}")
-                    msg = "\n".join(msg_lines) if len(msg_lines) > 1 else "暂无提醒"
-                    if self.resp.get("MultiModalResponses"):
-                        for response in reversed(self.resp["MultiModalResponses"]):
-                            if response.get("type") == "text":
-                                response["content"] += "\n\n" + msg
-                                break
-                
-            except Exception as e:
-                logger.error(f"处理提醒失败: {traceback.format_exc()}")
-        
-        # 追加确认问题到回复
-        if needs_confirmation:
-            confirmation_text = "\n\n"
-            for r in needs_confirmation:
-                prompt = r.get("confirmation_prompt", f"你是说{r.get('time_original')}提醒你{r.get('title')}吗？")
-                confirmation_text += prompt + "\n"
-            
-            # 追加到最后一条文本消息
-            if self.resp.get("MultiModalResponses"):
-                for response in reversed(self.resp["MultiModalResponses"]):
-                    if response.get("type") == "text":
-                        response["content"] += confirmation_text
-                        break
-        
-        reminder_dao.close()
+        return
     
     def _parse_reminder_time(self, reminder):
         """

@@ -31,7 +31,8 @@ class QiaoyunContextRetrieveAgent(BaseAgent):
             "character_private": "",
             "user": "",
             "character_knowledge": "",
-            "character_photo": ""
+            "character_photo": "",
+            "confirmed_reminders": ""
         }
 
         # 角色全局人物设定
@@ -215,78 +216,7 @@ class QiaoyunContextRetrieveAgent(BaseAgent):
             # logger.info(top_n_results)
             return_resp["user"] = top_n_results
 
-        # 角色相册
-        merged_results = {}
-        if q.get("CharacterPhotoQueryQuestion", "空") != "空":
-            emb_CharacterSettingQueryQuestion = embedding_by_aliyun(q.get("CharacterPhotoQueryQuestion", ""))
-            results = mongo.vector_search(
-                "embeddings",
-                query_embedding=emb_CharacterSettingQueryQuestion,
-                embedding_field="key_embedding",
-                metadata_filters={
-                    "type": "character_photo",
-                    "cid": str(self.context["character"]["_id"]),
-                },
-                top_k=8,
-            )
-            merged_results = self.merge_results_embedding(merged_results, results, 0.3, 1, 0.7)
-
-            results = mongo.vector_search(
-                "embeddings",
-                query_embedding=emb_CharacterSettingQueryQuestion,
-                embedding_field="value_embedding",
-                metadata_filters={
-                    "type": "character_photo",
-                    "cid": str(self.context["character"]["_id"]),
-                },
-                top_k=8,
-            )
-            merged_results = self.merge_results_embedding(merged_results, results, 0.3, 1, 0.3)
-
-            results = []
-            for keyword in str(q.get("CharacterPhotoQueryKeywords", "")).split(","):
-                keyword_results = mongo.find_many("embeddings", query={
-                    "key": {"$in": [keyword]},
-                    "metadata": {
-                        "type": "character_photo",
-                        "cid": str(self.context["character"]["_id"]),
-                    },
-                },
-                limit=8)
-                results = results + keyword_results
-            merged_results = self.merge_results_text(merged_results, results, 1)
-
-            results = []
-            for keyword in str(q.get("CharacterPhotoQueryKeywords", "")).split(","):
-                keyword_results = mongo.find_many("embeddings", query={
-                    "value": {"$in": [keyword]},
-                    "metadata": {
-                        "type": "character_photo",
-                        "cid": str(self.context["character"]["_id"]),
-                    }
-                },
-                limit=8)
-                results = results + keyword_results
-            merged_results = self.merge_results_text(merged_results, results, 1)
-            
-            # 进行频度惩罚
-            filtered_merged_results = {}
-            for key in merged_results:
-                logger.info("merged_result")
-                logger.info(merged_results[key])
-                already = False
-                for already_photo_id in self.context["conversation"]["conversation_info"]["photo_history"]:
-                    if str(key) == already_photo_id:
-                        already = True
-                if already == False:
-                    filtered_merged_results[str(key)] = merged_results[key]
-
-            top_n_results = self.top_n(filtered_merged_results, 6, photo_prefix=True)
-
-            # top_n_results = self.top_n(merged_results, 6, photo_prefix=True)
-            # logger.info(top_n_results)           
-
-            return_resp["character_photo"] = top_n_results
+        
         
         # 角色知识
         merged_results = {}
@@ -345,6 +275,29 @@ class QiaoyunContextRetrieveAgent(BaseAgent):
             top_n_results = self.top_n(merged_results, 6)     
 
             return_resp["character_knowledge"] = top_n_results
+
+        # 用户待办提醒
+        try:
+            from dao.reminder_dao import ReminderDAO
+            from util.time_util import format_time_friendly
+            reminder_dao = ReminderDAO()
+            items = reminder_dao.find_reminders_by_user(str(self.context["user"]["_id"]), status="confirmed")
+            lines = []
+            for c in items[:50]:
+                t = str(c.get("title", ""))
+                st = str(c.get("status", ""))
+                ts = int(c.get("next_trigger_time", 0) or 0)
+                time_str = format_time_friendly(ts) if ts > 0 else ""
+                line = t
+                if st:
+                    line = line + " · " + st
+                if time_str:
+                    line = line + " · " + time_str
+                lines.append(line)
+            return_resp["confirmed_reminders"] = "\n".join(lines)
+            reminder_dao.close()
+        except Exception:
+            pass
 
         yield return_resp
 
