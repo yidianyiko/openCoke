@@ -102,7 +102,7 @@ class QiaoyunFutureChatResponseAgent(DouBaoLLMAgent):
                         },
                         "emotion": {
                             "type": "string",
-                            "enum": ["无", "高兴","悲伤","愤怒","害怕","惊讶","厌恶","魅惑"],
+                            "enum": ["无", "高兴","悲伤","愤怒","害怕","惊讶","厌恶"],
                             "description": "仅对语音消息有效，表示语音的感情色彩"
                         },
                     },
