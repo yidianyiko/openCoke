@@ -48,7 +48,6 @@ class DetectedRemindersAgent(BaseAgent):
             lowered = last_msg.lower()
             delete_hit = self._has_any(last_msg, ["取消", "删除", "不提醒", "忽略"]) or self._has_any(lowered, ["cancel"]) 
             logger.info(f"[DetectedRemindersAgent] delete_hit={delete_hit}")
-            create_hit = self._has_any(last_msg, ["设置", "提醒我", "闹钟", "别忘了"]) or self._has_any(lowered, ["remind me"]) 
             update_hit = self._has_any(last_msg, ["修改", "变更", "调整", "改到", "改成"]) or self._has_any(lowered, ["update"]) 
             list_hit = self._has_any(last_msg, ["查看提醒", "列出提醒", "有哪些提醒", "看看提醒"]) or self._has_any(lowered, ["list reminders"]) 
 
@@ -62,7 +61,7 @@ class DetectedRemindersAgent(BaseAgent):
                 else:
                     detected_obj["requires_confirmation"] = True
                     detected_obj["confirmation_prompt"] = "要删除哪个提醒？请补充标题中的关键字。"
-                self.context["reminders"]["detected"].append(detected_obj)
+                pass
 
                 if title:
                     # 解析唯一目标
@@ -96,41 +95,7 @@ class DetectedRemindersAgent(BaseAgent):
                     logger.info("[DetectedRemindersAgent] 未识别到标题，需要确认")
                     self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？请补充标题中的关键字。")
 
-            if create_hit:
-                ts, time_original, rec = self._parse_time_and_recurrence(last_msg)
-                title = self._guess_title_from_message(last_msg, reminder_dao, user_id)
-                title = title or self._guess_title_from_patterns(last_msg) or "提醒"
-                if ts is None or is_time_in_past(ts):
-                    self.context["reminders"]["detected"].append({
-                        "operation": "create",
-                        "title": title,
-                        "time_original": time_original or last_msg,
-                        "requires_confirmation": True,
-                        "confirmation_prompt": "时间不明确或已过期，是否继续创建？",
-                        "recurrence": rec or {"enabled": False}
-                    })
-                else:
-                    rid = reminder_dao.create_reminder({
-                        "conversation_id": conversation_id,
-                        "user_id": user_id,
-                        "character_id": character_id,
-                        "title": title,
-                        "action_template": f"提醒：{title}",
-                        "next_trigger_time": ts,
-                        "time_original": time_original or last_msg,
-                        "timezone": "Asia/Shanghai",
-                        "recurrence": rec or {"enabled": False},
-                        "status": "confirmed",
-                        "requires_confirmation": False
-                    })
-                    self.context["reminders"]["executed"].append({
-                        "operation": "create",
-                        "target": {"by_title": title},
-                        "resolved_target": {"reminder_id": rid, "title": title},
-                        "ok": True,
-                        "effect": "created"
-                    })
-                    self.context["reminders"]["ui_messages"].append("已创建提醒：" + title + " · " + format_time_friendly(ts))
+            
 
             if update_hit:
                 target_title = self._guess_title_from_message(last_msg, reminder_dao, user_id) or self._guess_title_from_patterns(last_msg)
@@ -177,13 +142,11 @@ class DetectedRemindersAgent(BaseAgent):
                 msg3 = "\n".join(lines) if len(lines) > 1 else "暂无提醒"
                 self.context["reminders"]["ui_messages"].append(msg3)
 
-            # 规则未命中时，走 LLM 检测兜底
-            if (not delete_hit) and (not create_hit) and (not update_hit) and (not list_hit):
-                llm_results = self._llm_detect()
-                if isinstance(llm_results, list) and llm_results:
-                    # 将 LLM 识别出的对象交由后续聊天代理的 _handle_reminders 统一处理
-                    self.context["reminders"]["detected"].extend(llm_results)
-                    self._handle_reminders()
+            # 始终运行 LLM 检测并统一处理
+            llm_results = self._llm_detect()
+            if isinstance(llm_results, list) and llm_results:
+                self.context["reminders"]["detected"].extend(llm_results)
+            self._handle_reminders()
 
             reminder_dao.close()
             yield {"ok": True}
