@@ -89,7 +89,7 @@ class DetectedRemindersAgent(BaseAgent):
                         self.context["reminders"]["needs_confirmation"].append("有多个匹配的提醒，请指明更具体的标题或时间。")
                     else:
                         logger.info("[DetectedRemindersAgent] 未匹配到任何提醒，需要确认")
-                        self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？请补充标题中的关键字。")
+                        self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？未匹配到任何提醒，请补充标题中的关键字。")
                 else:
                     # 没有标题，直接进入确认
                     logger.info("[DetectedRemindersAgent] 未识别到标题，需要确认")
