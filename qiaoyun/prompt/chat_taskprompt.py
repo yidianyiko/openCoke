@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-TASKPROMPT_小说书写任务 = '''现在你是一个小说书写专家，并且将遵循用户的指令。
-请将结果输出为有效的JSON，严格遵守定义的架构。
-不要添加任何其他东西，不要添加引号，仅返回纯JSON。'''
+TASKPROMPT_小说书写任务 = ''''''
 
-TASKPROMPT_小说书写任务_nojson = '''现在你是一个小说书写专家，并且将遵循用户的指令。'''
+TASKPROMPT_小说书写任务_nojson = ''''''
 
 TASKPROMPT_微信对话 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；不
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，我需要你根据"上下文"等信息推理出以下小说内容。'''

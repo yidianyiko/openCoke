@@ -142,11 +142,14 @@ class DetectedRemindersAgent(BaseAgent):
                 msg3 = "\n".join(lines) if len(lines) > 1 else "暂无提醒"
                 self.context["reminders"]["ui_messages"].append(msg3)
 
-            # 始终运行 LLM 检测并统一处理
-            llm_results = self._llm_detect()
-            if isinstance(llm_results, list) and llm_results:
-                self.context["reminders"]["detected"].extend(llm_results)
-            self._handle_reminders()
+            # 检查是否有规则执行成功（删除/更新/列表），如果有则跳过 LLM 检测
+            rule_executed = bool(self.context["reminders"]["executed"]) or bool(self.context["reminders"]["ui_messages"])
+            if not rule_executed:
+                # 仅在没有规则执行成功时运行 LLM 检测
+                llm_results = self._llm_detect()
+                if isinstance(llm_results, list) and llm_results:
+                    self.context["reminders"]["detected"].extend(llm_results)
+                self._handle_reminders()
 
             reminder_dao.close()
             yield {"ok": True}
