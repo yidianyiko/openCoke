@@ -216,8 +216,6 @@ def handle_proactive_message():
                     # 开始主动消息
                     # 随机选择一个话题
                     random_topics = [
-                        "挑一条今天的新闻聊聊",
-                        "聊一聊自己擅长的话题",
                         "聊一聊之前谈论过的话题"
                     ]
                     random_topic = random.sample(random_topics, 1)[0]
