@@ -257,13 +257,25 @@ def handle_pending_future_message():
         conversation = conversations[0]
         logger.info("try sending proactive message:" + str(conversation["conversation_info"]["future"]))
 
+        # 检查 talkers 列表是否有足够的元素
+        if len(conversation.get("talkers", [])) < 2:
+            logger.warning(f"conversation talkers 不足2个，跳过: {conversation.get('_id')}")
+            return
+
         users = user_dao.find_users({
             "platforms.wechat.id": conversation["talkers"][0]["id"]
         }, 1)
+        if not users:
+            logger.warning(f"未找到用户: {conversation['talkers'][0]['id']}")
+            return
         user = users[0]
+        
         characters = user_dao.find_users({
             "platforms.wechat.id": conversation["talkers"][1]["id"]
         }, 1)
+        if not characters:
+            logger.warning(f"未找到角色: {conversation['talkers'][1]['id']}")
+            return
         character = characters[0]
 
         conversation_id = str(conversation["_id"])
@@ -434,13 +446,21 @@ def handle_pending_future_message():
 
     except Exception as e:
         logger.error(traceback.format_exc())
-
-    conversation_dao.update_conversation_info(
-        conversation_id,
-        conversation["conversation_info"]
-    )
-
-    lock_manager.release_lock("conversation", conversation_id)
+    finally:
+        # 只有在 conversation_id 和 conversation 已定义时才执行清理
+        if 'conversation_id' in dir() and conversation_id and 'conversation' in dir() and conversation:
+            try:
+                conversation_dao.update_conversation_info(
+                    conversation_id,
+                    conversation["conversation_info"]
+                )
+            except Exception as e:
+                logger.error(f"更新会话信息失败: {e}")
+            
+            try:
+                lock_manager.release_lock("conversation", conversation_id)
+            except Exception as e:
+                logger.error(f"释放锁失败: {e}")
     
 if __name__ == "__main__":
     now = int(time.time())
