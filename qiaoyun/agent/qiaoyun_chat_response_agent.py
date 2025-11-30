@@ -199,11 +199,7 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
         except Exception:
             logger.warning("append reminders ui_messages failed")
 
-        # Future Response
-        if "proactive_times" not in self.context["conversation"]["conversation_info"]["future"]:
-            self.context["conversation"]["conversation_info"]["future"]["proactive_times"] = 0
-        future_proactive_times = self.context["conversation"]["conversation_info"]["future"]["proactive_times"]
-
+        # Future Response - 每次都落盘，不再随机
         future_resp = self.resp.get("FutureResponse", {"FutureResponseTime": "", "FutureResponseAction": "无"})
         if isinstance(future_resp, str):
             try:
@@ -212,14 +208,12 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
             except Exception:
                 future_resp = {"FutureResponseTime": "", "FutureResponseAction": "无"}
         if future_resp.get("FutureResponseAction", "无") != "无":
-            if random.random() < (0.25 ** (future_proactive_times + 1) + 0.05):
-                self.context["conversation"]["conversation_info"]["future"]["timestamp"] = str2timestamp(future_resp.get("FutureResponseTime", ""))
-                self.context["conversation"]["conversation_info"]["future"]["action"] = future_resp.get("FutureResponseAction", "无")
-                # self.context["conversation"]["conversation_info"]["proactive_times"] = self.context["conversation"]["conversation_info"]["proactive_times"] + 1
-                logger.info("Book a new future action:" + str(self.context["conversation"]["conversation_info"]["future"]))
-            else:
-                self.context["conversation"]["conversation_info"]["future"]["timestamp"] = None
-                self.context["conversation"]["conversation_info"]["future"]["action"] = None
+            self.context["conversation"]["conversation_info"]["future"]["timestamp"] = str2timestamp(future_resp.get("FutureResponseTime", ""))
+            self.context["conversation"]["conversation_info"]["future"]["action"] = future_resp.get("FutureResponseAction", "无")
+            logger.info("Book a new future action:" + str(self.context["conversation"]["conversation_info"]["future"]))
+        else:
+            self.context["conversation"]["conversation_info"]["future"]["timestamp"] = None
+            self.context["conversation"]["conversation_info"]["future"]["action"] = None
     
     def _handle_reminders(self):
         return
