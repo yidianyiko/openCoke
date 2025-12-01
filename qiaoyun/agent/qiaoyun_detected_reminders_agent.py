@@ -214,7 +214,7 @@ class DetectedRemindersAgent(BaseAgent):
                 op = reminder.get("operation", "create")
                 if op == "create":
                     timestamp = self._parse_reminder_time(reminder)
-                    if reminder.get("requires_confirmation") or timestamp is None or is_time_in_past(timestamp):
+                    if timestamp is None or is_time_in_past(timestamp):
                         needs_confirmation.append(reminder.get("confirmation_prompt") or "时间不明确或已过期，是否继续创建？")
                         continue
                     rec = reminder.get("recurrence", {"enabled": False})
