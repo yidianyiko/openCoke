@@ -535,52 +535,61 @@ def handle_pending_reminders():
                     expect_output_timestamp=expect_output_timestamp
                 )
                 
-                if outputmessage:
-                    logger.info(f"提醒已发送: {reminder['title']}")
-                    
-                    # 更新会话历史
-                    conversation["conversation_info"]["chat_history"].append(outputmessage)
-                    if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
-                        conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
-                    
-                    conversation_dao.update_conversation_info(
-                        conversation_id,
-                        conversation["conversation_info"]
+                if not outputmessage:
+                    # 发送失败，标记为完成避免循环触发
+                    logger.warning(f"提醒发送失败，标记为完成: {reminder['title']}")
+                    reminder_dao.complete_reminder(reminder["reminder_id"])
+                    continue
+                
+                logger.info(f"提醒已发送: {reminder['title']}")
+                
+                # 更新会话历史
+                conversation["conversation_info"]["chat_history"].append(outputmessage)
+                if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                    conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                
+                conversation_dao.update_conversation_info(
+                    conversation_id,
+                    conversation["conversation_info"]
+                )
+                
+                # 标记为已触发
+                reminder_dao.mark_as_triggered(reminder["reminder_id"])
+                
+                # 处理周期提醒
+                recurrence = reminder.get("recurrence", {})
+                if recurrence.get("enabled"):
+                    next_time = calculate_next_recurrence(
+                        reminder["next_trigger_time"],
+                        recurrence.get("type", "daily"),
+                        recurrence.get("interval", 1)
                     )
                     
-                    # 标记为已触发
-                    reminder_dao.mark_as_triggered(reminder["reminder_id"])
-                    
-                    # 处理周期提醒
-                    recurrence = reminder.get("recurrence", {})
-                    if recurrence.get("enabled"):
-                        next_time = calculate_next_recurrence(
-                            reminder["next_trigger_time"],
-                            recurrence.get("type", "daily"),
-                            recurrence.get("interval", 1)
-                        )
+                    if next_time:
+                        # 检查是否超过结束时间或次数限制
+                        end_time = recurrence.get("end_time")
+                        max_count = recurrence.get("max_count")
+                        triggered_count = reminder.get("triggered_count", 0) + 1
                         
-                        if next_time:
-                            # 检查是否超过结束时间或次数限制
-                            end_time = recurrence.get("end_time")
-                            max_count = recurrence.get("max_count")
-                            triggered_count = reminder.get("triggered_count", 0) + 1
-                            
-                            should_continue = True
-                            if end_time and next_time > end_time:
-                                should_continue = False
-                            if max_count and triggered_count >= max_count:
-                                should_continue = False
-                            
-                            if should_continue:
-                                reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
-                                logger.info(f"周期提醒已续订: {reminder['title']} -> {next_time}")
-                            else:
-                                reminder_dao.complete_reminder(reminder["reminder_id"])
-                                logger.info(f"周期提醒已完成: {reminder['title']}")
+                        should_continue = True
+                        if end_time and next_time > end_time:
+                            should_continue = False
+                        if max_count and triggered_count >= max_count:
+                            should_continue = False
+                        
+                        if should_continue:
+                            reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
+                            logger.info(f"周期提醒已续订: {reminder['title']} -> {next_time}")
+                        else:
+                            reminder_dao.complete_reminder(reminder["reminder_id"])
+                            logger.info(f"周期提醒已完成: {reminder['title']}")
                     else:
-                        # 非周期提醒，标记为完成
+                        # 防护：无法计算下次时间时，标记为完成，避免循环触发
                         reminder_dao.complete_reminder(reminder["reminder_id"])
+                        logger.warning(f"周期提醒无法计算下次时间，已标记完成: {reminder['title']} (type={recurrence.get('type')})")
+                else:
+                    # 非周期提醒，标记为完成
+                    reminder_dao.complete_reminder(reminder["reminder_id"])
                 
             except Exception as e:
                 logger.error(f"处理提醒失败: {traceback.format_exc()}")

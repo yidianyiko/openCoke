@@ -131,6 +131,8 @@ def calculate_next_recurrence(current_time, recurrence_type, interval=1):
         next_dt = current_dt + timedelta(days=30 * interval)
     elif recurrence_type == "yearly":
         next_dt = current_dt + timedelta(days=365 * interval)
+    elif recurrence_type == "hourly":
+        next_dt = current_dt + timedelta(hours=interval)
     elif recurrence_type == "interval":
         next_dt = current_dt + timedelta(minutes=interval)
     else:
