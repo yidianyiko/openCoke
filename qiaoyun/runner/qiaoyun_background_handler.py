@@ -228,7 +228,7 @@ def handle_proactive_message():
         logger.error(traceback.format_exc())
 
 def handle_pending_future_message():
-    # user_whitelist = "不辣的皮皮"
+    # user_whitelist = YDYK"
     results = None
     lock = None
     try:
@@ -297,7 +297,7 @@ def handle_pending_future_message():
         if context["relation"]["relationship"]["dislike"] >= 100:
             # outputmessage = send_message_via_context(
             #     context,
-            #     message="[系统消息]已拉黑，如需恢复请联系作者LeanInWind",
+            #     message="[系统消息]已拉黑，如需恢复请联系作者YDYK",
             #     message_type="text",
             #     expect_output_timestamp = int(time.time())
             # )

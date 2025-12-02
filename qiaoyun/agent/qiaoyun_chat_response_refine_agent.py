@@ -48,8 +48,6 @@ class QiaoyunChatResponseRefineAgent(DouBaoLLMAgent):
     "\n" + \
     CONTEXTPROMPT_人物知识和技能 + "\n" + \
     "\n" + \
-    CONTEXTPROMPT_人物手机相册 + "\n" + \
-    "\n" + \
     CONTEXTPROMPT_人物状态 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_当前目标 + "\n" + \

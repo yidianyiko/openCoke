@@ -110,7 +110,7 @@ async def main_handler():
         if context["relation"]["relationship"]["dislike"] >= 100:
             outputmessage = send_message_via_context(
                 context,
-                message="[系统消息]已拉黑，如需恢复请联系作者LeanInWind",
+                message="[系统消息]已拉黑，如需恢复请联系作者YDYK",
                 message_type="text",
                 expect_output_timestamp = int(time.time())
             )

@@ -80,7 +80,7 @@ def split_string(text, chunk_size=420):
 
     # resp_json = Ecloud_API.sendVoice(data={
     #     "wId": CONF["ecloud"]["wId"][target_user_alias],
-    #     "wcId": "LeanInWind",
+    #     "wcId": "YDYK",
     #     "content": url,
     #     "length": voice_length
     # })

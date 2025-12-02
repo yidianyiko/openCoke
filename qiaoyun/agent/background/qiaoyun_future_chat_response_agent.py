@@ -52,8 +52,6 @@ class QiaoyunFutureChatResponseAgent(DouBaoLLMAgent):
     "\n" + \
     CONTEXTPROMPT_人物知识和技能 + "\n" + \
     "\n" + \
-    CONTEXTPROMPT_人物手机相册 + "\n" + \
-    "\n" + \
     CONTEXTPROMPT_人物状态 + "\n" + \
     "\n" + \
     CONTEXTPROMPT_当前目标 + "\n" + \
@@ -81,10 +79,6 @@ class QiaoyunFutureChatResponseAgent(DouBaoLLMAgent):
                 "type": "string",
                 "description": "角色的回复，像发微信一样，一句话分成多条发送。"
             },
-            # "RefinedChatResponse": {
-            #     "type": "string",
-            #     "description": "重新审视之后的改良回复。你可以在句子之间使用<换行>来表示分段，用来表示多段消息。"
-            # },
             "MultiModalResponses": {
                 "type": "array",
                 "description": "角色的回复，可能包含多种类型。",

@@ -473,7 +473,7 @@ if __name__ == "__main__":
             "$ne": None,      # 值不等于null
             "$exists": True   # 字段必须存在
         },
-        "talkers.nickname": "不辣的皮皮"
+        "talkers.nickname": "YDYK"
     })
 
     for conversation in conversations:
