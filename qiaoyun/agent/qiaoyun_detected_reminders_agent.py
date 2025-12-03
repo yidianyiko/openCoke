@@ -82,18 +82,17 @@ class DetectedRemindersAgent(BaseAgent):
                             "ok": ok,
                             "effect": "deleted" if ok else "not_found_or_failed"
                         })
-                        msg = ("已删除提醒：" + str(matched[0].get("title", ""))) if ok else ("未找到或删除失败：" + str(matched[0].get("title", "")))
-                        self.context["reminders"]["ui_messages"].append(msg)
+
                     elif len(matched) > 1:
                         logger.info("[DetectedRemindersAgent] 多个匹配，需要确认")
-                        self.context["reminders"]["needs_confirmation"].append("有多个匹配的提醒，请指明更具体的标题或时间。")
+                        self.context["reminders"]["needs_confirmation"].append("欸欸欸。我抽风了，现在有好多类似的提醒，我不知道删除哪个了，能指明更具体的标题给我吗。")
                     else:
                         logger.info("[DetectedRemindersAgent] 未匹配到任何提醒，需要确认")
-                        self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？未匹配到任何提醒，请补充标题中的关键字。")
+                        self.context["reminders"]["needs_confirmation"].append("欸欸欸。我抽风了，现在有好多类似的提醒，我不知道删除哪个了，能补充标题中的关键字给我吗。")
                 else:
                     # 没有标题，直接进入确认
                     logger.info("[DetectedRemindersAgent] 未识别到标题，需要确认")
-                    self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？请补充标题中的关键字。")
+                    self.context["reminders"]["needs_confirmation"].append("要删除哪个提醒？能补充标标题中的关键字给我吗。")
 
             
 
@@ -106,13 +105,13 @@ class DetectedRemindersAgent(BaseAgent):
                     ts2, time_original2, rec2 = self._parse_time_and_recurrence(last_msg)
                     if ts2 is not None:
                         if is_time_in_past(ts2):
-                            self.context["reminders"]["needs_confirmation"].append("新的时间已过期，请确认是否更新。")
+                            self.context["reminders"]["needs_confirmation"].append("新的时间已过期，记得更新")
                         else:
                             update_fields["next_trigger_time"] = ts2
                     if rec2:
                         update_fields["recurrence"] = self._normalize_recurrence(rec2)
                     if not update_fields:
-                        self.context["reminders"]["needs_confirmation"].append("请说明要更新哪些内容（标题/文案/周期/时间/状态）。")
+                        self.context["reminders"]["needs_confirmation"].append("")
                     else:
                         ok2 = reminder_dao.update_reminder(matched[0]["reminder_id"], update_fields)
                         self.context["reminders"]["executed"].append({
@@ -122,14 +121,11 @@ class DetectedRemindersAgent(BaseAgent):
                             "ok": ok2,
                             "effect": "updated" if ok2 else "failed"
                         })
-                        if ok2:
-                            self.context["reminders"]["ui_messages"].append("已更新提醒：" + str(matched[0].get("title", "")))
-                        else:
-                            self.context["reminders"]["ui_messages"].append("更新失败：" + str(matched[0].get("title", "")))
+
                 elif len(matched) > 1:
-                    self.context["reminders"]["needs_confirmation"].append("有多个匹配的提醒，请指明更具体的标题或时间。")
+                    self.context["reminders"]["needs_confirmation"].append("欸欸欸。我抽风了，现在有好多类似的提醒，我不知道更新除哪个了，能指明更具体的标题给我吗。")
                 else:
-                    self.context["reminders"]["needs_confirmation"].append("要更新哪个提醒？请补充标题或时间。")
+                    self.context["reminders"]["needs_confirmation"].append("欸欸欸。我抽风了，现在有好多类似的提醒，我不知道更新哪个了，能指明更具体的标题给我吗。")
 
             if list_hit:
                 items = reminder_dao.find_reminders_by_user(user_id)
@@ -139,8 +135,6 @@ class DetectedRemindersAgent(BaseAgent):
                     st = str(c.get("status", ""))
                     ts3 = int(c.get("next_trigger_time", 0))
                     lines.append("- " + t + " · " + st + " · " + format_time_friendly(ts3))
-                msg3 = "\n".join(lines) if len(lines) > 1 else "暂无提醒"
-                self.context["reminders"]["ui_messages"].append(msg3)
 
             # 检查是否有规则执行成功（删除/更新/列表），如果有则跳过 LLM 检测
             rule_executed = bool(self.context["reminders"]["executed"]) or bool(self.context["reminders"]["ui_messages"])
@@ -215,7 +209,7 @@ class DetectedRemindersAgent(BaseAgent):
                 if op == "create":
                     timestamp = self._parse_reminder_time(reminder)
                     if timestamp is None or is_time_in_past(timestamp):
-                        needs_confirmation.append(reminder.get("confirmation_prompt") or "时间不明确或已过期，是否继续创建？")
+                        needs_confirmation.append(reminder.get("confirmation_prompt") or "时间不太明确呢，能否重新发给我 创建？")
                         continue
                     rec = reminder.get("recurrence", {"enabled": False})
                     rec = self._normalize_recurrence(rec)
@@ -243,11 +237,9 @@ class DetectedRemindersAgent(BaseAgent):
                             "ok": True,
                             "effect": "created"
                         })
-                        from util.time_util import format_time_friendly
-                        self.context["reminders"]["ui_messages"].append("已创建提醒：" + reminder_doc["title"] + " · " + format_time_friendly(timestamp))
                     else:
                         logger.warning("创建提醒失败:" + str(reminder.get("title")) + " at " + str(timestamp))
-                        self.context["reminders"]["ui_messages"].append("创建提醒失败：" + str(reminder.get("title", "提醒")))
+
                 elif op == "delete":
                     target = reminder.get("target", {})
                     target_id = target.get("reminder_id")
@@ -300,7 +292,7 @@ class DetectedRemindersAgent(BaseAgent):
                     else:
                         logger.warning("删除提醒失败或不存在:" + str(matched.get("title", "")))
                         msg = "未找到或删除失败：" + str(matched.get("title", ""))
-                    self.context["reminders"]["ui_messages"].append(msg)
+
                 elif op == "update":
                     target = reminder.get("target", {})
                     target_id = target.get("reminder_id")
@@ -370,8 +362,7 @@ class DetectedRemindersAgent(BaseAgent):
                         "ok": ok,
                         "effect": "updated" if ok else "failed"
                     })
-                    msg = "已更新提醒：" + str(matched.get("title", "")) if ok else "更新失败：" + str(matched.get("title", ""))
-                    self.context["reminders"]["ui_messages"].append(msg)
+
                 elif op == "list":
                     list_filter = reminder.get("list_filter", {})
                     status = list_filter.get("by_status")
@@ -388,8 +379,7 @@ class DetectedRemindersAgent(BaseAgent):
                         ts = int(c.get("next_trigger_time", 0))
                         from util.time_util import format_time_friendly
                         msg_lines.append(f"- {t} · {st} · {format_time_friendly(ts)}")
-                    msg = "\n".join(msg_lines) if len(msg_lines) > 1 else "暂无提醒"
-                    self.context["reminders"]["ui_messages"].append(msg)
+
             except Exception as e:
                 logger.error(f"处理提醒失败: {traceback.format_exc()}")
         if needs_confirmation:
