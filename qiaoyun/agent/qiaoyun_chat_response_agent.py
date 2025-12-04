@@ -21,6 +21,7 @@ from qiaoyun.prompt.system_prompt import *
 from qiaoyun.prompt.chat_taskprompt import *
 from qiaoyun.prompt.chat_contextprompt import *
 from qiaoyun.prompt.chat_noticeprompt import *
+from qiaoyun.prompt.chat_noticeprompt import NOTICE_重复消息处理
 
 from util.time_util import str2timestamp, parse_relative_time, is_time_in_past
 from dao.reminder_dao import ReminderDAO
@@ -67,7 +68,8 @@ class QiaoyunChatResponseAgent(DouBaoLLMAgent):
     "## 注意事项" + "\n" + \
     NOTICE_常规注意事项_分段消息 + "\n" + \
     NOTICE_常规注意事项_生成优化 + "\n" + \
-    NOTICE_常规注意事项_空输入处理
+    NOTICE_常规注意事项_空输入处理 + "\n" + \
+    NOTICE_重复消息处理
 
     default_output_schema = {
         "type": "object",
