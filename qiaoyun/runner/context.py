@@ -149,8 +149,7 @@ def context_prepare(user, character, conversation):
             for i, resp in enumerate(recent_responses, 1):
                 forbidden_list += f"- 「{resp}」\n"
         
-        context["repeated_input_notice"] = f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同。请务必不要重复之前的回复！
-        你应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题。{forbidden_list}"
+        context["repeated_input_notice"] = f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同。请务必不要重复之前的回复！你应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题。{forbidden_list}"
         logger.info(f"[重复消息检测] 生成的提示: {context['repeated_input_notice']}")
     else:
         context["repeated_input_notice"] = ""
