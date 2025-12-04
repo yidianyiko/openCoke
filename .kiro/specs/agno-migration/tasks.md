@@ -1,23 +1,23 @@
 # Implementation Plan
 
-- [ ] 1. 基础设施准备
-  - [ ] 1.1 更新 requirements.txt 添加 agno 和 pydantic 依赖
+- [x] 1. 基础设施准备
+  - [x] 1.1 更新 requirements.txt 添加 agno 和 pydantic 依赖
     - 添加 agno>=2.0.0 和 pydantic>=2.0.0
     - _Requirements: 1.1_
-  - [ ] 1.2 创建目录结构
+  - [x] 1.2 创建目录结构
     - 创建 qiaoyun/agno_agent/agents/、tools/、schemas/、workflows/ 目录
     - 创建各目录的 __init__.py 文件
     - _Requirements: 1.3_
 
-- [ ] 2. Pydantic Schema 定义
-  - [ ] 2.1 实现 QueryRewriteResponse Schema
+- [x] 2. Pydantic Schema 定义
+  - [x] 2.1 实现 QueryRewriteResponse Schema
     - 创建 qiaoyun/agno_agent/schemas/query_rewrite_schema.py
     - 定义 InnerMonologue、CharacterSettingQueryQuestion 等字段
     - _Requirements: 2.1_
   - [ ]* 2.2 编写 QueryRewriteResponse Schema 属性测试
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.1**
-  - [ ] 2.3 实现 ChatResponse Schema
+  - [x] 2.3 实现 ChatResponse Schema
     - 创建 qiaoyun/agno_agent/schemas/chat_response_schema.py
     - 定义 MultiModalResponse、RelationChangeModel、FutureResponseModel 子模型
     - 定义 ChatResponse 主模型
@@ -25,7 +25,7 @@
   - [ ]* 2.4 编写 ChatResponse Schema 属性测试
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.2**
-  - [ ] 2.5 实现 PostAnalyzeResponse Schema
+  - [x] 2.5 实现 PostAnalyzeResponse Schema
     - 创建 qiaoyun/agno_agent/schemas/post_analyze_schema.py
     - 定义 CharacterPublicSettings、UserSettings 等字段
     - _Requirements: 2.3_
@@ -33,10 +33,10 @@
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.3**
 
-- [ ] 3. Checkpoint - 确保所有测试通过
+- [x] 3. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. 核心 Tool 开发
+- [-] 4. 核心 Tool 开发
   - [ ] 4.1 实现 context_retrieve_tool
     - 创建 qiaoyun/agno_agent/tools/context_retrieve_tool.py
     - 复用现有 QiaoyunContextRetrieveAgent 的核心逻辑
