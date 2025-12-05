@@ -9,6 +9,7 @@ from .chat_response_schema import (
     FutureResponseModel,
 )
 from .post_analyze_schema import PostAnalyzeResponse
+from .future_message_schema import FutureMessageResponse
 
 __all__ = [
     "QueryRewriteResponse",
@@ -17,4 +18,5 @@ __all__ = [
     "RelationChangeModel",
     "FutureResponseModel",
     "PostAnalyzeResponse",
+    "FutureMessageResponse",
 ]

@@ -16,6 +16,30 @@ from util.time_util import timestamp2str, date2str
 from qiaoyun.util.message_util import messages_to_str
 
 
+def _convert_objectid_to_str(obj):
+    """
+    递归将 dict 中的 ObjectId 转换为字符串
+    
+    确保 session_state 可以进行 JSON 序列化，用于 Agno Workflow 传递
+    
+    Args:
+        obj: 任意对象（dict, list, ObjectId, 或其他）
+        
+    Returns:
+        转换后的对象，所有 ObjectId 都被转换为字符串
+        
+    Requirements: 6.1
+    """
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {k: _convert_objectid_to_str(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_objectid_to_str(item) for item in obj]
+    else:
+        return obj
+
+
 def detect_repeated_input(input_messages, chat_history):
     """
     检测用户最近5条消息中是否有与当前消息完全相同的
@@ -153,6 +177,70 @@ def context_prepare(user, character, conversation):
         logger.info(f"[重复消息检测] 生成的提示: {context['repeated_input_notice']}")
     else:
         context["repeated_input_notice"] = ""
+
+    # ========== Agno 迁移：设置 Prompt 模板所需字段的默认值 ==========
+    # Requirements: 6.2
+    
+    # 顶层字段默认值
+    context.setdefault("MultiModalResponses", [])
+    
+    # context_retrieve 相关字段（由 ContextRetrieveAgent 填充）
+    context.setdefault("context_retrieve", {
+        "character_global": "",
+        "character_private": "",
+        "user": "",
+        "character_knowledge": "",
+        "character_photo": "",
+        "confirmed_reminders": ""
+    })
+    
+    # query_rewrite 相关字段（由 QueryRewriteAgent 填充）
+    context.setdefault("query_rewrite", {
+        "InnerMonologue": "",
+        "CharacterSettingQueryQuestion": "",
+        "CharacterSettingQueryKeywords": "",
+        "UserProfileQueryQuestion": "",
+        "UserProfileQueryKeywords": "",
+        "CharacterKnowledgeQueryQuestion": "",
+        "CharacterKnowledgeQueryKeywords": ""
+    })
+    
+    # user 字段默认值
+    context["user"].setdefault("platforms", {})
+    context["user"]["platforms"].setdefault("wechat", {
+        "id": "",
+        "nickname": "用户"
+    })
+    
+    # character 字段默认值
+    context["character"].setdefault("platforms", {})
+    context["character"]["platforms"].setdefault("wechat", {
+        "id": "",
+        "nickname": "角色"
+    })
+    context["character"].setdefault("user_info", {
+        "description": "",
+        "status": {"place": "未知", "action": "未知"}
+    })
+    if "status" not in context["character"]["user_info"]:
+        context["character"]["user_info"]["status"] = {"place": "未知", "action": "未知"}
+    
+    # relation 字段默认值
+    context["relation"].setdefault("user_info", {
+        "realname": "",
+        "hobbyname": "",
+        "description": ""
+    })
+    context["relation"].setdefault("character_info", {
+        "longterm_purpose": "",
+        "shortterm_purpose": "",
+        "attitude": ""
+    })
+    
+    # ========== ObjectId 序列化处理 ==========
+    # Requirements: 6.1
+    # 确保 session_state 可以进行 JSON 序列化
+    context = _convert_objectid_to_str(context)
 
     return context
 

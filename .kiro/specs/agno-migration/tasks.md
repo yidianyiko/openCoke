@@ -14,144 +14,186 @@
     - 创建 qiaoyun/agno_agent/schemas/query_rewrite_schema.py
     - 定义 InnerMonologue、CharacterSettingQueryQuestion 等字段
     - _Requirements: 2.1_
-  - [ ]* 2.2 编写 QueryRewriteResponse Schema 属性测试
+  - [x] 2.2 编写 QueryRewriteResponse Schema 属性测试
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.1**
+    - 测试文件: tests/test_agno_schemas.py
   - [x] 2.3 实现 ChatResponse Schema
     - 创建 qiaoyun/agno_agent/schemas/chat_response_schema.py
     - 定义 MultiModalResponse、RelationChangeModel、FutureResponseModel 子模型
     - 定义 ChatResponse 主模型
     - _Requirements: 2.2_
-  - [ ]* 2.4 编写 ChatResponse Schema 属性测试
+  - [x] 2.4 编写 ChatResponse Schema 属性测试
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.2**
+    - 测试文件: tests/test_agno_schemas.py
   - [x] 2.5 实现 PostAnalyzeResponse Schema
     - 创建 qiaoyun/agno_agent/schemas/post_analyze_schema.py
     - 定义 CharacterPublicSettings、UserSettings 等字段
     - _Requirements: 2.3_
-  - [ ]* 2.6 编写 PostAnalyzeResponse Schema 属性测试
+  - [x] 2.6 编写 PostAnalyzeResponse Schema 属性测试
     - **Property 1: Agent 输出格式一致性**
     - **Validates: Requirements 2.3**
+    - 测试文件: tests/test_agno_schemas.py
 
 - [x] 3. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 4. 核心 Tool 开发
-  - [ ] 4.1 实现 context_retrieve_tool
+- [x] 4. 核心 Tool 开发
+  - [x] 4.1 实现 context_retrieve_tool
     - 创建 qiaoyun/agno_agent/tools/context_retrieve_tool.py
     - 复用现有 QiaoyunContextRetrieveAgent 的核心逻辑
     - 使用 @tool 装饰器封装
     - _Requirements: 3.1_
-  - [ ]* 4.2 编写 context_retrieve_tool 属性测试
+  - [x] 4.2 编写 context_retrieve_tool 属性测试
     - **Property 2: context_retrieve_tool 返回结构完整性**
     - **Validates: Requirements 3.1**
-  - [ ] 4.3 实现 reminder_tool
+    - 测试文件: tests/test_agno_tools.py
+  - [x] 4.3 实现 reminder_tool
     - 创建 qiaoyun/agno_agent/tools/reminder_tools.py
     - 实现 create/update/delete/list 四种操作
     - 复用 ReminderDAO 和时间解析工具
     - _Requirements: 3.2, 3.3, 3.4_
-  - [ ]* 4.4 编写 reminder_tool CRUD 属性测试
+  - [x] 4.4 编写 reminder_tool CRUD 属性测试
     - **Property 3: reminder_tool CRUD 一致性**
     - **Validates: Requirements 3.2**
-  - [ ]* 4.5 编写时间解析属性测试
+    - 测试文件: tests/test_agno_tools.py
+  - [x] 4.5 编写时间解析属性测试
     - **Property 4: 时间解析正确性**
     - **Validates: Requirements 3.3**
+    - 测试文件: tests/test_agno_tools.py
 
-- [ ] 5. Checkpoint - 确保所有测试通过
+- [x] 5. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Agent 迁移
-  - [ ] 6.1 实现动态 instructions 函数
+- [x] 6. Agent 迁移
+  - [x] 6.1 实现动态 instructions 函数
     - 创建 qiaoyun/agno_agent/agents.py
     - 实现 get_query_rewrite_instructions、get_chat_response_instructions、get_post_analyze_instructions
     - _Requirements: 4.5_
-  - [ ]* 6.2 编写动态 instructions 属性测试
+  - [x] 6.2 编写动态 instructions 属性测试
     - **Property 5: 动态 instructions 渲染完整性**
     - **Validates: Requirements 4.5**
-  - [ ] 6.3 实现模块级预创建 Agent
+    - 测试文件: tests/test_agno_agents.py
+  - [x] 6.3 实现模块级预创建 Agent
     - 在 agents.py 中预创建 query_rewrite_agent、reminder_detect_agent、context_retrieve_agent、chat_response_agent、post_analyze_agent
     - 配置 model、instructions、response_model、tools
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 7. Checkpoint - 确保所有测试通过
+- [x] 7. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Workflow 编排
-  - [ ] 8.1 实现 PrepareWorkflow
+- [x] 8. Workflow 编排
+  - [x] 8.1 实现 PrepareWorkflow
     - 创建 qiaoyun/agno_agent/workflows/prepare_workflow.py
     - 顺序执行 QueryRewrite、ReminderDetect、ContextRetrieve
     - 更新 session_state 中的 query_rewrite 和 context_retrieve 字段
     - _Requirements: 5.1_
-  - [ ]* 8.2 编写 PrepareWorkflow 属性测试
+  - [x] 8.2 编写 PrepareWorkflow 属性测试
     - **Property 6: PrepareWorkflow 状态累积**
     - **Validates: Requirements 5.1**
-  - [ ] 8.3 实现 ChatWorkflow
+    - 测试文件: tests/test_agno_workflows.py
+  - [x] 8.3 实现 ChatWorkflow
     - 创建 qiaoyun/agno_agent/workflows/chat_workflow.py
     - 渲染 user prompt 并调用 chat_response_agent
     - _Requirements: 5.2_
-  - [ ] 8.4 实现 PostAnalyzeWorkflow
+  - [x] 8.4 实现 PostAnalyzeWorkflow
     - 创建 qiaoyun/agno_agent/workflows/post_analyze_workflow.py
     - 渲染 user prompt 并调用 post_analyze_agent
     - _Requirements: 5.3_
-  - [ ]* 8.5 编写 Workflow 状态传递属性测试
+  - [x] 8.5 编写 Workflow 状态传递属性测试
     - **Property 7: Workflow 状态传递**
     - **Validates: Requirements 5.4**
+    - 测试文件: tests/test_agno_workflows.py
 
-- [ ] 9. Checkpoint - 确保所有测试通过
+- [x] 9. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Runner 层适配
-  - [ ] 10.1 实现 ObjectId 序列化函数
+- [x] 10. Runner 层适配
+  - [x] 10.1 实现 ObjectId 序列化函数
     - 在 qiaoyun/runner/context.py 中添加 _convert_objectid_to_str 函数
     - 递归转换 dict 中的 ObjectId 为字符串
     - _Requirements: 6.1_
-  - [ ]* 10.2 编写 ObjectId 序列化属性测试
+  - [x] 10.2 编写 ObjectId 序列化属性测试
     - **Property 8: ObjectId 序列化**
     - **Validates: Requirements 6.1**
-  - [ ] 10.3 更新 context_prepare 函数
+    - 测试文件: tests/test_agno_runner.py
+  - [x] 10.3 更新 context_prepare 函数
     - 调用 _convert_objectid_to_str 进行 ObjectId 转换
     - 设置所有 Prompt 模板所需字段的默认值
     - _Requirements: 6.2_
-  - [ ]* 10.4 编写默认值完整性属性测试
+  - [x] 10.4 编写默认值完整性属性测试
     - **Property 9: 默认值完整性**
     - **Validates: Requirements 6.2**
-  - [ ] 10.5 更新 main_handler 函数
+    - 测试文件: tests/test_agno_runner.py
+  - [x] 10.5 更新 main_handler 函数
     - 导入并实例化三个 Workflow
     - 实现 Phase 1 → 检测 → Phase 2 → 发送 → Phase 3 的执行流程
     - 在 Phase 1 后和每条消息发送后检测新消息
     - 实现异常捕获和错误日志记录
     - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 11. Checkpoint - 确保所有测试通过
+- [x] 11. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 12. 消息打断机制
-  - [ ] 12.1 实现消息合并逻辑
+- [x] 12. 消息打断机制
+  - [x] 12.1 实现消息合并逻辑
     - 在 rollback 时将所有待处理消息合并为一个上下文
     - _Requirements: 7.2_
-  - [ ]* 12.2 编写消息合并属性测试
+  - [x] 12.2 编写消息合并属性测试
     - **Property 10: 消息合并正确性**
     - **Validates: Requirements 7.2**
-  - [ ] 12.3 实现已发送消息记录逻辑
+    - 测试文件: tests/test_agno_runner.py
+  - [x] 12.3 实现已发送消息记录逻辑
     - 在 rollback 发生时保留已发送的消息到对话历史
     - _Requirements: 7.4_
-  - [ ]* 12.4 编写已发送消息记录属性测试
+  - [x] 12.4 编写已发送消息记录属性测试
     - **Property 11: 已发送消息记录**
     - **Validates: Requirements 7.4**
+    - 测试文件: tests/test_agno_runner.py
 
-- [ ] 13. Checkpoint - 确保所有测试通过
+- [x] 13. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. 集成测试
-  - [ ]* 14.1 编写文本消息处理流程集成测试
+- [x] 14. 集成测试
+  - [x] 14.1 编写文本消息处理流程集成测试
     - 验证 输入→处理→输出 全流程
     - _Requirements: 8.1_
-  - [ ]* 14.2 编写提醒创建流程集成测试
+    - 测试文件: tests/test_agno_integration.py
+  - [x] 14.2 编写提醒创建流程集成测试
     - 验证提醒意图识别和创建
     - _Requirements: 8.2_
-  - [ ]* 14.3 编写消息打断流程集成测试
+    - 测试文件: tests/test_agno_integration.py
+  - [x] 14.3 编写消息打断流程集成测试
     - 模拟新消息到达，验证 rollback 行为
     - _Requirements: 7.1, 7.3_
+    - 测试文件: tests/test_agno_integration.py
 
-- [ ] 15. Final Checkpoint - 确保所有测试通过
+- [x] 15. Final Checkpoint - 确保所有测试通过
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [x] 16. 主动消息模块
+  - [x] 16.1 实现 FutureMessageResponse Schema
+    - 创建 qiaoyun/agno_agent/schemas/future_message_schema.py
+    - 复用 ChatResponse 的子模型（MultiModalResponse、RelationChangeModel、FutureResponseModel）
+    - _Requirements: FR-036, FR-038_
+  - [x] 16.2 实现主动消息 Agent
+    - 创建 qiaoyun/agno_agent/agents/future_message_agents.py
+    - 实现 future_message_query_rewrite_agent、future_message_context_retrieve_agent、future_message_chat_agent
+    - _Requirements: FR-036, FR-038_
+  - [x] 16.3 实现 FutureMessageWorkflow
+    - 创建 qiaoyun/agno_agent/workflows/future_message_workflow.py
+    - 实现 QueryRewrite → ContextRetrieve → ChatResponse 流程
+    - 处理关系变化和未来消息规划
+    - _Requirements: FR-036, FR-038_
+  - [x] 16.4 实现 Agno 版本的主动消息处理函数
+    - 在 qiaoyun/runner/qiaoyun_background_handler.py 中添加 handle_pending_future_message_agno
+    - 使用 FutureMessageWorkflow 替代原有的 QiaoyunFutureMessageAgent
+    - _Requirements: FR-036, FR-038_
+  - [x] 16.5 编写主动消息模块测试
+    - 测试文件: tests/test_agno_future_message.py
+    - 测试 Schema、Agent、Workflow 的正确性
+    - _Requirements: FR-036, FR-038_
+
+- [x] 17. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.

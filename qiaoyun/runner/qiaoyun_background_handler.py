@@ -602,3 +602,198 @@ def handle_pending_reminders():
         logger.error(f"提醒处理异常: {traceback.format_exc()}")
     finally:
         reminder_dao.close()
+
+
+# ========== Agno 版本的主动消息处理 ==========
+# Requirements: FR-036, FR-038
+
+def handle_pending_future_message_agno():
+    """
+    Agno 版本的主动消息处理函数
+    
+    使用 FutureMessageWorkflow 替代原有的 QiaoyunFutureMessageAgent
+    
+    Requirements: FR-036, FR-038
+    """
+    from qiaoyun.agno_agent.workflows import FutureMessageWorkflow
+    
+    future_message_workflow = FutureMessageWorkflow()
+    lock = None
+    conversation_id = None
+    
+    try:
+        now = int(time.time())
+        conversations = conversation_dao.find_conversations(query={
+            "conversation_info.future.action": {
+                "$ne": None,
+                "$exists": True
+            },
+            "conversation_info.future.timestamp": {
+                "$lt": now,
+                "$gt": now - 1800  # 只发送半小时以内的
+            },
+        })
+        
+        if len(conversations) == 0:
+            return
+        
+        conversation = conversations[0]
+        logger.info("try sending proactive message (Agno):" + str(conversation["conversation_info"]["future"]))
+
+        # 检查 talkers 列表是否有足够的元素
+        if len(conversation.get("talkers", [])) < 2:
+            logger.warning(f"conversation talkers 不足2个，跳过: {conversation.get('_id')}")
+            return
+
+        users = user_dao.find_users({
+            "platforms.wechat.id": conversation["talkers"][0]["id"]
+        }, 1)
+        if not users:
+            logger.warning(f"未找到用户: {conversation['talkers'][0]['id']}")
+            return
+        user = users[0]
+        
+        characters = user_dao.find_users({
+            "platforms.wechat.id": conversation["talkers"][1]["id"]
+        }, 1)
+        if not characters:
+            logger.warning(f"未找到角色: {conversation['talkers'][1]['id']}")
+            return
+        character = characters[0]
+
+        conversation_id = str(conversation["_id"])
+        lock = lock_manager.acquire_lock("conversation", conversation_id, timeout=120, max_wait=1)
+        if lock is None:
+            return
+        
+        # 构建 context (session_state)
+        context = context_prepare(user, character, conversation)
+
+        # 状态标志
+        is_failed = False
+        is_finish = False
+        resp_messages = []
+
+        # 处理拉黑逻辑
+        if context["relation"]["relationship"]["dislike"] >= 100:
+            is_finish = True
+        else:
+            # ========== 使用 Agno Workflow ==========
+            try:
+                logger.info("FutureMessageWorkflow 开始执行")
+                workflow_response = future_message_workflow.run(session_state=context)
+                context = workflow_response.get("session_state", context)
+                logger.info("FutureMessageWorkflow 执行完成")
+                
+                # 处理回复内容
+                content = workflow_response.get("content", {})
+                multimodal_responses = content.get("MultiModalResponses", [])
+                if not isinstance(multimodal_responses, list):
+                    multimodal_responses = []
+                
+                # 发送消息
+                expect_output_timestamp = int(time.time())
+                
+                for multimodal_response in multimodal_responses:
+                    # 处理声音
+                    if multimodal_response.get("type") == "voice":
+                        voice_messages = qiaoyun_voice(
+                            multimodal_response.get("content", ""),
+                            multimodal_response.get("emotion", "无")
+                        )
+                        for voice_url, voice_length in voice_messages:
+                            outputmessage = send_message_via_context(
+                                context,
+                                message=multimodal_response.get("content", ""),
+                                message_type="voice",
+                                expect_output_timestamp=expect_output_timestamp,
+                                metadata={
+                                    "url": voice_url,
+                                    "voice_length": voice_length
+                                }
+                            )
+                            if outputmessage is not None:
+                                resp_messages.append(outputmessage)
+                            expect_output_timestamp = expect_output_timestamp + int(voice_length/1000) + random.randint(2,5)
+                    
+                    # 处理照片
+                    elif multimodal_response.get("type") == "photo":
+                        photo_id = str(multimodal_response.get("content", "")).replace("「", "")
+                        photo_id = photo_id.replace("」", "")
+                        photo_id = photo_id.replace("照片", "", 1)
+                        image_url = upload_image(photo_id)
+                        if image_url is not None:
+                            context["conversation"]["conversation_info"]["photo_history"].append(photo_id)
+                            if len(context["conversation"]["conversation_info"]["photo_history"]) > 12:
+                                context["conversation"]["conversation_info"]["photo_history"] = context["conversation"]["conversation_info"]["photo_history"][-12:]
+                            
+                            outputmessage = send_message_via_context(
+                                context,
+                                message=multimodal_response.get("content", ""),
+                                message_type="image",
+                                expect_output_timestamp=expect_output_timestamp,
+                                metadata={"url": image_url}
+                            )
+                            logger.info("image message out:")
+                            logger.info(outputmessage)
+                            if outputmessage is not None:
+                                resp_messages.append(outputmessage)
+                            expect_output_timestamp = expect_output_timestamp + random.randint(2, 8)
+                    
+                    # 处理文本
+                    else:
+                        text_message = str(multimodal_response.get("content", "")).replace("<换行>", "\n")
+                        outputmessage = send_message_via_context(
+                            context,
+                            message=text_message,
+                            message_type="text",
+                            expect_output_timestamp=expect_output_timestamp
+                        )
+                        if outputmessage is not None:
+                            resp_messages.append(outputmessage)
+                        expect_output_timestamp = expect_output_timestamp + int(len(text_message)/typing_speed)
+                
+                is_finish = True
+                
+            except Exception as e:
+                logger.error(f"FutureMessageWorkflow execution failed: {e}")
+                logger.error(traceback.format_exc())
+                is_failed = True
+
+        if is_failed:
+            raise Exception("Handle fail")
+        
+        if is_finish:
+            conversation = context["conversation"]
+            
+            # 将回复消息放入history
+            for resp_message in resp_messages:
+                conversation["conversation_info"]["chat_history"].append(resp_message)
+            
+            # 进行简单截断
+            if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+        
+            # 更新数据到conversation
+            conversation_dao.update_conversation_info(
+                conversation_id,
+                conversation["conversation_info"]
+            )
+
+            # 更新relation
+            mongo.replace_one("relations", 
+                query={
+                    "uid": context["relation"]["uid"],
+                    "cid": context["relation"]["cid"],
+                },
+                update=context["relation"]
+            )
+
+    except Exception as e:
+        logger.error(traceback.format_exc())
+    finally:
+        if conversation_id and lock:
+            try:
+                lock_manager.release_lock("conversation", conversation_id)
+            except Exception as e:
+                logger.error(f"释放锁失败: {e}")
