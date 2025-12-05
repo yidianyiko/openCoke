@@ -87,7 +87,7 @@ class TestChatResponseSchema(unittest.TestCase):
         mm = MultiModalResponse(type="text", content="你好！")
         self.assertEqual(mm.type, "text")
         self.assertEqual(mm.content, "你好！")
-        self.assertEqual(mm.emotion, "无")
+        self.assertIsNone(mm.emotion)  # emotion defaults to None for non-voice messages
     
     def test_multimodal_response_voice(self):
         """测试语音类型多模态回复"""

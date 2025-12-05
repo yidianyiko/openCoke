@@ -12,16 +12,17 @@ from pydantic import BaseModel, Field
 class MultiModalResponse(BaseModel):
     """多模态回复项"""
     
-    type: Literal["text", "voice"] = Field(
-        description="消息的类型"
+    type: Literal["text", "voice", "photo"] = Field(
+        description="消息的类型：text（文本）、voice（语音）、photo（图片）"
     )
     
     content: str = Field(
+        default="",
         description="根据消息类型的不同，包含不同的内容"
     )
     
     emotion: Optional[Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶", "魅惑"]] = Field(
-        default="无",
+        default=None,
         description="仅对语音消息有效，表示语音的感情色彩"
     )
 
