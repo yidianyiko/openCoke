@@ -15,7 +15,6 @@ from dao.conversation_dao import ConversationDAO
 from dao.user_dao import UserDAO
 from dao.lock import MongoDBLockManager
 from dao.mongo import MongoDBBase
-from framework.agent.base_agent import AgentStatus
 from conf.config import CONF
 from qiaoyun.tool.image import upload_image
 from util.time_util import date2str

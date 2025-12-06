@@ -7,7 +7,6 @@ Agno Terminal 集成测试
 Requirements:
 - 测试 PrepareWorkflow -> ChatWorkflow -> PostAnalyzeWorkflow 流程
 - 测试消息打断机制
-- 测试 Feature Flag 切换
 """
 import sys
 sys.path.append(".")
@@ -18,32 +17,17 @@ from unittest.mock import Mock, patch, MagicMock
 import time
 
 
-class TestFeatureFlag(unittest.TestCase):
-    """测试 Feature Flag 功能
+class TestHandlerImport(unittest.TestCase):
+    """测试 Handler 导入"""
     
-    注意：由于 qiaoyun_handler 导入时需要 OSS 环境变量，
-    这里只测试环境变量解析逻辑，不实际导入 handler 模块
-    """
-    
-    def test_use_agno_env_parsing_false(self):
-        """测试 USE_AGNO=false 解析"""
-        test_value = os.getenv("USE_AGNO_TEST", "false").lower() == "true"
-        self.assertFalse(test_value)
-    
-    def test_use_agno_env_parsing_true(self):
-        """测试 USE_AGNO=true 解析"""
-        os.environ["USE_AGNO_TEST"] = "true"
-        test_value = os.getenv("USE_AGNO_TEST", "false").lower() == "true"
-        self.assertTrue(test_value)
-        del os.environ["USE_AGNO_TEST"]
-    
-    def test_use_agno_case_insensitive(self):
-        """测试大小写不敏感"""
-        for value in ["TRUE", "True", "true", "TrUe"]:
-            os.environ["USE_AGNO_TEST"] = value
-            test_value = os.getenv("USE_AGNO_TEST", "false").lower() == "true"
-            self.assertTrue(test_value, f"Failed for value: {value}")
-        del os.environ["USE_AGNO_TEST"]
+    def test_handler_importable(self):
+        """测试 handler 可以导入"""
+        from qiaoyun.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
+        
+        # 验证 Workflow 类存在
+        self.assertIsNotNone(PrepareWorkflow)
+        self.assertIsNotNone(ChatWorkflow)
+        self.assertIsNotNone(PostAnalyzeWorkflow)
 
 
 class TestAgnoWorkflowIntegration(unittest.TestCase):

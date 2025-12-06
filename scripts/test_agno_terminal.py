@@ -5,10 +5,6 @@ Agno Terminal 集成测试脚本
 使用 Terminal Connector 测试 Agno Workflow 的完整流程。
 
 Usage:
-    # 启动测试（使用 Agno）
-    USE_AGNO=true python scripts/test_agno_terminal.py
-    
-    # 启动测试（使用旧实现，对比测试）
     python scripts/test_agno_terminal.py
 
 测试流程：
@@ -37,12 +33,11 @@ logger = getLogger(__name__)
 
 async def run_handler_loop():
     """运行 handler 循环"""
-    from qiaoyun.runner.qiaoyun_handler import handler, USE_AGNO
+    from qiaoyun.runner.qiaoyun_handler import handler
     
     logger.info("=" * 60)
     logger.info("Agno Terminal 集成测试")
     logger.info("=" * 60)
-    logger.info(f"USE_AGNO = {USE_AGNO}")
     logger.info("")
     logger.info("测试步骤：")
     logger.info("1. 在另一个终端运行: python connector/terminal/terminal_input.py")
@@ -66,9 +61,9 @@ async def run_handler_loop():
 
 async def run_single_test():
     """运行单次测试（用于调试）"""
-    from qiaoyun.runner.qiaoyun_handler import handler, USE_AGNO
+    from qiaoyun.runner.qiaoyun_handler import handler
     
-    logger.info(f"运行单次测试，USE_AGNO = {USE_AGNO}")
+    logger.info("运行单次测试")
     await handler()
     logger.info("单次测试完成")
 
