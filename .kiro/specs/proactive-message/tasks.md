@@ -97,25 +97,25 @@
     - Mock Workflow 测试触发逻辑
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 7. Checkpoint - 确保所有测试通过
+- [x] 7. Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. 集成测试
-  - [ ] 8.1 编写 Workflow 端到端测试
+- [x] 8. 集成测试
+  - [x] 8.1 编写 Workflow 端到端测试
     - 构造完整 session_state
     - 执行 FutureMessageWorkflow
     - 验证返回结构和状态更新
     - _Requirements: 8.1_
-  - [ ] 8.2 编写输出有效性属性测试
+  - [x] 8.2 编写输出有效性属性测试
     - **Property 9: 主动消息输出有效性**
     - **Validates: Requirements 8.2**
-  - [ ] 8.3 编写频率控制集成测试
+  - [x] 8.3 编写频率控制集成测试
     - 测试连续主动消息的概率衰减
     - _Requirements: 8.3_
-  - [ ] 8.4 编写触发服务集成测试
+  - [x] 8.4 编写触发服务集成测试
     - 测试完整的触发流程
     - _Requirements: 8.4_
 
-- [ ] 9. Final Checkpoint - 确保所有测试通过
+- [x] 9. Final Checkpoint - 确保所有测试通过
   - Ensure all tests pass, ask the user if questions arise.
 

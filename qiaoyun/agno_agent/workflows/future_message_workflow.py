@@ -127,7 +127,7 @@ class FutureMessageWorkflow:
             rendered_qr_userp = "请根据规划行动进行问题重写"
         
         qr_response = future_message_query_rewrite_agent.run(
-            message=rendered_qr_userp,
+            input=rendered_qr_userp,
             session_state=session_state
         )
         
@@ -145,7 +145,7 @@ class FutureMessageWorkflow:
         retrieve_message = self._build_retrieve_message(query_rewrite, session_state)
         
         cr_response = future_message_context_retrieve_agent.run(
-            message=retrieve_message,
+            input=retrieve_message,
             session_state=session_state
         )
         
@@ -162,7 +162,7 @@ class FutureMessageWorkflow:
             rendered_chat_userp = "请根据规划行动生成主动消息"
         
         chat_response = future_message_chat_agent.run(
-            message=rendered_chat_userp,
+            input=rendered_chat_userp,
             session_state=session_state
         )
         
