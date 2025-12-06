@@ -33,7 +33,7 @@ logger = getLogger(__name__)
 
 async def run_handler_loop():
     """运行 handler 循环"""
-    from qiaoyun.runner.qiaoyun_handler import handler
+    from agent.runner.agent_handler import handler
     
     logger.info("=" * 60)
     logger.info("Agno Terminal 集成测试")
@@ -61,7 +61,7 @@ async def run_handler_loop():
 
 async def run_single_test():
     """运行单次测试（用于调试）"""
-    from qiaoyun.runner.qiaoyun_handler import handler
+    from agent.runner.agent_handler import handler
     
     logger.info("运行单次测试")
     await handler()

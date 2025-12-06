@@ -19,9 +19,9 @@ import time
 
 from hypothesis import given, strategies as st, settings, assume
 
-from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
-from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
-from qiaoyun.agno_agent.schemas.chat_response_schema import (
+from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
+from agent.agno_agent.schemas.chat_response_schema import (
     MultiModalResponse,
     RelationChangeModel,
     FutureResponseModel,
@@ -240,11 +240,11 @@ class TestWorkflowEndToEnd(unittest.TestCase):
         ), patch.object(
             self.workflow, 'chat_userp_template', "测试模板 {future_action}"
         ), patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
         ) as mock_qr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
         ) as mock_cr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
         ) as mock_chat_agent, patch(
             'random.random', return_value=0.5
         ):
@@ -308,11 +308,11 @@ class TestWorkflowEndToEnd(unittest.TestCase):
         ), patch.object(
             self.workflow, 'chat_userp_template', "测试"
         ), patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
         ) as mock_qr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
         ) as mock_cr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
         ) as mock_chat_agent, patch(
             'random.random', return_value=0.5
         ):
@@ -363,11 +363,11 @@ class TestWorkflowEndToEnd(unittest.TestCase):
         ), patch.object(
             self.workflow, 'chat_userp_template', "测试"
         ), patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_query_rewrite_agent'
         ) as mock_qr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_context_retrieve_agent'
         ) as mock_cr_agent, patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
+            'agent.agno_agent.workflows.future_message_workflow.future_message_chat_agent'
         ) as mock_chat_agent, patch(
             'random.random', return_value=0.5
         ):
@@ -633,7 +633,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
         
         Validates: Requirement 8.4
         """
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -706,7 +706,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
         }
         
         with patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow'
+            'agent.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow'
         ) as mock_workflow_class:
             mock_workflow = MagicMock()
             mock_workflow.run.return_value = mock_workflow_result
@@ -731,7 +731,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
         
         Validates: Requirement 8.4
         """
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -794,7 +794,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
         }
         
         with patch(
-            'qiaoyun.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow'
+            'agent.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow'
         ) as mock_workflow_class:
             mock_workflow = MagicMock()
             mock_workflow.run.return_value = mock_workflow_result
@@ -813,7 +813,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
         
         Validates: Requirement 8.4
         """
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         

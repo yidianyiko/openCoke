@@ -26,7 +26,7 @@ class TestPromptTemplateRendering(unittest.TestCase):
     """
     
     def setUp(self):
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         self.workflow = FutureMessageWorkflow()
     
     def test_query_rewrite_template_contains_future_context(self):
@@ -59,7 +59,7 @@ class TestPromptTemplateRendering(unittest.TestCase):
         
         Validates: Requirement 7.1
         """
-        from qiaoyun.prompt.chat_taskprompt import TASKPROMPT_未来_语义理解
+        from agent.prompt.chat_taskprompt import TASKPROMPT_未来_语义理解
         
         template = self.workflow.query_rewrite_userp_template
         
@@ -73,7 +73,7 @@ class TestPromptTemplateRendering(unittest.TestCase):
         
         Validates: Requirement 7.2
         """
-        from qiaoyun.prompt.chat_taskprompt import TASKPROMPT_未来_微信对话
+        from agent.prompt.chat_taskprompt import TASKPROMPT_未来_微信对话
         
         template = self.workflow.chat_userp_template
         
@@ -137,7 +137,7 @@ class TestPromptContextInclusion(unittest.TestCase):
     
     def test_query_rewrite_includes_history(self):
         """测试问题重写模板包含历史对话上下文"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         workflow = FutureMessageWorkflow()
         
         template = workflow.query_rewrite_userp_template
@@ -147,7 +147,7 @@ class TestPromptContextInclusion(unittest.TestCase):
     
     def test_chat_template_includes_full_context(self):
         """测试消息生成模板包含完整上下文"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         workflow = FutureMessageWorkflow()
         
         template = workflow.chat_userp_template
@@ -167,7 +167,7 @@ class TestDynamicInstructionsGracefulDegradation(unittest.TestCase):
     
     def test_future_query_rewrite_graceful_degradation(self):
         """测试 FutureQueryRewrite instructions 优雅降级"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             get_future_query_rewrite_instructions
         )
         
@@ -181,7 +181,7 @@ class TestDynamicInstructionsGracefulDegradation(unittest.TestCase):
     
     def test_future_message_chat_graceful_degradation(self):
         """测试 FutureMessageChat instructions 优雅降级"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             get_future_message_chat_instructions
         )
         
@@ -206,7 +206,7 @@ class TestDynamicInstructionsGracefulDegradation(unittest.TestCase):
         
         Validates: Requirement 7.4
         """
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             get_future_query_rewrite_instructions,
             get_future_message_chat_instructions,
             get_future_context_retrieve_instructions,

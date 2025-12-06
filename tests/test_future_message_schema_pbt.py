@@ -16,8 +16,8 @@ import unittest
 from hypothesis import given, strategies as st, settings, assume
 from pydantic import ValidationError
 
-from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
-from qiaoyun.agno_agent.schemas.chat_response_schema import (
+from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
+from agent.agno_agent.schemas.chat_response_schema import (
     MultiModalResponse,
     RelationChangeModel,
     FutureResponseModel,

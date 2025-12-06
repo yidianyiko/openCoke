@@ -16,7 +16,7 @@ class TestPrepareWorkflowStateAccumulation(unittest.TestCase):
     """测试 PrepareWorkflow 状态累积 (Requirements 5.1)"""
     
     def setUp(self):
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow
         self.workflow = PrepareWorkflow()
     
     def test_workflow_has_run_method(self):
@@ -100,7 +100,7 @@ class TestChatWorkflowStateTransfer(unittest.TestCase):
     """测试 ChatWorkflow 状态传递"""
     
     def setUp(self):
-        from qiaoyun.agno_agent.workflows import ChatWorkflow
+        from agent.agno_agent.workflows import ChatWorkflow
         self.workflow = ChatWorkflow()
     
     def test_workflow_has_run_method(self):
@@ -144,7 +144,7 @@ class TestPostAnalyzeWorkflowStateTransfer(unittest.TestCase):
     """测试 PostAnalyzeWorkflow 状态传递"""
     
     def setUp(self):
-        from qiaoyun.agno_agent.workflows import PostAnalyzeWorkflow
+        from agent.agno_agent.workflows import PostAnalyzeWorkflow
         self.workflow = PostAnalyzeWorkflow()
     
     def test_workflow_has_run_method(self):
@@ -215,7 +215,7 @@ class TestWorkflowStateTransfer(unittest.TestCase):
     
     def test_session_state_preserved_in_prepare_workflow(self):
         """测试 PrepareWorkflow 保留 session_state"""
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow
         workflow = PrepareWorkflow()
         
         # 模拟 session_state
@@ -232,7 +232,7 @@ class TestWorkflowStateTransfer(unittest.TestCase):
     
     def test_session_state_preserved_in_chat_workflow(self):
         """测试 ChatWorkflow 保留 session_state"""
-        from qiaoyun.agno_agent.workflows import ChatWorkflow
+        from agent.agno_agent.workflows import ChatWorkflow
         workflow = ChatWorkflow()
         
         session_state = {

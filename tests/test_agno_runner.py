@@ -18,7 +18,7 @@ from bson import ObjectId
 logger = logging.getLogger(__name__)
 
 
-# ========== 从 qiaoyun_handler.py 复制的函数（避免 OSS 导入问题）==========
+# ========== 从 agent_handler.py 复制的函数（避免 OSS 导入问题）==========
 
 def merge_pending_messages(current_messages: list, new_messages: list) -> list:
     """
@@ -89,7 +89,7 @@ class TestObjectIdSerialization(unittest.TestCase):
     """测试 ObjectId 序列化 (Requirements 6.1)"""
     
     def setUp(self):
-        from qiaoyun.runner.context import _convert_objectid_to_str
+        from agent.runner.context import _convert_objectid_to_str
         self.convert = _convert_objectid_to_str
     
     def test_convert_single_objectid(self):

@@ -20,7 +20,7 @@ class TestTextMessageProcessingFlow(unittest.TestCase):
     
     def test_workflow_chain_structure(self):
         """测试 Workflow 链式结构"""
-        from qiaoyun.agno_agent.workflows import (
+        from agent.agno_agent.workflows import (
             PrepareWorkflow,
             ChatWorkflow,
             PostAnalyzeWorkflow

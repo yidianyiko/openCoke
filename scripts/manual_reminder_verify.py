@@ -2,8 +2,9 @@ import sys
 sys.path.append(".")
 import time
 
-from qiaoyun.agent.qiaoyun_chat_response_agent import QiaoyunChatResponseAgent
-from qiaoyun.runner.context import context_prepare
+# TODO: This module needs to be migrated
+# from agent.agent.chat_response_agent import ChatResponseAgent
+from agent.runner.context import context_prepare
 from dao.user_dao import UserDAO
 from dao.conversation_dao import ConversationDAO
 
@@ -11,7 +12,7 @@ def main():
     user_dao = UserDAO()
     conversation_dao = ConversationDAO()
 
-    character_alias = "qiaoyun"
+    character_alias = CONF.get("default_character_alias", "coke")
     from conf.config import CONF
     _characters_conf = CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
     character_wechat_id = _characters_conf.get(character_alias)
@@ -58,7 +59,9 @@ def main():
 
     ctx = context_prepare(user, character, conversation)
 
-    agent = QiaoyunChatResponseAgent(ctx)
+    # TODO: ChatResponseAgent needs to be migrated
+    raise NotImplementedError("ChatResponseAgent needs to be migrated")
+    # agent = ChatResponseAgent(ctx)
     results = agent.run()
     for r in results:
         if r.get("status") == "message":

@@ -2,7 +2,7 @@
 
 ## 1. 架构概述
 - 系统定位与业务目标：
-  - 面向企业与个人的智能助手中枢，统一接入微信/ecloud、GeWeChat 以及本地终端，提供文本/语音/图片等多模态能力。
+  - 面向企业与个人的智能助手中枢，统一接入微信/ecloud 以及本地终端，提供文本/语音/图片等多模态能力。
   - 通过 Agent 链路完成“查询改写 → 语义检索 → 回复生成 → 细化与事后分析”，支持日常任务自动化与内容生产。
   - 以 MongoDB 为持久化与调度基座，保证消息有序处理与结果可靠送达。
 - 架构设计原则与约束：
@@ -11,7 +11,7 @@
   - 可观测性与安全：统一日志，关键外部服务以环境变量管理密钥；后续可扩展签名校验、速率限制与指标采集。
   - 松耦合适配：各平台消息以适配层标准化，内部以统一的 Input/OutputMessage 结构驱动处理与发送。
 - 关键术语与概念：
-  - Connector：平台接入层，包含入站控制器与出站发送器（ecloud、GeWeChat、Terminal）。
+  - Connector：平台接入层，包含入站控制器与出站发送器（ecloud、Terminal）。
   - Adapter：消息标准化与反向适配（`connector/ecloud/ecloud_adapter.py`）。
   - Handler：核心处理调度器（`qiaoyun/runner/qiaoyun_handler.py:44`），负责选取待处理消息、构建上下文、调用 Agent 并落库结果。
   - Agent：执行特定任务的处理单元（重写、检索、生成、细化、事后分析），同步/异步基类见 `framework/agent/base_agent.py:40/169`。
@@ -46,8 +46,6 @@
     AG3 --> LLM
     OUT --> T2V
     OUT --> OSS
-    IN -.-> GeW[GeWeChat 通道]
-    GeW -->|输入/输出| HD
   ```
 - 端到端序列图（ecloud 主链路）：
   ```mermaid
@@ -71,7 +69,6 @@
   ```
 - 开发视图（代码结构与模块组织）：
   - `connector/ecloud`：`ecloud_input.py:14` Flask 应用、`ecloud_output.py:30` 出站轮询、`ecloud_adapter.py:54/170` 标准化/反适配、`ecloud_api.py` 平台调用。
-  - `connector/gewechat`：`gewechat_connector.py:61/83` 输入输出处理，内部集合命名为 `input_messages`/`output_messages`。
   - `qiaoyun/runner`：`qiaoyun_handler.py:44` 主处理、`qiaoyun_background_handler.py` 后台、`context.py:18` 上下文、`qiaoyun_runner.py` 并发调度入口。
   - `qiaoyun/agent`：聊天与背景/日常 Agent（重写/检索/生成/细化/事后分析）。
   - `dao`：`mongo.py:25/109/247/290` CRUD、向量检索与组合搜索；`lock.py:21/75` 会话锁。
@@ -86,7 +83,7 @@
   - 网络与端口：入站暴露 HTTP，核心处理与出站内部通信依赖 Mongo；与平台的调用通过公网 API。
   - 可选容器化：当前仓库未提供 Dockerfile/Compose/K8s；可按进程拆分为三个容器，统一配置与日志。
 - 数据视图（存储与处理）：
-  - 集合：`users`、`conversations`、`relations`、`dailynews`、`embeddings`、`inputmessages`、`outputmessages`、`locks`；GeWeChat 使用 `input_messages`/`output_messages`。
+  - 集合：`users`、`conversations`、`relations`、`dailynews`、`embeddings`、`inputmessages`、`outputmessages`、`locks`。
   - 索引：向量库文本/稀疏索引（`dao/mongo.py:118-127`）；锁集合唯一索引（`dao/lock.py:18-19`）。
   - 处理流程：入站写 `inputmessages` → Handler 读取并加锁 → Agent 链生成结果 → 写 `outputmessages` → 出站轮询发送并状态更新。
 
@@ -111,7 +108,6 @@
   - Agent 链可插拔扩展，允许在不同场景增/减环节（如细化/事后分析）。
 - 技术债务说明：
   - 配置与启动：缺少统一的 `conf/config.json` 示例、启动脚本与容器化清单；需补充样例与部署自动化。
-  - 命名与封装：GeWeChat 集合命名与主线不一致，且独立 Mongo 封装，建议统一。
   - 可观测性：缺少指标/追踪与失败告警；建议接入 Prometheus/ELK 并完善重试策略。
   - API 规范：未提供 OpenAPI/Swagger；建议定义入站/内部接口规范以便联调与测试。
   - 安全：入站路由缺少签名校验与速率限制；建议按环境配置白名单与签名。
@@ -133,7 +129,7 @@ status: success
 file_pattern: /*
           
 **总体划分**
-- `connector/` 平台接入层：ecloud、GeWeChat、Terminal 入/出站控制器与消息适配
+- `connector/` 平台接入层：ecloud、Terminal 入/出站控制器与消息适配
 - `qiaoyun/` 核心业务域：处理调度、上下文、Agent 链、多模态工具
 - `framework/` 通用能力层：Agent 基类与 LLM/语音/图像/搜索工具
 - `dao/` 数据访问层：MongoDB 封装、锁、会话与用户数据访问
@@ -149,10 +145,6 @@ file_pattern: /*
   - `ecloud_output.py` 出站轮询与发送 `connector/ecloud/ecloud_output.py:20`
   - `ecloud_adapter.py` 标准化与反适配
   - `ecloud_api.py` 平台 API 封装
-- `connector/gewechat/` GeWeChat 通道
-  - `gewechat_connector.py` 输入/输出处理与集合访问
-  - `common/` 通道常量、模型名枚举（含 OpenAI 模型标识）
-  - `gewechat_channel.py`、`reply.py`、`context.py` 辅助逻辑
 - `connector/terminal/` 终端通道
   - `terminal_input.py`、`terminal_output.py` 本地测试入/出站
 

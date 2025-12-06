@@ -14,7 +14,7 @@ class TestDynamicInstructionsRendering(unittest.TestCase):
     """测试动态 instructions 渲染完整性 (Requirements 4.5)"""
     
     def setUp(self):
-        from qiaoyun.agno_agent.agents import (
+        from agent.agno_agent.agents import (
             get_query_rewrite_instructions,
             get_chat_response_instructions,
             get_post_analyze_instructions,
@@ -100,7 +100,7 @@ class TestAgentInstantiation(unittest.TestCase):
     
     def test_agents_are_instantiated(self):
         """测试所有 Agent 都已实例化"""
-        from qiaoyun.agno_agent.agents import (
+        from agent.agno_agent.agents import (
             query_rewrite_agent,
             reminder_detect_agent,
             context_retrieve_agent,
@@ -116,7 +116,7 @@ class TestAgentInstantiation(unittest.TestCase):
     
     def test_agents_have_required_attributes(self):
         """测试 Agent 具有必要属性"""
-        from qiaoyun.agno_agent.agents import (
+        from agent.agno_agent.agents import (
             query_rewrite_agent,
             chat_response_agent,
             post_analyze_agent,

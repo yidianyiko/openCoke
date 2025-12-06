@@ -18,7 +18,7 @@ class TestFutureMessageResponseSchema(unittest.TestCase):
     
     def test_default_values(self):
         """测试默认值"""
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
         
         response = FutureMessageResponse()
         self.assertEqual(response.InnerMonologue, "")
@@ -29,8 +29,8 @@ class TestFutureMessageResponseSchema(unittest.TestCase):
     
     def test_with_values(self):
         """测试带值创建"""
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
-        from qiaoyun.agno_agent.schemas.chat_response_schema import (
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.chat_response_schema import (
             MultiModalResponse,
             RelationChangeModel,
             FutureResponseModel,
@@ -55,7 +55,7 @@ class TestFutureMessageResponseSchema(unittest.TestCase):
     
     def test_model_dump(self):
         """测试 model_dump 输出"""
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
         
         response = FutureMessageResponse(InnerMonologue="测试")
         data = response.model_dump()
@@ -71,7 +71,7 @@ class TestFutureMessageAgents(unittest.TestCase):
     
     def test_agents_are_instantiated(self):
         """测试 Agent 已正确实例化"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_query_rewrite_agent,
             future_message_context_retrieve_agent,
             future_message_chat_agent,
@@ -83,7 +83,7 @@ class TestFutureMessageAgents(unittest.TestCase):
     
     def test_agents_have_required_attributes(self):
         """测试 Agent 具有必要属性"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_query_rewrite_agent,
             future_message_chat_agent,
         )
@@ -102,7 +102,7 @@ class TestFutureMessageWorkflow(unittest.TestCase):
     
     def test_workflow_has_run_method(self):
         """测试 Workflow 有 run 方法"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         workflow = FutureMessageWorkflow()
         self.assertTrue(hasattr(workflow, 'run'))
@@ -110,7 +110,7 @@ class TestFutureMessageWorkflow(unittest.TestCase):
     
     def test_workflow_has_templates(self):
         """测试 Workflow 有 prompt 模板"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         workflow = FutureMessageWorkflow()
         self.assertTrue(hasattr(workflow, 'query_rewrite_userp_template'))
@@ -120,7 +120,7 @@ class TestFutureMessageWorkflow(unittest.TestCase):
     
     def test_build_retrieve_message(self):
         """测试构建检索消息"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         workflow = FutureMessageWorkflow()
         
@@ -154,7 +154,7 @@ class TestFutureMessageWorkflow(unittest.TestCase):
     
     def test_handle_relation_change(self):
         """测试关系变化处理"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         workflow = FutureMessageWorkflow()
         
@@ -181,7 +181,7 @@ class TestFutureMessageWorkflow(unittest.TestCase):
     
     def test_handle_relation_change_bounds(self):
         """测试关系变化边界处理"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         workflow = FutureMessageWorkflow()
         
@@ -213,7 +213,7 @@ class TestFutureMessageWorkflowExport(unittest.TestCase):
     
     def test_workflow_exported_from_init(self):
         """测试 Workflow 从 __init__ 正确导出"""
-        from qiaoyun.agno_agent.workflows import FutureMessageWorkflow
+        from agent.agno_agent.workflows import FutureMessageWorkflow
         
         self.assertIsNotNone(FutureMessageWorkflow)
         workflow = FutureMessageWorkflow()
@@ -221,7 +221,7 @@ class TestFutureMessageWorkflowExport(unittest.TestCase):
     
     def test_schema_exported_from_init(self):
         """测试 Schema 从 __init__ 正确导出"""
-        from qiaoyun.agno_agent.schemas import FutureMessageResponse
+        from agent.agno_agent.schemas import FutureMessageResponse
         
         self.assertIsNotNone(FutureMessageResponse)
         response = FutureMessageResponse()

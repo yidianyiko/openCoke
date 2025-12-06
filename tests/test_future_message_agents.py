@@ -21,7 +21,7 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
     
     def test_agents_are_instantiated(self):
         """测试所有 Future Message Agent 都已实例化"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_query_rewrite_agent,
             future_message_context_retrieve_agent,
             future_message_chat_agent,
@@ -33,10 +33,10 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
     
     def test_query_rewrite_agent_attributes(self):
         """测试 FutureMessageQueryRewriteAgent 属性 (Requirements 2.1)"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_query_rewrite_agent,
         )
-        from qiaoyun.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
+        from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
         
         # 检查 id 和 name
         self.assertEqual(future_message_query_rewrite_agent.id, "future-message-query-rewrite-agent")
@@ -47,10 +47,10 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
     
     def test_context_retrieve_agent_attributes(self):
         """测试 FutureMessageContextRetrieveAgent 属性 (Requirements 2.2)"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_context_retrieve_agent,
         )
-        from qiaoyun.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
+        from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
         
         # 检查 id 和 name
         self.assertEqual(future_message_context_retrieve_agent.id, "future-message-context-retrieve-agent")
@@ -62,10 +62,10 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
     
     def test_chat_agent_attributes(self):
         """测试 FutureMessageChatAgent 属性 (Requirements 2.3)"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_chat_agent,
         )
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
         
         # 检查 id 和 name
         self.assertEqual(future_message_chat_agent.id, "future-message-chat-agent")
@@ -79,7 +79,7 @@ class TestFutureMessageDynamicInstructions(unittest.TestCase):
     """测试 Future Message Agent 动态 instructions 渲染 (Requirements 2.4)"""
     
     def setUp(self):
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             get_future_query_rewrite_instructions,
             get_future_message_chat_instructions,
             get_future_context_retrieve_instructions,
@@ -163,7 +163,7 @@ class TestFutureMessageAgentOutputSchema(unittest.TestCase):
     
     def test_query_rewrite_output_schema_fields(self):
         """测试 QueryRewriteResponse 包含所有必需字段"""
-        from qiaoyun.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
+        from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
         
         # 创建默认实例
         response = QueryRewriteResponse()
@@ -179,7 +179,7 @@ class TestFutureMessageAgentOutputSchema(unittest.TestCase):
     
     def test_future_message_response_output_schema_fields(self):
         """测试 FutureMessageResponse 包含所有必需字段"""
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
         
         # 创建默认实例
         response = FutureMessageResponse()
@@ -201,7 +201,7 @@ class TestFutureMessageAgentExports(unittest.TestCase):
     
     def test_all_exports_available(self):
         """测试所有导出项可用"""
-        from qiaoyun.agno_agent.agents.future_message_agents import __all__
+        from agent.agno_agent.agents.future_message_agents import __all__
         
         expected_exports = [
             "get_future_query_rewrite_instructions",
@@ -218,7 +218,7 @@ class TestFutureMessageAgentExports(unittest.TestCase):
     def test_can_import_all_exports(self):
         """测试可以导入所有导出项"""
         try:
-            from qiaoyun.agno_agent.agents.future_message_agents import (
+            from agent.agno_agent.agents.future_message_agents import (
                 get_future_query_rewrite_instructions,
                 get_future_message_chat_instructions,
                 get_future_context_retrieve_instructions,

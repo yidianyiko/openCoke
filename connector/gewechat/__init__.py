@@ -1,3 +1,0 @@
-"""
-GeWeChat connector package initialization
-""" 

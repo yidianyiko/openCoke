@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from hypothesis import given, strategies as st, settings, assume
 
-from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
 
 
 # ============================================================================

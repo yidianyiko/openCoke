@@ -36,7 +36,7 @@ def init_reminder_feature():
         logger.info("")
         logger.info("下一步：")
         logger.info("1. 运行测试: python tests/test_reminder_feature.py")
-        logger.info("2. 启动后台处理器: python qiaoyun/runner/qiaoyun_background_handler.py")
+        logger.info("2. 启动后台处理器: python agent/runner/agent_background_handler.py")
         logger.info("3. 查看使用指南: doc/reminder_usage_guide.md")
         
         return True

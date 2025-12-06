@@ -108,7 +108,7 @@ def test_workflow_chain_mock():
     logger.info("=" * 60)
     
     # 需要在导入 Workflow 之前 patch Agent
-    import qiaoyun.agno_agent.agents as agents_module
+    import agent.agno_agent.agents as agents_module
     
     # 创建 mock 响应
     mock_qr_response = Mock()
@@ -157,7 +157,7 @@ def test_workflow_chain_mock():
     agents_module.chat_response_agent.run = Mock(return_value=mock_chat_response)
     agents_module.post_analyze_agent.run = Mock(return_value=mock_post_response)
     
-    from qiaoyun.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
+    from agent.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
     
     context = create_mock_context()
     input_message = "你好"
@@ -212,7 +212,7 @@ def test_workflow_chain_real():
         logger.error("请设置 DEEPSEEK_API_KEY 环境变量")
         return
     
-    from qiaoyun.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
+    from agent.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
     
     context = create_mock_context()
     input_message = "你好，今天天气怎么样？"

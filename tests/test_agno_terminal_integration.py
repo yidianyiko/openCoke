@@ -22,7 +22,7 @@ class TestHandlerImport(unittest.TestCase):
     
     def test_handler_importable(self):
         """测试 handler 可以导入"""
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
         
         # 验证 Workflow 类存在
         self.assertIsNotNone(PrepareWorkflow)
@@ -101,7 +101,7 @@ class TestAgnoWorkflowIntegration(unittest.TestCase):
     
     def test_prepare_workflow_structure(self):
         """测试 PrepareWorkflow 结构"""
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow
         
         workflow = PrepareWorkflow()
         
@@ -113,7 +113,7 @@ class TestAgnoWorkflowIntegration(unittest.TestCase):
     
     def test_chat_workflow_structure(self):
         """测试 ChatWorkflow 结构"""
-        from qiaoyun.agno_agent.workflows import ChatWorkflow
+        from agent.agno_agent.workflows import ChatWorkflow
         
         workflow = ChatWorkflow()
         
@@ -122,17 +122,17 @@ class TestAgnoWorkflowIntegration(unittest.TestCase):
     
     def test_post_analyze_workflow_structure(self):
         """测试 PostAnalyzeWorkflow 结构"""
-        from qiaoyun.agno_agent.workflows import PostAnalyzeWorkflow
+        from agent.agno_agent.workflows import PostAnalyzeWorkflow
         
         workflow = PostAnalyzeWorkflow()
         
         self.assertTrue(callable(getattr(workflow, 'run', None)))
         self.assertTrue(hasattr(workflow, 'userp_template'))
     
-    @patch('qiaoyun.agno_agent.agents.query_rewrite_agent')
+    @patch('agent.agno_agent.agents.query_rewrite_agent')
     def test_prepare_workflow_with_mock_agent(self, mock_agent):
         """测试 PrepareWorkflow 使用 mock agent"""
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow
         
         # 设置 mock 返回值
         mock_response = Mock()
@@ -249,13 +249,13 @@ class TestMessageInterruptMechanism(unittest.TestCase):
 class TestHandlerEntryPoint(unittest.TestCase):
     """测试 handler 入口函数
     
-    注意：由于 qiaoyun_handler 导入时需要 OSS 环境变量，
+    注意：由于 agent_handler 导入时需要 OSS 环境变量，
     这里只测试 Workflow 模块的可用性
     """
     
     def test_workflows_importable(self):
         """测试 Workflow 模块可以导入"""
-        from qiaoyun.agno_agent.workflows import (
+        from agent.agno_agent.workflows import (
             PrepareWorkflow,
             ChatWorkflow,
             PostAnalyzeWorkflow
@@ -267,7 +267,7 @@ class TestHandlerEntryPoint(unittest.TestCase):
     
     def test_agents_importable(self):
         """测试 Agents 模块可以导入"""
-        from qiaoyun.agno_agent.agents import (
+        from agent.agno_agent.agents import (
             query_rewrite_agent,
             chat_response_agent,
             post_analyze_agent
@@ -283,7 +283,7 @@ class TestWorkflowChain(unittest.TestCase):
     
     def test_workflow_chain_session_state_passing(self):
         """测试 session_state 在 Workflow 间传递"""
-        from qiaoyun.agno_agent.workflows import PrepareWorkflow, ChatWorkflow
+        from agent.agno_agent.workflows import PrepareWorkflow, ChatWorkflow
         
         # 初始 session_state
         initial_state = {

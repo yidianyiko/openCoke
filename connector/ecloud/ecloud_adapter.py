@@ -14,7 +14,7 @@ from logging import getLogger
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
-from qiaoyun.tool.image import download_image
+from agent.tool.image import download_image
 from framework.tool.voice2text.aliyun_asr import voice_to_text
 from framework.tool.image2text.ark import ark_image2text
 

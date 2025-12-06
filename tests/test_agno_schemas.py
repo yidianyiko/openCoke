@@ -13,14 +13,14 @@ sys.path.append(".")
 import unittest
 from pydantic import ValidationError
 
-from qiaoyun.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
-from qiaoyun.agno_agent.schemas.chat_response_schema import (
+from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
+from agent.agno_agent.schemas.chat_response_schema import (
     ChatResponse, 
     MultiModalResponse, 
     RelationChangeModel, 
     FutureResponseModel
 )
-from qiaoyun.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
+from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 
 
 class TestQueryRewriteResponseSchema(unittest.TestCase):

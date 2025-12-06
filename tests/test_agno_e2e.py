@@ -37,10 +37,10 @@ class TestAgnoAgentE2E:
     @pytest.mark.skipif(SKIP_E2E, reason=skip_reason)
     def test_future_message_query_rewrite_agent(self):
         """测试 FutureMessageQueryRewriteAgent 实际调用"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_query_rewrite_agent
         )
-        from qiaoyun.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
+        from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
         
         # 构造测试输入
         test_message = """
@@ -79,10 +79,10 @@ class TestAgnoAgentE2E:
     @pytest.mark.skipif(SKIP_E2E, reason=skip_reason)
     def test_future_message_chat_agent(self):
         """测试 FutureMessageChatAgent 实际调用"""
-        from qiaoyun.agno_agent.agents.future_message_agents import (
+        from agent.agno_agent.agents.future_message_agents import (
             future_message_chat_agent
         )
-        from qiaoyun.agno_agent.schemas.future_message_schema import FutureMessageResponse
+        from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
         
         # 构造测试输入
         test_message = """
@@ -128,7 +128,7 @@ class TestFutureMessageWorkflowE2E:
     @pytest.mark.skipif(SKIP_E2E, reason=skip_reason)
     def test_workflow_full_flow(self):
         """测试完整的 Workflow 流程"""
-        from qiaoyun.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+        from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
         
         # 构造完整的 session_state
         session_state = {

@@ -4,7 +4,7 @@ mongodb/data/
 # Local python env
 myenv/
 luoyun/temp/
-qiaoyun/temp/
+agent/temp/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -181,7 +181,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-qiaoyun/runner/qiaoyun_start.sh
+agent/runner/agent_start.sh
 connector/ecloud/ecloud_start.sh
 conf/config.json
 .trae/documents/

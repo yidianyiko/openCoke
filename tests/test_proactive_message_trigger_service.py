@@ -23,7 +23,7 @@ class TestProactiveMessageTriggerServiceInstantiation(unittest.TestCase):
     
     def test_service_can_be_instantiated(self):
         """测试服务可以被实例化"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -45,7 +45,7 @@ class TestProactiveMessageTriggerServiceInstantiation(unittest.TestCase):
     
     def test_service_has_required_methods(self):
         """测试服务包含所有必需方法"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -69,7 +69,7 @@ class TestGetDueConversations(unittest.TestCase):
     
     def test_get_due_conversations_returns_list(self):
         """测试返回列表类型"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -88,7 +88,7 @@ class TestGetDueConversations(unittest.TestCase):
     
     def test_get_due_conversations_queries_correct_filter(self):
         """测试查询使用正确的过滤条件"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -115,7 +115,7 @@ class TestGetDueConversations(unittest.TestCase):
     
     def test_get_due_conversations_handles_exception(self):
         """测试异常处理"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -139,7 +139,7 @@ class TestCheckAndTrigger(unittest.TestCase):
     
     def test_check_and_trigger_returns_list(self):
         """测试返回列表类型"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -158,7 +158,7 @@ class TestCheckAndTrigger(unittest.TestCase):
     
     def test_check_and_trigger_processes_due_conversations(self):
         """测试处理到期会话"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -200,7 +200,7 @@ class TestCheckAndTrigger(unittest.TestCase):
         )
         
         # Mock workflow
-        with patch('qiaoyun.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow') as mock_workflow_class:
+        with patch('agent.agno_agent.workflows.future_message_workflow.FutureMessageWorkflow') as mock_workflow_class:
             mock_workflow = MagicMock()
             mock_workflow.run.return_value = {
                 "content": {"MultiModalResponses": []},
@@ -219,7 +219,7 @@ class TestBuildSessionState(unittest.TestCase):
     
     def test_build_session_state_structure(self):
         """测试 session_state 结构"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -249,7 +249,7 @@ class TestBuildSessionState(unittest.TestCase):
     
     def test_build_session_state_with_relation(self):
         """测试带关系数据的 session_state"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -280,7 +280,7 @@ class TestWriteOutputMessages(unittest.TestCase):
     
     def test_write_output_messages_calls_mongo(self):
         """测试写入消息调用 MongoDB"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -309,7 +309,7 @@ class TestWriteOutputMessages(unittest.TestCase):
     
     def test_write_output_messages_skips_empty_content(self):
         """测试跳过空内容"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -342,7 +342,7 @@ class TestUpdateConversationFuture(unittest.TestCase):
     
     def test_update_conversation_future_calls_dao(self):
         """测试更新会话调用 DAO"""
-        from qiaoyun.agno_agent.services.proactive_message_trigger_service import (
+        from agent.agno_agent.services.proactive_message_trigger_service import (
             ProactiveMessageTriggerService
         )
         
@@ -385,7 +385,7 @@ class TestServiceExports(unittest.TestCase):
     def test_can_import_from_services_module(self):
         """测试可以从 services 模块导入"""
         try:
-            from qiaoyun.agno_agent.services import ProactiveMessageTriggerService
+            from agent.agno_agent.services import ProactiveMessageTriggerService
             self.assertIsNotNone(ProactiveMessageTriggerService)
         except ImportError as e:
             self.fail(f"Failed to import: {e}")
