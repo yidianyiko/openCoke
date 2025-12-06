@@ -1,13 +1,13 @@
 import sys
 sys.path.append(".")
 import asyncio
-from qiaoyun.runner.qiaoyun_handler import main_handler
+from qiaoyun.runner.qiaoyun_handler import handler
 from qiaoyun.runner.qiaoyun_background_handler import background_handler
 
 async def run_main_agent():
     while True:
         await asyncio.sleep(1)
-        await main_handler()
+        await handler()
 
 async def run_background_agent():
     while True:

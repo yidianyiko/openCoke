@@ -95,7 +95,7 @@ class PostAnalyzeWorkflow:
         # 调用 Agent 进行后处理分析
         try:
             response = post_analyze_agent.run(
-                message=rendered_userp,
+                input=rendered_userp,
                 session_state=session_state
             )
             

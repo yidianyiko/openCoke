@@ -104,8 +104,13 @@ async def background_handler():
     
     # === Background Agent 相关功能 ===
     # 未来消息派发（Background Agent）
+    # 根据 USE_AGNO 环境变量选择实现
+    USE_AGNO = os.getenv("USE_AGNO", "false").lower() == "true"
     if not disable_background_agents:
-        handle_pending_future_message()
+        if USE_AGNO:
+            handle_pending_future_message_agno()
+        else:
+            handle_pending_future_message()
     
     # 提醒任务派发（Background Agent）
     if not disable_background_agents:

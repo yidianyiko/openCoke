@@ -81,7 +81,7 @@ class PrepareWorkflow:
         
         try:
             qr_response = query_rewrite_agent.run(
-                message=rendered_userp,
+                input=rendered_userp,
                 session_state=session_state
             )
             
@@ -114,7 +114,7 @@ class PrepareWorkflow:
         # ========== Step 2: 提醒检测 ==========
         try:
             reminder_detect_agent.run(
-                message=input_message,
+                input=input_message,
                 session_state=session_state
             )
             logger.info("ReminderDetectAgent 执行完成")
@@ -137,7 +137,7 @@ class PrepareWorkflow:
             )
             
             cr_response = context_retrieve_agent.run(
-                message=retrieve_message,
+                input=retrieve_message,
                 session_state=session_state
             )
             

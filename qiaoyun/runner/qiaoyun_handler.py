@@ -35,6 +35,11 @@ prepare_workflow = PrepareWorkflow()
 chat_workflow = ChatWorkflow()
 post_analyze_workflow = PostAnalyzeWorkflow()
 
+# ========== Feature Flag: 切换 Agno 实现 ==========
+# 设置环境变量 USE_AGNO=true 启用 Agno Workflow
+# 默认为 false，使用旧的 QiaoyunChatAgent
+USE_AGNO = os.getenv("USE_AGNO", "false").lower() == "true"
+
 max_handle_age = 3600 * 12 # 只处理12小时以内的消息
 
 target_user_alias = "qiaoyun"
@@ -734,3 +739,27 @@ async def main_handler_agno():
     if conversation_id:
         lock_manager.release_lock("conversation", conversation_id)
     
+
+
+# ========== 统一入口函数 ==========
+async def handler():
+    """
+    统一的消息处理入口函数
+    
+    根据 USE_AGNO 环境变量决定使用哪个实现：
+    - USE_AGNO=true: 使用 Agno Workflow (main_handler_agno)
+    - USE_AGNO=false: 使用旧的 QiaoyunChatAgent (main_handler)
+    
+    Usage:
+        # 使用旧实现
+        python -c "import asyncio; from qiaoyun.runner.qiaoyun_handler import handler; asyncio.run(handler())"
+        
+        # 使用 Agno 实现
+        USE_AGNO=true python -c "import asyncio; from qiaoyun.runner.qiaoyun_handler import handler; asyncio.run(handler())"
+    """
+    if USE_AGNO:
+        logger.info("========== 使用 Agno Workflow 处理消息 ==========")
+        await main_handler_agno()
+    else:
+        logger.info("========== 使用旧版 QiaoyunChatAgent 处理消息 ==========")
+        await main_handler()

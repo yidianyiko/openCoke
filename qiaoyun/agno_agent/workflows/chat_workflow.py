@@ -97,7 +97,7 @@ class ChatWorkflow:
         # 调用 Agent 生成回复
         try:
             response = chat_response_agent.run(
-                message=rendered_userp,
+                input=rendered_userp,
                 session_state=session_state
             )
             
