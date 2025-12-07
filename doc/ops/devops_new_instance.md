@@ -71,8 +71,8 @@ sudo apt install -y python3.11
 sudo apt update
 sudo apt install -y python3.11-venv
 
-python3 -m venv myenv
-source myenv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 
 pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 pip3 config set global.trusted-host mirrors.aliyun.com

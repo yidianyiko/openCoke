@@ -2,7 +2,7 @@
 mongodb/data/
 
 # Local python env
-myenv/
+.venv/
 luoyun/temp/
 agent/temp/
 

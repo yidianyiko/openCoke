@@ -1,36 +1,9 @@
 # -*- coding: utf-8 -*-
 TASKPROMPT_小说书写任务 = ''''''
 
-TASKPROMPT_小说书写任务_nojson = ''''''
-
 TASKPROMPT_微信对话 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；不
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，我需要你根据"上下文"等信息推理出以下小说内容。'''
 
-TASKPROMPT_微信对话_优化 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。
-现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，而{character[platforms][wechat][nickname]}已经想好了要进行初步回复。现在我想让你对这个初步回复进行优化。
-要求如下：
-重新审视一下ChatResponse的内容并且优化生成优化后的消息数组。要求如下：
-- 输出是个数组，可以包含多种不同类型消息的混排；类型包括：text
-- 关于消息类型选择：通常{character[platforms][wechat][nickname]}发送的消息以”text“为主；。
-- 选择text类型时，必须包含content字段，你可能输出多个text消息，来表示分段输出。
-- 对于content字段，可以采纳{character[platforms][wechat][nickname]}比较擅长的知识或者技巧，也可以随机让话语变得更人性化一些；需要非常真实，可以玩一些网络上的梗，或者开玩笑。通俗易懂的一点，不要太抽象。
-- 对于content字段，如果待优化部分涉及{character[platforms][wechat][nickname]}的提醒，那么你应该遵循实际的数据。
-- 对于content字段，不应该使用括号文学来表示动作或者表情等内容。
-- 你可以从以下的几种输出格式范例中选择1种形式，或者自由发挥；注意不是消息数量越多越好，消息的数量和长短可以是较为随意的，从1-3个均可，可以与历史对话中的情况不同：
-
-```
-[
-    {{"type": "text", "content": "这是一个较长的文本消息"}},
-]
-```
-```
-```
-[
-    {{"type": "text", "content": "emoji"}},
-    {{"type": "text", "content": "这是另一条文本消息"}},
-]
-```
-'''
 
 TASKPROMPT_微信对话_推理要求_纯文本 = '''1. InnerMonologue。输出“无”。
 2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断；注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。
@@ -163,7 +136,6 @@ CharacterPrivateSettings的key的结构尽量模仿CharacterPublicSettings的形
 10. RelationDescription。总结最新聊天消息中，{character[platforms][wechat][nickname]}和{user[platforms][wechat][nickname]}的关系变化。注意，他们之前的关系是"{relation[relationship][description]}",如果没有变化，你应该输出原关系。
 11. Dislike。输出 0'''
 
-TASKPROMPT_绘图场景分析 = ''''''
 
 TASKPROMPT_未来_语义理解 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
 之前他们已经有了一些聊天，当时{character[platforms][wechat][nickname]}准备在未来进行一些行动，称为”规划行动“；现在已经到了{character[platforms][wechat][nickname]}该执行这次”规划行动“的时候，此时我需要你根据”上下文“等相关信息，尝试从一些资料库中查询一些必要的资料。你需要按照格式要求，输出你要针对该资料库进行查询的入参（例如关键字，条件等），如果不需要进行查询，你需要针对该资料库的查询入参应该为"空"。注意所需要进行的查询，需要跟”上下文“中的信息有关，尤其是”规划行动“。

@@ -28,9 +28,6 @@ CONTEXTPROMPT_待办提醒 = '''### {user[platforms][wechat][nickname]}的待办
 CONTEXTPROMPT_人物知识和技能 = '''### {character[platforms][wechat][nickname]}的人物知识和技能
 {context_retrieve[character_knowledge]}'''
 
-CONTEXTPROMPT_人物手机相册 = '''### {character[platforms][wechat][nickname]}的人物手机相册
-{context_retrieve[character_photo]}'''
-
 CONTEXTPROMPT_人物状态 = '''### {character[platforms][wechat][nickname]}的人物状态
 所在地点：{character[user_info][status][place]}
 行动：{character[user_info][status][action]}
@@ -50,28 +47,6 @@ CONTEXTPROMPT_当前的人物关系 = '''### {character[platforms][wechat][nickn
 {character[platforms][wechat][nickname]}对{user[platforms][wechat][nickname]}的亲密昵称：{relation[user_info][hobbyname]}
 {character[platforms][wechat][nickname]}对{user[platforms][wechat][nickname]}的印象描述：{relation[user_info][description]}
 '''
-
-## Relations
-# {
-#     "_id": "xxx",
-#     "uid": "xxx",
-#     "cid": "xxx",
-#     "user_info": {
-#         "realname": "xxx",
-#         "hobbyname": "xxx",
-#         "description": "xxx",
-#     },
-#     "character_info": {
-#         "longterm_purpose": "xxx",
-#         "shortterm_purpose": "xxx",
-#         "attitude": "xxx",
-#     },
-#     "relationship": {
-#         "description": "xxx",
-#         "closeness": xx,
-#         "trustness": xx,
-#     },
-# }
 
 CONTEXTPROMPT_历史对话 = '''### 历史对话
 {conversation[conversation_info][chat_history_str]}'''

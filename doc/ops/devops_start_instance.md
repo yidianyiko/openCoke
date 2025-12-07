@@ -2,7 +2,7 @@
 ### 前置步骤
 ```
 # python虚拟环境
-source myenv/bin/activate
+source .venv/bin/activate
 
 # docker
 sudo systemctl start docker
