@@ -17,13 +17,10 @@ from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import save_outputmessage
 
-# big
-from_user = "680ba9871ce4b5edce83a0e5"
-to_user = "680ba9821ce4b5edce83a0de"
-
-# small
-from_user = "680b519151a0ae0f436c3c5a"
-to_user = "680b529751a0ae0f436c3c74"
+# 角色 ID（发送消息的 AI 角色）
+from_user = "6916d8f79c455f8b8d06ecec"  # Coke
+# 用户 ID（接收消息的人）
+to_user = "6916f48dd16895f164265eea"  # 不辣的皮皮
 
 
 mongo = MongoDBBase()

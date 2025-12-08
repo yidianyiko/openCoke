@@ -16,6 +16,7 @@ from agent.agno_agent.agents import (
     reminder_detect_agent,
     context_retrieve_agent,
 )
+from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_语义理解,
     TASKPROMPT_语义理解_推理要求,
@@ -113,6 +114,9 @@ class PrepareWorkflow:
         
         # ========== Step 2: 提醒检测 ==========
         try:
+            # 设置 session_state 供 reminder_tool 使用
+            set_reminder_session_state(session_state)
+            
             reminder_detect_agent.run(
                 input=input_message,
                 session_state=session_state

@@ -58,57 +58,75 @@ def _parse_trigger_time(trigger_time: str) -> Optional[int]:
     return None
 
 
-@tool(description="提醒管理工具，支持创建、更新、删除、查询提醒")
+# 全局变量存储当前 session_state（在调用前设置）
+_current_session_state = {}
+
+
+def set_reminder_session_state(session_state: dict):
+    """设置当前会话状态，供 reminder_tool 使用"""
+    global _current_session_state
+    _current_session_state = session_state or {}
+
+
+@tool(description="""提醒管理工具，用于创建、更新、删除、查询提醒。
+当用户说"提醒我"、"帮我设个提醒"、"别忘了提醒我"等表达提醒意图时，调用此工具创建提醒。
+
+创建提醒时必须提供:
+- action: "create"
+- title: 提醒标题，如"开会"、"喝水"、"休息"
+- trigger_time: 触发时间，支持以下格式:
+  1. 绝对时间格式（推荐）："xxxx年xx月xx日xx时xx分"，如"2025年12月08日15时00分"
+  2. 相对时间格式："X分钟后"、"X小时后"、"X天后"、"明天"、"后天"、"下周"
+
+注意: 不支持"下午3点"、"晚上8点"、"23:00"等格式，必须转换为绝对时间格式"xxxx年xx月xx日xx时xx分"。
+
+示例调用:
+- 用户说"明天早上9点提醒我开会" -> action="create", title="开会", trigger_time="2025年12月09日09时00分"
+- 用户说"30分钟后提醒我喝水" -> action="create", title="喝水", trigger_time="30分钟后"
+- 用户说"下午3点提醒我休息" -> action="create", title="休息", trigger_time="2025年12月08日15时00分"
+""")
 def reminder_tool(
     action: Literal["create", "update", "delete", "list"],
-    user_id: str,
-    reminder_id: Optional[str] = None,
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
     action_template: Optional[str] = None,
+    reminder_id: Optional[str] = None,
     recurrence_type: Literal["none", "daily", "weekly", "monthly", "yearly", "hourly", "interval"] = "none",
-    recurrence_interval: int = 1,
-    conversation_id: Optional[str] = None,
-    character_id: Optional[str] = None
+    recurrence_interval: int = 1
 ) -> dict:
     """
     提醒管理统一工具
     
     Args:
-        action: 操作类型
-            - "create": 创建新提醒
-            - "update": 更新现有提醒
-            - "delete": 删除提醒
-            - "list": 列出用户的所有提醒
-        user_id: 用户ID（必填）
+        action: 操作类型 - "create"创建、"update"更新、"delete"删除、"list"列表
+        title: 提醒标题，如"开会"、"喝水"
+        trigger_time: 触发时间，如"30分钟后"、"明天早上9点"
+        action_template: 提醒文案模板（可选）
         reminder_id: 提醒ID（update/delete 时必填）
-        title: 提醒标题（create/update 时使用）
-        trigger_time: 触发时间，支持相对时间如"30分钟后"、"明天"或绝对时间如"2024年12月25日09时00分"
-        action_template: 提醒文案模板，触发时发送的消息内容
-        recurrence_type: 周期类型
-            - "none": 一次性提醒
-            - "daily": 每日
-            - "weekly": 每周
-            - "monthly": 每月
-            - "yearly": 每年
-            - "hourly": 每小时
-            - "interval": 自定义间隔（分钟）
-        recurrence_interval: 周期间隔数，默认为1
-        conversation_id: 会话ID（可选）
-        character_id: 角色ID（可选）
+        recurrence_type: 周期类型，默认"none"
+        recurrence_interval: 周期间隔数，默认1
     
     Returns:
-        操作结果字典:
-        - create: {"ok": bool, "reminder_id": str} 或 {"ok": False, "error": str}
-        - update: {"ok": bool} 或 {"ok": False, "error": str}
-        - delete: {"ok": bool} 或 {"ok": False, "error": str}
-        - list: {"ok": True, "reminders": list} 或 {"ok": False, "error": str}
+        操作结果字典
     """
+    global _current_session_state
+    
+    # 从全局 session_state 获取用户信息
+    user_id = str(_current_session_state.get("user", {}).get("_id", ""))
+    character_id = str(_current_session_state.get("character", {}).get("_id", ""))
+    conversation_id = str(_current_session_state.get("conversation", {}).get("_id", ""))
+    
+    if not user_id and action in ["create", "list"]:
+        logger.warning("reminder_tool: user_id not found in session_state")
+        return {"ok": False, "error": "无法获取用户信息，请稍后重试"}
+    
     reminder_dao = ReminderDAO()
+    
+    logger.info(f"reminder_tool called: action={action}, title={title}, trigger_time={trigger_time}, user_id={user_id}")
     
     try:
         if action == "create":
-            return _create_reminder(
+            result = _create_reminder(
                 reminder_dao=reminder_dao,
                 user_id=user_id,
                 title=title,
@@ -119,6 +137,8 @@ def reminder_tool(
                 conversation_id=conversation_id,
                 character_id=character_id
             )
+            logger.info(f"reminder_tool create result: {result}")
+            return result
         
         elif action == "update":
             return _update_reminder(
