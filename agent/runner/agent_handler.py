@@ -399,13 +399,15 @@ async def main_handler():
             )
 
             # 更新 relation
+
+            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
             mongo.replace_one(
                 "relations", 
                 query={
                     "uid": context["relation"]["uid"],
                     "cid": context["relation"]["cid"],
                 },
-                update=context["relation"]
+                update=relation_update
             )
 
     except Exception as e:

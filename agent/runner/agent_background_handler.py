@@ -300,10 +300,12 @@ def handle_pending_future_message():
                 conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
         
             conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+
+            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
             mongo.replace_one(
                 "relations", 
                 query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
-                update=context["relation"]
+                update=relation_update
             )
 
     except Exception as e:
