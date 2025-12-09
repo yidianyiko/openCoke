@@ -66,13 +66,13 @@ class PrepareWorkflow:
         CONTEXTPROMPT_最新聊天消息
     )
     
-    def run(
+    async def run(
         self,
         input_message: str,
         session_state: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        执行准备阶段 (V2 架构)
+        异步执行准备阶段 (V2 架构)
         
         Args:
             input_message: 用户输入消息
@@ -91,7 +91,7 @@ class PrepareWorkflow:
             rendered_prompt = input_message
         
         try:
-            orchestrator_response = orchestrator_agent.run(
+            orchestrator_response = await orchestrator_agent.arun(
                 input=rendered_prompt,
                 session_state=session_state
             )
@@ -126,6 +126,12 @@ class PrepareWorkflow:
         need_context = orchestrator.get("need_context_retrieve", True)
         need_reminder = orchestrator.get("need_reminder_detect", False)
         
+        # 系统消息（提醒、主动消息）跳过提醒检测
+        message_source = session_state.get("message_source", "user")
+        if message_source in ["reminder", "future"]:
+            need_reminder = False
+            logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
+        
         # ========== Step 2: 上下文检索 (直接调用 Tool，0次 LLM) ==========
         if need_context:
             try:
@@ -158,7 +164,7 @@ class PrepareWorkflow:
                 # 设置 session_state 供 reminder_tool 使用
                 set_reminder_session_state(session_state)
                 
-                reminder_detect_agent.run(
+                await reminder_detect_agent.arun(
                     input=input_message,
                     session_state=session_state
                 )

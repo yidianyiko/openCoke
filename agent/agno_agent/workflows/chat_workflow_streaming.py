@@ -87,13 +87,13 @@ class StreamingChatWorkflow:
             # 不使用 output_schema，让我们自己解析
         )
     
-    def run_stream(
+    async def run_stream(
         self,
         input_message: str,
         session_state: Optional[Dict[str, Any]] = None
-    ) -> Generator[Dict[str, Any], None, None]:
+    ):
         """
-        流式执行回复生成
+        异步流式执行回复生成
         
         Args:
             input_message: 用户输入消息
@@ -126,8 +126,8 @@ class StreamingChatWorkflow:
         yielded_count = 0
         
         try:
-            # 流式调用 Agent
-            for chunk in self.agent.run(
+            # 异步流式调用 Agent (Agno v2 arun with stream=True returns AsyncIterator)
+            async for chunk in self.agent.arun(
                 input=rendered_userp,
                 session_state=session_state,
                 stream=True
@@ -166,20 +166,20 @@ class StreamingChatWorkflow:
                 "data": {"error": str(e)}
             }
     
-    def run(
+    async def run(
         self,
         input_message: str,
         session_state: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        非流式执行（兼容原接口）
+        异步非流式执行（兼容原接口）
         
         收集所有流式输出后一次性返回
         """
         messages = []
         full_response = ""
         
-        for event in self.run_stream(input_message, session_state):
+        async for event in self.run_stream(input_message, session_state):
             if event["type"] == "message":
                 messages.append(event["data"])
             elif event["type"] == "done":

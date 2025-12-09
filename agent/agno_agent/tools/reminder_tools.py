@@ -241,7 +241,7 @@ def _create_reminder(
         "user_id": user_id,
         "reminder_id": reminder_id,
         "title": title,
-        "action_template": action_template or f"提醒：{title}",
+        "action_template": action_template or f"记得{title}",
         "next_trigger_time": timestamp,
         "time_original": trigger_time,
         "timezone": "Asia/Shanghai",

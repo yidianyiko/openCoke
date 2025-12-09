@@ -29,17 +29,10 @@ from dao.lock import MongoDBLockManager
 from dao.mongo import MongoDBBase
 from conf.config import CONF
 
-from agent.runner.context import context_prepare
-from agent.util.message_util import send_message_via_context
-from agent.tool.voice import character_voice
-from agent.tool.image import upload_image
 from util.time_util import date2str, timestamp2str
 
-# ========== Agno Workflow 导入 ==========
-from agent.agno_agent.workflows import FutureMessageWorkflow
-
-# 预创建 Workflow 实例
-future_message_workflow = FutureMessageWorkflow()
+# ========== 核心处理函数导入 ==========
+from agent.runner.agent_handler import handle_message
 
 # ========== 配置 ==========
 target_user_alias = CONF.get("default_character_alias", "coke")
@@ -83,11 +76,11 @@ async def background_handler():
     if is_proactive:
         handle_proactive_message()
     
-    # 主动消息派发
-    handle_pending_future_message()
+    # 主动消息派发 (异步，使用统一入口)
+    await handle_pending_future_message()
     
-    # 提醒任务派发
-    handle_pending_reminders()
+    # 提醒任务派发 (异步，使用统一入口)
+    await handle_pending_reminders()
 
 
 def decrease_all():
@@ -167,11 +160,11 @@ def handle_proactive_message():
         logger.error(traceback.format_exc())
 
 
-def handle_pending_future_message():
+async def handle_pending_future_message():
     """
-    处理待发送的主动消息 (Agno 版本)
+    处理待发送的主动消息 (V2.4 - 使用统一入口)
     
-    使用 FutureMessageWorkflow 生成主动消息
+    使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
     """
     lock = None
     conversation_id = None
@@ -189,139 +182,125 @@ def handle_pending_future_message():
         conversation = conversations[0]
         logger.info("try sending proactive message:" + str(conversation["conversation_info"]["future"]))
 
+        def clear_invalid_future():
+            """清除无效的 future 记录"""
+            conversation["conversation_info"]["future"] = {}
+            mongo.replace_one("conversations", {"_id": conversation["_id"]}, conversation)
+            logger.info(f"已清除无效的 future 记录: {conversation.get('_id')}")
+
         if len(conversation.get("talkers", [])) < 2:
-            logger.warning(f"conversation talkers 不足2个，跳过: {conversation.get('_id')}")
+            logger.warning(f"conversation talkers 不足2个，清除: {conversation.get('_id')}")
+            clear_invalid_future()
             return
 
         users = user_dao.find_users({"platforms.wechat.id": conversation["talkers"][0]["id"]}, 1)
         if not users:
+            logger.warning(f"找不到用户: {conversation['talkers'][0]['id']}，清除 future")
+            clear_invalid_future()
             return
         user = users[0]
         
         characters = user_dao.find_users({"platforms.wechat.id": conversation["talkers"][1]["id"]}, 1)
         if not characters:
+            logger.warning(f"找不到角色: {conversation['talkers'][1]['id']}，清除 future")
+            clear_invalid_future()
             return
         character = characters[0]
+        
+        logger.info(f"准备获取锁: conversation_id={conversation['_id']}")
 
         conversation_id = str(conversation["_id"])
-        lock = lock_manager.acquire_lock("conversation", conversation_id, timeout=120, max_wait=1)
+        
+        # 调试：检查当前锁状态
+        existing_lock = lock_manager.get_lock_info("conversation", conversation_id)
+        if existing_lock:
+            logger.warning(f"锁已存在: resource_id={existing_lock.get('resource_id')}, "
+                          f"created_at={existing_lock.get('created_at')}, "
+                          f"expires_at={existing_lock.get('expires_at')}, "
+                          f"owner_id={existing_lock.get('owner_id')[:8] if existing_lock.get('owner_id') else 'N/A'}")
+        
+        # 使用异步锁获取
+        lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
         if lock is None:
+            logger.warning(f"获取锁失败，conversation_id={conversation_id}")
             return
         
+        # 处理拉黑逻辑
+        from agent.runner.context import context_prepare
         context = context_prepare(user, character, conversation)
         
-        is_failed = False
-        is_finish = False
-        resp_messages = []
-
-        # 处理拉黑逻辑
         if context["relation"]["relationship"]["dislike"] >= 100:
-            is_finish = True
+            logger.info("用户已被拉黑，跳过主动消息")
         else:
-            # ========== 使用 Agno Workflow ==========
+            # ========== 使用统一入口 handle_message ==========
             try:
-                logger.info("FutureMessageWorkflow 开始执行")
-                workflow_response = future_message_workflow.run(session_state=context)
-                context = workflow_response.get("session_state", context)
-                logger.info("FutureMessageWorkflow 执行完成")
+                future_action = conversation["conversation_info"]["future"].get("action", "")
+                future_proactive_times = conversation["conversation_info"]["future"].get("proactive_times", 0)
                 
-                content = workflow_response.get("content", {})
-                multimodal_responses = content.get("MultiModalResponses", [])
-                if not isinstance(multimodal_responses, list):
-                    multimodal_responses = []
+                # 构造系统消息
+                input_message_str = f"[系统主动话题] {future_action}"
                 
-                expect_output_timestamp = int(time.time())
+                logger.info(f"[FUTURE] 开始处理主动消息: {future_action}")
+                resp_messages, context, _ = await handle_message(
+                    user=user,
+                    character=character,
+                    conversation=conversation,
+                    input_message_str=input_message_str,
+                    message_source="future",
+                    metadata={
+                        "action": future_action,
+                        "proactive_times": future_proactive_times
+                    },
+                    check_new_message=False,  # 系统消息不检测新消息
+                    worker_tag="[FUTURE]"
+                )
+                logger.info(f"[FUTURE] 主动消息处理完成，发送 {len(resp_messages)} 条消息")
                 
-                for multimodal_response in multimodal_responses:
-                    if multimodal_response.get("type") == "voice":
-                        voice_messages = character_voice(
-                            multimodal_response.get("content", ""),
-                            multimodal_response.get("emotion", "无")
-                        )
-                        for voice_url, voice_length in voice_messages:
-                            outputmessage = send_message_via_context(
-                                context,
-                                message=multimodal_response.get("content", ""),
-                                message_type="voice",
-                                expect_output_timestamp=expect_output_timestamp,
-                                metadata={"url": voice_url, "voice_length": voice_length}
-                            )
-                            if outputmessage:
-                                resp_messages.append(outputmessage)
-                            expect_output_timestamp += int(voice_length/1000) + random.randint(2, 5)
-                    
-                    elif multimodal_response.get("type") == "photo":
-                        photo_id = str(multimodal_response.get("content", "")).replace("「", "").replace("」", "").replace("照片", "", 1)
-                        image_url = upload_image(photo_id)
-                        if image_url:
-                            context["conversation"]["conversation_info"]["photo_history"].append(photo_id)
-                            if len(context["conversation"]["conversation_info"]["photo_history"]) > 12:
-                                context["conversation"]["conversation_info"]["photo_history"] = context["conversation"]["conversation_info"]["photo_history"][-12:]
-                            
-                            outputmessage = send_message_via_context(
-                                context,
-                                message=multimodal_response.get("content", ""),
-                                message_type="image",
-                                expect_output_timestamp=expect_output_timestamp,
-                                metadata={"url": image_url}
-                            )
-                            if outputmessage:
-                                resp_messages.append(outputmessage)
-                            expect_output_timestamp += random.randint(2, 8)
-                    
-                    else:
-                        text_message = str(multimodal_response.get("content", "")).replace("<换行>", "\n")
-                        outputmessage = send_message_via_context(
-                            context,
-                            message=text_message,
-                            message_type="text",
-                            expect_output_timestamp=expect_output_timestamp
-                        )
-                        if outputmessage:
-                            resp_messages.append(outputmessage)
-                        expect_output_timestamp += int(len(text_message) / typing_speed)
+                # 更新会话历史
+                conversation = context["conversation"]
+                for resp_message in resp_messages:
+                    conversation["conversation_info"]["chat_history"].append(resp_message)
                 
-                is_finish = True
+                if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                    conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                
+                conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                
+                # 更新关系
+                relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+                mongo.replace_one(
+                    "relations", 
+                    query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
+                    update=relation_update
+                )
                 
             except Exception as e:
-                logger.error(f"FutureMessageWorkflow execution failed: {e}")
+                logger.error(f"[FUTURE] handle_message failed: {e}")
                 logger.error(traceback.format_exc())
-                is_failed = True
-
-        if is_failed:
-            raise Exception("Handle fail")
         
-        if is_finish:
-            conversation = context["conversation"]
-            for resp_message in resp_messages:
-                conversation["conversation_info"]["chat_history"].append(resp_message)
-            
-            if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
-                conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
-        
-            conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
-
-            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
-            mongo.replace_one(
-                "relations", 
-                query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
-                update=relation_update
-            )
+        # 清除 future 记录
+        conversation["conversation_info"]["future"] = {}
+        mongo.replace_one("conversations", {"_id": conversation["_id"]}, conversation)
 
     except Exception as e:
         logger.error(traceback.format_exc())
     finally:
         if conversation_id and lock:
             try:
-                lock_manager.release_lock("conversation", conversation_id)
+                lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
             except Exception as e:
                 logger.error(f"释放锁失败: {e}")
 
 
-def handle_pending_reminders():
-    """处理待触发的提醒任务"""
+async def handle_pending_reminders():
+    """
+    处理待触发的提醒任务 (V2.4 - 使用统一入口)
+    
+    使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
+    """
     from dao.reminder_dao import ReminderDAO
     from util.time_util import calculate_next_recurrence
+    from agent.runner.context import context_prepare
     
     reminder_dao = ReminderDAO()
     lock = None
@@ -336,9 +315,12 @@ def handle_pending_reminders():
         logger.info(f"发现 {len(reminders)} 个待触发的提醒")
         
         for reminder in reminders:
+            conversation_id = None
             try:
                 conversation_id = reminder["conversation_id"]
-                lock = lock_manager.acquire_lock("conversation", conversation_id, timeout=120, max_wait=1)
+                
+                # 使用异步锁获取
+                lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
                 if lock is None:
                     continue
                 
@@ -357,26 +339,57 @@ def handle_pending_reminders():
                     reminder_dao.cancel_reminder(reminder["reminder_id"])
                     continue
                 
-                # 发送提醒消息
-                outputmessage = send_message_via_context(
-                    context,
-                    message=reminder["action_template"],
-                    message_type="text",
-                    expect_output_timestamp=int(time.time())
-                )
-                
-                if not outputmessage:
+                # ========== 使用统一入口 handle_message ==========
+                try:
+                    # 构造系统消息
+                    reminder_title = reminder.get("title", "提醒")
+                    reminder_content = reminder.get("action_template", reminder_title)
+                    input_message_str = f"[系统提醒触发] {reminder_content}"
+                    
+                    logger.info(f"[REMINDER] 开始处理提醒: {reminder_title}")
+                    resp_messages, context, _ = await handle_message(
+                        user=user,
+                        character=character,
+                        conversation=conversation,
+                        input_message_str=input_message_str,
+                        message_source="reminder",
+                        metadata={
+                            "reminder_id": reminder["reminder_id"],
+                            "title": reminder_title,
+                            "action_template": reminder_content
+                        },
+                        check_new_message=False,  # 系统消息不检测新消息
+                        worker_tag="[REMINDER]"
+                    )
+                    logger.info(f"[REMINDER] 提醒处理完成，发送 {len(resp_messages)} 条消息")
+                    
+                    if not resp_messages:
+                        reminder_dao.complete_reminder(reminder["reminder_id"])
+                        continue
+                    
+                    # 更新会话历史
+                    conversation = context["conversation"]
+                    for resp_message in resp_messages:
+                        conversation["conversation_info"]["chat_history"].append(resp_message)
+                    
+                    if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                        conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                    
+                    conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                    
+                    # 更新关系
+                    relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+                    mongo.replace_one(
+                        "relations", 
+                        query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
+                        update=relation_update
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"[REMINDER] handle_message failed: {e}")
+                    logger.error(traceback.format_exc())
                     reminder_dao.complete_reminder(reminder["reminder_id"])
                     continue
-                
-                logger.info(f"提醒已发送: {reminder['title']}")
-                
-                # 更新会话历史
-                conversation["conversation_info"]["chat_history"].append(outputmessage)
-                if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
-                    conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
-                
-                conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
                 
                 # 先标记为已触发（增加触发计数）
                 reminder_dao.mark_as_triggered(reminder["reminder_id"])
@@ -416,8 +429,8 @@ def handle_pending_reminders():
             except Exception as e:
                 logger.error(f"处理提醒失败: {traceback.format_exc()}")
             finally:
-                if lock:
-                    lock_manager.release_lock("conversation", conversation_id)
+                if lock and conversation_id:
+                    lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
                     lock = None
     
     except Exception as e:

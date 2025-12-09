@@ -67,12 +67,12 @@ class PostAnalyzeWorkflow:
         TASKPROMPT_总结_推理要求
     )
     
-    def run(
+    async def run(
         self,
         session_state: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        执行后处理分析
+        异步执行后处理分析
         
         V2 重构：新增 RelationChange 和 FutureResponse 处理
         
@@ -101,9 +101,9 @@ class PostAnalyzeWorkflow:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = "请分析本次对话"
         
-        # 调用 Agent 进行后处理分析
+        # 异步调用 Agent 进行后处理分析
         try:
-            response = post_analyze_agent.run(
+            response = await post_analyze_agent.arun(
                 input=rendered_userp,
                 session_state=session_state
             )

@@ -1,9 +1,10 @@
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
+import asyncio
 import time
 import uuid
 import datetime
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 
 from conf.config import CONF
 
@@ -129,6 +130,100 @@ class MongoDBLockManager:
             yield lock_id
         finally:
             self.release_lock(resource_type, resource_id, lock_id)
+    
+    async def acquire_lock_async(self, resource_type, resource_id, owner_id=None, timeout=30, max_wait=60):
+        """
+        Acquire a lock on a specific resource asynchronously.
+        
+        Uses asyncio.to_thread to run blocking MongoDB operations in a thread pool,
+        and asyncio.sleep for non-blocking waits between retries.
+        
+        Args:
+            resource_type: Type of resource (e.g., 'conversations', 'users')
+            resource_id: ID of the specific resource to lock
+            owner_id: ID of the entity acquiring the lock (defaults to a generated UUID)
+            timeout: How long the lock is valid (in seconds)
+            max_wait: Maximum time to wait for the lock (in seconds)
+            
+        Returns:
+            lock_id: The ID of the acquired lock, or None if failed
+        """
+        if owner_id is None:
+            owner_id = str(uuid.uuid4())
+            
+        resource_key = f"{resource_type}:{resource_id}"
+        expiration_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
+        
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            try:
+                # Run blocking MongoDB operations in thread pool
+                await asyncio.to_thread(
+                    self.locks.delete_many,
+                    {"expires_at": {"$lt": datetime.datetime.utcnow()}}
+                )
+                
+                lock_id = str(uuid.uuid4())
+                result = await asyncio.to_thread(
+                    self.locks.insert_one,
+                    {
+                        "resource_id": resource_key,
+                        "lock_id": lock_id,
+                        "owner_id": owner_id,
+                        "created_at": datetime.datetime.utcnow(),
+                        "expires_at": expiration_time,
+                        "resource_type": resource_type
+                    }
+                )
+                
+                if result.acknowledged:
+                    return lock_id
+                    
+            except DuplicateKeyError:
+                # Lock exists, use async sleep to yield control
+                await asyncio.sleep(0.5)
+                continue
+                
+        return None
+    
+    async def release_lock_async(self, resource_type, resource_id, lock_id=None, owner_id=None):
+        """
+        Release a lock on a specific resource asynchronously.
+        
+        Args:
+            resource_type: Type of resource
+            resource_id: ID of the specific resource
+            lock_id: ID of the lock to release (optional)
+            owner_id: ID of the owner to release locks for (optional)
+            
+        Returns:
+            bool: Whether the lock was successfully released
+        """
+        resource_key = f"{resource_type}:{resource_id}"
+        
+        query = {"resource_id": resource_key}
+        if lock_id:
+            query["lock_id"] = lock_id
+        if owner_id:
+            query["owner_id"] = owner_id
+            
+        result = await asyncio.to_thread(self.locks.delete_one, query)
+        return result.deleted_count > 0
+    
+    @asynccontextmanager
+    async def lock_async(self, resource_type, resource_id, owner_id=None, timeout=30, max_wait=60):
+        """Async context manager for acquiring and releasing a lock."""
+        lock_id = await self.acquire_lock_async(
+            resource_type, resource_id, owner_id, timeout, max_wait
+        )
+        
+        if not lock_id:
+            raise TimeoutError(f"Failed to acquire lock for {resource_type}:{resource_id}")
+            
+        try:
+            yield lock_id
+        finally:
+            await self.release_lock_async(resource_type, resource_id, lock_id)
 
 
 # Example usage:

@@ -70,13 +70,13 @@ class ChatWorkflow:
         TASKPROMPT_提醒识别
     )
     
-    def run(
+    async def run(
         self,
         input_message: str,
         session_state: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        执行回复生成
+        异步执行回复生成
         
         Args:
             input_message: 用户输入消息
@@ -94,9 +94,9 @@ class ChatWorkflow:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message
         
-        # 调用 Agent 生成回复
+        # 异步调用 Agent 生成回复
         try:
-            response = chat_response_agent.run(
+            response = await chat_response_agent.arun(
                 input=rendered_userp,
                 session_state=session_state
             )

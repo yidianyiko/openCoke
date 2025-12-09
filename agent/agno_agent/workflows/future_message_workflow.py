@@ -162,9 +162,9 @@ class FutureMessageWorkflow:
             logger.error(f"模板渲染失败: {e}")
             return template
     
-    def run(self, session_state: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def run(self, session_state: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        执行主动消息生成流程
+        异步执行主动消息生成流程
         
         Args:
             session_state: 上下文状态，需包含：
@@ -186,7 +186,7 @@ class FutureMessageWorkflow:
             logger.warning(f"QueryRewrite user prompt 渲染失败: {e}")
             rendered_qr_userp = "请根据规划行动进行问题重写"
         
-        qr_response = future_message_query_rewrite_agent.run(
+        qr_response = await future_message_query_rewrite_agent.arun(
             input=rendered_qr_userp,
             session_state=session_state
         )
@@ -204,7 +204,7 @@ class FutureMessageWorkflow:
         query_rewrite = session_state.get("query_rewrite", {})
         retrieve_message = self._build_retrieve_message(query_rewrite, session_state)
         
-        cr_response = future_message_context_retrieve_agent.run(
+        cr_response = await future_message_context_retrieve_agent.arun(
             input=retrieve_message,
             session_state=session_state
         )
@@ -221,7 +221,7 @@ class FutureMessageWorkflow:
             logger.warning(f"Chat user prompt 渲染失败: {e}")
             rendered_chat_userp = "请根据规划行动生成主动消息"
         
-        chat_response = future_message_chat_agent.run(
+        chat_response = await future_message_chat_agent.arun(
             input=rendered_chat_userp,
             session_state=session_state
         )

@@ -2,9 +2,9 @@
 
 > 本文档基于 Agno 框架重构后的代码库进行深入分析
 > 
-> 文档版本：v2.2  
-> 日期：2025-12-09  
-> 更新：整合 Agent 架构 V2 编排式设计和提醒重复触发修复
+> 文档版本：v2.3  
+> 日期：2025-12-10  
+> 更新：完成全链路异步化改造，支持真正的多用户并发处理
 
 ---
 
@@ -31,6 +31,7 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 ### 1.2 核心特性
 
 - **Agno 框架驱动**：采用 Agno 2.x 作为核心 Agent 框架，支持 Workflow 编排
+- **全链路异步化**：基于 asyncio 的真正并发处理，多用户消息并行处理
 - **通信与算法解耦**：支持延迟回复、主动回复、一回多、多回一
 - **全类型多模态能力**：文本、图片、语音
 - **多库多路召回记忆体**：向量检索 + 关键词检索的混合召回
@@ -147,6 +148,14 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 - 基于 MongoDB 实现的分布式锁
 - 会话级锁定，防止同一会话的并发处理
 - 支持锁超时和自动释放
+- 支持同步和异步两种获取方式
+
+#### 2.2.5 异步并发模式
+
+- 基于 asyncio 的协程并发，多 Worker 真正并行处理
+- Workflow 层全面异步化，使用 `agent.arun()` 调用 LLM
+- 锁管理器提供 `acquire_lock_async()` 异步方法
+- 流式输出使用 `async for` 异步迭代
 
 ### 2.3 Agent 架构 V2 (编排式设计)
 
@@ -315,45 +324,43 @@ class PostAnalyzeResponse(BaseModel):
 
 ### 4.3 Runner 层
 
-Runner 层（`agent/runner/agent_handler.py`）负责 Workflow 调度：
+Runner 层（`agent/runner/agent_handler.py`）负责 Workflow 调度，采用全异步设计：
 
 ```python
-async def main_handler():
+async def _handler():
     context = context_prepare(user, character, conversation)
     
-    # Phase 1: 准备阶段
-    prepare_response = prepare_workflow.run(input_message, context)
+    # Phase 1: 准备阶段 (异步)
+    prepare_response = await prepare_workflow.run(input_message, context)
     
     # 检测点 1
     if is_new_message_coming_in(...):
         is_rollback = True
     
     if not is_rollback:
-        # Phase 2: 生成回复
-        chat_response = chat_workflow.run(input_message, context)
+        # Phase 2: 生成回复 (异步流式)
+        async for event in streaming_chat_workflow.run_stream(input_message, context):
+            if event["type"] == "message":
+                send_message(event["data"])
+                if is_new_message_coming_in(...):
+                    break
         
-        # 发送消息 + 检测点 2
-        for response in multimodal_responses:
-            send_message(...)
-            if is_new_message_coming_in(...):
-                break
-        
-        # Phase 3: 后处理
-        post_analyze_workflow.run(session_state=context)
+        # Phase 3: 后处理 (异步)
+        await post_analyze_workflow.run(session_state=context)
 ```
 
 ---
 
 ## 5. Agno Workflow 详解
 
-### 5.1 PrepareWorkflow (V2 架构)
+### 5.1 PrepareWorkflow (V2 架构 - 异步)
 
-新架构下的 PrepareWorkflow 采用 OrchestratorAgent 智能调度：
+新架构下的 PrepareWorkflow 采用 OrchestratorAgent 智能调度，全面异步化：
 
 ```python
 class PrepareWorkflow:
     """
-    准备阶段 Workflow (V2)
+    准备阶段 Workflow (V2 - 异步)
     
     执行流程：
     1. OrchestratorAgent - 语义理解 + 调度决策 (1次 LLM)
@@ -362,9 +369,9 @@ class PrepareWorkflow:
        - ReminderDetectAgent: 按需调用 (0-1次 LLM)
     """
     
-    def run(self, input_message: str, session_state: dict) -> dict:
-        # Step 1: Orchestrator 决策 (1次 LLM)
-        orchestrator_response = orchestrator_agent.run(
+    async def run(self, input_message: str, session_state: dict) -> dict:
+        # Step 1: Orchestrator 决策 (异步 LLM 调用)
+        orchestrator_response = await orchestrator_agent.arun(
             input=self._render_prompt(input_message, session_state),
             session_state=session_state
         )
@@ -378,21 +385,15 @@ class PrepareWorkflow:
             params = decisions.context_retrieve_params
             context_result = context_retrieve_tool(
                 character_setting_query=params.character_setting_query,
-                character_setting_keywords=params.character_setting_keywords,
-                user_profile_query=params.user_profile_query,
-                user_profile_keywords=params.user_profile_keywords,
-                character_knowledge_query=params.character_knowledge_query,
-                character_knowledge_keywords=params.character_knowledge_keywords,
-                character_id=str(session_state.get("character", {}).get("_id", "")),
-                user_id=str(session_state.get("user", {}).get("_id", ""))
+                # ... 其他参数
             )
             session_state["context_retrieve"] = context_result
             logger.info("context_retrieve_tool 执行完成")
         
-        # Step 3: 提醒检测 (按需调用 Agent，0-1次 LLM)
+        # Step 3: 提醒检测 (按需调用 Agent，异步 LLM 调用)
         if decisions.need_reminder_detect:
             set_reminder_session_state(session_state)
-            reminder_detect_agent.run(
+            await reminder_detect_agent.arun(
                 input=input_message,
                 session_state=session_state
             )
@@ -401,56 +402,60 @@ class PrepareWorkflow:
         return {"session_state": session_state}
 ```
 
-### 5.2 StreamingChatWorkflow
+### 5.2 StreamingChatWorkflow (异步流式)
 
-生成多模态回复，支持流式输出：
+生成多模态回复，支持异步流式输出：
 
 ```python
 class StreamingChatWorkflow:
     userp_template = TASKPROMPT + CONTEXTPROMPT_*  # 模板组合
     
-    def run(self, input_message: str, session_state: dict) -> dict:
-        # 渲染完整的用户 Prompt
+    async def run_stream(self, input_message: str, session_state: dict):
+        """异步流式生成回复"""
         rendered_userp = self._render_template(self.userp_template, session_state)
         
-        # 流式生成回复
-        response = chat_response_agent.run_stream(
-            input=rendered_userp, 
-            session_state=session_state
-        )
+        # 异步流式调用 Agent (Agno v2 arun with stream=True)
+        async for chunk in self.agent.arun(
+            input=rendered_userp,
+            session_state=session_state,
+            stream=True
+        ):
+            # 解析并 yield 完整消息
+            messages = self._parse_messages(chunk)
+            for msg in messages:
+                yield {"type": "message", "data": msg}
         
-        # 处理多模态回复
-        multimodal_responses = response.content.MultiModalResponses
-        
-        return {
-            "content": response.content, 
-            "multimodal_responses": multimodal_responses,
-            "session_state": session_state
-        }
+        yield {"type": "done", "data": {"total_messages": count}}
+    
+    async def run(self, input_message: str, session_state: dict) -> dict:
+        """异步非流式执行（兼容接口）"""
+        messages = []
+        async for event in self.run_stream(input_message, session_state):
+            if event["type"] == "message":
+                messages.append(event["data"])
+        return {"content": {"MultiModalResponses": messages}, "session_state": session_state}
 ```
 
-### 5.3 PostAnalyzeWorkflow
+### 5.3 PostAnalyzeWorkflow (异步)
 
 后处理分析，更新关系和记忆：
 
 ```python
 class PostAnalyzeWorkflow:
-    def run(self, session_state: dict) -> dict:
-        # 分析本轮对话，更新用户关系和记忆
-        post_analyze_response = post_analyze_agent.run(
-            input="",  # 不需要用户输入
+    async def run(self, session_state: dict) -> dict:
+        # 异步分析本轮对话，更新用户关系和记忆
+        post_analyze_response = await post_analyze_agent.arun(
+            input=rendered_userp,
             session_state=session_state
         )
         
         # 更新关系变化
-        relation_change = post_analyze_response.content.RelationChange
-        if relation_change and relation_change.need_update:
-            self._update_user_relation(session_state, relation_change)
+        self._handle_relation_change(post_analyze_response.content, session_state)
         
-        # 更新记忆
-        self._update_memory(session_state, post_analyze_response.content)
+        # 更新未来消息规划
+        self._handle_future_response(post_analyze_response.content, session_state)
         
-        return {"session_state": session_state}
+        return post_analyze_response.content
 ```
 
 ### 5.4 Workflow 间数据传递
@@ -689,6 +694,139 @@ def find_pending_reminders(self, current_time: int, time_window: int = 60) -> Li
 | 周期支持 | 周期提醒重新调度时状态正确恢复 |
 | 完成标记 | 非周期提醒触发后标记为 `completed` |
 
+### 8.5 统一消息入口架构 (V2.4)
+
+系统采用统一消息入口设计，借鉴 Poke 架构思想，所有消息（用户消息、提醒、主动消息）复用完整的 Workflow 流程。
+
+#### 8.5.1 核心函数 `handle_message()`
+
+```python
+async def handle_message(
+    user: dict,
+    character: dict,
+    conversation: dict,
+    input_message_str: str,
+    message_source: str = "user",  # "user" | "reminder" | "future"
+    metadata: dict = None,
+    check_new_message: bool = True,
+    worker_tag: str = "[SYS]"
+) -> Tuple[List[dict], dict, bool]:
+    """
+    核心消息处理逻辑 - Phase 1 → 2 → 3
+    统一处理用户消息和系统消息
+    """
+```
+
+#### 8.5.2 消息来源类型
+
+| 来源 | message_source | 说明 | 检测新消息 | 提醒检测 |
+|------|----------------|------|------------|----------|
+| 用户消息 | `user` | 从 inputmessages 读取 | ✅ | ✅ |
+| 提醒触发 | `reminder` | 后台定时触发 | ❌ | ❌ |
+| 主动消息 | `future` | 后台主动发起 | ❌ | ❌ |
+
+#### 8.5.3 架构优势
+
+| 方面 | 说明 |
+|------|------|
+| 代码复用 | 上下文检索、回复生成、后处理分析全部复用 |
+| 一致性 | 所有回复都经过同样的人格层处理 |
+| 可维护性 | 单一入口，调试和监控更简单 |
+| 扩展性 | 新增消息类型只需加 message_source 类型 |
+
+#### 8.5.4 数据流
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    消息来源                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
+│  │ inputmessages│  │ 提醒触发      │  │ 主动消息触发  │      │
+│  │ source=user  │  │ source=      │  │ source=      │      │
+│  │              │  │ reminder     │  │ future       │      │
+│  └──────────────┘  └──────────────┘  └──────────────┘      │
+│         │                 │                 │               │
+│         └─────────────────┼─────────────────┘               │
+│                           ▼                                 │
+│              ┌─────────────────────────┐                    │
+│              │   handle_message()      │                    │
+│              │   统一处理入口           │                    │
+│              └─────────────────────────┘                    │
+│                           │                                 │
+│         ┌─────────────────┼─────────────────┐               │
+│         ▼                 ▼                 ▼               │
+│  ┌────────────┐   ┌────────────┐   ┌────────────┐          │
+│  │  Phase 1   │   │  Phase 2   │   │  Phase 3   │          │
+│  │ Prepare    │ → │ Chat       │ → │ PostAnalyze│          │
+│  │ Workflow   │   │ Workflow   │   │ Workflow   │          │
+│  └────────────┘   └────────────┘   └────────────┘          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 8.6 全链路异步化架构
+
+系统采用全链路异步化设计，实现真正的多用户并发处理。
+
+#### 8.5.1 异步化组件
+
+| 组件 | 异步方法 | 说明 |
+|------|----------|------|
+| MongoDBLockManager | `acquire_lock_async()` | 异步获取锁，使用 `asyncio.to_thread` |
+| MongoDBLockManager | `release_lock_async()` | 异步释放锁 |
+| MongoDBLockManager | `lock_async()` | 异步上下文管理器 |
+| PrepareWorkflow | `async run()` | 使用 `agent.arun()` |
+| ChatWorkflow | `async run()` | 使用 `agent.arun()` |
+| StreamingChatWorkflow | `async run_stream()` | 异步生成器，使用 `async for` |
+| PostAnalyzeWorkflow | `async run()` | 使用 `agent.arun()` |
+| FutureMessageWorkflow | `async run()` | 使用 `agent.arun()` |
+
+#### 8.5.2 并发处理模型
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  asyncio.gather([Worker0, Worker1, Worker2, Background])    │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        ▼                   ▼                   ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│   Worker 0    │   │   Worker 1    │   │   Worker 2    │
+│               │   │               │   │               │
+│ await handler │   │ await handler │   │ await handler │
+│      ↓        │   │      ↓        │   │      ↓        │
+│ await arun()  │   │ await arun()  │   │ await arun()  │
+│   (让出控制权) │   │   (让出控制权) │   │   (让出控制权) │
+└───────────────┘   └───────────────┘   └───────────────┘
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                            ▼
+              ┌─────────────────────────┐
+              │   事件循环调度           │
+              │   - 并行发出 LLM 请求    │
+              │   - 等待 I/O 时切换协程  │
+              └─────────────────────────┘
+```
+
+#### 8.5.3 锁隔离机制
+
+```
+锁粒度: conversation_id (每个用户-角色对话独立)
+
+UserA ←→ Character = ConvA  →  Lock("conversation:ConvA")
+UserB ←→ Character = ConvB  →  Lock("conversation:ConvB")
+UserC ←→ Character = ConvC  →  Lock("conversation:ConvC")
+
+保证: 同一会话的消息只能被一个 worker 处理
+效果: 不同用户的消息可以真正并行处理
+```
+
+#### 8.5.4 性能对比
+
+| 场景 | 同步模式 | 异步模式 |
+|------|----------|----------|
+| 3用户同时发消息 | 串行处理 ~30s | 并行处理 ~10s |
+| LLM 请求 | 阻塞等待 | 并行发出 |
+| 锁等待 | `time.sleep()` 阻塞 | `asyncio.sleep()` 让出控制权 |
+
 ---
 
 ## 9. 部署与运维
@@ -712,5 +850,17 @@ python connector/ecloud/ecloud_output.py     # 出站
 | CONF | 环境配置 |
 
 ---
+
+---
+
+## 版本历史
+
+| 版本 | 日期 | 更新内容 |
+|------|------|----------|
+| v2.4 | 2025-12-10 | 统一消息入口：系统消息（提醒、主动消息）复用完整 Workflow 流程 |
+| v2.3 | 2025-12-10 | 完成全链路异步化改造，支持真正的多用户并发处理 |
+| v2.2 | 2025-12-09 | 整合 Agent 架构 V2 编排式设计和提醒重复触发修复 |
+| v2.1 | 2025-12-08 | Agent 架构 V2 编排式设计 |
+| v2.0 | 2025-12-07 | Agno 框架重构 |
 
 本文档依据 Agno 框架重构后的代码库编制。

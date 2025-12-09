@@ -5,10 +5,13 @@ Agno Workflows 属性测试
 测试 Workflow 状态累积和传递：
 - PrepareWorkflow 状态累积 (Requirements 5.1)
 - Workflow 状态传递 (Requirements 5.4)
+
+注意：Workflow 已异步化，run() 方法现在是 async def
 """
 import sys
 sys.path.append(".")
 
+import asyncio
 import unittest
 
 
