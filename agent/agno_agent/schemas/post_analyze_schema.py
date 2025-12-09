@@ -3,20 +3,50 @@
 PostAnalyzeResponse Schema
 
 定义 PostAnalyzeAgent 的输出格式，用于总结对话并更新用户/角色记忆。
+
+V2 重构：
+- 新增 RelationChange：关系变化（亲密度/信任度），从 ChatResponse 移入
+- 新增 FutureResponse：未来消息规划，从 ChatResponse 移入
+- PostAnalyzeAgent 基于完整对话结果（包括角色回复）进行分析
 """
 
 from typing import Optional
 from pydantic import BaseModel, Field
 
+from agent.agno_agent.schemas.chat_response_schema import (
+    RelationChangeModel,
+    FutureResponseModel,
+)
+
 
 class PostAnalyzeResponse(BaseModel):
-    """PostAnalyzeAgent 的响应模型"""
+    """
+    PostAnalyzeAgent 的响应模型 - 扩展版
+    
+    V2 重构后承担更多分析职责：
+    - 关系变化分析（从 ChatResponse 移入）
+    - 未来消息规划（从 ChatResponse 移入）
+    - 记忆更新（原有职责）
+    """
     
     InnerMonologue: str = Field(
         default="",
         description="角色的内心独白"
     )
     
+    # ===== 新增：关系变化（从 ChatResponse 移入）=====
+    RelationChange: RelationChangeModel = Field(
+        default_factory=RelationChangeModel,
+        description="本轮对话的关系变化（亲密度/信任度数值变化）"
+    )
+    
+    # ===== 新增：未来消息规划（从 ChatResponse 移入）=====
+    FutureResponse: FutureResponseModel = Field(
+        default_factory=FutureResponseModel,
+        description="未来主动消息规划（时间和内容）"
+    )
+    
+    # ===== 原有字段：记忆更新 =====
     CharacterPublicSettings: str = Field(
         default="无",
         description="总结最新聊天消息中，针对角色所新增的人物设定。你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx-xxx-xxx：xxxxxx。"

@@ -185,7 +185,8 @@ class StreamingChatWorkflow:
             elif event["type"] == "done":
                 full_response = event["data"].get("full_response", "")
         
-        # 转换为原 ChatWorkflow 的返回格式
+        # 转换为原 ChatWorkflow 的返回格式（精简版）
+        # V2 重构：不再包含 RelationChange 和 FutureResponse，这些移至 PostAnalyzeWorkflow
         multimodal_responses = []
         for msg in messages:
             multimodal_responses.append({
@@ -199,8 +200,6 @@ class StreamingChatWorkflow:
                 "InnerMonologue": "",
                 "MultiModalResponses": multimodal_responses,
                 "ChatCatelogue": "",
-                "RelationChange": {"Closeness": 0, "Trustness": 0},
-                "FutureResponse": {"FutureResponseTime": "", "FutureResponseAction": ""},
             },
             "session_state": session_state
         }

@@ -2,7 +2,11 @@
 """
 ChatResponse Schema
 
-定义 ChatResponseAgent 的输出格式，包含多模态回复、关系变化、未来消息规划等。
+定义 ChatResponseAgent 的输出格式。
+
+V2 重构：
+- 移除 RelationChange 和 FutureResponse，这些职责移至 PostAnalyzeResponse
+- ChatResponseAgent 专注于生成高质量的多模态回复
 """
 
 from typing import List, Optional, Literal
@@ -27,6 +31,7 @@ class MultiModalResponse(BaseModel):
     )
 
 
+# 保留这些模型定义供其他模块使用（如 PostAnalyzeResponse）
 class RelationChangeModel(BaseModel):
     """关系变化模型"""
     
@@ -56,29 +61,27 @@ class FutureResponseModel(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """ChatResponseAgent 的响应模型"""
+    """
+    ChatResponseAgent 的响应模型 - 精简版
+    
+    专注于生成多模态回复，不再包含关系变化和未来规划。
+    这些分析任务移至 PostAnalyzeResponse，基于完整对话结果进行计算。
+    """
     
     InnerMonologue: str = Field(
         default="",
-        description="角色的内心独白"
+        description="角色的内心独白（用于调试和理解推理过程）"
     )
     
     MultiModalResponses: List[MultiModalResponse] = Field(
         default_factory=list,
-        description="角色的回复，可能包含多种类型。"
+        description="角色的多模态回复，可能包含多种类型（text/voice/photo）"
     )
     
     ChatCatelogue: str = Field(
         default="",
-        description="在MultiModalResponses当中是否涉及角色所熟悉的知识，或者涉及她的专业知识，或者她的一些人设和故事。"
+        description="回复涉及的知识分类（角色知识、专业知识、人设故事等）"
     )
     
-    RelationChange: RelationChangeModel = Field(
-        default_factory=RelationChangeModel,
-        description="当下的关系变化"
-    )
-    
-    FutureResponse: FutureResponseModel = Field(
-        default_factory=FutureResponseModel,
-        description="假设用户在此之后一直没有任何回复，角色在未来什么时间可能进行再次的未来主动消息"
-    )
+    # 已移除：RelationChange -> PostAnalyzeResponse
+    # 已移除：FutureResponse -> PostAnalyzeResponse

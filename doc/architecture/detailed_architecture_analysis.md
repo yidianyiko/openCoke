@@ -2,8 +2,9 @@
 
 > 本文档基于 Agno 框架重构后的代码库进行深入分析
 > 
-> 文档版本：v2.0  
-> 日期：2025-12-07
+> 文档版本：v2.2  
+> 日期：2025-12-09  
+> 更新：整合 Agent 架构 V2 编排式设计和提醒重复触发修复
 
 ---
 
@@ -94,16 +95,19 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 └─────────────────────────────────────────────────────────────┘
                             ↕
 ┌─────────────────────────────────────────────────────────────┐
-│                 Agno Workflow 编排层                          │
+│                 Agno Workflow 编排层 (V2)                     │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │  PrepareWorkflow (Phase 1):                          │   │
-│  │    QueryRewrite → ReminderDetect → ContextRetrieve   │   │
+│  │    OrchestratorAgent → context_retrieve_tool         │   │
+│  │                     → ReminderDetectAgent (按需)     │   │
 │  │                                                       │   │
-│  │  ChatWorkflow (Phase 2):                              │   │
-│  │    ChatResponseAgent → MultiModalResponses            │   │
+│  │  StreamingChatWorkflow (Phase 2):                     │   │
+│  │    ChatResponseAgent → MultiModalResponses (流式)     │   │
+│  │    (V2: 不再输出 RelationChange/FutureResponse)       │   │
 │  │                                                       │   │
 │  │  PostAnalyzeWorkflow (Phase 3):                       │   │
 │  │    PostAnalyzeAgent → 更新关系和记忆                   │   │
+│  │    (V2: 新增 RelationChange/FutureResponse 处理)      │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                             ↕
@@ -143,6 +147,31 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 - 基于 MongoDB 实现的分布式锁
 - 会话级锁定，防止同一会话的并发处理
 - 支持锁超时和自动释放
+
+### 2.3 Agent 架构 V2 (编排式设计)
+
+基于 Poke 编排式多智能体架构，采用 OrchestratorAgent 作为智能调度核心。
+
+#### 2.3.1 OrchestratorAgent 核心职责
+
+OrchestratorAgent 是整个系统的"调度大脑"，负责：
+
+| 职责 | 说明 |
+|------|------|
+| 语义理解 | 理解用户意图，生成检索参数 |
+| 意图识别 | 识别是否包含提醒、查询等特殊意图 |
+| 调度决策 | 决定需要调用哪些 Tool/Agent |
+
+**注意**：Orchestrator 只做"决策"，不做"执行"。复杂任务（如提醒）交给专门的 Agent 处理。
+
+#### 2.3.2 架构特点
+
+| 特点 | 说明 |
+|------|------|
+| 智能调度 | 根据用户意图按需调用 Agent/Tool |
+| 直接调用 Tool | context_retrieve_tool 直接函数调用，无需 Agent 包装 |
+| 按需提醒检测 | ReminderDetectAgent 仅在检测到提醒意图时调用 |
+| 流式回复 | ChatResponseAgent 支持流式输出多模态内容 |
 
 ---
 
@@ -266,12 +295,22 @@ chat_response_agent = Agent(
 ### 4.2 Pydantic Schema 定义
 
 ```python
-# schemas/chat_response_schema.py
+# schemas/chat_response_schema.py (V2 精简版)
 class ChatResponse(BaseModel):
     InnerMonologue: str                    # 角色内心独白
     MultiModalResponses: List[dict]        # 多模态回复
-    RelationChange: RelationChangeModel    # 关系变化
-    FutureResponse: FutureResponseModel    # 未来消息规划
+    ChatCatelogue: str                     # 分类标签
+    # 已移除: RelationChange -> PostAnalyzeResponse
+    # 已移除: FutureResponse -> PostAnalyzeResponse
+
+# schemas/post_analyze_schema.py (V2 扩展版)
+class PostAnalyzeResponse(BaseModel):
+    RelationChange: RelationChangeModel    # 关系变化 (从 ChatResponse 移入)
+    FutureResponse: FutureResponseModel    # 未来消息规划 (从 ChatResponse 移入)
+    CharacterPublicSettings: str           # 角色公开设定
+    CharacterPrivateSettings: str          # 角色私有设定
+    UserSettings: str                      # 用户设定
+    # ... 其他记忆更新字段
 ```
 
 ### 4.3 Runner 层
@@ -307,42 +346,201 @@ async def main_handler():
 
 ## 5. Agno Workflow 详解
 
-### 5.1 PrepareWorkflow
+### 5.1 PrepareWorkflow (V2 架构)
 
-执行：QueryRewrite → ReminderDetect → ContextRetrieve
+新架构下的 PrepareWorkflow 采用 OrchestratorAgent 智能调度：
 
 ```python
 class PrepareWorkflow:
+    """
+    准备阶段 Workflow (V2)
+    
+    执行流程：
+    1. OrchestratorAgent - 语义理解 + 调度决策 (1次 LLM)
+    2. 根据决策执行 Tool/Agent:
+       - context_retrieve_tool: 直接函数调用 (0次 LLM)
+       - ReminderDetectAgent: 按需调用 (0-1次 LLM)
+    """
+    
     def run(self, input_message: str, session_state: dict) -> dict:
-        # Step 1: 问题重写
-        session_state["query_rewrite"] = query_rewrite_agent.run(...).content
+        # Step 1: Orchestrator 决策 (1次 LLM)
+        orchestrator_response = orchestrator_agent.run(
+            input=self._render_prompt(input_message, session_state),
+            session_state=session_state
+        )
         
-        # Step 2: 提醒检测
-        reminder_detect_agent.run(...)
+        decisions = orchestrator_response.content
+        session_state["orchestrator"] = decisions.model_dump()
+        logger.info("OrchestratorAgent 执行完成")
         
-        # Step 3: 上下文检索
-        session_state["context_retrieve"] = context_retrieve_agent.run(...).content
+        # Step 2: 上下文检索 (直接调用 Tool，0次 LLM)
+        if decisions.need_context_retrieve:
+            params = decisions.context_retrieve_params
+            context_result = context_retrieve_tool(
+                character_setting_query=params.character_setting_query,
+                character_setting_keywords=params.character_setting_keywords,
+                user_profile_query=params.user_profile_query,
+                user_profile_keywords=params.user_profile_keywords,
+                character_knowledge_query=params.character_knowledge_query,
+                character_knowledge_keywords=params.character_knowledge_keywords,
+                character_id=str(session_state.get("character", {}).get("_id", "")),
+                user_id=str(session_state.get("user", {}).get("_id", ""))
+            )
+            session_state["context_retrieve"] = context_result
+            logger.info("context_retrieve_tool 执行完成")
+        
+        # Step 3: 提醒检测 (按需调用 Agent，0-1次 LLM)
+        if decisions.need_reminder_detect:
+            set_reminder_session_state(session_state)
+            reminder_detect_agent.run(
+                input=input_message,
+                session_state=session_state
+            )
+            logger.info("ReminderDetectAgent 执行完成")
         
         return {"session_state": session_state}
 ```
 
-### 5.2 ChatWorkflow
+### 5.2 StreamingChatWorkflow
 
-生成多模态回复：
+生成多模态回复，支持流式输出：
 
 ```python
-class ChatWorkflow:
+class StreamingChatWorkflow:
     userp_template = TASKPROMPT + CONTEXTPROMPT_*  # 模板组合
     
     def run(self, input_message: str, session_state: dict) -> dict:
+        # 渲染完整的用户 Prompt
         rendered_userp = self._render_template(self.userp_template, session_state)
-        response = chat_response_agent.run(input=rendered_userp, session_state=session_state)
-        return {"content": response.content, "session_state": session_state}
+        
+        # 流式生成回复
+        response = chat_response_agent.run_stream(
+            input=rendered_userp, 
+            session_state=session_state
+        )
+        
+        # 处理多模态回复
+        multimodal_responses = response.content.MultiModalResponses
+        
+        return {
+            "content": response.content, 
+            "multimodal_responses": multimodal_responses,
+            "session_state": session_state
+        }
 ```
 
 ### 5.3 PostAnalyzeWorkflow
 
-后处理分析，更新关系和记忆。
+后处理分析，更新关系和记忆：
+
+```python
+class PostAnalyzeWorkflow:
+    def run(self, session_state: dict) -> dict:
+        # 分析本轮对话，更新用户关系和记忆
+        post_analyze_response = post_analyze_agent.run(
+            input="",  # 不需要用户输入
+            session_state=session_state
+        )
+        
+        # 更新关系变化
+        relation_change = post_analyze_response.content.RelationChange
+        if relation_change and relation_change.need_update:
+            self._update_user_relation(session_state, relation_change)
+        
+        # 更新记忆
+        self._update_memory(session_state, post_analyze_response.content)
+        
+        return {"session_state": session_state}
+```
+
+### 5.4 Workflow 间数据传递
+
+#### 5.4.1 Phase 1 → Phase 2 数据传递
+
+```python
+# Phase 1 输出 (存入 session_state)
+session_state = {
+    # 原有字段
+    "user": {...},
+    "character": {...},
+    "conversation": {...},
+    
+    # Orchestrator 输出
+    "orchestrator": {
+        "inner_monologue": "用户想设置提醒...",
+        "decisions": {
+            "need_reminder": True,
+            "need_context": True
+        }
+    },
+    
+    # Tool 执行结果
+    "context_retrieve": {
+        "character_global": "...",
+        "character_private": "...",
+        "user": "...",
+        "character_knowledge": "...",
+        "confirmed_reminders": "..."
+    },
+    
+    # 提醒执行结果 (如果有)
+    "reminder_result": {
+        "ok": True,
+        "reminder_id": "xxx"
+    }
+}
+```
+
+#### 5.4.2 完整消息处理流程
+
+```
+用户消息到达
+      │
+      ▼
+┌─────────────────┐
+│  Runner 层      │
+│  - 获取消息     │
+│  - 构建 context │
+└─────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────┐
+│  Phase 1: PrepareWorkflow                            │
+│                                                      │
+│  1. OrchestratorAgent.run(message, context)         │
+│     → 返回调度决策 + 检索参数                         │
+│                                                      │
+│  2. 根据决策执行 Tool:                               │
+│     if need_context:                                │
+│         context_retrieve_tool(params)               │
+│     if need_reminder:                               │
+│         reminder_tool(action)                       │
+│                                                      │
+│  3. 汇总结果到 session_state                         │
+└─────────────────────────────────────────────────────┘
+      │
+      │ ← 检测新消息
+      ▼
+┌─────────────────────────────────────────────────────┐
+│  Phase 2: StreamingChatWorkflow                      │
+│                                                      │
+│  ChatResponseAgent.run_stream(message, session_state)│
+│  → 流式输出多模态回复                                 │
+│  → 每条消息立即发送                                   │
+└─────────────────────────────────────────────────────┘
+      │
+      │ ← 检测新消息
+      ▼
+┌─────────────────────────────────────────────────────┐
+│  Phase 3: PostAnalyzeWorkflow                        │
+│                                                      │
+│  PostAnalyzeAgent.run(session_state)                │
+│  → 更新用户记忆、关系描述等                           │
+└─────────────────────────────────────────────────────┘
+      │
+      ▼
+   响应完成
+```
 
 ---
 
@@ -423,6 +621,73 @@ def _convert_objectid_to_str(obj):
 ### 8.3 向量检索
 
 多路召回：key_embedding (0.7) + value_embedding (0.3) + 关键词匹配 (1.0)
+
+### 8.4 提醒防重复触发机制
+
+系统实现了完善的提醒防重复触发机制，确保提醒的准确性和可靠性。
+
+#### 8.4.1 状态管理机制
+
+提醒系统采用严格的状态转换机制：
+
+```
+创建提醒
+   ↓
+confirmed (待触发)
+   ↓
+[后台处理器查询到]
+   ↓
+triggered (已触发，防止重复查询)
+   ↓
+   ├─→ completed (非周期提醒完成)
+   └─→ confirmed (周期提醒重新调度)
+```
+
+#### 8.4.2 核心实现
+
+**状态更新机制**
+
+```python
+def mark_as_triggered(self, reminder_id: str) -> bool:
+    """标记提醒为已触发，防止重复触发"""
+    update_data = {
+        "status": "triggered",  # 关键：状态改为 triggered
+        "last_triggered_at": int(time.time()),
+        "updated_at": int(time.time())
+    }
+    result = self.collection.update_one(
+        {"reminder_id": reminder_id},
+        {
+            "$set": update_data,
+            "$inc": {"triggered_count": 1}
+        }
+    )
+    return result.modified_count > 0
+```
+
+**时间窗口控制**
+
+```python
+def find_pending_reminders(self, current_time: int, time_window: int = 60) -> List[Dict]:
+    """查找待触发的提醒，使用60秒时间窗口防止重复触发"""
+    query = {
+        "status": {"$in": ["confirmed", "pending"]},
+        "next_trigger_time": {
+            "$lte": current_time,
+            "$gte": current_time - time_window  # 60秒时间窗口
+        }
+    }
+    return list(self.collection.find(query))
+```
+
+#### 8.4.3 防护特性
+
+| 特性 | 说明 |
+|------|------|
+| 状态隔离 | 触发后立即将状态改为 `triggered`，避免重复查询 |
+| 时间窗口 | 60秒时间窗口，减少误触发风险 |
+| 周期支持 | 周期提醒重新调度时状态正确恢复 |
+| 完成标记 | 非周期提醒触发后标记为 `completed` |
 
 ---
 

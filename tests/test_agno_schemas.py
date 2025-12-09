@@ -74,13 +74,14 @@ class TestChatResponseSchema(unittest.TestCase):
     """测试 ChatResponse Schema (Requirements 2.2)"""
     
     def test_default_values(self):
-        """测试默认值"""
+        """测试默认值 (V2: RelationChange 和 FutureResponse 已移至 PostAnalyzeResponse)"""
         response = ChatResponse()
         self.assertEqual(response.InnerMonologue, "")
         self.assertEqual(response.MultiModalResponses, [])
         self.assertEqual(response.ChatCatelogue, "")
-        self.assertIsInstance(response.RelationChange, RelationChangeModel)
-        self.assertIsInstance(response.FutureResponse, FutureResponseModel)
+        # V2 重构：RelationChange 和 FutureResponse 已移至 PostAnalyzeResponse
+        self.assertFalse(hasattr(response, 'RelationChange') and response.RelationChange is not None)
+        self.assertFalse(hasattr(response, 'FutureResponse') and response.FutureResponse is not None)
     
     def test_multimodal_response_text(self):
         """测试文本类型多模态回复"""
@@ -121,7 +122,7 @@ class TestChatResponseSchema(unittest.TestCase):
         self.assertEqual(fr.FutureResponseAction, "发送节日祝福")
     
     def test_full_chat_response(self):
-        """测试完整的 ChatResponse"""
+        """测试完整的 ChatResponse (V2 精简版)"""
         response = ChatResponse(
             InnerMonologue="用户很友好",
             MultiModalResponses=[
@@ -129,14 +130,10 @@ class TestChatResponseSchema(unittest.TestCase):
                 MultiModalResponse(type="voice", content="很高兴认识你", emotion="高兴")
             ],
             ChatCatelogue="日常问候",
-            RelationChange=RelationChangeModel(Closeness=2.0, Trustness=1.0),
-            FutureResponse=FutureResponseModel(
-                FutureResponseTime="2024年12月25日09时00分",
-                FutureResponseAction="发送问候"
-            )
+            # V2 重构：RelationChange 和 FutureResponse 已移至 PostAnalyzeResponse
         )
         self.assertEqual(len(response.MultiModalResponses), 2)
-        self.assertEqual(response.RelationChange.Closeness, 2.0)
+        self.assertEqual(response.ChatCatelogue, "日常问候")
     
     def test_model_dump(self):
         """测试 model_dump 输出"""
@@ -153,7 +150,7 @@ class TestPostAnalyzeResponseSchema(unittest.TestCase):
     """测试 PostAnalyzeResponse Schema (Requirements 2.3)"""
     
     def test_default_values(self):
-        """测试默认值"""
+        """测试默认值 (V2: 新增 RelationChange 和 FutureResponse)"""
         response = PostAnalyzeResponse()
         self.assertEqual(response.InnerMonologue, "")
         self.assertEqual(response.CharacterPublicSettings, "无")
@@ -162,6 +159,11 @@ class TestPostAnalyzeResponseSchema(unittest.TestCase):
         self.assertEqual(response.UserRealName, "无")
         self.assertEqual(response.UserHobbyName, "无")
         self.assertEqual(response.Dislike, 0)
+        # V2 新增：RelationChange 和 FutureResponse
+        self.assertIsInstance(response.RelationChange, RelationChangeModel)
+        self.assertIsInstance(response.FutureResponse, FutureResponseModel)
+        self.assertEqual(response.RelationChange.Closeness, 0)
+        self.assertEqual(response.RelationChange.Trustness, 0)
     
     def test_with_values(self):
         """测试带值创建"""

@@ -5,6 +5,8 @@ Agno Agents Module
 This module contains all pre-created Agno Agents for the chat system.
 Agents are created at module level to avoid instantiation overhead on each call.
 
+V2 架构：引入 OrchestratorAgent 作为调度中心
+
 Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
 """
 
@@ -15,6 +17,7 @@ from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
 from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
+from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.chat_response_schema import ChatResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
@@ -156,6 +159,54 @@ def get_context_retrieve_instructions(session_state: Dict[str, Any] = None) -> s
     return base_instructions
 
 
+def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
+    """
+    动态渲染 OrchestratorAgent 的 system prompt
+    
+    V2 架构核心：Orchestrator 负责语义理解 + 调度决策
+    
+    Args:
+        session_state: 会话状态，包含动态数据
+        
+    Returns:
+        渲染后的 system prompt
+    """
+    base_instructions = """你是一个智能调度助手。你的任务是：
+
+1. 理解用户消息的意图
+2. 决定需要调用哪些 Agent/Tool
+3. 为上下文检索生成参数
+4. 生成角色的内心独白
+
+## 决策规则
+
+### 上下文检索 (need_context_retrieve)
+- 默认为 true
+- 仅当用户消息是纯提醒操作（如"取消提醒"、"查看提醒列表"、"删除提醒"）时设为 false
+
+### 提醒检测 (need_reminder_detect)
+当用户消息包含以下关键词时设为 true：
+- "提醒我"、"帮我提醒"、"设个提醒"、"记得提醒"
+- "闹钟"、"定时"、"别忘了提醒"
+- "取消提醒"、"删除提醒"
+- "查看提醒"、"提醒列表"
+- "修改提醒"、"更新提醒"
+普通聊天消息设为 false
+
+### 检索参数生成
+根据用户消息内容，生成相关的检索语句和关键词：
+- 检索语句使用"xxx-xxx"层级格式，如"日常习惯-作息"
+- 关键词使用逗号分隔，每个词不超过4字
+- 可以使用1-3个同义或相关的词汇来增加召回率
+
+### 内心独白
+推测角色在此场合下的内心思考过程，理解用户意图。
+
+## 输出格式
+严格按照 JSON Schema 输出，不要添加额外字段。"""
+    return base_instructions
+
+
 # ========== 模块级预创建 Agent ==========
 
 # QueryRewriteAgent - 问题重写，生成检索查询词
@@ -182,12 +233,24 @@ reminder_detect_agent = Agent(
 
 # ContextRetrieveAgent - 上下文检索，根据问题重写结果检索相关上下文
 # Requirements: 4.3
+# 注意：V2 架构中此 Agent 已废弃，改为直接调用 context_retrieve_tool
 context_retrieve_agent = Agent(
     id="context-retrieve-agent",
     name="ContextRetrieveAgent",
     model=DeepSeek(id="deepseek-chat"),
     tools=[context_retrieve_tool],
     instructions=get_context_retrieve_instructions(),
+    markdown=False,
+)
+
+# OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
+# 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
+orchestrator_agent = Agent(
+    id="orchestrator-agent",
+    name="OrchestratorAgent",
+    model=DeepSeek(id="deepseek-chat"),
+    instructions=get_orchestrator_instructions(),
+    output_schema=OrchestratorResponse,
     markdown=False,
 )
 
@@ -223,10 +286,12 @@ __all__ = [
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
     "get_context_retrieve_instructions",
+    "get_orchestrator_instructions",
     # 预创建 Agent
     "query_rewrite_agent",
     "reminder_detect_agent",
     "context_retrieve_agent",
+    "orchestrator_agent",  # V2 架构核心
     "chat_response_agent",
     "post_analyze_agent",
 ]

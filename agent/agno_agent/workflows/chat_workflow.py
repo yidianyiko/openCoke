@@ -135,6 +135,9 @@ class ChatWorkflow:
         """
         从 Agent 响应中提取内容
         
+        V2 重构：精简版，只提取回复相关字段
+        RelationChange 和 FutureResponse 已移至 PostAnalyzeWorkflow
+        
         Args:
             response: Agent 响应对象
             
@@ -152,13 +155,11 @@ class ChatWorkflow:
         elif not isinstance(content, dict):
             return self._get_default_content()
         
-        # 确保必要字段存在
+        # 确保必要字段存在（精简版，不再包含 RelationChange 和 FutureResponse）
         result = {
             "InnerMonologue": content.get("InnerMonologue", ""),
             "MultiModalResponses": content.get("MultiModalResponses", []),
             "ChatCatelogue": content.get("ChatCatelogue", ""),
-            "RelationChange": content.get("RelationChange", {}),
-            "FutureResponse": content.get("FutureResponse", {}),
             "DetectedReminders": content.get("DetectedReminders", []),
         }
         
@@ -169,18 +170,10 @@ class ChatWorkflow:
         return result
     
     def _get_default_content(self) -> Dict[str, Any]:
-        """获取默认的内容结构"""
+        """获取默认的内容结构（精简版）"""
         return {
             "InnerMonologue": "",
             "MultiModalResponses": [],
             "ChatCatelogue": "",
-            "RelationChange": {
-                "Closeness": 0,
-                "Trustness": 0,
-            },
-            "FutureResponse": {
-                "FutureResponseTime": "",
-                "FutureResponseAction": "",
-            },
             "DetectedReminders": [],
         }

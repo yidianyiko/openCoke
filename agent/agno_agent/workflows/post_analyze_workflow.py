@@ -4,10 +4,16 @@ PostAnalyzeWorkflow - 后处理分析 Workflow
 
 总结对话，更新用户/角色记忆
 
+V2 重构：
+- 新增 RelationChange 处理：关系变化（亲密度/信任度），从 ChatWorkflow 移入
+- 新增 FutureResponse 处理：未来消息规划，从 ChatWorkflow 移入
+- 基于完整对话结果（包括角色回复）进行分析，数据更准确
+
 Requirements: 5.3
 """
 
 import logging
+import random
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import post_analyze_agent
@@ -22,6 +28,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_当前的人物关系,
     CONTEXTPROMPT_最新聊天消息_双方,
 )
+from util.time_util import str2timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +74,8 @@ class PostAnalyzeWorkflow:
         """
         执行后处理分析
         
+        V2 重构：新增 RelationChange 和 FutureResponse 处理
+        
         Args:
             session_state: 上下文状态（需包含 MultiModalResponses）
             
@@ -103,11 +112,92 @@ class PostAnalyzeWorkflow:
             content = self._extract_content(response)
             logger.info("PostAnalyzeAgent 执行完成")
             
+            # V2 新增：处理关系变化
+            self._handle_relation_change(content, session_state)
+            
+            # V2 新增：处理未来消息规划
+            self._handle_future_response(content, session_state)
+            
         except Exception as e:
             logger.error(f"PostAnalyzeAgent 执行失败: {e}")
             content = self._get_default_content()
         
         return content
+    
+    def _handle_relation_change(self, content: Dict, session_state: Dict) -> None:
+        """
+        处理关系变化（V2 新增，从 ChatWorkflow 移入）
+        
+        Args:
+            content: PostAnalyze 返回的内容
+            session_state: 会话状态
+        """
+        relation_change = content.get("RelationChange", {})
+        if isinstance(relation_change, str):
+            try:
+                import json
+                relation_change = json.loads(relation_change)
+            except Exception:
+                relation_change = {}
+        
+        closeness_change = relation_change.get("Closeness", 0) or 0
+        trustness_change = relation_change.get("Trustness", 0) or 0
+        
+        if "relation" in session_state and "relationship" in session_state["relation"]:
+            rel = session_state["relation"]["relationship"]
+            
+            # 更新亲密度和信任度，限制在 0-100 范围内
+            rel["closeness"] = max(0, min(100, rel.get("closeness", 0) + closeness_change))
+            rel["trustness"] = max(0, min(100, rel.get("trustness", 0) + trustness_change))
+            
+            logger.info(f"关系变化: closeness={closeness_change}, trustness={trustness_change}")
+    
+    def _handle_future_response(self, content: Dict, session_state: Dict) -> None:
+        """
+        处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
+        
+        Args:
+            content: PostAnalyze 返回的内容
+            session_state: 会话状态
+        """
+        # 获取 conversation 中的 future 信息
+        conversation = session_state.get("conversation", {})
+        conversation_info = conversation.get("conversation_info", {})
+        future_info = conversation_info.get("future", {})
+        
+        # 初始化 proactive_times
+        if "proactive_times" not in future_info:
+            future_info["proactive_times"] = 0
+        
+        # 获取未来消息规划
+        future_resp = content.get("FutureResponse", {})
+        if isinstance(future_resp, str):
+            try:
+                import json
+                future_resp = json.loads(future_resp)
+            except Exception:
+                future_resp = {}
+        
+        future_time_str = future_resp.get("FutureResponseTime", "")
+        future_action = future_resp.get("FutureResponseAction", "无")
+        
+        # 设置未来消息规划
+        if future_time_str and future_action and future_action != "无":
+            future_info["timestamp"] = str2timestamp(future_time_str) if future_time_str else None
+            future_info["action"] = future_action
+            # 重置主动消息次数（因为用户有回复）
+            future_info["proactive_times"] = 0
+            logger.info(f"设置未来消息规划: time={future_time_str}, action={future_action}")
+        else:
+            # 清除未来消息规划
+            future_info["timestamp"] = None
+            future_info["action"] = None
+            logger.info("未设置未来消息规划")
+        
+        # 更新回 session_state
+        if "future" not in conversation_info:
+            conversation_info["future"] = {}
+        conversation_info["future"] = future_info
     
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """
@@ -161,6 +251,8 @@ class PostAnalyzeWorkflow:
         """
         从 Agent 响应中提取内容
         
+        V2 重构：新增 RelationChange 和 FutureResponse 字段
+        
         Args:
             response: Agent 响应对象
             
@@ -178,8 +270,13 @@ class PostAnalyzeWorkflow:
         elif not isinstance(content, dict):
             return self._get_default_content()
         
-        # 确保必要字段存在
+        # 确保必要字段存在（V2：新增 RelationChange 和 FutureResponse）
         result = {
+            # 新增：关系变化
+            "RelationChange": content.get("RelationChange", {"Closeness": 0, "Trustness": 0}),
+            # 新增：未来消息规划
+            "FutureResponse": content.get("FutureResponse", {"FutureResponseTime": "", "FutureResponseAction": "无"}),
+            # 原有字段
             "CharacterPublicSettings": content.get("CharacterPublicSettings", "无"),
             "CharacterPrivateSettings": content.get("CharacterPrivateSettings", "无"),
             "UserSettings": content.get("UserSettings", "无"),
@@ -196,8 +293,10 @@ class PostAnalyzeWorkflow:
         return result
     
     def _get_default_content(self) -> Dict[str, Any]:
-        """获取默认的内容结构"""
+        """获取默认的内容结构（V2：新增 RelationChange 和 FutureResponse）"""
         return {
+            "RelationChange": {"Closeness": 0, "Trustness": 0},
+            "FutureResponse": {"FutureResponseTime": "", "FutureResponseAction": "无"},
             "CharacterPublicSettings": "无",
             "CharacterPrivateSettings": "无",
             "UserSettings": "无",
