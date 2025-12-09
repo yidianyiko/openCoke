@@ -14,7 +14,6 @@ Requirements: 3.1
 
 import logging
 from typing import Optional
-from agno.tools import tool
 
 from dao.mongo import MongoDBBase
 from util.embedding_util import embedding_by_aliyun
@@ -218,7 +217,6 @@ def _search_embeddings(
     return _top_n(merged_results, result_limit)
 
 
-@tool(description="检索角色设定、用户资料、知识库，返回相关上下文信息")
 def context_retrieve_tool(
     character_setting_query: str = "",
     character_setting_keywords: str = "",

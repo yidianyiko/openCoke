@@ -208,15 +208,32 @@ def _create_reminder(
     if not trigger_time:
         return {"ok": False, "error": "创建提醒需要提供触发时间 (trigger_time)"}
     
-    # Parse trigger time (使用消息时间戳作为相对时间的基准)
-    timestamp = _parse_trigger_time(trigger_time, base_timestamp)
+    current_time = int(time.time())
+    
+    # 对于相对时间，始终使用当前时间作为基准，避免消息延迟导致的问题
+    # 只有绝对时间才使用 base_timestamp
+    is_relative_time = any(keyword in trigger_time for keyword in ['分钟后', '小时后', '天后', '明天', '后天', '下周'])
+    
+    if is_relative_time:
+        # 相对时间：使用当前时间计算，确保提醒时间在未来
+        timestamp = _parse_trigger_time(trigger_time, current_time)
+    else:
+        # 绝对时间：直接解析
+        timestamp = _parse_trigger_time(trigger_time, base_timestamp)
+    
     if not timestamp:
-        return {"ok": False, "error": f"无法解析时间: {trigger_time}"}
+        return {"ok": False, "error": f"无法解析时间: {trigger_time}，请使用格式如 '30分钟后' 或 '2025年12月09日15时00分'"}
     
     # Validate timestamp is in the future
-    current_time = int(time.time())
     if timestamp <= current_time:
-        return {"ok": False, "error": "触发时间必须是未来的时间"}
+        from datetime import datetime
+        trigger_time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
+        current_time_str = datetime.fromtimestamp(current_time).strftime('%H时%M分')
+        return {
+            "ok": False, 
+            "error": f"触发时间 {trigger_time_str} 已经过去（当前时间 {current_time_str}），请设置一个未来的时间",
+            "suggestion": "请使用更长的相对时间（如'5分钟后'）或使用绝对时间格式"
+        }
     
     # Build reminder document
     reminder_id = str(uuid.uuid4())

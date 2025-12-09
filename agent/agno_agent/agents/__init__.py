@@ -133,8 +133,14 @@ def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> st
 - 用户说"30分钟后提醒我喝水" -> 调用 reminder_tool(action="create", title="喝水", trigger_time="30分钟后")
 - 用户说"下午3点提醒我休息" -> 调用 reminder_tool(action="create", title="休息", trigger_time="2025年12月08日15时00分")
 
+## 重要：退出机制
+- 每条用户消息只调用一次 reminder_tool，无论成功还是失败
+- 如果 reminder_tool 返回 ok=true，表示提醒创建成功，立即结束，不要再次调用
+- 如果 reminder_tool 返回 ok=false，表示创建失败，立即结束，不要重试
+- 绝对禁止多次调用 reminder_tool 创建相同的提醒
+- 如果用户消息不包含提醒意图，不要调用任何工具，直接结束
+
 ## 注意
-- 如果用户消息不包含提醒意图，不要调用任何工具
 - 不需要回复任何文字，只需要判断是否调用工具
 - 绝对不要使用"下午3点"、"晚上8点"、"23:00"等不支持的格式，必须转换为绝对时间格式"""
     return base_instructions

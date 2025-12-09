@@ -102,6 +102,66 @@ class FutureMessageWorkflow:
         NOTICE_常规注意事项_空输入处理
     )
     
+    def _safe_render_template(self, template: str, session_state: Dict[str, Any]) -> str:
+        """
+        安全地渲染模板字符串
+        
+        将 session_state 中的嵌套对象展平为字符串，避免格式化错误
+        """
+        # 创建一个扁平化的上下文字典，只包含字符串值
+        flat_context = {}
+        
+        for key, value in session_state.items():
+            if isinstance(value, str):
+                flat_context[key] = value
+            elif isinstance(value, (int, float, bool)):
+                flat_context[key] = str(value)
+            elif isinstance(value, dict):
+                # 对于字典，尝试提取常用字段
+                if key == "conversation":
+                    conv_info = value.get("conversation_info", {})
+                    flat_context["chat_history"] = str(conv_info.get("chat_history", []))
+                    flat_context["input_messages_str"] = conv_info.get("input_messages_str", "")
+                    future = conv_info.get("future", {})
+                    flat_context["future_action"] = future.get("action", "")
+                    flat_context["future_timestamp"] = str(future.get("timestamp", ""))
+                elif key == "character":
+                    flat_context["character_name"] = value.get("platforms", {}).get("wechat", {}).get("nickname", "")
+                elif key == "user":
+                    flat_context["user_name"] = value.get("platforms", {}).get("wechat", {}).get("nickname", "")
+                elif key == "relation":
+                    rel = value.get("relationship", {})
+                    flat_context["closeness"] = str(rel.get("closeness", 0))
+                    flat_context["trustness"] = str(rel.get("trustness", 0))
+                elif key == "query_rewrite":
+                    flat_context["inner_monologue"] = value.get("InnerMonologue", "")
+                elif key == "context_retrieve":
+                    flat_context["character_global"] = value.get("character_global", "")
+                    flat_context["character_private"] = value.get("character_private", "")
+                    flat_context["user_profile"] = value.get("user", "")
+                    flat_context["character_knowledge"] = value.get("character_knowledge", "")
+                else:
+                    # 其他字典转为 JSON 字符串
+                    try:
+                        import json
+                        flat_context[key] = json.dumps(value, ensure_ascii=False, default=str)
+                    except Exception:
+                        flat_context[key] = str(value)
+            elif value is None:
+                flat_context[key] = ""
+            else:
+                flat_context[key] = str(value)
+        
+        try:
+            return template.format(**flat_context)
+        except KeyError as e:
+            logger.warning(f"模板渲染缺少字段: {e}")
+            # 返回原始模板，让 LLM 自己处理
+            return template
+        except Exception as e:
+            logger.error(f"模板渲染失败: {e}")
+            return template
+    
     def run(self, session_state: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         执行主动消息生成流程
@@ -121,9 +181,9 @@ class FutureMessageWorkflow:
         # ========== Step 1: 问题重写 ==========
         logger.info("FutureMessageWorkflow Step 1: QueryRewrite")
         try:
-            rendered_qr_userp = self.query_rewrite_userp_template.format(**session_state)
-        except KeyError as e:
-            logger.warning(f"QueryRewrite user prompt 渲染缺少字段: {e}")
+            rendered_qr_userp = self._safe_render_template(self.query_rewrite_userp_template, session_state)
+        except Exception as e:
+            logger.warning(f"QueryRewrite user prompt 渲染失败: {e}")
             rendered_qr_userp = "请根据规划行动进行问题重写"
         
         qr_response = future_message_query_rewrite_agent.run(
@@ -156,9 +216,9 @@ class FutureMessageWorkflow:
         # ========== Step 3: 消息生成 ==========
         logger.info("FutureMessageWorkflow Step 3: ChatResponse")
         try:
-            rendered_chat_userp = self.chat_userp_template.format(**session_state)
-        except KeyError as e:
-            logger.warning(f"Chat user prompt 渲染缺少字段: {e}")
+            rendered_chat_userp = self._safe_render_template(self.chat_userp_template, session_state)
+        except Exception as e:
+            logger.warning(f"Chat user prompt 渲染失败: {e}")
             rendered_chat_userp = "请根据规划行动生成主动消息"
         
         chat_response = future_message_chat_agent.run(
