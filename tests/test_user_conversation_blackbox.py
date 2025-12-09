@@ -148,7 +148,6 @@ class TestUserConversationFutureMessage(unittest.TestCase):
                     "character_private": "",
                     "user": "",
                     "character_knowledge": "",
-                    "character_photo": "",
                     "confirmed_reminders": ""
                 },
                 "query_rewrite": {}

@@ -189,7 +189,6 @@ class TestDefaultValueCompleteness(unittest.TestCase):
             "character_private",
             "user",
             "character_knowledge",
-            "character_photo",
             "confirmed_reminders"
         ]
         
@@ -198,7 +197,6 @@ class TestDefaultValueCompleteness(unittest.TestCase):
             "character_private": "",
             "user": "",
             "character_knowledge": "",
-            "character_photo": "",
             "confirmed_reminders": ""
         }
         

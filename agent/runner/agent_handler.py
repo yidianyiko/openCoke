@@ -39,11 +39,12 @@ from agent.tool.voice import character_voice
 from agent.tool.image import upload_image
 
 # ========== Agno Workflow 导入 ==========
-from agent.agno_agent.workflows import PrepareWorkflow, ChatWorkflow, PostAnalyzeWorkflow
+from agent.agno_agent.workflows import PrepareWorkflow, PostAnalyzeWorkflow
+from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
 
 # 预创建 Workflow 实例
 prepare_workflow = PrepareWorkflow()
-chat_workflow = ChatWorkflow()
+streaming_chat_workflow = StreamingChatWorkflow()
 post_analyze_workflow = PostAnalyzeWorkflow()
 
 # ========== 配置 ==========
@@ -62,6 +63,74 @@ conversation_dao = ConversationDAO()
 user_dao = UserDAO()
 lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
+
+
+def _send_single_message(context, multimodal_response, expect_output_timestamp, is_first=False):
+    """
+    发送单条多模态消息
+    
+    Args:
+        context: 上下文
+        multimodal_response: 消息内容 {"type": "text/voice/photo", "content": "...", "emotion": "..."}
+        expect_output_timestamp: 预期发送时间戳
+        is_first: 是否是第一条消息
+        
+    Returns:
+        tuple: (outputmessage, new_expect_output_timestamp)
+    """
+    outputmessage = None
+    msg_type = multimodal_response.get("type", "text")
+    content = multimodal_response.get("content", "")
+    
+    if msg_type == "voice":
+        voice_messages = character_voice(
+            content,
+            multimodal_response.get("emotion", "无")
+        )
+        for voice_url, voice_length in voice_messages:
+            if not is_first:
+                expect_output_timestamp += int(voice_length/1000) + random.randint(2, 5)
+            outputmessage = send_message_via_context(
+                context,
+                message=content,
+                message_type="voice",
+                expect_output_timestamp=expect_output_timestamp,
+                metadata={
+                    "url": voice_url,
+                    "voice_length": voice_length
+                }
+            )
+    
+    elif msg_type == "photo":
+        photo_id = str(content).replace("「", "").replace("」", "").replace("照片", "", 1)
+        image_url = upload_image(photo_id)
+        if image_url is not None:
+            context["conversation"]["conversation_info"]["photo_history"].append(photo_id)
+            if len(context["conversation"]["conversation_info"]["photo_history"]) > 12:
+                context["conversation"]["conversation_info"]["photo_history"] = context["conversation"]["conversation_info"]["photo_history"][-12:]
+            
+            if not is_first:
+                expect_output_timestamp += random.randint(2, 8)
+            outputmessage = send_message_via_context(
+                context,
+                message=content,
+                message_type="image",
+                expect_output_timestamp=expect_output_timestamp,
+                metadata={"url": image_url}
+            )
+    
+    else:  # text
+        text_message = str(content).replace("<换行>", "\n")
+        if not is_first:
+            expect_output_timestamp += int(len(text_message) / typing_speed)
+        outputmessage = send_message_via_context(
+            context,
+            message=text_message,
+            message_type="text",
+            expect_output_timestamp=expect_output_timestamp
+        )
+    
+    return outputmessage, expect_output_timestamp
 
 
 def is_new_message_coming_in(u_id, c_id, platform):
@@ -237,93 +306,46 @@ async def main_handler():
                     logger.info("roll back as new incoming message before chat response")
                 
                 if not is_rollback:
-                    # ========== Phase 2: 生成回复 ==========
-                    logger.info("Phase 2: ChatWorkflow 开始执行")
-                    chat_response = chat_workflow.run(
-                        input_message=input_message_str,
-                        session_state=context,
-                    )
-                    context = chat_response.get("session_state", context)
-                    logger.info("Phase 2: ChatWorkflow 执行完成")
+                    # ========== Phase 2: 流式生成回复 ==========
+                    logger.info("Phase 2: ChatWorkflow (流式) 开始执行")
                     
-                    # 处理回复内容
-                    resp = chat_response.get("content", {})
-                    multimodal_responses = resp.get("MultiModalResponses", [])
-                    if not isinstance(multimodal_responses, list):
-                        multimodal_responses = []
-                    
-                    # 保存到 context 供 PostAnalyze 使用
-                    context["MultiModalResponses"] = multimodal_responses
-                    
-                    # 发送消息
                     expect_output_timestamp = int(time.time())
                     multimodal_responses_index = 0
+                    all_multimodal_responses = []
                     
-                    for multimodal_response in multimodal_responses:
-                        multimodal_responses_index += 1
-                        
-                        # 处理声音
-                        if multimodal_response.get("type") == "voice":
-                            voice_messages = character_voice(
-                                multimodal_response.get("content", ""),
-                                multimodal_response.get("emotion", "无")
-                            )
-                            for voice_url, voice_length in voice_messages:
-                                if multimodal_responses_index > 1:
-                                    expect_output_timestamp += int(voice_length/1000) + random.randint(2, 5)
-                                outputmessage = send_message_via_context(
-                                    context,
-                                    message=multimodal_response.get("content", ""),
-                                    message_type="voice",
-                                    expect_output_timestamp=expect_output_timestamp,
-                                    metadata={
-                                        "url": voice_url,
-                                        "voice_length": voice_length
-                                    }
-                                )
-                                if outputmessage is not None:
-                                    resp_messages.append(outputmessage)
-                        
-                        # 处理照片
-                        elif multimodal_response.get("type") == "photo":
-                            photo_id = str(multimodal_response.get("content", "")).replace("「", "").replace("」", "").replace("照片", "", 1)
-                            image_url = upload_image(photo_id)
-                            if image_url is not None:
-                                context["conversation"]["conversation_info"]["photo_history"].append(photo_id)
-                                if len(context["conversation"]["conversation_info"]["photo_history"]) > 12:
-                                    context["conversation"]["conversation_info"]["photo_history"] = context["conversation"]["conversation_info"]["photo_history"][-12:]
-                                
-                                if multimodal_responses_index > 1:
-                                    expect_output_timestamp += random.randint(2, 8)
-                                outputmessage = send_message_via_context(
-                                    context,
-                                    message=multimodal_response.get("content", ""),
-                                    message_type="image",
-                                    expect_output_timestamp=expect_output_timestamp,
-                                    metadata={"url": image_url}
-                                )
-                                if outputmessage is not None:
-                                    resp_messages.append(outputmessage)
-                        
-                        # 处理文本
-                        else:
-                            text_message = str(multimodal_response.get("content", "")).replace("<换行>", "\n")
-                            if multimodal_responses_index > 1:
-                                expect_output_timestamp += int(len(text_message) / typing_speed)
-                            outputmessage = send_message_via_context(
-                                context,
-                                message=text_message,
-                                message_type="text",
-                                expect_output_timestamp=expect_output_timestamp
+                    for event in streaming_chat_workflow.run_stream(
+                        input_message=input_message_str,
+                        session_state=context,
+                    ):
+                        if event["type"] == "message":
+                            multimodal_response = event["data"]
+                            multimodal_responses_index += 1
+                            all_multimodal_responses.append(multimodal_response)
+                            
+                            # 立即发送这条消息
+                            outputmessage, expect_output_timestamp = _send_single_message(
+                                context=context,
+                                multimodal_response=multimodal_response,
+                                expect_output_timestamp=expect_output_timestamp,
+                                is_first=(multimodal_responses_index == 1)
                             )
                             if outputmessage is not None:
                                 resp_messages.append(outputmessage)
+                            
+                            # 检测新消息
+                            if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform):
+                                is_rollback = True
+                                logger.info("roll back as new incoming message during streaming")
+                                break
                         
-                        # ===== 检测点 2：每条消息发送后检测新消息 =====
-                        if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform):
-                            is_rollback = True
-                            logger.info("roll back as new incoming message during sending")
-                            break
+                        elif event["type"] == "done":
+                            logger.info(f"流式生成完成，共 {event['data'].get('total_messages', 0)} 条消息")
+                        
+                        elif event["type"] == "error":
+                            logger.error(f"流式生成错误: {event['data'].get('error')}")
+                    
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    logger.info("Phase 2: ChatWorkflow (流式) 执行完成")
                     
                     # ========== Phase 3: 后处理（如果没有被打断）==========
                     if not is_rollback and len(resp_messages) > 0:

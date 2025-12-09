@@ -377,6 +377,8 @@ def handle_pending_reminders():
                     conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
                 
                 conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                
+                # 先标记为已触发（增加触发计数）
                 reminder_dao.mark_as_triggered(reminder["reminder_id"])
                 
                 # 处理周期提醒
@@ -400,12 +402,15 @@ def handle_pending_reminders():
                             should_continue = False
                         
                         if should_continue:
+                            # 周期提醒：重新调度到下次触发时间，状态改回 confirmed
                             reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
                         else:
+                            # 周期结束：标记为完成
                             reminder_dao.complete_reminder(reminder["reminder_id"])
                     else:
                         reminder_dao.complete_reminder(reminder["reminder_id"])
                 else:
+                    # 非周期提醒：触发后直接标记为完成
                     reminder_dao.complete_reminder(reminder["reminder_id"])
                 
             except Exception as e:

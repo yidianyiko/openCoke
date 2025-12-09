@@ -19,7 +19,7 @@ Requirements: 3.2, 3.3, 3.4
 import logging
 import uuid
 import time
-from typing import Optional, Literal
+from typing import Optional, Literal, Union
 from agno.tools import tool
 
 from dao.reminder_dao import ReminderDAO
@@ -28,7 +28,7 @@ from util.time_util import parse_relative_time, str2timestamp, format_time_frien
 logger = logging.getLogger(__name__)
 
 
-def _parse_trigger_time(trigger_time: str) -> Optional[int]:
+def _parse_trigger_time(trigger_time: str, base_timestamp: Optional[int] = None) -> Optional[int]:
     """
     Parse trigger time from string to timestamp.
     
@@ -38,6 +38,7 @@ def _parse_trigger_time(trigger_time: str) -> Optional[int]:
     
     Args:
         trigger_time: Time string to parse
+        base_timestamp: 基准时间戳（用于相对时间计算），默认为当前时间
         
     Returns:
         Unix timestamp or None if parsing fails
@@ -45,8 +46,8 @@ def _parse_trigger_time(trigger_time: str) -> Optional[int]:
     if not trigger_time:
         return None
     
-    # Try relative time first
-    timestamp = parse_relative_time(trigger_time)
+    # Try relative time first (使用基准时间戳)
+    timestamp = parse_relative_time(trigger_time, base_timestamp)
     if timestamp:
         return timestamp
     
@@ -71,12 +72,13 @@ def set_reminder_session_state(session_state: dict):
 @tool(description="""提醒管理工具，用于创建、更新、删除、查询提醒。
 当用户说"提醒我"、"帮我设个提醒"、"别忘了提醒我"等表达提醒意图时，调用此工具创建提醒。
 
-创建提醒时必须提供:
-- action: "create"
+参数说明:
+- action: 操作类型，必须是以下字符串之一: "create"(创建)、"update"(更新)、"delete"(删除)、"list"(列表)
 - title: 提醒标题，如"开会"、"喝水"、"休息"
 - trigger_time: 触发时间，支持以下格式:
   1. 绝对时间格式（推荐）："xxxx年xx月xx日xx时xx分"，如"2025年12月08日15时00分"
   2. 相对时间格式："X分钟后"、"X小时后"、"X天后"、"明天"、"后天"、"下周"
+- recurrence_type: 周期类型，字符串，可选值: "none"(默认)、"daily"、"weekly"、"monthly"、"yearly"、"hourly"、"interval"
 
 注意: 不支持"下午3点"、"晚上8点"、"23:00"等格式，必须转换为绝对时间格式"xxxx年xx月xx日xx时xx分"。
 
@@ -86,12 +88,12 @@ def set_reminder_session_state(session_state: dict):
 - 用户说"下午3点提醒我休息" -> action="create", title="休息", trigger_time="2025年12月08日15时00分"
 """)
 def reminder_tool(
-    action: Literal["create", "update", "delete", "list"],
+    action: str,
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
     action_template: Optional[str] = None,
     reminder_id: Optional[str] = None,
-    recurrence_type: Literal["none", "daily", "weekly", "monthly", "yearly", "hourly", "interval"] = "none",
+    recurrence_type: str = "none",
     recurrence_interval: int = 1
 ) -> dict:
     """
@@ -111,6 +113,15 @@ def reminder_tool(
     """
     global _current_session_state
     
+    # 修正 LLM 可能传递的嵌套参数格式问题
+    if isinstance(action, dict) and 'action' in action:
+        action = action['action']
+    
+    # 手动验证 action 值
+    valid_actions = ("create", "update", "delete", "list")
+    if action not in valid_actions:
+        return {"ok": False, "error": f"不支持的操作类型: {action}，支持的操作: {valid_actions}"}
+    
     # 从全局 session_state 获取用户信息
     user_id = str(_current_session_state.get("user", {}).get("_id", ""))
     character_id = str(_current_session_state.get("character", {}).get("_id", ""))
@@ -125,6 +136,9 @@ def reminder_tool(
     logger.info(f"reminder_tool called: action={action}, title={title}, trigger_time={trigger_time}, user_id={user_id}")
     
     try:
+        # 获取消息的输入时间戳作为相对时间计算的基准
+        message_timestamp = _current_session_state.get("input_timestamp")
+        
         if action == "create":
             result = _create_reminder(
                 reminder_dao=reminder_dao,
@@ -135,7 +149,8 @@ def reminder_tool(
                 recurrence_type=recurrence_type,
                 recurrence_interval=recurrence_interval,
                 conversation_id=conversation_id,
-                character_id=character_id
+                character_id=character_id,
+                base_timestamp=message_timestamp
             )
             logger.info(f"reminder_tool create result: {result}")
             return result
@@ -183,7 +198,8 @@ def _create_reminder(
     recurrence_type: str,
     recurrence_interval: int,
     conversation_id: Optional[str],
-    character_id: Optional[str]
+    character_id: Optional[str],
+    base_timestamp: Optional[int] = None
 ) -> dict:
     """Create a new reminder."""
     if not title:
@@ -192,8 +208,8 @@ def _create_reminder(
     if not trigger_time:
         return {"ok": False, "error": "创建提醒需要提供触发时间 (trigger_time)"}
     
-    # Parse trigger time
-    timestamp = _parse_trigger_time(trigger_time)
+    # Parse trigger time (使用消息时间戳作为相对时间的基准)
+    timestamp = _parse_trigger_time(trigger_time, base_timestamp)
     if not timestamp:
         return {"ok": False, "error": f"无法解析时间: {trigger_time}"}
     

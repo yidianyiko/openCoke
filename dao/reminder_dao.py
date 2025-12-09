@@ -77,13 +77,13 @@ class ReminderDAO:
         except:
             return None
     
-    def find_pending_reminders(self, current_time: int, time_window: int = 1800) -> List[Dict]:
+    def find_pending_reminders(self, current_time: int, time_window: int = 60) -> List[Dict]:
         """
         查找待触发的提醒
         
         Args:
             current_time: 当前时间戳
-            time_window: 时间窗口（秒），默认30分钟
+            time_window: 时间窗口（秒），默认60秒，避免重复触发
             
         Returns:
             List[Dict]: 待触发的提醒列表
@@ -132,8 +132,9 @@ class ReminderDAO:
         return result.modified_count > 0
     
     def mark_as_triggered(self, reminder_id: str) -> bool:
-        """标记提醒为已触发"""
+        """标记提醒为已触发（将状态改为 triggered，避免重复触发）"""
         update_data = {
+            "status": "triggered",
             "last_triggered_at": int(time.time()),
             "updated_at": int(time.time())
         }
@@ -155,7 +156,7 @@ class ReminderDAO:
         return self.update_reminder(reminder_id, {"status": "completed"})
     
     def reschedule_reminder(self, reminder_id: str, next_time: int) -> bool:
-        """重新安排提醒时间（用于周期提醒）"""
+        """重新安排提醒时间（用于周期提醒），将状态重置为 confirmed"""
         return self.update_reminder(reminder_id, {
             "next_trigger_time": next_time,
             "status": "confirmed"

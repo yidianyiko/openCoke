@@ -116,7 +116,6 @@ class TestSmokeE2E(unittest.TestCase):
             "character_private": "",
             "user": "",
             "character_knowledge": "",
-            "character_photo": "",
             "confirmed_reminders": ""
         })
         context.setdefault("query_rewrite", {
@@ -228,7 +227,6 @@ class TestSmokeE2E(unittest.TestCase):
                 "character_private": "",
                 "user": "",
                 "character_knowledge": "",
-                "character_photo": "",
                 "confirmed_reminders": ""
             },
             "query_rewrite": {

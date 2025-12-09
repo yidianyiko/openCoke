@@ -122,6 +122,14 @@ def context_prepare(user, character, conversation):
     
     if "photo_history" not in context["conversation"]["conversation_info"]:
         context["conversation"]["conversation_info"]["photo_history"] = []
+    
+    # 获取消息的输入时间戳（用于相对时间计算的基准）
+    # 使用第一条输入消息的时间戳，确保"5分钟后"是从用户发送消息的时间开始计算
+    input_messages = context["conversation"]["conversation_info"].get("input_messages", [])
+    if input_messages and len(input_messages) > 0:
+        context["input_timestamp"] = input_messages[0].get("input_timestamp", int(time.time()))
+    else:
+        context["input_timestamp"] = int(time.time())
 
     if "future" not in context["conversation"]["conversation_info"]:
         context["conversation"]["conversation_info"]["future"] = {
@@ -190,7 +198,6 @@ def context_prepare(user, character, conversation):
         "character_private": "",
         "user": "",
         "character_knowledge": "",
-        "character_photo": "",
         "confirmed_reminders": ""
     })
     

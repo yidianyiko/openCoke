@@ -45,13 +45,3 @@ class QueryRewriteResponse(BaseModel):
         default="",
         description="你认为针对角色的知识与技能需要进行的查询关键词，不要为空。"
     )
-    
-    CharacterPhotoQueryQuestion: str = Field(
-        default="",
-        description="你认为针对角色的手机相册需要进行的查询语句，不要为空。"
-    )
-    
-    CharacterPhotoQueryKeywords: str = Field(
-        default="",
-        description="你认为针对角色的手机相册需要进行的查询关键词，不要为空。"
-    )
