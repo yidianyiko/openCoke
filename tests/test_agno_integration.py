@@ -22,19 +22,22 @@ class TestTextMessageProcessingFlow(unittest.TestCase):
         """测试 Workflow 链式结构"""
         from agent.agno_agent.workflows import (
             PrepareWorkflow,
-            ChatWorkflow,
+            StreamingChatWorkflow,
             PostAnalyzeWorkflow
         )
         
         # 验证三个 Workflow 都可以实例化
         prepare = PrepareWorkflow()
-        chat = ChatWorkflow()
+        chat = StreamingChatWorkflow()
         post = PostAnalyzeWorkflow()
         
         # 验证都有 run 方法
         self.assertTrue(callable(getattr(prepare, 'run', None)))
         self.assertTrue(callable(getattr(chat, 'run', None)))
         self.assertTrue(callable(getattr(post, 'run', None)))
+        
+        # 验证 StreamingChatWorkflow 有 run_stream 方法
+        self.assertTrue(callable(getattr(chat, 'run_stream', None)))
     
     def test_session_state_flow(self):
         """测试 session_state 在 Workflow 间的传递"""

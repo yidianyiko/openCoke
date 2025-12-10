@@ -26,13 +26,13 @@ from agno.models.deepseek import DeepSeek
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
     TASKPROMPT_微信对话_推理要求_纯文本,
-    TASKPROMPT_提醒识别,
 )
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
     CONTEXTPROMPT_历史对话,
     CONTEXTPROMPT_历史对话_精简,
     CONTEXTPROMPT_最新聊天消息,
+    CONTEXTPROMPT_人物信息,
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_用户资料,
     CONTEXTPROMPT_待办提醒,
@@ -66,6 +66,7 @@ class StreamingChatWorkflow:
     userp_template_base = (
         TASKPROMPT_微信对话 +
         CONTEXTPROMPT_时间 +
+        CONTEXTPROMPT_人物信息 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +
         CONTEXTPROMPT_待办提醒 +
@@ -80,6 +81,7 @@ class StreamingChatWorkflow:
     userp_template_base_lite = (
         TASKPROMPT_微信对话 +
         CONTEXTPROMPT_时间 +
+        CONTEXTPROMPT_人物信息 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +
         CONTEXTPROMPT_待办提醒 +
@@ -97,8 +99,7 @@ class StreamingChatWorkflow:
     
     # 任务要求部分
     userp_template_task = (
-        TASKPROMPT_微信对话_推理要求_纯文本 +
-        TASKPROMPT_提醒识别
+        TASKPROMPT_微信对话_推理要求_纯文本       
     )
     
     # 兼容旧代码：默认用户消息模板
@@ -200,14 +201,23 @@ class StreamingChatWorkflow:
                         yielded_count += 1
                         logger.info(f"流式输出消息: {messages[i]}")
             
+            # 解析 InnerMonologue 用于调试
+            inner_monologue = self._parse_inner_monologue(accumulated_text)
+            if inner_monologue:
+                logger.info(f"[ChatResponseAgent] InnerMonologue: {inner_monologue}")
+                # 保存到 session_state 供后续使用（如果需要）
+                session_state["last_inner_monologue"] = inner_monologue
+            
             # 完成后，返回完整响应
             yield {
                 "type": "done",
                 "data": {
                     "full_response": accumulated_text,
-                    "total_messages": yielded_count
+                    "total_messages": yielded_count,
+                    "inner_monologue": inner_monologue
                 }
             }
+            
             logger.info(f"ChatResponseAgent 流式执行完成，共 {yielded_count} 条消息")
             
         except Exception as e:
@@ -229,12 +239,14 @@ class StreamingChatWorkflow:
         """
         messages = []
         full_response = ""
+        inner_monologue = ""
         
         async for event in self.run_stream(input_message, session_state):
             if event["type"] == "message":
                 messages.append(event["data"])
             elif event["type"] == "done":
                 full_response = event["data"].get("full_response", "")
+                inner_monologue = event["data"].get("inner_monologue", "")
         
         # 转换为原 ChatWorkflow 的返回格式（精简版）
         # V2 重构：不再包含 RelationChange 和 FutureResponse，这些移至 PostAnalyzeWorkflow
@@ -248,7 +260,7 @@ class StreamingChatWorkflow:
         
         return {
             "content": {
-                "InnerMonologue": "",
+                "InnerMonologue": inner_monologue,
                 "MultiModalResponses": multimodal_responses,
                 "ChatCatelogue": "",
             },
@@ -268,6 +280,23 @@ class StreamingChatWorkflow:
         if hasattr(chunk, 'content') and chunk.content:
             if isinstance(chunk.content, str):
                 return chunk.content
+        return ""
+    
+    def _parse_inner_monologue(self, text: str) -> str:
+        """
+        从 JSON 输出中解析 InnerMonologue
+        
+        Returns:
+            InnerMonologue 内容，如果未找到则返回空字符串
+        """
+        # 匹配 "InnerMonologue": "..." 
+        pattern = r'"InnerMonologue"\s*:\s*"([^"]*)"'
+        match = re.search(pattern, text)
+        if match:
+            inner_monologue = match.group(1)
+            # 处理 JSON 转义字符
+            inner_monologue = inner_monologue.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+            return inner_monologue
         return ""
     
     def _parse_messages(self, text: str) -> list:

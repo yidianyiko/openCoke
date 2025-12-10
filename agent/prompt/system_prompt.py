@@ -18,6 +18,3 @@ System Prompt Module (DEPRECATED)
 
 请使用 agent_instructions_prompt.py 中的新定义。
 """
-
-# 保留此文件以避免破坏可能的外部引用
-# 如果确认没有外部依赖，可以删除此文件

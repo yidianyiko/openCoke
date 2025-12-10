@@ -32,7 +32,7 @@ from agent.agno_agent.schemas.chat_response_schema import (
 VALID_MESSAGE_TYPES = ["text", "voice", "photo"]
 
 # Valid emotions for voice messages
-VALID_EMOTIONS = ["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶", "魅惑", None]
+VALID_EMOTIONS = ["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶", None]
 
 # Strategy for generating valid MultiModalResponse
 @st.composite

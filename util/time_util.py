@@ -40,8 +40,6 @@ def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分"):
     
     return int(dt.timestamp())
 
-from datetime import datetime
-
 def date2str(timestamp, week=False):
     dt_object = datetime.fromtimestamp(timestamp)
     result =  dt_object.strftime('%Y年%m月%d日')

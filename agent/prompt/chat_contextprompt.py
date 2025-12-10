@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-CONTEXTPROMPT_时间 = '''### 小说中的当前时间
+CONTEXTPROMPT_时间 = '''### 系统当前时间
 （24小时制）{conversation[conversation_info][time_str]}'''
 
 CONTEXTPROMPT_新闻 = '''
@@ -9,11 +9,6 @@ CONTEXTPROMPT_新闻 = '''
 CONTEXTPROMPT_人物信息 = '''### {character[platforms][wechat][nickname]}的人物信息
 {character[user_info][description]}'''
 
-# "character_global": "",
-# "character_private": "",
-# "user": "",
-# "character_knowledge": "",
-# "character_photo": ""
 
 CONTEXTPROMPT_人物资料 = '''### {character[platforms][wechat][nickname]}的人物资料
 {context_retrieve[character_global]}

@@ -9,6 +9,12 @@ V2 重构：
 - 新增 FutureResponse 处理：未来消息规划，从 ChatWorkflow 移入
 - 基于完整对话结果（包括角色回复）进行分析，数据更准确
 
+V2.5 更新：
+- 新增 character_info 更新：CharacterPurpose → shortterm_purpose, CharacterAttitude → attitude
+- 新增 user_info 更新：UserRealName → realname, UserHobbyName → hobbyname, UserDescription → description
+- 新增 relationship 更新：RelationDescription → description, Dislike → dislike
+- 修复了 PostAnalyze 输出字段与 relation 存储字段之间的映射缺失问题
+
 Requirements: 5.3
 """
 
@@ -121,6 +127,15 @@ class PostAnalyzeWorkflow:
             # V2 新增：处理未来消息规划
             self._handle_future_response(content, session_state)
             
+            # V2.5 新增：处理角色信息更新（短期目标、态度）
+            self._handle_character_info_update(content, session_state)
+            
+            # V2.5 新增：处理用户信息更新（真名、昵称、描述）
+            self._handle_user_info_update(content, session_state)
+            
+            # V2.5 新增：处理关系描述和反感度更新
+            self._handle_relationship_update(content, session_state)
+            
         except Exception as e:
             logger.error(f"PostAnalyzeAgent 执行失败: {e}")
             content = self._get_default_content()
@@ -210,6 +225,106 @@ class PostAnalyzeWorkflow:
             conversation_info["future"] = {}
         conversation_info["future"] = future_info
     
+    def _handle_character_info_update(self, content: Dict, session_state: Dict) -> None:
+        """
+        处理角色信息更新（V2.5 新增）
+        
+        将 PostAnalyze 输出的字段映射到 relation.character_info：
+        - CharacterLongtermPurpose → longterm_purpose
+        - CharacterPurpose → shortterm_purpose
+        - CharacterAttitude → attitude
+        
+        Args:
+            content: PostAnalyze 返回的内容
+            session_state: 会话状态
+        """
+        if "relation" not in session_state or "character_info" not in session_state["relation"]:
+            return
+        
+        char_info = session_state["relation"]["character_info"]
+        
+        # 更新长期目标（通常不会频繁变化）
+        character_longterm_purpose = content.get("CharacterLongtermPurpose", "")
+        if character_longterm_purpose and character_longterm_purpose != "无":
+            char_info["longterm_purpose"] = character_longterm_purpose
+            logger.info(f"[角色信息更新] 长期目标: {character_longterm_purpose}")
+        
+        # 更新短期目标
+        character_purpose = content.get("CharacterPurpose", "")
+        if character_purpose and character_purpose != "无":
+            char_info["shortterm_purpose"] = character_purpose
+            logger.info(f"[角色信息更新] 短期目标: {character_purpose}")
+        
+        # 更新态度
+        character_attitude = content.get("CharacterAttitude", "")
+        if character_attitude and character_attitude != "无":
+            char_info["attitude"] = character_attitude
+            logger.info(f"[角色信息更新] 态度: {character_attitude}")
+    
+    def _handle_user_info_update(self, content: Dict, session_state: Dict) -> None:
+        """
+        处理用户信息更新（V2.5 新增）
+        
+        将 PostAnalyze 输出的 UserRealName、UserHobbyName、UserDescription
+        映射到 relation.user_info
+        
+        Args:
+            content: PostAnalyze 返回的内容
+            session_state: 会话状态
+        """
+        if "relation" not in session_state or "user_info" not in session_state["relation"]:
+            return
+        
+        user_info = session_state["relation"]["user_info"]
+        
+        # 更新用户真名
+        user_realname = content.get("UserRealName", "")
+        if user_realname and user_realname != "无":
+            user_info["realname"] = user_realname
+            logger.info(f"[用户信息更新] 真名: {user_realname}")
+        
+        # 更新用户昵称
+        user_hobbyname = content.get("UserHobbyName", "")
+        if user_hobbyname and user_hobbyname != "无":
+            user_info["hobbyname"] = user_hobbyname
+            logger.info(f"[用户信息更新] 昵称: {user_hobbyname}")
+        
+        # 更新用户描述
+        user_description = content.get("UserDescription", "")
+        if user_description and user_description != "无":
+            user_info["description"] = user_description
+            logger.info(f"[用户信息更新] 描述: {user_description[:50]}...")
+    
+    def _handle_relationship_update(self, content: Dict, session_state: Dict) -> None:
+        """
+        处理关系描述和反感度更新（V2.5 新增）
+        
+        将 PostAnalyze 输出的 RelationDescription 和 Dislike
+        映射到 relation.relationship
+        
+        Args:
+            content: PostAnalyze 返回的内容
+            session_state: 会话状态
+        """
+        if "relation" not in session_state or "relationship" not in session_state["relation"]:
+            return
+        
+        relationship = session_state["relation"]["relationship"]
+        
+        # 更新关系描述
+        relation_description = content.get("RelationDescription", "")
+        if relation_description and relation_description != "无":
+            relationship["description"] = relation_description
+            logger.info(f"[关系更新] 描述: {relation_description}")
+        
+        # 更新反感度
+        dislike_change = content.get("Dislike", 0) or 0
+        if dislike_change != 0:
+            current_dislike = relationship.get("dislike", 0)
+            new_dislike = max(0, min(100, current_dislike + dislike_change))
+            relationship["dislike"] = new_dislike
+            logger.info(f"[关系更新] 反感度变化: {dislike_change}, 当前值: {new_dislike}")
+    
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """
         渲染模板字符串
@@ -281,7 +396,7 @@ class PostAnalyzeWorkflow:
         elif not isinstance(content, dict):
             return self._get_default_content()
         
-        # 确保必要字段存在（V2：新增 RelationChange 和 FutureResponse）
+        # 确保必要字段存在（V2：新增 RelationChange 和 FutureResponse；V2.5：新增 CharacterLongtermPurpose）
         result = {
             # 新增：关系变化
             "RelationChange": content.get("RelationChange", {"Closeness": 0, "Trustness": 0}),
@@ -295,6 +410,7 @@ class PostAnalyzeWorkflow:
             "UserRealName": content.get("UserRealName", "无"),
             "UserHobbyName": content.get("UserHobbyName", "无"),
             "UserDescription": content.get("UserDescription", ""),
+            "CharacterLongtermPurpose": content.get("CharacterLongtermPurpose", ""),
             "CharacterPurpose": content.get("CharacterPurpose", ""),
             "CharacterAttitude": content.get("CharacterAttitude", ""),
             "RelationDescription": content.get("RelationDescription", ""),
@@ -304,7 +420,7 @@ class PostAnalyzeWorkflow:
         return result
     
     def _get_default_content(self) -> Dict[str, Any]:
-        """获取默认的内容结构（V2：新增 RelationChange 和 FutureResponse）"""
+        """获取默认的内容结构（V2：新增 RelationChange 和 FutureResponse；V2.5：新增 CharacterLongtermPurpose）"""
         return {
             "RelationChange": {"Closeness": 0, "Trustness": 0},
             "FutureResponse": {"FutureResponseTime": "", "FutureResponseAction": "无"},
@@ -315,6 +431,7 @@ class PostAnalyzeWorkflow:
             "UserRealName": "无",
             "UserHobbyName": "无",
             "UserDescription": "",
+            "CharacterLongtermPurpose": "",
             "CharacterPurpose": "",
             "CharacterAttitude": "",
             "RelationDescription": "",

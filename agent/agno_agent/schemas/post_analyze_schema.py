@@ -8,6 +8,9 @@ V2 重构：
 - 新增 RelationChange：关系变化（亲密度/信任度），从 ChatResponse 移入
 - 新增 FutureResponse：未来消息规划，从 ChatResponse 移入
 - PostAnalyzeAgent 基于完整对话结果（包括角色回复）进行分析
+
+V2.5 更新：
+- 新增 CharacterLongtermPurpose：角色的长期目标，用于更新 relation.character_info.longterm_purpose
 """
 
 from typing import Optional
@@ -82,9 +85,14 @@ class PostAnalyzeResponse(BaseModel):
         description="总结最新聊天消息中，角色对用户的印象描述。你需要结合'参考上下文'中的印象描述，进行更新。最多不超过100字。"
     )
     
+    CharacterLongtermPurpose: str = Field(
+        default="无",
+        description="总结角色对用户的长期目标。这是一个持续性的目标，通常不会频繁变化，例如'帮助用户实现生活目标'、'成为用户的知心朋友'等。如果本次对话中没有体现出长期目标的变化，输出'无'。"
+    )
+    
     CharacterPurpose: str = Field(
         default="无",
-        description="总结最新聊天消息中，角色的短期目标，可能跟多轮聊天有关，也可能无关。"
+        description="总结最新聊天消息中，角色的短期目标，可能跟多轮聊天有关，也可能无关。例如'了解用户的兴趣爱好'、'帮用户解决当前问题'等。"
     )
     
     CharacterAttitude: str = Field(

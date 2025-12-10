@@ -61,7 +61,7 @@ def voice2text_tool(file_path: str) -> dict:
 @tool(description="将文字转换为语音消息，支持情感色彩")
 def text2voice_tool(
     text: str,
-    emotion: Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶", "魅惑"] = "无"
+    emotion: Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶"] = "无"
 ) -> dict:
     """
     文字转语音工具

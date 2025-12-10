@@ -21,10 +21,10 @@ class TestAsyncWorkflows(unittest.TestCase):
         workflow = PrepareWorkflow()
         self.assertTrue(inspect.iscoroutinefunction(workflow.run))
     
-    def test_chat_workflow_run_is_async(self):
-        """测试 ChatWorkflow.run 是异步方法"""
-        from agent.agno_agent.workflows import ChatWorkflow
-        workflow = ChatWorkflow()
+    def test_streaming_chat_workflow_run_is_async(self):
+        """测试 StreamingChatWorkflow.run 是异步方法"""
+        from agent.agno_agent.workflows import StreamingChatWorkflow
+        workflow = StreamingChatWorkflow()
         self.assertTrue(inspect.iscoroutinefunction(workflow.run))
     
     def test_post_analyze_workflow_run_is_async(self):
@@ -41,15 +41,9 @@ class TestAsyncWorkflows(unittest.TestCase):
     
     def test_streaming_chat_workflow_run_stream_is_async(self):
         """测试 StreamingChatWorkflow.run_stream 是异步生成器"""
-        from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
+        from agent.agno_agent.workflows import StreamingChatWorkflow
         workflow = StreamingChatWorkflow()
         self.assertTrue(inspect.isasyncgenfunction(workflow.run_stream))
-    
-    def test_streaming_chat_workflow_run_is_async(self):
-        """测试 StreamingChatWorkflow.run 是异步方法"""
-        from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
-        workflow = StreamingChatWorkflow()
-        self.assertTrue(inspect.iscoroutinefunction(workflow.run))
 
 
 class TestAsyncLockManager(unittest.TestCase):

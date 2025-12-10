@@ -25,7 +25,7 @@ class MultiModalResponse(BaseModel):
         description="根据消息类型的不同，包含不同的内容"
     )
     
-    emotion: Optional[Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶", "魅惑"]] = Field(
+    emotion: Optional[Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶"]] = Field(
         default=None,
         description="仅对语音消息有效，表示语音的感情色彩"
     )
