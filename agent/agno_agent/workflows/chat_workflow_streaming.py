@@ -31,6 +31,7 @@ from agent.prompt.chat_taskprompt import (
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
     CONTEXTPROMPT_历史对话,
+    CONTEXTPROMPT_历史对话_精简,
     CONTEXTPROMPT_最新聊天消息,
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_用户资料,
@@ -39,6 +40,8 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物状态,
     CONTEXTPROMPT_当前目标,
     CONTEXTPROMPT_当前的人物关系,
+    CONTEXTPROMPT_系统提醒触发,
+    CONTEXTPROMPT_主动消息触发,
 )
 from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
 
@@ -59,8 +62,8 @@ class StreamingChatWorkflow:
     - 不使用 output_schema，改用标签格式
     """
     
-    # User prompt 模板组合（与原 ChatWorkflow 相同）
-    userp_template = (
+    # User prompt 模板组合 - 基础部分（包含完整历史对话，用于用户消息）
+    userp_template_base = (
         TASKPROMPT_微信对话 +
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物资料 +
@@ -70,10 +73,39 @@ class StreamingChatWorkflow:
         CONTEXTPROMPT_人物状态 +
         CONTEXTPROMPT_当前目标 +
         CONTEXTPROMPT_当前的人物关系 +
-        CONTEXTPROMPT_历史对话 +
-        CONTEXTPROMPT_最新聊天消息 +
+        CONTEXTPROMPT_历史对话
+    )
+    
+    # User prompt 模板组合 - 精简版（只包含最近对话，用于主动消息/提醒）
+    userp_template_base_lite = (
+        TASKPROMPT_微信对话 +
+        CONTEXTPROMPT_时间 +
+        CONTEXTPROMPT_人物资料 +
+        CONTEXTPROMPT_用户资料 +
+        CONTEXTPROMPT_待办提醒 +
+        CONTEXTPROMPT_人物知识和技能 +
+        CONTEXTPROMPT_人物状态 +
+        CONTEXTPROMPT_当前目标 +
+        CONTEXTPROMPT_当前的人物关系 +
+        CONTEXTPROMPT_历史对话_精简
+    )
+    
+    # 消息来源相关的上下文模板
+    userp_template_user_message = CONTEXTPROMPT_最新聊天消息  # 用户消息
+    userp_template_reminder = CONTEXTPROMPT_系统提醒触发      # 提醒触发
+    userp_template_future = CONTEXTPROMPT_主动消息触发        # 主动消息
+    
+    # 任务要求部分
+    userp_template_task = (
         TASKPROMPT_微信对话_推理要求_纯文本 +
         TASKPROMPT_提醒识别
+    )
+    
+    # 兼容旧代码：默认用户消息模板
+    userp_template = (
+        userp_template_base +
+        userp_template_user_message +
+        userp_template_task
     )
     
     def __init__(self):
@@ -113,12 +145,31 @@ class StreamingChatWorkflow:
         """
         session_state = session_state or {}
         
+        # 根据消息来源选择不同的上下文模板和基础模板
+        message_source = session_state.get("message_source", "user")
+        if message_source == "reminder":
+            source_template = self.userp_template_reminder
+            base_template = self.userp_template_base_lite  # 提醒消息使用精简版
+        elif message_source == "future":
+            source_template = self.userp_template_future
+            base_template = self.userp_template_base_lite  # 主动消息使用精简版
+        else:
+            source_template = self.userp_template_user_message
+            base_template = self.userp_template_base  # 用户消息使用完整版
+        
+        # 组合完整模板
+        full_template = base_template + source_template + self.userp_template_task
+        
         # 渲染 user prompt
         try:
-            rendered_userp = self._render_template(self.userp_template, session_state)
+            rendered_userp = self._render_template(full_template, session_state)
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message
+        
+        # 打印实际发送给 LLM 的 prompt（便于调试）
+        logger.info(f"[ChatWorkflow] message_source={message_source}, 使用模板: {'CONTEXTPROMPT_主动消息触发' if message_source == 'future' else 'CONTEXTPROMPT_系统提醒触发' if message_source == 'reminder' else 'CONTEXTPROMPT_最新聊天消息'}")
+        logger.info(f"[ChatWorkflow] LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
         
         # 累积的响应文本
         accumulated_text = ""

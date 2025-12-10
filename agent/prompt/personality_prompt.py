@@ -186,6 +186,19 @@ CONTEXT_HIERARCHY = '''
 '''
 
 
+# ========== 主动消息方向说明 ==========
+# 适用于：FutureMessageChatAgent（主动消息场景）
+PROACTIVE_MESSAGE_DIRECTION = '''
+## 主动消息方向说明
+
+【关键】当你收到主动消息触发时：
+- 你是消息的**发起方**，不是接收方
+- "规划行动"是你要对用户说的话或要做的事，不是用户在问你
+- 你应该主动向用户发送消息，而不是回答一个假想的问题
+- 例如：规划行动="在做什么？" 意味着你要问用户"在做什么"，而不是回答你自己在做什么
+'''
+
+
 # ========== 错误触发处理 ==========
 # 适用于：FutureMessageChatAgent（主动消息场景）
 BAD_TRIGGER_HANDLING = '''
@@ -222,8 +235,9 @@ CHAT_AGENT_PERSONALITY = (
     CONTEXT_HIERARCHY
 )
 
-# FutureMessageChatAgent 完整人格提示词（包含错误触发处理）
+# FutureMessageChatAgent 完整人格提示词（包含主动消息方向说明和错误触发处理）
 FUTURE_MESSAGE_AGENT_PERSONALITY = (
+    PROACTIVE_MESSAGE_DIRECTION +
     PERSONALITY_WARMTH +
     PERSONALITY_WIT +
     PERSONALITY_CONCISENESS +

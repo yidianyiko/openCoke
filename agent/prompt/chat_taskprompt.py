@@ -92,7 +92,11 @@ TASKPROMPT_总结 = '''我有一部小说对话，其中 {character[platforms][w
 
 
 # V2 重构：新增 RelationChange 和 FutureResponse 的 prompt（从 ChatWorkflow 移入）
-TASKPROMPT_总结_推理要求 = '''1. RelationChange。根据本轮对话分析关系变化：
+TASKPROMPT_总结_推理要求 = '''### 当前主动消息状态
+本轮已主动催促次数：{proactive_times}
+消息来源：{message_source}
+
+1. RelationChange。根据本轮对话分析关系变化：
 - Closeness：亲密度数值变化（-10到+10之间的整数）
 - Trustness：信任度数值变化（-10到+10之间的整数）
 如果没有明显变化，输出 0。
@@ -109,6 +113,8 @@ d. **当天任务已完成或暂无任务**：2-4 小时后提醒用户规划下
 e. **早晨时段（6:00-9:00），用户尚未开始当天计划**：主动询问今天的计划。
 f. **用户明确表示休息或情绪低落**：1-2 小时后温和询问状态。
 g. **如果对话已自然结束且无待办任务**：FutureResponseAction 输出为"在做什么？"。
+h. **【重要】如果历史对话显示角色已经连续主动发送了2条以上类似内容的消息，用户仍未回复**：切换策略，改为 2-4 小时后发送轻松问候，FutureResponseAction 输出为"在做什么？"或其他非催促内容。
+i. **【重要】如果历史对话显示角色已经连续主动发送了3条以上消息，用户完全没有回复**：暂停主动消息，FutureResponseAction 输出为"无"。
 
 3. CharacterPublicSettings。总结最新聊天消息中，针对{character[platforms][wechat][nickname]}的新增人物设定。注意，如果这个信息跟{user[platforms][wechat][nickname]}有关，那么你不应该把它放到CharacterPublicSettings，而是CharacterPrivateSettings。
 你可以总结出1条或者多条信息，如果有多条信息，你应该用'<换行>'来进行分割。

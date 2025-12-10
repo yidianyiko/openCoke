@@ -27,6 +27,8 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物状态,
     CONTEXTPROMPT_当前目标,
     CONTEXTPROMPT_当前的人物关系,
+    CONTEXTPROMPT_系统提醒触发,
+    CONTEXTPROMPT_主动消息触发,
 )
 from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY
 
@@ -54,8 +56,8 @@ class ChatWorkflow:
     - content["FutureResponse"] - 未来消息规划
     """
     
-    # User prompt 模板组合
-    userp_template = (
+    # User prompt 模板组合 - 基础部分（不含消息来源相关的上下文）
+    userp_template_base = (
         TASKPROMPT_微信对话 +
         CHAT_AGENT_PERSONALITY +  # 人格与行为规范
         CONTEXTPROMPT_时间 +
@@ -66,10 +68,25 @@ class ChatWorkflow:
         CONTEXTPROMPT_人物状态 +
         CONTEXTPROMPT_当前目标 +
         CONTEXTPROMPT_当前的人物关系 +
-        CONTEXTPROMPT_历史对话 +
-        CONTEXTPROMPT_最新聊天消息 +
+        CONTEXTPROMPT_历史对话
+    )
+    
+    # 消息来源相关的上下文模板
+    userp_template_user_message = CONTEXTPROMPT_最新聊天消息  # 用户消息
+    userp_template_reminder = CONTEXTPROMPT_系统提醒触发      # 提醒触发
+    userp_template_future = CONTEXTPROMPT_主动消息触发        # 主动消息
+    
+    # 任务要求部分
+    userp_template_task = (
         TASKPROMPT_微信对话_推理要求_纯文本 +
         TASKPROMPT_提醒识别
+    )
+    
+    # 兼容旧代码：默认用户消息模板
+    userp_template = (
+        userp_template_base +
+        userp_template_user_message +
+        userp_template_task
     )
     
     async def run(
@@ -89,9 +106,21 @@ class ChatWorkflow:
         """
         session_state = session_state or {}
         
+        # 根据消息来源选择不同的上下文模板
+        message_source = session_state.get("message_source", "user")
+        if message_source == "reminder":
+            source_template = self.userp_template_reminder
+        elif message_source == "future":
+            source_template = self.userp_template_future
+        else:
+            source_template = self.userp_template_user_message
+        
+        # 组合完整模板
+        full_template = self.userp_template_base + source_template + self.userp_template_task
+        
         # 渲染 user prompt
         try:
-            rendered_userp = self._render_template(self.userp_template, session_state)
+            rendered_userp = self._render_template(full_template, session_state)
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message

@@ -90,6 +90,9 @@ class PrepareWorkflow:
             logger.warning(f"Orchestrator prompt 渲染失败: {e}")
             rendered_prompt = input_message
         
+        # 打印发送给 OrchestratorAgent 的 prompt（便于调试）
+        logger.info(f"[PrepareWorkflow] OrchestratorAgent LLM INPUT (len={len(rendered_prompt)}):\n{'='*50}\n{rendered_prompt}\n{'='*50}")
+        
         try:
             orchestrator_response = await orchestrator_agent.arun(
                 input=rendered_prompt,
@@ -163,6 +166,9 @@ class PrepareWorkflow:
             try:
                 # 设置 session_state 供 reminder_tool 使用
                 set_reminder_session_state(session_state)
+                
+                # 打印发送给 ReminderDetectAgent 的输入（便于调试）
+                logger.info(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{input_message}\n{'='*50}")
                 
                 await reminder_detect_agent.arun(
                     input=input_message,

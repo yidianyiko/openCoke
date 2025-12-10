@@ -240,7 +240,7 @@ async def handle_pending_future_message():
                 # 构造系统消息
                 input_message_str = f"[系统主动话题(这是我们要主动发给用户的话)] {future_action}"
                 
-                logger.info(f"[FUTURE] 开始处理主动消息: {future_action}")
+                logger.info(f"[FUTURE] 开始处理主动消息: {future_action} (proactive_times={future_proactive_times})")
                 resp_messages, context, _ = await handle_message(
                     user=user,
                     character=character,

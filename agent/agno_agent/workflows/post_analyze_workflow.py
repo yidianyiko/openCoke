@@ -101,6 +101,9 @@ class PostAnalyzeWorkflow:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = "请分析本次对话"
         
+        # 打印发送给 PostAnalyzeAgent 的 prompt（便于调试）
+        logger.info(f"[PostAnalyzeWorkflow] PostAnalyzeAgent LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
+        
         # 异步调用 Agent 进行后处理分析
         try:
             response = await post_analyze_agent.arun(
@@ -185,9 +188,17 @@ class PostAnalyzeWorkflow:
         if future_time_str and future_action and future_action != "无":
             future_info["timestamp"] = str2timestamp(future_time_str) if future_time_str else None
             future_info["action"] = future_action
-            # 重置主动消息次数（因为用户有回复）
-            future_info["proactive_times"] = 0
-            logger.info(f"设置未来消息规划: time={future_time_str}, action={future_action}")
+            
+            # 根据消息来源决定是否重置 proactive_times
+            message_source = session_state.get("message_source", "user")
+            if message_source == "user":
+                # 用户消息：重置主动消息次数
+                future_info["proactive_times"] = 0
+            else:
+                # 主动消息/提醒消息：递增次数
+                future_info["proactive_times"] = future_info.get("proactive_times", 0) + 1
+            
+            logger.info(f"设置未来消息规划: time={future_time_str}, action={future_action}, proactive_times={future_info['proactive_times']}")
         else:
             # 清除未来消息规划
             future_info["timestamp"] = None

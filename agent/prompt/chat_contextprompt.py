@@ -51,6 +51,10 @@ CONTEXTPROMPT_当前的人物关系 = '''### {character[platforms][wechat][nickn
 CONTEXTPROMPT_历史对话 = '''### 历史对话
 {conversation[conversation_info][chat_history_str]}'''
 
+# 精简版历史对话，用于主动消息场景（只包含最近几条消息）
+CONTEXTPROMPT_历史对话_精简 = '''### 最近对话（最近3轮）
+{recent_chat_history}'''
+
 CONTEXTPROMPT_最新聊天消息 = '''### {user[platforms][wechat][nickname]}的最新聊天消息
 {conversation[conversation_info][input_messages_str]}'''
 
@@ -64,4 +68,22 @@ CONTEXTPROMPT_最新聊天消息_双方 = '''### {user[platforms][wechat][nickna
 {MultiModalResponses}'''
 
 CONTEXTPROMPT_规划行动 = '''### {character[platforms][wechat][nickname]}的规划行动
-{conversation[conversation_info][future][action]}'''
+{character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息，行动内容：{conversation[conversation_info][future][action]}
+【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息。'''
+
+CONTEXTPROMPT_系统提醒触发 = '''### 系统提醒触发
+以下是到期的提醒，{character[platforms][wechat][nickname]}需要主动提醒{user[platforms][wechat][nickname]}：
+提醒内容：{system_message_metadata[action_template]}
+【重要】这是{character[platforms][wechat][nickname]}要发给{user[platforms][wechat][nickname]}的提醒内容，不是{user[platforms][wechat][nickname]}发来的消息。{character[platforms][wechat][nickname]}应该基于这个提醒内容，用自然的方式提醒用户。'''
+
+CONTEXTPROMPT_主动消息触发 = '''### 主动消息触发
+{character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息。
+行动内容：{conversation[conversation_info][future][action]}
+本轮已主动催促次数：{proactive_times}
+
+【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息。
+【严格禁止】请仔细查看上面的"最近对话"，如果{character[platforms][wechat][nickname]}刚刚发过类似内容的消息，你必须生成完全不同的新内容，绝对不能重复或相似。
+【要求】如果已催促多次用户仍未回复，必须：
+- 换一个完全不同的话题或角度
+- 表达理解（比如"可能你在忙"、"没事，有空再回我"）
+- 或者改为轻松问候（比如"在干嘛呢？"）'''

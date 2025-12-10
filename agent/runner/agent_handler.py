@@ -76,6 +76,48 @@ lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
 
 
+def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
+    """
+    从聊天历史中提取最近的对话（包括用户和角色的消息）
+    用于主动消息/提醒消息场景，避免传入过长的历史对话
+    
+    Args:
+        chat_history: 聊天历史列表
+        limit: 提取的消息数量（默认6条，约3轮对话）
+    
+    Returns:
+        格式化的最近对话字符串
+    """
+    if not chat_history:
+        return "（无历史消息）"
+    
+    # 取最近的 limit 条消息
+    recent_messages = chat_history[-limit:] if len(chat_history) > limit else chat_history
+    
+    if not recent_messages:
+        return "（无历史消息）"
+    
+    # 格式化输出，保持与原始 chat_history_str 类似的格式
+    result_lines = []
+    for msg in recent_messages:
+        msg_from = msg.get("from_nickname", "") or msg.get("from", "")
+        msg_content = msg.get("message", "") or msg.get("content", "")
+        msg_time = msg.get("time_str", "")
+        msg_type = msg.get("message_type", "text")
+        
+        if msg_content:
+            # 截断过长的消息
+            if len(msg_content) > 150:
+                msg_content = msg_content[:150] + "..."
+            
+            if msg_time:
+                result_lines.append(f"（{msg_time} {msg_from}发来了{msg_type}消息）{msg_content}")
+            else:
+                result_lines.append(f"（{msg_from}发来了{msg_type}消息）{msg_content}")
+    
+    return "\n".join(result_lines)
+
+
 def _send_single_message(context, multimodal_response, expect_output_timestamp, is_first=False):
     """发送单条多模态消息"""
     outputmessage = None
@@ -159,6 +201,16 @@ async def handle_message(
     context["message_source"] = message_source
     context["system_message_metadata"] = metadata or {}
     context["conversation"]["conversation_info"]["input_messages_str"] = input_message_str
+    
+    # 将 proactive_times 放到顶层，供模板使用
+    context["proactive_times"] = (metadata or {}).get("proactive_times", 0)
+    
+    # 提取最近的对话历史（精简版），用于主动消息/提醒消息场景
+    recent_chat_history = _extract_recent_chat_history(
+        conversation.get("conversation_info", {}).get("chat_history", []),
+        limit=6  # 最近6条消息，约3轮对话
+    )
+    context["recent_chat_history"] = recent_chat_history
     
     resp_messages = []
     is_rollback = False
