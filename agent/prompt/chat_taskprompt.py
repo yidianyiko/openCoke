@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-TASKPROMPT_小说书写任务 = ''''''
-
-TASKPROMPT_微信对话 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；不
-现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，我需要你根据"上下文"等信息推理出以下小说内容。'''
+TASKPROMPT_微信对话 = ''' You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
+现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，我需要你根据"上下文"等信息推理出正在对话的内容。'''
 
 
 TASKPROMPT_微信对话_推理要求_纯文本 = '''1. InnerMonologue。输出"无"。
@@ -29,9 +27,6 @@ You operate within a multi-phase workflow system and will receive messages from 
 - Proactive messages (source=future): Messages proactively initiated by the character.
 Your response strategy may vary depending on the message source.
 '''
-
-# V2 重构：RelationChange 和 FutureResponse 已移至 PostAnalyzeWorkflow
-# 原 5. RelationChange 和 6. FutureResponse 的 prompt 已移除
 
 TASKPROMPT_提醒识别 = '''7. DetectedReminders。当{user[platforms][wechat][nickname]}最新的聊天消息包含了"提醒/通知/叫我/闹钟/别忘了"等类似关键词时，请在该字段中输出本次消息识别到提醒任务数组；若没有识别到提醒，则输出空数组[]。每个提醒对象包含以下字段：
 - operation：操作类型，取值为"create""update""delete""list"
@@ -71,7 +66,7 @@ TASKPROMPT_提醒识别 = '''7. DetectedReminders。当{user[platforms][wechat][
 When creating reminders, the action_template field must be specific enough for the character to unambiguously know what to remind the user about.
 '''
 
-TASKPROMPT_语义理解 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
+TASKPROMPT_语义理解 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，此时我需要你根据"上下文"等相关信息，尝试从一些资料库中查询一些必要的资料。你需要按照格式要求，输出你要针对该资料库进行查询的入参（例如关键字，条件等），如果不需要进行查询，你需要针对该资料库的查询入参应该为"空"。注意所需要进行的查询，需要跟"上下文"中的信息有关，尤其是历史对话。
 
 你可以查询的资料库如下：
@@ -90,8 +85,6 @@ TASKPROMPT_语义理解_推理要求 = '''1. InnerMonologue。推测{character[p
 TASKPROMPT_总结 = '''我有一部小说对话，其中 {character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。其中"{character[platforms][wechat][nickname]}"会被称为"角色"，而"{user[platforms][wechat][nickname]}"会被称为"用户"。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话。
 现在双方发送了一些新的聊天消息，我需要针对这些最新的聊天消息进行一定的总结。总结下来的部分需要包含以下部分：'''
 
-
-# V2 重构：新增 RelationChange 和 FutureResponse 的 prompt（从 ChatWorkflow 移入）
 TASKPROMPT_总结_推理要求 = '''### 当前主动消息状态
 本轮已主动催促次数：{proactive_times}
 消息来源：{message_source}
@@ -143,7 +136,7 @@ CharacterPrivateSettings的key的结构尽量模仿CharacterPublicSettings的形
 
 
 
-TASKPROMPT_未来_语义理解 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
+TASKPROMPT_未来_语义理解 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
 之前他们已经有了一些聊天，当时{character[platforms][wechat][nickname]}准备在未来进行一些行动，称为"规划行动"；现在已经到了{character[platforms][wechat][nickname]}该执行这次"规划行动"的时候，此时我需要你根据"上下文"等相关信息，尝试从一些资料库中查询一些必要的资料。你需要按照格式要求，输出你要针对该资料库进行查询的入参（例如关键字，条件等），如果不需要进行查询，你需要针对该资料库的查询入参应该为"空"。注意所需要进行的查询，需要跟"上下文"中的信息有关，尤其是"规划行动"。
 
 你可以查询的资料库如下：
@@ -152,10 +145,10 @@ TASKPROMPT_未来_语义理解 = '''我正在写一本小说，{character[platfo
 - 角色的知识与技能。包括{character[platforms][wechat][nickname]}的可能了解或者掌握的知识与技能。入参同上，为查询语句和关键词。
 '''
 
-TASKPROMPT_未来_微信对话 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
+TASKPROMPT_未来_微信对话 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
 之前他们已经有了一些聊天，当时{character[platforms][wechat][nickname]}准备在未来进行一些行动，称为"规划行动"；现在已经到了{character[platforms][wechat][nickname]}该执行这次"规划行动"的时候，我需要你根据"上下文"等信息推理出以下小说内容。'''
 
-TASKPROMPT_未来_微信对话_优化 = '''我正在写一本小说，{character[platforms][wechat][nickname]} 和 {user[platforms][wechat][nickname]} 是我小说中的虚拟角色。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
+TASKPROMPT_未来_微信对话_优化 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话；
 之前他们已经有了一些聊天，当时{character[platforms][wechat][nickname]}准备在未来进行一些行动，称为"规划行动"；现在已经到了{character[platforms][wechat][nickname]}该执行这次"规划行动"的时候，而{character[platforms][wechat][nickname]}已经想好了要进行初步回复。现在我想让你对这个初步回复进行优化。
 要求如下：
 重新审视一下ChatResponse的内容并且优化生成优化后的消息数组。要求如下：

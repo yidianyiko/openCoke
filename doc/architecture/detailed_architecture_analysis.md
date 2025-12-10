@@ -1076,7 +1076,7 @@ userp_template = (
 ```python
 # 问题重写
 query_rewrite_userp_template = (
-    TASKPROMPT_小说书写任务 +
+
     TASKPROMPT_未来_语义理解 +
     TASKPROMPT_语义理解_推理要求 +
     CONTEXTPROMPT_时间 +
@@ -1086,7 +1086,7 @@ query_rewrite_userp_template = (
 
 # 消息生成
 chat_userp_template = (
-    TASKPROMPT_小说书写任务 +
+
     TASKPROMPT_未来_微信对话 +
     TASKPROMPT_微信对话_推理要求_纯文本 +
     CONTEXTPROMPT_* (多个) +

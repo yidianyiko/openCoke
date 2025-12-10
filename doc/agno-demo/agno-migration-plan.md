@@ -1561,7 +1561,7 @@ class ChatWorkflow:
     
     # user prompt 模板组合
     userp_template = (
-        TASKPROMPT_小说书写任务 +
+    
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +

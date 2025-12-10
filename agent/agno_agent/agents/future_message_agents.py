@@ -18,8 +18,11 @@ from agno.models.deepseek import DeepSeek
 from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
-from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
-from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE
+from agent.prompt.agent_instructions_prompt import (
+    INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE,
+    INSTRUCTIONS_FUTURE_QUERY_REWRITE,
+    INSTRUCTIONS_FUTURE_MESSAGE_CHAT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,31 +32,27 @@ logger = logging.getLogger(__name__)
 def get_future_query_rewrite_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染主动消息问题重写的 system prompt
+    
+    Args:
+        session_state: 会话状态（预留用于未来扩展）
+        
+    Returns:
+        主动消息问题重写的 instructions
     """
-    session_state = session_state or {}
-    try:
-        return SYSTEMPROMPT_小说越狱.format(**session_state)
-    except KeyError as e:
-        logger.warning(f"FutureQueryRewrite Prompt 渲染缺少字段: {e}")
-        return SYSTEMPROMPT_小说越狱
-    except Exception as e:
-        logger.error(f"FutureQueryRewrite Prompt 渲染失败: {e}")
-        return SYSTEMPROMPT_小说越狱
+    return INSTRUCTIONS_FUTURE_QUERY_REWRITE
 
 
 def get_future_message_chat_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染主动消息生成的 system prompt
+    
+    Args:
+        session_state: 会话状态（预留用于未来扩展）
+        
+    Returns:
+        主动消息生成的 instructions
     """
-    session_state = session_state or {}
-    try:
-        return SYSTEMPROMPT_小说越狱.format(**session_state)
-    except KeyError as e:
-        logger.warning(f"FutureMessageChat Prompt 渲染缺少字段: {e}")
-        return SYSTEMPROMPT_小说越狱
-    except Exception as e:
-        logger.error(f"FutureMessageChat Prompt 渲染失败: {e}")
-        return SYSTEMPROMPT_小说越狱
+    return INSTRUCTIONS_FUTURE_MESSAGE_CHAT
 
 
 def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = None) -> str:
@@ -71,7 +70,7 @@ future_message_query_rewrite_agent = Agent(
     id="future-message-query-rewrite-agent",
     name="FutureMessageQueryRewriteAgent",
     model=DeepSeek(id="deepseek-chat"),
-    instructions=SYSTEMPROMPT_小说越狱,
+    instructions=INSTRUCTIONS_FUTURE_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
     markdown=False,
 )
@@ -93,7 +92,7 @@ future_message_chat_agent = Agent(
     id="future-message-chat-agent",
     name="FutureMessageChatAgent",
     model=DeepSeek(id="deepseek-chat"),
-    instructions=SYSTEMPROMPT_小说越狱,
+    instructions=INSTRUCTIONS_FUTURE_MESSAGE_CHAT,
     output_schema=FutureMessageResponse,
     markdown=False,
 )

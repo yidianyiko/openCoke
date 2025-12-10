@@ -43,7 +43,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_系统提醒触发,
     CONTEXTPROMPT_主动消息触发,
 )
-from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
+from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class StreamingChatWorkflow:
             id="chat-response-agent-streaming",
             name="ChatResponseAgentStreaming",
             model=DeepSeek(id="deepseek-chat"),
-            instructions=SYSTEMPROMPT_小说越狱,
+            instructions=INSTRUCTIONS_CHAT_RESPONSE,
             markdown=False,
             # 不使用 output_schema，让我们自己解析
         )

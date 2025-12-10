@@ -21,9 +21,8 @@ from agent.agno_agent.agents.future_message_agents import (
     future_message_chat_agent,
 )
 from agent.agno_agent.agents import post_analyze_agent
-from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
 from agent.prompt.chat_taskprompt import (
-    TASKPROMPT_小说书写任务,
+
     TASKPROMPT_未来_语义理解,
     TASKPROMPT_语义理解_推理要求,
     TASKPROMPT_未来_微信对话,
@@ -69,7 +68,7 @@ class FutureMessageWorkflow:
     
     # 问题重写的 user prompt 模板
     query_rewrite_userp_template = (
-        TASKPROMPT_小说书写任务 + "\n" +
+     "\n" +
         TASKPROMPT_未来_语义理解 + "\n" +
         TASKPROMPT_语义理解_推理要求 + "\n\n" +
         "## 上下文\n" +
@@ -81,7 +80,7 @@ class FutureMessageWorkflow:
     # 消息生成的 user prompt 模板
     chat_userp_template = (
         "## 你的任务\n" +
-        TASKPROMPT_小说书写任务 + "\n\n" +
+     "\n\n" +
         TASKPROMPT_未来_微信对话 + "\n" +
         TASKPROMPT_微信对话_推理要求_纯文本 + "\n\n" +
         FUTURE_MESSAGE_AGENT_PERSONALITY + "\n\n" +  # 人格与行为规范（含错误触发处理）

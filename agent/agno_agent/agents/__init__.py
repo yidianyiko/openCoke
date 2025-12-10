@@ -22,11 +22,13 @@ from agent.agno_agent.schemas.chat_response_schema import ChatResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
-from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_REMINDER_DETECT,
     INSTRUCTIONS_CONTEXT_RETRIEVE,
     INSTRUCTIONS_ORCHESTRATOR,
+    INSTRUCTIONS_QUERY_REWRITE,
+    INSTRUCTIONS_CHAT_RESPONSE,
+    INSTRUCTIONS_POST_ANALYZE,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,21 +41,12 @@ def get_query_rewrite_instructions(session_state: Dict[str, Any] = None) -> str:
     动态渲染 QueryRewrite 的 system prompt
     
     Args:
-        session_state: 会话状态，包含动态数据
+        session_state: 会话状态（预留用于未来扩展）
         
     Returns:
-        渲染后的 system prompt
+        问题重写的 instructions
     """
-    session_state = session_state or {}
-    try:
-        # 尝试使用 session_state 渲染模板
-        return SYSTEMPROMPT_小说越狱.format(**session_state)
-    except KeyError as e:
-        logger.warning(f"QueryRewrite Prompt 渲染缺少字段: {e}")
-        return SYSTEMPROMPT_小说越狱
-    except Exception as e:
-        logger.error(f"QueryRewrite Prompt 渲染失败: {e}")
-        return SYSTEMPROMPT_小说越狱
+    return INSTRUCTIONS_QUERY_REWRITE
 
 
 def get_chat_response_instructions(session_state: Dict[str, Any] = None) -> str:
@@ -61,20 +54,12 @@ def get_chat_response_instructions(session_state: Dict[str, Any] = None) -> str:
     动态渲染 ChatResponse 的 system prompt
     
     Args:
-        session_state: 会话状态，包含动态数据
+        session_state: 会话状态（预留用于未来扩展）
         
     Returns:
-        渲染后的 system prompt
+        对话生成的 instructions
     """
-    session_state = session_state or {}
-    try:
-        return SYSTEMPROMPT_小说越狱.format(**session_state)
-    except KeyError as e:
-        logger.warning(f"ChatResponse Prompt 渲染缺少字段: {e}")
-        return SYSTEMPROMPT_小说越狱
-    except Exception as e:
-        logger.error(f"ChatResponse Prompt 渲染失败: {e}")
-        return SYSTEMPROMPT_小说越狱
+    return INSTRUCTIONS_CHAT_RESPONSE
 
 
 def get_post_analyze_instructions(session_state: Dict[str, Any] = None) -> str:
@@ -82,20 +67,12 @@ def get_post_analyze_instructions(session_state: Dict[str, Any] = None) -> str:
     动态渲染 PostAnalyze 的 system prompt
     
     Args:
-        session_state: 会话状态，包含动态数据
+        session_state: 会话状态（预留用于未来扩展）
         
     Returns:
-        渲染后的 system prompt
+        后处理分析的 instructions
     """
-    session_state = session_state or {}
-    try:
-        return SYSTEMPROMPT_小说越狱.format(**session_state)
-    except KeyError as e:
-        logger.warning(f"PostAnalyze Prompt 渲染缺少字段: {e}")
-        return SYSTEMPROMPT_小说越狱
-    except Exception as e:
-        logger.error(f"PostAnalyze Prompt 渲染失败: {e}")
-        return SYSTEMPROMPT_小说越狱
+    return INSTRUCTIONS_POST_ANALYZE
 
 
 def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> str:
@@ -147,7 +124,7 @@ query_rewrite_agent = Agent(
     id="query-rewrite-agent",
     name="QueryRewriteAgent",
     model=DeepSeek(id="deepseek-chat"),
-    instructions=SYSTEMPROMPT_小说越狱,
+    instructions=INSTRUCTIONS_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
     markdown=False,
 )
@@ -192,7 +169,7 @@ chat_response_agent = Agent(
     id="chat-response-agent",
     name="ChatResponseAgent",
     model=DeepSeek(id="deepseek-chat"),
-    instructions=SYSTEMPROMPT_小说越狱,
+    instructions=INSTRUCTIONS_CHAT_RESPONSE,
     output_schema=ChatResponse,
     markdown=False,
 )
@@ -203,7 +180,7 @@ post_analyze_agent = Agent(
     id="post-analyze-agent",
     name="PostAnalyzeAgent",
     model=DeepSeek(id="deepseek-chat"),
-    instructions=SYSTEMPROMPT_小说越狱,
+    instructions=INSTRUCTIONS_POST_ANALYZE,
     output_schema=PostAnalyzeResponse,
     markdown=False,
 )
