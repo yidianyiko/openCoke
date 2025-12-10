@@ -47,6 +47,7 @@ from agent.prompt.chat_noticeprompt import (
     NOTICE_常规注意事项_生成优化,
     NOTICE_常规注意事项_空输入处理,
 )
+from agent.prompt.personality_prompt import FUTURE_MESSAGE_AGENT_PERSONALITY
 from util.time_util import str2timestamp
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ class FutureMessageWorkflow:
         TASKPROMPT_小说书写任务 + "\n\n" +
         TASKPROMPT_未来_微信对话 + "\n" +
         TASKPROMPT_微信对话_推理要求_纯文本 + "\n\n" +
+        FUTURE_MESSAGE_AGENT_PERSONALITY + "\n\n" +  # 人格与行为规范（含错误触发处理）
         "## 上下文\n" +
         CONTEXTPROMPT_时间 + "\n\n" +
         CONTEXTPROMPT_新闻 + "\n\n" +
@@ -98,7 +100,7 @@ class FutureMessageWorkflow:
         "## 注意事项\n" +
         NOTICE_常规注意事项_分段消息 + "\n" +
         NOTICE_常规注意事项_生成优化 + "\n" +
-        "在生成content字段内容时，一定需要注意避免跟历史对话中已有的内容重复或者相同，可以修改问法，或者变更句式，或者换一个话题。\n" +
+        "在生成content字段内容时，一定需要注意避免跟历史对话中已有的内容重复或者相同，可以停止话题，或者换一个话题。\n" +
         NOTICE_常规注意事项_空输入处理
     )
     

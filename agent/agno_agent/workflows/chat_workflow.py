@@ -28,6 +28,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_当前目标,
     CONTEXTPROMPT_当前的人物关系,
 )
+from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ class ChatWorkflow:
     # User prompt 模板组合
     userp_template = (
         TASKPROMPT_微信对话 +
+        CHAT_AGENT_PERSONALITY +  # 人格与行为规范
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +

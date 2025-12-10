@@ -19,6 +19,7 @@ from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.prompt.system_prompt import SYSTEMPROMPT_小说越狱
+from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,7 @@ def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = Non
     """
     动态渲染主动消息上下文检索的 system prompt
     """
-    base_instructions = """你是一个上下文检索助手。你的任务是：
-1. 根据问题重写结果，调用 context_retrieve_tool 检索相关上下文
-2. 检索内容包括：角色全局设定、角色私有设定、用户资料、角色知识
-3. 将检索结果整理后返回
-
-请根据 query_rewrite 中的查询问题和关键词进行检索，特别关注与"规划行动"相关的内容。"""
-    return base_instructions
+    return INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE
 
 
 # ========== 模块级预创建 Agent ==========

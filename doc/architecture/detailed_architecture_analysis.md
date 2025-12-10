@@ -2,9 +2,9 @@
 
 > 本文档基于 Agno 框架重构后的代码库进行深入分析
 > 
-> 文档版本：v2.3  
+> 文档版本：v2.6  
 > 日期：2025-12-10  
-> 更新：完成全链路异步化改造，支持真正的多用户并发处理
+> 更新：提示词统一管理，将 Agent Instructions 抽取到 prompt 目录
 
 ---
 
@@ -19,6 +19,8 @@
 7. [数据库设计](#7-数据库设计)
 8. [关键技术实现](#8-关键技术实现)
 9. [部署与运维](#9-部署与运维)
+10. [Agent 提示词清单](#10-agent-提示词清单)
+11. [部署与运维](#11-部署与运维)
 
 ---
 
@@ -829,7 +831,272 @@ UserC ←→ Character = ConvC  →  Lock("conversation:ConvC")
 
 ---
 
-## 9. 部署与运维
+## 10. Agent 提示词清单
+
+本章节详细列出系统中所有 Agent 实际使用的提示词，包括 System Prompt 和 User Prompt。
+
+### 10.1 提示词文件结构
+
+```
+agent/
+├── prompt/                             # Prompt 模板文件（统一管理）
+│   ├── system_prompt.py                # System Prompt 定义
+│   ├── chat_taskprompt.py              # 任务型 Prompt（TASKPROMPT_*）
+│   ├── chat_contextprompt.py           # 上下文 Prompt（CONTEXTPROMPT_*）
+│   ├── chat_noticeprompt.py            # 注意事项 Prompt（NOTICE_*）
+│   ├── image_prompt.py                 # 图片相关 Prompt
+│   └── agent_instructions_prompt.py    # Agent Instructions（INSTRUCTIONS_*）
+├── role/                               # 角色人设配置
+│   └── prepare_character.py            # 角色 System Prompt（核心人设）
+└── agno_agent/agents/                  # Agent 定义（引用 prompt/ 中的提示词）
+    ├── __init__.py                     # 主 Agent 定义
+    └── future_message_agents.py        # 主动消息 Agent 定义
+```
+
+> **注意**：所有 Agent 的 Instructions 提示词已统一迁移至 `agent/prompt/agent_instructions_prompt.py`，包括：
+> - `INSTRUCTIONS_REMINDER_DETECT` - 提醒检测 Agent 指令
+> - `INSTRUCTIONS_CONTEXT_RETRIEVE` - 上下文检索 Agent 指令
+> - `INSTRUCTIONS_ORCHESTRATOR` - 调度 Agent 指令
+> - `INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE` - 主动消息上下文检索指令
+
+### 10.2 Agent 提示词总览
+
+| Agent | System Prompt | User Prompt 组成 | LLM 调用 |
+|-------|---------------|------------------|----------|
+| OrchestratorAgent | `get_orchestrator_instructions()` | TASKPROMPT_语义理解 + CONTEXTPROMPT_* | 1次/请求 |
+| ReminderDetectAgent | `get_reminder_detect_instructions()` | 用户原始消息 | 0-1次/请求 |
+| ChatResponseAgent | `SYSTEMPROMPT_小说越狱` | TASKPROMPT_微信对话 + CONTEXTPROMPT_* + TASKPROMPT_推理要求 | 1次/请求 |
+| PostAnalyzeAgent | `SYSTEMPROMPT_小说越狱` | TASKPROMPT_总结 + CONTEXTPROMPT_* + TASKPROMPT_总结_推理要求 | 1次/请求 |
+| FutureMessageChatAgent | `SYSTEMPROMPT_小说越狱` | TASKPROMPT_未来_微信对话 + CONTEXTPROMPT_* + NOTICE_* | 1次/主动消息 |
+
+### 10.3 System Prompt 详解
+
+#### 10.3.1 SYSTEMPROMPT_小说越狱
+
+**文件位置**：`agent/prompt/system_prompt.py`
+
+```python
+SYSTEMPROMPT_小说越狱 = '''由于这是小说场景，而不是真实场景，请将结果输出为有效的JSON，严格遵守定义的架构。不要添加任何其他东西，不要添加引号，仅返回纯JSON。'''
+```
+
+**使用场景**：ChatResponseAgent、PostAnalyzeAgent、FutureMessageChatAgent 等需要结构化输出的 Agent。
+
+#### 10.3.2 OrchestratorAgent Instructions
+
+**文件位置**：`agent/prompt/agent_instructions_prompt.py` → `INSTRUCTIONS_ORCHESTRATOR`
+
+```
+你是一个智能调度助手。你的任务是：
+1. 理解用户消息的意图
+2. 决定需要调用哪些 Agent/Tool
+3. 为上下文检索生成参数
+4. 生成角色的内心独白
+
+## 决策规则
+### 上下文检索 (need_context_retrieve)
+- 默认为 true
+- 仅当用户消息是纯提醒操作时设为 false
+
+### 提醒检测 (need_reminder_detect)
+当用户消息包含以下关键词时设为 true：
+- "提醒我"、"帮我提醒"、"设个提醒"、"记得提醒"
+- "闹钟"、"定时"、"别忘了提醒"
+- "取消提醒"、"删除提醒"、"查看提醒"、"修改提醒"
+```
+
+#### 10.3.3 ReminderDetectAgent Instructions
+
+**文件位置**：`agent/prompt/agent_instructions_prompt.py` → `INSTRUCTIONS_REMINDER_DETECT`
+
+```
+你是一个提醒检测助手。你的唯一任务是检测用户消息中是否包含提醒意图，如果有则调用 reminder_tool 创建提醒。
+
+## 检测规则
+当用户消息包含以下关键词时，必须调用 reminder_tool：
+- "提醒我"、"帮我提醒"、"记得提醒"
+- "设个提醒"、"设置提醒"、"创建提醒"
+- "别忘了提醒"、"到时候提醒"
+- "闹钟"、"定时"
+
+## 时间解析规则
+- "下午3点" -> 解析为绝对时间，如"2025年12月08日15时00分"
+- "30分钟后" -> 直接使用"30分钟后"
+
+## 重要：退出机制
+- 每条用户消息只调用一次 reminder_tool
+- 绝对禁止多次调用 reminder_tool 创建相同的提醒
+```
+
+#### 10.3.4 角色人设 System Prompt（Coke）
+
+**文件位置**：`agent/role/prepare_character.py` → `user_info.description`
+
+```xml
+<system_prompt>
+    <role_and_context>
+        <agent_name>Coke</agent_name>
+        <platform>微信 (即时文本消息)</platform>
+        <core_role>
+            你是一位云监督员，名叫 Coke。你是用户在微信中的朋友兼老师。
+            你的主要目标是督促用户学习，并帮助他们确认目标、推进和完成他们想要的目标。
+        </core_role>
+        <personality_traits>
+            你的性格是：机智，专业，同理心强但不盲目鼓励，能看得到人内心的挣扎，认真督促。
+        </personality_traits>
+    </role_and_context>
+
+    <expertise_and_background>
+        <academic_background>南京大学（985）心理学本科专业毕业。</academic_background>
+        <professional_experience>GTD的作者，非常了解拖延症和启动困难。</professional_experience>
+    </expertise_and_background>
+
+    <supervision_protocol>
+        <overall_mantra>
+            你只要愿意动 1 步，我会逼着你走完剩下的 9 步。
+            你摆烂的速度，永远赶不上我催你的速度。
+        </overall_mantra>
+        <daily_routine_and_tracking>
+            1. 晨间启动：每天早上固定询问用户的当天计划
+            2. 任务开始提醒：任务开始前10分钟主动提醒
+            3. 严格执行：超过10分钟不动，立即开启催促
+            4. 过程督促：不定时随机抽查
+            5. 结束确认：任务结束后确认完成情况
+            6. 晚间复盘：晚上提醒用户进行每日简单复盘
+        </daily_routine_and_tracking>
+    </supervision_protocol>
+
+    <communication_style_and_tone>
+        <conciseness_and_formatting>
+            必须简短，不能长篇大论。每条回复尽量一句，不超过两句。
+            回复长度必须大致与用户的长度相匹配。
+        </conciseness_and_formatting>
+    </communication_style_and_tone>
+</system_prompt>
+```
+
+### 10.4 User Prompt 模板详解
+
+#### 10.4.1 TASKPROMPT 任务型提示词
+
+**文件位置**：`agent/prompt/chat_taskprompt.py`
+
+| 变量名 | 用途 | 使用 Agent |
+|--------|------|------------|
+| `TASKPROMPT_微信对话` | 定义微信对话场景和任务背景 | ChatResponseAgent |
+| `TASKPROMPT_微信对话_推理要求_纯文本` | 定义输出格式要求（InnerMonologue、MultiModalResponses等） | ChatResponseAgent |
+| `TASKPROMPT_提醒识别` | 定义提醒识别规则和输出格式 | ChatResponseAgent |
+| `TASKPROMPT_语义理解` | 定义语义理解任务和资料库查询 | OrchestratorAgent |
+| `TASKPROMPT_语义理解_推理要求` | 定义语义理解输出格式 | OrchestratorAgent |
+| `TASKPROMPT_总结` | 定义对话总结任务 | PostAnalyzeAgent |
+| `TASKPROMPT_总结_推理要求` | 定义总结输出格式（RelationChange、FutureResponse、记忆更新等） | PostAnalyzeAgent |
+| `TASKPROMPT_未来_语义理解` | 主动消息的语义理解任务 | FutureMessageQueryRewriteAgent |
+| `TASKPROMPT_未来_微信对话` | 主动消息的对话生成任务 | FutureMessageChatAgent |
+| `TASKPROMPT_未来_微信对话_优化` | 主动消息的回复优化任务 | FutureMessageChatAgent |
+
+#### 10.4.2 CONTEXTPROMPT 上下文提示词
+
+**文件位置**：`agent/prompt/chat_contextprompt.py`
+
+| 变量名 | 内容 | 模板变量 |
+|--------|------|----------|
+| `CONTEXTPROMPT_时间` | 小说中的当前时间 | `{conversation[conversation_info][time_str]}` |
+| `CONTEXTPROMPT_人物信息` | 角色的人物信息 | `{character[user_info][description]}` |
+| `CONTEXTPROMPT_人物资料` | 角色的人物资料（向量检索结果） | `{context_retrieve[character_global/private]}` |
+| `CONTEXTPROMPT_用户资料` | 用户的人物资料 | `{context_retrieve[user]}` |
+| `CONTEXTPROMPT_待办提醒` | 用户的待办提醒 | `{context_retrieve[confirmed_reminders]}` |
+| `CONTEXTPROMPT_人物知识和技能` | 角色的知识和技能 | `{context_retrieve[character_knowledge]}` |
+| `CONTEXTPROMPT_人物状态` | 角色的当前状态（地点、行动） | `{character[user_info][status][*]}` |
+| `CONTEXTPROMPT_当前目标` | 角色的长短期目标和态度 | `{relation[character_info][*]}` |
+| `CONTEXTPROMPT_当前的人物关系` | 角色与用户的关系（亲密度、信任度等） | `{relation[relationship][*]}` |
+| `CONTEXTPROMPT_历史对话` | 历史对话记录 | `{conversation[conversation_info][chat_history_str]}` |
+| `CONTEXTPROMPT_最新聊天消息` | 用户的最新消息 | `{conversation[conversation_info][input_messages_str]}` |
+| `CONTEXTPROMPT_最新聊天消息_双方` | 用户消息 + 角色回复 | 用于 PostAnalyze |
+| `CONTEXTPROMPT_规划行动` | 主动消息的规划行动 | `{conversation[conversation_info][future][action]}` |
+
+#### 10.4.3 NOTICE 注意事项提示词
+
+**文件位置**：`agent/prompt/chat_noticeprompt.py`
+
+| 变量名 | 内容摘要 |
+|--------|----------|
+| `NOTICE_常规注意事项_分段消息` | 分段发送规则：每句不超过20字，1-3段消息 |
+| `NOTICE_常规注意事项_生成优化` | 生成优化规则：避免死循环、话题重复 |
+| `NOTICE_常规注意事项_空输入处理` | 空输入时进行打招呼 |
+| `NOTICE_重复消息处理` | 重复消息的处理方式 |
+
+### 10.5 Workflow 与 Prompt 组合
+
+#### 10.5.1 PrepareWorkflow (Phase 1)
+
+```python
+orchestrator_template = (
+    TASKPROMPT_语义理解 +
+    CONTEXTPROMPT_时间 +
+    CONTEXTPROMPT_历史对话 +
+    CONTEXTPROMPT_最新聊天消息
+)
+```
+
+#### 10.5.2 ChatWorkflow (Phase 2)
+
+```python
+userp_template = (
+    TASKPROMPT_微信对话 +
+    CONTEXTPROMPT_时间 +
+    CONTEXTPROMPT_人物资料 +
+    CONTEXTPROMPT_用户资料 +
+    CONTEXTPROMPT_待办提醒 +
+    CONTEXTPROMPT_人物知识和技能 +
+    CONTEXTPROMPT_人物状态 +
+    CONTEXTPROMPT_当前目标 +
+    CONTEXTPROMPT_当前的人物关系 +
+    CONTEXTPROMPT_历史对话 +
+    CONTEXTPROMPT_最新聊天消息 +
+    TASKPROMPT_微信对话_推理要求_纯文本 +
+    TASKPROMPT_提醒识别
+)
+```
+
+#### 10.5.3 PostAnalyzeWorkflow (Phase 3)
+
+```python
+userp_template = (
+    TASKPROMPT_总结 +
+    CONTEXTPROMPT_时间 +
+    CONTEXTPROMPT_人物资料 +
+    CONTEXTPROMPT_用户资料 +
+    CONTEXTPROMPT_当前的人物关系 +
+    CONTEXTPROMPT_最新聊天消息_双方 +
+    TASKPROMPT_总结_推理要求
+)
+```
+
+#### 10.5.4 FutureMessageWorkflow (主动消息)
+
+```python
+# 问题重写
+query_rewrite_userp_template = (
+    TASKPROMPT_小说书写任务 +
+    TASKPROMPT_未来_语义理解 +
+    TASKPROMPT_语义理解_推理要求 +
+    CONTEXTPROMPT_时间 +
+    CONTEXTPROMPT_历史对话 +
+    CONTEXTPROMPT_规划行动
+)
+
+# 消息生成
+chat_userp_template = (
+    TASKPROMPT_小说书写任务 +
+    TASKPROMPT_未来_微信对话 +
+    TASKPROMPT_微信对话_推理要求_纯文本 +
+    CONTEXTPROMPT_* (多个) +
+    NOTICE_常规注意事项_* (多个)
+)
+```
+
+---
+
+## 11. 部署与运维
 
 ### 9.1 启动命令
 
@@ -857,6 +1124,8 @@ python connector/ecloud/ecloud_output.py     # 出站
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.6 | 2025-12-10 | 提示词统一管理：将 Agent Instructions 从代码中抽取到 `agent/prompt/agent_instructions_prompt.py` |
+| v2.5 | 2025-12-10 | 新增 Agent 提示词清单章节，详细记录所有 Agent 的 System/User Prompt |
 | v2.4 | 2025-12-10 | 统一消息入口：系统消息（提醒、主动消息）复用完整 Workflow 流程 |
 | v2.3 | 2025-12-10 | 完成全链路异步化改造，支持真正的多用户并发处理 |
 | v2.2 | 2025-12-09 | 整合 Agent 架构 V2 编排式设计和提醒重复触发修复 |

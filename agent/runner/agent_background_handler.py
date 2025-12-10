@@ -238,7 +238,7 @@ async def handle_pending_future_message():
                 future_proactive_times = conversation["conversation_info"]["future"].get("proactive_times", 0)
                 
                 # 构造系统消息
-                input_message_str = f"[系统主动话题] {future_action}"
+                input_message_str = f"[系统主动话题(这是我们要主动发给用户的话)] {future_action}"
                 
                 logger.info(f"[FUTURE] 开始处理主动消息: {future_action}")
                 resp_messages, context, _ = await handle_message(
