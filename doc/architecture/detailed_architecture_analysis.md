@@ -2,9 +2,9 @@
 
 > 本文档基于 Agno 框架重构后的代码库进行深入分析
 > 
-> 文档版本：v2.6  
-> 日期：2025-12-10  
-> 更新：提示词统一管理，将 Agent Instructions 抽取到 prompt 目录
+> 文档版本：v2.7  
+> 日期：2025-12-11  
+> 更新：消息处理机制优化 - 安全锁释放、乐观锁更新、重试机制、hold 状态恢复
 
 ---
 
@@ -127,11 +127,12 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 
 ### 2.2 核心设计模式
 
-#### 2.2.1 消息队列模式
+#### 2.2.1 消息队列模式 (V2.7 优化)
 
-- **输入队列**：`inputmessages` 集合，状态流转：`pending → handling → handled/failed/hold`
+- **输入队列**：`inputmessages` 集合，状态流转：`pending → handled/failed/hold`（V2.7 去掉 handling）
 - **输出队列**：`outputmessages` 集合，状态流转：`pending → handled/failed`
 - **轮询机制**：独立的 input/output handler 持续轮询数据库
+- **V2.7 新增**：乐观锁更新 `update_message_status_safe()`，防止并发更新冲突
 
 #### 2.2.2 Agno Workflow 分段执行模式
 
@@ -145,12 +146,14 @@ Coke Project 是一个**微信Bot虚拟人解决方案**，实现了具有记忆
 - Agent 通过调用 Tool 完成具体功能
 - Tool 负责数据访问，Workflow 保持纯净
 
-#### 2.2.4 分布式锁模式
+#### 2.2.4 分布式锁模式 (V2.7 增强)
 
 - 基于 MongoDB 实现的分布式锁
 - 会话级锁定，防止同一会话的并发处理
 - 支持锁超时和自动释放
 - 支持同步和异步两种获取方式
+- **V2.7 新增**：安全锁释放 `release_lock_safe()`，只释放属于自己且未过期的锁
+- **V2.7 新增**：锁续期机制，在 Phase 2 前和每发送一条消息后续期
 
 #### 2.2.5 异步并发模式
 
@@ -279,25 +282,33 @@ dao/
 
 ## 4. 核心模块分析
 
-### 4.1 Agno Agent 定义
+### 4.1 Agno Agent 定义 (V2.7 更新)
 
-所有 Agent 在模块级别预创建（`agent/agno_agent/agents/__init__.py`）：
+所有 Agent 在模块级别预创建（`agent/agno_agent/agents/__init__.py`），V2.7 新增 Model 层重试配置：
 
 ```python
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
+# V2.7 新增：创建带重试配置的 Model
+def create_deepseek_model(model_id: str = "deepseek-chat"):
+    """创建带重试配置的 DeepSeek Model"""
+    return DeepSeek(
+        id=model_id,
+        max_retries=2,  # 2次重试，解决 API 限流问题
+    )
+
 query_rewrite_agent = Agent(
     id="query-rewrite-agent",
     name="QueryRewriteAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),  # V2.7: 使用带重试的 Model
     instructions=get_query_rewrite_instructions,
     output_schema=QueryRewriteResponse,
 )
 
 chat_response_agent = Agent(
     id="chat-response-agent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),  # V2.7: 使用带重试的 Model
     instructions=SYSTEMPROMPT,
     output_schema=ChatResponse,
 )
@@ -591,12 +602,28 @@ session_state = {
 | reminders | 提醒任务 |
 | locks | 分布式锁 |
 
-### 7.2 消息状态机
+### 7.2 消息状态机 (V2.7 优化)
 
 ```
-inputmessages:  pending → handling → handled/failed/hold
+inputmessages (V2.7 - 去掉 handling 状态):
+  pending ──(获取锁)──→ [锁保护中] ──┬──(成功)──→ handled
+                                     ├──(繁忙)──→ hold
+                                     ├──(打断)──→ pending (rollback_count++)
+                                     ├──(可重试错误)──→ pending (retry_count++)
+                                     ├──(不可重试)──→ failed
+                                     └──(进程崩溃)──→ 锁超时 → pending (自动恢复)
+
+  hold ──(空闲/超时)──→ pending
+
 outputmessages: pending → handled/failed
 ```
+
+**V2.7 变更说明**：
+- 去掉 `handling` 状态，消息在处理期间保持 `pending`，由锁保护
+- 新增 `retry_count` 字段，支持重试计数（最大 3 次）
+- 新增 `rollback_count` 字段，支持 rollback 计数（最大 3 次）
+- 新增 `hold_started_at` 字段，支持 hold 超时检测（1 小时）
+- 新增 `last_error` 字段，记录最后错误信息
 
 ---
 
@@ -828,6 +855,173 @@ UserC ←→ Character = ConvC  →  Lock("conversation:ConvC")
 | 3用户同时发消息 | 串行处理 ~30s | 并行处理 ~10s |
 | LLM 请求 | 阻塞等待 | 并行发出 |
 | 锁等待 | `time.sleep()` 阻塞 | `asyncio.sleep()` 让出控制权 |
+
+### 8.7 消息处理机制优化 (V2.7)
+
+V2.7 版本对消息处理机制进行了全面优化，解决了多线程竞争、锁超时、消息卡住等问题。
+
+#### 8.7.1 配置常量
+
+```python
+MAX_RETRIES = 3          # 最大重试次数
+MAX_ROLLBACK = 3         # 最大 rollback 次数
+LOCK_TIMEOUT = 120       # 锁超时时间（秒）
+HOLD_TIMEOUT = 3600      # hold 超时时间（1小时）
+```
+
+#### 8.7.2 安全锁释放
+
+**问题**：锁超时后 Worker 继续执行，可能释放其他 Worker 的锁
+
+**解决方案**：`release_lock_safe()` 只释放属于自己且未过期的锁
+
+```python
+def release_lock_safe(self, resource_type, resource_id, lock_id):
+    """
+    安全释放锁：只释放属于自己且未过期的锁
+    
+    Returns:
+        Tuple[bool, str]: (是否成功, 原因)
+            - (True, "released"): 成功释放
+            - (False, "lock_not_found"): 锁不存在
+            - (False, "lock_owned_by_other"): 锁属于其他 Worker
+            - (False, "lock_expired"): 锁已过期
+    """
+    result = self.locks.delete_one({
+        "resource_id": resource_key,
+        "lock_id": lock_id,
+        "expires_at": {"$gt": datetime.datetime.utcnow()}
+    })
+    # ...
+```
+
+#### 8.7.3 乐观锁更新
+
+**问题**：锁超时后多个 Worker 同时更新同一消息状态
+
+**解决方案**：`update_message_status_safe()` 使用乐观锁，只有当状态是预期值时才更新
+
+```python
+def update_message_status_safe(message_id, new_status, expected_status="pending"):
+    """
+    乐观锁更新：只有当状态是预期值时才更新
+    """
+    modified_count = _mongo.update_one(
+        "inputmessages",
+        {"_id": message_id, "status": expected_status},
+        {"$set": {"status": new_status, "handled_timestamp": int(time.time())}}
+    )
+    return modified_count > 0
+```
+
+#### 8.7.4 重试机制
+
+**问题**：无重试计数，无法区分临时错误和永久错误
+
+**解决方案**：
+- 新增 `retry_count` 字段，记录重试次数
+- 达到 `MAX_RETRIES` 后标记为 `failed`
+- 新增 `last_error` 字段，记录最后错误信息
+
+```python
+def increment_retry_count(message_id, error_msg=None):
+    """增加消息重试计数"""
+    update_data = {"$inc": {"retry_count": 1}}
+    if error_msg:
+        update_data["$set"] = {"last_error": str(error_msg)[:500]}
+    # ...
+```
+
+#### 8.7.5 Rollback 次数限制
+
+**问题**：连续快速发送消息可能导致无限 rollback
+
+**解决方案**：
+- 新增 `rollback_count` 字段，记录 rollback 次数
+- 达到 `MAX_ROLLBACK` 后强制完成处理
+
+```python
+if is_rollback:
+    max_rollback_count = max(msg.get("rollback_count", 0) for msg in input_messages)
+    if max_rollback_count >= MAX_ROLLBACK:
+        logger.warning(f"达到最大 rollback 次数，强制完成处理")
+        is_rollback = False
+        is_finish = True
+```
+
+#### 8.7.6 Hold 状态恢复
+
+**问题**：`hold` 状态消息无恢复机制，永久挂起
+
+**解决方案**：后台任务 `check_hold_messages()` 定期检查 hold 状态消息
+
+```python
+async def check_hold_messages():
+    """检查 hold 状态消息，超时或角色空闲时恢复为 pending"""
+    hold_messages = mongo.find_many("inputmessages", {"status": "hold"}, limit=100)
+    
+    for msg in hold_messages:
+        # 获取角色状态
+        character_status = relation.get("character_info", {}).get("status", "空闲")
+        
+        # 检查 hold 超时
+        hold_started_at = msg.get("hold_started_at", now)
+        is_timeout = (now - hold_started_at) > HOLD_TIMEOUT
+        
+        # 角色空闲或超时时恢复为 pending
+        if character_status == "空闲" or is_timeout:
+            mongo.update_one("inputmessages", {"_id": msg["_id"]},
+                {"$set": {"status": "pending", "hold_started_at": None}})
+```
+
+#### 8.7.7 锁续期机制
+
+**问题**：锁超时时间与实际处理时间不匹配，锁提前释放
+
+**解决方案**：在 Phase 2 前和每发送一条消息后续期锁
+
+```python
+# Phase 2 前续期
+lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
+
+async for event in streaming_chat_workflow.run_stream(...):
+    if event["type"] == "message":
+        # 发送消息后续期
+        lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
+```
+
+#### 8.7.8 Model 层重试配置
+
+**问题**：Agno Agent 未配置重试，API 限流直接失败
+
+**解决方案**：所有 Agent 使用带重试配置的 DeepSeek Model
+
+```python
+def create_deepseek_model(model_id: str = "deepseek-chat"):
+    """创建带重试配置的 DeepSeek Model"""
+    return DeepSeek(
+        id=model_id,
+        max_retries=2,  # 2次重试
+    )
+
+# 所有 Agent 使用带重试的 Model
+chat_response_agent = Agent(
+    id="chat-response-agent",
+    model=create_deepseek_model(),
+    # ...
+)
+```
+
+#### 8.7.9 数据结构变更
+
+**inputmessages 新增字段**（向后兼容，使用 `.get()` 访问）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `retry_count` | int | 重试次数，默认 0 |
+| `rollback_count` | int | rollback 次数，默认 0 |
+| `hold_started_at` | int | hold 开始时间戳 |
+| `last_error` | str | 最后错误信息（截断到 500 字符） |
 
 ---
 
@@ -1124,6 +1318,7 @@ python connector/ecloud/ecloud_output.py     # 出站
 
 | 版本 | 日期 | 更新内容 |
 |------|------|----------|
+| v2.7 | 2025-12-11 | 消息处理机制优化：安全锁释放、乐观锁更新、重试机制、rollback 限制、hold 状态恢复、锁续期、Model 层重试配置 |
 | v2.6 | 2025-12-10 | 提示词统一管理：将 Agent Instructions 从代码中抽取到 `agent/prompt/agent_instructions_prompt.py` |
 | v2.5 | 2025-12-10 | 新增 Agent 提示词清单章节，详细记录所有 Agent 的 System/User Prompt |
 | v2.4 | 2025-12-10 | 统一消息入口：系统消息（提醒、主动消息）复用完整 Workflow 流程 |

@@ -116,6 +116,30 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
     return INSTRUCTIONS_ORCHESTRATOR
 
 
+# ========== Model 层重试配置 ==========
+# 解决问题：
+# - P17: Agno Agent 未配置重试，API 限流直接失败
+# - E4: LLM API 限流直接失败
+# - E5: 网络临时故障直接失败
+
+def create_deepseek_model(model_id: str = "deepseek-chat"):
+    """
+    创建带重试配置的 DeepSeek Model
+    
+    Args:
+        model_id: 模型ID
+        
+    Returns:
+        配置了重试的 DeepSeek 实例
+    """
+    return DeepSeek(
+        id=model_id,
+        # 重试配置：2次重试，指数退避
+        # 注意：Agno 的 DeepSeek 继承自 OpenAI，支持 max_retries 参数
+        max_retries=2,
+    )
+
+
 # ========== 模块级预创建 Agent ==========
 
 # QueryRewriteAgent - 问题重写，生成检索查询词
@@ -123,7 +147,7 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 query_rewrite_agent = Agent(
     id="query-rewrite-agent",
     name="QueryRewriteAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=INSTRUCTIONS_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
     markdown=False,
@@ -134,7 +158,7 @@ query_rewrite_agent = Agent(
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     tools=[reminder_tool],
     instructions=get_reminder_detect_instructions(),
     markdown=False,
@@ -146,7 +170,7 @@ reminder_detect_agent = Agent(
 context_retrieve_agent = Agent(
     id="context-retrieve-agent",
     name="ContextRetrieveAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     tools=[context_retrieve_tool],
     instructions=get_context_retrieve_instructions(),
     markdown=False,
@@ -157,7 +181,7 @@ context_retrieve_agent = Agent(
 orchestrator_agent = Agent(
     id="orchestrator-agent",
     name="OrchestratorAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=get_orchestrator_instructions(),
     output_schema=OrchestratorResponse,
     markdown=False,
@@ -168,7 +192,7 @@ orchestrator_agent = Agent(
 chat_response_agent = Agent(
     id="chat-response-agent",
     name="ChatResponseAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=INSTRUCTIONS_CHAT_RESPONSE,
     output_schema=ChatResponse,
     markdown=False,
@@ -179,7 +203,7 @@ chat_response_agent = Agent(
 post_analyze_agent = Agent(
     id="post-analyze-agent",
     name="PostAnalyzeAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=INSTRUCTIONS_POST_ANALYZE,
     output_schema=PostAnalyzeResponse,
     markdown=False,

@@ -35,7 +35,11 @@ logging.basicConfig(
 )
 logger = getLogger(__name__)
 
-from entity.message import read_top_inputmessages, read_all_inputmessages, save_inputmessage
+from entity.message import (
+    read_top_inputmessages, read_all_inputmessages, save_inputmessage,
+    update_message_status_safe, increment_retry_count, increment_rollback_count, set_hold_status,
+    get_locked_conversation_ids
+)
 from dao.conversation_dao import ConversationDAO
 from dao.user_dao import UserDAO
 from dao.lock import MongoDBLockManager
@@ -60,6 +64,10 @@ post_analyze_workflow = PostAnalyzeWorkflow()
 
 # ========== 配置 ==========
 max_handle_age = 3600 * 12  # 只处理12小时以内的消息
+MAX_RETRIES = 3             # 最大重试次数
+MAX_ROLLBACK = 3            # 最大 rollback 次数
+LOCK_TIMEOUT = 120          # 锁超时时间（秒）
+HOLD_TIMEOUT = 3600         # hold 超时时间（1小时）
 
 target_user_alias = CONF.get("default_character_alias", "coke")
 _characters_conf = CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
@@ -169,7 +177,10 @@ async def handle_message(
     message_source: str = "user",
     metadata: Optional[Dict[str, Any]] = None,
     check_new_message: bool = True,
-    worker_tag: str = "[SYS]"
+    worker_tag: str = "[SYS]",
+    lock_id: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    current_message_ids: Optional[List[str]] = None
 ) -> Tuple[List[dict], dict, bool]:
     """
     核心消息处理逻辑 - Phase 1 → 2 → 3
@@ -188,6 +199,9 @@ async def handle_message(
         metadata: 额外元数据（如 reminder_id、proactive_times 等）
         check_new_message: 是否检测新消息（系统消息通常设为 False）
         worker_tag: 日志标签
+        lock_id: 锁ID（用于续期）
+        conversation_id: 会话ID（用于续期）
+        current_message_ids: 当前正在处理的消息ID列表（用于排除新消息检测）
     
     Returns:
         Tuple[resp_messages, context, is_rollback]:
@@ -225,15 +239,21 @@ async def handle_message(
         context = prepare_response.get("session_state", context)
         logger.info(f"{worker_tag} Phase 1: PrepareWorkflow 完成")
         
-        # 检测点 1：仅用户消息检测新消息
+        # 检测点 1：仅用户消息检测新消息（排除当前正在处理的消息）
         if check_new_message and message_source == "user":
-            if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform):
+            if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform, current_message_ids):
                 is_rollback = True
                 logger.info(f"{worker_tag} rollback: new message before chat")
         
         if not is_rollback:
             # ========== Phase 2: ChatWorkflow (流式) ==========
             logger.info(f"{worker_tag} Phase 2: ChatWorkflow 开始")
+            
+            # ========== 新增：Phase 2 前续期锁 ==========
+            if lock_id and conversation_id:
+                lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
+                logger.debug(f"{worker_tag} 锁续期成功 (Phase 2 前)")
+            
             expect_output_timestamp = int(time.time())
             multimodal_responses_index = 0
             all_multimodal_responses = []
@@ -255,10 +275,14 @@ async def handle_message(
                     )
                     if outputmessage is not None:
                         resp_messages.append(outputmessage)
+                        
+                        # ========== 新增：每发送一条消息后续期锁 ==========
+                        if lock_id and conversation_id:
+                            lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
                     
-                    # 检测点 2：仅用户消息检测新消息
+                    # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
                     if check_new_message and message_source == "user":
-                        if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform):
+                        if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform, current_message_ids):
                             is_rollback = True
                             logger.info(f"{worker_tag} rollback: new message during streaming")
                             break
@@ -284,9 +308,26 @@ async def handle_message(
     return resp_messages, context, is_rollback
 
 
-def is_new_message_coming_in(u_id, c_id, platform):
-    """检测是否有新消息到达"""
+def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = None):
+    """
+    检测是否有新消息到达（排除当前正在处理的消息）
+    
+    Args:
+        u_id: 用户ID
+        c_id: 角色ID
+        platform: 平台
+        current_message_ids: 当前正在处理的消息ID列表（字符串格式）
+        
+    Returns:
+        bool: 是否有新消息
+    """
     input_messages = read_all_inputmessages(u_id, c_id, platform, "pending")
+    
+    # 排除当前正在处理的消息
+    if current_message_ids:
+        current_ids_set = set(current_message_ids)
+        input_messages = [m for m in input_messages if str(m.get("_id", "")) not in current_ids_set]
+    
     return len(input_messages) > 0
 
 
@@ -324,7 +365,7 @@ def create_handler(worker_id: int = 0):
     
     async def _handler():
         input_messages = []
-        lock = None
+        lock_id = None
         conversation_id = None
         user = None
         character = None
@@ -347,13 +388,21 @@ def create_handler(worker_id: int = 0):
             if len(top_messages) == 0:
                 return
             
+            # ========== 优化：获取已锁定的会话列表，避免不必要的锁获取尝试 ==========
+            locked_conversation_ids = get_locked_conversation_ids()
+            
             # 随机打乱消息顺序，让不同 worker 从不同消息开始尝试
             random.shuffle(top_messages)
             
             # 尝试获取一个可以处理的消息（能获取到锁的）
             conversation = None
             for top_message in top_messages:
-                logger.info(f"{worker_tag} try: {top_message['from_user'][-6:]} - {top_message['message'][:20]}")
+                # ========== 新增：检查重试次数 ==========
+                retry_count = top_message.get("retry_count", 0)
+                if retry_count >= MAX_RETRIES:
+                    logger.warning(f"{worker_tag} 消息达到最大重试次数({MAX_RETRIES})，标记为 failed: {top_message['_id']}")
+                    update_message_status_safe(top_message["_id"], "failed", "pending")
+                    continue
                 
                 user = user_dao.get_user_by_id(top_message["from_user"])
                 character = user_dao.get_user_by_id(top_message["to_user"])
@@ -365,6 +414,20 @@ def create_handler(worker_id: int = 0):
                     save_inputmessage(top_message)
                     continue
                 
+                # 检查 platform 字段是否存在
+                if platform not in user.get("platforms", {}):
+                    logger.error(f"{worker_tag} 用户缺少 platforms.{platform} 字段: {user.get('_id')}")
+                    top_message["status"] = "failed"
+                    top_message["error"] = "missing_platform"
+                    save_inputmessage(top_message)
+                    continue
+                if platform not in character.get("platforms", {}):
+                    logger.error(f"{worker_tag} 角色缺少 platforms.{platform} 字段: {character.get('_id')}")
+                    top_message["status"] = "failed"
+                    top_message["error"] = "missing_platform"
+                    save_inputmessage(top_message)
+                    continue
+                
                 conversation_id, _ = conversation_dao.get_or_create_private_conversation(
                     platform=platform,
                     user_id1=user["platforms"][platform]["id"],
@@ -372,21 +435,32 @@ def create_handler(worker_id: int = 0):
                     user_id2=character["platforms"][platform]["id"],
                     nickname2=character["platforms"][platform]["nickname"],
                 )
+                
+                # ========== 优化：跳过已锁定的会话，避免不必要的锁获取尝试 ==========
+                if conversation_id in locked_conversation_ids:
+                    logger.debug(f"{worker_tag} 会话已被锁定，跳过: {conversation_id}")
+                    continue
+                
                 conversation = conversation_dao.get_conversation_by_id(conversation_id)
                 
-                lock = lock_manager.acquire_lock("conversation", conversation_id, timeout=120, max_wait=1)
-                if lock is not None:
-                    logger.info(f"{worker_tag} 获取锁成功: {top_message['from_user'][-6:]}")
+                logger.debug(f"{worker_tag} 尝试获取锁: conversation_id={conversation_id}")
+                lock_id = lock_manager.acquire_lock("conversation", conversation_id, timeout=LOCK_TIMEOUT, max_wait=0.1)
+                if lock_id is not None:
+                    logger.info(f"{worker_tag} 获取锁成功: {top_message['from_user'][-6:]}, lock_id={lock_id}")
                     break
+                else:
+                    # 锁获取失败（可能是竞争导致），记录 DEBUG 日志
+                    logger.debug(f"{worker_tag} 锁获取失败: {conversation_id}")
             
-            if lock is None:
+            if lock_id is None:
+                logger.debug(f"{worker_tag} 所有消息都无法获取锁，跳过本轮")
                 return
             
-            # 读取全部需要处理的消息
+            # 读取全部需要处理的消息（保持 pending 状态，不再标记为 handling）
             input_messages = read_all_inputmessages(str(user["_id"]), str(character["_id"]), platform, "pending")
-            for input_message in input_messages:
-                input_message["status"] = "handling"
-                save_inputmessage(input_message)
+            
+            # ========== 删除：不再标记为 handling ==========
+            # 消息保持 pending 状态，由锁保护
             
             conversation["conversation_info"]["input_messages"] = input_messages
             logger.info(f"{worker_tag} 处理 {len(input_messages)} 条消息")
@@ -413,7 +487,7 @@ def create_handler(worker_id: int = 0):
                 is_hardfinish = True
             
             # 处理繁忙期状态
-            elif context["relation"]["relationship"]["status"] not in ["空闲"]:
+            elif context["relation"]["character_info"].get("status", "空闲") not in ["空闲"]:
                 logger.info(f"{worker_tag} hold message as character busy...")
                 is_hold = True
             
@@ -422,6 +496,12 @@ def create_handler(worker_id: int = 0):
                 try:
                     input_message_str = context["conversation"]["conversation_info"]["input_messages_str"]
                     
+                    # ========== 新增：锁续期（Phase 2 前） ==========
+                    lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
+                    
+                    # 提取当前正在处理的消息ID列表，用于排除新消息检测
+                    current_message_ids = [str(msg["_id"]) for msg in input_messages]
+                    
                     resp_messages, context, is_rollback = await handle_message(
                         user=user,
                         character=character,
@@ -429,7 +509,10 @@ def create_handler(worker_id: int = 0):
                         input_message_str=input_message_str,
                         message_source="user",
                         check_new_message=True,
-                        worker_tag=worker_tag
+                        worker_tag=worker_tag,
+                        lock_id=lock_id,  # 传递 lock_id 用于续期
+                        conversation_id=conversation_id,
+                        current_message_ids=current_message_ids  # 传递当前消息ID用于排除
                     )
                     is_finish = True
                         
@@ -444,32 +527,52 @@ def create_handler(worker_id: int = 0):
             
             if is_hold:
                 for input_message in input_messages:
-                    input_message["status"] = "hold"
-                    save_inputmessage(input_message)
-                lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
+                    set_hold_status(input_message["_id"])
+                # 使用安全锁释放
+                released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+                if not released:
+                    logger.warning(f"{worker_tag} 锁释放异常(hold): {reason}")
                 return
             
             if is_hardfinish:
                 for input_message in input_messages:
-                    input_message["status"] = "handled"
-                    save_inputmessage(input_message)
-                lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
+                    # 使用乐观锁更新
+                    success = update_message_status_safe(input_message["_id"], "handled", "pending")
+                    if not success:
+                        logger.warning(f"{worker_tag} 乐观锁更新失败(hardfinish): {input_message['_id']}")
+                # 使用安全锁释放
+                released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+                if not released:
+                    logger.warning(f"{worker_tag} 锁释放异常(hardfinish): {reason}")
                 return
             
-            if is_rollback or is_finish or (len(resp_messages) == 0 and len(input_messages) > 0):
-                conversation = context["conversation"]
+            # rollback 时：检查 rollback 次数限制
+            if is_rollback:
+                max_rollback_count = max(msg.get("rollback_count", 0) for msg in input_messages)
                 
-                if is_rollback:
-                    logger.info(f"{worker_tag} [消息打断] 处理消息合并")
-                    new_pending_messages = read_all_inputmessages(str(user["_id"]), str(character["_id"]), platform, "pending")
-                    if new_pending_messages:
-                        merged_messages = merge_pending_messages(conversation["conversation_info"]["input_messages"], new_pending_messages)
-                        conversation["conversation_info"]["input_messages"] = merged_messages
-                        for new_msg in new_pending_messages:
-                            new_msg["status"] = "handling"
-                            save_inputmessage(new_msg)
+                if max_rollback_count >= MAX_ROLLBACK:
+                    # ========== 新增：达到最大 rollback 次数，强制处理 ==========
+                    logger.warning(f"{worker_tag} 达到最大 rollback 次数({MAX_ROLLBACK})，强制完成处理")
+                    is_rollback = False
+                    is_finish = True
+                else:
+                    logger.info(f"{worker_tag} [消息打断] rollback_count={max_rollback_count+1}/{MAX_ROLLBACK}")
+                    for input_message in input_messages:
+                        increment_rollback_count(input_message["_id"])
+                    # 如果已经发送了部分消息，记录到历史
                     if resp_messages:
+                        conversation = context["conversation"]
                         conversation = record_sent_messages_to_history(conversation, resp_messages)
+                        conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                    # 使用安全锁释放
+                    released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+                    if not released:
+                        logger.warning(f"{worker_tag} 锁释放异常(rollback): {reason}")
+                    logger.info(f"{worker_tag} 释放锁，等待下一轮处理合并后的消息")
+                    return
+            
+            if is_finish or (len(resp_messages) == 0 and len(input_messages) > 0):
+                conversation = context["conversation"]
                 
                 for input_message in conversation["conversation_info"]["input_messages"]:
                     conversation["conversation_info"]["chat_history"].append(input_message)
@@ -489,20 +592,38 @@ def create_handler(worker_id: int = 0):
         
         except Exception as e:
             logger.error(f"{worker_tag} {traceback.format_exc()}")
+            # ========== 修改：错误处理增加重试计数 ==========
             for input_message in input_messages:
-                input_message["status"] = "failed"
-                save_inputmessage(input_message)
-            if conversation_id and lock:
-                lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
+                retry_count = input_message.get("retry_count", 0) + 1
+                if retry_count < MAX_RETRIES:
+                    # 未达上限：保持 pending，增加 retry_count
+                    increment_retry_count(input_message["_id"], str(e)[:500])
+                    logger.info(f"{worker_tag} 消息重试计数: {input_message['_id']}, retry_count={retry_count}/{MAX_RETRIES}")
+                else:
+                    # 达到上限：标记 failed
+                    update_message_status_safe(input_message["_id"], "failed", "pending")
+                    logger.warning(f"{worker_tag} 消息达到最大重试次数，标记为 failed: {input_message['_id']}")
+            
+            if conversation_id and lock_id:
+                # 使用安全锁释放
+                released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+                if not released:
+                    logger.warning(f"{worker_tag} 锁释放异常(exception): {reason}")
             return
         
+        # ========== 修改：使用乐观锁更新状态 ==========
         for input_message in input_messages:
-            input_message["status"] = "handled"
-            save_inputmessage(input_message)
+            success = update_message_status_safe(input_message["_id"], "handled", "pending")
+            if not success:
+                logger.warning(f"{worker_tag} 乐观锁更新失败，消息可能已被其他 Worker 处理: {input_message['_id']}")
         
-        if conversation_id and lock:
-            lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
-            logger.info(f"{worker_tag} 处理完成，释放锁")
+        if conversation_id and lock_id:
+            # 使用安全锁释放
+            released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+            if not released:
+                logger.warning(f"{worker_tag} 锁释放异常(finish): {reason}")
+            else:
+                logger.info(f"{worker_tag} 处理完成，释放锁")
     
     return _handler
 

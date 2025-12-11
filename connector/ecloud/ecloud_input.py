@@ -120,8 +120,9 @@ def handle_message():
         
         cid = str(characters[0]["_id"])
         
+        # 用 id 字段查询（fromUser 是 wxid，存储在 id 字段）
         users = user_dao.find_users({
-            "platforms.wechat.account": data["data"]["fromUser"]
+            "platforms.wechat.id": data["data"]["fromUser"]
         })
 
         # 如果用户不存在，则创建一个

@@ -99,6 +99,85 @@ class MongoDBLockManager:
         result = self.locks.delete_one(query)
         return result.deleted_count > 0
     
+    def release_lock_safe(self, resource_type, resource_id, lock_id):
+        """
+        安全释放锁：只释放属于自己且未过期的锁
+        
+        解决问题：
+        - P8: 锁超时后 Worker 继续执行，可能释放其他 Worker 的锁
+        - LK-8: 锁超时后继续执行
+        - LK-11: 释放不属于自己的锁
+        
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            lock_id: 锁ID（必须提供）
+            
+        Returns:
+            Tuple[bool, str]: (是否成功, 原因)
+                - (True, "released"): 成功释放
+                - (False, "lock_not_found"): 锁不存在
+                - (False, "lock_owned_by_other"): 锁属于其他 Worker
+                - (False, "lock_expired"): 锁已过期
+        """
+        resource_key = f"{resource_type}:{resource_id}"
+        
+        # 只删除属于自己且未过期的锁
+        result = self.locks.delete_one({
+            "resource_id": resource_key,
+            "lock_id": lock_id,
+            "expires_at": {"$gt": datetime.datetime.utcnow()}
+        })
+        
+        if result.deleted_count > 0:
+            return True, "released"
+        
+        # 检查失败原因
+        existing_lock = self.locks.find_one({"resource_id": resource_key})
+        if existing_lock is None:
+            return False, "lock_not_found"
+        if existing_lock.get("lock_id") != lock_id:
+            return False, "lock_owned_by_other"
+        return False, "lock_expired"
+    
+    async def release_lock_safe_async(self, resource_type, resource_id, lock_id):
+        """
+        异步版本的安全锁释放
+        
+        Args:
+            resource_type: 资源类型
+            resource_id: 资源ID
+            lock_id: 锁ID（必须提供）
+            
+        Returns:
+            Tuple[bool, str]: (是否成功, 原因)
+        """
+        resource_key = f"{resource_type}:{resource_id}"
+        
+        # 只删除属于自己且未过期的锁
+        result = await asyncio.to_thread(
+            self.locks.delete_one,
+            {
+                "resource_id": resource_key,
+                "lock_id": lock_id,
+                "expires_at": {"$gt": datetime.datetime.utcnow()}
+            }
+        )
+        
+        if result.deleted_count > 0:
+            return True, "released"
+        
+        # 检查失败原因
+        existing_lock = await asyncio.to_thread(
+            self.locks.find_one,
+            {"resource_id": resource_key}
+        )
+        if existing_lock is None:
+            return False, "lock_not_found"
+        if existing_lock.get("lock_id") != lock_id:
+            return False, "lock_owned_by_other"
+        return False, "lock_expired"
+    
     def renew_lock(self, resource_type, resource_id, lock_id, timeout=30):
         """Extend the expiration time of an existing lock."""
         resource_key = f"{resource_type}:{resource_id}"

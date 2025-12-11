@@ -62,6 +62,17 @@ def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = Non
     return INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE
 
 
+# ========== Model 层重试配置 ==========
+# 解决问题：P17, E4, E5 - API 限流和网络故障自动重试
+
+def create_deepseek_model(model_id: str = "deepseek-chat"):
+    """创建带重试配置的 DeepSeek Model"""
+    return DeepSeek(
+        id=model_id,
+        max_retries=2,
+    )
+
+
 # ========== 模块级预创建 Agent ==========
 
 # FutureMessageQueryRewriteAgent - 主动消息的问题重写
@@ -69,7 +80,7 @@ def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = Non
 future_message_query_rewrite_agent = Agent(
     id="future-message-query-rewrite-agent",
     name="FutureMessageQueryRewriteAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=INSTRUCTIONS_FUTURE_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
     markdown=False,
@@ -80,7 +91,7 @@ future_message_query_rewrite_agent = Agent(
 future_message_context_retrieve_agent = Agent(
     id="future-message-context-retrieve-agent",
     name="FutureMessageContextRetrieveAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     tools=[context_retrieve_tool],
     instructions=get_future_context_retrieve_instructions(),
     markdown=False,
@@ -91,7 +102,7 @@ future_message_context_retrieve_agent = Agent(
 future_message_chat_agent = Agent(
     id="future-message-chat-agent",
     name="FutureMessageChatAgent",
-    model=DeepSeek(id="deepseek-chat"),
+    model=create_deepseek_model(),
     instructions=INSTRUCTIONS_FUTURE_MESSAGE_CHAT,
     output_schema=FutureMessageResponse,
     markdown=False,

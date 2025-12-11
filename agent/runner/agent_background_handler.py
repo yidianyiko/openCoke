@@ -53,6 +53,10 @@ lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
 
 
+# ========== 配置常量 ==========
+HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
+
+
 async def background_handler():
     """后台任务主处理函数"""
     is_decrease = False
@@ -76,11 +80,65 @@ async def background_handler():
     if is_proactive:
         handle_proactive_message()
     
+    # ========== 新增：检查 hold 状态消息 ==========
+    await check_hold_messages()
+    
     # 主动消息派发 (异步，使用统一入口)
     await handle_pending_future_message()
     
     # 提醒任务派发 (异步，使用统一入口)
     await handle_pending_reminders()
+
+
+async def check_hold_messages():
+    """
+    检查 hold 状态消息，超时或角色空闲时恢复为 pending
+    
+    解决问题：
+    - P3: hold 状态消息无恢复机制
+    - E3: hold 状态超时永久挂起
+    """
+    try:
+        now = int(time.time())
+        hold_messages = mongo.find_many("inputmessages", {"status": "hold"}, limit=100)
+        
+        if not hold_messages:
+            return
+        
+        logger.info(f"[HOLD] 发现 {len(hold_messages)} 条 hold 状态消息")
+        
+        for msg in hold_messages:
+            try:
+                # 获取用户-角色关系
+                relation = mongo.find_one("relations", {
+                    "uid": msg.get("from_user"),
+                    "cid": msg.get("to_user")
+                })
+                
+                # 获取角色状态
+                character_status = "空闲"
+                if relation:
+                    character_status = relation.get("character_info", {}).get("status", "空闲")
+                
+                # 检查 hold 超时
+                hold_started_at = msg.get("hold_started_at", now)
+                is_timeout = (now - hold_started_at) > HOLD_TIMEOUT
+                
+                # 角色空闲或超时时恢复为 pending
+                if character_status == "空闲" or is_timeout:
+                    mongo.update_one(
+                        "inputmessages",
+                        {"_id": msg["_id"]},
+                        {"$set": {"status": "pending", "hold_started_at": None}}
+                    )
+                    reason = "timeout" if is_timeout else "idle"
+                    logger.info(f"[HOLD] 恢复 hold 消息: {msg['_id']}, reason={reason}")
+                    
+            except Exception as e:
+                logger.error(f"[HOLD] 检查 hold 消息失败: {msg.get('_id')}, error={e}")
+                
+    except Exception as e:
+        logger.error(f"[HOLD] check_hold_messages 异常: {e}")
 
 
 def decrease_all():
@@ -287,7 +345,10 @@ async def handle_pending_future_message():
     finally:
         if conversation_id and lock:
             try:
-                lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
+                # 使用安全锁释放
+                released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock)
+                if not released:
+                    logger.warning(f"[FUTURE] 锁释放异常: {reason}")
             except Exception as e:
                 logger.error(f"释放锁失败: {e}")
 
@@ -388,7 +449,11 @@ async def handle_pending_reminders():
                 except Exception as e:
                     logger.error(f"[REMINDER] handle_message failed: {e}")
                     logger.error(traceback.format_exc())
-                    reminder_dao.complete_reminder(reminder["reminder_id"])
+                    # ========== 修改：提醒处理失败时不直接标记完成，保留重试机会 ==========
+                    # 解决问题 B5: 提醒处理失败时直接标记完成，可能丢失提醒
+                    # 保持 confirmed 状态，下次轮询时会重新尝试
+                    # 如果连续失败多次，可以考虑增加 retry_count 字段
+                    logger.warning(f"[REMINDER] 提醒处理失败，保留 confirmed 状态等待重试: {reminder['reminder_id']}")
                     continue
                 
                 # 先标记为已触发（增加触发计数）
@@ -430,7 +495,10 @@ async def handle_pending_reminders():
                 logger.error(f"处理提醒失败: {traceback.format_exc()}")
             finally:
                 if lock and conversation_id:
-                    lock_manager.release_lock("conversation", conversation_id, lock_id=lock)
+                    # 使用安全锁释放
+                    released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock)
+                    if not released:
+                        logger.warning(f"[REMINDER] 锁释放异常: {reason}")
                     lock = None
     
     except Exception as e:
