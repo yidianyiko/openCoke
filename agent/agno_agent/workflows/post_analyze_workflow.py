@@ -108,7 +108,7 @@ class PostAnalyzeWorkflow:
             rendered_userp = "请分析本次对话"
         
         # 打印发送给 PostAnalyzeAgent 的 prompt（便于调试）
-        logger.info(f"[PostAnalyzeWorkflow] PostAnalyzeAgent LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
+        logger.debug(f"[PostAnalyzeWorkflow] PostAnalyzeAgent LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
         
         # 异步调用 Agent 进行后处理分析
         try:

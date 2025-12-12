@@ -180,7 +180,7 @@ class StreamingChatWorkflow:
         
         # 打印实际发送给 LLM 的 prompt（便于调试）
         logger.info(f"[ChatWorkflow] message_source={message_source}, 使用模板: {'CONTEXTPROMPT_主动消息触发' if message_source == 'future' else 'CONTEXTPROMPT_系统提醒触发' if message_source == 'reminder' else 'CONTEXTPROMPT_最新聊天消息'}")
-        logger.info(f"[ChatWorkflow] LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
+        logger.debug(f"[ChatWorkflow] LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}")
         
         # 累积的响应文本
         accumulated_text = ""
