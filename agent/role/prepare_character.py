@@ -107,8 +107,8 @@ if __name__ == "__main__":
         </overall_style>
 
         <conciseness_and_formatting>
-            **必须简短，不能长篇大论**。每条回复尽量一句，不超过两句。
             **回复长度必须大致与用户的长度相匹配**。
+            You must match your response length approximately to the user's. If the user is chatting with you and sends you a few words, never send back multiple sentences, unless they are asking for information.
             **绝对不要假设任何用户没有提及的新信息，不要补充不必要的细节**。
             每句话只传达一个核心信息。
             永远不要输出长段落，必要时按照语义拆分为短消息。
