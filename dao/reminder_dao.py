@@ -113,6 +113,59 @@ class ReminderDAO:
             query["status"] = status
         return list(self.collection.find(query).sort("next_trigger_time", 1))
     
+    def find_similar_reminder(
+        self, 
+        user_id: str, 
+        title: str, 
+        trigger_time: int,
+        recurrence_type: Optional[str] = None,
+        time_tolerance: int = 300
+    ) -> Optional[Dict]:
+        """
+        查找相似的有效提醒（用于去重检查）
+        
+        去重判定规则：
+        1. 同一用户
+        2. 标题完全相同
+        3. 触发时间在容差范围内（默认5分钟）
+        4. 周期类型相同
+        5. 状态为有效状态（confirmed/pending）
+        
+        Args:
+            user_id: 用户ID
+            title: 提醒标题
+            trigger_time: 触发时间戳
+            recurrence_type: 周期类型（none/daily/weekly等）
+            time_tolerance: 时间容差（秒），默认300秒（5分钟）
+            
+        Returns:
+            Optional[Dict]: 找到的相似提醒，或 None
+        """
+        # 处理周期类型：none 和 None 视为等同
+        normalized_recurrence = None if recurrence_type in (None, "none") else recurrence_type
+        
+        query = {
+            "user_id": user_id,
+            "title": title,
+            "status": {"$in": ["confirmed", "pending"]},
+            "next_trigger_time": {
+                "$gte": trigger_time - time_tolerance,
+                "$lte": trigger_time + time_tolerance
+            }
+        }
+        
+        # 查询周期类型匹配
+        if normalized_recurrence is None:
+            # 非周期提醒：recurrence.type 为 null 或 recurrence.enabled 为 false
+            query["$or"] = [
+                {"recurrence.type": None},
+                {"recurrence.enabled": False}
+            ]
+        else:
+            query["recurrence.type"] = normalized_recurrence
+        
+        return self.collection.find_one(query)
+    
     def update_reminder(self, reminder_id: str, update_data: Dict) -> bool:
         """
         更新提醒

@@ -64,9 +64,36 @@ _current_session_state = {}
 
 
 def set_reminder_session_state(session_state: dict):
-    """设置当前会话状态，供 reminder_tool 使用"""
+    """设置当前会话状态，供 k 使用"""
     global _current_session_state
     _current_session_state = session_state or {}
+
+
+def _get_missing_info_prompt(missing_fields: list) -> str:
+    """
+    根据缺少的字段生成友好的提示信息
+    
+    注意：这个消息不会直接发给用户，而是供后续流程处理
+    """
+    prompts = []
+    if "title" in missing_fields:
+        prompts.append("提醒内容/事项")
+    if "trigger_time" in missing_fields:
+        prompts.append("提醒时间")
+    
+    return f"需要补充: {'、'.join(prompts)}"
+
+
+def _save_reminder_result_to_session(message: str):
+    """
+    将提醒操作结果保存到 session_state，供 ChatAgent 作为上下文使用
+    
+    Args:
+        message: 语义化的操作结果描述
+    """
+    global _current_session_state
+    _current_session_state["【提醒设置工具消息】"] = message
+    logger.info(f"提醒结果已写入 session_state: {message}")
 
 
 @tool(description="""提醒管理工具，用于创建、更新、删除、查询提醒。
@@ -201,12 +228,47 @@ def _create_reminder(
     character_id: Optional[str],
     base_timestamp: Optional[int] = None
 ) -> dict:
-    """Create a new reminder."""
+    """
+    Create a new reminder with deduplication check.
+    
+    返回状态说明：
+    - ok=True, status="created": 提醒创建成功
+    - ok=True, status="duplicate": 已存在相同提醒
+    - ok=True, status="needs_info": 信息不完整，需要用户补充（不写入数据库）
+    - ok=False: 真正的错误（如时间解析失败、时间已过去等）
+    """
+    # ========== 信息完整性检查 ==========
+    # 缺少必要信息时返回 needs_info 状态，不写入数据库
+    missing_fields = []
+    draft_info = {}
+    
     if not title:
-        return {"ok": False, "error": "创建提醒需要提供标题 (title)"}
+        missing_fields.append("title")
+    else:
+        draft_info["title"] = title
     
     if not trigger_time:
-        return {"ok": False, "error": "创建提醒需要提供触发时间 (trigger_time)"}
+        missing_fields.append("trigger_time")
+    else:
+        draft_info["trigger_time"] = trigger_time
+    
+    if missing_fields:
+        # 信息不完整，返回 needs_info 状态
+        # 注意：这里 ok=True 表示这不是错误，只是需要更多信息
+        logger.info(f"Reminder needs more info: missing={missing_fields}, draft={draft_info}")
+        
+        # 构建语义化消息
+        missing_desc = "、".join(["提醒内容" if f == "title" else "提醒时间" for f in missing_fields])
+        semantic_message = f"信息不足：用户想设置提醒，但缺少【{missing_desc}】，请询问用户补充"
+        _save_reminder_result_to_session(semantic_message)
+        
+        return {
+            "ok": True,
+            "status": "needs_info",
+            "missing_fields": missing_fields,
+            "draft": draft_info,
+            "message": _get_missing_info_prompt(missing_fields)
+        }
     
     current_time = int(time.time())
     
@@ -222,6 +284,8 @@ def _create_reminder(
         timestamp = _parse_trigger_time(trigger_time, base_timestamp)
     
     if not timestamp:
+        semantic_message = f"提醒创建失败：无法解析时间「{trigger_time}」，请使用格式如 '30分钟后' 或 '2025年12月09日15时00分'"
+        _save_reminder_result_to_session(semantic_message)
         return {"ok": False, "error": f"无法解析时间: {trigger_time}，请使用格式如 '30分钟后' 或 '2025年12月09日15时00分'"}
     
     # Validate timestamp is in the future
@@ -229,10 +293,40 @@ def _create_reminder(
         from datetime import datetime
         trigger_time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
         current_time_str = datetime.fromtimestamp(current_time).strftime('%H时%M分')
+        semantic_message = f"提醒创建失败：触发时间 {trigger_time_str} 已经过去（当前时间 {current_time_str}），请用户设置一个未来的时间"
+        _save_reminder_result_to_session(semantic_message)
         return {
             "ok": False, 
             "error": f"触发时间 {trigger_time_str} 已经过去（当前时间 {current_time_str}），请设置一个未来的时间",
             "suggestion": "请使用更长的相对时间（如'5分钟后'）或使用绝对时间格式"
+        }
+    
+    # ========== 去重检查 ==========
+    existing = reminder_dao.find_similar_reminder(
+        user_id=user_id,
+        title=title,
+        trigger_time=timestamp,
+        recurrence_type=recurrence_type,
+        time_tolerance=300  # 5分钟容差
+    )
+    
+    if existing:
+        existing_id = existing.get("reminder_id", "")
+        existing_time = existing.get("next_trigger_time", 0)
+        from datetime import datetime
+        existing_time_str = datetime.fromtimestamp(existing_time).strftime('%Y年%m月%d日%H时%M分') if existing_time else ""
+        
+        logger.info(f"Duplicate reminder detected: title={title}, existing_id={existing_id}")
+        
+        # 语义化输出重复提醒信息
+        semantic_message = f"重复提醒：用户已有相同的提醒「{title}」({existing_time_str})，无需重复创建"
+        _save_reminder_result_to_session(semantic_message)
+        
+        return {
+            "ok": True,
+            "reminder_id": existing_id,
+            "duplicate": True,
+            "message": f"已存在相同的提醒「{title}」，时间: {existing_time_str}"
         }
     
     # Build reminder document
@@ -266,11 +360,32 @@ def _create_reminder(
     try:
         inserted_id = reminder_dao.create_reminder(reminder_doc)
         if inserted_id:
-            return {"ok": True, "reminder_id": reminder_id}
+            from datetime import datetime
+            trigger_time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
+            logger.info(f"Reminder created: id={reminder_id}, title={title}, time={trigger_time_str}")
+            
+            # 语义化输出创建成功信息
+            recurrence_desc = ""
+            if recurrence_type != "none":
+                recurrence_map = {"daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
+                recurrence_desc = f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+            semantic_message = f"提醒创建成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}"
+            _save_reminder_result_to_session(semantic_message)
+            
+            return {
+                "ok": True,
+                "status": "created",
+                "reminder_id": reminder_id,
+                "title": title,
+                "trigger_time": trigger_time_str,
+                "message": f"已创建提醒「{title}」，时间: {trigger_time_str}"
+            }
         else:
+            _save_reminder_result_to_session("提醒创建失败：数据库写入失败，请稍后重试")
             return {"ok": False, "error": "创建提醒失败"}
     except Exception as e:
         logger.error(f"Failed to create reminder: {e}")
+        _save_reminder_result_to_session(f"提醒创建失败：{str(e)}")
         return {"ok": False, "error": str(e)}
 
 
@@ -285,25 +400,33 @@ def _update_reminder(
 ) -> dict:
     """Update an existing reminder."""
     if not reminder_id:
+        _save_reminder_result_to_session("提醒修改失败：未指定要修改的提醒ID")
         return {"ok": False, "error": "更新操作需要提供 reminder_id"}
     
     # Check if reminder exists
     existing = reminder_dao.get_reminder_by_id(reminder_id)
     if not existing:
+        _save_reminder_result_to_session(f"提醒修改失败：找不到指定的提醒")
         return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
     
     # Build update fields
     update_fields = {}
+    update_desc = []
     
     if title:
         update_fields["title"] = title
+        update_desc.append(f"标题改为「{title}」")
     
     if trigger_time:
         timestamp = _parse_trigger_time(trigger_time)
         if timestamp:
             update_fields["next_trigger_time"] = timestamp
             update_fields["time_original"] = trigger_time
+            from datetime import datetime
+            time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
+            update_desc.append(f"时间改为{time_str}")
         else:
+            _save_reminder_result_to_session(f"提醒修改失败：无法解析时间「{trigger_time}」")
             return {"ok": False, "error": f"无法解析时间: {trigger_time}"}
     
     if action_template:
@@ -315,16 +438,26 @@ def _update_reminder(
             "type": recurrence_type if recurrence_type != "none" else None,
             "interval": recurrence_interval
         }
+        if recurrence_type != "none":
+            recurrence_map = {"daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
+            update_desc.append(f"周期改为{recurrence_map.get(recurrence_type, recurrence_type)}")
     
     if not update_fields:
+        _save_reminder_result_to_session("提醒修改失败：未提供要修改的内容")
         return {"ok": False, "error": "没有提供要更新的字段"}
     
     # Update reminder
     try:
         success = reminder_dao.update_reminder(reminder_id, update_fields)
+        if success:
+            original_title = existing.get("title", "")
+            desc_str = "、".join(update_desc) if update_desc else "已更新"
+            semantic_message = f"提醒修改成功：「{original_title}」{desc_str}"
+            _save_reminder_result_to_session(semantic_message)
         return {"ok": success}
     except Exception as e:
         logger.error(f"Failed to update reminder: {e}")
+        _save_reminder_result_to_session(f"提醒修改失败：{str(e)}")
         return {"ok": False, "error": str(e)}
 
 
@@ -334,19 +467,27 @@ def _delete_reminder(
 ) -> dict:
     """Delete a reminder."""
     if not reminder_id:
+        _save_reminder_result_to_session("提醒删除失败：未指定要删除的提醒ID")
         return {"ok": False, "error": "删除操作需要提供 reminder_id"}
     
     # Check if reminder exists
     existing = reminder_dao.get_reminder_by_id(reminder_id)
     if not existing:
+        _save_reminder_result_to_session("提醒删除失败：找不到指定的提醒")
         return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
+    
+    title = existing.get("title", "")
     
     # Delete reminder
     try:
         success = reminder_dao.delete_reminder(reminder_id)
+        if success:
+            semantic_message = f"提醒删除成功：已取消「{title}」的提醒"
+            _save_reminder_result_to_session(semantic_message)
         return {"ok": success}
     except Exception as e:
         logger.error(f"Failed to delete reminder: {e}")
+        _save_reminder_result_to_session(f"提醒删除失败：{str(e)}")
         return {"ok": False, "error": str(e)}
 
 
@@ -360,7 +501,8 @@ def _list_reminders(
         
         # Format reminders for output
         formatted_reminders = []
-        for reminder in reminders:
+        reminder_summaries = []
+        for i, reminder in enumerate(reminders, 1):
             formatted = {
                 "reminder_id": reminder.get("reminder_id"),
                 "title": reminder.get("title"),
@@ -372,8 +514,22 @@ def _list_reminders(
                 "triggered_count": reminder.get("triggered_count", 0)
             }
             formatted_reminders.append(formatted)
+            
+            # 构建简洁的提醒摘要
+            title = reminder.get("title", "")
+            time_friendly = formatted["time_friendly"] or "未设置时间"
+            reminder_summaries.append(f"{i}.{title}({time_friendly})")
+        
+        # 语义化输出查询结果
+        if formatted_reminders:
+            summary_str = " ".join(reminder_summaries)
+            semantic_message = f"查询成功：用户当前有{len(formatted_reminders)}个待执行的提醒：{summary_str}"
+        else:
+            semantic_message = "查询成功：用户当前没有待执行的提醒"
+        _save_reminder_result_to_session(semantic_message)
         
         return {"ok": True, "reminders": formatted_reminders}
     except Exception as e:
         logger.error(f"Failed to list reminders: {e}")
+        _save_reminder_result_to_session(f"提醒查询失败：{str(e)}")
         return {"ok": False, "error": str(e)}

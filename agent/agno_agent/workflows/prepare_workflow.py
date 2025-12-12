@@ -30,9 +30,10 @@ from agent.prompt.chat_taskprompt import (
 )
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
-    CONTEXTPROMPT_历史对话,
+    CONTEXTPROMPT_历史对话_精简,
     CONTEXTPROMPT_最新聊天消息,
 )
+from agent.util.message_util import messages_to_str
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +60,25 @@ class PrepareWorkflow:
     """
 
     # User prompt 模板：Orchestrator 任务
+    # V2.6 优化：使用精简版历史对话（最近6条），减少 token 消耗
+    # OrchestratorAgent 只需理解当前意图，不需要完整 50 轮历史
     orchestrator_template = (
         TASKPROMPT_语义理解 +
         CONTEXTPROMPT_时间 +
-        CONTEXTPROMPT_历史对话 +
+        CONTEXTPROMPT_历史对话_精简 +
         CONTEXTPROMPT_最新聊天消息
     )
+    
+    # ReminderDetectAgent 上下文模板
+    # V2.7 新增：传入最近5条对话作为上下文，支持跨消息意图整合
+    REMINDER_CONTEXT_TEMPLATE = '''### 当前时间
+{time_str}
+
+### 最近对话上下文（最近5条）
+{recent_chat_context}
+
+### 当前用户消息
+{current_message}'''
     
     async def run(
         self,
@@ -167,14 +181,21 @@ class PrepareWorkflow:
                 # 设置 session_state 供 reminder_tool 使用
                 set_reminder_session_state(session_state)
                 
+                # 构建 ReminderDetectAgent 输入：当前消息 + 最近5条对话上下文
+                reminder_input = self._build_reminder_input(input_message, session_state)
+                
                 # 打印发送给 ReminderDetectAgent 的输入（便于调试）
-                logger.info(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{input_message}\n{'='*50}")
+                logger.info(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{reminder_input}\n{'='*50}")
                 
                 await reminder_detect_agent.arun(
-                    input=input_message,
+                    input=reminder_input,
                     session_state=session_state
                 )
                 logger.info("ReminderDetectAgent 执行完成")
+                
+                # 检查是否有提醒结果写入 session_state
+                if "【提醒设置工具消息】" in session_state:
+                    logger.info(f"ReminderDetectAgent 结果: {session_state['【提醒设置工具消息】']}")
             except Exception as e:
                 logger.error(f"ReminderDetectAgent 执行失败: {e}")
                 # 提醒检测失败不影响主流程
@@ -184,6 +205,37 @@ class PrepareWorkflow:
         return {
             "session_state": session_state
         }
+    
+    def _build_reminder_input(self, current_message: str, session_state: dict) -> str:
+        """
+        构建 ReminderDetectAgent 的输入：当前消息 + 最近5条对话上下文
+        
+        Args:
+            current_message: 当前用户消息
+            session_state: 会话状态
+            
+        Returns:
+            渲染后的输入字符串
+        """
+        # 获取最近5条聊天记录
+        chat_history = session_state.get("conversation", {}).get("conversation_info", {}).get("chat_history", [])
+        recent_messages = chat_history[-5:] if len(chat_history) > 5 else chat_history
+        
+        # 格式化最近对话
+        if recent_messages:
+            recent_chat_context = messages_to_str(recent_messages)
+        else:
+            recent_chat_context = "（无历史消息）"
+        
+        # 获取当前时间
+        time_str = session_state.get("conversation", {}).get("conversation_info", {}).get("time_str", "")
+        
+        # 渲染模板
+        return self.REMINDER_CONTEXT_TEMPLATE.format(
+            time_str=time_str,
+            recent_chat_context=recent_chat_context,
+            current_message=current_message
+        )
     
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """渲染模板字符串"""

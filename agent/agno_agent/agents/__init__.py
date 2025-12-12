@@ -21,10 +21,8 @@ from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.chat_response_schema import ChatResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
-from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_REMINDER_DETECT,
-    INSTRUCTIONS_CONTEXT_RETRIEVE,
     INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_CHAT_RESPONSE,
@@ -87,18 +85,6 @@ def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> st
     """
     return INSTRUCTIONS_REMINDER_DETECT
 
-
-def get_context_retrieve_instructions(session_state: Dict[str, Any] = None) -> str:
-    """
-    动态渲染 ContextRetrieve 的 system prompt
-    
-    Args:
-        session_state: 会话状态，包含动态数据
-        
-    Returns:
-        渲染后的 system prompt
-    """
-    return INSTRUCTIONS_CONTEXT_RETRIEVE
 
 
 def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
@@ -164,17 +150,6 @@ reminder_detect_agent = Agent(
     markdown=False,
 )
 
-# ContextRetrieveAgent - 上下文检索，根据问题重写结果检索相关上下文
-# Requirements: 4.3
-# 注意：V2 架构中此 Agent 已废弃，改为直接调用 context_retrieve_tool
-context_retrieve_agent = Agent(
-    id="context-retrieve-agent",
-    name="ContextRetrieveAgent",
-    model=create_deepseek_model(),
-    tools=[context_retrieve_tool],
-    instructions=get_context_retrieve_instructions(),
-    markdown=False,
-)
 
 # OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
 # 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
@@ -218,12 +193,10 @@ __all__ = [
     "get_chat_response_instructions",
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
-    "get_context_retrieve_instructions",
     "get_orchestrator_instructions",
     # 预创建 Agent
     "query_rewrite_agent",
     "reminder_detect_agent",
-    "context_retrieve_agent",
     "orchestrator_agent",  # V2 架构核心
     "chat_response_agent",
     "post_analyze_agent",

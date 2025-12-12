@@ -42,6 +42,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_当前的人物关系,
     CONTEXTPROMPT_系统提醒触发,
     CONTEXTPROMPT_主动消息触发,
+    CONTEXTPROMPT_提醒工具结果,
 )
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 
@@ -96,6 +97,9 @@ class StreamingChatWorkflow:
     userp_template_user_message = CONTEXTPROMPT_最新聊天消息  # 用户消息
     userp_template_reminder = CONTEXTPROMPT_系统提醒触发      # 提醒触发
     userp_template_future = CONTEXTPROMPT_主动消息触发        # 主动消息
+    
+    # V2.7 新增：提醒工具结果上下文模板
+    userp_template_reminder_result = CONTEXTPROMPT_提醒工具结果
     
     # 任务要求部分
     userp_template_task = (
@@ -158,8 +162,14 @@ class StreamingChatWorkflow:
             source_template = self.userp_template_user_message
             base_template = self.userp_template_base  # 用户消息使用完整版
         
+        # V2.7 新增：检查是否有提醒工具结果，如有则添加到上下文
+        reminder_result_template = ""
+        if "【提醒设置工具消息】" in session_state and session_state["【提醒设置工具消息】"]:
+            reminder_result_template = self.userp_template_reminder_result
+            logger.info(f"[ChatWorkflow] 添加提醒工具结果上下文: {session_state['【提醒设置工具消息】']}")
+        
         # 组合完整模板
-        full_template = base_template + source_template + self.userp_template_task
+        full_template = base_template + source_template + reminder_result_template + self.userp_template_task
         
         # 渲染 user prompt
         try:
