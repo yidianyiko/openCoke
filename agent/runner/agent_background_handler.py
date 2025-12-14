@@ -299,7 +299,7 @@ async def handle_pending_future_message():
                 input_message_str = f"[系统主动话题(这是我们要主动发给用户的话)] {future_action}"
                 
                 logger.info(f"[FUTURE] 开始处理主动消息: {future_action} (proactive_times={future_proactive_times})")
-                resp_messages, context, _ = await handle_message(
+                resp_messages, context, _, is_content_blocked = await handle_message(
                     user=user,
                     character=character,
                     conversation=conversation,
@@ -312,25 +312,30 @@ async def handle_pending_future_message():
                     check_new_message=False,  # 系统消息不检测新消息
                     worker_tag="[FUTURE]"
                 )
-                logger.info(f"[FUTURE] 主动消息处理完成，发送 {len(resp_messages)} 条消息")
                 
-                # 更新会话历史
-                conversation = context["conversation"]
-                for resp_message in resp_messages:
-                    conversation["conversation_info"]["chat_history"].append(resp_message)
-                
-                if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
-                    conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
-                
-                conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
-                
-                # 更新关系
-                relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
-                mongo.replace_one(
-                    "relations", 
-                    query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
-                    update=relation_update
-                )
+                # 内容安全审核失败，跳过后续处理
+                if is_content_blocked:
+                    logger.warning(f"[FUTURE] 内容安全审核失败，跳过主动消息处理")
+                else:
+                    logger.info(f"[FUTURE] 主动消息处理完成，发送 {len(resp_messages)} 条消息")
+                    
+                    # 更新会话历史
+                    conversation = context["conversation"]
+                    for resp_message in resp_messages:
+                        conversation["conversation_info"]["chat_history"].append(resp_message)
+                    
+                    if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+                        conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                    
+                    conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                    
+                    # 更新关系
+                    relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+                    mongo.replace_one(
+                        "relations", 
+                        query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
+                        update=relation_update
+                    )
                 
             except Exception as e:
                 logger.error(f"[FUTURE] handle_message failed: {e}")
@@ -408,7 +413,7 @@ async def handle_pending_reminders():
                     input_message_str = f"[系统提醒触发] {reminder_content}"
                     
                     logger.info(f"[REMINDER] 开始处理提醒: {reminder_title}")
-                    resp_messages, context, _ = await handle_message(
+                    resp_messages, context, _, is_content_blocked = await handle_message(
                         user=user,
                         character=character,
                         conversation=conversation,
@@ -422,6 +427,12 @@ async def handle_pending_reminders():
                         check_new_message=False,  # 系统消息不检测新消息
                         worker_tag="[REMINDER]"
                     )
+                    
+                    # 内容安全审核失败，跳过后续处理
+                    if is_content_blocked:
+                        logger.warning(f"[REMINDER] 内容安全审核失败，跳过提醒处理")
+                        continue
+                    
                     logger.info(f"[REMINDER] 提醒处理完成，发送 {len(resp_messages)} 条消息")
                     
                     if not resp_messages:

@@ -231,11 +231,22 @@ class StreamingChatWorkflow:
             logger.info(f"ChatResponseAgent 流式执行完成，共 {yielded_count} 条消息")
             
         except Exception as e:
-            logger.error(f"ChatResponseAgent 流式执行失败: {e}")
-            yield {
-                "type": "error",
-                "data": {"error": str(e)}
-            }
+            error_msg = str(e)
+            logger.error(f"ChatResponseAgent 流式执行失败: {error_msg}")
+            
+            # 检测 "Content Exists Risk" 错误 - 内容安全审核失败
+            # 简单处理：标记为 content_blocked，不写入历史记录
+            if "Content Exists Risk" in error_msg:
+                logger.warning(f"检测到内容安全审核失败 (Content Exists Risk)，不写入历史记录")
+                yield {
+                    "type": "content_blocked",
+                    "data": {"error": error_msg}
+                }
+            else:
+                yield {
+                    "type": "error",
+                    "data": {"error": error_msg}
+                }
     
     async def run(
         self,

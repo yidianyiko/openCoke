@@ -182,7 +182,7 @@ async def handle_message(
     lock_id: Optional[str] = None,
     conversation_id: Optional[str] = None,
     current_message_ids: Optional[List[str]] = None
-) -> Tuple[List[dict], dict, bool]:
+) -> Tuple[List[dict], dict, bool, bool]:
     """
     核心消息处理逻辑 - Phase 1 → 2 → 3
     
@@ -205,10 +205,11 @@ async def handle_message(
         current_message_ids: 当前正在处理的消息ID列表（用于排除新消息检测）
     
     Returns:
-        Tuple[resp_messages, context, is_rollback]:
+        Tuple[resp_messages, context, is_rollback, is_content_blocked]:
             - resp_messages: 发送的消息列表
             - context: 更新后的上下文
             - is_rollback: 是否因新消息而回滚
+            - is_content_blocked: 是否因内容安全审核失败
     """
     context = context_prepare(user, character, conversation)
     
@@ -229,6 +230,7 @@ async def handle_message(
     
     resp_messages = []
     is_rollback = False
+    is_content_blocked = False  # 内容安全审核失败标志
     
     try:
         # ========== Phase 1: PrepareWorkflow ==========
@@ -289,6 +291,11 @@ async def handle_message(
                             break
                 elif event["type"] == "done":
                     logger.info(f"{worker_tag} 流式完成，共 {event['data'].get('total_messages', 0)} 条")
+                elif event["type"] == "content_blocked":
+                    # ========== 内容安全审核失败，设置标志并停止处理 ==========
+                    logger.warning(f"{worker_tag} 内容安全审核失败 (Content Exists Risk)，跳过后续处理")
+                    is_content_blocked = True
+                    break
                 elif event["type"] == "error":
                     logger.error(f"{worker_tag} 流式错误: {event['data'].get('error')}")
             
@@ -296,17 +303,20 @@ async def handle_message(
             logger.info(f"{worker_tag} Phase 2: ChatWorkflow 完成")
             
             # ========== Phase 3: PostAnalyzeWorkflow ==========
-            if not is_rollback and len(resp_messages) > 0:
+            # 跳过条件：rollback、无响应消息、或内容安全审核失败
+            if not is_rollback and not is_content_blocked and len(resp_messages) > 0:
                 logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 开始")
                 await post_analyze_workflow.run(session_state=context)
                 logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 完成")
+            elif is_content_blocked:
+                logger.warning(f"{worker_tag} 跳过 Phase 3: 内容安全审核失败")
     
     except Exception as e:
         logger.error(f"{worker_tag} handle_message failed: {e}")
         logger.error(traceback.format_exc())
         raise
     
-    return resp_messages, context, is_rollback
+    return resp_messages, context, is_rollback, is_content_blocked
 
 
 def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = None):
@@ -473,6 +483,7 @@ def create_handler(worker_id: int = 0):
             is_hold = False
             is_hardfinish = False
             is_finish = False
+            is_content_blocked = False  # 新增：内容安全审核失败标志
             resp_messages = []
             
             # 处理拉黑逻辑
@@ -503,7 +514,7 @@ def create_handler(worker_id: int = 0):
                     # 提取当前正在处理的消息ID列表，用于排除新消息检测
                     current_message_ids = [str(msg["_id"]) for msg in input_messages]
                     
-                    resp_messages, context, is_rollback = await handle_message(
+                    resp_messages, context, is_rollback, is_content_blocked = await handle_message(
                         user=user,
                         character=character,
                         conversation=conversation,
@@ -545,6 +556,17 @@ def create_handler(worker_id: int = 0):
                 released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
                 if not released:
                     logger.warning(f"{worker_tag} 锁释放异常(hardfinish): {reason}")
+                return
+            
+            # ========== 新增：内容安全审核失败，不写入历史记录 ==========
+            if is_content_blocked:
+                logger.warning(f"{worker_tag} 内容安全审核失败，标记 {len(input_messages)} 条消息为 handled，不写入历史记录")
+                for input_message in input_messages:
+                    update_message_status_safe(input_message["_id"], "handled", "pending")
+                # 使用安全锁释放
+                released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
+                if not released:
+                    logger.warning(f"{worker_tag} 锁释放异常(content_blocked): {reason}")
                 return
             
             # rollback 时：检查 rollback 次数限制
