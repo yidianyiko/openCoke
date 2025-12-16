@@ -56,6 +56,24 @@ mongo = MongoDBBase()
 # ========== 配置常量 ==========
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 
+# ========== 锁获取失败冷却机制 ==========
+# 记录 {conversation_id: last_failed_time} 用于避免频繁重试
+_lock_cooldown_cache: dict[str, float] = {}
+LOCK_COOLDOWN_SECONDS = 30  # 锁获取失败后的冷却时间（秒）
+
+
+def _cleanup_cooldown_cache():
+    """清理过期的冷却缓存条目"""
+    now = time.time()
+    expired_keys = [
+        key for key, last_failed in _lock_cooldown_cache.items()
+        if now - last_failed > LOCK_COOLDOWN_SECONDS * 2
+    ]
+    for key in expired_keys:
+        _lock_cooldown_cache.pop(key, None)
+    if expired_keys:
+        logger.debug(f"清理了 {len(expired_keys)} 个过期的冷却缓存条目")
+
 
 async def background_handler():
     """后台任务主处理函数"""
@@ -71,6 +89,10 @@ async def background_handler():
     # 主动消息检查
     if now % proactive_frequency == 0:
         is_proactive = True
+    
+    # ========== 定期清理冷却缓存（每分钟清理一次） ==========
+    if now % 60 == 0:
+        _cleanup_cooldown_cache()
 
     # 关系衰减
     if is_decrease:
@@ -238,6 +260,15 @@ async def handle_pending_future_message():
             return
         
         conversation = conversations[0]
+        conversation_id = str(conversation["_id"])
+        
+        # ========== 冷却机制：在日志之前检查，避免频繁输出 ==========
+        now_time = time.time()
+        last_failed = _lock_cooldown_cache.get(conversation_id, 0)
+        if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
+            # 仍在冷却期内，静默跳过
+            return
+        
         logger.info("try sending proactive message:" + str(conversation["conversation_info"]["future"]))
 
         def clear_invalid_future():
@@ -265,23 +296,25 @@ async def handle_pending_future_message():
             return
         character = characters[0]
         
-        logger.info(f"准备获取锁: conversation_id={conversation['_id']}")
-
-        conversation_id = str(conversation["_id"])
-        
-        # 调试：检查当前锁状态
-        existing_lock = lock_manager.get_lock_info("conversation", conversation_id)
-        if existing_lock:
-            logger.warning(f"锁已存在: resource_id={existing_lock.get('resource_id')}, "
-                          f"created_at={existing_lock.get('created_at')}, "
-                          f"expires_at={existing_lock.get('expires_at')}, "
-                          f"owner_id={existing_lock.get('owner_id')[:8] if existing_lock.get('owner_id') else 'N/A'}")
+        logger.info(f"准备获取锁: conversation_id={conversation_id}")
         
         # 使用异步锁获取
         lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
         if lock is None:
-            logger.warning(f"获取锁失败，conversation_id={conversation_id}")
+            # 记录失败时间，进入冷却期
+            _lock_cooldown_cache[conversation_id] = now_time
+            # 只在首次失败时记录详细日志
+            existing_lock = lock_manager.get_lock_info("conversation", conversation_id)
+            if existing_lock:
+                logger.info(f"获取锁失败，进入 {LOCK_COOLDOWN_SECONDS}s 冷却期: conversation_id={conversation_id}, "
+                           f"lock_holder={existing_lock.get('owner_id', 'N/A')[:8]}, "
+                           f"expires_at={existing_lock.get('expires_at')}")
+            else:
+                logger.info(f"获取锁失败，进入 {LOCK_COOLDOWN_SECONDS}s 冷却期: conversation_id={conversation_id}")
             return
+        
+        # 成功获取锁，清除冷却记录
+        _lock_cooldown_cache.pop(conversation_id, None)
         
         # 处理拉黑逻辑
         from agent.runner.context import context_prepare
@@ -385,10 +418,23 @@ async def handle_pending_reminders():
             try:
                 conversation_id = reminder["conversation_id"]
                 
+                # ========== 冷却机制：避免频繁重试同一个锁 ==========
+                now_time = time.time()
+                last_failed = _lock_cooldown_cache.get(conversation_id, 0)
+                if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
+                    # 仍在冷却期内，静默跳过
+                    continue
+                
                 # 使用异步锁获取
                 lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
                 if lock is None:
+                    # 记录失败时间，进入冷却期
+                    _lock_cooldown_cache[conversation_id] = now_time
+                    logger.info(f"[REMINDER] 获取锁失败，进入 {LOCK_COOLDOWN_SECONDS}s 冷却期: conversation_id={conversation_id}")
                     continue
+                
+                # 成功获取锁，清除冷却记录
+                _lock_cooldown_cache.pop(conversation_id, None)
                 
                 conversation = conversation_dao.get_conversation_by_id(conversation_id)
                 if not conversation:
