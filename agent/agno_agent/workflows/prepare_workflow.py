@@ -105,7 +105,7 @@ class PrepareWorkflow:
             rendered_prompt = input_message
         
         # 打印发送给 OrchestratorAgent 的 prompt（便于调试）
-        logger.info(f"[PrepareWorkflow] OrchestratorAgent LLM INPUT (len={len(rendered_prompt)}):\n{'='*50}\n{rendered_prompt}\n{'='*50}")
+        logger.debug(f"[PrepareWorkflow] OrchestratorAgent LLM INPUT (len={len(rendered_prompt)}):\n{'='*50}\n{rendered_prompt}\n{'='*50}")
         
         try:
             orchestrator_response = await orchestrator_agent.arun(
@@ -185,7 +185,7 @@ class PrepareWorkflow:
                 reminder_input = self._build_reminder_input(input_message, session_state)
                 
                 # 打印发送给 ReminderDetectAgent 的输入（便于调试）
-                logger.info(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{reminder_input}\n{'='*50}")
+                logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{reminder_input}\n{'='*50}")
                 
                 await reminder_detect_agent.arun(
                     input=reminder_input,

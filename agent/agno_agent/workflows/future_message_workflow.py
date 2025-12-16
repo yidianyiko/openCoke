@@ -188,7 +188,7 @@ class FutureMessageWorkflow:
             rendered_qr_userp = "请根据规划行动进行问题重写"
         
         # 打印发送给 QueryRewriteAgent 的 prompt（便于调试）
-        logger.info(f"[FutureMessageWorkflow] QueryRewriteAgent LLM INPUT (len={len(rendered_qr_userp)}):\n{'='*50}\n{rendered_qr_userp}\n{'='*50}")
+        logger.debug(f"[FutureMessageWorkflow] QueryRewriteAgent LLM INPUT (len={len(rendered_qr_userp)}):\n{'='*50}\n{rendered_qr_userp}\n{'='*50}")
         
         qr_response = await future_message_query_rewrite_agent.arun(
             input=rendered_qr_userp,
@@ -226,7 +226,7 @@ class FutureMessageWorkflow:
             rendered_chat_userp = "请根据规划行动生成主动消息"
         
         # 打印发送给 FutureMessageChatAgent 的 prompt（便于调试）
-        logger.info(f"[FutureMessageWorkflow] FutureMessageChatAgent LLM INPUT (len={len(rendered_chat_userp)}):\n{'='*50}\n{rendered_chat_userp}\n{'='*50}")
+        logger.debug(f"[FutureMessageWorkflow] FutureMessageChatAgent LLM INPUT (len={len(rendered_chat_userp)}):\n{'='*50}\n{rendered_chat_userp}\n{'='*50}")
         
         chat_response = await future_message_chat_agent.arun(
             input=rendered_chat_userp,

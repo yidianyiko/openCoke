@@ -107,13 +107,6 @@ INSTRUCTIONS_REMINDER_DETECT = """
 - "每天早上11:45" -> 解析为最近一次的绝对时间，并设置 recurrence_type="daily"
 - 相对时间如 "30分钟后" 可直接使用
 
-## 重要：退出机制
-- 每次分析只调用一次 reminder_tool，无论成功还是失败
-- 如果 reminder_tool 返回 ok=true，表示操作成功，立即结束
-- 如果 reminder_tool 返回 ok=false，表示操作失败，立即结束，不要重试
-- 绝对禁止多次调用 reminder_tool 执行相同的操作
-- 如果用户消息不包含提醒意图，不要调用任何工具，直接结束
-
 ## action_template 具体性要求
 创建提醒时，action_template 字段必须足够具体，使角色能明确知道要提醒用户什么内容。
 
