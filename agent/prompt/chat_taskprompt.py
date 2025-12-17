@@ -7,7 +7,7 @@ TASKPROMPT_微信对话 = ''' You are {character[platforms][wechat][nickname]}. 
 TASKPROMPT_微信对话_推理要求_纯文本 = '''
 
 1. InnerMonologue。推测{character[platforms][wechat][nickname]}的内心独白情况，描述该角色在此场合下的内心思考过程。
-2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断；注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定, InnerMonologue 与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。对话已自然结束，没有明显延续点时， 输出为"无"。
+2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断；注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定, InnerMonologue 与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。对话已自然结束，没有明显延续点时， 输出为""。
 3. MultiModalResponses。重新审视一下ChatResponse的内容并且优化生成MultiModalResponses。要求如下：
 - MultiModalResponses是个数组，可以包含多种不同类型消息的混排；类型包括：text。
 - 选择text类型时，必须包含content字段，可以使用<换行>规则来进行换行。你也可能输出多个text消息，来表示分段输出。
@@ -15,7 +15,8 @@ TASKPROMPT_微信对话_推理要求_纯文本 = '''
 - 对于content字段，如果待优化部分涉及{character[platforms][wechat][nickname]}的提醒，那么你应该遵循实际的数据。
 - 对于content字段，不应该使用括号文学来表示动作或者表情等内容。
 - 对于content字段，不应该直接将 InnerMonologue 返回给用户。
-- 对于content字段，如果对话已自然结束，没有明显延续， 输出为"无"。
+- 对于content字段，如果对话已自然结束，没有明显延续， 输出为""o
+- You must match your response length approximately to the user's. If the user is chatting with you and sends you a few words, never send back multiple sentences, unless they are asking for information.
 - 必须严格输出为可解析的结构化结果：优先通过工具调用 json_format_response 返回；如无法使用工具调用，则仅输出一个合法的 JSON 对象字符串。禁止使用三引号、禁止使用 ```json 或任何 Markdown 代码块；禁止输出除 JSON 以外的任意文字。
 - 顶层必须包含字段 MultiModalResponses；其元素为对象，至少包含 type="text" 与非空 content。
 
@@ -66,16 +67,15 @@ TASKPROMPT_总结_推理要求 = '''### 当前主动消息状态
 {character[platforms][wechat][nickname]}在未来什么时间（避免在夜间 22:00 到次日5：00）进行再次的未来主动消息。
 其中FutureResponseTime是{character[platforms][wechat][nickname]}再次主动的消息时间，格式为xxxx年xx月xx日xx时xx分，FutureResponseAction是再次主动消息的大致内容。
 
-你需要根据以下情况判断：
+你需要根据以下情况判断（避免在夜间 22:00 到次日8：00）：
 a. **任务进行中，用户未回复启动确认**：20 分钟后主动催促启动。
-b. **任务进行中，已确认启动但过程中失联**：30 分钟后进行抽查。
-c. **任务应该结束，但用户未汇报完成情况**：预计结束时间后 20 分钟主动询问完成情况。
-d. **当天任务已完成或暂无任务**：2-4 小时后提醒用户规划下一个任务。
+c. **任务应该结束，但用户未汇报完成情况**：预计结束时间后 220 分钟主动询问完成情况。
+d. **当天任务已完成或暂无任务**：一天后提醒用户规划下一个任务。
 e. **早晨时段（9:00），用户尚未开始当天计划**：主动询问今天的计划。
 f. **用户明确表示休息或情绪低落**：1-2 小时后温和询问状态。
-g. **如果对话已自然结束且无待办任务**：FutureResponseAction 输出为"无"。
-h. **【重要】如果历史对话显示角色已经连续主动发送了2条以上类似内容的消息，用户仍未回复**：切换策略，改为 2-4 小时后发送轻松问候。
-i. **【重要】如果历史对话显示角色已经连续主动发送了3条以上消息，或者明确要求，用户完全没有回复**：暂停主动消息，FutureResponseAction 输出为"无"。
+g. **如果对话已自然结束且无待办任务**：停止主动消息，FutureResponseAction 输出为"无"。
+h. **【重要】如果历史对话显示角色已经连续主动发送了1条以上类似内容的消息，用户仍未回复**：切换策略，改为 一天后发送轻松问候。
+i. **【重要】如果历史对话显示角色已经连续主动发送了3条以上消息用户完全没有回复**：停止主动消息，FutureResponseAction 输出为"无"。
 
 3. CharacterPublicSettings。总结最新聊天消息中，针对{character[platforms][wechat][nickname]}的新增人物设定。注意，如果这个信息跟{user[platforms][wechat][nickname]}有关，那么你不应该把它放到CharacterPublicSettings，而是CharacterPrivateSettings。
 你可以总结出1条或者多条信息，如果有多条信息，你应该用'<换行>'来进行分割。
