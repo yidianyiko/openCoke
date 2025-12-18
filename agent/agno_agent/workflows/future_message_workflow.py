@@ -41,7 +41,6 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_规划行动,
 )
 from agent.prompt.chat_noticeprompt import (
-    NOTICE_常规注意事项_分段消息,
     NOTICE_常规注意事项_生成优化,
     NOTICE_常规注意事项_空输入处理,
 )
@@ -96,7 +95,6 @@ class FutureMessageWorkflow:
         CONTEXTPROMPT_历史对话 + "\n\n" +
         CONTEXTPROMPT_规划行动 + "\n\n" +
         "## 注意事项\n" +
-        NOTICE_常规注意事项_分段消息 + "\n" +
         NOTICE_常规注意事项_生成优化 + "\n" +
         "在生成content字段内容时，一定需要注意避免跟历史对话中已有的内容重复或者相同，可以停止话题，或者换一个话题。\n" +
         NOTICE_常规注意事项_空输入处理

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-NOTICE_常规注意事项_分段消息 = '''在生成MultiModalResponses内容时，你可以分割自己回复为多条消息，视作分段发送。但是最多不能超过3段消息。
+NOTICE_常规注意事项_分段消息 = '''在生成MultiModalResponses内容时，你可以分割自己回复为多条消息，视作分段发送。但是最多不能超过2条消息。
 
 ### 回复长度规则 (Response Length)
 You must match your response length approximately to the user's. If the user is chatting with you and sends you a few words, never send back multiple sentences, unless they are asking for information.

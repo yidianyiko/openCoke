@@ -45,6 +45,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_提醒工具结果,
 )
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
+from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,9 @@ class StreamingChatWorkflow:
     # V2.7 新增：提醒工具结果上下文模板
     userp_template_reminder_result = CONTEXTPROMPT_提醒工具结果
     
+    # 消息分段注意事项模板（用于主动消息和提醒消息）
+    userp_template_notice_segmentation = NOTICE_常规注意事项_分段消息
+    
     # 任务要求部分
     userp_template_task = (
         TASKPROMPT_微信对话_推理要求_纯文本       
@@ -152,12 +156,15 @@ class StreamingChatWorkflow:
         
         # 根据消息来源选择不同的上下文模板和基础模板
         message_source = session_state.get("message_source", "user")
+        notice_segmentation = ""  # 消息分段注意事项（仅用于主动消息和提醒）
         if message_source == "reminder":
             source_template = self.userp_template_reminder
             base_template = self.userp_template_base_lite  # 提醒消息使用精简版
+            notice_segmentation = self.userp_template_notice_segmentation
         elif message_source == "future":
             source_template = self.userp_template_future
             base_template = self.userp_template_base_lite  # 主动消息使用精简版
+            notice_segmentation = self.userp_template_notice_segmentation
         else:
             source_template = self.userp_template_user_message
             base_template = self.userp_template_base  # 用户消息使用完整版
@@ -168,8 +175,8 @@ class StreamingChatWorkflow:
             reminder_result_template = self.userp_template_reminder_result
             logger.info(f"[ChatWorkflow] 添加提醒工具结果上下文: {session_state['【提醒设置工具消息】']}")
         
-        # 组合完整模板
-        full_template = base_template + source_template + reminder_result_template + self.userp_template_task
+        # 组合完整模板（包含分段注意事项）
+        full_template = base_template + source_template + reminder_result_template + notice_segmentation + self.userp_template_task
         
         # 渲染 user prompt
         try:
