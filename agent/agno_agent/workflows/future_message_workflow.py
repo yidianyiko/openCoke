@@ -37,7 +37,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物状态,
     CONTEXTPROMPT_当前目标,
     CONTEXTPROMPT_当前的人物关系,
-    CONTEXTPROMPT_历史对话,
+    CONTEXTPROMPT_最近的历史对话,
     CONTEXTPROMPT_规划行动,
 )
 from agent.prompt.chat_noticeprompt import (
@@ -71,7 +71,7 @@ class FutureMessageWorkflow:
         TASKPROMPT_语义理解_推理要求 + "\n\n" +
         "## 上下文\n" +
         CONTEXTPROMPT_时间 + "\n" +
-        CONTEXTPROMPT_历史对话 + "\n" +
+        CONTEXTPROMPT_最近的历史对话 + "\n" +
         CONTEXTPROMPT_规划行动
     )
     
@@ -92,7 +92,7 @@ class FutureMessageWorkflow:
         CONTEXTPROMPT_人物状态 + "\n\n" +
         CONTEXTPROMPT_当前目标 + "\n\n" +
         CONTEXTPROMPT_当前的人物关系 + "\n\n" +
-        CONTEXTPROMPT_历史对话 + "\n\n" +
+        CONTEXTPROMPT_最近的历史对话 + "\n\n" +
         CONTEXTPROMPT_规划行动 + "\n\n" +
         "## 注意事项\n" +
         NOTICE_常规注意事项_生成优化 + "\n" +

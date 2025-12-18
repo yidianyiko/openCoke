@@ -163,6 +163,8 @@ class PrepareWorkflow:
                     user_profile_keywords=params.get("user_profile_keywords", ""),
                     character_knowledge_query=params.get("character_knowledge_query", ""),
                     character_knowledge_keywords=params.get("character_knowledge_keywords", ""),
+                    chat_history_query=params.get("chat_history_query", ""),
+                    chat_history_keywords=params.get("chat_history_keywords", ""),
                     character_id=character_id,
                     user_id=user_id
                 )
@@ -296,4 +298,5 @@ class PrepareWorkflow:
             "user": "",
             "character_knowledge": "",
             "confirmed_reminders": "",
+            "relevant_history": ""
         }

@@ -26,6 +26,7 @@ import traceback
 import logging
 from logging import getLogger
 from typing import Optional, Tuple, List, Dict, Any
+from concurrent.futures import ThreadPoolExecutor
 
 # 配置日志格式，包含时间戳
 logging.basicConfig(
@@ -83,6 +84,58 @@ conversation_dao = ConversationDAO()
 user_dao = UserDAO()
 lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
+
+# Thread pool for background embedding storage
+_embedding_executor = ThreadPoolExecutor(max_workers=2)
+
+
+def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
+    """
+    Store messages as embeddings for future retrieval (sync, runs in background thread).
+    """
+    from util.embedding_util import store_chat_message
+    
+    character_id = str(context.get("character", {}).get("_id", ""))
+    user_id = str(context.get("user", {}).get("_id", ""))
+    
+    try:
+        # Store user's input messages
+        input_messages = context.get("conversation", {}).get("conversation_info", {}).get("input_messages", [])
+        for msg in input_messages:
+            message_content = msg.get("message", "")
+            if message_content:
+                store_chat_message(
+                    message=message_content,
+                    from_user=msg.get("from_user", ""),
+                    to_user=msg.get("to_user", ""),
+                    character_id=character_id,
+                    user_id=user_id,
+                    timestamp=msg.get("input_timestamp", 0),
+                    message_type=msg.get("message_type", "text")
+                )
+        
+        # Store character's responses
+        for msg in resp_messages:
+            message_content = msg.get("message", "")
+            if message_content:
+                store_chat_message(
+                    message=message_content,
+                    from_user=character_id,
+                    to_user=user_id,
+                    character_id=character_id,
+                    user_id=user_id,
+                    timestamp=msg.get("expect_output_timestamp", 0),
+                    message_type=msg.get("message_type", "text")
+                )
+        
+        logger.debug(f"Stored {len(input_messages) + len(resp_messages)} messages for semantic retrieval")
+    except Exception as e:
+        logger.warning(f"Failed to store messages for retrieval: {e}")
+
+
+def store_messages_background(context: dict, resp_messages: list):
+    """Submit message storage to background thread pool."""
+    _embedding_executor.submit(_store_messages_for_retrieval_sync, context, resp_messages)
 
 
 def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
@@ -609,6 +662,9 @@ def create_handler(worker_id: int = 0):
                     conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
                 
                 conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+                
+                # Store messages for semantic retrieval (background, non-blocking)
+                store_messages_background(context, resp_messages)
                 
                 relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
                 mongo.replace_one("relations", query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]}, update=relation_update)

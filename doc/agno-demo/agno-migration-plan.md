@@ -1548,7 +1548,7 @@ from qiaoyun.agno_agent.agents import chat_response_agent
 from qiaoyun.prompt.chat_taskprompt import TASKPROMPT_小说书写任务
 from qiaoyun.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
-    CONTEXTPROMPT_历史对话,
+    CONTEXTPROMPT_最近的历史对话,
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_用户资料,
 )
@@ -1565,7 +1565,7 @@ class ChatWorkflow:
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +
-        CONTEXTPROMPT_历史对话
+        CONTEXTPROMPT_最近的历史对话
     )
     
     def run(self, input: str, session_state: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -1943,7 +1943,7 @@ def _convert_objectid_to_str(obj):
 | CONTEXTPROMPT_人物状态 | `character[user_info][status][place]`, `character[user_info][status][action]`, `relation[relationship][status]` | ✅ |
 | CONTEXTPROMPT_当前目标 | `relation[character_info][longterm_purpose]`, `relation[character_info][shortterm_purpose]`, `relation[character_info][attitude]` | ✅ |
 | CONTEXTPROMPT_当前的人物关系 | `relation[relationship][*]`, `relation[user_info][*]` | ✅ |
-| CONTEXTPROMPT_历史对话 | `conversation[conversation_info][chat_history_str]` | ✅ |
+| CONTEXTPROMPT_最近的历史对话 | `conversation[conversation_info][chat_history_str]` | ✅ |
 | CONTEXTPROMPT_最新聊天消息 | `conversation[conversation_info][input_messages_str]` | ✅ |
 | CONTEXTPROMPT_初步回复 | `MultiModalResponses` | ✅ |
 | CONTEXTPROMPT_规划行动 | `conversation[conversation_info][future][action]` | ✅ |

@@ -10,7 +10,7 @@ TASKPROMPT_微信对话_推理要求_纯文本 = '''
 2. ChatResponse。{character[platforms][wechat][nickname]}的文字消息回复，需要根据所有的上下文进行推断；注意消息回复内容应该匹配{character[platforms][wechat][nickname]}的当前目标，性格设定, InnerMonologue 与聊天偏好。当涉及专业领域时，应该非常专业和具体，并且更多地参考人物设定和知识当中的详细情况。对话已自然结束，没有明显延续点时， 输出为""。
 3. MultiModalResponses。重新审视一下ChatResponse的内容并且优化生成MultiModalResponses。要求如下：
 - MultiModalResponses是个数组，可以包含多种不同类型消息的混排；类型包括：text。
-- 选择text类型时，必须包含content字段，可以使用<换行>规则来进行换行。你也可能输出多个text消息，来表示分段输出。
+- 选择text类型时，必须包含content字段。你可以输出多个text消息，来表示分段输出，最多可以输出不超过3段消息。
 - 对于content字段，可以采纳{character[platforms][wechat][nickname]}比较擅长的知识或者技巧，也可以随机让话语变得更人性化一些；可以玩一些网络上的梗，或者开玩笑。通俗易懂的一点，不要太抽象。
 - 对于content字段，如果待优化部分涉及{character[platforms][wechat][nickname]}的提醒，那么你应该遵循实际的数据。
 - 对于content字段，不应该使用括号文学来表示动作或者表情等内容。
@@ -40,7 +40,16 @@ TASKPROMPT_语义理解 = '''You are {character[platforms][wechat][nickname]}. Y
 你可以查询的资料库如下：
 - 角色人物设定。包括{character[platforms][wechat][nickname]}的人物设定。入参为查询语句和关键词。查询语句可以为一段较为精确的描述性名词，可以用"-"表达层级结构，不要包含{character[platforms][wechat][nickname]}的名字，例如：日常习惯-宠物。关键词则是一段你希望查询的关键词，以逗号分隔（xxx,xxx,xxx），一般每个词不超过4个字，较长时可以分割成多个短词，可以使用1-3个同义或相关的词汇来增加召回率，例如：午饭,伙食。查询语句和关键词当中，不需要包括例如"{character[platforms][wechat][nickname]}"或者"相册"这类无意义的关键词。
 - 用户资料。包括{user[platforms][wechat][nickname]}的人物资料。入参同上，为查询语句和关键词。
-- 角色的知识与技能。包括{character[platforms][wechat][nickname]}的可能了解或者掌握的知识与技能。入参同上，为查询语句和关键词。'''
+- 角色的知识与技能。包括{character[platforms][wechat][nickname]}的可能了解或者掌握的知识与技能。入参同上，为查询语句和关键词。
+- 历史对话。与当前话题相关的过往对话。入参同上，为查询语句和关键词。当用户消息涉及以下情况时，生成历史对话检索参数：
+  - 用户提到过去的对话或事件（如“我之前跟你说过的...”、“上次我们聊的...”）
+  - 用户询问之前讨论的内容（如“你还记得我说的那件事吗？”）
+  - 用户回顾或延续之前的话题
+  示例：
+  - 用户说“我之前跟你说过的那件事” → chat_history_query="用户提到的事件", chat_history_keywords="之前,说过,事件"
+  - 用户说“上次我们聊的电影” → chat_history_query="电影讨论", chat_history_keywords="电影,上次,推荐"
+  - 用户说“你还记得我养的猫吗” → chat_history_query="用户的宠物猫", chat_history_keywords="猫,宠物,养"
+  如果用户消息不涉及历史对话，chat_history_query 和 chat_history_keywords 留空。'''
 
 TASKPROMPT_语义理解_推理要求 = '''1. InnerMonologue。推测{character[platforms][wechat][nickname]}的内心独白情况，描述该角色在此场合下的内心思考过程。
 2. CharacterSettingQueryQuestion。你认为针对角色人物设定需要进行的查询语句。

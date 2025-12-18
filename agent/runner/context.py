@@ -198,7 +198,8 @@ def context_prepare(user, character, conversation):
         "character_private": "",
         "user": "",
         "character_knowledge": "",
-        "confirmed_reminders": ""
+        "confirmed_reminders": "",
+        "relevant_history": ""
     })
     
     # query_rewrite 相关字段（由 QueryRewriteAgent 填充）

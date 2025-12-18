@@ -217,6 +217,87 @@ def _search_embeddings(
     return _top_n(merged_results, result_limit)
 
 
+def _search_chat_history(
+    mongo: MongoDBBase,
+    query_question: str,
+    query_keywords: str,
+    character_id: str,
+    user_id: str,
+    top_k: int = 15,
+    result_limit: int = 10
+) -> str:
+    """
+    Search for semantically relevant chat history messages.
+    
+    Args:
+        mongo: MongoDB connection
+        query_question: Question for vector search
+        query_keywords: Keywords for text search (comma-separated)
+        character_id: Character ID
+        user_id: User ID
+        top_k: Number of results for vector search
+        result_limit: Final number of results to return
+    
+    Returns:
+        Formatted string of relevant chat history messages
+    """
+    merged_results = {}
+    
+    # Build metadata filter for chat_history type
+    metadata_filter = {
+        "type": "chat_history",
+        "cid": character_id,
+        "uid": user_id
+    }
+    
+    # Skip if no query
+    if not query_question and not query_keywords:
+        return ""
+    
+    # Vector search on message content
+    if query_question:
+        emb_query = embedding_by_aliyun(query_question)
+        if emb_query:
+            results = mongo.vector_search(
+                "embeddings",
+                query_embedding=emb_query,
+                embedding_field="key_embedding",
+                metadata_filters=metadata_filter,
+                top_k=top_k,
+            )
+            merged_results = _merge_results_embedding(merged_results, results, 0.4, 1, 0.8)
+    
+    # Keyword search
+    if query_keywords:
+        for keyword in str(query_keywords).split(","):
+            keyword = keyword.strip()
+            if not keyword:
+                continue
+            keyword_results = mongo.find_many("embeddings", query={
+                "key": {"$regex": keyword, "$options": "i"},
+                "metadata": metadata_filter,
+            }, limit=5)
+            merged_results = _merge_results_text(merged_results, keyword_results, 0.5)
+    
+    # Format results with timestamp info
+    sorted_items = sorted(
+        merged_results.items(),
+        key=lambda x: x[1]['weight'],
+        reverse=True
+    )
+    
+    top_n_results = [item[1] for item in sorted_items[:result_limit]]
+    
+    # Format as string with message content
+    result_lines = []
+    for result in top_n_results:
+        message = str(result["value"]).strip()
+        if message:
+            result_lines.append(f"- {message}")
+    
+    return "\n".join(result_lines)
+
+
 def context_retrieve_tool(
     character_setting_query: str = "",
     character_setting_keywords: str = "",
@@ -224,11 +305,13 @@ def context_retrieve_tool(
     user_profile_keywords: str = "",
     character_knowledge_query: str = "",
     character_knowledge_keywords: str = "",
+    chat_history_query: str = "",
+    chat_history_keywords: str = "",
     character_id: str = "",
     user_id: str = ""
 ) -> dict:
     """
-    向量检索工具，检索角色全局设定、角色私有设定、用户资料、角色知识
+    向量检索工具，检索角色全局设定、角色私有设定、用户资料、角色知识、相关历史对话
     
     Args:
         character_setting_query: 角色设定检索问题
@@ -237,11 +320,13 @@ def context_retrieve_tool(
         user_profile_keywords: 用户资料检索关键词（逗号分隔）
         character_knowledge_query: 角色知识检索问题
         character_knowledge_keywords: 角色知识检索关键词（逗号分隔）
+        chat_history_query: 历史对话检索问题
+        chat_history_keywords: 历史对话检索关键词（逗号分隔）
         character_id: 角色ID
         user_id: 用户ID
     
     Returns:
-        检索结果 dict，包含 character_global, character_private, user, character_knowledge, confirmed_reminders 字段
+        检索结果 dict，包含 character_global, character_private, user, character_knowledge, confirmed_reminders, relevant_history 字段
     """
     mongo = MongoDBBase()
     
@@ -250,7 +335,8 @@ def context_retrieve_tool(
         "character_private": "",
         "user": "",
         "character_knowledge": "",
-        "confirmed_reminders": ""
+        "confirmed_reminders": "",
+        "relevant_history": ""
     }
     
     try:
@@ -301,6 +387,19 @@ def context_retrieve_tool(
             top_k=8,
             result_limit=6
         )
+        
+        # Chat history retrieval (semantically relevant messages)
+        if chat_history_query or chat_history_keywords:
+            return_resp["relevant_history"] = _search_chat_history(
+                mongo=mongo,
+                query_question=chat_history_query,
+                query_keywords=chat_history_keywords,
+                character_id=character_id,
+                user_id=user_id,
+                top_k=15,
+                result_limit=10
+            )
+            logger.info(f"Retrieved relevant history messages")
         
         # 用户待办提醒
         try:

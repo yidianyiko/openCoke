@@ -29,8 +29,9 @@ from agent.prompt.chat_taskprompt import (
 )
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
-    CONTEXTPROMPT_历史对话,
+    CONTEXTPROMPT_最近的历史对话,
     CONTEXTPROMPT_历史对话_精简,
+    CONTEXTPROMPT_历史最相关的十条对话,
     CONTEXTPROMPT_最新聊天消息,
     CONTEXTPROMPT_人物信息,
     CONTEXTPROMPT_人物资料,
@@ -76,7 +77,8 @@ class StreamingChatWorkflow:
         CONTEXTPROMPT_人物状态 +
         CONTEXTPROMPT_当前目标 +
         CONTEXTPROMPT_当前的人物关系 +
-        CONTEXTPROMPT_历史对话
+        CONTEXTPROMPT_历史最相关的十条对话 +
+        CONTEXTPROMPT_最近的历史对话
     )
     
     # User prompt 模板组合 - 精简版（只包含最近对话，用于主动消息/提醒）

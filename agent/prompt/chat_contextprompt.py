@@ -43,8 +43,13 @@ CONTEXTPROMPT_当前的人物关系 = '''### {character[platforms][wechat][nickn
 {character[platforms][wechat][nickname]}对{user[platforms][wechat][nickname]}的印象描述：{relation[user_info][description]}
 '''
 
-CONTEXTPROMPT_历史对话 = '''### 历史对话
+CONTEXTPROMPT_最近的历史对话 = '''### 历史对话（最近二十条）
 {conversation[conversation_info][chat_history_str]}'''
+
+# 语义检索的相关历史对话
+CONTEXTPROMPT_历史最相关的十条对话 = '''### 相关历史对话（语义检索）
+以下是与当前话题语义相关的过往对话：
+{context_retrieve[relevant_history]}'''
 
 # 精简版历史对话，用于主动消息场景（只包含最近几条消息）
 CONTEXTPROMPT_历史对话_精简 = '''### 最近对话（最近3轮）

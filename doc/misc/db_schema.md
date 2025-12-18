@@ -154,10 +154,16 @@
         # user 用户私有设定
         # character_knowledge 角色全局知识（学习，搜索等）
         # character_photo 角色全局手机相册
+        # chat_history 聊天历史（语义检索用）
         "uid": "xxx",
         "cid": "xxx",
         "url": "xxx", # 地址
         "file": "xxxx", # 文件的base64
+        # chat_history 类型特有字段：
+        "from_user": "xxx",  # 发送者ID
+        "to_user": "xxx",    # 接收者ID
+        "timestamp": xxx,    # 消息时间戳
+        "message_type": "xxx", # 消息类型：text/voice/image
     }
 }
 ```

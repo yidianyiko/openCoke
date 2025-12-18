@@ -41,6 +41,17 @@ class ContextRetrieveParams(BaseModel):
         default="",
         description="角色知识关键词，逗号分隔"
     )
+    
+    # Chat history retrieval
+    chat_history_query: str = Field(
+        default="",
+        description="历史对话检索语句，用于找回与当前话题相关的过往对话"
+    )
+    
+    chat_history_keywords: str = Field(
+        default="",
+        description="历史对话关键词，逗号分隔"
+    )
 
 
 class OrchestratorResponse(BaseModel):
