@@ -78,10 +78,7 @@ CONTEXTPROMPT_主动消息触发 = '''### 主动消息触发
 
 【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息。
 【严格禁止】请仔细查看上面的“最近对话”，如果{character[platforms][wechat][nickname]}刚刚发过类似内容的消息，你必须生成完全不同的新内容，绝对不能重复或相似。
-【要求】如果已催促多次用户仍未回复，必须：
-- 换一个完全不同的话题或角度
-- 表达理解（比如“可能你在忙”、“没事，有空再回我”）
-- 或者改为轻松问候（比如“在干嘛呢？”）'''
+'''
 
 # V2.7 新增：提醒工具结果上下文
 CONTEXTPROMPT_提醒工具结果 = '''### 提醒设置工具消息
