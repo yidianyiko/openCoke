@@ -12,7 +12,6 @@ Requirements: FR-036, FR-038
 """
 
 import logging
-import random
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents.future_message_agents import (
@@ -304,8 +303,18 @@ user_id: {user_id}
             rel["closeness"] = max(0, min(100, rel.get("closeness", 0) + closeness_change))
             rel["trustness"] = max(0, min(100, rel.get("trustness", 0) + trustness_change))
     
+    # 主动消息次数上限，达到后自动设为过期
+    MAX_PROACTIVE_TIMES = 2
+    
     def _handle_future_response(self, content: Dict, session_state: Dict) -> None:
-        """处理未来消息规划"""
+        """
+        处理未来消息规划
+        
+        规则：
+        - 每次发送主动消息后，proactive_times + 1
+        - 当 proactive_times >= MAX_PROACTIVE_TIMES (2) 时，设置 status = "expired"
+        - 避免过度打扰用户
+        """
         # 初始化 proactive_times
         future_info = session_state.get("conversation", {}).get(
             "conversation_info", {}
@@ -317,7 +326,8 @@ user_id: {user_id}
         proactive_times = future_info.get("proactive_times", 0)
         
         # 增加主动消息次数
-        future_info["proactive_times"] = proactive_times + 1
+        new_proactive_times = proactive_times + 1
+        future_info["proactive_times"] = new_proactive_times
         
         # 获取未来消息规划
         future_resp = content.get("FutureResponse", {})
@@ -328,21 +338,29 @@ user_id: {user_id}
             except Exception:
                 future_resp = {}
         
-        # 根据概率决定是否设置下一次主动消息
-        # 概率随主动消息次数指数衰减：0.15^(n+1)
-        if random.random() < (0.15 ** (proactive_times + 1)):
+        # 检查是否达到主动消息次数上限
+        if new_proactive_times >= self.MAX_PROACTIVE_TIMES:
+            # 达到上限，设置为过期状态，不再发送主动消息
+            future_info["status"] = "expired"
+            future_info["timestamp"] = None
+            future_info["action"] = None
+            logger.info(f"主动消息达到上限 ({new_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态")
+        else:
+            # 未达上限，可以继续规划下一次主动消息
             future_time_str = future_resp.get("FutureResponseTime", "")
             future_action = future_resp.get("FutureResponseAction", "无")
             
-            future_info["timestamp"] = str2timestamp(future_time_str) if future_time_str else None
-            future_info["action"] = future_action if future_action != "无" else None
-            
-            logger.info(f"设置下一次主动消息: {future_info}")
-        else:
-            # 清除未来消息规划
-            future_info["timestamp"] = None
-            future_info["action"] = None
-            logger.info("不设置下一次主动消息（概率未命中）")
+            if future_time_str and future_action != "无":
+                future_info["timestamp"] = str2timestamp(future_time_str)
+                future_info["action"] = future_action
+                future_info["status"] = "pending"
+                logger.info(f"设置下一次主动消息: {future_info}")
+            else:
+                # LLM 没有规划下一次消息
+                future_info["timestamp"] = None
+                future_info["action"] = None
+                future_info["status"] = "pending"
+                logger.info("LLM 未规划下一次主动消息")
 
 
 __all__ = [

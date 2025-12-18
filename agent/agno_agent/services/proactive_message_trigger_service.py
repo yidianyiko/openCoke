@@ -89,7 +89,7 @@ class ProactiveMessageTriggerService:
     
     def _get_due_conversations(self) -> List[Dict[str, Any]]:
         """
-        查询 future.timestamp 已到达的会话
+        查询 future.timestamp 已到达且未过期的会话
         
         Returns:
             到期会话列表
@@ -98,13 +98,16 @@ class ProactiveMessageTriggerService:
         """
         current_timestamp = int(time.time())
         
-        # 查询条件：future.timestamp 存在且小于等于当前时间
+        # 查询条件：
+        # - future.timestamp 存在且小于等于当前时间
+        # - status != "expired" 表示未达到主动消息次数上限
         query = {
             "conversation_info.future.timestamp": {
                 "$exists": True,
                 "$ne": None,
                 "$lte": current_timestamp
-            }
+            },
+            "conversation_info.future.status": {"$ne": "expired"}
         }
         
         try:
