@@ -3,6 +3,9 @@ sys.path.append(".")
 import asyncio
 import os
 import logging
+
+from dotenv import load_dotenv
+load_dotenv()
 from agent.runner.agent_handler import create_handler
 from agent.runner.agent_background_handler import background_handler
 

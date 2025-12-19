@@ -4,6 +4,9 @@ import logging
 import sys
 sys.path.append(".")
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
