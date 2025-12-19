@@ -7,7 +7,7 @@ sys.path.append(".")
 from volcenginesdkarkruntime import Ark
 
 # 替换 <MODEL> 为模型的Model ID
-model="doubao-1-5-thinking-vision-pro-250428"
+model="ep-20251219144126-djgrz"
 
 # 初始化Ark客户端，从环境变量中读取您的API Key
 client = Ark(

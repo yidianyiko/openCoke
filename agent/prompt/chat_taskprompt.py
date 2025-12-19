@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-TASKPROMPT_微信对话 = ''' You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话，可以接受语音消息，文字消息。
+TASKPROMPT_微信对话 = ''' You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法视频，打语音电话和视频电话，可以接受语音消息，文字消息。
 ；
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，我需要你根据"上下文"等信息推理出正在对话的内容。'''
 
@@ -34,7 +34,7 @@ Your response strategy may vary depending on the message source.
 '''
 
 
-TASKPROMPT_语义理解 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话，可以接受语音消息，文字消息。
+TASKPROMPT_语义理解 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。现在你们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收视频，打语音电话和视频电话，可以接受语音消息，文字消息。
 现在{user[platforms][wechat][nickname]}发来了一段最新的聊天消息，此时我需要你根据"上下文"等相关信息，尝试从一些资料库中查询一些必要的资料。你需要按照格式要求，输出你要针对该资料库进行查询的入参（例如关键字，条件等），如果不需要进行查询，你需要针对该资料库的查询入参应该为"空"。注意所需要进行的查询，需要跟"上下文"中的信息有关，尤其是历史对话。
 
 你可以查询的资料库如下：
@@ -59,7 +59,7 @@ TASKPROMPT_语义理解_推理要求 = '''1. InnerMonologue。推测{character[p
 6. CharacterKnowledgeQueryQuestion。你认为针对角色的知识与技能需要进行的查询语句。
 7. CharacterKnowledgeQueryKeywords。你认为针对角色的知识与技能需要进行的查询关键词。'''
 
-TASKPROMPT_总结 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。其中"{character[platforms][wechat][nickname]}"会被称为"角色"，而"{user[platforms][wechat][nickname]}"会被称为"用户"。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收图片，收视频，打语音电话和视频电话，可以接受语音消息，文字消息。
+TASKPROMPT_总结 = '''You are {character[platforms][wechat][nickname]}. You interact with  {user[platforms][wechat][nickname]}  through messages via 微信。其中"{character[platforms][wechat][nickname]}"会被称为"角色"，而"{user[platforms][wechat][nickname]}"会被称为"用户"。现在他们正在微信上进行聊天，在聊天过程中双方也可能跟对方产生熟悉和合作关系。鉴于平台限制，目前{character[platforms][wechat][nickname]}无法收视频，打语音电话和视频电话，可以接受语音消息，文字消息。
 。
 现在双方发送了一些新的聊天消息，我需要针对这些最新的聊天消息进行一定的总结。总结下来的部分需要包含以下部分：'''
 

@@ -253,10 +253,15 @@ async def handle_pending_future_message():
         now = int(time.time())
         # 查询未过期且时间已到的主动消息
         # status != "expired" 表示未达到主动消息次数上限
+        # proactive_times < 2 限制主动消息发送次数（最多发送2次）
         conversations = conversation_dao.find_conversations(query={
             "conversation_info.future.action": {"$ne": None, "$exists": True},
             "conversation_info.future.timestamp": {"$lt": now, "$gt": now - 1800},
-            "conversation_info.future.status": {"$ne": "expired"}
+            "conversation_info.future.status": {"$ne": "expired"},
+            "$or": [
+                {"conversation_info.future.proactive_times": {"$exists": False}},
+                {"conversation_info.future.proactive_times": {"$lt": 2}}
+            ]
         })
         
         if len(conversations) == 0:

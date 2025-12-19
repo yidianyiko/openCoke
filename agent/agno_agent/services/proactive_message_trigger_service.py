@@ -91,6 +91,8 @@ class ProactiveMessageTriggerService:
         """
         查询 future.timestamp 已到达且未过期的会话
         
+        限制：每个会话最多发送2次主动消息，超过后不再触发
+        
         Returns:
             到期会话列表
             
@@ -101,13 +103,18 @@ class ProactiveMessageTriggerService:
         # 查询条件：
         # - future.timestamp 存在且小于等于当前时间
         # - status != "expired" 表示未达到主动消息次数上限
+        # - proactive_times < 2 限制主动消息发送次数
         query = {
             "conversation_info.future.timestamp": {
                 "$exists": True,
                 "$ne": None,
                 "$lte": current_timestamp
             },
-            "conversation_info.future.status": {"$ne": "expired"}
+            "conversation_info.future.status": {"$ne": "expired"},
+            "$or": [
+                {"conversation_info.future.proactive_times": {"$exists": False}},
+                {"conversation_info.future.proactive_times": {"$lt": 2}}
+            ]
         }
         
         try:

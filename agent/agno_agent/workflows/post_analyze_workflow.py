@@ -207,8 +207,9 @@ class PostAnalyzeWorkflow:
             # 根据消息来源决定是否重置 proactive_times
             message_source = session_state.get("message_source", "user")
             if message_source == "user":
-                # 用户消息：重置主动消息次数
+                # 用户消息：重置主动消息次数和状态
                 future_info["proactive_times"] = 0
+                future_info["status"] = "pending"  # 重置状态，允许再次发送主动消息
             else:
                 # 主动消息/提醒消息：递增次数
                 future_info["proactive_times"] = future_info.get("proactive_times", 0) + 1

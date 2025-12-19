@@ -9,7 +9,8 @@ from logging import getLogger
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 import asyncio
-
+from dotenv import load_dotenv
+load_dotenv()
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import save_outputmessage
