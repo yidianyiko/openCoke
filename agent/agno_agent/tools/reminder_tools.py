@@ -369,7 +369,7 @@ def _create_reminder(
             if recurrence_type != "none":
                 recurrence_map = {"daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年"}
                 recurrence_desc = f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
-            semantic_message = f"提醒创建成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}"
+            semantic_message = f"系统动作(非用户消息)：已按照用户最新的要求创建提醒成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}"
             _save_reminder_result_to_session(semantic_message)
             
             return {
