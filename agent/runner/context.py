@@ -145,7 +145,10 @@ def context_prepare(user, character, conversation):
         relation["relationship"]["status"] = "空闲"
     
     context["conversation"]["conversation_info"]["time_str"] = timestamp2str(int(time.time()), week=True)
-    context["conversation"]["conversation_info"]["chat_history_str"] = messages_to_str(context["conversation"]["conversation_info"]["chat_history"])
+    # V2.7 优化：只取最近 15 条历史对话，减少 token 消耗
+    chat_history = context["conversation"]["conversation_info"]["chat_history"]
+    recent_chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
+    context["conversation"]["conversation_info"]["chat_history_str"] = messages_to_str(recent_chat_history)
     context["conversation"]["conversation_info"]["input_messages_str"] = messages_to_str(context["conversation"]["conversation_info"]["input_messages"])
 
     date_str = date2str(int(time.time()))

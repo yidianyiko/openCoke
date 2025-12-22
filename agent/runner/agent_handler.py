@@ -76,8 +76,8 @@ target_wechat_id = _characters_conf.get(target_user_alias)
 
 platform = "wechat"
 typing_speed = 2.2
-# V2.6 优化：减少历史对话保留轮数，从 50 降低到 20，减少 token 消耗
-max_conversation_round = 20
+# V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
+max_conversation_round = 15
 
 # ========== DAO 实例 ==========
 conversation_dao = ConversationDAO()

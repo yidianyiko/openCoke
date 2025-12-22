@@ -401,22 +401,32 @@ def context_retrieve_tool(
             )
             logger.info(f"Retrieved relevant history messages")
         
-        # 用户待办提醒
+        # 用户待办提醒 - V2.7 优化：只加载有效状态且将来会触发的提醒
         try:
             from dao.reminder_dao import ReminderDAO
             from util.time_util import format_time_friendly
+            import time
             
             reminder_dao = ReminderDAO()
-            items = reminder_dao.find_reminders_by_user(user_id, status="confirmed")
+            current_time = int(time.time())
+            
+            # 获取有效状态的提醒（confirmed 和 pending 都是有效状态）
+            all_reminders = []
+            for status in ["confirmed", "pending"]:
+                items = reminder_dao.find_reminders_by_user(user_id, status=status)
+                all_reminders.extend(items)
+            
             lines = []
-            for c in items[:50]:
+            for c in all_reminders[:30]:  # 限制最多 30 条
                 t = str(c.get("title", ""))
-                st = str(c.get("status", ""))
                 ts = int(c.get("next_trigger_time", 0) or 0)
+                
+                # 只保留将来会触发的提醒（next_trigger_time > 当前时间）
+                if ts <= current_time:
+                    continue
+                    
                 time_str = format_time_friendly(ts) if ts > 0 else ""
                 line = t
-                if st:
-                    line = line + " · " + st
                 if time_str:
                     line = line + " · " + time_str
                 lines.append(line)

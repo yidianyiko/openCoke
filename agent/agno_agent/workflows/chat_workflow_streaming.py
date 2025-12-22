@@ -31,12 +31,10 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
     CONTEXTPROMPT_最近的历史对话,
     CONTEXTPROMPT_历史对话_精简,
-    CONTEXTPROMPT_历史最相关的十条对话,
     CONTEXTPROMPT_最新聊天消息,
     CONTEXTPROMPT_人物信息,
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_用户资料,
-    CONTEXTPROMPT_待办提醒,
     CONTEXTPROMPT_人物知识和技能,
     CONTEXTPROMPT_人物状态,
     CONTEXTPROMPT_当前目标,
@@ -44,6 +42,8 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_系统提醒触发,
     CONTEXTPROMPT_主动消息触发,
     CONTEXTPROMPT_提醒工具结果,
+    get_relevant_history_context,
+    get_reminders_context,
 )
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
@@ -63,36 +63,35 @@ class StreamingChatWorkflow:
     - 使用 stream=True 调用 Agent
     - 实时解析输出，检测到完整消息立即 yield
     - 不使用 output_schema，改用标签格式
+    
+    V2.7 优化：
+    - 待办提醒和相关历史对话按需加载（仅在有内容时添加到上下文）
     """
     
-    # User prompt 模板组合 - 基础部分（包含完整历史对话，用于用户消息）
-    userp_template_base = (
+    # User prompt 模板组合 - 基础部分（不包含按需加载的上下文）
+    # V2.7 优化：移除 CONTEXTPROMPT_待办提醒 和 CONTEXTPROMPT_历史最相关的十条对话，改为按需加载
+    userp_template_base_core = (
         TASKPROMPT_微信对话 +
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物信息 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +
-        CONTEXTPROMPT_待办提醒 +
         CONTEXTPROMPT_人物知识和技能 +
         CONTEXTPROMPT_人物状态 +
         CONTEXTPROMPT_当前目标 +
-        CONTEXTPROMPT_当前的人物关系 +
-        CONTEXTPROMPT_历史最相关的十条对话 +
+        CONTEXTPROMPT_当前的人物关系
+    )
+    
+    # User prompt 模板组合 - 基础部分（包含完整历史对话，用于用户消息）
+    # 保留旧属性以兼容
+    userp_template_base = (
+        userp_template_base_core +
         CONTEXTPROMPT_最近的历史对话
     )
     
     # User prompt 模板组合 - 精简版（只包含最近对话，用于主动消息/提醒）
     userp_template_base_lite = (
-        TASKPROMPT_微信对话 +
-        CONTEXTPROMPT_时间 +
-        CONTEXTPROMPT_人物信息 +
-        CONTEXTPROMPT_人物资料 +
-        CONTEXTPROMPT_用户资料 +
-        CONTEXTPROMPT_待办提醒 +
-        CONTEXTPROMPT_人物知识和技能 +
-        CONTEXTPROMPT_人物状态 +
-        CONTEXTPROMPT_当前目标 +
-        CONTEXTPROMPT_当前的人物关系 +
+        userp_template_base_core +
         CONTEXTPROMPT_历史对话_精简
     )
     
@@ -177,8 +176,20 @@ class StreamingChatWorkflow:
             reminder_result_template = self.userp_template_reminder_result
             logger.info(f"[ChatWorkflow] 添加提醒工具结果上下文: {session_state['【提醒设置工具消息】']}")
         
-        # 组合完整模板（包含分段注意事项）
-        full_template = base_template + source_template + reminder_result_template + notice_segmentation + self.userp_template_task
+        # V2.7 优化：按需加载待办提醒和相关历史对话
+        context_retrieve = session_state.get("context_retrieve", {})
+        user_nickname = session_state.get("user", {}).get("platforms", {}).get("wechat", {}).get("nickname", "用户")
+        
+        # 按需生成待办提醒上下文
+        reminders_context = get_reminders_context(context_retrieve, user_nickname)
+        
+        # 按需生成相关历史对话上下文（仅用户消息场景）
+        relevant_history_context = ""
+        if message_source == "user":
+            relevant_history_context = get_relevant_history_context(context_retrieve)
+        
+        # 组合完整模板（包含分段注意事项和按需加载的上下文）
+        full_template = base_template + reminders_context + relevant_history_context + source_template + reminder_result_template + notice_segmentation + self.userp_template_task
         
         # 渲染 user prompt
         try:
