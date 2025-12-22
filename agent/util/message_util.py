@@ -76,7 +76,8 @@ def normal_message_to_str(message, language="cn"):
         if message["message_type"] in message_type_map:
             message_type_str = message_type_map[message["message_type"]]
 
-    return "（" + time_str + " " + talker_name + "发来了" + message_type_str + "消息）" + message["message"]
+    message_content = message.get("message", "") or ""
+    return "（" + time_str + " " + talker_name + "发来了" + message_type_str + "消息）" + message_content
 
 def reference_message_to_str(message, language="cn"):
     if "input_timestamp" in message:
@@ -92,7 +93,10 @@ def reference_message_to_str(message, language="cn"):
     talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
-    return "（" + time_str + " " + talker_name + "发来了一条引用消息）" + message["message"] + "「引用了" + message["metadata"]["reference"]["user"] + "的消息：" + message["metadata"]["reference"]["text"] + "」"
+    message_content = message.get("message", "") or ""
+    reference_user = message["metadata"]["reference"]["user"] or ""
+    reference_text = message["metadata"]["reference"]["text"] or ""
+    return "（" + time_str + " " + talker_name + "发来了一条引用消息）" + message_content + "「引用了" + reference_user + "的消息：" + reference_text + "」"
 
 def image_message_to_str(message, language="cn"):
     if "input_timestamp" in message:
@@ -111,8 +115,9 @@ def image_message_to_str(message, language="cn"):
     mongo = MongoDBBase()
     image_str = ""
 
-    if str(message["message"]).startswith(("「", "照片")) == True:
-        image_id = str(message["message"]).replace("「", "")
+    message_content = message.get("message", "") or ""
+    if str(message_content).startswith(("「", "照片")) == True:
+        image_id = str(message_content).replace("「", "")
         image_id = image_id.replace("」", "")
         image_id = image_id.replace("照片", "", 1)
 
@@ -121,7 +126,7 @@ def image_message_to_str(message, language="cn"):
         if image is not None:
             image_str = image["key"] + "：" + image["value"]
 
-    return "（" + time_str + " " + talker_name + "发来了一条图片消息）" + message["message"] + "。" + image_str
+    return "（" + time_str + " " + talker_name + "发来了一条图片消息）" + message_content + "。" + image_str
 
 # {
 #     "_id": xxx,  # 内置id

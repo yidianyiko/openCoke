@@ -64,7 +64,8 @@ def detect_repeated_input(input_messages, chat_history):
     recent_user_msgs = []
     for msg in reversed(chat_history):
         if msg.get("from_user") == current_user:
-            recent_user_msgs.append(msg.get("message", "").strip())
+            message_content = msg.get("message", "") or ""
+            recent_user_msgs.append(message_content.strip())
             if len(recent_user_msgs) >= 5:
                 break
     
