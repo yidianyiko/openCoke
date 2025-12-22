@@ -351,7 +351,9 @@ async def handle_pending_future_message():
                         "proactive_times": future_proactive_times
                     },
                     check_new_message=False,  # 系统消息不检测新消息
-                    worker_tag="[FUTURE]"
+                    worker_tag="[FUTURE]",
+                    lock_id=lock,  # 传递 lock_id 用于续期
+                    conversation_id=conversation_id
                 )
                 
                 # 内容安全审核失败，跳过后续处理
@@ -479,7 +481,9 @@ async def handle_pending_reminders():
                             "action_template": reminder_content
                         },
                         check_new_message=False,  # 系统消息不检测新消息
-                        worker_tag="[REMINDER]"
+                        worker_tag="[REMINDER]",
+                        lock_id=lock,  # 传递 lock_id 用于续期
+                        conversation_id=conversation_id
                     )
                     
                     # 内容安全审核失败，跳过后续处理

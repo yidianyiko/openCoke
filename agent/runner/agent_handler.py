@@ -67,7 +67,7 @@ post_analyze_workflow = PostAnalyzeWorkflow()
 max_handle_age = 3600 * 12  # 只处理12小时以内的消息
 MAX_RETRIES = 3             # 最大重试次数
 MAX_ROLLBACK = 3            # 最大 rollback 次数
-LOCK_TIMEOUT = 120          # 锁超时时间（秒）
+LOCK_TIMEOUT = 180          # 锁超时时间（秒）- 增加到 180 秒以覆盖完整处理周期
 HOLD_TIMEOUT = 3600         # hold 超时时间（1小时）
 
 target_user_alias = CONF.get("default_character_alias", "coke")
@@ -178,6 +178,33 @@ def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
                 result_lines.append(f"（{msg_from}发来了{msg_type}消息）{msg_content}")
     
     return "\n".join(result_lines)
+
+
+def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
+    """
+    验证当前是否仍然持有锁
+    
+    解决问题：锁超时后继续执行导致重复发送消息
+    
+    Args:
+        conversation_id: 会话ID
+        lock_id: 锁ID
+        
+    Returns:
+        bool: 是否仍然持有锁
+    """
+    if not conversation_id or not lock_id:
+        return True  # 没有锁信息时默认允许（向后兼容）
+    
+    lock_info = lock_manager.get_lock_info("conversation", conversation_id)
+    if lock_info is None:
+        logger.warning(f"锁已不存在: conversation_id={conversation_id}")
+        return False
+    if lock_info.get("lock_id") != lock_id:
+        logger.warning(f"锁已被其他 Worker 获取: conversation_id={conversation_id}, "
+                      f"expected={lock_id[:8]}, actual={lock_info.get('lock_id', 'N/A')[:8]}")
+        return False
+    return True
 
 
 def _send_single_message(context, multimodal_response, expect_output_timestamp, is_first=False):
@@ -313,6 +340,7 @@ async def handle_message(
             expect_output_timestamp = int(time.time())
             multimodal_responses_index = 0
             all_multimodal_responses = []
+            is_lock_lost = False  # 新增：锁丢失标志
             
             async for event in streaming_chat_workflow.run_stream(
                 input_message=input_message_str,
@@ -322,6 +350,13 @@ async def handle_message(
                     multimodal_response = event["data"]
                     multimodal_responses_index += 1
                     all_multimodal_responses.append(multimodal_response)
+                    
+                    # ========== 新增：发送消息前验证锁所有权 ==========
+                    if lock_id and conversation_id:
+                        if not _verify_lock_ownership(conversation_id, lock_id):
+                            logger.warning(f"{worker_tag} 锁已丢失，停止发送消息")
+                            is_lock_lost = True
+                            break
                     
                     outputmessage, expect_output_timestamp = _send_single_message(
                         context=context,
@@ -352,12 +387,21 @@ async def handle_message(
                 elif event["type"] == "error":
                     logger.error(f"{worker_tag} 流式错误: {event['data'].get('error')}")
             
+            # ========== 新增：锁丢失时标记为 rollback ==========
+            if is_lock_lost:
+                is_rollback = True
+            
             context["MultiModalResponses"] = all_multimodal_responses
             logger.info(f"{worker_tag} Phase 2: ChatWorkflow 完成")
             
             # ========== Phase 3: PostAnalyzeWorkflow ==========
             # 跳过条件：rollback、无响应消息、或内容安全审核失败
             if not is_rollback and not is_content_blocked and len(resp_messages) > 0:
+                # ========== 新增：Phase 3 前续期锁 ==========
+                if lock_id and conversation_id:
+                    lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
+                    logger.debug(f"{worker_tag} 锁续期成功 (Phase 3 前)")
+                
                 logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 开始")
                 await post_analyze_workflow.run(session_state=context)
                 logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 完成")
