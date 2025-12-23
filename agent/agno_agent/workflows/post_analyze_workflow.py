@@ -38,7 +38,6 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_最新聊天消息_双方,
 )
 from util.time_util import str2timestamp
-from conf.config import CONF
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +344,7 @@ class PostAnalyzeWorkflow:
         """
         压缩过长的关系描述（V2.8 新增）
         
-        使用 LLM 对超长的关系描述进行摘要压缩，保留关键信息。
+        使用 Agno DeepSeek 模型对超长的关系描述进行摘要压缩，保留关键信息。
         
         Args:
             description: 原始关系描述
@@ -354,12 +353,15 @@ class PostAnalyzeWorkflow:
             压缩后的关系描述
         """
         try:
-            import openai
+            from agno.models.deepseek import DeepSeek
+            from agno.agent import Agent
             
-            # 使用 DeepSeek API 进行摘要
-            client = openai.OpenAI(
-                api_key=CONF.get("deepseek", {}).get("api_key"),
-                base_url="https://api.deepseek.com"
+            # 创建轻量级压缩 Agent
+            compress_agent = Agent(
+                id="relation-compress-agent",
+                name="RelationCompressAgent",
+                model=DeepSeek(id="deepseek-chat", max_retries=1),
+                markdown=False,
             )
             
             compress_prompt = f"""请将以下关系描述压缩为不超过{self.RELATION_DESC_TARGET_LENGTH}字的摘要。
@@ -374,16 +376,15 @@ class PostAnalyzeWorkflow:
 原始描述：
 {description}"""
 
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[{"role": "user", "content": compress_prompt}],
-                max_tokens=500,
-                temperature=0.3
-            )
+            # 同步调用（压缩是轻量操作）
+            response = compress_agent.run(compress_prompt)
             
-            compressed = response.choices[0].message.content.strip()
-            logger.info(f"[关系描述压缩] {len(description)}字 -> {len(compressed)}字")
-            return compressed
+            if response and response.content:
+                compressed = str(response.content).strip()
+                logger.info(f"[关系描述压缩] {len(description)}字 -> {len(compressed)}字")
+                return compressed
+            else:
+                raise ValueError("压缩响应为空")
             
         except Exception as e:
             logger.warning(f"[关系描述压缩] 压缩失败: {e}，使用截断方式")
