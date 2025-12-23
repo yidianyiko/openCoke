@@ -452,7 +452,7 @@ def _create_reminder(
         title=title,
         trigger_time=timestamp,
         recurrence_type=recurrence_type,
-        time_tolerance=300  # 5分钟容差
+        time_tolerance=60  # 1 分钟容差（从 300 秒改为 60 秒）
     )
     
     if existing:
@@ -476,10 +476,11 @@ def _create_reminder(
         }
     
     # 2. 检查同一时间是否已有其他提醒（标题不同），如果有则追加内容
+    # 注意：时间容差设为 60 秒（1 分钟），避免误合并不同时间的提醒
     same_time_reminder = reminder_dao.find_reminder_at_same_time(
         user_id=user_id,
         trigger_time=timestamp,
-        time_tolerance=300  # 5分钟容差
+        time_tolerance=60  # 1 分钟容差（从 300 秒改为 60 秒）
     )
     
     if same_time_reminder:

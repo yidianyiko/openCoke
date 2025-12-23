@@ -409,9 +409,21 @@ async def handle_message(
                     lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT)
                     logger.debug(f"{worker_tag} 锁续期成功 (Phase 3 前)")
                 
-                logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 开始")
-                await post_analyze_workflow.run(session_state=context)
-                logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 完成")
+                # ========== V2.8 优化：提醒消息跳过 LLM 调用 ==========
+                if message_source == "reminder":
+                    # 提醒消息：跳过 LLM 分析，只更新 proactive_times
+                    conversation_info = context.get("conversation", {}).get("conversation_info", {})
+                    future_info = conversation_info.get("future", {})
+                    if "future" not in conversation_info:
+                        conversation_info["future"] = {}
+                        future_info = conversation_info["future"]
+                    future_info["proactive_times"] = future_info.get("proactive_times", 0) + 1
+                    logger.info(f"{worker_tag} Phase 3: 提醒消息，跳过 PostAnalyze LLM，proactive_times={future_info['proactive_times']}")
+                else:
+                    # 用户消息/主动消息：正常执行 PostAnalyze
+                    logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 开始")
+                    await post_analyze_workflow.run(session_state=context)
+                    logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 完成")
             elif is_content_blocked:
                 logger.warning(f"{worker_tag} 跳过 Phase 3: 内容安全审核失败")
     

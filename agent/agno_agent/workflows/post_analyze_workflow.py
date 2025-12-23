@@ -15,6 +15,9 @@ V2.5 更新：
 - 新增 relationship 更新：RelationDescription → description, Dislike → dislike
 - 修复了 PostAnalyze 输出字段与 relation 存储字段之间的映射缺失问题
 
+V2.8 更新：
+- 新增 RelationDescription 压缩机制：当描述超过阈值时，调用 LLM 进行摘要压缩
+
 Requirements: 5.3
 """
 
@@ -35,6 +38,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_最新聊天消息_双方,
 )
 from util.time_util import str2timestamp
+from conf.config import CONF
 
 logger = logging.getLogger(__name__)
 
@@ -296,12 +300,18 @@ class PostAnalyzeWorkflow:
             user_info["description"] = user_description
             logger.info(f"[用户信息更新] 描述: {user_description[:50]}...")
     
+    # RelationDescription 压缩阈值
+    RELATION_DESC_COMPRESS_THRESHOLD = 500  # 超过此长度触发压缩
+    RELATION_DESC_TARGET_LENGTH = 300       # 压缩后的目标长度
+    
     def _handle_relationship_update(self, content: Dict, session_state: Dict) -> None:
         """
-        处理关系描述和反感度更新（V2.5 新增）
+        处理关系描述和反感度更新（V2.5 新增，V2.8 增加压缩机制）
         
         将 PostAnalyze 输出的 RelationDescription 和 Dislike
         映射到 relation.relationship
+        
+        V2.8 更新：当 RelationDescription 超过阈值时，调用 LLM 进行摘要压缩
         
         Args:
             content: PostAnalyze 返回的内容
@@ -315,8 +325,13 @@ class PostAnalyzeWorkflow:
         # 更新关系描述
         relation_description = content.get("RelationDescription", "")
         if relation_description and relation_description != "无":
+            # V2.8: 检查是否需要压缩
+            if len(relation_description) > self.RELATION_DESC_COMPRESS_THRESHOLD:
+                logger.info(f"[关系更新] 描述过长({len(relation_description)}字)，触发压缩")
+                relation_description = self._compress_relation_description(relation_description)
+            
             relationship["description"] = relation_description
-            logger.info(f"[关系更新] 描述: {relation_description}")
+            logger.info(f"[关系更新] 描述: {relation_description[:100]}...")
         
         # 更新反感度
         dislike_change = content.get("Dislike", 0) or 0
@@ -325,6 +340,55 @@ class PostAnalyzeWorkflow:
             new_dislike = max(0, min(100, current_dislike + dislike_change))
             relationship["dislike"] = new_dislike
             logger.info(f"[关系更新] 反感度变化: {dislike_change}, 当前值: {new_dislike}")
+    
+    def _compress_relation_description(self, description: str) -> str:
+        """
+        压缩过长的关系描述（V2.8 新增）
+        
+        使用 LLM 对超长的关系描述进行摘要压缩，保留关键信息。
+        
+        Args:
+            description: 原始关系描述
+            
+        Returns:
+            压缩后的关系描述
+        """
+        try:
+            import openai
+            
+            # 使用 DeepSeek API 进行摘要
+            client = openai.OpenAI(
+                api_key=CONF.get("deepseek", {}).get("api_key"),
+                base_url="https://api.deepseek.com"
+            )
+            
+            compress_prompt = f"""请将以下关系描述压缩为不超过{self.RELATION_DESC_TARGET_LENGTH}字的摘要。
+
+要求：
+1. 保留关系的核心特征（如：专业督促员、朋友等）
+2. 保留最重要的关系变化节点
+3. 删除重复的"没有明显变化"等冗余信息
+4. 保留最新的关系状态
+5. 直接输出压缩后的描述，不要添加任何解释
+
+原始描述：
+{description}"""
+
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": compress_prompt}],
+                max_tokens=500,
+                temperature=0.3
+            )
+            
+            compressed = response.choices[0].message.content.strip()
+            logger.info(f"[关系描述压缩] {len(description)}字 -> {len(compressed)}字")
+            return compressed
+            
+        except Exception as e:
+            logger.warning(f"[关系描述压缩] 压缩失败: {e}，使用截断方式")
+            # 压缩失败时，简单截断保留最新部分
+            return description[-self.RELATION_DESC_TARGET_LENGTH:]
     
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """
