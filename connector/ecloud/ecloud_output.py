@@ -39,7 +39,7 @@ async def output_handler():
             "platform": "wechat",
             # "from_user": target_user_id,
             "status": "pending",
-            "expect_output_timestamp": {"$lt": now},  # 预期输出的时间戳秒级
+            "expect_output_timestamp": {"$lte": now},  # 修复：使用 $lte 而不是 $lt，确保当前时间的消息也能被发送
         })
 
         if message is None:

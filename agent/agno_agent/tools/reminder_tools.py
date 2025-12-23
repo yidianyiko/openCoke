@@ -15,13 +15,14 @@ Supports:
 
 Requirements: 3.2, 3.3, 3.4
 
-Fix: 使用线程本地存储 (Thread Local Storage) 解决多 Worker 并发时的跨用户数据污染问题
+Fix: 使用 contextvars 解决 asyncio 环境下多协程并发时的跨用户数据污染问题
+     (threading.local 只能隔离线程，无法隔离同一线程内的不同协程)
 """
 
 import logging
 import uuid
 import time
-import threading
+import contextvars
 from typing import Optional, Literal, Union
 from agno.tools import tool
 
@@ -62,37 +63,40 @@ def _parse_trigger_time(trigger_time: str, base_timestamp: Optional[int] = None)
     return None
 
 
-# 使用线程本地存储，确保每个 Worker 线程有独立的 session_state
-# 解决多 Worker 并发处理不同用户请求时的数据污染问题
-_thread_local = threading.local()
+# 使用 contextvars 存储会话状态，支持 asyncio 协程隔离
+# threading.local 只能隔离线程，无法隔离同一线程内的不同协程
+# contextvars 可以正确隔离 asyncio 中的不同协程上下文
+_context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar('session_state', default={})
+_context_session_operations: contextvars.ContextVar[list] = contextvars.ContextVar('session_operations', default=[])
 
 
 def set_reminder_session_state(session_state: dict):
     """
-    设置当前线程的会话状态，供 reminder_tool 使用
+    设置当前协程的会话状态，供 reminder_tool 使用
     
-    使用线程本地存储确保不同 Worker 线程之间的 session_state 相互隔离，
-    避免并发处理时的跨用户数据污染。
+    使用 contextvars 确保不同协程之间的 session_state 相互隔离，
+    避免 asyncio 并发处理时的跨用户数据污染。
     """
-    _thread_local.session_state = session_state or {}
-    # 每次新会话重置操作记录
-    _thread_local.session_operations = []
+    _context_session_state.set(session_state or {})
+    _context_session_operations.set([])
     
     # 记录设置的 user_id，便于调试
     user_id = str(session_state.get("user", {}).get("_id", "")) if session_state else ""
-    logger.debug(f"set_reminder_session_state: thread={threading.current_thread().name}, user_id={user_id}")
+    logger.debug(f"set_reminder_session_state: user_id={user_id}")
 
 
 def _get_current_session_state() -> dict:
-    """获取当前线程的 session_state"""
-    return getattr(_thread_local, 'session_state', {})
+    """获取当前协程的 session_state"""
+    return _context_session_state.get()
 
 
 def _get_session_operations() -> list:
-    """获取当前线程的操作记录"""
-    if not hasattr(_thread_local, 'session_operations'):
-        _thread_local.session_operations = []
-    return _thread_local.session_operations
+    """获取当前协程的操作记录"""
+    ops = _context_session_operations.get()
+    if ops is None:
+        ops = []
+        _context_session_operations.set(ops)
+    return ops
 
 
 def _check_operation_allowed(action: str) -> tuple[bool, str]:
@@ -145,19 +149,24 @@ def _get_missing_info_prompt(missing_fields: list) -> str:
     return f"需要补充: {'、'.join(prompts)}"
 
 
-def _save_reminder_result_to_session(message: str):
+def _save_reminder_result_to_session(message: str, session_state: Optional[dict] = None):
     """
     将提醒操作结果保存到 session_state，供 ChatAgent 作为上下文使用
     
     Args:
         message: 语义化的操作结果描述
+        session_state: 可选的 session_state，如果不提供则使用 contextvars
     """
-    session_state = _get_current_session_state()
+    if session_state is None:
+        session_state = _get_current_session_state()
     session_state["【提醒设置工具消息】"] = message
     logger.info(f"提醒结果已写入 session_state: {message}")
 
 
-@tool(description="""提醒管理工具，用于创建、更新、删除、查询提醒。支持单次提醒、周期提醒和时间段提醒。
+# 重要修复 (2025-12-23):
+# 添加 stop_after_tool_call=True，让 Agent 在工具执行后立即停止
+# 解决问题：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具导致无限循环
+@tool(stop_after_tool_call=True, description="""提醒管理工具，用于创建、更新、删除、查询提醒。支持单次提醒、周期提醒和时间段提醒。
 
 ## 操作类型 (action)
 - "create": 创建单个提醒
@@ -212,6 +221,7 @@ def _save_reminder_result_to_session(message: str):
 """)
 def reminder_tool(
     action: str,
+    session_state: Optional[dict] = None,  # Agno 框架会自动注入 session_state
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
     action_template: Optional[str] = None,
@@ -230,6 +240,7 @@ def reminder_tool(
     
     Args:
         action: 操作类型 - "create"、"batch"、"update"、"delete"、"list"
+        session_state: Agno 框架自动注入的会话状态
         title: 提醒标题
         trigger_time: 触发时间
         action_template: 提醒文案模板（可选）
@@ -241,8 +252,12 @@ def reminder_tool(
     Returns:
         操作结果字典
     """
-    # 获取当前线程的 session_state（线程安全）
-    current_session_state = _get_current_session_state()
+    # 优先使用 Agno 注入的 session_state，否则回退到 contextvars
+    current_session_state = session_state if session_state else _get_current_session_state()
+    
+    # 同步到 contextvars，确保内部函数也能访问到正确的 session_state
+    if session_state:
+        _context_session_state.set(session_state)
     
     # 修正 LLM 可能传递的嵌套参数格式问题
     if isinstance(action, dict) and 'action' in action:
@@ -260,13 +275,13 @@ def reminder_tool(
         _save_reminder_result_to_session(f"操作被拒绝：{error_msg}")
         return {"ok": False, "error": error_msg}
     
-    # 从线程本地 session_state 获取用户信息
+    # 从 session_state 获取用户信息
     user_id = str(current_session_state.get("user", {}).get("_id", ""))
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
     
     if not user_id and action in ["create", "batch", "list"]:
-        logger.warning(f"reminder_tool: user_id not found in session_state, thread={threading.current_thread().name}")
+        logger.warning(f"reminder_tool: user_id not found in session_state")
         return {"ok": False, "error": "无法获取用户信息，请稍后重试"}
     
     reminder_dao = ReminderDAO()
@@ -431,6 +446,7 @@ def _create_reminder(
         }
     
     # ========== 去重检查 ==========
+    # 1. 首先检查是否存在完全相同的提醒（标题+时间都相同）
     existing = reminder_dao.find_similar_reminder(
         user_id=user_id,
         title=title,
@@ -453,10 +469,48 @@ def _create_reminder(
         
         return {
             "ok": True,
+            "status": "duplicate",
             "reminder_id": existing_id,
             "duplicate": True,
             "message": f"已存在相同的提醒「{title}」，时间: {existing_time_str}"
         }
+    
+    # 2. 检查同一时间是否已有其他提醒（标题不同），如果有则追加内容
+    same_time_reminder = reminder_dao.find_reminder_at_same_time(
+        user_id=user_id,
+        trigger_time=timestamp,
+        time_tolerance=300  # 5分钟容差
+    )
+    
+    if same_time_reminder:
+        existing_id = same_time_reminder.get("reminder_id", "")
+        existing_title = same_time_reminder.get("title", "")
+        existing_time = same_time_reminder.get("next_trigger_time", 0)
+        from datetime import datetime
+        existing_time_str = datetime.fromtimestamp(existing_time).strftime('%Y年%m月%d日%H时%M分') if existing_time else ""
+        
+        # 追加新内容到已有提醒
+        append_success = reminder_dao.append_to_reminder(existing_id, title)
+        
+        if append_success:
+            new_title = f"{existing_title}；{title}"
+            logger.info(f"Appended to existing reminder: id={existing_id}, new_title={new_title}")
+            
+            semantic_message = f"提醒追加成功：在{existing_time_str}已有提醒「{existing_title}」，已追加新内容「{title}」，合并后为「{new_title}」"
+            _save_reminder_result_to_session(semantic_message)
+            
+            return {
+                "ok": True,
+                "status": "appended",
+                "reminder_id": existing_id,
+                "title": new_title,
+                "trigger_time": existing_time_str,
+                "appended_content": title,
+                "message": f"已追加到现有提醒，合并后为「{new_title}」，时间: {existing_time_str}"
+            }
+        else:
+            logger.warning(f"Failed to append to reminder: id={existing_id}")
+            # 追加失败，继续创建新提醒
     
     # 解析时间段参数
     time_period_config = None
@@ -844,7 +898,7 @@ def _batch_operations(
                 results.append(op_result)
                 continue
             
-            # 去重检查
+            # 去重检查：1. 首先检查完全相同的提醒（标题+时间都相同）
             existing = reminder_dao.find_similar_reminder(user_id, title, timestamp, recurrence_type, 300)
             if existing:
                 op_result["ok"] = True
@@ -853,6 +907,31 @@ def _batch_operations(
                 results.append(op_result)
                 success_count += 1
                 continue
+            
+            # 去重检查：2. 检查同一时间是否已有其他提醒，如果有则追加内容
+            same_time_reminder = reminder_dao.find_reminder_at_same_time(user_id, timestamp, 300)
+            if same_time_reminder:
+                existing_id = same_time_reminder.get("reminder_id", "")
+                existing_title = same_time_reminder.get("title", "")
+                existing_time = same_time_reminder.get("next_trigger_time", 0)
+                existing_time_str = datetime.fromtimestamp(existing_time).strftime('%Y年%m月%d日%H时%M分') if existing_time else ""
+                
+                # 追加新内容到已有提醒
+                append_success = reminder_dao.append_to_reminder(existing_id, title)
+                
+                if append_success:
+                    new_title = f"{existing_title}；{title}"
+                    op_result["ok"] = True
+                    op_result["status"] = "appended"
+                    op_result["reminder_id"] = existing_id
+                    op_result["title"] = new_title
+                    op_result["trigger_time"] = existing_time_str
+                    op_result["appended_content"] = title
+                    success_count += 1
+                    results.append(op_result)
+                    logger.info(f"Batch appended to existing reminder: id={existing_id}, new_title={new_title}")
+                    continue
+                # 追加失败，继续创建新提醒
             
             # 创建
             reminder_id = str(uuid.uuid4())
@@ -974,6 +1053,8 @@ def _batch_operations(
     
     # 构建语义化消息
     created = [r for r in results if r.get("status") == "created"]
+    appended = [r for r in results if r.get("status") == "appended"]
+    duplicate = [r for r in results if r.get("status") == "duplicate"]
     updated = [r for r in results if r.get("status") == "updated"]
     deleted = [r for r in results if r.get("status") == "deleted"]
     failed = [r for r in results if not r.get("ok")]
@@ -981,6 +1062,10 @@ def _batch_operations(
     msg_parts = []
     if created:
         msg_parts.append(f"创建{len(created)}个提醒")
+    if appended:
+        msg_parts.append(f"追加{len(appended)}个提醒")
+    if duplicate:
+        msg_parts.append(f"跳过{len(duplicate)}个重复提醒")
     if updated:
         msg_parts.append(f"更新{len(updated)}个提醒")
     if deleted:
@@ -998,6 +1083,8 @@ def _batch_operations(
             "total": len(operations_list),
             "success": success_count,
             "created": len(created),
+            "appended": len(appended),
+            "duplicate": len(duplicate),
             "updated": len(updated),
             "deleted": len(deleted),
             "failed": len(failed)

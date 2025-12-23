@@ -301,6 +301,13 @@ async def handle_message(
     # 将 proactive_times 放到顶层，供模板使用
     context["proactive_times"] = (metadata or {}).get("proactive_times", 0)
     
+    # ========== 新增：将锁信息放入 context，供 PrepareWorkflow 续期使用 ==========
+    # 解决问题：ReminderDetectAgent 执行时间过长导致锁过期
+    if lock_id:
+        context["lock_id"] = lock_id
+    if conversation_id:
+        context["conversation_id"] = conversation_id
+    
     # 提取最近的对话历史（精简版），用于主动消息/提醒消息场景
     recent_chat_history = _extract_recent_chat_history(
         conversation.get("conversation_info", {}).get("chat_history", []),

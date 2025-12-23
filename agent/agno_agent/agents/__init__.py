@@ -141,6 +141,13 @@ query_rewrite_agent = Agent(
 
 # ReminderDetectAgent - 提醒检测，识别提醒意图并创建提醒
 # Requirements: 4.2
+# 
+# 重要修复 (2025-12-23):
+# - 在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
+# - 问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
+#   导致大量无效的 API 请求（观察到单次处理 50+ 次 POST 请求）
+# - tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
+# - stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",

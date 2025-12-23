@@ -183,6 +183,17 @@ class PrepareWorkflow:
                 # 设置 session_state 供 reminder_tool 使用
                 set_reminder_session_state(session_state)
                 
+                # ========== 新增：ReminderDetectAgent 执行前续期锁 ==========
+                # 解决问题：ReminderDetectAgent 可能执行较长时间（特别是之前存在无限循环问题时）
+                # 导致锁过期，其他 Worker 获取锁后重复处理同一消息
+                lock_id = session_state.get("lock_id")
+                conversation_id = session_state.get("conversation_id")
+                if lock_id and conversation_id:
+                    from dao.lock import MongoDBLockManager
+                    lock_manager = MongoDBLockManager()
+                    lock_manager.renew_lock("conversation", conversation_id, lock_id, timeout=180)
+                    logger.debug("[PrepareWorkflow] 锁续期成功 (ReminderDetectAgent 前)")
+                
                 # 构建 ReminderDetectAgent 输入：当前消息 + 最近5条对话上下文
                 reminder_input = self._build_reminder_input(input_message, session_state)
                 

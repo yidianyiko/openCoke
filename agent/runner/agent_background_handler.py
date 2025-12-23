@@ -59,7 +59,7 @@ HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 # ========== 锁获取失败冷却机制 ==========
 # 记录 {conversation_id: last_failed_time} 用于避免频繁重试
 _lock_cooldown_cache: dict[str, float] = {}
-LOCK_COOLDOWN_SECONDS = 30  # 锁获取失败后的冷却时间（秒）
+LOCK_COOLDOWN_SECONDS = 5  # 锁获取失败后的冷却时间（秒），缩短以提高提醒及时性
 
 
 def _cleanup_cooldown_cache():
@@ -421,7 +421,18 @@ async def handle_pending_reminders():
         if len(reminders) == 0:
             return
         
-        logger.info(f"发现 {len(reminders)} 个待触发的提醒")
+        # 检查是否所有提醒都在冷却期内，避免重复日志
+        all_in_cooldown = True
+        for reminder in reminders:
+            conversation_id = reminder.get("conversation_id")
+            if conversation_id:
+                last_failed = _lock_cooldown_cache.get(conversation_id, 0)
+                if time.time() - last_failed >= LOCK_COOLDOWN_SECONDS:
+                    all_in_cooldown = False
+                    break
+        
+        if not all_in_cooldown:
+            logger.info(f"发现 {len(reminders)} 个待触发的提醒")
         
         for reminder in reminders:
             await _process_single_reminder(reminder, now, reminder_dao)
