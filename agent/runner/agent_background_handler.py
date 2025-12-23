@@ -403,12 +403,12 @@ async def handle_pending_future_message():
 
 async def handle_pending_reminders():
     """
-    处理待触发的提醒任务 (V2.4 - 使用统一入口)
+    处理待触发的提醒任务 (V2.8 - 支持时间段提醒)
     
     使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
     """
     from dao.reminder_dao import ReminderDAO
-    from util.time_util import calculate_next_recurrence
+    from util.time_util import calculate_next_recurrence, is_within_time_period, calculate_next_period_trigger
     from agent.runner.context import context_prepare
     
     reminder_dao = ReminderDAO()
@@ -424,153 +424,312 @@ async def handle_pending_reminders():
         logger.info(f"发现 {len(reminders)} 个待触发的提醒")
         
         for reminder in reminders:
-            conversation_id = None
-            try:
-                conversation_id = reminder["conversation_id"]
-                
-                # ========== 冷却机制：避免频繁重试同一个锁 ==========
-                now_time = time.time()
-                last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-                if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
-                    # 仍在冷却期内，静默跳过
-                    continue
-                
-                # 使用异步锁获取
-                lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
-                if lock is None:
-                    # 记录失败时间，进入冷却期
-                    _lock_cooldown_cache[conversation_id] = now_time
-                    logger.info(f"[REMINDER] 获取锁失败，进入 {LOCK_COOLDOWN_SECONDS}s 冷却期: conversation_id={conversation_id}")
-                    continue
-                
-                # 成功获取锁，清除冷却记录
-                _lock_cooldown_cache.pop(conversation_id, None)
-                
-                conversation = conversation_dao.get_conversation_by_id(conversation_id)
-                if not conversation:
-                    continue
-                
-                user = user_dao.get_user_by_id(reminder["user_id"])
-                character = user_dao.get_user_by_id(reminder["character_id"])
-                if not user or not character:
-                    continue
-                
-                context = context_prepare(user, character, conversation)
-                
-                if context["relation"]["relationship"]["dislike"] >= 100:
-                    reminder_dao.cancel_reminder(reminder["reminder_id"])
-                    continue
-                
-                # ========== 使用统一入口 handle_message ==========
-                try:
-                    # 构造系统消息
-                    reminder_title = reminder.get("title", "提醒")
-                    reminder_content = reminder.get("action_template", reminder_title)
-                    input_message_str = f"[系统提醒触发] {reminder_content}"
-                    
-                    logger.info(f"[REMINDER] 开始处理提醒: {reminder_title}")
-                    resp_messages, context, _, is_content_blocked = await handle_message(
-                        user=user,
-                        character=character,
-                        conversation=conversation,
-                        input_message_str=input_message_str,
-                        message_source="reminder",
-                        metadata={
-                            "reminder_id": reminder["reminder_id"],
-                            "title": reminder_title,
-                            "action_template": reminder_content
-                        },
-                        check_new_message=False,  # 系统消息不检测新消息
-                        worker_tag="[REMINDER]",
-                        lock_id=lock,  # 传递 lock_id 用于续期
-                        conversation_id=conversation_id
-                    )
-                    
-                    # 内容安全审核失败，跳过后续处理
-                    if is_content_blocked:
-                        logger.warning(f"[REMINDER] 内容安全审核失败，跳过提醒处理")
-                        continue
-                    
-                    logger.info(f"[REMINDER] 提醒处理完成，发送 {len(resp_messages)} 条消息")
-                    
-                    if not resp_messages:
-                        reminder_dao.complete_reminder(reminder["reminder_id"])
-                        continue
-                    
-                    # 更新会话历史
-                    conversation = context["conversation"]
-                    for resp_message in resp_messages:
-                        conversation["conversation_info"]["chat_history"].append(resp_message)
-                    
-                    if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
-                        conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
-                    
-                    conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
-                    
-                    # 更新关系
-                    relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
-                    mongo.replace_one(
-                        "relations", 
-                        query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
-                        update=relation_update
-                    )
-                    
-                except Exception as e:
-                    logger.error(f"[REMINDER] handle_message failed: {e}")
-                    logger.error(traceback.format_exc())
-                    # ========== 修改：提醒处理失败时不直接标记完成，保留重试机会 ==========
-                    # 解决问题 B5: 提醒处理失败时直接标记完成，可能丢失提醒
-                    # 保持 confirmed 状态，下次轮询时会重新尝试
-                    # 如果连续失败多次，可以考虑增加 retry_count 字段
-                    logger.warning(f"[REMINDER] 提醒处理失败，保留 confirmed 状态等待重试: {reminder['reminder_id']}")
-                    continue
-                
-                # 先标记为已触发（增加触发计数）
-                reminder_dao.mark_as_triggered(reminder["reminder_id"])
-                
-                # 处理周期提醒
-                recurrence = reminder.get("recurrence", {})
-                if recurrence.get("enabled"):
-                    next_time = calculate_next_recurrence(
-                        reminder["next_trigger_time"],
-                        recurrence.get("type", "daily"),
-                        recurrence.get("interval", 1)
-                    )
-                    
-                    if next_time:
-                        end_time = recurrence.get("end_time")
-                        max_count = recurrence.get("max_count")
-                        triggered_count = reminder.get("triggered_count", 0) + 1
-                        
-                        should_continue = True
-                        if end_time and next_time > end_time:
-                            should_continue = False
-                        if max_count and triggered_count >= max_count:
-                            should_continue = False
-                        
-                        if should_continue:
-                            # 周期提醒：重新调度到下次触发时间，状态改回 confirmed
-                            reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
-                        else:
-                            # 周期结束：标记为完成
-                            reminder_dao.complete_reminder(reminder["reminder_id"])
-                    else:
-                        reminder_dao.complete_reminder(reminder["reminder_id"])
-                else:
-                    # 非周期提醒：触发后直接标记为完成
-                    reminder_dao.complete_reminder(reminder["reminder_id"])
-                
-            except Exception as e:
-                logger.error(f"处理提醒失败: {traceback.format_exc()}")
-            finally:
-                if lock and conversation_id:
-                    # 使用安全锁释放
-                    released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock)
-                    if not released:
-                        logger.warning(f"[REMINDER] 锁释放异常: {reason}")
-                    lock = None
+            await _process_single_reminder(reminder, now, reminder_dao)
     
     except Exception as e:
         logger.error(f"提醒处理异常: {traceback.format_exc()}")
+    finally:
+        reminder_dao.close()
+
+
+async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> None:
+    """处理单个提醒项
+    
+    Args:
+        reminder: 提醒文档
+        now: 当前时间戳
+        reminder_dao: 提醒DAO实例
+    """
+    conversation_id = None
+    lock = None
+    
+    try:
+        conversation_id = reminder["conversation_id"]
+        
+        # 检查时间段限制
+        if not await _check_time_period_and_reschedule(reminder, now, reminder_dao):
+            return  # 不在时间段内，已重新安排
+        
+        # 检查锁和冷却机制
+        lock = await _acquire_reminder_lock(conversation_id)
+        if lock is None:
+            return  # 获取锁失败
+        
+        # 获取会话和用户信息
+        conversation, user, character = await _get_reminder_context(conversation_id, reminder)
+        if not all([conversation, user, character]):
+            return  # 上下文获取失败
+        
+        # 检查用户关系状态
+        if _should_cancel_reminder_for_user(user, character, conversation):
+            reminder_dao.cancel_reminder(reminder["reminder_id"])
+            return
+        
+        # 处理提醒消息
+        await _handle_reminder_message(reminder, user, character, conversation, lock, conversation_id)
+        
+    except Exception as e:
+        logger.error(f"处理提醒失败: {traceback.format_exc()}")
+    finally:
+        if lock and conversation_id:
+            # 使用安全锁释放
+            released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock)
+            if not released:
+                logger.warning(f"[REMINDER] 锁释放异常: {reason}")
+
+
+async def _check_time_period_and_reschedule(reminder: dict, now: int, reminder_dao) -> bool:
+    """检查时间段限制并重新安排提醒
+    
+    Args:
+        reminder: 提醒文档
+        now: 当前时间戳
+        reminder_dao: 提醒DAO实例
+        
+    Returns:
+        bool: True表示可以继续处理，False表示已重新安排
+    """
+    from util.time_util import is_within_time_period, calculate_next_period_trigger
+    
+    time_period = reminder.get("time_period", {})
+    if time_period.get("enabled"):
+        # 检查当前时间是否在时间段内
+        if not is_within_time_period(
+            now,
+            time_period["start_time"],
+            time_period["end_time"],
+            time_period.get("active_days"),
+            time_period.get("timezone", "Asia/Shanghai")
+        ):
+            # 不在时间段内，重新计算下次触发时间
+            logger.info(f"[REMINDER] 提醒 {reminder['reminder_id']} 不在时间段内，重新计算下次触发时间")
+            recurrence = reminder.get("recurrence", {})
+            if recurrence.get("enabled") and recurrence.get("type") == "interval":
+                next_time = calculate_next_period_trigger(
+                    now,
+                    recurrence.get("interval", 30),
+                    time_period["start_time"],
+                    time_period["end_time"],
+                    time_period.get("active_days"),
+                    time_period.get("timezone", "Asia/Shanghai")
+                )
+                if next_time:
+                    reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
+                    logger.info(f"[REMINDER] 已重新安排到下一个时间段: {next_time}")
+                else:
+                    logger.warning(f"[REMINDER] 无法计算下次触发时间，标记为完成")
+                    reminder_dao.complete_reminder(reminder["reminder_id"])
+            return False
+    return True
+
+
+async def _acquire_reminder_lock(conversation_id: str):
+    """获取提醒处理锁
+    
+    Args:
+        conversation_id: 会话ID
+        
+    Returns:
+        lock object or None if failed
+    """
+    # 冷却机制：避免频繁重试同一个锁
+    now_time = time.time()
+    last_failed = _lock_cooldown_cache.get(conversation_id, 0)
+    if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
+        # 仍在冷却期内，静默跳过
+        return None
+    
+    # 使用异步锁获取
+    lock = await lock_manager.acquire_lock_async("conversation", conversation_id, timeout=120, max_wait=1)
+    if lock is None:
+        # 记录失败时间，进入冷却期
+        _lock_cooldown_cache[conversation_id] = now_time
+        logger.info(f"[REMINDER] 获取锁失败，进入 {LOCK_COOLDOWN_SECONDS}s 冷却期: conversation_id={conversation_id}")
+        return None
+    
+    # 成功获取锁，清除冷却记录
+    _lock_cooldown_cache.pop(conversation_id, None)
+    return lock
+
+
+async def _get_reminder_context(conversation_id: str, reminder: dict):
+    """获取提醒处理所需的上下文信息
+    
+    Args:
+        conversation_id: 会话ID
+        reminder: 提醒文档
+        
+    Returns:
+        tuple: (conversation, user, character) or (None, None, None) if failed
+    """
+    conversation = conversation_dao.get_conversation_by_id(conversation_id)
+    if not conversation:
+        return None, None, None
+    
+    user = user_dao.get_user_by_id(reminder["user_id"])
+    character = user_dao.get_user_by_id(reminder["character_id"])
+    if not user or not character:
+        return None, None, None
+    
+    return conversation, user, character
+
+
+def _should_cancel_reminder_for_user(user, character, conversation):
+    """检查是否应该取消提醒（如用户被拉黑）
+    
+    Args:
+        user: 用户信息
+        character: 角色信息
+        conversation: 会话信息
+        
+    Returns:
+        bool: True表示应该取消
+    """
+    from agent.runner.context import context_prepare
+    context = context_prepare(user, character, conversation)
+    return context["relation"]["relationship"]["dislike"] >= 100
+
+
+async def _handle_reminder_message(reminder: dict, user, character, conversation, lock, conversation_id):
+    """处理提醒消息的发送和后续逻辑
+    
+    Args:
+        reminder: 提醒文档
+        user: 用户信息
+        character: 角色信息
+        conversation: 会话信息
+        lock: 锁对象
+        conversation_id: 会话ID
+    """
+    from agent.runner.agent_handler import handle_message
+    
+    try:
+        # 构造系统消息
+        reminder_title = reminder.get("title", "提醒")
+        reminder_content = reminder.get("action_template", reminder_title)
+        input_message_str = f"[系统提醒触发] {reminder_content}"
+        
+        logger.info(f"[REMINDER] 开始处理提醒: {reminder_title}")
+        resp_messages, context, _, is_content_blocked = await handle_message(
+            user=user,
+            character=character,
+            conversation=conversation,
+            input_message_str=input_message_str,
+            message_source="reminder",
+            metadata={
+                "reminder_id": reminder["reminder_id"],
+                "title": reminder_title,
+                "action_template": reminder_content
+            },
+            check_new_message=False,  # 系统消息不检测新消息
+            worker_tag="[REMINDER]",
+            lock_id=lock,  # 传递 lock_id 用于续期
+            conversation_id=conversation_id
+        )
+        
+        # 内容安全审核失败，跳过后续处理
+        if is_content_blocked:
+            logger.warning(f"[REMINDER] 内容安全审核失败，跳过提醒处理")
+            return
+        
+        logger.info(f"[REMINDER] 提醒处理完成，发送 {len(resp_messages)} 条消息")
+        
+        if not resp_messages:
+            from dao.reminder_dao import ReminderDAO
+            reminder_dao = ReminderDAO()
+            try:
+                reminder_dao.complete_reminder(reminder["reminder_id"])
+            finally:
+                reminder_dao.close()
+            return
+        
+        # 更新会话历史
+        conversation = context["conversation"]
+        for resp_message in resp_messages:
+            conversation["conversation_info"]["chat_history"].append(resp_message)
+        
+        if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
+            conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+        
+        conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
+        
+        # 更新关系
+        relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+        mongo.replace_one(
+            "relations", 
+            query={"uid": context["relation"]["uid"], "cid": context["relation"]["cid"]},
+            update=relation_update
+        )
+        
+        # 标记为已触发并处理周期逻辑
+        _handle_reminder_completion(reminder, conversation_id)
+        
+    except Exception as e:
+        logger.error(f"[REMINDER] handle_message failed: {e}")
+        logger.error(traceback.format_exc())
+        logger.warning(f"[REMINDER] 提醒处理失败，保留 confirmed 状态等待重试: {reminder['reminder_id']}")
+
+
+def _handle_reminder_completion(reminder: dict, conversation_id: str):
+    """处理提醒完成后的状态更新和周期计算
+    
+    Args:
+        reminder: 提醒文档
+        conversation_id: 会话ID
+    """
+    from dao.reminder_dao import ReminderDAO
+    from util.time_util import calculate_next_recurrence, calculate_next_period_trigger
+    
+    reminder_dao = ReminderDAO()
+    try:
+        # 先标记为已触发（增加触发计数）
+        reminder_dao.mark_as_triggered(reminder["reminder_id"])
+        
+        # 处理周期提醒
+        recurrence = reminder.get("recurrence", {})
+        if recurrence.get("enabled"):
+            now = int(time.time())
+            time_period = reminder.get("time_period", {})
+            
+            # 时间段提醒使用特殊的计算逻辑
+            if time_period.get("enabled") and recurrence.get("type") == "interval":
+                next_time = calculate_next_period_trigger(
+                    now,
+                    recurrence.get("interval", 30),
+                    time_period["start_time"],
+                    time_period["end_time"],
+                    time_period.get("active_days"),
+                    time_period.get("timezone", "Asia/Shanghai")
+                )
+            else:
+                # 普通周期提醒
+                next_time = calculate_next_recurrence(
+                    reminder["next_trigger_time"],
+                    recurrence.get("type", "daily"),
+                    recurrence.get("interval", 1)
+                )
+            
+            if next_time:
+                end_time = recurrence.get("end_time")
+                max_count = recurrence.get("max_count")
+                triggered_count = reminder.get("triggered_count", 0) + 1
+                
+                should_continue = True
+                if end_time and next_time > end_time:
+                    should_continue = False
+                if max_count and triggered_count >= max_count:
+                    should_continue = False
+                
+                if should_continue:
+                    # 周期提醒：重新调度到下次触发时间，状态改回 confirmed
+                    reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
+                else:
+                    # 周期结束：标记为完成
+                    reminder_dao.complete_reminder(reminder["reminder_id"])
+            else:
+                reminder_dao.complete_reminder(reminder["reminder_id"])
+        else:
+            # 非周期提醒：触发后直接标记为完成
+            reminder_dao.complete_reminder(reminder["reminder_id"])
     finally:
         reminder_dao.close()

@@ -189,6 +189,8 @@ class PrepareWorkflow:
                 # 打印发送给 ReminderDetectAgent 的输入（便于调试）
                 logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT:\n{'='*50}\n{reminder_input}\n{'='*50}")
                 
+                # 注意：不再临时修改共享 Agent 的 instructions，避免多 Worker 并发时的竞态条件
+                # 时间信息已经包含在 reminder_input (user prompt) 中
                 await reminder_detect_agent.arun(
                     input=reminder_input,
                     session_state=session_state

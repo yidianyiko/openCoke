@@ -191,3 +191,105 @@ def format_time_friendly(timestamp):
         return f"{weekday}{time_str}"
     else:
         return f"{dt.month}月{dt.day}日{time_str}"
+
+
+def is_within_time_period(
+    timestamp: int,
+    start_time: str,
+    end_time: str,
+    active_days: list = None,
+    timezone: str = "Asia/Shanghai"
+) -> bool:
+    """
+    判断给定时间戳是否在指定时间段内
+    
+    Args:
+        timestamp: Unix 时间戳
+        start_time: 开始时间 "HH:MM"
+        end_time: 结束时间 "HH:MM"
+        active_days: 生效的星期几列表 [1-7]，None 表示每天
+        timezone: 时区
+    
+    Returns:
+        bool: 是否在时间段内
+    """
+    dt = datetime.fromtimestamp(timestamp)
+    
+    # 检查星期几
+    if active_days:
+        weekday = dt.isoweekday()  # 1=周一, 7=周日
+        if weekday not in active_days:
+            return False
+    
+    # 解析时间
+    start_h, start_m = map(int, start_time.split(":"))
+    end_h, end_m = map(int, end_time.split(":"))
+    
+    current_minutes = dt.hour * 60 + dt.minute
+    start_minutes = start_h * 60 + start_m
+    end_minutes = end_h * 60 + end_m
+    
+    return start_minutes <= current_minutes <= end_minutes
+
+
+def calculate_next_period_trigger(
+    current_time: int,
+    interval_minutes: int,
+    start_time: str,
+    end_time: str,
+    active_days: list = None,
+    timezone: str = "Asia/Shanghai"
+) -> int:
+    """
+    计算时间段提醒的下次触发时间
+    
+    逻辑：
+    1. 如果当前在时间段内，返回 current + interval
+    2. 如果当前在时间段外，返回下一个有效时间段的开始时间
+    3. 如果下次触发超出今天时间段，跳到下一个有效日期
+    
+    Args:
+        current_time: 当前时间戳
+        interval_minutes: 间隔分钟数
+        start_time: 时间段开始 "HH:MM"
+        end_time: 时间段结束 "HH:MM"
+        active_days: 生效的星期几 [1-7]
+        timezone: 时区
+    
+    Returns:
+        int: 下次触发的 Unix 时间戳，或 None（如果无法计算）
+    """
+    from datetime import time as dt_time
+    
+    dt = datetime.fromtimestamp(current_time)
+    
+    start_h, start_m = map(int, start_time.split(":"))
+    end_h, end_m = map(int, end_time.split(":"))
+    
+    # 尝试最多7天
+    for day_offset in range(8):
+        check_date = dt.date() + timedelta(days=day_offset)
+        check_dt = datetime.combine(check_date, dt.time()) if day_offset == 0 else datetime.combine(check_date, dt_time(start_h, start_m))
+        check_weekday = check_dt.isoweekday()
+        
+        # 检查是否是有效日期
+        if active_days and check_weekday not in active_days:
+            continue
+        
+        # 计算该日期的时间段
+        period_start = datetime.combine(check_date, dt_time(start_h, start_m))
+        period_end = datetime.combine(check_date, dt_time(end_h, end_m))
+        
+        if day_offset == 0:
+            # 今天：检查是否还在时间段内
+            next_trigger = dt + timedelta(minutes=interval_minutes)
+            if period_start <= next_trigger <= period_end:
+                return int(next_trigger.timestamp())
+            elif dt < period_start:
+                # 还没到开始时间
+                return int(period_start.timestamp())
+        else:
+            # 未来的日期：返回时间段开始时间
+            return int(period_start.timestamp())
+    
+    return None

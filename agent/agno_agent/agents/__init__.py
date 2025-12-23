@@ -146,7 +146,7 @@ reminder_detect_agent = Agent(
     name="ReminderDetectAgent",
     model=create_deepseek_model(),
     tools=[reminder_tool],
-    tool_call_limit=5, 
+    tool_call_limit=1,  # 限制为1次调用，使用 batch_create 处理多任务
     instructions=get_reminder_detect_instructions(),
     markdown=False,
 )
