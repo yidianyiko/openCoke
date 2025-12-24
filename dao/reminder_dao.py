@@ -286,6 +286,24 @@ class ReminderDAO:
         result = self.collection.delete_one({"reminder_id": reminder_id})
         return result.deleted_count > 0
     
+    def delete_all_by_user(self, user_id: str) -> int:
+        """
+        删除用户的所有待办提醒
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            int: 删除的提醒数量
+        """
+        # 只删除有效状态的提醒（confirmed/pending）
+        result = self.collection.delete_many({
+            "user_id": user_id,
+            "status": {"$in": ["confirmed", "pending"]}
+        })
+        logger.info(f"Deleted {result.deleted_count} reminders for user {user_id}")
+        return result.deleted_count
+    
     def close(self):
         """关闭数据库连接"""
         self.client.close()

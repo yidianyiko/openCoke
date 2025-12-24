@@ -149,18 +149,80 @@ def _get_missing_info_prompt(missing_fields: list) -> str:
     return f"需要补充: {'、'.join(prompts)}"
 
 
-def _save_reminder_result_to_session(message: str, session_state: Optional[dict] = None):
+def _build_tool_execution_context(
+    user_intent: str,
+    action_executed: str,
+    intent_fulfilled: bool,
+    result_summary: str,
+    details: Optional[dict] = None
+) -> dict:
+    """
+    构建结构化的工具执行上下文
+    
+    Args:
+        user_intent: 从用户消息中识别的意图
+        action_executed: 实际执行的操作
+        intent_fulfilled: 布尔值，意图是否被满足
+        result_summary: 执行结果的语义化描述
+        details: 可选的额外详情（如创建的提醒ID、删除的数量等）
+        
+    Returns:
+        结构化的工具执行上下文字典
+    """
+    context = {
+        "user_intent": user_intent,
+        "action_executed": action_executed,
+        "intent_fulfilled": intent_fulfilled,
+        "result_summary": result_summary,
+    }
+    if details:
+        context["details"] = details
+    return context
+
+
+def _save_reminder_result_to_session(
+    message: str, 
+    session_state: Optional[dict] = None,
+    user_intent: Optional[str] = None,
+    action_executed: Optional[str] = None,
+    intent_fulfilled: bool = True,
+    details: Optional[dict] = None
+):
     """
     将提醒操作结果保存到 session_state，供 ChatAgent 作为上下文使用
     
     Args:
         message: 语义化的操作结果描述
         session_state: 可选的 session_state，如果不提供则使用 contextvars
+        user_intent: 从用户消息中识别的意图（可选，用于结构化上下文）
+        action_executed: 实际执行的操作（可选，用于结构化上下文）
+        intent_fulfilled: 意图是否被满足，默认 True
+        details: 可选的额外详情
     """
     if session_state is None:
         session_state = _get_current_session_state()
+    
+    # 保留原有的语义化消息（向后兼容）
     session_state["【提醒设置工具消息】"] = message
+    
+    # 新增：结构化工具执行上下文
+    # 从 session_state 获取用户意图（如果未提供）
+    if user_intent is None:
+        user_intent = session_state.get("detected_user_intent", "未识别")
+    if action_executed is None:
+        action_executed = "unknown"
+    
+    tool_execution_context = _build_tool_execution_context(
+        user_intent=user_intent,
+        action_executed=action_executed,
+        intent_fulfilled=intent_fulfilled,
+        result_summary=message,
+        details=details
+    )
+    session_state["tool_execution_context"] = tool_execution_context
+    
     logger.info(f"提醒结果已写入 session_state: {message}")
+    logger.debug(f"工具执行上下文: {tool_execution_context}")
 
 
 # 重要修复 (2025-12-23):
@@ -337,7 +399,8 @@ def reminder_tool(
         elif action == "delete":
             return _delete_reminder(
                 reminder_dao=reminder_dao,
-                reminder_id=reminder_id
+                reminder_id=reminder_id,
+                user_id=user_id
             )
         
         elif action == "list":
@@ -404,7 +467,13 @@ def _create_reminder(
         # 构建语义化消息
         missing_desc = "、".join(["提醒内容" if f == "title" else "提醒时间" for f in missing_fields])
         semantic_message = f"信息不足：用户想设置提醒，但缺少【{missing_desc}】，请询问用户补充"
-        _save_reminder_result_to_session(semantic_message)
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="创建提醒",
+            action_executed="create",
+            intent_fulfilled=False,
+            details={"missing_fields": missing_fields, "draft": draft_info}
+        )
         
         return {
             "ok": True,
@@ -429,7 +498,13 @@ def _create_reminder(
     
     if not timestamp:
         semantic_message = f"提醒创建失败：无法解析时间「{trigger_time}」，请使用格式如 '30分钟后' 或 '2025年12月09日15时00分'"
-        _save_reminder_result_to_session(semantic_message)
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="创建提醒",
+            action_executed="create",
+            intent_fulfilled=False,
+            details={"error": "time_parse_failed", "trigger_time": trigger_time}
+        )
         return {"ok": False, "error": f"无法解析时间: {trigger_time}，请使用格式如 '30分钟后' 或 '2025年12月09日15时00分'"}
     
     # Validate timestamp is in the future
@@ -438,7 +513,13 @@ def _create_reminder(
         trigger_time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
         current_time_str = datetime.fromtimestamp(current_time).strftime('%H时%M分')
         semantic_message = f"提醒创建失败：触发时间 {trigger_time_str} 已经过去（当前时间 {current_time_str}），请用户设置一个未来的时间"
-        _save_reminder_result_to_session(semantic_message)
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="创建提醒",
+            action_executed="create",
+            intent_fulfilled=False,
+            details={"error": "time_in_past", "trigger_time": trigger_time_str}
+        )
         return {
             "ok": False, 
             "error": f"触发时间 {trigger_time_str} 已经过去（当前时间 {current_time_str}），请设置一个未来的时间",
@@ -465,7 +546,13 @@ def _create_reminder(
         
         # 语义化输出重复提醒信息
         semantic_message = f"重复提醒：用户已有相同的提醒「{title}」({existing_time_str})，无需重复创建"
-        _save_reminder_result_to_session(semantic_message)
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="创建提醒",
+            action_executed="create",
+            intent_fulfilled=True,  # 虽然没创建新的，但用户的意图（有这个提醒）已满足
+            details={"status": "duplicate", "existing_id": existing_id, "title": title}
+        )
         
         return {
             "ok": True,
@@ -498,7 +585,13 @@ def _create_reminder(
             logger.info(f"Appended to existing reminder: id={existing_id}, new_title={new_title}")
             
             semantic_message = f"提醒追加成功：在{existing_time_str}已有提醒「{existing_title}」，已追加新内容「{title}」，合并后为「{new_title}」"
-            _save_reminder_result_to_session(semantic_message)
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="创建提醒",
+                action_executed="append",
+                intent_fulfilled=True,
+                details={"status": "appended", "reminder_id": existing_id, "new_title": new_title}
+            )
             
             return {
                 "ok": True,
@@ -599,7 +692,19 @@ def _create_reminder(
                 period_desc = f"，时间段：{days_str} {time_period_config['start_time']}-{time_period_config['end_time']}"
             
             semantic_message = f"系统动作(非用户消息)：已按照用户最新的要求创建提醒成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}{period_desc}"
-            _save_reminder_result_to_session(semantic_message)
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="创建提醒",
+                action_executed="create",
+                intent_fulfilled=True,
+                details={
+                    "status": "created",
+                    "reminder_id": reminder_id,
+                    "title": title,
+                    "trigger_time": trigger_time_str,
+                    "recurrence_type": recurrence_type
+                }
+            )
             
             return {
                 "ok": True,
@@ -610,11 +715,21 @@ def _create_reminder(
                 "message": f"已创建提醒「{title}」，时间: {trigger_time_str}{recurrence_desc}{period_desc}"
             }
         else:
-            _save_reminder_result_to_session("提醒创建失败：数据库写入失败，请稍后重试")
+            _save_reminder_result_to_session(
+                "提醒创建失败：数据库写入失败，请稍后重试",
+                user_intent="创建提醒",
+                action_executed="create",
+                intent_fulfilled=False
+            )
             return {"ok": False, "error": "创建提醒失败"}
     except Exception as e:
         logger.error(f"Failed to create reminder: {e}")
-        _save_reminder_result_to_session(f"提醒创建失败：{str(e)}")
+        _save_reminder_result_to_session(
+            f"提醒创建失败：{str(e)}",
+            user_intent="创建提醒",
+            action_executed="create",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": str(e)}
 
 
@@ -1075,7 +1190,26 @@ def _batch_operations(
         msg_parts.append(f"失败{len(failed)}个")
     
     semantic_message = f"批量操作完成：{'，'.join(msg_parts)}" if msg_parts else "批量操作完成"
-    _save_reminder_result_to_session(semantic_message)
+    
+    # 判断意图是否满足：至少有一个成功操作
+    intent_fulfilled = success_count > 0
+    
+    _save_reminder_result_to_session(
+        semantic_message,
+        user_intent="批量操作提醒",
+        action_executed="batch",
+        intent_fulfilled=intent_fulfilled,
+        details={
+            "total": len(operations_list),
+            "success": success_count,
+            "created": len(created),
+            "appended": len(appended),
+            "duplicate": len(duplicate),
+            "updated": len(updated),
+            "deleted": len(deleted),
+            "failed": len(failed)
+        }
+    )
     
     return {
         "ok": success_count > 0,
@@ -1105,13 +1239,23 @@ def _update_reminder(
 ) -> dict:
     """Update an existing reminder."""
     if not reminder_id:
-        _save_reminder_result_to_session("提醒修改失败：未指定要修改的提醒ID")
+        _save_reminder_result_to_session(
+            "提醒修改失败：未指定要修改的提醒ID",
+            user_intent="修改提醒",
+            action_executed="update",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": "更新操作需要提供 reminder_id"}
     
     # Check if reminder exists
     existing = reminder_dao.get_reminder_by_id(reminder_id)
     if not existing:
-        _save_reminder_result_to_session(f"提醒修改失败：找不到指定的提醒")
+        _save_reminder_result_to_session(
+            f"提醒修改失败：找不到指定的提醒",
+            user_intent="修改提醒",
+            action_executed="update",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
     
     # Build update fields
@@ -1131,7 +1275,12 @@ def _update_reminder(
             time_str = datetime.fromtimestamp(timestamp).strftime('%Y年%m月%d日%H时%M分')
             update_desc.append(f"时间改为{time_str}")
         else:
-            _save_reminder_result_to_session(f"提醒修改失败：无法解析时间「{trigger_time}」")
+            _save_reminder_result_to_session(
+                f"提醒修改失败：无法解析时间「{trigger_time}」",
+                user_intent="修改提醒",
+                action_executed="update",
+                intent_fulfilled=False
+            )
             return {"ok": False, "error": f"无法解析时间: {trigger_time}"}
     
     if action_template:
@@ -1148,7 +1297,12 @@ def _update_reminder(
             update_desc.append(f"周期改为{recurrence_map.get(recurrence_type, recurrence_type)}")
     
     if not update_fields:
-        _save_reminder_result_to_session("提醒修改失败：未提供要修改的内容")
+        _save_reminder_result_to_session(
+            "提醒修改失败：未提供要修改的内容",
+            user_intent="修改提醒",
+            action_executed="update",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": "没有提供要更新的字段"}
     
     # Update reminder
@@ -1158,27 +1312,105 @@ def _update_reminder(
             original_title = existing.get("title", "")
             desc_str = "、".join(update_desc) if update_desc else "已更新"
             semantic_message = f"提醒修改成功：「{original_title}」{desc_str}"
-            _save_reminder_result_to_session(semantic_message)
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="修改提醒",
+                action_executed="update",
+                intent_fulfilled=True,
+                details={"reminder_id": reminder_id, "updated_fields": list(update_fields.keys())}
+            )
         return {"ok": success}
     except Exception as e:
         logger.error(f"Failed to update reminder: {e}")
-        _save_reminder_result_to_session(f"提醒修改失败：{str(e)}")
+        _save_reminder_result_to_session(
+            f"提醒修改失败：{str(e)}",
+            user_intent="修改提醒",
+            action_executed="update",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": str(e)}
 
 
 def _delete_reminder(
     reminder_dao: ReminderDAO,
-    reminder_id: Optional[str]
+    reminder_id: Optional[str],
+    user_id: Optional[str] = None
 ) -> dict:
-    """Delete a reminder."""
+    """
+    Delete a reminder or all reminders for a user.
+    
+    Args:
+        reminder_dao: ReminderDAO 实例
+        reminder_id: 提醒ID，支持 "*" 通配符表示删除所有
+        user_id: 用户ID（当 reminder_id="*" 时必需）
+    """
     if not reminder_id:
-        _save_reminder_result_to_session("提醒删除失败：未指定要删除的提醒ID")
+        _save_reminder_result_to_session(
+            "提醒删除失败：未指定要删除的提醒ID",
+            user_intent="删除提醒",
+            action_executed="delete",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": "删除操作需要提供 reminder_id"}
     
+    # 支持通配符删除所有提醒
+    if reminder_id == "*":
+        if not user_id:
+            # 尝试从 session_state 获取 user_id
+            session_state = _get_current_session_state()
+            user_id = str(session_state.get("user", {}).get("_id", ""))
+        
+        if not user_id:
+            _save_reminder_result_to_session(
+                "提醒删除失败：无法获取用户信息",
+                user_intent="删除所有提醒",
+                action_executed="delete_all",
+                intent_fulfilled=False
+            )
+            return {"ok": False, "error": "删除所有提醒需要用户信息"}
+        
+        try:
+            deleted_count = reminder_dao.delete_all_by_user(user_id)
+            if deleted_count > 0:
+                semantic_message = f"提醒删除成功：已删除全部 {deleted_count} 个待办提醒"
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="删除所有提醒",
+                    action_executed="delete_all",
+                    intent_fulfilled=True,
+                    details={"deleted_count": deleted_count}
+                )
+                return {"ok": True, "deleted_count": deleted_count, "message": semantic_message}
+            else:
+                semantic_message = "提醒删除完成：用户当前没有待办提醒"
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="删除所有提醒",
+                    action_executed="delete_all",
+                    intent_fulfilled=True,
+                    details={"deleted_count": 0}
+                )
+                return {"ok": True, "deleted_count": 0, "message": semantic_message}
+        except Exception as e:
+            logger.error(f"Failed to delete all reminders: {e}")
+            _save_reminder_result_to_session(
+                f"提醒删除失败：{str(e)}",
+                user_intent="删除所有提醒",
+                action_executed="delete_all",
+                intent_fulfilled=False
+            )
+            return {"ok": False, "error": str(e)}
+    
+    # 单个提醒删除
     # Check if reminder exists
     existing = reminder_dao.get_reminder_by_id(reminder_id)
     if not existing:
-        _save_reminder_result_to_session("提醒删除失败：找不到指定的提醒")
+        _save_reminder_result_to_session(
+            "提醒删除失败：找不到指定的提醒",
+            user_intent="删除提醒",
+            action_executed="delete",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
     
     title = existing.get("title", "")
@@ -1188,11 +1420,22 @@ def _delete_reminder(
         success = reminder_dao.delete_reminder(reminder_id)
         if success:
             semantic_message = f"提醒删除成功：已取消「{title}」的提醒"
-            _save_reminder_result_to_session(semantic_message)
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="删除提醒",
+                action_executed="delete",
+                intent_fulfilled=True,
+                details={"deleted_title": title, "reminder_id": reminder_id}
+            )
         return {"ok": success}
     except Exception as e:
         logger.error(f"Failed to delete reminder: {e}")
-        _save_reminder_result_to_session(f"提醒删除失败：{str(e)}")
+        _save_reminder_result_to_session(
+            f"提醒删除失败：{str(e)}",
+            user_intent="删除提醒",
+            action_executed="delete",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": str(e)}
 
 
@@ -1231,10 +1474,21 @@ def _list_reminders(
             semantic_message = f"查询成功：用户当前有{len(formatted_reminders)}个待执行的提醒：{summary_str}"
         else:
             semantic_message = "查询成功：用户当前没有待执行的提醒"
-        _save_reminder_result_to_session(semantic_message)
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="查询提醒",
+            action_executed="list",
+            intent_fulfilled=True,
+            details={"count": len(formatted_reminders), "reminders": formatted_reminders}
+        )
         
         return {"ok": True, "reminders": formatted_reminders}
     except Exception as e:
         logger.error(f"Failed to list reminders: {e}")
-        _save_reminder_result_to_session(f"提醒查询失败：{str(e)}")
+        _save_reminder_result_to_session(
+            f"提醒查询失败：{str(e)}",
+            user_intent="查询提醒",
+            action_executed="list",
+            intent_fulfilled=False
+        )
         return {"ok": False, "error": str(e)}

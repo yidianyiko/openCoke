@@ -7,12 +7,21 @@ from agent.runner.agent_handler import create_handler
 from agent.runner.agent_background_handler import background_handler
 from dotenv import load_dotenv
 load_dotenv()
+
+# 从环境变量读取日志级别，默认 INFO
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
 # 配置日志格式，包含时间戳
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# 第三方库日志级别设为 WARNING，避免刷屏
+for noisy_logger in ['pymongo', 'urllib3', 'httpx', 'httpcore', 'openai', 'asyncio', 'dashscope']:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # 从环境变量读取 worker 数量，默认 3

@@ -42,8 +42,10 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_系统提醒触发,
     CONTEXTPROMPT_主动消息触发,
     CONTEXTPROMPT_提醒工具结果,
+    CONTEXTPROMPT_提醒未执行,
     get_relevant_history_context,
     get_reminders_context,
+    get_reminder_result_context,
 )
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
@@ -102,6 +104,9 @@ class StreamingChatWorkflow:
     
     # V2.7 新增：提醒工具结果上下文模板
     userp_template_reminder_result = CONTEXTPROMPT_提醒工具结果
+    
+    # V2.8 新增：提醒未执行提示模板（当检测到提醒意图但工具未调用时使用）
+    userp_template_reminder_not_executed = CONTEXTPROMPT_提醒未执行
     
     # 消息分段注意事项模板（用于主动消息和提醒消息）
     userp_template_notice_segmentation = NOTICE_常规注意事项_分段消息
@@ -171,10 +176,21 @@ class StreamingChatWorkflow:
             base_template = self.userp_template_base  # 用户消息使用完整版
         
         # V2.7 新增：检查是否有提醒工具结果，如有则添加到上下文
-        reminder_result_template = ""
-        if "【提醒设置工具消息】" in session_state and session_state["【提醒设置工具消息】"]:
-            reminder_result_template = self.userp_template_reminder_result
-            logger.info(f"[ChatWorkflow] 添加提醒工具结果上下文: {session_state['【提醒设置工具消息】']}")
+        # V2.9 优化：使用 get_reminder_result_context 函数，优先使用结构化格式
+        reminder_result_context = ""
+        orchestrator = session_state.get("orchestrator", {})
+        need_reminder = orchestrator.get("need_reminder_detect", False)
+        
+        # 优先使用新的结构化上下文函数
+        reminder_result_context = get_reminder_result_context(session_state)
+        
+        if reminder_result_context:
+            logger.info(f"[ChatWorkflow] 添加提醒工具结果上下文（结构化）")
+        elif need_reminder and message_source == "user":
+            # V2.8 新增：OrchestratorAgent 判断需要提醒检测，但没有工具结果
+            # 使用 CONTEXTPROMPT_提醒未执行 提示 LLM 不要假设提醒已创建
+            reminder_result_context = self.userp_template_reminder_not_executed
+            logger.warning(f"[ChatWorkflow] OrchestratorAgent 判断 need_reminder_detect=True，但未找到提醒工具结果。添加提醒未执行提示")
         
         # V2.7 优化：按需加载待办提醒和相关历史对话
         context_retrieve = session_state.get("context_retrieve", {})
@@ -189,11 +205,15 @@ class StreamingChatWorkflow:
             relevant_history_context = get_relevant_history_context(context_retrieve)
         
         # 组合完整模板（包含分段注意事项和按需加载的上下文）
-        full_template = base_template + reminders_context + relevant_history_context + source_template + reminder_result_template + notice_segmentation + self.userp_template_task
+        # V2.9 优化：reminder_result_context 已经是渲染后的字符串，直接拼接
+        full_template = base_template + reminders_context + relevant_history_context + source_template + notice_segmentation + self.userp_template_task
         
         # 渲染 user prompt
         try:
             rendered_userp = self._render_template(full_template, session_state)
+            # V2.9：追加已渲染的提醒结果上下文
+            if reminder_result_context:
+                rendered_userp = rendered_userp + "\n" + reminder_result_context
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message

@@ -341,9 +341,7 @@ async def handle_pending_future_message():
                 
                 logger.info(f"[FUTURE] 开始处理主动消息: {future_action} (proactive_times={future_proactive_times})")
                 resp_messages, context, _, is_content_blocked = await handle_message(
-                    user=user,
-                    character=character,
-                    conversation=conversation,
+                    context=context,  # 传递已构建好的 context，避免重复调用 context_prepare
                     input_message_str=input_message_str,
                     message_source="future",
                     metadata={
@@ -613,6 +611,7 @@ async def _handle_reminder_message(reminder: dict, user, character, conversation
         conversation_id: 会话ID
     """
     from agent.runner.agent_handler import handle_message
+    from agent.runner.context import context_prepare
     
     try:
         # 构造系统消息
@@ -620,11 +619,12 @@ async def _handle_reminder_message(reminder: dict, user, character, conversation
         reminder_content = reminder.get("action_template", reminder_title)
         input_message_str = f"[系统提醒触发] {reminder_content}"
         
+        # 构建 context
+        context = context_prepare(user, character, conversation)
+        
         logger.info(f"[REMINDER] 开始处理提醒: {reminder_title}")
         resp_messages, context, _, is_content_blocked = await handle_message(
-            user=user,
-            character=character,
-            conversation=conversation,
+            context=context,  # 传递已构建好的 context，避免重复调用 context_prepare
             input_message_str=input_message_str,
             message_source="reminder",
             metadata={

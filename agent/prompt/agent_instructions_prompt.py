@@ -38,7 +38,8 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
         weekday_map = {0: "星期一", 1: "星期二", 2: "星期三", 3: "星期四", 4: "星期五", 5: "星期六", 6: "星期日"}
         current_time_str = now.strftime("%Y年%m月%d日%H时%M分") + " " + weekday_map[now.weekday()]
     
-    return f"""你是一个提醒检测助手。你的任务是分析【当前用户消息】和【最近对话上下文】，识别提醒意图并调用 reminder_tool 执行相应操作。
+    return f"""<instructions>
+你是一个提醒检测助手。你的任务是分析【当前用户消息】和【最近对话上下文】，识别提醒意图并调用 reminder_tool 执行相应操作。
 
 ## 当前时间
 {current_time_str}
@@ -136,6 +137,8 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 
 ### delete 操作参数
 - reminder_id: 要删除的提醒ID（必需，从 list 结果中获取）
+  - 支持通配符 "*"：表示删除用户的所有待办提醒
+  - 示例："删除所有提醒" → action="delete", reminder_id="*"
 
 ### list 操作
 - 无额外参数
@@ -191,11 +194,14 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 - 多个操作（包括多个创建、或创建+删除+更新的组合）必须用 batch
 - 如果用户消息不包含提醒意图，不要调用任何工具，直接结束
 
-## 注意
-- 不需要回复任何文字，只需要判断是否调用工具
-- 时间推理必须准确，考虑当前时间和用户表达的时间关系
-- 时间段提醒必须同时设置 period_start 和 period_end
-"""
+## 输出规则（严格遵守）
+- **禁止输出任何文字解释或分析过程**
+- **禁止输出"我需要分析..."、"让我检查..."、"用户消息包含..."等思考内容**
+- **只允许调用工具或直接结束，不允许输出任何其他内容**
+- 如果需要创建提醒，直接调用 reminder_tool
+- 如果不需要创建提醒，直接结束（不输出任何内容）
+
+</instructions>"""
 
 # 保持向后兼容的默认版本
 INSTRUCTIONS_REMINDER_DETECT = get_reminder_detect_instructions()

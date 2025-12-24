@@ -24,16 +24,25 @@ import time
 import random
 import traceback
 import logging
+import os
 from logging import getLogger
 from typing import Optional, Tuple, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 
+# 从环境变量读取日志级别，默认 INFO
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
 # 配置日志格式，包含时间戳
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format='%(asctime)s %(levelname)s %(name)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
+
+# 第三方库日志级别设为 WARNING，避免刷屏
+for noisy_logger in ['pymongo', 'urllib3', 'httpx', 'httpcore', 'openai', 'asyncio', 'dashscope']:
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+
 logger = getLogger(__name__)
 
 from entity.message import (
@@ -251,9 +260,7 @@ def _send_single_message(context, multimodal_response, expect_output_timestamp, 
 # ========== 核心消息处理函数 ==========
 
 async def handle_message(
-    user: dict,
-    character: dict,
-    conversation: dict,
+    context: dict,
     input_message_str: str,
     message_source: str = "user",
     metadata: Optional[Dict[str, Any]] = None,
@@ -269,9 +276,7 @@ async def handle_message(
     统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程。
     
     Args:
-        user: 用户信息
-        character: 角色信息
-        conversation: 会话信息
+        context: 已构建好的上下文（由 context_prepare 生成）
         input_message_str: 输入消息字符串
         message_source: 消息来源
             - "user": 用户消息（默认）
@@ -291,8 +296,6 @@ async def handle_message(
             - is_rollback: 是否因新消息而回滚
             - is_content_blocked: 是否因内容安全审核失败
     """
-    context = context_prepare(user, character, conversation)
-    
     # 标记消息来源，供 Workflow 识别
     context["message_source"] = message_source
     context["system_message_metadata"] = metadata or {}
@@ -301,7 +304,7 @@ async def handle_message(
     # 将 proactive_times 放到顶层，供模板使用
     context["proactive_times"] = (metadata or {}).get("proactive_times", 0)
     
-    # ========== 新增：将锁信息放入 context，供 PrepareWorkflow 续期使用 ==========
+    # ========== 将锁信息放入 context，供 PrepareWorkflow 续期使用 ==========
     # 解决问题：ReminderDetectAgent 执行时间过长导致锁过期
     if lock_id:
         context["lock_id"] = lock_id
@@ -309,6 +312,7 @@ async def handle_message(
         context["conversation_id"] = conversation_id
     
     # 提取最近的对话历史（精简版），用于主动消息/提醒消息场景
+    conversation = context.get("conversation", {})
     recent_chat_history = _extract_recent_chat_history(
         conversation.get("conversation_info", {}).get("chat_history", []),
         limit=6  # 最近6条消息，约3轮对话
@@ -331,6 +335,8 @@ async def handle_message(
         
         # 检测点 1：仅用户消息检测新消息（排除当前正在处理的消息）
         if check_new_message and message_source == "user":
+            user = context.get("user", {})
+            character = context.get("character", {})
             if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform, current_message_ids):
                 is_rollback = True
                 logger.info(f"{worker_tag} rollback: new message before chat")
@@ -380,6 +386,8 @@ async def handle_message(
                     
                     # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
                     if check_new_message and message_source == "user":
+                        user = context.get("user", {})
+                        character = context.get("character", {})
                         if is_new_message_coming_in(str(user["_id"]), str(character["_id"]), platform, current_message_ids):
                             is_rollback = True
                             logger.info(f"{worker_tag} rollback: new message during streaming")
@@ -565,7 +573,7 @@ def create_handler(worker_id: int = 0):
                 
                 # ========== 优化：跳过已锁定的会话，避免不必要的锁获取尝试 ==========
                 if conversation_id in locked_conversation_ids:
-                    logger.debug(f"{worker_tag} 会话已被锁定，跳过: {conversation_id}")
+                    # logger.debug(f"{worker_tag} 会话已被锁定，跳过: {conversation_id}")
                     continue
                 
                 conversation = conversation_dao.get_conversation_by_id(conversation_id)
@@ -580,7 +588,7 @@ def create_handler(worker_id: int = 0):
                     logger.debug(f"{worker_tag} 锁获取失败: {conversation_id}")
             
             if lock_id is None:
-                logger.debug(f"{worker_tag} 所有消息都无法获取锁，跳过本轮")
+                # logger.debug(f"{worker_tag} 所有消息都无法获取锁，跳过本轮")
                 return
             
             # 读取全部需要处理的消息（保持 pending 状态，不再标记为 handling）
@@ -631,9 +639,7 @@ def create_handler(worker_id: int = 0):
                     current_message_ids = [str(msg["_id"]) for msg in input_messages]
                     
                     resp_messages, context, is_rollback, is_content_blocked = await handle_message(
-                        user=user,
-                        character=character,
-                        conversation=conversation,
+                        context=context,  # 传递已构建好的 context，避免重复调用 context_prepare
                         input_message_str=input_message_str,
                         message_source="user",
                         check_new_message=True,
