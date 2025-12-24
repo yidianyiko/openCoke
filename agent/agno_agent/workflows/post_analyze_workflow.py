@@ -50,7 +50,7 @@ class PostAnalyzeWorkflow:
     """
     后处理 Workflow：总结对话，更新记忆
     
-    注意：这是自定义 Workflow 类，不继承 Agno Workflow。
+    注意：这是自定义 Workflow 类，不继承 Agno Workflow.
     
     执行流程：
     1. 渲染 user prompt（包含最新聊天消息和回复）
@@ -383,7 +383,7 @@ class PostAnalyzeWorkflow:
         """
         压缩过长的关系描述（V2.8 新增）
         
-        使用 Agno DeepSeek 模型对超长的关系描述进行摘要压缩，保留关键信息。
+        使用 Agno DeepSeek 模型对超长的关系描述进行摘要压缩，保留关键信息.
         
         Args:
             description: 原始关系描述
@@ -403,7 +403,7 @@ class PostAnalyzeWorkflow:
                 markdown=False,
             )
             
-            compress_prompt = f"""请将以下关系描述压缩为不超过{self.RELATION_DESC_TARGET_LENGTH}字的摘要。
+            compress_prompt = f"""请将以下关系描述压缩为不超过{self.RELATION_DESC_TARGET_LENGTH}字的摘要.
 
 要求：
 1. 保留关系的核心特征（如：专业督促员、朋友等）

@@ -26,7 +26,7 @@ class ProactiveMessageTriggerService:
     """
     主动消息触发服务
     
-    负责定时检查并触发主动消息。
+    负责定时检查并触发主动消息.
     
     Requirements:
     - 6.1: 查询所有 future.timestamp 已到达的会话

@@ -61,7 +61,7 @@ class FutureMessageWorkflow:
     4. PostAnalyze - 后处理分析（可选）
     
     注意：这是自定义 Workflow 类，不继承 Agno Workflow，
-    因为需要与 Runner 层配合控制执行流程。
+    因为需要与 Runner 层配合控制执行流程.
     """
     
     # 问题重写的 user prompt 模板
@@ -96,7 +96,7 @@ class FutureMessageWorkflow:
         CONTEXTPROMPT_规划行动 + "\n\n" +
         "## 注意事项\n" +
         NOTICE_常规注意事项_生成优化 + "\n" +
-        "在生成content字段内容时，一定需要注意避免跟历史对话中已有的内容重复或者相同，可以停止话题，或者换一个话题。\n" +
+        "在生成content字段内容时，一定需要注意避免跟历史对话中已有的内容重复或者相同，可以停止话题，或者换一个话题.\n" +
         NOTICE_常规注意事项_空输入处理
     )
     

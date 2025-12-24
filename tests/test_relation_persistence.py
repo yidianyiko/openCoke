@@ -2,8 +2,8 @@
 """
 Relation 持久化集成测试
 
-测试 relation 数据在 context_prepare 转换后能正确持久化到 MongoDB。
-这个测试覆盖了之前遗漏的场景：ObjectId 转字符串后的 replace_one 操作。
+测试 relation 数据在 context_prepare 转换后能正确持久化到 MongoDB.
+这个测试覆盖了之前遗漏的场景：ObjectId 转字符串后的 replace_one 操作.
 
 Requirements:
 - 6.1: ObjectId 序列化

@@ -2,7 +2,7 @@
 """
 ChatResponse Schema
 
-定义 ChatResponseAgent 的输出格式。
+定义 ChatResponseAgent 的输出格式.
 
 V2 重构：
 - 移除 RelationChange 和 FutureResponse，这些职责移至 PostAnalyzeResponse
@@ -51,12 +51,12 @@ class FutureResponseModel(BaseModel):
     
     FutureResponseTime: str = Field(
         default="",
-        description="未来主动的消息时间，格式为xxxx年xx月xx日xx时xx分。"
+        description="未来主动的消息时间，格式为xxxx年xx月xx日xx时xx分."
     )
     
     FutureResponseAction: str = Field(
         default="无",
-        description="未来主动消息的大致内容，大约10-20个字。"
+        description="未来主动消息的大致内容，大约10-20个字."
     )
 
 
@@ -64,8 +64,8 @@ class ChatResponse(BaseModel):
     """
     ChatResponseAgent 的响应模型 - 精简版
     
-    专注于生成多模态回复，不再包含关系变化和未来规划。
-    这些分析任务移至 PostAnalyzeResponse，基于完整对话结果进行计算。
+    专注于生成多模态回复，不再包含关系变化和未来规划.
+    这些分析任务移至 PostAnalyzeResponse，基于完整对话结果进行计算.
     """
     
     InnerMonologue: str = Field(

@@ -43,7 +43,7 @@ reminder_detect_agent = Agent(
 
 ### 原因 2：没有操作组合限制
 
-工具层面没有限制操作组合，允许任意顺序调用 create/list/delete。
+工具层面没有限制操作组合，允许任意顺序调用 create/list/delete.
 
 ## 解决方案
 
@@ -124,4 +124,4 @@ reminder_detect_agent = Agent(
 1. **工具层面**：`_check_operation_allowed()` 强制限制操作组合
 2. **Instructions 层面**：明确告知 LLM 规则
 
-这种"双保险"设计确保即使 LLM 不遵守规则，系统也能在代码层面阻止危险行为。
+这种"双保险"设计确保即使 LLM 不遵守规则，系统也能在代码层面阻止危险行为.

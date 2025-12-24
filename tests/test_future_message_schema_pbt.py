@@ -95,7 +95,7 @@ class TestFutureMessageResponseSchemaProperty(unittest.TestCase):
     For any FutureMessageResponse 对象，该对象应包含所有必需字段
     （InnerMonologue、MultiModalResponses、RelationChange、FutureResponse），
     且 FutureResponse 应包含 FutureResponseTime 和 FutureResponseAction 子字段，
-    MultiModalResponse 的 type 字段只接受 "text"、"voice"、"photo" 三种值。
+    MultiModalResponse 的 type 字段只接受 "text"、"voice"、"photo" 三种值.
     
     Validates: Requirements 1.1, 1.2, 1.3
     """

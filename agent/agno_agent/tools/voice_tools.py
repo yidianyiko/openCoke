@@ -21,7 +21,7 @@ def voice2text_tool(file_path: str) -> dict:
     """
     语音转文字工具
     
-    使用阿里云 ASR 实时语音识别将语音文件转换为文字。
+    使用阿里云 ASR 实时语音识别将语音文件转换为文字.
     
     Args:
         file_path: 语音文件路径，支持 silk 格式
@@ -66,7 +66,7 @@ def text2voice_tool(
     """
     文字转语音工具
     
-    使用 MiniMax T2A 将文字转换为语音，支持多种情感色彩。
+    使用 MiniMax T2A 将文字转换为语音，支持多种情感色彩.
     
     Args:
         text: 要转换的文字内容

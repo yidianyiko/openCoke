@@ -2,7 +2,7 @@
 """
 查看数据库中的未来主动消息 (Future Proactive Messages)
 
-用于查看当前数据库中配置了 future 主动消息的所有会话。
+用于查看当前数据库中配置了 future 主动消息的所有会话.
 
 Usage:
     python scripts/check_future_messages.py [--all] [--pending] [--due] [--expired]
@@ -159,7 +159,7 @@ def main():
     conversations = conversation_dao.find_conversations(query)
     
     if not conversations:
-        print("\n  未找到符合条件的会话。\n")
+        print("\n  未找到符合条件的会话.\n")
         return
     
     print(f"\n  找到 {len(conversations)} 条记录:\n")

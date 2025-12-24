@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-Poke 是由 The Interaction Company of California（位于 Palo Alto）开发的 AI 助手聊天机器人，通过 iMessage/WhatsApp/SMS 与用户交互。该产品于 2025 年 9 月 8 日发布，因其独特的个性化交互和实用功能引起广泛关注。
+Poke 是由 The Interaction Company of California（位于 Palo Alto）开发的 AI 助手聊天机器人，通过 iMessage/WhatsApp/SMS 与用户交互.该产品于 2025 年 9 月 8 日发布，因其独特的个性化交互和实用功能引起广泛关注.
 
 ### 1.1 核心价值主张
 
@@ -12,7 +12,7 @@ Poke 是由 The Interaction Company of California（位于 Palo Alto）开发的
 
 ## 2. 整体架构设计
 
-Poke 采用 **编排式多智能体系统（Orchestrated Multi-Agent System）** 架构，区别于传统的单线程迭代工具调用模式。
+Poke 采用 **编排式多智能体系统（Orchestrated Multi-Agent System）** 架构，区别于传统的单线程迭代工具调用模式.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

@@ -126,7 +126,7 @@ def image_message_to_str(message, language="cn"):
         if image is not None:
             image_str = image["key"] + "：" + image["value"]
 
-    return "（" + time_str + " " + talker_name + "发来了一条图片消息）" + message_content + "。" + image_str
+    return "（" + time_str + " " + talker_name + "发来了一条图片消息）" + message_content + "." + image_str
 
 # {
 #     "_id": xxx,  # 内置id

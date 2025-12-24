@@ -2,8 +2,8 @@
 """
 OrchestratorResponse Schema
 
-定义 OrchestratorAgent 的输出格式，用于智能调度决策。
-V2 架构核心组件。
+定义 OrchestratorAgent 的输出格式，用于智能调度决策.
+V2 架构核心组件.
 """
 
 from pydantic import BaseModel, Field
@@ -73,7 +73,7 @@ class OrchestratorResponse(BaseModel):
     # 上下文检索决策
     need_context_retrieve: bool = Field(
         default=True,
-        description="是否需要检索上下文。默认为 true，仅当用户消息是纯提醒操作时设为 false"
+        description="是否需要检索上下文.默认为 true，仅当用户消息是纯提醒操作时设为 false"
     )
     
     context_retrieve_params: ContextRetrieveParams = Field(
@@ -84,5 +84,5 @@ class OrchestratorResponse(BaseModel):
     # 提醒决策（只决定是否需要调用 ReminderDetectAgent，不生成具体参数）
     need_reminder_detect: bool = Field(
         default=False,
-        description="是否需要调用提醒检测Agent。当用户消息包含提醒相关关键词时设为 true"
+        description="是否需要调用提醒检测Agent.当用户消息包含提醒相关关键词时设为 true"
     )

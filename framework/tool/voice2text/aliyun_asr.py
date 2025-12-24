@@ -19,7 +19,7 @@ def get_token():
         "cn-shanghai"
     )
 
-    # 创建request，并设置参数。
+    # 创建request，并设置参数.
     request = CommonRequest()
     request.set_method('POST')
     request.set_domain('nls-meta.cn-shanghai.aliyuncs.com')

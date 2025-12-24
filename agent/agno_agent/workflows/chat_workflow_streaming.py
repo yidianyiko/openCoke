@@ -3,7 +3,7 @@
 ChatWorkflow Streaming Version - 流式回复生成
 
 支持流式输出，当检测到完整的一条消息时立即返回，
-而不是等待所有内容生成完毕。
+而不是等待所有内容生成完毕.
 
 核心思路：
 1. 不使用 output_schema，让 LLM 按特定格式输出
@@ -195,7 +195,7 @@ class StreamingChatWorkflow:
             # V2.8 新增：OrchestratorAgent 判断需要提醒检测，但没有工具结果
             # 使用 CONTEXTPROMPT_提醒未执行 提示 LLM 不要假设提醒已创建
             reminder_result_context = self.userp_template_reminder_not_executed
-            logger.warning(f"[ChatWorkflow] OrchestratorAgent 判断 need_reminder_detect=True，但未找到提醒工具结果。添加提醒未执行提示")
+            logger.warning(f"[ChatWorkflow] OrchestratorAgent 判断 need_reminder_detect=True，但未找到提醒工具结果.添加提醒未执行提示")
         
         # V2.7 优化：按需加载待办提醒和相关历史对话
         context_retrieve = session_state.get("context_retrieve", {})

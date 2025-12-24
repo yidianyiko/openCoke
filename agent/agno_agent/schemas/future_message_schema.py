@@ -2,7 +2,7 @@
 """
 主动消息（Future Message）Schema 定义
 
-用于主动消息生成的响应模型，复用 ChatResponse 的大部分结构。
+用于主动消息生成的响应模型，复用 ChatResponse 的大部分结构.
 
 Requirements: FR-036, FR-038
 Design: Property 1 - Schema 结构完整性
@@ -22,8 +22,8 @@ class FutureMessageResponse(BaseModel):
     """
     主动消息响应模型
     
-    与 ChatResponse 结构类似，但用于主动消息场景。
-    主动消息是角色在用户没有回复的情况下，主动发起的消息。
+    与 ChatResponse 结构类似，但用于主动消息场景.
+    主动消息是角色在用户没有回复的情况下，主动发起的消息.
     
     Requirements:
     - 1.1: 包含 InnerMonologue、MultiModalResponses、RelationChange、FutureResponse 字段

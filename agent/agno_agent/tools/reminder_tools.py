@@ -75,7 +75,7 @@ def set_reminder_session_state(session_state: dict):
     设置当前协程的会话状态，供 reminder_tool 使用
     
     使用 contextvars 确保不同协程之间的 session_state 相互隔离，
-    避免 asyncio 并发处理时的跨用户数据污染。
+    避免 asyncio 并发处理时的跨用户数据污染.
     """
     _context_session_state.set(session_state or {})
     _context_session_operations.set([])
@@ -228,7 +228,7 @@ def _save_reminder_result_to_session(
 # 重要修复 (2025-12-23):
 # 添加 stop_after_tool_call=True，让 Agent 在工具执行后立即停止
 # 解决问题：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具导致无限循环
-@tool(stop_after_tool_call=True, description="""提醒管理工具，用于创建、更新、删除、查询提醒。支持单次提醒、周期提醒和时间段提醒。
+@tool(stop_after_tool_call=True, description="""提醒管理工具，用于创建、更新、删除、查询提醒.支持单次提醒、周期提醒和时间段提醒.
 
 ## 操作类型 (action)
 - "create": 创建单个提醒
@@ -264,10 +264,10 @@ def _save_reminder_result_to_session(
 
 ## 批量操作 (action="batch") - 推荐用于复杂场景
 
-当用户消息包含多个操作时使用，一次调用完成所有操作。
+当用户消息包含多个操作时使用，一次调用完成所有操作.
 
 参数:
-- operations: JSON字符串，包含操作列表。每个操作包含 action 和对应参数。
+- operations: JSON字符串，包含操作列表.每个操作包含 action 和对应参数.
 
 格式:
 ```
@@ -287,7 +287,7 @@ def _save_reminder_result_to_session(
 示例3："删除提醒1，把提醒2改到明天，再加一个新提醒"
 → action="batch", operations='[{"action":"delete","reminder_id":"1"},{"action":"update","reminder_id":"2","trigger_time":"..."},{"action":"create","title":"...","trigger_time":"..."}]'
 
-注意: 时间格式必须是"xxxx年xx月xx日xx时xx分"，不支持"下午3点"等格式。
+注意: 时间格式必须是"xxxx年xx月xx日xx时xx分"，不支持"下午3点"等格式.
 """)
 def reminder_tool(
     action: str,
@@ -508,8 +508,8 @@ def _create_reminder(
             # 时间段提醒：最小间隔 25 分钟
             if recurrence_interval < MIN_INTERVAL_PERIOD:
                 error_msg = (
-                    f"频率过高：时间段提醒的间隔不能少于{MIN_INTERVAL_PERIOD}分钟，当前设置为每{recurrence_interval}分钟。"
-                    "这可能导致我的服务被限制，也不是 Coke 的设计用途。"
+                    f"频率过高：时间段提醒的间隔不能少于{MIN_INTERVAL_PERIOD}分钟，当前设置为每{recurrence_interval}分钟."
+                    "这可能导致我的服务被限制，也不是 Coke 的设计用途."
                 )
                 logger.warning(f"Rejected period reminder with interval={recurrence_interval}min < {MIN_INTERVAL_PERIOD}min, user_id={user_id}")
                 _save_reminder_result_to_session(
@@ -524,8 +524,8 @@ def _create_reminder(
             # 无限重复提醒：最小间隔 60 分钟（小时级别）
             if recurrence_interval < MIN_INTERVAL_INFINITE:
                 error_msg = (
-                    f"频率过高：不支持每{recurrence_interval}分钟的无限重复提醒。"
-                    "这可能导致我的服务被限制，也不是 Coke 的设计用途。\n"
+                    f"频率过高：不支持每{recurrence_interval}分钟的无限重复提醒."
+                    "这可能导致我的服务被限制，也不是 Coke 的设计用途.\n"
                     "建议：\n"
                     "1. 使用时间段提醒（如「上午9点到下午6点每30分钟提醒」，最小间隔25分钟）\n"
                     "2. 或使用小时级别以上的周期（如「每小时」「每天」）"
@@ -818,7 +818,7 @@ def _batch_create_reminders(
     base_timestamp: Optional[int] = None
 ) -> dict:
     """
-    批量创建多个提醒，一次调用完成所有创建。
+    批量创建多个提醒，一次调用完成所有创建.
     
     Args:
         reminder_dao: ReminderDAO 实例
@@ -1021,7 +1021,7 @@ def _batch_operations(
     base_timestamp: Optional[int] = None
 ) -> dict:
     """
-    批量执行多个操作（创建/更新/删除的任意组合）。
+    批量执行多个操作（创建/更新/删除的任意组合）.
     
     Args:
         reminder_dao: ReminderDAO 实例

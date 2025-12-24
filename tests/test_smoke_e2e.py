@@ -8,7 +8,7 @@
 3. Workflow 执行
 4. relation 持久化（修复后的逻辑）
 
-这个测试覆盖了生产环境中发现的 _id 字段问题。
+这个测试覆盖了生产环境中发现的 _id 字段问题.
 """
 import sys
 sys.path.append(".")

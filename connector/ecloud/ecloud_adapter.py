@@ -147,7 +147,7 @@ def ecloud_message_to_std_image_single(message):
     })
     logger.info(resp_json)
     image_url = resp_json["data"]["url"]
-    image_text = ark_image2text("请详细描述图中有什么？输出不要分段和换行。", image_url)
+    image_text = ark_image2text("请详细描述图中有什么？输出不要分段和换行.", image_url)
     logger.info(image_text)
 
     m = {

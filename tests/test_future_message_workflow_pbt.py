@@ -93,7 +93,7 @@ class TestRelationChangeBoundary(unittest.TestCase):
     Property 4: 关系值边界约束
     
     For any 关系变化处理，更新后的 closeness 和 trustness 值应在 [0, 100] 范围内，
-    即使输入的变化值导致结果超出范围。
+    即使输入的变化值导致结果超出范围.
     
     Validates: Requirements 4.1, 4.2, 4.3
     """
@@ -199,7 +199,7 @@ class TestProactiveTimesIncrement(unittest.TestCase):
     """
     Property 5: 主动消息计数递增
     
-    For any 主动消息发送成功后，proactive_times 应增加 1。
+    For any 主动消息发送成功后，proactive_times 应增加 1.
     
     Validates: Requirements 5.1
     """

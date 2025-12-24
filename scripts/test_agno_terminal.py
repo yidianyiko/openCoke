@@ -2,7 +2,7 @@
 """
 Agno Terminal 集成测试脚本
 
-使用 Terminal Connector 测试 Agno Workflow 的完整流程。
+使用 Terminal Connector 测试 Agno Workflow 的完整流程.
 
 Usage:
     python scripts/test_agno_terminal.py

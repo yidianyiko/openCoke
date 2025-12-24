@@ -27,7 +27,7 @@ def image2text_tool(
     """
     图片识别工具
     
-    使用豆包视觉模型识别图片内容，返回图片描述。
+    使用豆包视觉模型识别图片内容，返回图片描述.
     
     Args:
         prompt: 提示词，告诉模型如何描述图片
@@ -84,7 +84,7 @@ def image_send_tool(photo_id: str) -> dict:
     """
     图片发送工具
     
-    根据照片ID从数据库获取照片，上传到 OSS 并返回签名URL。
+    根据照片ID从数据库获取照片，上传到 OSS 并返回签名URL.
     
     Args:
         photo_id: 照片ID（embeddings 表中的 _id）
@@ -132,7 +132,7 @@ def image_generate_tool(
     """
     文生图工具
     
-    使用 LibLib API 根据描述生成角色照片。
+    使用 LibLib API 根据描述生成角色照片.
     
     Args:
         prompt: 图片描述/提示词

@@ -4,9 +4,9 @@
 修复 wxid_pw0fqky1nsj721 用户的 Content Exists Risk 问题
 
 问题根因：relationship.description 字段过长（5932字符），累积了大量监督关系进展记录，
-触发了 DeepSeek API 的内容安全审核。
+触发了 DeepSeek API 的内容安全审核.
 
-解决方案：将关系描述精简为核心信息。
+解决方案：将关系描述精简为核心信息.
 
 Usage:
     python scripts/fix_content_risk_user.py
@@ -49,7 +49,7 @@ def main():
     print(f"旧描述长度: {len(old_desc)} 字符")
     
     # 简化为基础描述（只保留核心信息）
-    new_desc = '在微信上认识的新朋友，通过持续的学习监督互动建立了良好的协作关系，用户具有较强的自主学习能力和时间管理意识。'
+    new_desc = '在微信上认识的新朋友，通过持续的学习监督互动建立了良好的协作关系，用户具有较强的自主学习能力和时间管理意识.'
     
     print(f"新描述: {new_desc}")
     print(f"新描述长度: {len(new_desc)} 字符")

@@ -2,7 +2,7 @@
 """
 MongoDB 操作全面测试
 
-测试所有涉及 MongoDB 操作的场景，确保没有 _id 类型不匹配问题。
+测试所有涉及 MongoDB 操作的场景，确保没有 _id 类型不匹配问题.
 
 测试覆盖：
 1. entity/message.py - save_inputmessage, save_outputmessage

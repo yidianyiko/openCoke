@@ -370,7 +370,7 @@ Add guidance for generating `chat_history_query`:
 - 用户说"上次我们聊的电影" → chat_history_query="电影讨论", chat_history_keywords="电影,上次,推荐"
 - 用户说"你还记得我养的猫吗" → chat_history_query="用户的宠物猫", chat_history_keywords="猫,宠物,养"
 
-如果用户消息不涉及历史对话，chat_history_query 和 chat_history_keywords 留空。
+如果用户消息不涉及历史对话，chat_history_query 和 chat_history_keywords 留空.
 """
 ```
 

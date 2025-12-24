@@ -2,7 +2,7 @@
 """
 System Prompt Module (DEPRECATED)
 
-本文件已废弃。所有 Agent Instructions 已迁移至 agent_instructions_prompt.py
+本文件已废弃.所有 Agent Instructions 已迁移至 agent_instructions_prompt.py
 
 历史原因：
 - SYSTEMPROMPT_小说越狱 原本是一个通用的 JSON 格式说明
@@ -16,5 +16,5 @@ System Prompt Module (DEPRECATED)
 - FutureMessageQueryRewriteAgent -> INSTRUCTIONS_FUTURE_QUERY_REWRITE
 - FutureMessageChatAgent -> INSTRUCTIONS_FUTURE_MESSAGE_CHAT
 
-请使用 agent_instructions_prompt.py 中的新定义。
+请使用 agent_instructions_prompt.py 中的新定义.
 """

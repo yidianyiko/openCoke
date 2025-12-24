@@ -27,7 +27,7 @@ def moments_tool(
     """
     朋友圈发布工具
     
-    将指定照片发布到微信朋友圈，可以使用照片自带的文案或自定义文案。
+    将指定照片发布到微信朋友圈，可以使用照片自带的文案或自定义文案.
     
     Args:
         photo_id: 照片ID（embeddings 表中的 _id）
@@ -112,7 +112,7 @@ def photo_delete_tool(photo_id: str) -> dict:
     """
     照片删除工具
     
-    从数据库中删除指定的照片记录。
+    从数据库中删除指定的照片记录.
     
     Args:
         photo_id: 照片ID（embeddings 表中的 _id）

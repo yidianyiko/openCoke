@@ -4,7 +4,7 @@
 诊断 Content Exists Risk 问题
 
 逐步测试用户 wxid_pw0fqky1nsj721 的各个数据组件，
-定位触发 DeepSeek API 内容安全审核的具体数据源。
+定位触发 DeepSeek API 内容安全审核的具体数据源.
 
 Usage:
     python scripts/diagnose_content_risk.py
@@ -276,7 +276,7 @@ async def run_diagnostic():
         logger.info("跳过关系数据测试（无数据）")
     
     # Test 4: 组合测试（模拟 ChatWorkflow 的完整 prompt）
-    full_prompt = f"""你是{character_nickname}，正在与{user_nickname}通过微信聊天。
+    full_prompt = f"""你是{character_nickname}，正在与{user_nickname}通过微信聊天.
 
 ### 角色描述
 {char_description[:500] if char_description else '无'}
@@ -290,7 +290,7 @@ async def run_diagnostic():
 ### 用户最新消息
 你好
 
-请根据以上信息回复用户。
+请根据以上信息回复用户.
 """
     results["4_full_context"] = await test_deepseek_api(
         full_prompt,

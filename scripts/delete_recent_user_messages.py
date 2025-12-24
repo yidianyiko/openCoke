@@ -2,7 +2,7 @@
 """
 删除指定用户最近历史消息脚本
 
-用于删除指定用户最近的10条历史消息。
+用于删除指定用户最近的10条历史消息.
 
 Usage:
     python scripts/delete_recent_user_messages.py --user-id USER_ID [--count COUNT]

@@ -43,7 +43,7 @@ class PrepareWorkflow:
     准备阶段 Workflow (V2 架构)
     
     注意：这是自定义 Workflow 类，不继承 Agno Workflow，
-    因为需要 Runner 层控制分段执行和打断检测。
+    因为需要 Runner 层控制分段执行和打断检测.
     
     执行流程：
     1. OrchestratorAgent - 语义理解 + 调度决策 (1次 LLM)

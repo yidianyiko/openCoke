@@ -2,7 +2,7 @@
 """
 查询指定用户的历史消息脚本
 
-用于查询指定用户的历史消息，默认按时间倒序显示最近的消息。
+用于查询指定用户的历史消息，默认按时间倒序显示最近的消息.
 
 Usage:
     python scripts/query_user_messages.py --user-id USER_ID [--limit LIMIT] [--recent]

@@ -20,7 +20,7 @@ class TestPromptTemplateRendering(unittest.TestCase):
     Property 8: Prompt 模板渲染
     
     For any Prompt 模板渲染，渲染后的内容应包含 CONTEXTPROMPT_规划行动 的内容，
-    且当 session_state 缺少字段时不应抛出异常。
+    且当 session_state 缺少字段时不应抛出异常.
     
     Validates: Requirements 7.1, 7.2, 7.3, 7.4
     """

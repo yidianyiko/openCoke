@@ -185,7 +185,7 @@ class ReminderDAO:
         """
         查找同一时间点的有效提醒（不考虑标题）
         
-        用于检测同一时间是否已有提醒，支持内容追加场景。
+        用于检测同一时间是否已有提醒，支持内容追加场景.
         
         Args:
             user_id: 用户ID
@@ -210,7 +210,7 @@ class ReminderDAO:
         """
         追加内容到已有提醒
         
-        将新的提醒内容追加到已有提醒的标题和 action_template 中。
+        将新的提醒内容追加到已有提醒的标题和 action_template 中.
         
         Args:
             reminder_id: 提醒ID

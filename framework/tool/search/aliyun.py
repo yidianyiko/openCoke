@@ -25,7 +25,7 @@ def aliyun_search(messages, model="qwq-plus", stream=True, extra_body=None):
         messages=messages,
         # messages=[
         #     {"role": "system", "content": "你是一个优秀的金融分析师，可以搜索最新的金融消息并且专业地回答用户问题："},
-        #     {"role": "user", "content": "今天是2025年6月3日，请帮搜索泡泡玛特这家公司的最新信息，并回答以下内容：1. 公司基本信息（名称，股票代码，上市地点等等）2. 公司基本业务模式：包括公司所属行业，主营业务，主要竞争对手 3. 公司业务模型，包括营收拆分和成本拆分 4. 公司当前的key value driver 5. 基于这些key value driver，会有哪些潜在的catalyst需要关注 6. 公司面临哪些风险。\n\n请尽量以最新的消息为准；如果有多个消息相互矛盾，请尽量相互比较，采纳更加置信的消息，或者更新的消息。"},
+        #     {"role": "user", "content": "今天是2025年6月3日，请帮搜索泡泡玛特这家公司的最新信息，并回答以下内容：1. 公司基本信息（名称，股票代码，上市地点等等）2. 公司基本业务模式：包括公司所属行业，主营业务，主要竞争对手 3. 公司业务模型，包括营收拆分和成本拆分 4. 公司当前的key value driver 5. 基于这些key value driver，会有哪些潜在的catalyst需要关注 6. 公司面临哪些风险.\n\n请尽量以最新的消息为准；如果有多个消息相互矛盾，请尽量相互比较，采纳更加置信的消息，或者更新的消息."},
         # ],
         stream=stream,
         extra_body=extra_body
@@ -45,7 +45,7 @@ def aliyun_search(messages, model="qwq-plus", stream=True, extra_body=None):
 
 # messages=[
 #     {"role": "system", "content": "你是一个优秀的金融分析师，可以搜索最新的金融消息并且专业地回答用户问题："},
-#     {"role": "user", "content": "今天是2025年6月3日，请帮搜索泡泡玛特这家公司的最新信息，并回答以下内容：1. 公司基本信息（名称，股票代码，上市地点等等）2. 公司基本业务模式：包括公司所属行业，主营业务，主要竞争对手 3. 公司业务模型，包括营收拆分和成本拆分 4. 公司当前的key value driver 5. 基于这些key value driver，会有哪些潜在的catalyst需要关注 6. 公司面临哪些风险。\n\n请尽量以最新的消息为准；如果有多个消息相互矛盾，请尽量相互比较，采纳更加置信的消息，或者更新的消息。"},
+#     {"role": "user", "content": "今天是2025年6月3日，请帮搜索泡泡玛特这家公司的最新信息，并回答以下内容：1. 公司基本信息（名称，股票代码，上市地点等等）2. 公司基本业务模式：包括公司所属行业，主营业务，主要竞争对手 3. 公司业务模型，包括营收拆分和成本拆分 4. 公司当前的key value driver 5. 基于这些key value driver，会有哪些潜在的catalyst需要关注 6. 公司面临哪些风险.\n\n请尽量以最新的消息为准；如果有多个消息相互矛盾，请尽量相互比较，采纳更加置信的消息，或者更新的消息."},
 # ]
 # results = aliyun_search(messages, model="qwq-plus")
 # for result in results:

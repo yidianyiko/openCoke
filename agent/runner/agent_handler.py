@@ -2,7 +2,7 @@
 """
 Agent Message Handler - Agno Version
 
-消息处理主模块，使用 Agno Workflow 实现。
+消息处理主模块，使用 Agno Workflow 实现.
 
 执行流程：
 - Phase 1: PrepareWorkflow (QueryRewrite + ReminderDetect + ContextRetrieve)
@@ -273,7 +273,7 @@ async def handle_message(
     """
     核心消息处理逻辑 - Phase 1 → 2 → 3
     
-    统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程。
+    统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程.
     
     Args:
         context: 已构建好的上下文（由 context_prepare 生成）

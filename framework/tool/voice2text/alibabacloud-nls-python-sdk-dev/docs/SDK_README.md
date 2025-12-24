@@ -2,7 +2,7 @@
 
 
 
-本文介绍如何使用阿里云智能语音服务提供的Python SDK，包括SDK的安装方法及SDK代码示例。
+本文介绍如何使用阿里云智能语音服务提供的Python SDK，包括SDK的安装方法及SDK代码示例.
 
 > 说明
 >
@@ -36,7 +36,7 @@
 
 根据Python官方文档：
 
-> **CPython implementation detail:** 在 CPython 中，由于存在 [全局解释器锁](https://docs.python.org/zh-cn/3/glossary.html#term-global-interpreter-lock)，同一时刻只有一个线程可以执行 Python 代码（虽然某些性能导向的库可能会去除此限制）。 如果你想让你的应用更好地利用多核心计算机的计算资源，推荐你使用 [`multiprocessing`](https://docs.python.org/zh-cn/3/library/multiprocessing.html#module-multiprocessing) 或 [`concurrent.futures.ProcessPoolExecutor`](https://docs.python.org/zh-cn/3/library/concurrent.futures.html#concurrent.futures.ProcessPoolExecutor)。 但是，如果你想要同时运行多个 I/O 密集型任务，则多线程仍然是一个合适的模型。
+> **CPython implementation detail:** 在 CPython 中，由于存在 [全局解释器锁](https://docs.python.org/zh-cn/3/glossary.html#term-global-interpreter-lock)，同一时刻只有一个线程可以执行 Python 代码（虽然某些性能导向的库可能会去除此限制）. 如果你想让你的应用更好地利用多核心计算机的计算资源，推荐你使用 [`multiprocessing`](https://docs.python.org/zh-cn/3/library/multiprocessing.html#module-multiprocessing) 或 [`concurrent.futures.ProcessPoolExecutor`](https://docs.python.org/zh-cn/3/library/concurrent.futures.html#concurrent.futures.ProcessPoolExecutor). 但是，如果你想要同时运行多个 I/O 密集型任务，则多线程仍然是一个合适的模型.
 
 如果单解释器有太多线程，那么线程间切换的消耗会非常客观，有可能会导致SDK出现错误，不建议超过200线程的使用，如果有必要使用multiprocessing技术或者手动使用脚本创建多个解释器
 
@@ -124,7 +124,7 @@ bool类型，False为失败，True为成功
 
 | 参数     | 类型  | 参数说明                                                     |
 | -------- | ----- | ------------------------------------------------------------ |
-| pcm_data | bytes | 要发送的二进制音频数据，格式需要和上一次start中的aformat相对应。**SDK不会自动将pcm编码成opus或opu，如果需要使用opus或opu，需要用户自行编码** |
+| pcm_data | bytes | 要发送的二进制音频数据，格式需要和上一次start中的aformat相对应.**SDK不会自动将pcm编码成opus或opu，如果需要使用opus或opu，需要用户自行编码** |
 
 返回值：
 
@@ -305,7 +305,7 @@ bool类型，False为失败，True为成功
 
 | 参数     | 类型  | 参数说明                                                     |
 | -------- | ----- | ------------------------------------------------------------ |
-| pcm_data | bytes | 要发送的二进制音频数据，格式需要和上一次start中的aformat相对应。**SDK不会自动将pcm编码成opus或opu，如果需要使用opus或opu，需要用户自行编码** |
+| pcm_data | bytes | 要发送的二进制音频数据，格式需要和上一次start中的aformat相对应.**SDK不会自动将pcm编码成opus或opu，如果需要使用opus或opu，需要用户自行编码** |
 
 返回值：
 
@@ -595,7 +595,7 @@ nls包下面的NlsCommonProto对象可以用来实现智能语音交互的任意
 | on_error      | function | 当SDK或云端出现错误时回调，回调参数有两个，一个是json形式的字符串，一个是用户自定义参数，见后续callback_args参数说明 |
 | on_close      | function | 当和云端连接断开时回调，回调参数有一个——用户自定义参数，见后续callback_args参数说明 |
 | on_data       | function | 当云端返回二进制数据时回调，回调参数有两个，一个是二进制数据，一个是用户自定义参数，见后续callback_args参数说明 |
-| user_callback | dict     | 用户自定义回调字典，key为str类型，value为function类型，当SDK收到云端应答后，会根据应答内部header字段下面name字段来索引该字典，如果对应item存在则会回调对应function。该回调包括两个参数，一个是json形式的字符串，一个是用户自定义参数，见后续callback_args参数说明 |
+| user_callback | dict     | 用户自定义回调字典，key为str类型，value为function类型，当SDK收到云端应答后，会根据应答内部header字段下面name字段来索引该字典，如果对应item存在则会回调对应function.该回调包括两个参数，一个是json形式的字符串，一个是用户自定义参数，见后续callback_args参数说明 |
 | callback_args | list     | 用户自定义参数列表，里面的内容会pack成list传递给各个回调的最后一个参数 |
 
 返回值：

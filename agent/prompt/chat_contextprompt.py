@@ -4,17 +4,17 @@
 # 代码层面直接注入，LLM 不需要判断消息来源
 
 CONTEXTPROMPT_消息来源_用户消息 = '''### 消息来源说明
-这是{user[platforms][wechat][nickname]}通过微信发送给你的真实消息，请正常回复。'''
+这是{user[platforms][wechat][nickname]}通过微信发送给你的真实消息，请正常回复.'''
 
 CONTEXTPROMPT_消息来源_提醒触发 = '''### 消息来源说明
-这是系统触发的定时提醒，不是{user[platforms][wechat][nickname]}发来的消息。
-你需要根据提醒内容，主动向{user[platforms][wechat][nickname]}发送提醒消息。
-【注意】不要把提醒内容当成用户说的话来回复。'''
+这是系统触发的定时提醒，不是{user[platforms][wechat][nickname]}发来的消息.
+你需要根据提醒内容，主动向{user[platforms][wechat][nickname]}发送提醒消息.
+【注意】不要把提醒内容当成用户说的话来回复.'''
 
 CONTEXTPROMPT_消息来源_主动消息 = '''### 消息来源说明
-这是你主动发起对话的场景，不是{user[platforms][wechat][nickname]}发来的消息。
-你需要根据规划行动，主动向{user[platforms][wechat][nickname]}发送消息。
-【注意】你是消息的发起方，不是在回复用户。'''
+这是你主动发起对话的场景，不是{user[platforms][wechat][nickname]}发来的消息.
+你需要根据规划行动，主动向{user[platforms][wechat][nickname]}发送消息.
+【注意】你是消息的发起方，不是在回复用户.'''
 
 
 def get_message_source_context(message_source: str, context: dict) -> str:
@@ -42,17 +42,17 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         user_nickname = context.get("user", {}).get("platforms", {}).get("wechat", {}).get("nickname", "用户")
         if message_source == "reminder":
             return f'''### 消息来源说明
-这是系统触发的定时提醒，不是{user_nickname}发来的消息。
-你需要根据提醒内容，主动向{user_nickname}发送提醒消息。
-【注意】不要把提醒内容当成用户说的话来回复。'''
+这是系统触发的定时提醒，不是{user_nickname}发来的消息.
+你需要根据提醒内容，主动向{user_nickname}发送提醒消息.
+【注意】不要把提醒内容当成用户说的话来回复.'''
         elif message_source == "future":
             return f'''### 消息来源说明
-这是你主动发起对话的场景，不是{user_nickname}发来的消息。
-你需要根据规划行动，主动向{user_nickname}发送消息。
-【注意】你是消息的发起方，不是在回复用户。'''
+这是你主动发起对话的场景，不是{user_nickname}发来的消息.
+你需要根据规划行动，主动向{user_nickname}发送消息.
+【注意】你是消息的发起方，不是在回复用户.'''
         else:
             return f'''### 消息来源说明
-这是{user_nickname}通过微信发送给你的真实消息，请正常回复。'''
+这是{user_nickname}通过微信发送给你的真实消息，请正常回复.'''
 
 
 CONTEXTPROMPT_时间 = '''### 系统当前时间
@@ -162,21 +162,21 @@ CONTEXTPROMPT_最新聊天消息_双方 = '''### {user[platforms][wechat][nickna
 
 CONTEXTPROMPT_规划行动 = '''### {character[platforms][wechat][nickname]}的规划行动
 {character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息，行动内容：{conversation[conversation_info][future][action]}
-【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息。'''
+【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息.'''
 
 CONTEXTPROMPT_系统提醒触发 = '''### 系统提醒触发
 以下是到期的提醒，{character[platforms][wechat][nickname]}需要主动提醒{user[platforms][wechat][nickname]}：
 提醒内容：{system_message_metadata[action_template]}
-【重要】这是{character[platforms][wechat][nickname]}要发给{user[platforms][wechat][nickname]}的提醒内容，不是{user[platforms][wechat][nickname]}发来的消息。{character[platforms][wechat][nickname]}应该基于这个提醒内容，用自然的方式提醒用户。'''
+【重要】这是{character[platforms][wechat][nickname]}要发给{user[platforms][wechat][nickname]}的提醒内容，不是{user[platforms][wechat][nickname]}发来的消息.{character[platforms][wechat][nickname]}应该基于这个提醒内容，用自然的方式提醒用户.'''
 
 CONTEXTPROMPT_主动消息触发 = '''### 主动消息触发
-{character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息。
+{character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息.
 行动内容：{conversation[conversation_info][future][action]}
 本轮已主动催促次数：{proactive_times}
 
 {proactive_forbidden_messages}
 
-【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息。
+【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息.
 【严格禁止】如果上面列出了"你最近发送过的消息"，你必须生成与这些消息完全不同的新内容：
 - 不能重复相同的问题或话题
 - 不能使用相似的句式或表达
@@ -188,19 +188,19 @@ CONTEXTPROMPT_主动消息触发 = '''### 主动消息触发
 CONTEXTPROMPT_提醒工具结果 = '''### 提醒设置工具消息
 {【提醒设置工具消息】}
 
-【说明】以上是系统自动处理提醒的结果。请根据这个结果，用自然的方式回复用户。
+【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
 例如：
 - 如果提醒创建成功，可以说"好的，我帮你设好了"
 - 如果信息不足，请自然地询问用户补充缺少的信息
 - 如果是重复提醒，可以说"这个提醒已经设置过了哦"
 
-【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行。如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功。
+【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功.
 '''
 
 # V2.8 新增：提醒意图检测但工具未执行的提示
 # 当 OrchestratorAgent 判断 need_reminder_detect=True 但 ReminderDetectAgent 未调用工具时使用
 CONTEXTPROMPT_提醒未执行 = '''### 系统提示：提醒设置待确认
-用户的消息似乎包含设置提醒的意图，但系统尚未成功创建提醒。
+用户的消息似乎包含设置提醒的意图，但系统尚未成功创建提醒.
 可能的原因：
 - 时间表达不够明确（如"晚一点"、"过一会"等模糊时间）
 - 缺少必要的信息（如具体时间或提醒内容）
@@ -225,11 +225,11 @@ CONTEXTPROMPT_提醒工具结果_结构化 = '''### 提醒操作执行结果
 意图满足：{tool_execution_context[intent_fulfilled]}
 执行结果：{tool_execution_context[result_summary]}
 
-【说明】以上是系统自动处理提醒的结果。请根据这个结果，用自然的方式回复用户。
+【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
 - 如果"意图满足"为 True，说明用户的需求已被满足，可以确认操作成功
 - 如果"意图满足"为 False，说明用户的需求未被完全满足，需要引导用户补充信息或说明原因
 
-【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行。如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功。
+【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功.
 '''
 
 def get_reminder_result_context(session_state: dict) -> str:
@@ -261,14 +261,14 @@ def get_reminder_result_context(session_state: dict) -> str:
 意图满足：{"是" if tool_context.get("intent_fulfilled", False) else "否"}
 执行结果：{tool_context.get("result_summary", "")}
 
-【说明】以上是系统自动处理提醒的结果。请根据这个结果，用自然的方式回复用户。
+【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
 - 如果"意图满足"为"是"，说明用户的需求已被满足，可以确认操作成功
 - 如果"意图满足"为"否"，说明用户的需求未被完全满足，需要根据"执行结果"中的原因向用户解释：
   - 如果是频率过高被拒绝，向用户解释限制原因并建议替代方案
   - 如果是信息不足，引导用户补充缺少的信息
   - 如果是其他错误，说明具体原因
 
-【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行。如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功。
+【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功.
 {frequency_rules}'''
     
     # 回退到旧的语义化消息格式
@@ -277,13 +277,13 @@ def get_reminder_result_context(session_state: dict) -> str:
         return f'''### 提醒设置工具消息
 {reminder_message}
 
-【说明】以上是系统自动处理提醒的结果。请根据这个结果，用自然的方式回复用户。
+【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
 例如：
 - 如果提醒创建成功，可以说"好的，我帮你设好了"
 - 如果信息不足，请自然地询问用户补充缺少的信息
 - 如果是重复提醒，可以说"这个提醒已经设置过了哦"
 
-【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行。如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功。
+【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功.
 '''
     
     return ""

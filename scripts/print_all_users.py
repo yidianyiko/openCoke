@@ -2,7 +2,7 @@
 """
 打印所有用户信息脚本
 
-用于打印数据库中的所有用户信息。
+用于打印数据库中的所有用户信息.
 
 Usage:
     python scripts/print_all_users.py

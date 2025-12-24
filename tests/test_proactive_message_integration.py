@@ -114,7 +114,7 @@ def multimodal_response_strategy(draw):
     msg_type = draw(st.sampled_from(["text", "voice", "photo"]))
     content = draw(st.text(min_size=1, max_size=100, alphabet=st.characters(
         whitelist_categories=('L', 'N', 'P', 'Z'),
-        whitelist_characters='，。！？、'
+        whitelist_characters='，.！？、'
     )))
     
     # Ensure content is not empty or whitespace only
@@ -165,7 +165,7 @@ class TestWorkflowEndToEnd(unittest.TestCase):
     8.1 Workflow 端到端测试
     
     构造完整 session_state，执行 FutureMessageWorkflow，
-    验证返回结构和状态更新。
+    验证返回结构和状态更新.
     
     Validates: Requirements 8.1
     """
@@ -393,7 +393,7 @@ class TestOutputValidityProperty(unittest.TestCase):
     
     Property 9: 主动消息输出有效性
     For any 主动消息生成成功后，MultiModalResponses 列表应非空，
-    且每个元素的 type 字段应为有效值。
+    且每个元素的 type 字段应为有效值.
     
     **Feature: proactive-message, Property 9: 主动消息输出有效性**
     **Validates: Requirements 8.2**
@@ -487,7 +487,7 @@ class TestFrequencyControlIntegration(unittest.TestCase):
     """
     8.3 频率控制集成测试
     
-    测试连续主动消息的概率衰减机制。
+    测试连续主动消息的概率衰减机制.
     
     Validates: Requirements 8.3
     """
@@ -622,7 +622,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
     """
     8.4 触发服务集成测试
     
-    测试完整的触发流程。
+    测试完整的触发流程.
     
     Validates: Requirements 8.4
     """

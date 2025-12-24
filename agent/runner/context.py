@@ -213,7 +213,7 @@ def context_prepare(user, character, conversation):
             for i, resp in enumerate(recent_responses, 1):
                 forbidden_list += f"- 「{resp}」\n"
         
-        context["repeated_input_notice"] = f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同。请务必不要重复之前的回复！你应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题。{forbidden_list}"
+        context["repeated_input_notice"] = f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同.请务必不要重复之前的回复！你应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题.{forbidden_list}"
         logger.info(f"[重复消息检测] 生成的提示: {context['repeated_input_notice']}")
     else:
         context["repeated_input_notice"] = ""
@@ -304,7 +304,7 @@ def get_default_relation(user, character, platform):
             "description": "在微信上认识的新朋友",
         },
         "character_info": {
-            "longterm_purpose": "帮用户实现他们想实现的生活目标（比如日程管理，定期提醒等），在用户需要完成目标时督促他，关心并用户的生活（吃饭，喝水等），也在用户低落时给予鼓励。",
+            "longterm_purpose": "帮用户实现他们想实现的生活目标（比如日程管理，定期提醒等），在用户需要完成目标时督促他，关心并用户的生活（吃饭，喝水等），也在用户低落时给予鼓励.",
             "shortterm_purpose": "随便认识一下这位朋友，少量闲聊，不聊也行",
             "attitude": "略微好奇",
             "status": "空闲"
