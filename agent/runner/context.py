@@ -103,6 +103,34 @@ def get_recent_character_responses(chat_history, character_user_id, limit=5):
     
     return recent_responses
 
+
+def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
+    """
+    检测角色最近的主动消息内容，用于防止主动消息重复
+    
+    Args:
+        chat_history: 历史对话列表
+        character_user_id: 角色的用户ID
+        limit: 检查最近多少条角色消息
+    
+    Returns:
+        str: 禁止重复的提示文本，如果没有历史消息则返回空字符串
+    """
+    recent_responses = get_recent_character_responses(chat_history, character_user_id, limit)
+    
+    if not recent_responses:
+        return ""
+    
+    # 构建禁止重复的提示
+    forbidden_list = "【你最近发送过的消息（严禁重复或发送类似内容）】\n"
+    for i, resp in enumerate(recent_responses, 1):
+        # 截断过长的消息
+        display_resp = resp[:100] + "..." if len(resp) > 100 else resp
+        forbidden_list += f"{i}. 「{display_resp}」\n"
+    
+    return forbidden_list
+
+
 def context_prepare(user, character, conversation):
     context = {
         "user": user,
@@ -195,6 +223,9 @@ def context_prepare(user, character, conversation):
     
     # 顶层字段默认值
     context.setdefault("MultiModalResponses", [])
+    
+    # V2.10 新增：主动消息防重复提示（默认为空，由 handle_pending_future_message 填充）
+    context.setdefault("proactive_forbidden_messages", "")
     
     # context_retrieve 相关字段（由 ContextRetrieveAgent 填充）
     context.setdefault("context_retrieve", {

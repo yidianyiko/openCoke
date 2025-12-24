@@ -325,7 +325,7 @@ async def handle_pending_future_message():
         _lock_cooldown_cache.pop(conversation_id, None)
         
         # 处理拉黑逻辑
-        from agent.runner.context import context_prepare
+        from agent.runner.context import context_prepare, detect_repeated_proactive_output
         context = context_prepare(user, character, conversation)
         
         if context["relation"]["relationship"]["dislike"] >= 100:
@@ -335,6 +335,16 @@ async def handle_pending_future_message():
             try:
                 future_action = conversation["conversation_info"]["future"].get("action", "")
                 future_proactive_times = conversation["conversation_info"]["future"].get("proactive_times", 0)
+                
+                # ========== V2.10 新增：提取角色最近发送的消息，防止主动消息重复 ==========
+                chat_history = conversation.get("conversation_info", {}).get("chat_history", [])
+                character_user_id = str(character["_id"])
+                proactive_forbidden_messages = detect_repeated_proactive_output(
+                    chat_history, character_user_id, limit=3
+                )
+                context["proactive_forbidden_messages"] = proactive_forbidden_messages
+                if proactive_forbidden_messages:
+                    logger.info(f"[FUTURE] 检测到角色最近消息，已添加防重复提示")
                 
                 # 构造系统消息
                 input_message_str = f"[系统主动话题(这是我们要主动发给用户的话)] {future_action}"
