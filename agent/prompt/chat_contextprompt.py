@@ -1,4 +1,60 @@
 # -*- coding: utf-8 -*-
+
+# ========== 消息来源说明（根据 message_source 自动注入） ==========
+# 代码层面直接注入，LLM 不需要判断消息来源
+
+CONTEXTPROMPT_消息来源_用户消息 = '''### 消息来源说明
+这是{user[platforms][wechat][nickname]}通过微信发送给你的真实消息，请正常回复。'''
+
+CONTEXTPROMPT_消息来源_提醒触发 = '''### 消息来源说明
+这是系统触发的定时提醒，不是{user[platforms][wechat][nickname]}发来的消息。
+你需要根据提醒内容，主动向{user[platforms][wechat][nickname]}发送提醒消息。
+【注意】不要把提醒内容当成用户说的话来回复。'''
+
+CONTEXTPROMPT_消息来源_主动消息 = '''### 消息来源说明
+这是你主动发起对话的场景，不是{user[platforms][wechat][nickname]}发来的消息。
+你需要根据规划行动，主动向{user[platforms][wechat][nickname]}发送消息。
+【注意】你是消息的发起方，不是在回复用户。'''
+
+
+def get_message_source_context(message_source: str, context: dict) -> str:
+    """
+    根据消息来源返回对应的说明上下文
+    
+    Args:
+        message_source: 消息来源 - "user" / "reminder" / "future"
+        context: 完整上下文，用于渲染模板
+        
+    Returns:
+        格式化的消息来源说明
+    """
+    if message_source == "reminder":
+        template = CONTEXTPROMPT_消息来源_提醒触发
+    elif message_source == "future":
+        template = CONTEXTPROMPT_消息来源_主动消息
+    else:  # user
+        template = CONTEXTPROMPT_消息来源_用户消息
+    
+    try:
+        return template.format(**context)
+    except KeyError:
+        # 回退：直接使用用户昵称
+        user_nickname = context.get("user", {}).get("platforms", {}).get("wechat", {}).get("nickname", "用户")
+        if message_source == "reminder":
+            return f'''### 消息来源说明
+这是系统触发的定时提醒，不是{user_nickname}发来的消息。
+你需要根据提醒内容，主动向{user_nickname}发送提醒消息。
+【注意】不要把提醒内容当成用户说的话来回复。'''
+        elif message_source == "future":
+            return f'''### 消息来源说明
+这是你主动发起对话的场景，不是{user_nickname}发来的消息。
+你需要根据规划行动，主动向{user_nickname}发送消息。
+【注意】你是消息的发起方，不是在回复用户。'''
+        else:
+            return f'''### 消息来源说明
+这是{user_nickname}通过微信发送给你的真实消息，请正常回复。'''
+
+
 CONTEXTPROMPT_时间 = '''### 系统当前时间
 （24小时制）{conversation[conversation_info][time_str]}'''
 

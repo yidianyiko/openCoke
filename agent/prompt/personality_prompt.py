@@ -23,7 +23,9 @@ Personality Prompt - 人格与行为规范
 """
 
 # ========== 消息来源分类与处理规则 ==========
-# 适用于：OrchestratorAgent, ChatResponseAgent, FutureMessageChatAgent
+# V2.12：此模板已废弃，改为代码层面直接注入消息来源说明
+# 保留定义以兼容旧代码，但不再在 CHAT_AGENT_PERSONALITY 中使用
+# 适用于：OrchestratorAgent（仍需要判断消息来源进行调度决策）
 MESSAGE_SOURCE_HANDLING = '''
 ## 消息来源分类与处理规则
 
@@ -209,8 +211,8 @@ BAD_TRIGGER_HANDLING = '''
 # ========== 组合提示词（便于使用） ==========
 
 # ChatResponseAgent 完整人格提示词
+# V2.12：移除 MESSAGE_SOURCE_HANDLING，改为代码层面直接注入消息来源说明
 CHAT_AGENT_PERSONALITY = (
-    MESSAGE_SOURCE_HANDLING +
     PERSONALITY_WARMTH +
     PERSONALITY_WIT +
     PERSONALITY_CONCISENESS +

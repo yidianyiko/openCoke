@@ -46,6 +46,7 @@ from agent.prompt.chat_contextprompt import (
     get_relevant_history_context,
     get_reminders_context,
     get_reminder_result_context,
+    get_message_source_context,
 )
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
@@ -162,6 +163,10 @@ class StreamingChatWorkflow:
         
         # 根据消息来源选择不同的上下文模板和基础模板
         message_source = session_state.get("message_source", "user")
+        
+        # V2.12 新增：根据消息来源生成说明（代码层面直接注入，LLM 不需要判断）
+        message_source_context = get_message_source_context(message_source, session_state)
+        
         notice_segmentation = ""  # 消息分段注意事项（仅用于主动消息和提醒）
         if message_source == "reminder":
             source_template = self.userp_template_reminder
@@ -204,9 +209,10 @@ class StreamingChatWorkflow:
         if message_source == "user":
             relevant_history_context = get_relevant_history_context(context_retrieve)
         
-        # 组合完整模板（包含分段注意事项和按需加载的上下文）
+        # 组合完整模板（包含消息来源说明、分段注意事项和按需加载的上下文）
+        # V2.12：消息来源说明放在最前面，让 LLM 第一时间知道这是什么类型的消息
         # V2.9 优化：reminder_result_context 已经是渲染后的字符串，直接拼接
-        full_template = base_template + reminders_context + relevant_history_context + source_template + notice_segmentation + self.userp_template_task
+        full_template = message_source_context + "\n" + base_template + reminders_context + relevant_history_context + source_template + notice_segmentation + self.userp_template_task
         
         # 渲染 user prompt
         try:
