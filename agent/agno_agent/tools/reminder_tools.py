@@ -243,9 +243,14 @@ def _save_reminder_result_to_session(
 - title: 提醒标题（必需），如"开会"、"喝水"
 - trigger_time: 触发时间（必需），格式"xxxx年xx月xx日xx时xx分"或"30分钟后"
 - recurrence_type: 周期类型，可选值: "none"(默认)、"daily"、"weekly"、"monthly"、"interval"
-- recurrence_interval: 周期间隔数，默认1
+- recurrence_interval: 周期间隔数，默认1（interval类型时单位为分钟）
 - period_start/period_end: 时间段，格式 "HH:MM"
 - period_days: 生效星期，格式 "1,2,3,4,5"
+
+### 重复提醒频率限制（系统强制执行）
+- 分钟级别（interval < 60分钟）的无限重复提醒：禁止创建（频率过高会导致服务被限制）
+- 时间段提醒（设置了period_start/period_end）：最小间隔25分钟
+- 小时级别以上的无限重复提醒：允许，但默认10次上限
 
 ### update 参数
 - reminder_id: 要更新的提醒ID（必需）
@@ -253,6 +258,9 @@ def _save_reminder_result_to_session(
 
 ### delete 参数
 - reminder_id: 要删除的提醒ID（必需）
+
+### list 参数
+- include_all: 是否包含所有状态的提醒，默认 false 只返回有效提醒(confirmed/pending)，设为 true 时返回包括已触发、已完成的所有提醒
 
 ## 批量操作 (action="batch") - 推荐用于复杂场景
 
@@ -295,7 +303,9 @@ def reminder_tool(
     period_end: Optional[str] = None,
     period_days: Optional[str] = None,
     # 批量操作参数
-    operations: Optional[str] = None
+    operations: Optional[str] = None,
+    # list 操作参数
+    include_all: bool = False
 ) -> dict:
     """
     提醒管理统一工具
@@ -310,6 +320,7 @@ def reminder_tool(
         recurrence_type: 周期类型，默认"none"
         recurrence_interval: 周期间隔数，默认1
         operations: 批量操作时的操作列表JSON字符串
+        include_all: list操作时是否包含所有状态的提醒，默认False只返回有效提醒
     
     Returns:
         操作结果字典
@@ -406,7 +417,8 @@ def reminder_tool(
         elif action == "list":
             return _list_reminders(
                 reminder_dao=reminder_dao,
-                user_id=user_id
+                user_id=user_id,
+                include_all=include_all
             )
         
         else:
@@ -482,6 +494,51 @@ def _create_reminder(
             "draft": draft_info,
             "message": _get_missing_info_prompt(missing_fields)
         }
+    
+    # ========== 重复提醒频率限制检查 ==========
+    # 判断是否为时间段提醒（有 period_start 和 period_end）
+    is_period_reminder = bool(period_start and period_end)
+    
+    # 最小间隔限制
+    MIN_INTERVAL_INFINITE = 60  # 无限重复提醒最小间隔：60分钟
+    MIN_INTERVAL_PERIOD = 25    # 时间段提醒最小间隔：25分钟
+    
+    if recurrence_type == "interval":
+        if is_period_reminder:
+            # 时间段提醒：最小间隔 25 分钟
+            if recurrence_interval < MIN_INTERVAL_PERIOD:
+                error_msg = (
+                    f"频率过高：时间段提醒的间隔不能少于{MIN_INTERVAL_PERIOD}分钟，当前设置为每{recurrence_interval}分钟。"
+                    "这可能导致我的服务被限制，也不是 Coke 的设计用途。"
+                )
+                logger.warning(f"Rejected period reminder with interval={recurrence_interval}min < {MIN_INTERVAL_PERIOD}min, user_id={user_id}")
+                _save_reminder_result_to_session(
+                    f"提醒创建被拒绝：{error_msg}",
+                    user_intent="创建提醒",
+                    action_executed="create",
+                    intent_fulfilled=False,
+                    details={"error": "frequency_too_high", "recurrence_interval": recurrence_interval}
+                )
+                return {"ok": False, "error": error_msg}
+        else:
+            # 无限重复提醒：最小间隔 60 分钟（小时级别）
+            if recurrence_interval < MIN_INTERVAL_INFINITE:
+                error_msg = (
+                    f"频率过高：不支持每{recurrence_interval}分钟的无限重复提醒。"
+                    "这可能导致我的服务被限制，也不是 Coke 的设计用途。\n"
+                    "建议：\n"
+                    "1. 使用时间段提醒（如「上午9点到下午6点每30分钟提醒」，最小间隔25分钟）\n"
+                    "2. 或使用小时级别以上的周期（如「每小时」「每天」）"
+                )
+                logger.warning(f"Rejected minute-level infinite reminder: interval={recurrence_interval}min, user_id={user_id}")
+                _save_reminder_result_to_session(
+                    f"提醒创建被拒绝：{error_msg}",
+                    user_intent="创建提醒",
+                    action_executed="create",
+                    intent_fulfilled=False,
+                    details={"error": "frequency_too_high", "recurrence_interval": recurrence_interval}
+                )
+                return {"ok": False, "error": error_msg}
     
     current_time = int(time.time())
     
@@ -650,6 +707,13 @@ def _create_reminder(
         "triggered_count": 0
     }
     
+    # 为小时级别以上的无限重复提醒设置默认次数上限
+    # 条件：启用了周期 且 不是时间段提醒
+    DEFAULT_MAX_TRIGGERS = 10
+    if recurrence_type != "none" and not time_period_config:
+        reminder_doc["recurrence"]["max_count"] = DEFAULT_MAX_TRIGGERS
+        logger.info(f"Set default max_count={DEFAULT_MAX_TRIGGERS} for recurring reminder: type={recurrence_type}")
+    
     # Add time period config if present
     if time_period_config:
         reminder_doc["time_period"] = time_period_config
@@ -675,9 +739,13 @@ def _create_reminder(
             
             # 语义化输出创建成功信息
             recurrence_desc = ""
+            max_count_desc = ""
             if recurrence_type != "none":
                 recurrence_map = {"daily": "每天", "weekly": "每周", "monthly": "每月", "yearly": "每年", "hourly": "每小时", "interval": f"每{recurrence_interval}分钟"}
                 recurrence_desc = f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+                # 如果设置了次数上限，添加说明
+                if reminder_doc["recurrence"].get("max_count"):
+                    max_count_desc = f"（最多提醒{reminder_doc['recurrence']['max_count']}次）"
             
             # 时间段描述
             period_desc = ""
@@ -691,7 +759,7 @@ def _create_reminder(
                     days_str = "每天"
                 period_desc = f"，时间段：{days_str} {time_period_config['start_time']}-{time_period_config['end_time']}"
             
-            semantic_message = f"系统动作(非用户消息)：已按照用户最新的要求创建提醒成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}{period_desc}"
+            semantic_message = f"系统动作(非用户消息)：已按照用户最新的要求创建提醒成功：已为用户设置「{title}」提醒，时间为{trigger_time_str}{recurrence_desc}{max_count_desc}{period_desc}"
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="创建提醒",
@@ -702,9 +770,17 @@ def _create_reminder(
                     "reminder_id": reminder_id,
                     "title": title,
                     "trigger_time": trigger_time_str,
-                    "recurrence_type": recurrence_type
+                    "recurrence_type": recurrence_type,
+                    "max_count": reminder_doc["recurrence"].get("max_count")
                 }
             )
+            
+            # V2.11 新增：标记本轮已创建定时提醒，防止 PostAnalyzeWorkflow 重复设置 FutureResponse
+            # 解决问题：番茄钟等定时提醒被同时存储在 reminders 和 conversation.future 中导致重复触发
+            current_session = _get_current_session_state()
+            if current_session:
+                current_session["reminder_created_with_time"] = True
+                logger.debug(f"已设置 reminder_created_with_time=True，防止 FutureResponse 重复设置")
             
             return {
                 "ok": True,
@@ -915,6 +991,13 @@ def _batch_create_reminders(
     
     _save_reminder_result_to_session(semantic_message)
     
+    # V2.11 新增：如果有成功创建的提醒，设置标志防止 FutureResponse 重复设置
+    if created_reminders and any(r.get('status') == 'created' for r in created_reminders):
+        current_session = _get_current_session_state()
+        if current_session:
+            current_session["reminder_created_with_time"] = True
+            logger.debug(f"批量创建：已设置 reminder_created_with_time=True，防止 FutureResponse 重复设置")
+    
     return {
         "ok": len(created_reminders) > 0,
         "created": created_reminders,
@@ -1014,6 +1097,29 @@ def _batch_operations(
                 results.append(op_result)
                 continue
             
+            # 获取时间段参数
+            period_start = op.get("period_start")
+            period_end = op.get("period_end")
+            is_period_reminder = bool(period_start and period_end)
+            
+            # 频率限制检查
+            MIN_INTERVAL_INFINITE = 60  # 无限重复提醒最小间隔：60分钟
+            MIN_INTERVAL_PERIOD = 25    # 时间段提醒最小间隔：25分钟
+            
+            if recurrence_type == "interval":
+                if is_period_reminder and recurrence_interval < MIN_INTERVAL_PERIOD:
+                    op_result["ok"] = False
+                    op_result["error"] = f"频率过高：时间段提醒间隔不能少于{MIN_INTERVAL_PERIOD}分钟"
+                    results.append(op_result)
+                    logger.warning(f"Batch rejected period reminder: interval={recurrence_interval}min < {MIN_INTERVAL_PERIOD}min")
+                    continue
+                elif not is_period_reminder and recurrence_interval < MIN_INTERVAL_INFINITE:
+                    op_result["ok"] = False
+                    op_result["error"] = f"频率过高：不支持每{recurrence_interval}分钟的无限重复提醒，请使用时间段提醒或小时级别以上的周期"
+                    results.append(op_result)
+                    logger.warning(f"Batch rejected minute-level infinite reminder: interval={recurrence_interval}min")
+                    continue
+            
             # 去重检查：1. 首先检查完全相同的提醒（标题+时间都相同）
             existing = reminder_dao.find_similar_reminder(user_id, title, timestamp, recurrence_type, 300)
             if existing:
@@ -1069,6 +1175,12 @@ def _batch_operations(
                 "updated_at": current_time,
                 "triggered_count": 0
             }
+            
+            # 为小时级别以上的无限重复提醒设置默认次数上限
+            DEFAULT_MAX_TRIGGERS = 10
+            if recurrence_type != "none" and not is_period_reminder:
+                reminder_doc["recurrence"]["max_count"] = DEFAULT_MAX_TRIGGERS
+            
             if conversation_id:
                 reminder_doc["conversation_id"] = conversation_id
             if character_id:
@@ -1210,6 +1322,13 @@ def _batch_operations(
             "failed": len(failed)
         }
     )
+    
+    # V2.11 新增：如果有成功创建的提醒，设置标志防止 FutureResponse 重复设置
+    if created:
+        current_session = _get_current_session_state()
+        if current_session:
+            current_session["reminder_created_with_time"] = True
+            logger.debug(f"批量操作：已设置 reminder_created_with_time=True，防止 FutureResponse 重复设置")
     
     return {
         "ok": success_count > 0,
@@ -1441,11 +1560,27 @@ def _delete_reminder(
 
 def _list_reminders(
     reminder_dao: ReminderDAO,
-    user_id: str
+    user_id: str,
+    include_all: bool = False
 ) -> dict:
-    """List all reminders for a user."""
+    """
+    List reminders for a user.
+    
+    Args:
+        reminder_dao: ReminderDAO 实例
+        user_id: 用户ID
+        include_all: 是否包含所有状态的提醒，默认 False 只返回有效提醒(confirmed/pending)
+    """
     try:
-        reminders = reminder_dao.find_reminders_by_user(user_id)
+        if include_all:
+            # 查询所有状态的提醒
+            reminders = reminder_dao.find_reminders_by_user(user_id)
+        else:
+            # 默认只查询有效状态的提醒，与 delete_all_by_user 保持一致
+            reminders = reminder_dao.find_reminders_by_user(
+                user_id, 
+                status_list=["confirmed", "pending"]
+            )
         
         # Format reminders for output
         formatted_reminders = []

@@ -71,15 +71,9 @@ TASKPROMPT_总结 = '''You are {character[platforms][wechat][nickname]}. You int
 。
 现在双方发送了一些新的聊天消息，我需要针对这些最新的聊天消息进行一定的总结。总结下来的部分需要包含以下部分：'''
 
-TASKPROMPT_总结_推理要求 = '''### 当前主动消息状态
-本轮已主动催促次数：{proactive_times}
-消息来源：{message_source}
-
-1. RelationChange。根据本轮对话分析关系变化：
-- Closeness：亲密度数值变化（-10到+10之间的整数）
-- Trustness：信任度数值变化（-10到+10之间的整数）
-如果没有明显变化，输出 0。
-
+# V2.11 重构：将 FutureResponse 部分提取为独立变量，支持动态组装
+# 解决问题：当本轮已创建定时提醒时，不需要再让 LLM 输出 FutureResponse，避免重复设置
+TASKPROMPT_总结_FutureResponse = '''
 2. FutureResponse。根据【当前用户消息】和【最近对话上下文】，当{character[platforms][wechat][nickname]}回复了之后，假设{user[platforms][wechat][nickname]}在此之后一直没有任何回复，
 {character[platforms][wechat][nickname]}在未来什么时间（避免在夜间 22:00 到次日5：00）进行再次的未来主动消息。
 其中FutureResponseTime是{character[platforms][wechat][nickname]}再次主动的消息时间，格式为xxxx年xx月xx日xx时xx分，FutureResponseAction是再次主动消息的大致内容。
@@ -94,7 +88,24 @@ f. 用户明确表示休息或情绪低落：1-2 小时后温和询问状态。
 g. 如果对话已自然结束且无待办任务：停止主动消息，FutureResponseAction 输出为"无"。
 h. 【重要】如果历史对话显示角色已经连续主动发送了1条以上类似内容的消息，用户仍未回复：切换策略，改为 一天后发送轻松问候。
 i. 【重要】如果历史对话显示角色已经连续主动发送了3条以上消息用户完全没有回复：停止主动消息，FutureResponseAction 输出为"无"。
+'''
 
+# V2.11 重构：当不需要 FutureResponse 时使用的占位提示
+TASKPROMPT_总结_FutureResponse_跳过 = '''
+2. FutureResponse。本轮已通过提醒系统创建了定时提醒，无需再设置主动消息。请直接输出 FutureResponseTime 为空字符串，FutureResponseAction 为"无"。
+'''
+
+TASKPROMPT_总结_推理要求_头部 = '''### 当前主动消息状态
+本轮已主动催促次数：{proactive_times}
+消息来源：{message_source}
+
+1. RelationChange。根据本轮对话分析关系变化：
+- Closeness：亲密度数值变化（-10到+10之间的整数）
+- Trustness：信任度数值变化（-10到+10之间的整数）
+如果没有明显变化，输出 0。
+'''
+
+TASKPROMPT_总结_推理要求_尾部 = '''
 3. CharacterPublicSettings。总结最新聊天消息中，针对{character[platforms][wechat][nickname]}的新增人物设定。注意，如果这个信息跟{user[platforms][wechat][nickname]}有关，那么你不应该把它放到CharacterPublicSettings，而是CharacterPrivateSettings。
 你可以总结出1条或者多条信息，如果有多条信息，你应该用'<换行>'来进行分割。
 此处的格式可以参考"参考上下文"，使用"key：value"的形式，其中key可以由xxxx-xxx-xxx这样的多级格式构成；key是对信息的一个检索目录，而value是对它的详细描述（一般大于50字）。例如，工作经历-实习期经历-搞笑事件：xxxxxx。
@@ -119,6 +130,32 @@ CharacterPrivateSettings的key的结构尽量模仿CharacterPublicSettings的形
 ## CRITICAL CONSTRAINTS
 - EXTREMELY IMPORTANT: Never make up information. Only summarize what is explicitly mentioned in the latest messages. If something is not mentioned, output "无".
 '''
+
+
+def get_post_analyze_prompt(skip_future_response: bool = False) -> str:
+    """
+    动态生成 PostAnalyze 的推理要求 prompt
+    
+    V2.11 新增：支持根据条件跳过 FutureResponse 部分
+    
+    Args:
+        skip_future_response: 是否跳过 FutureResponse（当本轮已创建定时提醒时为 True）
+        
+    Returns:
+        组装后的 prompt 字符串
+    """
+    if skip_future_response:
+        return (
+            TASKPROMPT_总结_推理要求_头部 +
+            TASKPROMPT_总结_FutureResponse_跳过 +
+            TASKPROMPT_总结_推理要求_尾部
+        )
+    else:
+        return (
+            TASKPROMPT_总结_推理要求_头部 +
+            TASKPROMPT_总结_FutureResponse +
+            TASKPROMPT_总结_推理要求_尾部
+        )
 
 
 

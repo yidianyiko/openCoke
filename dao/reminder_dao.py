@@ -106,10 +106,20 @@ class ReminderDAO:
         return list(self.collection.find(query))
     
     def find_reminders_by_user(self, user_id: str, 
-                              status: Optional[str] = None) -> List[Dict]:
-        """查找用户的所有提醒"""
+                              status: Optional[str] = None,
+                              status_list: Optional[List[str]] = None) -> List[Dict]:
+        """
+        查找用户的所有提醒
+        
+        Args:
+            user_id: 用户ID
+            status: 单个状态过滤（向后兼容）
+            status_list: 多个状态过滤，如 ["confirmed", "pending"]
+        """
         query = {"user_id": user_id}
-        if status:
+        if status_list:
+            query["status"] = {"$in": status_list}
+        elif status:
             query["status"] = status
         return list(self.collection.find(query).sort("next_trigger_time", 1))
     

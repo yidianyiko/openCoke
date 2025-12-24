@@ -186,9 +186,19 @@ def get_reminder_result_context(session_state: dict) -> str:
     Returns:
         格式化的提醒工具结果上下文，如果没有结果则返回空字符串
     """
+    # 频率限制规则说明（当遇到频率限制错误时追加）
+    FREQUENCY_LIMIT_RULES = """
+### 重复提醒频率限制规则（向用户解释时参考）
+- 分钟级别（< 60分钟）的无限重复提醒：不支持，频率过高会导致服务被限制，用户可以使用时间段提醒（如"上午9点到下午6点每30分钟"），小时级别以上的重复提醒（每小时、每天等）：支持，默认最多提醒10次"""
+
     # 检查是否有结构化工具执行上下文
     tool_context = session_state.get("tool_execution_context")
     if tool_context:
+        # 检查是否是频率限制错误
+        details = tool_context.get("details", {})
+        is_frequency_error = details.get("error") == "frequency_too_high"
+        frequency_rules = FREQUENCY_LIMIT_RULES if is_frequency_error else ""
+        
         return f'''### 提醒操作执行结果
 用户意图：{tool_context.get("user_intent", "未识别")}
 实际执行：{tool_context.get("action_executed", "unknown")}
@@ -197,10 +207,13 @@ def get_reminder_result_context(session_state: dict) -> str:
 
 【说明】以上是系统自动处理提醒的结果。请根据这个结果，用自然的方式回复用户。
 - 如果"意图满足"为"是"，说明用户的需求已被满足，可以确认操作成功
-- 如果"意图满足"为"否"，说明用户的需求未被完全满足，需要引导用户补充信息或说明原因
+- 如果"意图满足"为"否"，说明用户的需求未被完全满足，需要根据"执行结果"中的原因向用户解释：
+  - 如果是频率过高被拒绝，向用户解释限制原因并建议替代方案
+  - 如果是信息不足，引导用户补充缺少的信息
+  - 如果是其他错误，说明具体原因
 
 【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行。如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功。
-'''
+{frequency_rules}'''
     
     # 回退到旧的语义化消息格式
     reminder_message = session_state.get("【提醒设置工具消息】", "")

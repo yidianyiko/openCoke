@@ -18,6 +18,10 @@ V2.5 更新：
 V2.8 更新：
 - 新增 RelationDescription 压缩机制：当描述超过阈值时，调用 LLM 进行摘要压缩
 
+V2.11 更新：
+- 解耦 FutureResponse：当本轮已创建定时提醒时，跳过 FutureResponse 的 prompt 和处理
+- 新增 get_post_analyze_prompt 动态生成 prompt，减少不必要的 token 消耗
+
 Requirements: 5.3
 """
 
@@ -28,7 +32,7 @@ from typing import Any, Dict, Optional
 from agent.agno_agent.agents import post_analyze_agent
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_总结,
-    TASKPROMPT_总结_推理要求,
+    get_post_analyze_prompt,
 )
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
@@ -63,18 +67,40 @@ class PostAnalyzeWorkflow:
     - UserSettings - 用户资料更新
     - UserRealName - 用户真名
     - RelationDescription - 关系描述更新
+    
+    V2.11 更新：
+    - 支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
     """
     
-    # User prompt 模板组合
-    userp_template = (
+    # User prompt 模板组合（静态部分）
+    # V2.11: 推理要求部分改为动态生成，见 _build_userp_template
+    userp_template_prefix = (
         TASKPROMPT_总结 +
         CONTEXTPROMPT_时间 +
         CONTEXTPROMPT_人物资料 +
         CONTEXTPROMPT_用户资料 +
         CONTEXTPROMPT_当前的人物关系 +
-        CONTEXTPROMPT_最新聊天消息_双方 +
-        TASKPROMPT_总结_推理要求
+        CONTEXTPROMPT_最新聊天消息_双方
     )
+    
+    def _build_userp_template(self, session_state: Dict[str, Any]) -> str:
+        """
+        V2.11 新增：动态构建 user prompt 模板
+        
+        根据 session_state 中的标志决定是否包含 FutureResponse 部分
+        
+        Args:
+            session_state: 会话状态
+            
+        Returns:
+            组装后的 prompt 模板
+        """
+        skip_future_response = session_state.get("reminder_created_with_time", False)
+        
+        if skip_future_response:
+            logger.info("[PostAnalyzeWorkflow] 检测到 reminder_created_with_time=True，跳过 FutureResponse prompt")
+        
+        return self.userp_template_prefix + get_post_analyze_prompt(skip_future_response)
     
     async def run(
         self,
@@ -84,6 +110,7 @@ class PostAnalyzeWorkflow:
         异步执行后处理分析
         
         V2 重构：新增 RelationChange 和 FutureResponse 处理
+        V2.11 更新：支持动态跳过 FutureResponse prompt
         
         Args:
             session_state: 上下文状态（需包含 MultiModalResponses）
@@ -103,9 +130,12 @@ class PostAnalyzeWorkflow:
         )
         session_state["MultiModalResponses"] = multimodal_str
         
+        # V2.11: 动态构建 prompt 模板（根据 reminder_created_with_time 决定是否包含 FutureResponse）
+        dynamic_template = self._build_userp_template(session_state)
+        
         # 渲染 user prompt
         try:
-            rendered_userp = self._render_template(self.userp_template, session_state)
+            rendered_userp = self._render_template(dynamic_template, session_state)
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = "请分析本次对话"
@@ -177,10 +207,19 @@ class PostAnalyzeWorkflow:
         """
         处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
         
+        V2.11 更新：
+        - 新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
+        
         Args:
             content: PostAnalyze 返回的内容
             session_state: 会话状态
         """
+        # V2.11 新增：如果本轮已创建定时提醒，跳过 FutureResponse 设置
+        # 解决问题：番茄钟等定时提醒被同时存储在 reminders 和 conversation.future 中导致重复触发
+        if session_state.get("reminder_created_with_time"):
+            logger.info("[FutureResponse] 本轮已创建定时提醒，跳过 FutureResponse 设置以避免重复触发")
+            return
+        
         # 获取 conversation 中的 future 信息
         conversation = session_state.get("conversation", {})
         conversation_info = conversation.get("conversation_info", {})
