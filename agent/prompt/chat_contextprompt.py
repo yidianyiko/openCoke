@@ -4,7 +4,7 @@
 # 代码层面直接注入，LLM 不需要判断消息来源
 
 CONTEXTPROMPT_消息来源_用户消息 = '''### 消息来源说明
-这是{user[platforms][wechat][nickname]}通过微信发送给你的真实消息，请正常回复.'''
+这是{user[platforms][wechat][nickname]}通过微信发送给你的真实消息.'''
 
 CONTEXTPROMPT_消息来源_提醒触发 = '''### 消息来源说明
 这是系统触发的定时提醒，不是{user[platforms][wechat][nickname]}发来的消息.
@@ -14,6 +14,7 @@ CONTEXTPROMPT_消息来源_提醒触发 = '''### 消息来源说明
 CONTEXTPROMPT_消息来源_主动消息 = '''### 消息来源说明
 这是你主动发起对话的场景，不是{user[platforms][wechat][nickname]}发来的消息.
 你需要根据规划行动，主动向{user[platforms][wechat][nickname]}发送消息.
+【注意】消息中如果存在与系统时间存在较大差异的时间信息，以系统时间为准.
 【注意】你是消息的发起方，不是在回复用户.'''
 
 
