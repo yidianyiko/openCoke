@@ -1,42 +1,37 @@
 import sys
+
 sys.path.append(".")
-import copy
+import logging
 import os
 import time
-import traceback
-import logging
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
 from framework.tool.text2voice.minimax import minimax_t2a
 from util.file_util import pcm_to_silk
-from util.oss import upload_file, bucket
+from util.oss import bucket, upload_file
+
 
 def character_voice_single(text, emotion=None):
     timber_weights = [
-        {
-        "voice_id": "Chinese (Mandarin)_IntellectualGirl",
-        "weight": 40
-        },
-        {
-        "voice_id": "Chinese (Mandarin)_Laid_BackGirl",
-        "weight": 100
-        }
+        {"voice_id": "Chinese (Mandarin)_IntellectualGirl", "weight": 40},
+        {"voice_id": "Chinese (Mandarin)_Laid_BackGirl", "weight": 100},
     ]
 
     resp_json = minimax_t2a(text, timber_weights, emotion=emotion, speed=1.1, pitch=-1)
     hex = resp_json["data"]["audio"]
     decoded_hex = bytes.fromhex(hex)
 
-    timestamp = str(int(time.time()*1000))
+    timestamp = str(int(time.time() * 1000))
     file_path = "agent/temp/" + timestamp + ".pcm"
     with open(file_path, "wb") as f:
         f.write(decoded_hex)
-    
+
     file_size = os.path.getsize(file_path)
     logger.info("file_size: " + str(file_size))
-    voice_length = int(file_size/1000/50) * 1000
+    voice_length = int(file_size / 1000/50) * 1000
 
     new_file_path = pcm_to_silk(file_path)
 
@@ -44,9 +39,10 @@ def character_voice_single(text, emotion=None):
         data = f.read()
     upload_file(bucket, timestamp + ".silk", data)
 
-    url = bucket.sign_url("GET", timestamp + ".silk", 60*60)
-    
+    url = bucket.sign_url("GET", timestamp + ".silk", 60 * 60)
+
     return url, voice_length
+
 
 def character_voice(text, emotion=None):
     emotion_map = {
@@ -56,7 +52,7 @@ def character_voice(text, emotion=None):
         "害怕": "fearful",
         "惊讶": "surprised",
         "厌恶": "disgusted",
-        "魅惑": "fearful"
+        "魅惑": "fearful",
     }
 
     if emotion not in emotion_map:
@@ -75,8 +71,9 @@ def character_voice(text, emotion=None):
 
     return results
 
+
 def split_string(text, chunk_size=420):
-    return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
 
     # resp_json = Ecloud_API.sendVoice(data={
     #     "wId": CONF["ecloud"]["wId"][target_user_alias],

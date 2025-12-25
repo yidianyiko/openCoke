@@ -1,16 +1,16 @@
 import sys
+
 sys.path.append(".")
-import copy
-import os
-import time
-import traceback
 import json
 import logging
+import os
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
 from bson import ObjectId
+
 from dao.user_dao import UserDAO
 from util.embedding_util import upsert_one
 
@@ -23,12 +23,12 @@ if __name__ == "__main__":
                 "wechat": {
                     "id": "wxid_58bfckbpioh822",  # 微信统一id
                     "account": "wxid_58bfckbpioh822",  # 微信号
-                    "nickname": " coke ", # 微信昵称
+                    "nickname": " coke ",  # 微信昵称
                 },
             },
             "status": "normal",  # normal | stopped
             "user_info": {
-                "description": '''
+                "description": """
 <system_prompt>
     <role_and_context>
         <agent_name>Coke</agent_name>
@@ -81,12 +81,12 @@ if __name__ == "__main__":
                 注意：必须保持微信消息的简洁风格，将问题和解释拆分成短小的几条消息，而非一次性发送长段落.
             </style_note>
         </onboarding_and_first_dialogue>
-        
+
         <goal_setting_and_breakdown>
             1. 协助用户确认他们的近期目标.例子：coke: “近期想要监督和提升哪方面？”
             2. 如果用户提到了当天具体的任务，则一定要与用户询问时间，打算何时完成，以及是否需要提醒.
             例子：用户：“下午我要做一个雅思的试卷”； coke：“下午大概几点开始做？我到时候提前提醒你.”
-        
+
         </goal_setting_and_breakdown>
 
         <daily_routine_and_tracking>
@@ -139,20 +139,20 @@ if __name__ == "__main__":
 
             **操作细节限制：**
             *   **你必须拒绝**用户提出的长文写作、深度研究、coding等工作场景要求.
-            
+
         </avoidance_rules>
     </communication_style_and_tone>
 
     <final_instruction>
-        你必须严格遵循上述的督促机制和沟通风格.在与用户沟通时，始终保持认真、机智、专业、有同理心的角色一致性，注重确认用户的目标并督促. 
+        你必须严格遵循上述的督促机制和沟通风格.在与用户沟通时，始终保持认真、机智、专业、有同理心的角色一致性，注重确认用户的目标并督促.
     </final_instruction>
 </system_prompt>
 
-''',
+""",
                 "status": {
                     "place": "工位",
                     "action": "督促中",
-                }
+                },
             },
         }
     ]
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         print(char_result[0])
 
         # 插入向量库
-        path = character["name"] + "/role/" + character["name"] +"/"
+        path = character["name"] + "/role/" + character["name"] + "/"
         files = os.listdir(path)
         for file in files:
             abs_file_name = path + file
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                 embeddings_kv = []
                 with open(abs_file_name) as f:
                     embeddings_kv = f.readlines()
-                
+
                 for embedding_kv in embeddings_kv:
                     embeddings_kv_split = embedding_kv.split("：")
                     if len(embeddings_kv_split) != 2:
@@ -186,18 +186,22 @@ if __name__ == "__main__":
                     key = embeddings_kv_split[0]
                     value = embeddings_kv_split[1]
 
-                    eid = upsert_one(key, value, metadata={
-                        "type": "character_global",
-                        "uid": None,
-                        "cid": char_id,
-                        "url": None,
-                        "file": None
-                    })
+                    eid = upsert_one(
+                        key,
+                        value,
+                        metadata={
+                            "type": "character_global",
+                            "uid": None,
+                            "cid": char_id,
+                            "url": None,
+                            "file": None,
+                        },
+                    )
 
                     print(eid)
 
-        ## 插入图片 
-        with open("agent/role/" + character["name"] +"/role_image.jsonl", "r") as f:
+        ## 插入图片
+        with open("agent/role/" + character["name"] + "/role_image.jsonl", "r") as f:
             images = f.readlines()
 
         for image in images:
@@ -205,16 +209,23 @@ if __name__ == "__main__":
             print(image_json)
 
             key = image_json["character_global_key"]
-            value = "【照片故事】" + image_json["Extension"] + "【照片描述】" + image_json["Description"]
+            value = (
+                "【照片故事】"
+                + image_json["Extension"]
+                + "【照片描述】"
+                + image_json["Description"]
+            )
 
-            eid = upsert_one(key, value, metadata={
-                "type": "character_photo",
-                "uid": None,
-                "cid": char_id,
-                "url": image_json["origin_path"],
-                "file": image_json["saved_path"]
-            })
+            eid = upsert_one(
+                key,
+                value,
+                metadata={
+                    "type": "character_photo",
+                    "uid": None,
+                    "cid": char_id,
+                    "url": image_json["origin_path"],
+                    "file": image_json["saved_path"],
+                },
+            )
 
             print(eid)
-            
-

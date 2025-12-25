@@ -1,28 +1,31 @@
 import sys
+
 sys.path.append(".")
-import copy
-import os
+import logging
 import time
 import traceback
-import logging
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
-from util.time_util import timestamp2str
+from bson import ObjectId
+
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
-from bson import ObjectId
+from util.time_util import timestamp2str
+
 
 def messages_to_str(messages, language="cn"):
     if len(messages) == 0:
         return ""
-    
+
     messages_str_lines = []
     for message in messages:
         messages_str_lines.append(message_to_str(message, language))
-    
+
     return "\n".join(messages_str_lines)
+
 
 def message_to_str(message, language="cn"):
     try:
@@ -32,10 +35,11 @@ def message_to_str(message, language="cn"):
             return reference_message_to_str(message, language=language)
         if message["message_type"] in ["image"]:
             return image_message_to_str(message, language=language)
-    except Exception as e:
+    except Exception:
         logger.error(traceback.format_exc())
         return ""
     return ""
+
 
 def _resolve_talker_name(talker, message):
     platform = message.get("platform")
@@ -53,6 +57,8 @@ def _resolve_talker_name(talker, message):
     if nickname:
         return nickname
     return default_name
+
+
 def normal_message_to_str(message, language="cn"):
     if "input_timestamp" in message:
         message_time = message["input_timestamp"]
@@ -60,7 +66,7 @@ def normal_message_to_str(message, language="cn"):
         if message["expect_output_timestamp"] <= int(time.time()):
             message_time = message["expect_output_timestamp"]
         else:
-            return "" # 如果expect_output_timestamp比now大，证明还没发出去
+            return ""  # 如果expect_output_timestamp比now大，证明还没发出去
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])
@@ -68,16 +74,23 @@ def normal_message_to_str(message, language="cn"):
     time_str = timestamp2str(message_time)
 
     if language == "cn":
-        message_type_map = {
-            "text": "文本",
-            "voice": "语音"
-        }
+        message_type_map = {"text": "文本", "voice": "语音"}
         message_type_str = "文本"
         if message["message_type"] in message_type_map:
             message_type_str = message_type_map[message["message_type"]]
 
     message_content = message.get("message", "") or ""
-    return "（" + time_str + " " + talker_name + "发来了" + message_type_str + "消息）" + message_content
+    return (
+        "（"
+        + time_str
+        + " "
+        + talker_name
+        + "发来了"
+        + message_type_str
+        + "消息）"
+        + message_content
+    )
+
 
 def reference_message_to_str(message, language="cn"):
     if "input_timestamp" in message:
@@ -86,7 +99,7 @@ def reference_message_to_str(message, language="cn"):
         if message["expect_output_timestamp"] <= int(time.time()):
             message_time = message["expect_output_timestamp"]
         else:
-            return "" # 如果expect_output_timestamp比now大，证明还没发出去
+            return ""  # 如果expect_output_timestamp比now大，证明还没发出去
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])
@@ -96,7 +109,20 @@ def reference_message_to_str(message, language="cn"):
     message_content = message.get("message", "") or ""
     reference_user = message["metadata"]["reference"]["user"] or ""
     reference_text = message["metadata"]["reference"]["text"] or ""
-    return "（" + time_str + " " + talker_name + "发来了一条引用消息）" + message_content + "「引用了" + reference_user + "的消息：" + reference_text + "」"
+    return (
+        "（"
+        + time_str
+        + " "
+        + talker_name
+        + "发来了一条引用消息）"
+        + message_content
+        + "「引用了"
+        + reference_user
+        + "的消息："
+        + reference_text
+        + "」"
+    )
+
 
 def image_message_to_str(message, language="cn"):
     if "input_timestamp" in message:
@@ -105,7 +131,7 @@ def image_message_to_str(message, language="cn"):
         if message["expect_output_timestamp"] <= int(time.time()):
             message_time = message["expect_output_timestamp"]
         else:
-            return "" # 如果expect_output_timestamp比now大，证明还没发出去
+            return ""  # 如果expect_output_timestamp比now大，证明还没发出去
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])
@@ -126,7 +152,17 @@ def image_message_to_str(message, language="cn"):
         if image is not None:
             image_str = image["key"] + "：" + image["value"]
 
-    return "（" + time_str + " " + talker_name + "发来了一条图片消息）" + message_content + "." + image_str
+    return (
+        "（"
+        + time_str
+        + " "
+        + talker_name
+        + "发来了一条图片消息）"
+        + message_content
+        + "."
+        + image_str
+    )
+
 
 # {
 #     "_id": xxx,  # 内置id
@@ -144,7 +180,10 @@ def image_message_to_str(message, language="cn"):
 #     }
 # }
 
-def send_message_via_context(context, message, message_type="text", expect_output_timestamp=None, metadata={}):
+
+def send_message_via_context(
+    context, message, message_type="text", expect_output_timestamp=None, metadata={}
+):
     return send_message(
         platform=context["conversation"]["platform"],
         from_user=str(context["character"]["_id"]),
@@ -154,10 +193,21 @@ def send_message_via_context(context, message, message_type="text", expect_outpu
         message_type=message_type,
         status="pending",
         expect_output_timestamp=expect_output_timestamp,
-        metadata=metadata
+        metadata=metadata,
     )
 
-def send_message(platform, from_user, to_user, chatroom_name, message, message_type="text", status="pending", expect_output_timestamp=None, metadata={}):
+
+def send_message(
+    platform,
+    from_user,
+    to_user,
+    chatroom_name,
+    message,
+    message_type="text",
+    status="pending",
+    expect_output_timestamp=None,
+    metadata={},
+):
     mongo = MongoDBBase()
     now = int(time.time())
     if expect_output_timestamp is None:
@@ -170,16 +220,13 @@ def send_message(platform, from_user, to_user, chatroom_name, message, message_t
         "from_user": from_user,  # 来源uid
         "platform": platform,  # 来源平台
         "chatroom_name": chatroom_name,  # 如果有值，则来自群聊；否则是私聊
-        "to_user": to_user, # 目标用户uid；群聊时，值为None
+        "to_user": to_user,  # 目标用户uid；群聊时，值为None
         "message_type": message_type,  # 包括：
         "message": message,  # 实际消息，格式另行约定
-        "metadata": metadata
+        "metadata": metadata,
     }
 
-    mid = mongo.insert_one(
-        "outputmessages",
-        outputmessage
-    )
+    mid = mongo.insert_one("outputmessages", outputmessage)
 
     if mid is not None:
         outputmessage["_id"] = ObjectId(mid)

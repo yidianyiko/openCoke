@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """检查和清理 MongoDB 中的锁"""
 import sys
+
 sys.path.append(".")
 
-from dao.lock import MongoDBLockManager
 from datetime import datetime
+
+from dao.lock import MongoDBLockManager
 
 lock_manager = MongoDBLockManager()
 
@@ -14,7 +16,7 @@ locks = list(lock_manager.locks.find({}))
 if not locks:
     print("没有任何锁")
 else:
-    now = datetime.utcnow()
+    now = datetime.now(datetime.UTC)
     for lock in locks:
         expires_at = lock.get("expires_at")
         is_expired = expires_at < now if expires_at else "未知"
@@ -28,6 +30,6 @@ else:
 # 询问是否清理
 if locks:
     answer = input("是否清理所有锁? (y/N): ")
-    if answer.lower() == 'y':
+    if answer.lower() == "y":
         result = lock_manager.locks.delete_many({})
         print(f"已删除 {result.deleted_count} 个锁")

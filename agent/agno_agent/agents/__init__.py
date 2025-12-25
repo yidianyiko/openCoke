@@ -2,7 +2,7 @@
 """
 Agno Agents Module
 
-This module contains all pre-created Agno Agents for the chat system.
+This module contains all pre - created Agno Agents for the chat system.
 Agents are created at module level to avoid instantiation overhead on each call.
 
 V2 架构：引入 OrchestratorAgent 作为调度中心
@@ -16,17 +16,17 @@ from typing import Any, Dict
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
-from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
-from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.chat_response_schema import ChatResponse
+from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
+from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.prompt.agent_instructions_prompt import (
-    INSTRUCTIONS_REMINDER_DETECT,
-    INSTRUCTIONS_ORCHESTRATOR,
-    INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_CHAT_RESPONSE,
+    INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_POST_ANALYZE,
+    INSTRUCTIONS_QUERY_REWRITE,
+    INSTRUCTIONS_REMINDER_DETECT,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,13 +34,14 @@ logger = logging.getLogger(__name__)
 
 # ========== 动态 instructions 函数 ==========
 
+
 def get_query_rewrite_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 QueryRewrite 的 system prompt
-    
+
     Args:
         session_state: 会话状态（预留用于未来扩展）
-        
+
     Returns:
         问题重写的 instructions
     """
@@ -50,10 +51,10 @@ def get_query_rewrite_instructions(session_state: Dict[str, Any] = None) -> str:
 def get_chat_response_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 ChatResponse 的 system prompt
-    
+
     Args:
         session_state: 会话状态（预留用于未来扩展）
-        
+
     Returns:
         对话生成的 instructions
     """
@@ -63,10 +64,10 @@ def get_chat_response_instructions(session_state: Dict[str, Any] = None) -> str:
 def get_post_analyze_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 PostAnalyze 的 system prompt
-    
+
     Args:
         session_state: 会话状态（预留用于未来扩展）
-        
+
     Returns:
         后处理分析的 instructions
     """
@@ -76,26 +77,25 @@ def get_post_analyze_instructions(session_state: Dict[str, Any] = None) -> str:
 def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 ReminderDetect 的 system prompt
-    
+
     Args:
         session_state: 会话状态，包含动态数据
-        
+
     Returns:
         渲染后的 system prompt
     """
     return INSTRUCTIONS_REMINDER_DETECT
 
 
-
 def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 OrchestratorAgent 的 system prompt
-    
+
     V2 架构核心：Orchestrator 负责语义理解 + 调度决策
-    
+
     Args:
         session_state: 会话状态，包含动态数据
-        
+
     Returns:
         渲染后的 system prompt
     """
@@ -108,13 +108,14 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 # - E4: LLM API 限流直接失败
 # - E5: 网络临时故障直接失败
 
+
 def create_deepseek_model(model_id: str = "deepseek-chat"):
     """
     创建带重试配置的 DeepSeek Model
-    
+
     Args:
         model_id: 模型ID
-        
+
     Returns:
         配置了重试的 DeepSeek 实例
     """
@@ -141,7 +142,7 @@ query_rewrite_agent = Agent(
 
 # ReminderDetectAgent - 提醒检测，识别提醒意图并创建提醒
 # Requirements: 4.2
-# 
+#
 # 重要修复 (2025-12-23):
 # - 在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
 # - 问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具

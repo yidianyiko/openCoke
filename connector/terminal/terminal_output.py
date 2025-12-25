@@ -1,17 +1,13 @@
 # -*- coding: utf-8 -*-
-import os
+import sys
 import time
 
-import sys
 sys.path.append(".")
-
-import traceback
 import logging
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
-import json
-from bson import ObjectId
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -31,13 +27,16 @@ user_name = user["platforms"]["wechat"]["nickname"]
 while True:
     time.sleep(1)
     now = int(time.time())
-    message = mongo.find_one("outputmessages", {
-        "platform": "wechat",
-        "from_user": from_user,
-        "to_user": to_user,
-        "status": "pending",
-        "expect_output_timestamp": {"$lt": now},  # 预期输出的时间戳秒级
-    })
+    message = mongo.find_one(
+        "outputmessages",
+        {
+            "platform": "wechat",
+            "from_user": from_user,
+            "to_user": to_user,
+            "status": "pending",
+            "expect_output_timestamp": {"$lt": now},  # 预期输出的时间戳秒级
+        },
+    )
 
     if message is None:
         continue

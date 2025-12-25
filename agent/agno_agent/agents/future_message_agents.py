@@ -6,7 +6,7 @@
 - future_message_query_rewrite_agent: 主动消息的问题重写
 - future_message_chat_agent: 主动消息生成
 
-Requirements: FR-036, FR-038
+Requirements: FR - 036, FR - 038
 """
 
 import logging
@@ -15,13 +15,13 @@ from typing import Any, Dict
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
-from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.schemas.future_message_schema import FutureMessageResponse
+from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE,
-    INSTRUCTIONS_FUTURE_QUERY_REWRITE,
     INSTRUCTIONS_FUTURE_MESSAGE_CHAT,
+    INSTRUCTIONS_FUTURE_QUERY_REWRITE,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,13 +29,14 @@ logger = logging.getLogger(__name__)
 
 # ========== 动态 instructions 函数 ==========
 
+
 def get_future_query_rewrite_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染主动消息问题重写的 system prompt
-    
+
     Args:
         session_state: 会话状态（预留用于未来扩展）
-        
+
     Returns:
         主动消息问题重写的 instructions
     """
@@ -45,17 +46,19 @@ def get_future_query_rewrite_instructions(session_state: Dict[str, Any] = None) 
 def get_future_message_chat_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染主动消息生成的 system prompt
-    
+
     Args:
         session_state: 会话状态（预留用于未来扩展）
-        
+
     Returns:
         主动消息生成的 instructions
     """
     return INSTRUCTIONS_FUTURE_MESSAGE_CHAT
 
 
-def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = None) -> str:
+def get_future_context_retrieve_instructions(
+    session_state: Dict[str, Any] = None,
+) -> str:
     """
     动态渲染主动消息上下文检索的 system prompt
     """
@@ -64,6 +67,7 @@ def get_future_context_retrieve_instructions(session_state: Dict[str, Any] = Non
 
 # ========== Model 层重试配置 ==========
 # 解决问题：P17, E4, E5 - API 限流和网络故障自动重试
+
 
 def create_deepseek_model(model_id: str = "deepseek-chat"):
     """创建带重试配置的 DeepSeek Model"""

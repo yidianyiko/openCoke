@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
+import logging
+import os
+from itertools import islice
+
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
-from itertools import islice
-import os
-import logging
-import time
-import random
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # 检查环境变量是否已设置
-required_env_vars = ['OSS_ACCESS_KEY_ID', 'OSS_ACCESS_KEY_SECRET']
+required_env_vars = ["OSS_ACCESS_KEY_ID", "OSS_ACCESS_KEY_SECRET"]
 for var in required_env_vars:
     if var not in os.environ:
         logging.error(f"Environment variable {var} is not set.")
@@ -28,12 +29,14 @@ region = "cn-shanghai"
 bucket_name = "coke-20251114"
 bucket = oss2.Bucket(auth, endpoint, bucket_name, region=region)
 
+
 def create_bucket(bucket):
     try:
         bucket.create_bucket(oss2.models.BUCKET_ACL_PRIVATE)
         logging.info("Bucket created successfully")
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to create bucket: {e}")
+
 
 def upload_file(bucket, object_name, data):
     try:
@@ -42,15 +45,17 @@ def upload_file(bucket, object_name, data):
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to upload file: {e}")
 
+
 def download_file(bucket, object_name):
     try:
         file_obj = bucket.get_object(object_name)
-        content = file_obj.read().decode('utf-8')
+        content = file_obj.read().decode("utf-8")
         logging.info("File content:")
         logging.info(content)
         return content
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to download file: {e}")
+
 
 def list_objects(bucket):
     try:
@@ -59,6 +64,7 @@ def list_objects(bucket):
             logging.info(obj.key)
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to list objects: {e}")
+
 
 def delete_objects(bucket):
     try:
@@ -72,6 +78,7 @@ def delete_objects(bucket):
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to delete objects: {e}")
 
+
 def delete_bucket(bucket):
     try:
         bucket.delete_bucket()
@@ -79,13 +86,12 @@ def delete_bucket(bucket):
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to delete bucket: {e}")
 
+
 # 主流程
-if __name__ == '__main__':
+if __name__ == "__main__":
     # with open("framework/tool/text2voice/test.silk", "rb") as f:
     #     data = f.read()
     # upload_file(bucket, "test.silk", data)
 
-
-    url = bucket.sign_url("GET", "test.silk", 5*60)
+    url = bucket.sign_url("GET", "test.silk", 5 * 60)
     print(url)
-    

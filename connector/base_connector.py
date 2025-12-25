@@ -1,21 +1,20 @@
 # -*- coding: utf-8 -*-
-import os
-import time
 import asyncio
-
-import traceback
 import logging
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 
 import sys
+
 sys.path.append(".")
 
-class BaseConnector():
+
+class BaseConnector:
     def __init__(self, loop_time=1):
         self.loop_time = loop_time
-    
+
     async def input_handler(self):
         logger.info("base_input")
         pass
@@ -33,12 +32,10 @@ class BaseConnector():
         while True:
             await asyncio.sleep(self.loop_time)
             await self.output_handler()
-    
+
     async def runner(self):
-        await asyncio.gather(
-            self.input_runner(),
-            self.output_runner()
-        )
+        await asyncio.gather(self.input_runner(), self.output_runner())
+
 
 # 启动脚本
 if __name__ == "__main__":

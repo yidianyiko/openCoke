@@ -1,32 +1,35 @@
 import sys
+
 sys.path.append(".")
-import copy
-import os
+import logging
 import time
 import traceback
-import logging
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
 import asyncio
+
 from dotenv import load_dotenv
+
 load_dotenv()
+from conf.config import CONF
+from connector.ecloud.ecloud_adapter import std_to_ecloud_message
+from connector.ecloud.ecloud_api import Ecloud_API
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import save_outputmessage
-from conf.config import CONF
-from connector.ecloud.ecloud_api import Ecloud_API
-from connector.ecloud.ecloud_adapter import std_to_ecloud_message
+
 
 async def run_ecloud_output():
     while True:
         await asyncio.sleep(1)
         await output_handler()
 
+
 async def main():
-    await asyncio.gather(
-        run_ecloud_output()
-    )
+    await asyncio.gather(run_ecloud_output())
+
 
 async def output_handler():
     mongo = MongoDBBase()
@@ -35,16 +38,21 @@ async def output_handler():
     try:
         # 寻找要发送的message
         now = int(time.time())
-        message = mongo.find_one("outputmessages", {
-            "platform": "wechat",
-            # "from_user": target_user_id,
-            "status": "pending",
-            "expect_output_timestamp": {"$lte": now},  # 修复：使用 $lte 而不是 $lt，确保当前时间的消息也能被发送
-        })
+        message = mongo.find_one(
+            "outputmessages",
+            {
+                "platform": "wechat",
+                # "from_user": target_user_id,
+                "status": "pending",
+                "expect_output_timestamp": {
+                    "$lte": now
+                },  # 修复：使用 $lte 而不是 $lt，确保当前时间的消息也能被发送
+            },
+        )
 
         if message is None:
             return
-        
+
         logger.info("sending...")
         logger.info(message)
 
@@ -58,7 +66,7 @@ async def output_handler():
         user = user_dao.get_user_by_id(message["to_user"])
         if user is None:
             raise Exception("character not found: " + str(target_user_id))
-        
+
         target_user_alias = character["name"]
         wid_map = CONF.get("ecloud", {}).get("wId", {})
         wid = wid_map.get(target_user_alias)
@@ -67,8 +75,10 @@ async def output_handler():
                 wid = _wid
                 break
         if wid is None:
-            raise Exception("ecloud wId not configured for alias: " + str(target_user_alias))
-        
+            raise Exception(
+                "ecloud wId not configured for alias: " + str(target_user_alias)
+            )
+
         # 实际发送
         ecloud = std_to_ecloud_message(message)
         ecloud["wId"] = wid
@@ -100,13 +110,13 @@ async def output_handler():
             resp_json = Ecloud_API.sendImage(ecloud)
 
         logger.info(resp_json)
-        
+
         now = int(time.time())
         message["status"] = "handled"
         message["handled_timestamp"] = now
         save_outputmessage(message)
 
-    except Exception as e:
+    except Exception:
         logger.error(traceback.format_exc())
         now = int(time.time())
         message["status"] = "failed"
@@ -114,5 +124,5 @@ async def output_handler():
         save_outputmessage(message)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())

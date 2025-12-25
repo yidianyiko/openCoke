@@ -1,29 +1,21 @@
 import sys
+
 sys.path.append(".")
-import copy
-import os
-import time
-import random
-import traceback
 import logging
+import time
 from logging import getLogger
+
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
-
-from entity.message import read_top_inputmessages, read_all_inputmessages, save_inputmessage
-from dao.conversation_dao import ConversationDAO
-from dao.user_dao import UserDAO
-from dao.lock import MongoDBLockManager
-from dao.mongo import MongoDBBase
-from conf.config import CONF
 from agent.tool.image import upload_image
-from util.time_util import date2str
-
+from conf.config import CONF
 from connector.ecloud.ecloud_api import Ecloud_API
-from bson import ObjectId
+from dao.mongo import MongoDBBase
+from util.time_util import date2str
 
 target_user_alias = CONF.get("default_character_alias", "coke")
 supported_hardcode = ("朋友圈 ", "删除 ", "重新生成")
+
 
 def handle_hardcode(context, message):
     mongo = MongoDBBase()
@@ -43,12 +35,12 @@ def handle_hardcode(context, message):
         data = {
             "wId": CONF["ecloud"]["wId"][target_user_alias],
             "content": pyq_post,
-            "paths": image_url
+            "paths": image_url,
         }
 
         resp_json = Ecloud_API.snsSendImage(data)
         logger.info(resp_json)
-    
+
     if str(message).startswith("重新生成"):
         target_user_id = CONF["characters"][target_user_alias]
 

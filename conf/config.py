@@ -12,9 +12,11 @@ def init_conf():
     conf.update(server_conf)
     return conf
 
+
 def save_config():
     """保存配置到文件"""
     with open("conf/config.json", mode="w", encoding="utf-8") as f:
         json.dump(CONF, f, ensure_ascii=False, indent=4)
+
 
 CONF = init_conf()

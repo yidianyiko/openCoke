@@ -8,7 +8,7 @@ V2 架构 Workflows:
 - PrepareWorkflow: OrchestratorAgent + context_retrieve_tool + ReminderDetectAgent(按需)
 - StreamingChatWorkflow: ChatResponseAgent with streaming support (Requirements: 5.2)
 - PostAnalyzeWorkflow: PostAnalyzeAgent (Requirements: 5.3)
-- FutureMessageWorkflow: 主动消息生成 (Requirements: FR-036, FR-038)
+- FutureMessageWorkflow: 主动消息生成 (Requirements: FR - 036, FR - 038)
 
 V2 架构改进:
 - PrepareWorkflow 使用 OrchestratorAgent 作为调度中心
@@ -17,10 +17,10 @@ V2 架构改进:
 - StreamingChatWorkflow 支持流式输出，提升用户体验
 """
 
-from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
-from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
 from agent.agno_agent.workflows.future_message_workflow import FutureMessageWorkflow
+from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
+from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
 __all__ = [
     "PrepareWorkflow",
