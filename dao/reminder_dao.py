@@ -318,6 +318,121 @@ class ReminderDAO:
         logger.info(f"Deleted {result.deleted_count} reminders for user {user_id}")
         return result.deleted_count
 
+    def find_reminders_by_keyword(
+        self,
+        user_id: str,
+        keyword: str,
+        status_list: Optional[List[str]] = None,
+    ) -> List[Dict]:
+        """
+        根据关键字模糊匹配用户的提醒
+
+        Args:
+            user_id: 用户ID
+            keyword: 搜索关键字，支持模糊匹配标题
+            status_list: 状态过滤，默认只查有效提醒
+
+        Returns:
+            List[Dict]: 匹配的提醒列表
+        """
+        if status_list is None:
+            status_list = ["confirmed", "pending"]
+
+        query = {
+            "user_id": user_id,
+            "status": {"$in": status_list},
+            "title": {"$regex": keyword, "$options": "i"},  # 不区分大小写
+        }
+        return list(self.collection.find(query).sort("next_trigger_time", 1))
+
+    def delete_reminders_by_keyword(
+        self,
+        user_id: str,
+        keyword: str,
+    ) -> tuple[int, List[Dict]]:
+        """
+        根据关键字删除用户的提醒
+
+        Args:
+            user_id: 用户ID
+            keyword: 搜索关键字
+
+        Returns:
+            tuple[int, List[Dict]]: (删除数量, 被删除的提醒列表)
+        """
+        # 先查找匹配的提醒
+        matched = self.find_reminders_by_keyword(user_id, keyword)
+        if not matched:
+            return 0, []
+
+        # 记录被删除的提醒信息
+        deleted_reminders = [
+            {"reminder_id": r.get("reminder_id"), "title": r.get("title")}
+            for r in matched
+        ]
+
+        # 删除匹配的提醒
+        reminder_ids = [r.get("reminder_id") for r in matched]
+        result = self.collection.delete_many(
+            {
+                "user_id": user_id,
+                "reminder_id": {"$in": reminder_ids},
+                "status": {"$in": ["confirmed", "pending"]},
+            }
+        )
+
+        logger.info(
+            f"Deleted {result.deleted_count} reminders by keyword '{keyword}' for user {user_id}"
+        )
+        return result.deleted_count, deleted_reminders
+
+    def update_reminders_by_keyword(
+        self,
+        user_id: str,
+        keyword: str,
+        update_data: Dict,
+    ) -> tuple[int, List[Dict]]:
+        """
+        根据关键字更新用户的提醒
+
+        Args:
+            user_id: 用户ID
+            keyword: 搜索关键字
+            update_data: 要更新的数据
+
+        Returns:
+            tuple[int, List[Dict]]: (更新数量, 被更新的提醒列表)
+        """
+        # 先查找匹配的提醒
+        matched = self.find_reminders_by_keyword(user_id, keyword)
+        if not matched:
+            return 0, []
+
+        # 记录被更新的提醒信息
+        updated_reminders = [
+            {"reminder_id": r.get("reminder_id"), "title": r.get("title")}
+            for r in matched
+        ]
+
+        # 添加更新时间
+        update_data["updated_at"] = int(time.time())
+
+        # 更新匹配的提醒
+        reminder_ids = [r.get("reminder_id") for r in matched]
+        result = self.collection.update_many(
+            {
+                "user_id": user_id,
+                "reminder_id": {"$in": reminder_ids},
+                "status": {"$in": ["confirmed", "pending"]},
+            },
+            {"$set": update_data},
+        )
+
+        logger.info(
+            f"Updated {result.modified_count} reminders by keyword '{keyword}' for user {user_id}"
+        )
+        return result.modified_count, updated_reminders
+
     def close(self):
         """关闭数据库连接"""
         self.client.close()

@@ -63,7 +63,7 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 ## 分析规则（按顺序执行）
 
 ### Step 1: 分析当前消息
-首先判断当前用户消息是否包含提醒意图：
+首先判断当前用户消息是否包含类似的提醒意图：
 - 创建意图："提醒我"、"帮我提醒"、"设个提醒"、"设置提醒"、"别忘了"、"闹钟"、"定时"、"通知我"、"叫我"
 - 修改意图："修改提醒"、"变更提醒"、"调整提醒"、"改一下提醒"
 - 删除意图："取消提醒"、"删除提醒"、"不提醒了"、"忽略提醒"
@@ -120,10 +120,10 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 → action="batch", operations='[{{"action":"create","title":"起床","trigger_time":"2025年12月24日08时00分"}},{{"action":"create","title":"吃饭","trigger_time":"2025年12月24日12时00分"}},{{"action":"create","title":"下班","trigger_time":"2025年12月24日18时00分"}}]'
 
 **示例2**："把开会提醒删掉，再帮我加一个喝水提醒"
-→ action="batch", operations='[{{"action":"delete","reminder_id":"xxx"}},{{"action":"create","title":"喝水","trigger_time":"2025年12月24日15时00分"}}]'
+→ action="batch", operations='[{{"action":"delete","keyword":"开会"}},{{"action":"create","title":"喝水","trigger_time":"2025年12月24日15时00分"}}]'
 
-**示例3**："删除提醒1，把提醒2改到明天，再加一个新提醒"
-→ action="batch", operations='[{{"action":"delete","reminder_id":"1"}},{{"action":"update","reminder_id":"2","trigger_time":"2025年12月25日09时00分"}},{{"action":"create","title":"新提醒","trigger_time":"2025年12月24日10时00分"}}]'
+**示例3**："删除游泳那个提醒，把开会改到明天，再加一个新提醒"
+→ action="batch", operations='[{{"action":"delete","keyword":"游泳"}},{{"action":"update","keyword":"开会","new_trigger_time":"2025年12月25日09时00分"}},{{"action":"create","title":"新提醒","trigger_time":"2025年12月24日10时00分"}}]'
 
 ### 时间段提醒参数（用于"从X点到Y点每隔Z分钟提醒"的场景）
 - title: 提醒标题（必需）
@@ -157,20 +157,20 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 - 系统默认设置10次触发上限，触发10次后自动停止
 - 创建时需告知用户这个上限
 
-### update 操作参数
-- reminder_id: 要更新的提醒ID（必需，从 list 结果中获取）
-- title: 新标题（可选）
-- trigger_time: 新触发时间（可选）
-- action_template: 新提醒文案（可选）
+### update 操作参数（按关键字匹配）
+- keyword: 要修改的提醒关键字（必需，模糊匹配标题）
+- new_title: 新标题（可选）
+- new_trigger_time: 新触发时间（可选）
 - recurrence_type: 新周期类型（可选）
 - period_start: 新时间段开始（可选）
 - period_end: 新时间段结束（可选）
 - period_days: 新生效日期（可选）
 
-### delete 操作参数
-- reminder_id: 要删除的提醒ID（必需，从 list 结果中获取）
+### delete 操作参数（按关键字匹配）
+- keyword: 要删除的提醒关键字（必需，模糊匹配标题）
   - 支持通配符 "*"：表示删除用户的所有待办提醒
-  - 示例："删除所有提醒" → action="delete", reminder_id="*"
+  - 示例："删除所有提醒" → action="delete", keyword="*"
+  - 示例："把泡衣服的提醒删了" → action="delete", keyword="泡衣服"
 
 ### list 操作
 - 无额外参数

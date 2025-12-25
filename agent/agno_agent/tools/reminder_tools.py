@@ -242,8 +242,8 @@ def _save_reminder_result_to_session(
 ## 操作类型 (action)
 - "create": 创建单个提醒
 - "batch": 批量操作（推荐），一次调用执行多个操作（创建/更新/删除的任意组合）
-- "update": 更新单个提醒
-- "delete": 删除单个提醒
+- "update": 更新提醒（按关键字匹配）
+- "delete": 删除提醒（按关键字匹配）
 - "list": 查询提醒列表
 
 ## 单个操作参数
@@ -261,12 +261,14 @@ def _save_reminder_result_to_session(
 - 时间段提醒（设置了period_start/period_end）：最小间隔25分钟
 - 小时级别以上的无限重复提醒：允许，但默认10次上限
 
-### update 参数
-- reminder_id: 要更新的提醒ID（必需）
-- title/trigger_time: 新值（可选）
+### update 参数（按关键字匹配）
+- keyword: 关键字，模糊匹配要修改的提醒标题（必需）
+- new_title: 新标题（可选）
+- new_trigger_time: 新触发时间（可选）
 
-### delete 参数
-- reminder_id: 要删除的提醒ID（必需）
+### delete 参数（按关键字匹配）
+- keyword: 关键字，模糊匹配要删除的提醒标题（必需）
+- 使用 "*" 作为 keyword 可删除所有提醒
 
 ### list 参数
 - include_all: 是否包含所有状态的提醒，默认 false 只返回有效提醒(confirmed/pending)，设为 true 时返回包括已触发、已完成的所有提醒
@@ -281,20 +283,20 @@ def _save_reminder_result_to_session(
 格式:
 ```
 [
-  {"action": "delete", "reminder_id": "xxx"},
+  {"action": "delete", "keyword": "泡衣服"},
   {"action": "create", "title": "喝水", "trigger_time": "2025年12月24日15时00分"},
-  {"action": "update", "reminder_id": "yyy", "title": "新标题"}
+  {"action": "update", "keyword": "开会", "new_trigger_time": "2025年12月25日10时00分"}
 ]
 ```
 
-示例1："把开会提醒删掉，再帮我加一个喝水提醒"
-→ action="batch", operations='[{"action":"delete","reminder_id":"xxx"},{"action":"create","title":"喝水","trigger_time":"..."}]'
+示例1："把泡衣服的提醒删掉，再帮我加一个喝水提醒"
+→ action="batch", operations='[{"action":"delete","keyword":"泡衣服"},{"action":"create","title":"喝水","trigger_time":"..."}]'
 
 示例2："帮我设置三个提醒：8点起床、12点吃饭、6点下班"
 → action="batch", operations='[{"action":"create","title":"起床","trigger_time":"..."},{"action":"create","title":"吃饭","trigger_time":"..."},{"action":"create","title":"下班","trigger_time":"..."}]'
 
-示例3："删除提醒1，把提醒2改到明天，再加一个新提醒"
-→ action="batch", operations='[{"action":"delete","reminder_id":"1"},{"action":"update","reminder_id":"2","trigger_time":"..."},{"action":"create","title":"...","trigger_time":"..."}]'
+示例3："删除游泳那个提醒，把开会改到明天，再加一个新提醒"
+→ action="batch", operations='[{"action":"delete","keyword":"游泳"},{"action":"update","keyword":"开会","new_trigger_time":"..."},{"action":"create","title":"...","trigger_time":"..."}]'
 
 注意: 时间格式必须是"xxxx年xx月xx日xx时xx分"，不支持"下午3点"等格式.
 """,
@@ -305,7 +307,9 @@ def reminder_tool(
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
     action_template: Optional[str] = None,
-    reminder_id: Optional[str] = None,
+    keyword: Optional[str] = None,  # 关键字（update/delete 必需）
+    new_title: Optional[str] = None,  # update 时的新标题
+    new_trigger_time: Optional[str] = None,  # update 时的新时间
     recurrence_type: str = "none",
     recurrence_interval: int = 1,
     # 时间段提醒参数
@@ -318,15 +322,17 @@ def reminder_tool(
     include_all: bool = False,
 ) -> dict:
     """
-    提醒管理统一工具
+    提醒管理统一工具（基于关键字操作，不使用 ID）
 
     Args:
         action: 操作类型 - "create"、"batch"、"update"、"delete"、"list"
         session_state: Agno 框架自动注入的会话状态
-        title: 提醒标题
-        trigger_time: 触发时间
+        title: 提醒标题（create 时必需）
+        trigger_time: 触发时间（create 时必需）
         action_template: 提醒文案模板（可选）
-        reminder_id: 提醒ID（update/delete 时必填）
+        keyword: 关键字（update/delete 时必需，模糊匹配标题）
+        new_title: 新标题（update 时可选）
+        new_trigger_time: 新触发时间（update 时可选）
         recurrence_type: 周期类型，默认"none"
         recurrence_interval: 周期间隔数，默认1
         operations: 批量操作时的操作列表JSON字符串
@@ -368,7 +374,7 @@ def reminder_tool(
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
 
-    if not user_id and action in ["create", "batch", "list"]:
+    if not user_id and action in ["create", "batch", "list", "update", "delete"]:
         logger.warning("reminder_tool: user_id not found in session_state")
         return {"ok": False, "error": "无法获取用户信息，请稍后重试"}
 
@@ -414,19 +420,21 @@ def reminder_tool(
             return result
 
         elif action == "update":
-            return _update_reminder(
+            return _update_reminder_by_keyword(
                 reminder_dao=reminder_dao,
-                reminder_id=reminder_id,
-                title=title,
-                trigger_time=trigger_time,
-                action_template=action_template,
+                user_id=user_id,
+                keyword=keyword,
+                new_title=new_title,
+                new_trigger_time=new_trigger_time,
                 recurrence_type=recurrence_type,
                 recurrence_interval=recurrence_interval,
             )
 
         elif action == "delete":
-            return _delete_reminder(
-                reminder_dao=reminder_dao, reminder_id=reminder_id, user_id=user_id
+            return _delete_reminder_by_keyword(
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                keyword=keyword,
             )
 
         elif action == "list":
@@ -1481,49 +1489,81 @@ def _do_create_reminder(
 
 
 def _batch_op_update(ctx: _BatchOperationContext, op: dict) -> dict:
-    """批量操作：更新单个提醒"""
-    reminder_id = op.get("reminder_id")
-    if not reminder_id:
-        return {"ok": False, "error": "缺少 reminder_id"}
+    """批量操作：按关键字更新提醒"""
+    keyword = op.get("keyword")
+    if not keyword or not keyword.strip():
+        return {"ok": False, "error": "缺少 keyword（要修改的提醒关键字）"}
 
-    existing = ctx.reminder_dao.get_reminder_by_id(reminder_id)
-    if not existing:
-        return {"ok": False, "error": "找不到提醒"}
+    keyword = keyword.strip()
 
+    # 构建更新字段
     update_fields = {}
-    if op.get("title"):
-        update_fields["title"] = op["title"]
-    if op.get("trigger_time"):
-        ts = _parse_trigger_time(op["trigger_time"])
+    if op.get("new_title"):
+        update_fields["title"] = op["new_title"]
+        update_fields["action_template"] = f"记得{op['new_title']}"
+    if op.get("new_trigger_time"):
+        ts = _parse_trigger_time(op["new_trigger_time"])
         if ts:
             update_fields["next_trigger_time"] = ts
-            update_fields["time_original"] = op["trigger_time"]
+            update_fields["time_original"] = op["new_trigger_time"]
+        else:
+            return {"ok": False, "error": f"无法解析时间: {op['new_trigger_time']}"}
 
     if not update_fields:
-        return {"ok": False, "error": "没有要更新的字段"}
+        return {"ok": False, "error": "没有要更新的字段（需要 new_title 或 new_trigger_time）"}
 
     try:
-        if ctx.reminder_dao.update_reminder(reminder_id, update_fields):
-            return {"ok": True, "status": "updated", "title": existing.get("title")}
-        return {"ok": False, "error": "更新失败"}
+        updated_count, updated_reminders = ctx.reminder_dao.update_reminders_by_keyword(
+            ctx.user_id, keyword, update_fields
+        )
+        if updated_count > 0:
+            updated_titles = [r.get("title", "") for r in updated_reminders]
+            return {
+                "ok": True,
+                "status": "updated",
+                "keyword": keyword,
+                "updated_count": updated_count,
+                "updated_titles": updated_titles,
+            }
+        return {"ok": False, "error": f"没有找到包含「{keyword}」的提醒"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
 
 def _batch_op_delete(ctx: _BatchOperationContext, op: dict) -> dict:
-    """批量操作：删除单个提醒"""
-    reminder_id = op.get("reminder_id")
-    if not reminder_id:
-        return {"ok": False, "error": "缺少 reminder_id"}
+    """批量操作：按关键字删除提醒"""
+    keyword = op.get("keyword")
+    if not keyword or not keyword.strip():
+        return {"ok": False, "error": "缺少 keyword（要删除的提醒关键字）"}
 
-    existing = ctx.reminder_dao.get_reminder_by_id(reminder_id)
-    if not existing:
-        return {"ok": False, "error": "找不到提醒"}
+    keyword = keyword.strip()
+
+    # 支持 "*" 删除所有
+    if keyword == "*":
+        try:
+            deleted_count = ctx.reminder_dao.delete_all_by_user(ctx.user_id)
+            return {
+                "ok": True,
+                "status": "deleted_all",
+                "deleted_count": deleted_count,
+            }
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     try:
-        if ctx.reminder_dao.delete_reminder(reminder_id):
-            return {"ok": True, "status": "deleted", "title": existing.get("title")}
-        return {"ok": False, "error": "删除失败"}
+        deleted_count, deleted_reminders = ctx.reminder_dao.delete_reminders_by_keyword(
+            ctx.user_id, keyword
+        )
+        if deleted_count > 0:
+            deleted_titles = [r.get("title", "") for r in deleted_reminders]
+            return {
+                "ok": True,
+                "status": "deleted",
+                "keyword": keyword,
+                "deleted_count": deleted_count,
+                "deleted_titles": deleted_titles,
+            }
+        return {"ok": False, "error": f"没有找到包含「{keyword}」的提醒"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -1689,49 +1729,64 @@ def _batch_operations(
     }
 
 
-def _update_reminder(
+def _update_reminder_by_keyword(
     reminder_dao: ReminderDAO,
-    reminder_id: Optional[str],
-    title: Optional[str],
-    trigger_time: Optional[str],
-    action_template: Optional[str],
-    recurrence_type: str,
-    recurrence_interval: int,
+    user_id: str,
+    keyword: Optional[str],
+    new_title: Optional[str],
+    new_trigger_time: Optional[str],
+    recurrence_type: str = "none",
+    recurrence_interval: int = 1,
 ) -> dict:
-    """Update an existing reminder."""
-    if not reminder_id:
+    """
+    根据关键字更新提醒
+
+    Args:
+        reminder_dao: ReminderDAO 实例
+        user_id: 用户ID
+        keyword: 搜索关键字（必需）
+        new_title: 新标题（可选）
+        new_trigger_time: 新触发时间（可选）
+        recurrence_type: 周期类型
+        recurrence_interval: 周期间隔
+
+    Returns:
+        更新结果
+    """
+    if not user_id:
         _save_reminder_result_to_session(
-            "提醒修改失败：未指定要修改的提醒ID",
+            "提醒修改失败：无法获取用户信息",
             user_intent="修改提醒",
             action_executed="update",
             intent_fulfilled=False,
         )
-        return {"ok": False, "error": "更新操作需要提供 reminder_id"}
+        return {"ok": False, "error": "修改提醒需要用户信息"}
 
-    # Check if reminder exists
-    existing = reminder_dao.get_reminder_by_id(reminder_id)
-    if not existing:
+    if not keyword or not keyword.strip():
         _save_reminder_result_to_session(
-            "提醒修改失败：找不到指定的提醒",
+            "提醒修改失败：未指定要修改的提醒关键字",
             user_intent="修改提醒",
             action_executed="update",
             intent_fulfilled=False,
         )
-        return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
+        return {"ok": False, "error": "更新操作需要提供 keyword（要修改的提醒关键字）"}
 
-    # Build update fields
+    keyword = keyword.strip()
+
+    # 构建更新字段
     update_fields = {}
     update_desc = []
 
-    if title:
-        update_fields["title"] = title
-        update_desc.append(f"标题改为「{title}」")
+    if new_title:
+        update_fields["title"] = new_title
+        update_fields["action_template"] = f"记得{new_title}"
+        update_desc.append(f"标题改为「{new_title}」")
 
-    if trigger_time:
-        timestamp = _parse_trigger_time(trigger_time)
+    if new_trigger_time:
+        timestamp = _parse_trigger_time(new_trigger_time)
         if timestamp:
             update_fields["next_trigger_time"] = timestamp
-            update_fields["time_original"] = trigger_time
+            update_fields["time_original"] = new_trigger_time
             from datetime import datetime
 
             time_str = datetime.fromtimestamp(timestamp).strftime(
@@ -1740,62 +1795,87 @@ def _update_reminder(
             update_desc.append(f"时间改为{time_str}")
         else:
             _save_reminder_result_to_session(
-                f"提醒修改失败：无法解析时间「{trigger_time}」",
+                f"提醒修改失败：无法解析时间「{new_trigger_time}」",
                 user_intent="修改提醒",
                 action_executed="update",
                 intent_fulfilled=False,
             )
-            return {"ok": False, "error": f"无法解析时间: {trigger_time}"}
+            return {"ok": False, "error": f"无法解析时间: {new_trigger_time}"}
 
-    if action_template:
-        update_fields["action_template"] = action_template
-
-    if recurrence_type:
+    if recurrence_type and recurrence_type != "none":
         update_fields["recurrence"] = {
-            "enabled": recurrence_type != "none",
-            "type": recurrence_type if recurrence_type != "none" else None,
+            "enabled": True,
+            "type": recurrence_type,
             "interval": recurrence_interval,
         }
-        if recurrence_type != "none":
-            recurrence_map = {
-                "daily": "每天",
-                "weekly": "每周",
-                "monthly": "每月",
-                "yearly": "每年",
-            }
-            update_desc.append(
-                f"周期改为{recurrence_map.get(recurrence_type, recurrence_type)}"
-            )
+        recurrence_map = {
+            "daily": "每天",
+            "weekly": "每周",
+            "monthly": "每月",
+            "yearly": "每年",
+            "interval": f"每{recurrence_interval}分钟",
+        }
+        update_desc.append(
+            f"周期改为{recurrence_map.get(recurrence_type, recurrence_type)}"
+        )
 
     if not update_fields:
         _save_reminder_result_to_session(
-            "提醒修改失败：未提供要修改的内容",
+            "提醒修改失败：未提供要修改的内容（new_title 或 new_trigger_time）",
             user_intent="修改提醒",
             action_executed="update",
             intent_fulfilled=False,
         )
-        return {"ok": False, "error": "没有提供要更新的字段"}
+        return {"ok": False, "error": "没有提供要更新的字段（需要 new_title 或 new_trigger_time）"}
 
-    # Update reminder
     try:
-        success = reminder_dao.update_reminder(reminder_id, update_fields)
-        if success:
-            original_title = existing.get("title", "")
+        updated_count, updated_reminders = reminder_dao.update_reminders_by_keyword(
+            user_id, keyword, update_fields
+        )
+
+        if updated_count > 0:
+            updated_titles = [r.get("title", "") for r in updated_reminders]
+            titles_str = "、".join([f"「{t}」" for t in updated_titles[:5]])
+            if len(updated_titles) > 5:
+                titles_str += f" 等{len(updated_titles)}个"
+
             desc_str = "、".join(update_desc) if update_desc else "已更新"
-            semantic_message = f"提醒修改成功：「{original_title}」{desc_str}"
+            semantic_message = f"提醒修改成功：已更新包含「{keyword}」的提醒 {titles_str}，{desc_str}"
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="修改提醒",
                 action_executed="update",
                 intent_fulfilled=True,
                 details={
-                    "reminder_id": reminder_id,
+                    "keyword": keyword,
+                    "updated_count": updated_count,
+                    "updated_titles": updated_titles,
                     "updated_fields": list(update_fields.keys()),
                 },
             )
-        return {"ok": success}
+            return {
+                "ok": True,
+                "updated_count": updated_count,
+                "updated_reminders": updated_reminders,
+                "message": semantic_message,
+            }
+        else:
+            semantic_message = f"提醒修改失败：没有找到包含「{keyword}」的提醒"
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="修改提醒",
+                action_executed="update",
+                intent_fulfilled=False,
+                details={"keyword": keyword, "updated_count": 0},
+            )
+            return {
+                "ok": False,
+                "error": f"没有找到包含「{keyword}」的提醒",
+                "updated_count": 0,
+            }
+
     except Exception as e:
-        logger.error(f"Failed to update reminder: {e}")
+        logger.error(f"Failed to update reminders by keyword '{keyword}': {e}")
         _save_reminder_result_to_session(
             f"提醒修改失败：{str(e)}",
             user_intent="修改提醒",
@@ -1805,48 +1885,46 @@ def _update_reminder(
         return {"ok": False, "error": str(e)}
 
 
-def _delete_reminder(
-    reminder_dao: ReminderDAO, reminder_id: Optional[str], user_id: Optional[str] = None
+def _delete_reminder_by_keyword(
+    reminder_dao: ReminderDAO, user_id: str, keyword: Optional[str]
 ) -> dict:
     """
-    Delete a reminder or all reminders for a user.
+    根据关键字删除提醒
 
     Args:
         reminder_dao: ReminderDAO 实例
-        reminder_id: 提醒ID，支持 "*" 通配符表示删除所有
-        user_id: 用户ID（当 reminder_id="*" 时必需）
+        user_id: 用户ID
+        keyword: 搜索关键字，使用 "*" 删除所有提醒
+
+    Returns:
+        删除结果
     """
-    if not reminder_id:
+    if not user_id:
         _save_reminder_result_to_session(
-            "提醒删除失败：未指定要删除的提醒ID",
+            "提醒删除失败：无法获取用户信息",
             user_intent="删除提醒",
             action_executed="delete",
             intent_fulfilled=False,
         )
-        return {"ok": False, "error": "删除操作需要提供 reminder_id"}
+        return {"ok": False, "error": "删除提醒需要用户信息"}
 
-    # 支持通配符删除所有提醒
-    if reminder_id == "*":
-        if not user_id:
-            # 尝试从 session_state 获取 user_id
-            session_state = _get_current_session_state()
-            user_id = str(session_state.get("user", {}).get("_id", ""))
+    if not keyword or not keyword.strip():
+        _save_reminder_result_to_session(
+            "提醒删除失败：未指定要删除的提醒关键字",
+            user_intent="删除提醒",
+            action_executed="delete",
+            intent_fulfilled=False,
+        )
+        return {"ok": False, "error": "删除操作需要提供 keyword（要删除的提醒关键字）"}
 
-        if not user_id:
-            _save_reminder_result_to_session(
-                "提醒删除失败：无法获取用户信息",
-                user_intent="删除所有提醒",
-                action_executed="delete_all",
-                intent_fulfilled=False,
-            )
-            return {"ok": False, "error": "删除所有提醒需要用户信息"}
+    keyword = keyword.strip()
 
+    # 支持 "*" 删除所有提醒
+    if keyword == "*":
         try:
             deleted_count = reminder_dao.delete_all_by_user(user_id)
             if deleted_count > 0:
-                semantic_message = (
-                    f"提醒删除成功：已删除全部 {deleted_count} 个待办提醒"
-                )
+                semantic_message = f"提醒删除成功：已删除全部 {deleted_count} 个待办提醒"
                 _save_reminder_result_to_session(
                     semantic_message,
                     user_intent="删除所有提醒",
@@ -1879,39 +1957,57 @@ def _delete_reminder(
             )
             return {"ok": False, "error": str(e)}
 
-    # 单个提醒删除
-    # Check if reminder exists
-    existing = reminder_dao.get_reminder_by_id(reminder_id)
-    if not existing:
-        _save_reminder_result_to_session(
-            "提醒删除失败：找不到指定的提醒",
-            user_intent="删除提醒",
-            action_executed="delete",
-            intent_fulfilled=False,
-        )
-        return {"ok": False, "error": f"找不到提醒: {reminder_id}"}
-
-    title = existing.get("title", "")
-
-    # Delete reminder
+    # 按关键字删除
     try:
-        success = reminder_dao.delete_reminder(reminder_id)
-        if success:
-            semantic_message = f"提醒删除成功：已取消「{title}」的提醒"
+        deleted_count, deleted_reminders = reminder_dao.delete_reminders_by_keyword(
+            user_id, keyword
+        )
+
+        if deleted_count > 0:
+            deleted_titles = [r.get("title", "") for r in deleted_reminders]
+            titles_str = "、".join([f"「{t}」" for t in deleted_titles[:5]])
+            if len(deleted_titles) > 5:
+                titles_str += f" 等{len(deleted_titles)}个"
+
+            semantic_message = f"提醒删除成功：已删除包含「{keyword}」的提醒：{titles_str}"
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="删除提醒",
-                action_executed="delete",
+                action_executed="delete_by_keyword",
                 intent_fulfilled=True,
-                details={"deleted_title": title, "reminder_id": reminder_id},
+                details={
+                    "keyword": keyword,
+                    "deleted_count": deleted_count,
+                    "deleted_titles": deleted_titles,
+                },
             )
-        return {"ok": success}
+            return {
+                "ok": True,
+                "deleted_count": deleted_count,
+                "deleted_reminders": deleted_reminders,
+                "message": semantic_message,
+            }
+        else:
+            semantic_message = f"提醒删除失败：没有找到包含「{keyword}」的提醒"
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="删除提醒",
+                action_executed="delete_by_keyword",
+                intent_fulfilled=False,
+                details={"keyword": keyword, "deleted_count": 0},
+            )
+            return {
+                "ok": False,
+                "error": f"没有找到包含「{keyword}」的提醒",
+                "deleted_count": 0,
+            }
+
     except Exception as e:
-        logger.error(f"Failed to delete reminder: {e}")
+        logger.error(f"Failed to delete reminders by keyword '{keyword}': {e}")
         _save_reminder_result_to_session(
             f"提醒删除失败：{str(e)}",
             user_intent="删除提醒",
-            action_executed="delete",
+            action_executed="delete_by_keyword",
             intent_fulfilled=False,
         )
         return {"ok": False, "error": str(e)}
