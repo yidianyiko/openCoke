@@ -221,12 +221,12 @@ def context_prepare(user, character, conversation):
         # 构建禁止重复的提示
         forbidden_list = ""
         if recent_responses:
-            forbidden_list = "\n你刚才说过的话（禁止重复或说类似的内容）：\n"
+            forbidden_list = "\n禁止重复或说以下类似的内容：\n"
             for i, resp in enumerate(recent_responses, 1):
                 forbidden_list += f"- 「{resp}」\n"
 
         context["repeated_input_notice"] = (
-            f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同.请务必不要重复之前的回复！你应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题.{forbidden_list}"
+            f"【特别注意】用户刚才发送的消息「{repeated_msg}」与之前发送过的消息完全相同.不要重复之前的回复！应该用完全不同的方式回应，或主动转换话题，或简短结束当前话题.{forbidden_list}"
         )
         logger.info(f"[重复消息检测] 生成的提示: {context['repeated_input_notice']}")
     else:

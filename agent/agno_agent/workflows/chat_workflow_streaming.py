@@ -46,6 +46,7 @@ from agent.prompt.chat_contextprompt import (
     get_reminders_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
+from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
     TASKPROMPT_微信对话_推理要求_纯文本,
@@ -75,6 +76,7 @@ class StreamingChatWorkflow:
     # V2.7 优化：移除 CONTEXTPROMPT_待办提醒 和 CONTEXTPROMPT_历史最相关的十条对话，改为按需加载
     userp_template_base_core = (
         TASKPROMPT_微信对话
+        + CHAT_AGENT_PERSONALITY
         + CONTEXTPROMPT_时间
         + CONTEXTPROMPT_人物信息
         + CONTEXTPROMPT_人物资料

@@ -1688,11 +1688,14 @@ def _batch_operations(
     semantic_message = _build_batch_message(summary)
 
     # 保存结果到 session
+    # V2.12: intent_fulfilled 只有在没有失败时才为 True
+    # 如果有任何失败，即使部分成功，也应该告知用户哪些失败了
+    has_failures = len(summary["failed"]) > 0
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="批量操作提醒",
         action_executed="batch",
-        intent_fulfilled=success_count > 0,
+        intent_fulfilled=(success_count > 0 and not has_failures),
         details={
             "total": len(operations_list),
             "success": success_count,

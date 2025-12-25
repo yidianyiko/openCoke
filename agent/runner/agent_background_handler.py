@@ -33,7 +33,7 @@ target_user_alias = CONF.get("default_character_alias", "coke")
 _characters_conf = (
     CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
 )
-target_user_id = _characters_conf.get(target_user_alias, "default_id")
+target_user_id = _characters_conf.get(target_user_alias, "default_id")  # WeChat ID
 
 platform = "wechat"
 typing_speed = 2.2
@@ -165,7 +165,13 @@ async def check_hold_messages():
 def decrease_all():
     """降低所有用户的关系数值"""
     logger.info("decrease all relationships...")
-    relations = mongo.find_many("relations", query={"cid": target_user_id}, limit=10000)
+    # relations.cid 存储的是 MongoDB ObjectId 字符串，不是 WeChat ID
+    character = user_dao.get_user_by_platform(platform, target_user_id)
+    if not character:
+        logger.warning("Cannot get character, skip decrease_all")
+        return
+    character_oid = str(character["_id"])
+    relations = mongo.find_many("relations", query={"cid": character_oid}, limit=10000)
     for relation in relations:
         try:
             if (
@@ -189,7 +195,11 @@ def handle_proactive_message():
         logger.info("start character proactive agent...")
         now = int(time.time())
         date_str = date2str(now)
-        character = user_dao.get_user_by_id(target_user_id)
+        character = user_dao.get_user_by_platform(platform, target_user_id)
+        if not character:
+            logger.warning("Cannot get character, skip handle_proactive_message")
+            return
+        character_oid = str(character["_id"])
 
         current_script = mongo.find_one(
             "dailyscripts",
@@ -206,7 +216,8 @@ def handle_proactive_message():
                 "status", "空闲"
             ) in ["空闲"]:
                 logger.info("fetch all relations...")
-                relations = mongo.find_many("relations", {"cid": target_user_id})
+                # relations 集合中的 cid 存储的是 MongoDB ObjectId 字符串
+                relations = mongo.find_many("relations", {"cid": character_oid})
 
                 for relation in relations:
                     if relation["relationship"]["dislike"] >= 100:
