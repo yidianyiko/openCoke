@@ -79,7 +79,7 @@ def find_duplicate_reminders():
                     max_time = max(times)
 
                     # 如果最大时间差超过5分钟，则不是重复提醒
-                    if max_time - min_time <= 300:  # 5分钟 = 300秒
+                    if max_time-min_time <= 300:  # 5分钟 = 300秒
                         duplicates.append((user_id, time_key, group))
         # 显示结果
         if not duplicates:

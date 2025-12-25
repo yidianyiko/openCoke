@@ -28,10 +28,10 @@ def minimax_t2a(
     url = f"https://api.minimax.chat/v1/t2a_v2?GroupId={group_id}"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "Content - Type": "application/json",
+        "Content-Type": "application/json",
     }
     payload = {
-        "model": "speech - 02 - hd",
+        "model": "speech-02-hd",
         "text": text,
         "timber_weights": timber_weights,
         "voice_setting": {

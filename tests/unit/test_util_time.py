@@ -90,35 +90,37 @@ class TestParseRelativeTime:
     def test_minutes(self):
         """测试分钟"""
         base = int(time.time())
-        # 注意：当前实现的正则表达式有问题 (\s * 而不是 \s*)
-        # 导致 "30分钟后" 无法匹配，需要修复 util/time_util.py
-        result = parse_relative_time("30 分钟后", base)  # 需要空格
-        if result is not None:
-            assert abs(result - (base + 1800)) < 10
-        else:
-            # 当前实现无法解析，跳过
-            pytest.skip("parse_relative_time 正则表达式需要修复")
+        result = parse_relative_time("30分钟后", base)
+        assert result is not None
+        assert abs(result-(base + 1800)) < 10
+
+        # 也支持带空格的格式
+        result_with_space = parse_relative_time("30 分钟后", base)
+        assert result_with_space is not None
+        assert abs(result_with_space-(base + 1800)) < 10
 
     def test_hours(self):
         """测试小时"""
         base = int(time.time())
         result = parse_relative_time("2小时后", base)
         assert result is not None
-        assert abs(result - (base + 7200)) < 10
+        assert abs(result-(base + 7200)) < 10
 
         result = parse_relative_time("1个小时后", base)
         assert result is not None
-        assert abs(result - (base + 3600)) < 10
+        assert abs(result-(base + 3600)) < 10
 
     def test_days(self):
         """测试天数"""
         base = int(time.time())
-        # 注意：当前实现的正则表达式有问题
-        result = parse_relative_time("3 天后", base)  # 需要空格
-        if result is not None:
-            assert abs(result - (base + 259200)) < 10
-        else:
-            pytest.skip("parse_relative_time 正则表达式需要修复")
+        result = parse_relative_time("3天后", base)
+        assert result is not None
+        assert abs(result-(base + 259200)) < 10
+
+        # 也支持带空格的格式
+        result_with_space = parse_relative_time("3 天后", base)
+        assert result_with_space is not None
+        assert abs(result_with_space-(base + 259200)) < 10
 
     def test_tomorrow(self):
         """测试明天"""
@@ -157,37 +159,37 @@ class TestCalculateNextRecurrence:
         """测试每日"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "daily", 1)
-        assert abs(next_time - (current + 86400)) < 10
+        assert abs(next_time-(current + 86400)) < 10
 
     def test_daily_interval(self):
         """测试每 N 天"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "daily", 3)
-        assert abs(next_time - (current + 259200)) < 10
+        assert abs(next_time-(current + 259200)) < 10
 
     def test_weekly(self):
         """测试每周"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "weekly", 1)
-        assert abs(next_time - (current + 604800)) < 10
+        assert abs(next_time-(current + 604800)) < 10
 
     def test_monthly(self):
         """测试每月"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "monthly", 1)
-        assert abs(next_time - (current + 2592000)) < 86400  # 30天左右
+        assert abs(next_time-(current + 2592000)) < 86400  # 30天左右
 
     def test_yearly(self):
         """测试每年"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "yearly", 1)
-        assert abs(next_time - (current + 31536000)) < 86400  # 365天左右
+        assert abs(next_time-(current + 31536000)) < 86400  # 365天左右
 
     def test_hourly(self):
         """测试每小时"""
         current = int(time.time())
         next_time = calculate_next_recurrence(current, "hourly", 2)
-        assert abs(next_time - (current + 7200)) < 10
+        assert abs(next_time-(current + 7200)) < 10
 
     def test_invalid_type(self):
         """测试无效类型"""
@@ -201,7 +203,7 @@ class TestIsTimeInPast:
 
     def test_past_time(self):
         """测试过去时间"""
-        past = int(time.time()) - 3600
+        past = int(time.time())-3600
         assert is_time_in_past(past) is True
 
     def test_future_time(self):
@@ -322,7 +324,7 @@ class TestCalculateNextPeriodTrigger:
         assert next_trigger is not None
         assert next_trigger > current_time
         # 应该是 30 分钟后
-        assert abs(next_trigger - (current_time + 1800)) < 60
+        assert abs(next_trigger-(current_time + 1800)) < 60
 
     def test_outside_period_next_day(self):
         """测试在时间段外，返回下一个时间段开始"""

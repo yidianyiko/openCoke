@@ -28,7 +28,7 @@ def main():
     print(f"找到 {len(results)} 条记录")
     for r in results:
         future = r.get("conversation_info", {}).get("future", {})
-        print(f"  - _id: {r.get('_id')}")
+        print(f" -_id: {r.get('_id')}")
         print(f"    future: {future}")
         print()
 
@@ -45,7 +45,7 @@ def main():
     for r in results:
         future = r.get("conversation_info", {}).get("future", {})
         if future:
-            print(f"  - _id: {r.get('_id')}")
+            print(f" -_id: {r.get('_id')}")
             print(f"    future: {future}")
             print()
 

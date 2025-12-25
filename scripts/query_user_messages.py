@@ -5,7 +5,7 @@
 用于查询指定用户的历史消息，默认按时间倒序显示最近的消息.
 
 Usage:
-    python scripts/query_user_messages.py --user - id USER_ID [--limit LIMIT] [--recent]
+    python scripts/query_user_messages.py --user-id USER_ID [--limit LIMIT] [--recent]
 """
 import sys
 
@@ -16,14 +16,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import argparse
-import logging
 from datetime import datetime
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -42,7 +39,7 @@ def format_timestamp(timestamp):
 def main():
     """主函数：查询指定用户的历史消息"""
     parser = argparse.ArgumentParser(description="查询指定用户的历史消息")
-    parser.add_argument("--user - id", required=True, help="用户ID")
+    parser.add_argument("--user-id", required=True, help="用户ID")
     parser.add_argument(
         "--limit", type=int, default=20, help="返回消息数量限制（默认20条）"
     )

@@ -95,7 +95,7 @@ class TestBackgroundTasks:
             "reminder_id": str(uuid.uuid4()),
             "title": "已到期提醒",
             "action_template": "记得已到期提醒",
-            "next_trigger_time": current_time - 60,  # 1分钟前
+            "next_trigger_time": current_time-60,  # 1分钟前
             "time_original": "1分钟前",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},
@@ -146,7 +146,7 @@ class TestBackgroundTasks:
             "reminder_id": reminder_id,
             "title": "测试提醒",
             "action_template": "记得测试提醒",
-            "next_trigger_time": current_time - 60,
+            "next_trigger_time": current_time-60,
             "time_original": "1分钟前",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},
@@ -197,7 +197,7 @@ class TestBackgroundTasks:
         # 设置会话的 future 信息（主动消息计划）
         conversation = conv_dao.get_conversation_by_id(test_conversation)
         conversation["conversation_info"]["future"] = {
-            "timestamp": current_time - 60,  # 1分钟前到期
+            "timestamp": current_time-60,  # 1分钟前到期
             "action": "询问用户今天的学习进度",
             "proactive_times": 0,
             "status": "pending"
@@ -243,7 +243,7 @@ class TestBackgroundTasks:
             "reminder_id": reminder_id,
             "title": "每日提醒",
             "action_template": "记得每日提醒",
-            "next_trigger_time": current_time - 60,  # 已到期
+            "next_trigger_time": current_time-60,  # 已到期
             "time_original": "每天9点",
             "timezone": "Asia/Shanghai",
             "recurrence": {
@@ -290,7 +290,7 @@ class TestBackgroundTasks:
             "reminder_id": str(uuid.uuid4()),
             "title": "已完成提醒",
             "action_template": "记得已完成提醒",
-            "next_trigger_time": current_time - 3600,
+            "next_trigger_time": current_time-3600,
             "time_original": "1小时前",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},
@@ -341,7 +341,7 @@ class TestBackgroundTasks:
         # 设置已达到上限的主动消息
         conversation = conv_dao.get_conversation_by_id(test_conversation)
         conversation["conversation_info"]["future"] = {
-            "timestamp": current_time - 60,
+            "timestamp": current_time-60,
             "action": "询问用户",
             "proactive_times": 2,  # 已达到上限
             "status": "pending"

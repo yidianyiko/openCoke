@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-ChatWorkflow Streaming Version - 流式回复生成
+ChatWorkflow Streaming Version-流式回复生成
 
 支持流式输出，当检测到完整的一条消息时立即返回，
 而不是等待所有内容生成完毕.
@@ -63,15 +63,15 @@ class StreamingChatWorkflow:
     流式回复生成 Workflow
 
     与 ChatWorkflow 的区别：
-    - 使用 stream=True 调用 Agent
-    - 实时解析输出，检测到完整消息立即 yield
-    - 不使用 output_schema，改用标签格式
+   -使用 stream=True 调用 Agent
+   -实时解析输出，检测到完整消息立即 yield
+   -不使用 output_schema，改用标签格式
 
     V2.7 优化：
-    - 待办提醒和相关历史对话按需加载（仅在有内容时添加到上下文）
+   -待办提醒和相关历史对话按需加载（仅在有内容时添加到上下文）
     """
 
-    # User prompt 模板组合 - 基础部分（不包含按需加载的上下文）
+    # User prompt 模板组合-基础部分（不包含按需加载的上下文）
     # V2.7 优化：移除 CONTEXTPROMPT_待办提醒 和 CONTEXTPROMPT_历史最相关的十条对话，改为按需加载
     userp_template_base_core = (
         TASKPROMPT_微信对话
@@ -85,11 +85,11 @@ class StreamingChatWorkflow:
         + CONTEXTPROMPT_当前的人物关系
     )
 
-    # User prompt 模板组合 - 基础部分（包含完整历史对话，用于用户消息）
+    # User prompt 模板组合-基础部分（包含完整历史对话，用于用户消息）
     # 保留旧属性以兼容
     userp_template_base = userp_template_base_core + CONTEXTPROMPT_最近的历史对话
 
-    # User prompt 模板组合 - 精简版（只包含最近对话，用于主动消息/提醒）
+    # User prompt 模板组合-精简版（只包含最近对话，用于主动消息/提醒）
     userp_template_base_lite = userp_template_base_core + CONTEXTPROMPT_历史对话_精简
 
     # 消息来源相关的上下文模板
@@ -139,7 +139,7 @@ class StreamingChatWorkflow:
             检测到的完整消息，格式：
             {
                 "type": "message",
-                "data": {"type": "text / voice/photo", "content": "...", "emotion": "..."}
+                "data": {"type": "text/voice/photo", "content": "...", "emotion": "..."}
             }
             或
             {
@@ -285,7 +285,7 @@ class StreamingChatWorkflow:
             error_msg = str(e)
             logger.error(f"ChatResponseAgent 流式执行失败: {error_msg}")
 
-            # 检测 "Content Exists Risk" 错误 - 内容安全审核失败
+            # 检测 "Content Exists Risk" 错误-内容安全审核失败
             # 简单处理：标记为 content_blocked，不写入历史记录
             if "Content Exists Risk" in error_msg:
                 logger.warning(

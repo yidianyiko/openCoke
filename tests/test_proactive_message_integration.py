@@ -32,7 +32,7 @@ from agent.agno_agent.workflows.future_message_workflow import FutureMessageWork
 
 @st.composite
 def complete_session_state_strategy(draw):
-    """Generate a complete session_state for end - to - end testing"""
+    """Generate a complete session_state for end-to-end testing"""
     proactive_times = draw(st.integers(min_value=0, max_value=5))
     closeness = draw(
         st.floats(min_value=0, max_value=100, allow_nan=False, allow_infinity=False)
@@ -56,7 +56,7 @@ def complete_session_state_strategy(draw):
             "_id": "conv_test_789",
             "conversation_info": {
                 "future": {
-                    "timestamp": int(time.time()) - 100,
+                    "timestamp": int(time.time())-100,
                     "action": draw(
                         st.sampled_from(
                             ["发送问候", "询问近况", "分享有趣的事", "关心用户"]
@@ -207,7 +207,7 @@ class TestWorkflowEndToEnd(unittest.TestCase):
                 "_id": "conv_789",
                 "conversation_info": {
                     "future": {
-                        "timestamp": int(time.time()) - 100,
+                        "timestamp": int(time.time())-100,
                         "action": "发送问候",
                         "proactive_times": 0,
                     }
@@ -306,7 +306,7 @@ class TestWorkflowEndToEnd(unittest.TestCase):
             "conversation": {
                 "conversation_info": {
                     "future": {
-                        "timestamp": int(time.time()) - 100,
+                        "timestamp": int(time.time())-100,
                         "action": "发送问候",
                         "proactive_times": 0,
                     }
@@ -369,7 +369,7 @@ class TestWorkflowEndToEnd(unittest.TestCase):
             "conversation": {
                 "conversation_info": {
                     "future": {
-                        "timestamp": int(time.time()) - 100,
+                        "timestamp": int(time.time())-100,
                         "action": "发送问候",
                         "proactive_times": 2,
                     }
@@ -430,7 +430,7 @@ class TestOutputValidityProperty(unittest.TestCase):
     For any 主动消息生成成功后，MultiModalResponses 列表应非空，
     且每个元素的 type 字段应为有效值.
 
-    **Feature: proactive - message, Property 9: 主动消息输出有效性**
+    **Feature: proactive-message, Property 9: 主动消息输出有效性**
     **Validates: Requirements 8.2**
     """
 
@@ -440,7 +440,7 @@ class TestOutputValidityProperty(unittest.TestCase):
         """
         Property 9: MultiModalResponses 中每个元素的 type 字段应为有效值
 
-        **Feature: proactive - message, Property 9: 主动消息输出有效性**
+        **Feature: proactive-message, Property 9: 主动消息输出有效性**
         **Validates: Requirements 8.2**
         """
         valid_types = {"text", "voice", "photo"}
@@ -460,7 +460,7 @@ class TestOutputValidityProperty(unittest.TestCase):
         """
         Property 9: MultiModalResponses 中每个元素应有非空 content
 
-        **Feature: proactive - message, Property 9: 主动消息输出有效性**
+        **Feature: proactive-message, Property 9: 主动消息输出有效性**
         **Validates: Requirements 8.2**
         """
         multimodal_responses = response_data.get("MultiModalResponses", [])
@@ -691,7 +691,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
             ],
             "conversation_info": {
                 "future": {
-                    "timestamp": int(time.time()) - 100,
+                    "timestamp": int(time.time())-100,
                     "action": "发送问候",
                     "proactive_times": 0,
                 }
@@ -788,7 +788,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
                 ],
                 "conversation_info": {
                     "future": {
-                        "timestamp": int(time.time()) - 100,
+                        "timestamp": int(time.time())-100,
                         "action": f"行动{i}",
                         "proactive_times": i,
                     }
@@ -889,7 +889,7 @@ class TestTriggerServiceIntegration(unittest.TestCase):
             ],
             "conversation_info": {
                 "future": {
-                    "timestamp": int(time.time()) - 100,
+                    "timestamp": int(time.time())-100,
                     "action": "测试",
                     "proactive_times": 0,
                 }

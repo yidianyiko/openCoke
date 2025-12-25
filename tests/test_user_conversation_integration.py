@@ -91,12 +91,12 @@ class TestRealReminderIntegration(unittest.TestCase):
 
         print(f"✓ 用户说: '2分钟后提醒我喝水'")
         print("✓ 系统创建提醒成功")
-        print(f"  - 提醒ID: {reminder['reminder_id']}")
-        print(f"  - 标题: {reminder['title']}")
+        print(f" -提醒ID: {reminder['reminder_id']}")
+        print(f" -标题: {reminder['title']}")
         print(
-            f"  - 触发时间: {datetime.fromtimestamp(trigger_time).strftime('%H:%M:%S')}"
+            f" -触发时间: {datetime.fromtimestamp(trigger_time).strftime('%H:%M:%S')}"
         )
-        print(f"  - 状态: {reminder['status']}")
+        print(f" -状态: {reminder['status']}")
 
     def test_02_user_queries_reminders(self):
         """
@@ -115,13 +115,13 @@ class TestRealReminderIntegration(unittest.TestCase):
 
         print(f"✓ 用户说: '我有哪些提醒'")
         print("✓ 系统返回提醒列表")
-        print(f"  - 共有 {len(reminders)} 个提醒")
+        print(f" -共有 {len(reminders)} 个提醒")
 
         for r in reminders:
             trigger_time = datetime.fromtimestamp(r["next_trigger_time"]).strftime(
                 "%H:%M:%S"
             )
-            print(f"    - {r['title']} (触发时间: {trigger_time})")
+            print(f"   -{r['title']} (触发时间: {trigger_time})")
 
         self.assertGreater(len(reminders), 0)
 
@@ -136,7 +136,7 @@ class TestRealReminderIntegration(unittest.TestCase):
         print("=" * 50)
 
         # 创建一个已到期的提醒
-        past_time = int(time.time()) - 60  # 1分钟前
+        past_time = int(time.time())-60  # 1分钟前
 
         reminder_data = {
             "user_id": self.test_user_id,
@@ -164,10 +164,10 @@ class TestRealReminderIntegration(unittest.TestCase):
 
         print("✓ 系统检查待触发的提醒")
         print(
-            f"  - 当前时间: {datetime.fromtimestamp(current_time).strftime('%H:%M:%S')}"
+            f" -当前时间: {datetime.fromtimestamp(current_time).strftime('%H:%M:%S')}"
         )
-        print(f"  - 找到 {len(pending)} 个待触发提醒")
-        print(f"  - 测试提醒是否在列表中: {'是' if found else '否'}")
+        print(f" -找到 {len(pending)} 个待触发提醒")
+        print(f" -测试提醒是否在列表中: {'是' if found else '否'}")
 
         self.assertTrue(found, "应该能找到已到期的提醒")
 
@@ -198,15 +198,15 @@ class TestRealReminderIntegration(unittest.TestCase):
         updated = self.dao.get_reminder_by_id(reminder_id)
         self.assertEqual(updated["triggered_count"], 1)
         print("✓ 系统触发提醒，发送消息给用户")
-        print(f"  - 消息内容: {reminder['action_template']}")
+        print(f" -消息内容: {reminder['action_template']}")
 
         # 完成提醒
         self.dao.complete_reminder(reminder_id)
         completed = self.dao.get_reminder_by_id(reminder_id)
         self.assertEqual(completed["status"], "completed")
         print("✓ 提醒完成")
-        print(f"  - 状态: {completed['status']}")
-        print(f"  - 触发次数: {completed['triggered_count']}")
+        print(f" -状态: {completed['status']}")
+        print(f" -触发次数: {completed['triggered_count']}")
 
 
 class TestRealFutureMessageIntegration(unittest.TestCase):
@@ -268,13 +268,13 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
                         "from_user": test_user_id,
                         "to_user": test_char_id,
                         "message": "晚安，明天见",
-                        "timestamp": int(time.time()) - 60,
+                        "timestamp": int(time.time())-60,
                     },
                     {
                         "from_user": test_char_id,
                         "to_user": test_user_id,
                         "message": "晚安~做个好梦哦，明天见！",
-                        "timestamp": int(time.time()) - 30,
+                        "timestamp": int(time.time())-30,
                     },
                 ],
                 "input_messages": [],
@@ -304,9 +304,9 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
         print(f"✓ 角色回复: '晚安~做个好梦哦，明天见！'")
         print("✓ 系统规划未来消息:")
         print(
-            f"  - 规划时间: {datetime.fromtimestamp(future['timestamp']).strftime('%Y-%m-%d %H:%M')}"
+            f" -规划时间: {datetime.fromtimestamp(future['timestamp']).strftime('%Y-%m-%d %H:%M')}"
         )
-        print(f"  - 规划行动: {future['action']}")
+        print(f" -规划行动: {future['action']}")
 
     def test_02_find_due_future_messages(self):
         """
@@ -336,7 +336,7 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
                 "input_messages": [],
                 "photo_history": [],
                 "future": {
-                    "timestamp": int(time.time()) - 60,  # 1分钟前到期
+                    "timestamp": int(time.time())-60,  # 1分钟前到期
                     "action": "主动问候用户",
                     "proactive_times": 0,
                 },
@@ -363,10 +363,10 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
 
         print("✓ 系统定时检查到期的未来消息")
         print(
-            f"  - 当前时间: {datetime.fromtimestamp(current_timestamp).strftime('%H:%M:%S')}"
+            f" -当前时间: {datetime.fromtimestamp(current_timestamp).strftime('%H:%M:%S')}"
         )
-        print(f"  - 找到 {len(due_conversations)} 个到期会话")
-        print(f"  - 测试会话是否在列表中: {'是' if found else '否'}")
+        print(f" -找到 {len(due_conversations)} 个到期会话")
+        print(f" -测试会话是否在列表中: {'是' if found else '否'}")
 
         self.assertTrue(found, "应该能找到已到期的会话")
 
@@ -400,8 +400,8 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
         conv_id = str(conversation["_id"])
 
         print("✓ 系统发送主动消息")
-        print(f"  - 会话ID: {conv_id}")
-        print(f"  - 规划行动: {conversation['conversation_info']['future']['action']}")
+        print(f" -会话ID: {conv_id}")
+        print(f" -规划行动: {conversation['conversation_info']['future']['action']}")
 
         # 更新 future 状态（清除或设置下一次）
         update_data = {
@@ -419,9 +419,9 @@ class TestRealFutureMessageIntegration(unittest.TestCase):
         self.assertEqual(updated["conversation_info"]["future"]["proactive_times"], 1)
 
         print("✓ 系统更新会话状态")
-        print("  - 清除未来消息规划")
+        print(" -清除未来消息规划")
         print(
-            f"  - 主动消息次数: {updated['conversation_info']['future']['proactive_times']}"
+            f" -主动消息次数: {updated['conversation_info']['future']['proactive_times']}"
         )
 
 
@@ -488,9 +488,9 @@ class TestUserReceivesMessageIntegration(unittest.TestCase):
 
         print("✓ 系统生成主动消息")
         print("✓ 消息写入输出队列")
-        print(f"  - 消息ID: {msg_id}")
-        print(f"  - 内容: {written_msg['content']}")
-        print(f"  - 来源: {written_msg['source']}")
+        print(f" -消息ID: {msg_id}")
+        print(f" -内容: {written_msg['content']}")
+        print(f" -来源: {written_msg['source']}")
         print("✓ 用户将通过客户端收到此消息")
 
     def test_02_reminder_message_written_to_queue(self):
@@ -532,9 +532,9 @@ class TestUserReceivesMessageIntegration(unittest.TestCase):
 
         print("✓ 提醒到期，系统生成提醒消息")
         print("✓ 消息写入输出队列")
-        print(f"  - 消息ID: {msg_id}")
-        print(f"  - 内容: {written_msg['content']}")
-        print(f"  - 来源: {written_msg['source']}")
+        print(f" -消息ID: {msg_id}")
+        print(f" -内容: {written_msg['content']}")
+        print(f" -来源: {written_msg['source']}")
         print("✓ 用户收到提醒消息")
 
 

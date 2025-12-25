@@ -106,7 +106,7 @@ class TestDatabaseOperations:
         assert str(conversation["_id"]) == conv_id
         logger.info("✓ 读取会话成功")
         
-        # Update - 添加消息到历史
+        # Update-添加消息到历史
         conversation["conversation_info"]["chat_history"].append({
             "role": "user",
             "message": "测试消息",

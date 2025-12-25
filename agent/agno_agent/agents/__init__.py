@@ -2,7 +2,7 @@
 """
 Agno Agents Module
 
-This module contains all pre - created Agno Agents for the chat system.
+This module contains all pre-created Agno Agents for the chat system.
 Agents are created at module level to avoid instantiation overhead on each call.
 
 V2 架构：引入 OrchestratorAgent 作为调度中心
@@ -104,9 +104,9 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 
 # ========== Model 层重试配置 ==========
 # 解决问题：
-# - P17: Agno Agent 未配置重试，API 限流直接失败
-# - E4: LLM API 限流直接失败
-# - E5: 网络临时故障直接失败
+#-P17: Agno Agent 未配置重试，API 限流直接失败
+#-E4: LLM API 限流直接失败
+#-E5: 网络临时故障直接失败
 
 
 def create_deepseek_model(model_id: str = "deepseek-chat"):
@@ -129,7 +129,7 @@ def create_deepseek_model(model_id: str = "deepseek-chat"):
 
 # ========== 模块级预创建 Agent ==========
 
-# QueryRewriteAgent - 问题重写，生成检索查询词
+# QueryRewriteAgent-问题重写，生成检索查询词
 # Requirements: 4.1
 query_rewrite_agent = Agent(
     id="query-rewrite-agent",
@@ -140,15 +140,15 @@ query_rewrite_agent = Agent(
     markdown=False,
 )
 
-# ReminderDetectAgent - 提醒检测，识别提醒意图并创建提醒
+# ReminderDetectAgent-提醒检测，识别提醒意图并创建提醒
 # Requirements: 4.2
 #
 # 重要修复 (2025-12-23):
-# - 在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
-# - 问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
+#-在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
+#-问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
 #   导致大量无效的 API 请求（观察到单次处理 50+ 次 POST 请求）
-# - tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
-# - stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
+#-tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
+#-stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
@@ -160,7 +160,7 @@ reminder_detect_agent = Agent(
 )
 
 
-# OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
+# OrchestratorAgent-V2 架构核心，语义理解 + 调度决策
 # 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
 orchestrator_agent = Agent(
     id="orchestrator-agent",
@@ -171,7 +171,7 @@ orchestrator_agent = Agent(
     markdown=False,
 )
 
-# ChatResponseAgent - 对话生成，基于角色人设生成多模态回复
+# ChatResponseAgent-对话生成，基于角色人设生成多模态回复
 # Requirements: 4.4
 chat_response_agent = Agent(
     id="chat-response-agent",
@@ -182,7 +182,7 @@ chat_response_agent = Agent(
     markdown=False,
 )
 
-# PostAnalyzeAgent - 后处理分析，总结对话并更新用户/角色记忆
+# PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
 # Requirements: 4.4
 post_analyze_agent = Agent(
     id="post-analyze-agent",

@@ -6,7 +6,7 @@
 - future_message_query_rewrite_agent: 主动消息的问题重写
 - future_message_chat_agent: 主动消息生成
 
-Requirements: FR - 036, FR - 038
+Requirements: FR-036, FR-038
 """
 
 import logging
@@ -66,7 +66,7 @@ def get_future_context_retrieve_instructions(
 
 
 # ========== Model 层重试配置 ==========
-# 解决问题：P17, E4, E5 - API 限流和网络故障自动重试
+# 解决问题：P17, E4, E5-API 限流和网络故障自动重试
 
 
 def create_deepseek_model(model_id: str = "deepseek-chat"):
@@ -79,7 +79,7 @@ def create_deepseek_model(model_id: str = "deepseek-chat"):
 
 # ========== 模块级预创建 Agent ==========
 
-# FutureMessageQueryRewriteAgent - 主动消息的问题重写
+# FutureMessageQueryRewriteAgent-主动消息的问题重写
 # Requirements: FR-036
 future_message_query_rewrite_agent = Agent(
     id="future-message-query-rewrite-agent",
@@ -90,7 +90,7 @@ future_message_query_rewrite_agent = Agent(
     markdown=False,
 )
 
-# FutureMessageContextRetrieveAgent - 主动消息的上下文检索
+# FutureMessageContextRetrieveAgent-主动消息的上下文检索
 # Requirements: FR-036
 future_message_context_retrieve_agent = Agent(
     id="future-message-context-retrieve-agent",
@@ -101,7 +101,7 @@ future_message_context_retrieve_agent = Agent(
     markdown=False,
 )
 
-# FutureMessageChatAgent - 主动消息生成
+# FutureMessageChatAgent-主动消息生成
 # Requirements: FR-038
 future_message_chat_agent = Agent(
     id="future-message-chat-agent",

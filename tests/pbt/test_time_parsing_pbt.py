@@ -42,7 +42,7 @@ class TestTimeParsingPBT:
             assert result > base
             # 结果应该接近预期时间
             expected = base + minutes * 60
-            assert abs(result - expected) < 60
+            assert abs(result-expected) < 60
 
     @given(st.integers(min_value=1, max_value=24))
     def test_parse_relative_time_hours(self, hours):
@@ -54,7 +54,7 @@ class TestTimeParsingPBT:
         if result is not None:
             assert result > base
             expected = base + hours * 3600
-            assert abs(result - expected) < 3600
+            assert abs(result-expected) < 3600
 
     @given(
         st.integers(min_value=0, max_value=2147483647),

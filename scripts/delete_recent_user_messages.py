@@ -5,7 +5,7 @@
 用于删除指定用户最近的10条历史消息.
 
 Usage:
-    python scripts/delete_recent_user_messages.py --user - id USER_ID [--count COUNT]
+    python scripts/delete_recent_user_messages.py --user-id USER_ID [--count COUNT]
 """
 import sys
 
@@ -16,14 +16,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import argparse
-import logging
 from datetime import datetime
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -42,7 +39,7 @@ def format_timestamp(timestamp):
 def main():
     """主函数：删除指定用户最近的10条历史消息"""
     parser = argparse.ArgumentParser(description="删除指定用户最近的历史消息")
-    parser.add_argument("--user - id", required=True, help="用户ID")
+    parser.add_argument("--user-id", required=True, help="用户ID")
     parser.add_argument(
         "--count", type=int, default=10, help="要删除的消息数量（默认10条）"
     )

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-PrepareWorkflow - 准备阶段 Workflow (V2 架构)
+PrepareWorkflow-准备阶段 Workflow (V2 架构)
 
 V2 架构改进：
 - 引入 OrchestratorAgent 作为调度中心 (1次 LLM)
 - context_retrieve_tool 直接函数调用 (0次 LLM)
-- ReminderDetectAgent 按需调用 (0 - 1次 LLM)
+- ReminderDetectAgent 按需调用 (0-1次 LLM)
 
 执行顺序：OrchestratorAgent → context_retrieve_tool → ReminderDetectAgent(按需)
 
@@ -46,17 +46,17 @@ class PrepareWorkflow:
     因为需要 Runner 层控制分段执行和打断检测.
 
     执行流程：
-    1. OrchestratorAgent - 语义理解 + 调度决策 (1次 LLM)
-    2. context_retrieve_tool - 直接函数调用 (0次 LLM)
-    3. ReminderDetectAgent - 按需调用 (0 - 1次 LLM)
+    1. OrchestratorAgent-语义理解 + 调度决策 (1次 LLM)
+    2. context_retrieve_tool-直接函数调用 (0次 LLM)
+    3. ReminderDetectAgent-按需调用 (0-1次 LLM)
 
     输出：
-    - session_state["orchestrator"] - OrchestratorAgent 的输出
-    - session_state["context_retrieve"] - context_retrieve_tool 的输出
-    - session_state["reminder_result"] - ReminderDetectAgent 的输出 (如果有)
+   -session_state["orchestrator"]-OrchestratorAgent 的输出
+   -session_state["context_retrieve"]-context_retrieve_tool 的输出
+   -session_state["reminder_result"]-ReminderDetectAgent 的输出 (如果有)
 
     兼容性：
-    - session_state["query_rewrite"] - 保留旧字段，从 orchestrator 映射
+   -session_state["query_rewrite"]-保留旧字段，从 orchestrator 映射
     """
 
     # User prompt 模板：Orchestrator 任务

@@ -12,14 +12,11 @@ import sys
 sys.path.append(".")
 
 import argparse
-import logging
 from datetime import datetime
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -180,7 +177,7 @@ def main():
             active_days = 0
             active_weeks = 0
             if first_message_time:
-                active_seconds = current_time - first_message_time
+                active_seconds = current_time-first_message_time
                 active_days = max(1, active_seconds / (24 * 3600))  # 至少为1天
                 active_weeks = max(1, active_days / 7)  # 至少为1周
 

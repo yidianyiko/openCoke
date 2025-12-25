@@ -78,7 +78,7 @@ def cleanup_reminder_status(dry_run=True):
 
         for reminder in triggered_non_recurring:
             logger.info(
-                f"  - {reminder.get('title')} (ID: {reminder.get('reminder_id')})"
+                f" -{reminder.get('title')} (ID: {reminder.get('reminder_id')})"
             )
 
         logger.info("")
@@ -106,7 +106,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="清理提醒状态")
     parser.add_argument(
-        "--execute", action="store_true", help="实际执行清理（默认为 dry - run）"
+        "--execute", action="store_true", help="实际执行清理（默认为 dry-run）"
     )
     args = parser.parse_args()
 

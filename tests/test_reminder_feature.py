@@ -63,7 +63,7 @@ class TestReminderDAO(unittest.TestCase):
             "user_id": "test_user_123",
             "character_id": "test_char_456",
             "title": "即将触发",
-            "next_trigger_time": int(time.time()) - 60,  # 1分钟前
+            "next_trigger_time": int(time.time())-60,  # 1分钟前
             "time_original": "1分钟前",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},
@@ -138,7 +138,7 @@ class TestTimeUtils(unittest.TestCase):
 
     def test_is_time_in_past(self):
         """测试时间过期判断"""
-        past = int(time.time()) - 3600
+        past = int(time.time())-3600
         future = int(time.time()) + 3600
 
         self.assertTrue(is_time_in_past(past))

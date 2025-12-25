@@ -8,7 +8,7 @@ from oss2.credentials import EnvironmentVariableCredentialsProvider
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s-%(levelname)s-%(message)s"
 )
 
 # 检查环境变量是否已设置

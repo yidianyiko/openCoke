@@ -8,7 +8,7 @@ sys.path.append(".")
 from volcenginesdkarkruntime import Ark
 
 # 替换 <MODEL> 为模型的Model ID
-model = "ep - 20251219144126 - djgrz"
+model = "ep-20251219144126-djgrz"
 
 # 初始化Ark客户端，从环境变量中读取您的API Key
 client = Ark(
@@ -53,6 +53,6 @@ def ark_image2text(prompt, image_url=None, image_path=None, image_format="png"):
 
 # 启动脚本
 if __name__ == "__main__":
-    image_url = "http://wxapii.oos - hazz.ctyunapi.cn/20250605/wxid_7mww7784dgse22/460a6fc1 - 4c5d - 4229 - 80a3 - 822aa72035db.png?AWSAccessKeyId=9e882e7187c38b431303&Expires=1749725506&Signature=EB9GA6WDV36Eq3UoRctXQ6vqyz0%3D"
+    image_url = "http://wxapii.oos-hazz.ctyunapi.cn/20250605/wxid_7mww7784dgse22/460a6fc1-4c5d-4229-80a3-822aa72035db.png?AWSAccessKeyId=9e882e7187c38b431303&Expires=1749725506&Signature=EB9GA6WDV36Eq3UoRctXQ6vqyz0%3D"
 
     print(ark_image2text("请详细描述图片中有什么", image_url))

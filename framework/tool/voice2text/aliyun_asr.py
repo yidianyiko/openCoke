@@ -16,14 +16,14 @@ from conf.config import CONF
 def get_token():
     # 创建AcsClient实例
     client = AcsClient(
-        os.getenv("ALIYUN_AK_ID"), os.getenv("ALIYUN_AK_SECRET_ASR"), "cn - shanghai"
+        os.getenv("ALIYUN_AK_ID"), os.getenv("ALIYUN_AK_SECRET_ASR"), "cn-shanghai"
     )
 
     # 创建request，并设置参数.
     request = CommonRequest()
     request.set_method("POST")
-    request.set_domain("nls - meta.cn - shanghai.aliyuncs.com")
-    request.set_version("2019 - 02 - 28")
+    request.set_domain("nls-meta.cn-shanghai.aliyuncs.com")
+    request.set_version("2019-02-28")
     request.set_action_name("CreateToken")
 
     try:
@@ -49,7 +49,7 @@ URL = CONF["aliyun_asr"]["URL"]
 # TOKEN=get_token()  #参考https://help.aliyun.com/document_detail/450255.html获取token
 APPKEY = CONF["aliyun_asr"][
     "APPKEY"
-]  # 获取Appkey请前往控制台：https://nls - portal.console.aliyun.com/applist
+]  # 获取Appkey请前往控制台：https://nls-portal.console.aliyun.com/applist
 # nls.enableTrace(True)
 
 
@@ -194,7 +194,7 @@ def voice_to_text(file_path):
 
 
 if __name__ == "__main__":
-    r = voice_to_text("luoyun / temp/1748503671911.silk")
+    r = voice_to_text("luoyun/temp/1748503671911.silk")
     print("result:" + str(r))
 # print("result:" + str(r))
 # r = voice_to_text("yanhua_core/tool/multimodal/temp/message-4985866711614652198-audio.sil")

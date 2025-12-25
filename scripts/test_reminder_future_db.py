@@ -15,14 +15,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import logging
 import time
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
@@ -86,7 +83,7 @@ def test_reminder_creation():
         "conversation_id": conversation_id,
         "user_id": from_user,
         "character_id": to_user,
-        "title": "测试提醒 - 喝水",
+        "title": "测试提醒-喝水",
         "next_trigger_time": int(time.time()) + 300,  # 5分钟后
         "time_original": "5分钟后",
         "timezone": "Asia/Shanghai",
@@ -142,7 +139,7 @@ def test_reminder_trigger():
         "user_id": from_user,
         "character_id": to_user,
         "title": "测试触发提醒",
-        "next_trigger_time": int(time.time()) - 60,  # 1分钟前（已到期）
+        "next_trigger_time": int(time.time())-60,  # 1分钟前（已到期）
         "time_original": "测试",
         "timezone": "Asia/Shanghai",
         "recurrence": {"enabled": False},
@@ -160,7 +157,7 @@ def test_reminder_trigger():
         logger.info(f"  找到 {len(pending_reminders)} 个待触发提醒")
 
         for r in pending_reminders:
-            logger.info(f"  - {r.get('title')}: {r.get('action_template')[:30]}...")
+            logger.info(f" -{r.get('title')}: {r.get('action_template')[:30]}...")
 
         return len(pending_reminders) > 0
     except Exception as e:
@@ -245,7 +242,7 @@ def test_future_message_query():
             "conversation_info.future.action": {"$ne": None, "$exists": True},
             "conversation_info.future.timestamp": {
                 "$lt": now + 7200,
-                "$gt": now - 1800,
+                "$gt": now-1800,
             },  # 2小时内
         }
     )

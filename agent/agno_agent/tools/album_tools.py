@@ -6,7 +6,7 @@ This module provides album and moments management capabilities:
 - moments_tool: 发布朋友圈
 - photo_delete_tool: 删除照片
 
-Requirements: FR - 063, FR - 064
+Requirements: FR-063, FR-064
 """
 
 import logging

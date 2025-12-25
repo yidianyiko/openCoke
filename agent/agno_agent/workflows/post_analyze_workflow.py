@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-PostAnalyzeWorkflow - 后处理分析 Workflow
+PostAnalyzeWorkflow-后处理分析 Workflow
 
 总结对话，更新用户 / 角色记忆
 
@@ -57,18 +57,18 @@ class PostAnalyzeWorkflow:
     3. 返回分析结果（用于更新用户/角色记忆）
 
     输入：
-    - session_state["MultiModalResponses"] - 来自 ChatWorkflow 的回复
-    - session_state["context_retrieve"] - 来自 PrepareWorkflow
+   -session_state["MultiModalResponses"]-来自 ChatWorkflow 的回复
+   -session_state["context_retrieve"]-来自 PrepareWorkflow
 
     输出：
-    - CharacterPublicSettings - 角色公开设定更新
-    - CharacterPrivateSettings - 角色私有设定更新
-    - UserSettings - 用户资料更新
-    - UserRealName - 用户真名
-    - RelationDescription - 关系描述更新
+   -CharacterPublicSettings-角色公开设定更新
+   -CharacterPrivateSettings-角色私有设定更新
+   -UserSettings-用户资料更新
+   -UserRealName-用户真名
+   -RelationDescription-关系描述更新
 
     V2.11 更新：
-    - 支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
+   -支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
     """
 
     # User prompt 模板组合（静态部分）
@@ -218,7 +218,7 @@ class PostAnalyzeWorkflow:
         处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
 
         V2.11 更新：
-        - 新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
+       -新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
 
         Args:
             content: PostAnalyze 返回的内容
@@ -292,9 +292,9 @@ class PostAnalyzeWorkflow:
         处理角色信息更新（V2.5 新增）
 
         将 PostAnalyze 输出的字段映射到 relation.character_info：
-        - CharacterLongtermPurpose → longterm_purpose
-        - CharacterPurpose → shortterm_purpose
-        - CharacterAttitude → attitude
+       -CharacterLongtermPurpose → longterm_purpose
+       -CharacterPurpose → shortterm_purpose
+       -CharacterAttitude → attitude
 
         Args:
             content: PostAnalyze 返回的内容

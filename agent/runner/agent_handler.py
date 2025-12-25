@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Agent Message Handler - Agno Version
+Agent Message Handler-Agno Version
 
 消息处理主模块，使用 Agno Workflow 实现.
 
@@ -9,7 +9,7 @@ Agent Message Handler - Agno Version
 - 检测点 1: 检测新消息
 - Phase 2: ChatWorkflow (ChatResponseAgent)
 - 检测点 2: 每条消息发送后检测新消息
-- Phase 3: PostAnalyzeWorkflow (PostAnalyzeAgent) - 可被跳过
+- Phase 3: PostAnalyzeWorkflow (PostAnalyzeAgent)-可被跳过
 
 V2.4 更新：
 - 抽取核心处理逻辑为 handle_message() 函数
@@ -20,38 +20,15 @@ V2.4 更新：
 import sys
 
 sys.path.append(".")
-import logging
-import os
 import random
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
-from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple
 
-# 从环境变量读取日志级别，默认 INFO
-LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+from util.log_util import get_logger
 
-# 配置日志格式，包含时间戳
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-
-# 第三方库日志级别设为 WARNING，避免刷屏
-for noisy_logger in [
-    "pymongo",
-    "urllib3",
-    "httpx",
-    "httpcore",
-    "openai",
-    "asyncio",
-    "dashscope",
-]:
-    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
-
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 # ========== Agno Workflow 导入 ==========
 from agent.agno_agent.workflows import PostAnalyzeWorkflow, PrepareWorkflow
@@ -326,7 +303,7 @@ async def handle_message(
     current_message_ids: Optional[List[str]] = None,
 ) -> Tuple[List[dict], dict, bool, bool]:
     """
-    核心消息处理逻辑 - Phase 1 → 2 → 3
+    核心消息处理逻辑-Phase 1 → 2 → 3
 
     统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程.
 
@@ -334,9 +311,9 @@ async def handle_message(
         context: 已构建好的上下文（由 context_prepare 生成）
         input_message_str: 输入消息字符串
         message_source: 消息来源
-            - "user": 用户消息（默认）
-            - "reminder": 提醒触发
-            - "future": 主动消息
+           -"user": 用户消息（默认）
+           -"reminder": 提醒触发
+           -"future": 主动消息
         metadata: 额外元数据（如 reminder_id、proactive_times 等）
         check_new_message: 是否检测新消息（系统消息通常设为 False）
         worker_tag: 日志标签
@@ -346,10 +323,10 @@ async def handle_message(
 
     Returns:
         Tuple[resp_messages, context, is_rollback, is_content_blocked]:
-            - resp_messages: 发送的消息列表
-            - context: 更新后的上下文
-            - is_rollback: 是否因新消息而回滚
-            - is_content_blocked: 是否因内容安全审核失败
+           -resp_messages: 发送的消息列表
+           -context: 更新后的上下文
+           -is_rollback: 是否因新消息而回滚
+           -is_content_blocked: 是否因内容安全审核失败
     """
     # 标记消息来源，供 Workflow 识别
     context["message_source"] = message_source
@@ -586,10 +563,10 @@ def create_handler(worker_id: int = 0):
     创建带 worker_id 的消息处理函数（用户消息入口）
     
     重构说明：
-    - 使用 MessageAcquirer 处理消息获取和锁管理
-    - 使用 MessageDispatcher 处理消息分发
-    - 使用 MessageFinalizer 处理后续状态更新
-    - 复杂度从 50 降低到约 15
+   -使用 MessageAcquirer 处理消息获取和锁管理
+   -使用 MessageDispatcher 处理消息分发
+   -使用 MessageFinalizer 处理后续状态更新
+   -复杂度从 50 降低到约 15
     """
     from agent.runner.message_processor import (
         MessageAcquirer,

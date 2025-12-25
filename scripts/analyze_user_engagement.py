@@ -12,14 +12,11 @@ import sys
 sys.path.append(".")
 
 import argparse
-import logging
 from datetime import datetime, timedelta
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -145,9 +142,9 @@ def count_user_messages(mongo_db, user_id):
 def categorize_user_engagement(total_messages):
     """根据总消息数对用户参与度进行分类"""
     if total_messages == 0:
-        return "Non - active"
+        return "Non-active"
     elif total_messages < 5:
-        return "One - time"
+        return "One-time"
     elif total_messages < 20:
         return "Occasional"
     elif total_messages < 100:
@@ -162,7 +159,7 @@ def calculate_average_usage(user_data, current_time):
         # 计算用户活跃周期
         if user["first_message_time"] and user["last_message_time"]:
             active_duration_days = (
-                user["last_message_time"] - user["first_message_time"]
+                user["last_message_time"]-user["first_message_time"]
             )/86400
             # 至少活跃1天才能计算平均值
             if active_duration_days >= 1:
@@ -351,7 +348,7 @@ def analyze_user_engagement():
         print("日期         | 新注册用户 | 活跃用户")
         print("-------------|-----------|----------")
         for i in range(13, -1, -1):  # 从13天前到今天
-            date = today - timedelta(days=i)
+            date = today-timedelta(days=i)
             registrations = daily_registration.get(date, 0)
             active_users = daily_activity.get(date, 0)
             print(f"{date} | {registrations:10} | {active_users:8}")
@@ -367,19 +364,19 @@ def analyze_user_engagement():
             category = user["engagement_category"]
             category_counts[category] = category_counts.get(category, 0) + 1
 
-        single_session_users = category_counts.get("One - time", 0)
+        single_session_users = category_counts.get("One-time", 0)
         ongoing_engagement_users = (
             category_counts.get("Occasional", 0)
             + category_counts.get("Regular", 0)
             + category_counts.get("Highly Active", 0)
         )
-        non_active_users = category_counts.get("Non - active", 0)
+        non_active_users = category_counts.get("Non-active", 0)
 
         print(
-            f"从未使用服务的用户 (Non - active): {non_active_users} ({non_active_users/total_users * 100:.2f}%)"
+            f"从未使用服务的用户 (Non-active): {non_active_users} ({non_active_users/total_users * 100:.2f}%)"
         )
         print(
-            f"一次性用户 (One - time): {single_session_users} ({single_session_users/total_users * 100:.2f}%)"
+            f"一次性用户 (One-time): {single_session_users} ({single_session_users/total_users * 100:.2f}%)"
         )
         print(
             f"持续参与用户 (Occasional/Regular/Highly Active): {ongoing_engagement_users} ({ongoing_engagement_users/total_users * 100:.2f}%)"
@@ -400,7 +397,7 @@ def analyze_user_engagement():
             if user["creation_time"]:
                 creation_date = datetime.fromtimestamp(user["creation_time"]).date()
                 # 计算是第几周注册的（相对于今天）
-                days_since_creation = (today - creation_date).days
+                days_since_creation = (today-creation_date).days
                 week_since_creation = days_since_creation // 7
                 # 确保不会出现负数周
                 week_key = max(0, week_since_creation)
@@ -421,7 +418,7 @@ def analyze_user_engagement():
                 # 如果用户在过去7天内有活动，则认为是活跃的
                 if user["last_message_time"]:
                     days_since_last_activity = (
-                        current_time - user["last_message_time"]
+                        current_time-user["last_message_time"]
                     ) / 86400
                     if days_since_last_activity <= 7:  # 一周内有活动
                         active_users += 1
@@ -446,10 +443,10 @@ def analyze_user_engagement():
         # 定义时间分段
         time_segments = {
             "最近1周": 7,
-            "1 - 2周前": 14,
-            "2 - 4周前": 28,
-            "1 - 2个月前": 60,
-            "2 - 3个月前": 90,
+            "1-2周前": 14,
+            "2-4周前": 28,
+            "1-2个月前": 60,
+            "2-3个月前": 90,
             "3个月前": 91,  # 91天及以上
         }
 
@@ -459,18 +456,18 @@ def analyze_user_engagement():
 
         for user in user_data:
             if user["creation_time"]:
-                days_since_creation = (current_time - user["creation_time"])/86400
+                days_since_creation = (current_time-user["creation_time"])/86400
                 # 归类到对应的时间段
                 if days_since_creation <= 7:
                     segment = "最近1周"
                 elif days_since_creation <= 14:
-                    segment = "1 - 2周前"
+                    segment = "1-2周前"
                 elif days_since_creation <= 28:
-                    segment = "2 - 4周前"
+                    segment = "2-4周前"
                 elif days_since_creation <= 60:
-                    segment = "1 - 2个月前"
+                    segment = "1-2个月前"
                 elif days_since_creation <= 90:
-                    segment = "2 - 3个月前"
+                    segment = "2-3个月前"
                 else:
                     segment = "3个月前"
 
@@ -478,7 +475,7 @@ def analyze_user_engagement():
                 # 检查用户最近是否活跃（最近7天内有活动）
                 if user["last_message_time"]:
                     days_since_last_activity = (
-                        current_time - user["last_message_time"]
+                        current_time-user["last_message_time"]
                     )/86400
                     if days_since_last_activity <= 7:
                         segment_stats[segment]["active"] += 1
@@ -499,7 +496,7 @@ def analyze_user_engagement():
         print(
             "\n说明：留存率 = 不同时间段注册用户中，当前仍活跃的用户比例（最近7天内有活动）"
         )
-        print("     例如：'1 - 2周前'注册的用户中，有47.4%在最近7天内仍有活动")
+        print("     例如：'1-2周前'注册的用户中，有47.4%在最近7天内仍有活动")
 
         # 分析5: 平均使用量统计
         print("\n" + "=" * 100)

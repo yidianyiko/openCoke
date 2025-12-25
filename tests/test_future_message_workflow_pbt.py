@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-FutureMessageWorkflow 属性测试 (Property - Based Testing)
+FutureMessageWorkflow 属性测试 (Property-Based Testing)
 
 测试 Workflow 的核心逻辑：
 - Property 2: Workflow 执行顺序
@@ -43,7 +43,7 @@ def relation_change_strategy(draw):
 
 @st.composite
 def initial_relation_strategy(draw):
-    """Generate initial relation values (0 - 100)"""
+    """Generate initial relation values (0-100)"""
     closeness = draw(
         st.floats(min_value=0, max_value=100, allow_nan=False, allow_infinity=False)
     )

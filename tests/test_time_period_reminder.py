@@ -41,11 +41,11 @@ class TestTimePeriodReminder(unittest.TestCase):
 
         # 测试1：在时间段内（9:00-18:00）
         result = is_within_time_period(timestamp, "09:00", "18:00")
-        self.assertTrue(result, "下午3点应该在9:00 - 18:00时间段内")
+        self.assertTrue(result, "下午3点应该在9:00-18:00时间段内")
 
         # 测试2：不在时间段内（19:00-22:00）
         result = is_within_time_period(timestamp, "19:00", "22:00")
-        self.assertFalse(result, "下午3点不应该在19:00 - 22:00时间段内")
+        self.assertFalse(result, "下午3点不应该在19:00-22:00时间段内")
 
         # 测试3：工作日限制
         weekday = test_time.isoweekday()  # 1=周一, 7=周日

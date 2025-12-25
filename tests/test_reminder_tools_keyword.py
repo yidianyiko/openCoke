@@ -453,7 +453,7 @@ class TestBatchOperations:
 
 
 class TestReminderToolIntegration:
-    """reminder_tool 集成测试 - 测试内部函数"""
+    """reminder_tool 集成测试-测试内部函数"""
 
     def test_tool_delete_action(self, reminder_dao, test_user_id, cleanup_reminders):
         """测试 delete action（通过内部函数）"""

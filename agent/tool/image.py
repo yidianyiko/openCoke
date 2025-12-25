@@ -1,13 +1,12 @@
 import sys
 
 sys.path.append(".")
-import logging
 import os
 import time
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from urllib.parse import urlparse
 
@@ -40,11 +39,11 @@ def generate_character_image(
                 "weight": 0.4,
             },
             {
-                "modelId": "37226fda3dbc4285b75e0e414adae592",  # F.1CG - 古风玄幻唯美人像
+                "modelId": "37226fda3dbc4285b75e0e414adae592",  # F.1CG-古风玄幻唯美人像
                 "weight": 0.8,
             },
             {
-                "modelId": "8d01e6b9ba734126a945c11749fd8506",  # Flux_小马 - 完美全圆胸纤腰
+                "modelId": "8d01e6b9ba734126a945c11749fd8506",  # Flux_小马-完美全圆胸纤腰
                 "weight": 0.55,
             },
             {
@@ -126,7 +125,7 @@ def download_image(url, save_path=None, filename=None, timeout=10):
     """
     try:
         response = requests.get(
-            url, stream=True, timeout=timeout, headers={"User - Agent": "Mozilla/5.0"}
+            url, stream=True, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"}
         )
         response.raise_for_status()
 

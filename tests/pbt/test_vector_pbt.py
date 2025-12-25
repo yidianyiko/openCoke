@@ -21,7 +21,7 @@ class TestVectorUtilsPBT:
         if len(vec_a) == len(vec_b):
             similarity = VectorUtils.cosine_similarity(vec_a, vec_b)
             # 允许浮点数精度误差
-            assert -1.0 - 1e-10 <= similarity <= 1.0 + 1e-10
+            assert -1.0-1e-10 <= similarity <= 1.0 + 1e-10
 
     @given(st.lists(st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False), min_size=3, max_size=10))
     def test_cosine_similarity_self(self, vec):
@@ -32,7 +32,7 @@ class TestVectorUtilsPBT:
             
         similarity = VectorUtils.cosine_similarity(vec, vec)
         # 允许浮点数精度误差
-        assert abs(similarity - 1.0) < 1e-6
+        assert abs(similarity-1.0) < 1e-6
 
     @given(
         st.lists(st.floats(min_value=-10.0, max_value=10.0), min_size=2, max_size=10),
@@ -57,7 +57,7 @@ class TestVectorUtilsPBT:
 
         normalized = VectorUtils.normalize_vector(vec)
         length = np.linalg.norm(normalized)
-        assert abs(length - 1.0) < 0.001
+        assert abs(length-1.0) < 0.001
 
     @given(
         st.lists(

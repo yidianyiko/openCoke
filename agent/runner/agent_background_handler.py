@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Agent Background Handler - Agno Version
+Agent Background Handler-Agno Version
 
 后台任务处理模块，包括：
 - 主动消息触发和生成
@@ -12,14 +12,13 @@ Agent Background Handler - Agno Version
 import sys
 
 sys.path.append(".")
-import logging
 import random
 import time
 import traceback
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 # ========== 核心处理函数导入 ==========
 from agent.runner.agent_handler import handle_message
 from conf.config import CONF
@@ -65,7 +64,7 @@ def _cleanup_cooldown_cache():
     expired_keys = [
         key
         for key, last_failed in _lock_cooldown_cache.items()
-        if now - last_failed > LOCK_COOLDOWN_SECONDS * 2
+        if now-last_failed > LOCK_COOLDOWN_SECONDS * 2
     ]
     for key in expired_keys:
         _lock_cooldown_cache.pop(key, None)
@@ -115,8 +114,8 @@ async def check_hold_messages():
     检查 hold 状态消息，超时或角色空闲时恢复为 pending
 
     解决问题：
-    - P3: hold 状态消息无恢复机制
-    - E3: hold 状态超时永久挂起
+   -P3: hold 状态消息无恢复机制
+   -E3: hold 状态超时永久挂起
     """
     try:
         now = int(time.time())
@@ -144,7 +143,7 @@ async def check_hold_messages():
 
                 # 检查 hold 超时
                 hold_started_at = msg.get("hold_started_at", now)
-                is_timeout = (now - hold_started_at) > HOLD_TIMEOUT
+                is_timeout = (now-hold_started_at) > HOLD_TIMEOUT
 
                 # 角色空闲或超时时恢复为 pending
                 if character_status == "空闲" or is_timeout:
@@ -174,10 +173,10 @@ def decrease_all():
                 or relation["relationship"]["trustness"] > 0
             ):
                 relation["relationship"]["closeness"] = max(
-                    0, relation["relationship"]["closeness"] - 1
+                    0, relation["relationship"]["closeness"]-1
                 )
                 relation["relationship"]["trustness"] = max(
-                    0, relation["relationship"]["trustness"] - 1
+                    0, relation["relationship"]["trustness"]-1
                 )
                 mongo.replace_one("relations", {"_id": relation["_id"]}, relation)
         except Exception:
@@ -274,7 +273,7 @@ def handle_proactive_message():
 
 async def handle_pending_future_message():
     """
-    处理待发送的主动消息 (V2.4 - 使用统一入口)
+    处理待发送的主动消息 (V2.4-使用统一入口)
 
     使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
     """
@@ -289,7 +288,7 @@ async def handle_pending_future_message():
         conversations = conversation_dao.find_conversations(
             query={
                 "conversation_info.future.action": {"$ne": None, "$exists": True},
-                "conversation_info.future.timestamp": {"$lt": now, "$gt": now - 1800},
+                "conversation_info.future.timestamp": {"$lt": now, "$gt": now-1800},
                 "conversation_info.future.status": {"$ne": "expired"},
                 "$or": [
                     {"conversation_info.future.proactive_times": {"$exists": False}},
@@ -307,7 +306,7 @@ async def handle_pending_future_message():
         # ========== 冷却机制：在日志之前检查，避免频繁输出 ==========
         now_time = time.time()
         last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-        if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
+        if now_time-last_failed < LOCK_COOLDOWN_SECONDS:
             # 仍在冷却期内，静默跳过
             return
 
@@ -500,7 +499,7 @@ async def handle_pending_future_message():
 
 async def handle_pending_reminders():
     """
-    处理待触发的提醒任务 (V2.8 - 支持时间段提醒)
+    处理待触发的提醒任务 (V2.8-支持时间段提醒)
 
     使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
     """
@@ -522,7 +521,7 @@ async def handle_pending_reminders():
             conversation_id = reminder.get("conversation_id")
             if conversation_id:
                 last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-                if time.time() - last_failed >= LOCK_COOLDOWN_SECONDS:
+                if time.time()-last_failed >= LOCK_COOLDOWN_SECONDS:
                     all_in_cooldown = False
                     break
 
@@ -651,7 +650,7 @@ async def _acquire_reminder_lock(conversation_id: str):
     # 冷却机制：避免频繁重试同一个锁
     now_time = time.time()
     last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-    if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
+    if now_time-last_failed < LOCK_COOLDOWN_SECONDS:
         # 仍在冷却期内，静默跳过
         return None
 

@@ -6,7 +6,7 @@
 此脚本用于合并那些应该合并的提醒（同一用户同一时间但无相同关键词的提醒），只保留一个.
 
 使用方法：
-    python scripts/merge_duplicate_reminders.py [--dry - run]
+    python scripts/merge_duplicate_reminders.py [--dry-run]
 """
 
 import sys

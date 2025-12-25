@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import logging
-from logging import getLogger
-
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
-
 import sys
 
 sys.path.append(".")
+
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 
 class BaseConnector:

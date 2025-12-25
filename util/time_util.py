@@ -90,7 +90,7 @@ def parse_relative_time(text, base_timestamp=None):
     # 相对时间模式
     patterns = [
         # 分钟
-        (r"(\d+)\s * 分钟[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 60),
+        (r"(\d+)\s*分钟[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 60),
         # 小时
         (
             r"(\d+)\s*[个]?小时[后之]后?",
@@ -101,7 +101,7 @@ def parse_relative_time(text, base_timestamp=None):
             lambda m: base_timestamp + int(m.group(1)) * 3600,
         ),
         # 天
-        (r"(\d+)\s * 天[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 86400),
+        (r"(\d+)\s*天[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 86400),
         # 明天
         (
             r"明天",
@@ -190,7 +190,7 @@ def format_time_friendly(timestamp):
     now = datetime.now()
 
     # 计算天数差
-    days_diff = (dt.date() - now.date()).days
+    days_diff = (dt.date()-now.date()).days
 
     # 时间部分
     hour = dt.hour
@@ -201,11 +201,11 @@ def format_time_friendly(timestamp):
     elif hour < 18:
         period = "下午"
         if hour > 12:
-            hour = hour - 12
+            hour = hour-12
     else:
         period = "晚上"
         if hour > 12:
-            hour = hour - 12
+            hour = hour-12
 
     time_str = f"{period}{hour}点"
     if minute > 0:
@@ -247,7 +247,7 @@ def is_within_time_period(
         timestamp: Unix 时间戳
         start_time: 开始时间 "HH:MM"
         end_time: 结束时间 "HH:MM"
-        active_days: 生效的星期几列表 [1 - 7]，None 表示每天
+        active_days: 生效的星期几列表 [1-7]，None 表示每天
         timezone: 时区
 
     Returns:
@@ -294,7 +294,7 @@ def calculate_next_period_trigger(
         interval_minutes: 间隔分钟数
         start_time: 时间段开始 "HH:MM"
         end_time: 时间段结束 "HH:MM"
-        active_days: 生效的星期几 [1 - 7]
+        active_days: 生效的星期几 [1-7]
         timezone: 时区
 
     Returns:

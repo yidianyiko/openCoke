@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 import sys
-import time
 
 sys.path.append(".")
-import logging
-from logging import getLogger
+import time
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO

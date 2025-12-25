@@ -8,7 +8,7 @@ V2 架构 Workflows:
 - PrepareWorkflow: OrchestratorAgent + context_retrieve_tool + ReminderDetectAgent(按需)
 - StreamingChatWorkflow: ChatResponseAgent with streaming support (Requirements: 5.2)
 - PostAnalyzeWorkflow: PostAnalyzeAgent (Requirements: 5.3)
-- FutureMessageWorkflow: 主动消息生成 (Requirements: FR - 036, FR - 038)
+- FutureMessageWorkflow: 主动消息生成 (Requirements: FR-036, FR-038)
 
 V2 架构改进:
 - PrepareWorkflow 使用 OrchestratorAgent 作为调度中心

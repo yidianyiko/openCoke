@@ -84,7 +84,7 @@ main() {
     if [ ${#passed_tests[@]} -gt 0 ]; then
         echo "✓ 通过的测试:"
         for test in "${passed_tests[@]}"; do
-            echo "  - $(basename "$test")"
+            echo " -$(basename "$test")"
         done
         echo ""
     fi
@@ -92,7 +92,7 @@ main() {
     if [ ${#failed_tests[@]} -gt 0 ]; then
         echo "✗ 失败的测试:"
         for test in "${failed_tests[@]}"; do
-            echo "  - $(basename "$test")"
+            echo " -$(basename "$test")"
         done
         echo ""
         exit 1

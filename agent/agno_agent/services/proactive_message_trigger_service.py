@@ -29,10 +29,10 @@ class ProactiveMessageTriggerService:
     负责定时检查并触发主动消息.
 
     Requirements:
-    - 6.1: 查询所有 future.timestamp 已到达的会话
-    - 6.2: 调用 FutureMessageWorkflow 生成主动消息
-    - 6.3: 将消息写入 outputmessages 队列
-    - 6.4: 更新会话的 future 状态
+   -6.1: 查询所有 future.timestamp 已到达的会话
+   -6.2: 调用 FutureMessageWorkflow 生成主动消息
+   -6.3: 将消息写入 outputmessages 队列
+   -6.4: 更新会话的 future 状态
     """
 
     def __init__(
@@ -109,9 +109,9 @@ class ProactiveMessageTriggerService:
         current_timestamp = int(time.time())
 
         # 查询条件：
-        # - future.timestamp 存在且小于等于当前时间
-        # - status != "expired" 表示未达到主动消息次数上限
-        # - proactive_times < 2 限制主动消息发送次数
+        #-future.timestamp 存在且小于等于当前时间
+        #-status != "expired" 表示未达到主动消息次数上限
+        #-proactive_times < 2 限制主动消息发送次数
         query = {
             "conversation_info.future.timestamp": {
                 "$exists": True,
@@ -308,7 +308,7 @@ class ProactiveMessageTriggerService:
 
             try:
                 self.mongo.insert_one("outputmessages", output_message)
-                logger.info(f"Written output message: {msg_type} - {content[:50]}...")
+                logger.info(f"Written output message: {msg_type}-{content[:50]}...")
             except Exception as e:
                 logger.error(f"Failed to write output message: {e}")
 

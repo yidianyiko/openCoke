@@ -5,11 +5,10 @@ import sys
 import requests
 
 sys.path.append(".")
-import logging
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from conf.config import CONF
 
@@ -26,7 +25,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/getContact",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -37,7 +36,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/sendText",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -48,7 +47,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/sendVoice",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -59,7 +58,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/sendImage2",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -70,7 +69,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/getMsgVoice",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -81,7 +80,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/getMsgImg",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -92,7 +91,7 @@ class Ecloud_API:
         resp = requests.post(
             url=host + "/snsSendImage",
             json=data,
-            headers={"Authorization": auth, "Content - Type": "application/json"},
+            headers={"Authorization": auth, "Content-Type": "application/json"},
         )
 
         resp_json = json.loads(resp.content.decode("utf-8"))
@@ -105,7 +104,7 @@ if __name__ == "__main__":
         "wId": CONF["ecloud"]["wId"][target_user_alias],
         "wcId": "LeanInWind",
         # "content": "/home/ecs-user/luoyun/framework/tool/text2voice/test.silk",
-        "content": "https://banyou - live.oss - cn - beijing.aliyuncs.com/test.silk?x - oss - date=20250519T171906Z&x - oss - expires=300&x - oss - signature - version=OSS4 - HMAC - SHA256&x - oss - credential=LTAI5t5uQzkR9g7FCU5YLAwR%2F20250519%2Fcn - beijing%2Foss%2Faliyun_v4_request&x - oss - signature=02b3f518c2d588f61f2c8d2a0a9107628793ab254f5c503270cc2d3cc23ac6e7",
+        "content": "https://banyou-live.oss-cn-beijing.aliyuncs.com/test.silk?x-oss-date=20250519T171906Z&x-oss-expires=300&x-oss-signature-version=OSS4-HMAC-SHA256&x-oss-credential=LTAI5t5uQzkR9g7FCU5YLAwR%2F20250519%2Fcn-beijing%2Foss%2Faliyun_v4_request&x-oss-signature=02b3f518c2d588f61f2c8d2a0a9107628793ab254f5c503270cc2d3cc23ac6e7",
         "length": 24,
     }
     resp_json = Ecloud_API.sendVoice(data)

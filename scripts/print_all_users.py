@@ -15,13 +15,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import logging
-from logging import getLogger
+from util.log_util import get_logger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 from dao.user_dao import UserDAO
 

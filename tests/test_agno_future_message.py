@@ -3,7 +3,7 @@
 主动消息（Future Message）模块测试
 
 测试内容：
-- FutureMessageResponse Schema (Requirements: FR - 036, FR - 038)
+- FutureMessageResponse Schema (Requirements: FR-036, FR-038)
 - FutureMessageWorkflow 结构和方法
 - Agent 实例化
 """
@@ -90,13 +90,13 @@ class TestFutureMessageAgents(unittest.TestCase):
         # 检查 query_rewrite_agent
         self.assertEqual(
             future_message_query_rewrite_agent.id,
-            "future - message - query - rewrite - agent",
+            "future-message-query-rewrite-agent",
         )
         self.assertIsNotNone(future_message_query_rewrite_agent.model)
 
         # 检查 chat_agent
         self.assertEqual(
-            future_message_chat_agent.id, "future - message - chat - agent"
+            future_message_chat_agent.id, "future-message-chat-agent"
         )
         self.assertIsNotNone(future_message_chat_agent.model)
 

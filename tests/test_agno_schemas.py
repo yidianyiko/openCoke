@@ -95,7 +95,7 @@ class TestChatResponseSchema(unittest.TestCase):
         self.assertEqual(mm.content, "你好！")
         self.assertIsNone(
             mm.emotion
-        )  # emotion defaults to None for non - voice messages
+        )  # emotion defaults to None for non-voice messages
 
     def test_multimodal_response_voice(self):
         """测试语音类型多模态回复"""
@@ -178,15 +178,15 @@ class TestPostAnalyzeResponseSchema(unittest.TestCase):
         """测试带值创建"""
         response = PostAnalyzeResponse(
             InnerMonologue="这次对话很愉快",
-            CharacterPublicSettings="喜欢 - 音乐：古典音乐",
-            UserSettings="职业 - 工程师：软件开发",
+            CharacterPublicSettings="喜欢-音乐：古典音乐",
+            UserSettings="职业-工程师：软件开发",
             UserRealName="张三",
             UserHobbyName="小张",
             RelationDescription="朋友关系",
             Dislike=0,
         )
         self.assertEqual(response.UserRealName, "张三")
-        self.assertEqual(response.CharacterPublicSettings, "喜欢 - 音乐：古典音乐")
+        self.assertEqual(response.CharacterPublicSettings, "喜欢-音乐：古典音乐")
 
     def test_dislike_value(self):
         """测试反感度数值"""

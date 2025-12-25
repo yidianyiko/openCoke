@@ -3,15 +3,13 @@ MongoDB Vector Database Library
 包含基础数据库操作和向量检索功能
 """
 
-import logging
-from logging import getLogger
-
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
-
 import sys
 
 sys.path.append(".")
+
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 from typing import Any, Dict, List
 
 import numpy as np
@@ -626,7 +624,7 @@ class VectorUtils:
         a = np.array(vector_a)
         b = np.array(vector_b)
 
-        return np.linalg.norm(a - b)
+        return np.linalg.norm(a-b)
 
     @staticmethod
     def dot_product(vector_a: List[float], vector_b: List[float]) -> float:

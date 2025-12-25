@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-FutureMessageResponse Schema 属性测试 (Property - Based Testing)
+FutureMessageResponse Schema 属性测试 (Property-Based Testing)
 
 Property 1: Schema 结构完整性
 - FutureMessageResponse 包含所有必需字段（InnerMonologue、MultiModalResponses、RelationChange、FutureResponse）

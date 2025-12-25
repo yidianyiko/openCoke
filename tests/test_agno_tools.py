@@ -63,7 +63,7 @@ class TestReminderToolCRUD(unittest.TestCase):
     def test_create_response_structure(self):
         """测试创建操作返回结构"""
         # 成功响应
-        success_response = {"ok": True, "reminder_id": "test - uuid - 123"}
+        success_response = {"ok": True, "reminder_id": "test-uuid-123"}
         self.assertTrue(success_response["ok"])
         self.assertIn("reminder_id", success_response)
 
@@ -94,7 +94,7 @@ class TestReminderToolCRUD(unittest.TestCase):
             "ok": True,
             "reminders": [
                 {
-                    "reminder_id": "test - 123",
+                    "reminder_id": "test-123",
                     "title": "测试提醒",
                     "status": "confirmed",
                     "next_trigger_time": int(time.time()) + 3600,

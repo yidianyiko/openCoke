@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-集成测试 - 扩展覆盖
+集成测试-扩展覆盖
 
 测试系统中尚未覆盖的重要 happy path，包括：
 1. 主动消息（Future Message）流程
@@ -29,13 +29,13 @@ class TestFutureMessageFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 主动消息流程")
+            print("集成测试-主动消息流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_future_message_workflow(self):
         """测试 FutureMessageWorkflow 完整流程"""
-        print("\n[测试 6.1] FutureMessageWorkflow - 完整流程")
+        print("\n[测试 6.1] FutureMessageWorkflow-完整流程")
 
         import asyncio
         from agent.agno_agent.workflows import FutureMessageWorkflow
@@ -108,7 +108,7 @@ class TestFutureMessageFlow(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_future_message_max_times(self):
         """测试主动消息次数限制"""
-        print("\n[测试 6.2] FutureMessageWorkflow - 次数限制")
+        print("\n[测试 6.2] FutureMessageWorkflow-次数限制")
 
         import asyncio
         from agent.agno_agent.workflows import FutureMessageWorkflow
@@ -176,13 +176,13 @@ class TestReminderTriggerFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 提醒触发流程")
+            print("集成测试-提醒触发流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_reminder_message_generation(self):
         """测试提醒触发时的消息生成"""
-        print("\n[测试 7.1] 提醒触发 - 消息生成")
+        print("\n[测试 7.1] 提醒触发-消息生成")
 
         import asyncio
         from agent.agno_agent.workflows import StreamingChatWorkflow
@@ -246,13 +246,13 @@ class TestRelationAndMemoryUpdate(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 关系和记忆更新")
+            print("集成测试-关系和记忆更新")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_relation_change(self):
         """测试关系变化更新"""
-        print("\n[测试 8.1] PostAnalyzeWorkflow - 关系变化")
+        print("\n[测试 8.1] PostAnalyzeWorkflow-关系变化")
 
         import asyncio
         from agent.agno_agent.workflows import PostAnalyzeWorkflow
@@ -320,7 +320,7 @@ class TestRelationAndMemoryUpdate(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_user_info_update(self):
         """测试用户信息更新"""
-        print("\n[测试 8.2] PostAnalyzeWorkflow - 用户信息更新")
+        print("\n[测试 8.2] PostAnalyzeWorkflow-用户信息更新")
 
         import asyncio
         from agent.agno_agent.workflows import PostAnalyzeWorkflow
@@ -380,13 +380,13 @@ class TestMultiModalMessages(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 多模态消息处理")
+            print("集成测试-多模态消息处理")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_multimodal_response_generation(self):
         """测试生成多模态回复"""
-        print("\n[测试 9.1] ChatResponseAgent - 多模态回复")
+        print("\n[测试 9.1] ChatResponseAgent-多模态回复")
 
         from agent.agno_agent.agents import chat_response_agent
         from bson import ObjectId
@@ -442,13 +442,13 @@ class TestReminderOperations(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 提醒管理操作")
+            print("集成测试-提醒管理操作")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_reminder_create_with_recurrence(self):
         """测试创建周期性提醒"""
-        print("\n[测试 10.1] ReminderDetectAgent - 周期性提醒")
+        print("\n[测试 10.1] ReminderDetectAgent-周期性提醒")
 
         from agent.agno_agent.agents import reminder_detect_agent
         from bson import ObjectId
@@ -490,7 +490,7 @@ def run_extended_tests():
     from tests.integration_test_config import get_missing_api_keys, validate_api_keys
 
     print("\n" + "=" * 70)
-    print("集成测试 - 扩展覆盖")
+    print("集成测试-扩展覆盖")
     print("=" * 70)
 
     if not should_use_real_api():

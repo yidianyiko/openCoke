@@ -6,7 +6,7 @@ This module provides voice processing capabilities:
 - voice2text_tool: 语音转文字 (阿里云 ASR)
 - text2voice_tool: 文字转语音 (MiniMax T2A)
 
-Requirements: FR - 004, FR - 005, FR - 051, FR - 052, FR - 053
+Requirements: FR-004, FR-005, FR-051, FR-052, FR-053
 """
 
 import logging
@@ -61,14 +61,14 @@ def text2voice_tool(
     Args:
         text: 要转换的文字内容
         emotion: 情感色彩，可选值：
-            - "无": 无特殊情感（默认）
-            - "高兴": 开心、愉快的语气
-            - "悲伤": 难过、低落的语气
-            - "愤怒": 生气、恼怒的语气
-            - "害怕": 恐惧、紧张的语气
-            - "惊讶": 惊奇、意外的语气
-            - "厌恶": 反感、嫌弃的语气
-            - "魅惑": 撩人、诱惑的语气
+           -"无": 无特殊情感（默认）
+           -"高兴": 开心、愉快的语气
+           -"悲伤": 难过、低落的语气
+           -"愤怒": 生气、恼怒的语气
+           -"害怕": 恐惧、紧张的语气
+           -"惊讶": 惊奇、意外的语气
+           -"厌恶": 反感、嫌弃的语气
+           -"魅惑": 撩人、诱惑的语气
 
     Returns:
         dict: {

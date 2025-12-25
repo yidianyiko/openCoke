@@ -26,13 +26,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import asyncio
-import logging
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
@@ -129,7 +126,7 @@ async def test_deepseek_api(prompt: str, test_name: str) -> bool:
             logger.error(f"   错误详情: {error_msg[:200]}...")
             return False
         else:
-            logger.warning(f"⚠️ {test_name}: 其他错误 - {error_msg[:100]}...")
+            logger.warning(f"⚠️ {test_name}: 其他错误-{error_msg[:100]}...")
             return True  # 非 content risk 错误，视为通过
 
 
@@ -348,7 +345,7 @@ async def run_diagnostic():
         print("🔴 发现问题的数据组件:")
         print("=" * 70)
         for test in failed_tests:
-            print(f"  - {test}")
+            print(f" -{test}")
         print("\n建议:")
         print("  1. 检查上述组件中的敏感内容")
         print("  2. 使用 scripts/cleanup_sensitive_content.py 清理敏感词")

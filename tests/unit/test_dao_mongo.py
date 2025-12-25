@@ -126,12 +126,12 @@ class TestVectorUtils:
         vec_a = [1.0, 0.0, 0.0]
         vec_b = [1.0, 0.0, 0.0]
         similarity = VectorUtils.cosine_similarity(vec_a, vec_b)
-        assert abs(similarity - 1.0) < 0.001
+        assert abs(similarity-1.0) < 0.001
 
         vec_c = [1.0, 0.0, 0.0]
         vec_d = [0.0, 1.0, 0.0]
         similarity = VectorUtils.cosine_similarity(vec_c, vec_d)
-        assert abs(similarity - 0.0) < 0.001
+        assert abs(similarity-0.0) < 0.001
 
     def test_euclidean_distance(self):
         """测试欧氏距离"""
@@ -140,7 +140,7 @@ class TestVectorUtils:
         vec_a = [0.0, 0.0, 0.0]
         vec_b = [1.0, 1.0, 1.0]
         distance = VectorUtils.euclidean_distance(vec_a, vec_b)
-        assert abs(distance - 1.732) < 0.01
+        assert abs(distance-1.732) < 0.01
 
     def test_normalize_vector(self):
         """测试向量归一化"""
@@ -151,7 +151,7 @@ class TestVectorUtils:
         # 归一化后长度应该为 1
         import numpy as np
 
-        assert abs(np.linalg.norm(normalized) - 1.0) < 0.001
+        assert abs(np.linalg.norm(normalized)-1.0) < 0.001
 
     def test_average_vectors(self):
         """测试向量平均"""
@@ -159,8 +159,8 @@ class TestVectorUtils:
 
         vectors = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
         avg = VectorUtils.average_vectors(vectors)
-        assert abs(avg[0] - 3.0) < 0.001
-        assert abs(avg[1] - 4.0) < 0.001
+        assert abs(avg[0]-3.0) < 0.001
+        assert abs(avg[1]-4.0) < 0.001
 
     def test_dot_product(self):
         """测试点积"""
@@ -170,4 +170,4 @@ class TestVectorUtils:
         vec_b = [4.0, 5.0, 6.0]
         dot = VectorUtils.dot_product(vec_a, vec_b)
         # 1*4 + 2*5 + 3*6 = 32
-        assert abs(dot - 32.0) < 0.001
+        assert abs(dot-32.0) < 0.001

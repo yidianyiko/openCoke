@@ -4,8 +4,8 @@
 
 用于主动消息生成的响应模型，复用 ChatResponse 的大部分结构.
 
-Requirements: FR - 036, FR - 038
-Design: Property 1 - Schema 结构完整性
+Requirements: FR-036, FR-038
+Design: Property 1-Schema 结构完整性
 """
 
 from typing import List
@@ -27,9 +27,9 @@ class FutureMessageResponse(BaseModel):
     主动消息是角色在用户没有回复的情况下，主动发起的消息.
 
     Requirements:
-    - 1.1: 包含 InnerMonologue、MultiModalResponses、RelationChange、FutureResponse 字段
-    - 1.2: FutureResponse 包含 FutureResponseTime 和 FutureResponseAction 子字段
-    - 1.3: MultiModalResponse 支持 text、voice、photo 三种消息类型
+   -1.1: 包含 InnerMonologue、MultiModalResponses、RelationChange、FutureResponse 字段
+   -1.2: FutureResponse 包含 FutureResponseTime 和 FutureResponseAction 子字段
+   -1.3: MultiModalResponse 支持 text、voice、photo 三种消息类型
     """
 
     InnerMonologue: str = Field(
@@ -38,7 +38,7 @@ class FutureMessageResponse(BaseModel):
 
     MultiModalResponses: List[MultiModalResponse] = Field(
         default_factory=list,
-        description="角色的回复，可能包含多种类型（text / voice/photo）",
+        description="角色的回复，可能包含多种类型（text/voice/photo）",
     )
 
     ChatCatelogue: str = Field(

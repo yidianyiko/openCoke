@@ -7,7 +7,7 @@ This module provides image processing capabilities:
 - image_send_tool: 发送图片消息
 - image_generate_tool: 文生图 (LibLib API)
 
-Requirements: FR - 006, FR - 007, FR - 045, FR - 046
+Requirements: FR-006, FR-007, FR-045, FR-046
 """
 
 import logging
@@ -121,8 +121,8 @@ def image_generate_tool(
         prompt: 图片描述/提示词
         img_count: 生成数量，默认1张
         sub_mode: 照片类型
-            - "半身照": 上半身照片（默认）
-            - "全身照": 全身照片
+           -"半身照": 上半身照片（默认）
+           -"全身照": 全身照片
         width: 图片宽度，默认768
         height: 图片高度，默认1024
 

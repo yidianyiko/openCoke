@@ -40,8 +40,8 @@ def _parse_trigger_time(
     Parse trigger time from string to timestamp.
 
     Supports:
-    - Relative time: "30分钟后", "2小时后", "明天", "后天", "下周"
-    - Absolute time: "2024年12月25日09时00分"
+   -Relative time: "30分钟后", "2小时后", "明天", "后天", "下周"
+   -Absolute time: "2024年12月25日09时00分"
 
     Args:
         trigger_time: Time string to parse
@@ -111,10 +111,10 @@ def _check_operation_allowed(action: str) -> tuple[bool, str]:
     检查操作是否允许，防止循环调用
 
     规则：
-    - batch 操作只能调用一次（内部可包含多种操作类型）
-    - 单独的 create/update/delete/list 各只能调用一次
-    - batch 之后不能再调用其他操作
-    - 其他操作之后不能调用 batch
+   -batch 操作只能调用一次（内部可包含多种操作类型）
+   -单独的 create/update/delete/list 各只能调用一次
+   -batch 之后不能再调用其他操作
+   -其他操作之后不能调用 batch
 
     Args:
         action: 操作类型
@@ -273,7 +273,7 @@ def _save_reminder_result_to_session(
 ### list 参数
 - include_all: 是否包含所有状态的提醒，默认 false 只返回有效提醒(confirmed/pending)，设为 true 时返回包括已触发、已完成的所有提醒
 
-## 批量操作 (action="batch") - 推荐用于复杂场景
+## 批量操作 (action="batch")-推荐用于复杂场景
 
 当用户消息包含多个操作时使用，一次调用完成所有操作.
 
@@ -325,7 +325,7 @@ def reminder_tool(
     提醒管理统一工具（基于关键字操作，不使用 ID）
 
     Args:
-        action: 操作类型 - "create"、"batch"、"update"、"delete"、"list"
+        action: 操作类型-"create"、"batch"、"update"、"delete"、"list"
         session_state: Agno 框架自动注入的会话状态
         title: 提醒标题（create 时必需）
         trigger_time: 触发时间（create 时必需）
@@ -567,7 +567,7 @@ def _parse_and_validate_time(
     解析并验证触发时间.
 
     Returns:
-        (timestamp, error_response) - 成功时 error_response 为 None
+        (timestamp, error_response)-成功时 error_response 为 None
     """
     from datetime import datetime
 
@@ -889,10 +889,10 @@ def _create_reminder(
     Create a new reminder with deduplication check.
 
     返回状态说明：
-    - ok=True, status="created": 提醒创建成功
-    - ok=True, status="duplicate": 已存在相同提醒
-    - ok=True, status="needs_info": 信息不完整，需要用户补充（不写入数据库）
-    - ok=False: 真正的错误（如时间解析失败、时间已过去等）
+   -ok=True, status="created": 提醒创建成功
+   -ok=True, status="duplicate": 已存在相同提醒
+   -ok=True, status="needs_info": 信息不完整，需要用户补充（不写入数据库）
+   -ok=False: 真正的错误（如时间解析失败、时间已过去等）
 
     重构说明：复杂度从 32 降低到约 12，通过提取辅助函数实现
     """
@@ -916,7 +916,7 @@ def _create_reminder(
     if time_error:
         return time_error
 
-    # Step 4: 去重检查 - 完全相同的提醒
+    # Step 4: 去重检查-完全相同的提醒
     duplicate = _check_duplicate_reminder(
         reminder_dao, user_id, title, timestamp, recurrence_type
     )
@@ -1064,7 +1064,7 @@ def _batch_create_reminders(
         if not isinstance(reminders_list, list):
             raise ValueError("reminders 必须是数组")
     except (json.JSONDecodeError, ValueError) as e:
-        _save_reminder_result_to_session(f"批量创建失败：JSON解析错误 - {str(e)}")
+        _save_reminder_result_to_session(f"批量创建失败：JSON解析错误-{str(e)}")
         return {"ok": False, "error": f"reminders 参数格式错误: {str(e)}"}
 
     if not reminders_list:

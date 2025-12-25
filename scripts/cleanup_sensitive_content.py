@@ -69,7 +69,7 @@ def cleanup_collection(collection_name: str):
         # 使用 $regex 在整个文档中搜索 (转换为字符串搜索)
         # 获取所有文档并在 Python 中过滤
         all_docs = mongo.find_many(collection_name, {})
-        print(f"  - 扫描 {len(all_docs)} 条记录...")
+        print(f" -扫描 {len(all_docs)} 条记录...")
 
         for doc in all_docs:
             doc_id = doc["_id"]

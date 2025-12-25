@@ -5,11 +5,11 @@ from openai import OpenAI
 client = OpenAI(
     # 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx",
     api_key=os.getenv("DASHSCOPE_API_KEY"),
-    base_url="https://dashscope.aliyuncs.com/compatible - mode/v1",
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
 )
 
 
-def aliyun_search(messages, model="qwq - plus", stream=True, extra_body=None):
+def aliyun_search(messages, model="qwq-plus", stream=True, extra_body=None):
     if extra_body is None:
         extra_body = {
             "enable_search": True,

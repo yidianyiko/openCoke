@@ -72,7 +72,7 @@ def cleanup_expired_reminders(dry_run=True):
             print(f"    标题: {title}")
             print(f"    状态: {status}")
             print(f"    触发时间: {time_str} ({exact_time})")
-            print(f"    已过期: {current_time - trigger_time} 秒")
+            print(f"    已过期: {current_time-trigger_time} 秒")
             print()
 
         if dry_run:

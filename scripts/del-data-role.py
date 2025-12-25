@@ -47,11 +47,11 @@ def delete_user_completely(user_identifier: str):
     wechat_id = doc.get("platforms", {}).get("wechat", {}).get("id")
 
     print("✓ 找到用户:")
-    print(f"  - 姓名: {doc.get('name')}")
-    print(f"  - ObjectId: {user_id}")
-    print(f"  - 微信ID: {wechat_id}")
-    print(f"  - 微信昵称: {doc.get('platforms', {}).get('wechat', {}).get('nickname')}")
-    print(f"  - 是否角色: {doc.get('is_character', False)}")
+    print(f" -姓名: {doc.get('name')}")
+    print(f" -ObjectId: {user_id}")
+    print(f" -微信ID: {wechat_id}")
+    print(f" -微信昵称: {doc.get('platforms', {}).get('wechat', {}).get('nickname')}")
+    print(f" -是否角色: {doc.get('is_character', False)}")
 
     ok = udao.delete_user(user_id)
     print(f"✓ 用户主记录删除: {'成功' if ok else '失败'}")
@@ -130,10 +130,10 @@ def delete_user_completely(user_identifier: str):
     print("\n" + "=" * 60)
     print("清理完成!")
     print("总计删除:")
-    print("  - 用户记录: 1 条")
-    print(f"  - 关系记录: {rel_deleted} 条")
-    print(f"  - 会话修改: {mod_convs} 条")
-    print(f"  - 消息记录: {in_from_deleted + in_to_deleted} 条")
+    print(" -用户记录: 1 条")
+    print(f" -关系记录: {rel_deleted} 条")
+    print(f" -会话修改: {mod_convs} 条")
+    print(f" -消息记录: {in_from_deleted + in_to_deleted} 条")
     print("=" * 60)
 
     return True

@@ -128,11 +128,11 @@ Examples:
             if conv:
                 talkers = get_talker_names(conv.get("talkers", []))
                 future = conv.get("conversation_info", {}).get("future", {})
-                print(f"\n  - {conv_id[:16]}...")
+                print(f"\n -{conv_id[:16]}...")
                 print(f"    参与者: {talkers}")
                 print(f"    行动: {future.get('action', '无')[:40]}...")
             else:
-                print(f"\n  - {conv_id} (未找到)")
+                print(f"\n -{conv_id} (未找到)")
 
     # 确认
     if not args.yes:

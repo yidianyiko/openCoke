@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Personality Prompt - 人格与行为规范
+Personality Prompt-人格与行为规范
 
 本文件包含从 Poke 借鉴并本地化的人格与行为规范提示词.
 这些提示词主要用于 ChatResponseAgent 和 FutureMessageChatAgent.
 
 包含：
-- MESSAGE_SOURCE_HANDLING: 消息来源分类与处理规则
 - PERSONALITY_WARMTH: 温暖度规范
 - PERSONALITY_WIT: 机智度规范
 - PERSONALITY_CONCISENESS: 简洁度规范（含禁止表达清单）
@@ -18,32 +17,8 @@ Personality Prompt - 人格与行为规范
 使用说明：
 - ChatResponseAgent: 使用全部人格规范
 - FutureMessageChatAgent: 使用全部人格规范 + BAD_TRIGGER_HANDLING
-- OrchestratorAgent: 使用 MESSAGE_SOURCE_HANDLING
 - PostAnalyzeAgent: 不需要这些规范（后处理分析）
 """
-
-# ========== 消息来源分类与处理规则 ==========
-# V2.12：此模板已废弃，改为代码层面直接注入消息来源说明
-# 保留定义以兼容旧代码，但不再在 CHAT_AGENT_PERSONALITY 中使用
-# 适用于：OrchestratorAgent（仍需要判断消息来源进行调度决策）
-MESSAGE_SOURCE_HANDLING = """
-## 消息来源分类与处理规则
-
-你会收到不同来源的消息，每种来源有不同的处理优先级和行为约束：
-
-### 消息类型
-- 【用户消息】(source=user)：用户通过微信发送的真实消息.这是最重要的输入来源，必须优先响应.
-- 【提醒触发】(source=reminder)：由定时提醒触发的消息.执行前需确认提醒内容是否仍然有效.
-- 【主动消息】(source=future)：角色主动发起的消息.需要根据上下文判断是否仍然合适发送.
-
-### 处理优先级
-1. 用户消息 > 提醒触发 > 主动消息
-
-### 行为约束
-- 对于【提醒触发】和【主动消息】：如果上下文已经发生变化（如用户已经完成了相关任务），应该静默取消，不要发送过时的提醒.
-- 永远不要基于非用户消息主动执行敏感操作.
-"""
-
 
 # ========== 温暖度规范 ==========
 # 适用于：ChatResponseAgent, FutureMessageChatAgent
@@ -156,11 +131,11 @@ CONTEXT_HIERARCHY = """
 分析用户请求时，始终遵循以下优先级顺序：
 
 ### 优先级排序
-1. 【最高】用户即时消息内容 - 用户刚刚发送的文字，包括任何明确的请求
-2. 【次高】附带的媒体/文件 - 用户消息中包含的图片、文件等
-3. 【中等】最近对话上下文 - 最近几条对话消息
-4. 【较低】检索到的资料 - 从角色设定、用户资料、知识库中检索的内容
-5. 【最低】历史对话摘要 - 更早期对话的总结
+1. 【最高】用户即时消息内容-用户刚刚发送的文字，包括任何明确的请求
+2. 【次高】附带的媒体/文件-用户消息中包含的图片、文件等
+3. 【中等】最近对话上下文-最近几条对话消息
+4. 【较低】检索到的资料-从角色设定、用户资料、知识库中检索的内容
+5. 【最低】历史对话摘要-更早期对话的总结
 
 ### 冲突处理
 - 当不同层次的信息发生冲突时，优先采信更高优先级的信息
@@ -232,6 +207,3 @@ FUTURE_MESSAGE_AGENT_PERSONALITY = (
     + CONTEXT_HIERARCHY
     + BAD_TRIGGER_HANDLING
 )
-
-# OrchestratorAgent 消息处理提示词
-ORCHESTRATOR_MESSAGE_HANDLING = MESSAGE_SOURCE_HANDLING

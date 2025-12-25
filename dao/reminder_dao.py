@@ -3,13 +3,12 @@ import sys
 
 sys.path.append(".")
 
-import logging
 import time
 import uuid
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from typing import Dict, List, Optional
 
@@ -103,7 +102,7 @@ class ReminderDAO:
             "status": {"$in": ["confirmed", "pending"]},
             "next_trigger_time": {
                 "$lte": current_time,
-                "$gte": current_time - time_window,
+                "$gte": current_time-time_window,
             },
         }
         return list(self.collection.find(query))
@@ -176,7 +175,7 @@ class ReminderDAO:
             "title": title,
             "status": {"$in": ["confirmed", "pending"]},
             "next_trigger_time": {
-                "$gte": trigger_time - time_tolerance,
+                "$gte": trigger_time-time_tolerance,
                 "$lte": trigger_time + time_tolerance,
             },
         }
@@ -210,7 +209,7 @@ class ReminderDAO:
             "user_id": user_id,
             "status": {"$in": ["confirmed", "pending"]},
             "next_trigger_time": {
-                "$gte": trigger_time - time_tolerance,
+                "$gte": trigger_time-time_tolerance,
                 "$lte": trigger_time + time_tolerance,
             },
         }

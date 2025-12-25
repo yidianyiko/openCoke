@@ -14,7 +14,7 @@ class ContextRetrieveParams(BaseModel):
 
     character_setting_query: str = Field(
         default="",
-        description="角色设定检索语句，使用'xxx - xxx'层级格式，如'日常习惯 - 作息'",
+        description="角色设定检索语句，使用'xxx-xxx'层级格式，如'日常习惯-作息'",
     )
 
     character_setting_keywords: str = Field(
@@ -48,9 +48,9 @@ class OrchestratorResponse(BaseModel):
     OrchestratorAgent 输出模型
 
     职责：
-    1. 语义理解 - 理解用户意图，生成检索参数
-    2. 意图识别 - 识别是否包含提醒、查询等特殊意图
-    3. 调度决策 - 决定需要调用哪些 Tool/Agent
+    1. 语义理解-理解用户意图，生成检索参数
+    2. 意图识别-识别是否包含提醒、查询等特殊意图
+    3. 调度决策-决定需要调用哪些 Tool/Agent
     """
 
     # 内心独白

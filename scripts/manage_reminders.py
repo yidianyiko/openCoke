@@ -9,9 +9,9 @@
 3. 人性化显示
 
 使用方法：
-    python scripts / manage_reminders.py                  # 交互式菜单
-    python scripts / manage_reminders.py list             # 列出所有待触发提醒
-    python scripts / manage_reminders.py list --all       # 列出所有提醒
+    python scripts/manage_reminders.py                  # 交互式菜单
+    python scripts/manage_reminders.py list             # 列出所有待触发提醒
+    python scripts/manage_reminders.py list --all       # 列出所有提醒
     python scripts/manage_reminders.py list --status confirmed  # 按状态筛选
     python scripts/manage_reminders.py delete <id>      # 删除指定ID的提醒
     python scripts/manage_reminders.py delete --keyword "关键词"  # 删除匹配关键词的提醒
@@ -384,7 +384,7 @@ def interactive_menu():
         print("  0. 退出")
         print()
 
-        choice = input("请选择操作 [0 - 6]: ").strip()
+        choice = input("请选择操作 [0-6]: ").strip()
 
         if choice == "0":
             print(colorize("\n👋 再见!\n", Colors.CYAN))
@@ -424,13 +424,13 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-    python scripts / manage_reminders.py                      # 交互式菜单
-    python scripts / manage_reminders.py list                 # 列出待触发提醒
-    python scripts / manage_reminders.py list --all           # 列出所有提醒
+    python scripts/manage_reminders.py                      # 交互式菜单
+    python scripts/manage_reminders.py list                 # 列出待触发提醒
+    python scripts/manage_reminders.py list --all           # 列出所有提醒
     python scripts/manage_reminders.py list --status confirmed
     python scripts/manage_reminders.py delete abc123        # 删除指定ID
     python scripts/manage_reminders.py delete --keyword "关键词" --execute
-    python scripts / manage_reminders.py reschedule           # 预览过期提醒重新调度
+    python scripts/manage_reminders.py reschedule           # 预览过期提醒重新调度
     python scripts/manage_reminders.py reschedule --execute # 执行重新调度
         """,
     )
@@ -445,7 +445,7 @@ def main():
     list_parser.add_argument(
         "--status",
         "-s",
-        help="按状态筛选 (confirmed / pending/triggered/completed/cancelled)",
+        help="按状态筛选 (confirmed/pending/triggered/completed/cancelled)",
     )
     list_parser.add_argument("--user", "-u", help="按用户ID筛选")
 

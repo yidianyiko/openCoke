@@ -2,11 +2,9 @@ import sys
 
 sys.path.append(".")
 
-import logging
-from logging import getLogger
+from util.log_util import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 from http import HTTPStatus
 
@@ -15,7 +13,7 @@ import dashscope
 from dao.mongo import MongoDBBase
 
 
-def embedding_by_aliyun(text, model="text - embedding - v3"):
+def embedding_by_aliyun(text, model="text-embedding-v3"):
     resp = dashscope.TextEmbedding.call(model=model, input=text)
     if resp.status_code == HTTPStatus.OK:
         output = resp.output
@@ -80,7 +78,7 @@ def store_chat_message(
         character_id: Character ID
         user_id: User ID (human)
         timestamp: Message timestamp
-        message_type: text / voice/image
+        message_type: text/voice/image
 
     Returns:
         Inserted document ID, or None if failed

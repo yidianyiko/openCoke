@@ -45,13 +45,13 @@ class FutureResponseModel(BaseModel):
     )
 
     FutureResponseAction: str = Field(
-        default="无", description="未来主动消息的大致内容，大约10 - 20个字."
+        default="无", description="未来主动消息的大致内容，大约10-20个字."
     )
 
 
 class ChatResponse(BaseModel):
     """
-    ChatResponseAgent 的响应模型 - 精简版
+    ChatResponseAgent 的响应模型-精简版
 
     专注于生成多模态回复，不再包含关系变化和未来规划.
     这些分析任务移至 PostAnalyzeResponse，基于完整对话结果进行计算.
@@ -63,7 +63,7 @@ class ChatResponse(BaseModel):
 
     MultiModalResponses: List[MultiModalResponse] = Field(
         default_factory=list,
-        description="角色的多模态回复，可能包含多种类型（text / voice/photo）",
+        description="角色的多模态回复，可能包含多种类型（text/voice/photo）",
     )
 
     ChatCatelogue: str = Field(

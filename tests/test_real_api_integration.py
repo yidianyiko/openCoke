@@ -164,7 +164,7 @@ class TestRealAPIIntegration(unittest.TestCase):
 
             # 验证模型 ID 不包含空格
             self.assertNotIn(
-                " - ",
+                "-",
                 model_id,
                 f"{agent_name} 的模型 ID 包含空格: {model_id}",
             )
@@ -196,7 +196,7 @@ class TestRealAPIIntegration(unittest.TestCase):
 
             # 验证 Agent ID 不包含空格
             self.assertNotIn(
-                " - ",
+                "-",
                 agent_id,
                 f"{agent_name} 的 ID 包含空格: {agent_id}",
             )
@@ -222,9 +222,9 @@ class TestOSSIntegration(unittest.TestCase):
         from util.oss import bucket, bucket_name, endpoint, region
 
         # 验证配置格式
-        self.assertNotIn(" - ", endpoint, f"endpoint 包含空格: {endpoint}")
-        self.assertNotIn(" - ", region, f"region 包含空格: {region}")
-        self.assertNotIn(" - ", bucket_name, f"bucket_name 包含空格: {bucket_name}")
+        self.assertNotIn("-", endpoint, f"endpoint 包含空格: {endpoint}")
+        self.assertNotIn("-", region, f"region 包含空格: {region}")
+        self.assertNotIn("-", bucket_name, f"bucket_name 包含空格: {bucket_name}")
 
         # 验证配置值
         self.assertTrue(endpoint.startswith("https://"), "endpoint 应该使用 HTTPS")

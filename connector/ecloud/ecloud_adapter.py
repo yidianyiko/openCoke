@@ -4,14 +4,12 @@ import time
 
 sys.path.append(".")
 
-import logging
 import xml.etree.ElementTree as ET
-from logging import getLogger
 
 from connector.ecloud.ecloud_api import Ecloud_API
+from util.log_util import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+logger = get_logger(__name__)
 
 from agent.tool.image import download_image
 from framework.tool.image2text.ark import ark_image2text

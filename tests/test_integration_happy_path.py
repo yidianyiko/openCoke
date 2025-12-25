@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-集成测试 - Happy Path 覆盖
+集成测试-Happy Path 覆盖
 
 测试系统在真实环境下的主要功能流程，确保核心 happy path 可以正常工作。
 
@@ -32,13 +32,13 @@ class TestBasicChatFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 基础对话流程")
+            print("集成测试-基础对话流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_orchestrator_basic_chat(self):
         """测试 OrchestratorAgent 处理普通对话"""
-        print("\n[测试 1.1] OrchestratorAgent - 普通对话")
+        print("\n[测试 1.1] OrchestratorAgent-普通对话")
 
         from agent.agno_agent.agents import orchestrator_agent
 
@@ -69,7 +69,7 @@ class TestBasicChatFlow(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_chat_response_simple(self):
         """测试 ChatResponseAgent 生成简单回复"""
-        print("\n[测试 1.2] ChatResponseAgent - 简单回复")
+        print("\n[测试 1.2] ChatResponseAgent-简单回复")
 
         from agent.agno_agent.agents import chat_response_agent
 
@@ -110,13 +110,13 @@ class TestReminderFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 提醒流程")
+            print("集成测试-提醒流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_orchestrator_detect_reminder(self):
         """测试 OrchestratorAgent 检测提醒意图"""
-        print("\n[测试 2.1] OrchestratorAgent - 检测提醒意图")
+        print("\n[测试 2.1] OrchestratorAgent-检测提醒意图")
 
         from agent.agno_agent.agents import orchestrator_agent
 
@@ -142,7 +142,7 @@ class TestReminderFlow(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_reminder_detect_agent(self):
         """测试 ReminderDetectAgent 创建提醒"""
-        print("\n[测试 2.2] ReminderDetectAgent - 创建提醒")
+        print("\n[测试 2.2] ReminderDetectAgent-创建提醒")
 
         from agent.agno_agent.agents import reminder_detect_agent
 
@@ -187,13 +187,13 @@ class TestContextRetrieveFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 上下文检索流程")
+            print("集成测试-上下文检索流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_orchestrator_context_retrieve(self):
         """测试 OrchestratorAgent 触发上下文检索"""
-        print("\n[测试 3.1] OrchestratorAgent - 触发上下文检索")
+        print("\n[测试 3.1] OrchestratorAgent-触发上下文检索")
 
         from agent.agno_agent.agents import orchestrator_agent
 
@@ -220,7 +220,7 @@ class TestContextRetrieveFlow(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_query_rewrite_for_context(self):
         """测试 QueryRewriteAgent 生成检索查询"""
-        print("\n[测试 3.2] QueryRewriteAgent - 生成检索查询")
+        print("\n[测试 3.2] QueryRewriteAgent-生成检索查询")
 
         from agent.agno_agent.agents import query_rewrite_agent
 
@@ -261,13 +261,13 @@ class TestCompleteMessageFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 完整消息处理流程")
+            print("集成测试-完整消息处理流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_prepare_workflow(self):
         """测试 PrepareWorkflow 完整流程"""
-        print("\n[测试 4.1] PrepareWorkflow - 完整流程")
+        print("\n[测试 4.1] PrepareWorkflow-完整流程")
 
         import asyncio
         from agent.agno_agent.workflows import PrepareWorkflow
@@ -323,7 +323,7 @@ class TestCompleteMessageFlow(unittest.TestCase):
     @requires_real_api("deepseek")
     def test_streaming_chat_workflow(self):
         """测试 StreamingChatWorkflow 流式输出"""
-        print("\n[测试 4.2] StreamingChatWorkflow - 流式输出")
+        print("\n[测试 4.2] StreamingChatWorkflow-流式输出")
 
         import asyncio
         from agent.agno_agent.workflows import StreamingChatWorkflow
@@ -374,13 +374,13 @@ class TestPostAnalyzeFlow(unittest.TestCase):
     def setUpClass(cls):
         if should_use_real_api():
             print("\n" + "=" * 70)
-            print("集成测试 - 后处理分析流程")
+            print("集成测试-后处理分析流程")
             print("=" * 70)
 
     @requires_real_api("deepseek")
     def test_post_analyze_agent(self):
         """测试 PostAnalyzeAgent 分析对话"""
-        print("\n[测试 5.1] PostAnalyzeAgent - 分析对话")
+        print("\n[测试 5.1] PostAnalyzeAgent-分析对话")
 
         from agent.agno_agent.agents import post_analyze_agent
 
@@ -420,7 +420,7 @@ def run_integration_tests():
     from tests.integration_test_config import get_missing_api_keys, validate_api_keys
 
     print("\n" + "=" * 70)
-    print("集成测试 - Happy Path 覆盖")
+    print("集成测试-Happy Path 覆盖")
     print("=" * 70)
 
     if not should_use_real_api():

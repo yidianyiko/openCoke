@@ -1,13 +1,12 @@
 import sys
 
 sys.path.append(".")
-import logging
 import os
 import time
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from framework.tool.text2voice.minimax import minimax_t2a
 from util.file_util import pcm_to_silk

@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s-%(name)s-%(levelname)s-%(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ from dao.user_dao import UserDAO
 mongo = MongoDBBase()
 user_dao = UserDAO()
 
-# Whitelist dictionary - wcId as key, forwarding URL as value
+# Whitelist dictionary-wcId as key, forwarding URL as value
 # You can modify this dictionary as needed
 whitelist = {
     "wxid_phyyedw9xap22": "http://example.com/forward1",
@@ -71,7 +71,7 @@ def handle_message():
             # Forward the request to the corresponding URL
             logger.info(f"Forwarding request for wcId {wcId} to {forward_url}")
             response = requests.post(
-                forward_url, json=data, headers={"Content - Type": "application/json"}
+                forward_url, json=data, headers={"Content-Type": "application/json"}
             )
 
             # Return the response from the forwarded request
@@ -82,7 +82,7 @@ def handle_message():
                     "forward_status": response.status_code,
                     "forward_response": (
                         response.json()
-                        if response.headers.get("content - type")
+                        if response.headers.get("content-type")
                         == "application/json"
                         else response.text
                     ),

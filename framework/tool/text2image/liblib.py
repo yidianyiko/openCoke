@@ -15,7 +15,7 @@ from util.str_util import remove_chinese
 host = "https://openapi.liblibai.cloud"
 
 
-def make_sign(uri="/api/generate / webui/text2img"):
+def make_sign(uri="/api/generate/webui/text2img"):
     """
     生成签名
     """
@@ -55,12 +55,12 @@ def make_sign(uri="/api/generate / webui/text2img"):
 
 
 def text2img(generateParams, templateUuid="6f7c4652458d4802969f8d089cf5b91"):
-    uri = "/api/generate / webui/text2img"
+    uri = "/api/generate/webui/text2img"
     uri_param = make_sign(uri)
 
     resp = requests.post(
         url=host + uri + "?" + uri_param,
-        headers={"Content - Type": "application/json"},
+        headers={"Content-Type": "application/json"},
         json={"templateUuid": templateUuid, "generateParams": generateParams},
     )
 
@@ -69,12 +69,12 @@ def text2img(generateParams, templateUuid="6f7c4652458d4802969f8d089cf5b91"):
 
 
 def getstatus(generateUuid):
-    uri = "/api/generate / webui/status"
+    uri = "/api/generate/webui/status"
     uri_param = make_sign(uri)
 
     resp = requests.post(
         url=host + uri + "?" + uri_param,
-        headers={"Content - Type": "application/json"},
+        headers={"Content-Type": "application/json"},
         json={"generateUuid": generateUuid},
     )
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         resizedHeight=1024,
     ):
         char_lora_info = "bursty breasts, FRESHIDEAS Perfect lady's fingers, miluo_zg,"
-        char_head = "(only one Asian girl),age 24,brown hair,small wave hairstyle,long hair on shoulder,shawl hair,(porcelain - dewy skin, almond - shaped double eyelids, large eyes with slightly upturned outer corners, silky raven - black hair, short nose, short face, little round jaw, round chin, nude color lips),nice fingers, nice hands,"
+        char_head = "(only one Asian girl),age 24,brown hair,small wave hairstyle,long hair on shoulder,shawl hair,(porcelain-dewy skin, almond-shaped double eyelids, large eyes with slightly upturned outer corners, silky raven-black hair, short nose, short face, little round jaw, round chin, nude color lips),nice fingers, nice hands,"
 
         char_breasts = "(super huge breasts under clothes:1.4), "
         char_lower = "thin waist, a little fat butt,"
@@ -114,7 +114,7 @@ if __name__ == "__main__":
                         "weight": 0.6,
                     },
                     {
-                        "modelId": "8d01e6b9ba734126a945c11749fd8506",  # Flux_小马 - 完美全圆胸纤腰
+                        "modelId": "8d01e6b9ba734126a945c11749fd8506",  # Flux_小马-完美全圆胸纤腰
                         "weight": 0.4,
                     },
                     {
@@ -122,7 +122,7 @@ if __name__ == "__main__":
                         "weight": 0.2,
                     },
                     {
-                        "modelId": "f8cdb49d52644876a14bfd6109e4332",  # 鲜创一派@F.1 - 女人手部优化修复
+                        "modelId": "f8cdb49d52644876a14bfd6109e4332",  # 鲜创一派@F.1-女人手部优化修复
                         "weight": 0.6,
                     },
                 ],
@@ -171,10 +171,10 @@ if __name__ == "__main__":
         generateUuid = resp_json["data"]["generateUuid"]
         return generateUuid
 
-    prompt = """wearing a thin strap nightgown,action is casually standing in front of the mirror,scene is a hotel room,standing in front of a full - length mirror,slightly motion blurred due to insufficient shutter speed,composition is casual,angle is awkward,the image is not symmetrical or aesthetically pleasing,the quality has a sense of everydayness and roughness,conveys "plain and unremarkable.", nice fingers,nice body,nice hands,nice legs,no fused fingers,
+    prompt = """wearing a thin strap nightgown,action is casually standing in front of the mirror,scene is a hotel room,standing in front of a full-length mirror,slightly motion blurred due to insufficient shutter speed,composition is casual,angle is awkward,the image is not symmetrical or aesthetically pleasing,the quality has a sense of everydayness and roughness,conveys "plain and unremarkable.", nice fingers,nice body,nice hands,nice legs,no fused fingers,
 (only one Asian girl),age 24,brown hair,small wave hairstyle,long hair on shoulder,shawl hair,(super huge breasts under upper clothes:1.4),(cleavage),
 (full body shot, side shot, side face),
-(Porcelain - dewy skin, almond - shaped double eyelids, large eyes with slightly upturned outer corners, silky raven - black hair, short nose, short face, little round jaw, round chin),no logo, no tatoo, """
+(Porcelain-dewy skin, almond-shaped double eyelids, large eyes with slightly upturned outer corners, silky raven-black hair, short nose, short face, little round jaw, round chin),no logo, no tatoo, """
 
     task_id = generate_one_luoyun(prompt, 2)
     print(task_id)

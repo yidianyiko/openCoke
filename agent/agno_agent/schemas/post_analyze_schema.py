@@ -25,12 +25,12 @@ from agent.agno_agent.schemas.chat_response_schema import (
 
 class PostAnalyzeResponse(BaseModel):
     """
-    PostAnalyzeAgent 的响应模型 - 扩展版
+    PostAnalyzeAgent 的响应模型-扩展版
 
     V2 重构后承担更多分析职责：
-    - 关系变化分析（从 ChatResponse 移入）
-    - 未来消息规划（从 ChatResponse 移入）
-    - 记忆更新（原有职责）
+   -关系变化分析（从 ChatResponse 移入）
+   -未来消息规划（从 ChatResponse 移入）
+   -记忆更新（原有职责）
     """
 
     InnerMonologue: str = Field(default="", description="角色的内心独白")
@@ -50,22 +50,22 @@ class PostAnalyzeResponse(BaseModel):
     # ===== 原有字段：记忆更新 =====
     CharacterPublicSettings: str = Field(
         default="无",
-        description="总结最新聊天消息中，针对角色所新增的人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx - xxx - xxx：xxxxxx.",
+        description="总结最新聊天消息中，针对角色所新增的人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx-xxx-xxx：xxxxxx.",
     )
 
     CharacterPrivateSettings: str = Field(
         default="无",
-        description="总结最新聊天消息中，针对角色所新增的不可公开人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx - xxx - xxx：xxxxxx.",
+        description="总结最新聊天消息中，针对角色所新增的不可公开人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx-xxx-xxx：xxxxxx.",
     )
 
     CharacterKnowledges: str = Field(
         default="无",
-        description="总结最新聊天消息中，角色所新增的知识或技能点.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx - xxx - xxx：xxxxxx.",
+        description="总结最新聊天消息中，角色所新增的知识或技能点.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx-xxx-xxx：xxxxxx.",
     )
 
     UserSettings: str = Field(
         default="无",
-        description="总结最新聊天消息中，针对用户所新增的人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx - xxx - xxx：xxxxxx.",
+        description="总结最新聊天消息中，针对用户所新增的人物设定.你可以总结出1条或者多条信息，每条消息为一行；使用'key：value'的形式，例如 xxx-xxx-xxx：xxxxxx.",
     )
 
     UserRealName: str = Field(

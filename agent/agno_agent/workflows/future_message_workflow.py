@@ -8,7 +8,7 @@
 3. 消息生成
 4. 后处理分析
 
-Requirements: FR - 036, FR - 038
+Requirements: FR-036, FR-038
 """
 
 import logging
@@ -53,10 +53,10 @@ class FutureMessageWorkflow:
     主动消息 Workflow
 
     执行流程：
-    1. QueryRewrite - 基于规划行动进行问题重写
-    2. ContextRetrieve - 检索相关上下文
-    3. ChatResponse - 生成主动消息
-    4. PostAnalyze - 后处理分析（可选）
+    1. QueryRewrite-基于规划行动进行问题重写
+    2. ContextRetrieve-检索相关上下文
+    3. ChatResponse-生成主动消息
+    4. PostAnalyze-后处理分析（可选）
 
     注意：这是自定义 Workflow 类，不继承 Agno Workflow，
     因为需要与 Runner 层配合控制执行流程.
@@ -200,10 +200,10 @@ class FutureMessageWorkflow:
 
         Args:
             session_state: 上下文状态，需包含：
-                - conversation.conversation_info.future.action: 规划行动
-                - character: 角色信息
-                - user: 用户信息
-                - relation: 关系信息
+               -conversation.conversation_info.future.action: 规划行动
+               -character: 角色信息
+               -user: 用户信息
+               -relation: 关系信息
 
         Returns:
             包含 content 和 session_state 的结果字典
@@ -356,9 +356,9 @@ user_id: {user_id}
         处理未来消息规划
 
         规则：
-        - 每次发送主动消息后，proactive_times + 1
-        - 当 proactive_times >= MAX_PROACTIVE_TIMES (2) 时，设置 status = "expired"
-        - 避免过度打扰用户
+       -每次发送主动消息后，proactive_times + 1
+       -当 proactive_times >= MAX_PROACTIVE_TIMES (2) 时，设置 status = "expired"
+       -避免过度打扰用户
         """
         # 初始化 proactive_times
         future_info = (

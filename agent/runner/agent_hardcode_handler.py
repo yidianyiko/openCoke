@@ -1,12 +1,11 @@
 import sys
 
 sys.path.append(".")
-import logging
 import time
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 from agent.tool.image import upload_image
 from conf.config import CONF
 from connector.ecloud.ecloud_api import Ecloud_API

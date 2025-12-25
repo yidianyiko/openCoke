@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Prompt 模板渲染属性测试 (Property - Based Testing)
+Prompt 模板渲染属性测试 (Property-Based Testing)
 
 Property 8: Prompt 模板渲染
 - 渲染后的内容应包含 CONTEXTPROMPT_规划行动 的内容

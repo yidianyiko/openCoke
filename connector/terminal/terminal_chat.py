@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-终端聊天客户端 - 模拟微信聊天界面
+终端聊天客户端-模拟微信聊天界面
 
 功能：
 - 输入消息发送给AI角色
@@ -49,7 +49,7 @@ def clear_screen():
 def print_header():
     """打印聊天头部"""
     print("\n" + "=" * 50)
-    print(f"  💬 终端聊天 - 与 {CHARACTER_NAME} 对话")
+    print(f"  💬 终端聊天-与 {CHARACTER_NAME} 对话")
     print("=" * 50)
     print(f"  用户: {USER_NAME}")
     print(f"  角色: {CHARACTER_NAME}")
@@ -175,11 +175,11 @@ def main():
 
             if user_input.lower() == "help":
                 print("\n  [帮助]")
-                print("    - 直接输入消息发送给角色")
-                print("    - 试试说 '提醒我5分钟后喝水' 测试提醒功能")
-                print("    - 试试说 '晚安' 测试未来消息功能")
-                print("    - 输入 'clear' 清屏")
-                print("    - 输入 'quit' 退出\n")
+                print("   -直接输入消息发送给角色")
+                print("   -试试说 '提醒我5分钟后喝水' 测试提醒功能")
+                print("   -试试说 '晚安' 测试未来消息功能")
+                print("   -输入 'clear' 清屏")
+                print("   -输入 'quit' 退出\n")
                 continue
 
             # 发送消息

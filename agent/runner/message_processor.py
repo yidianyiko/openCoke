@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Message Processor - 消息处理器模块
+Message Processor-消息处理器模块
 
 从 agent_handler.py 重构抽取，职责单一化.
 
@@ -12,13 +12,16 @@ Message Processor - 消息处理器模块
 Requirements: 重构 create_handler，降低复杂度
 """
 
-import logging
 import random
 import time
 import traceback
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
+
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
@@ -35,8 +38,6 @@ from entity.message import (
     set_hold_status,
     update_message_status_safe,
 )
-
-logger = logging.getLogger(__name__)
 
 
 # ========== 配置常量 ==========
@@ -298,10 +299,10 @@ class MessageDispatcher:
         
         Returns:
             (dispatch_type, extra_data)
-            - ("blocked", None): 用户被拉黑
-            - ("hardcode", {"command": ...}): 硬指令
-            - ("hold", None): 角色繁忙
-            - ("normal", None): 正常消息
+           -("blocked", None): 用户被拉黑
+           -("hardcode", {"command": ...}): 硬指令
+           -("hold", None): 角色繁忙
+           -("normal", None): 正常消息
         """
         context = msg_ctx.context
         input_messages = msg_ctx.input_messages

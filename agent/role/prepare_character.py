@@ -2,12 +2,11 @@ import sys
 
 sys.path.append(".")
 import json
-import logging
 import os
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from bson import ObjectId
 

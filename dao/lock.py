@@ -58,7 +58,7 @@ class MongoDBLockManager:
 
         # Try to acquire the lock until max_wait is reached
         start_time = time.time()
-        while time.time() - start_time < max_wait:
+        while time.time()-start_time < max_wait:
             try:
                 # First, clean up any expired locks
                 self.locks.delete_many(
@@ -120,9 +120,9 @@ class MongoDBLockManager:
         安全释放锁：只释放属于自己且未过期的锁
 
         解决问题：
-        - P8: 锁超时后 Worker 继续执行，可能释放其他 Worker 的锁
-        - LK - 8: 锁超时后继续执行
-        - LK - 11: 释放不属于自己的锁
+       -P8: 锁超时后 Worker 继续执行，可能释放其他 Worker 的锁
+       -LK-8: 锁超时后继续执行
+       -LK-11: 释放不属于自己的锁
 
         Args:
             resource_type: 资源类型
@@ -131,10 +131,10 @@ class MongoDBLockManager:
 
         Returns:
             Tuple[bool, str]: (是否成功, 原因)
-                - (True, "released"): 成功释放
-                - (False, "lock_not_found"): 锁不存在
-                - (False, "lock_owned_by_other"): 锁属于其他 Worker
-                - (False, "lock_expired"): 锁已过期
+               -(True, "released"): 成功释放
+               -(False, "lock_not_found"): 锁不存在
+               -(False, "lock_owned_by_other"): 锁属于其他 Worker
+               -(False, "lock_expired"): 锁已过期
         """
         resource_key = f"{resource_type}:{resource_id}"
 
@@ -238,7 +238,7 @@ class MongoDBLockManager:
         Acquire a lock on a specific resource asynchronously.
 
         Uses asyncio.to_thread to run blocking MongoDB operations in a thread pool,
-        and asyncio.sleep for non - blocking waits between retries.
+        and asyncio.sleep for non-blocking waits between retries.
 
         Args:
             resource_type: Type of resource (e.g., 'conversations', 'users')
@@ -259,7 +259,7 @@ class MongoDBLockManager:
         )
 
         start_time = time.time()
-        while time.time() - start_time < max_wait:
+        while time.time()-start_time < max_wait:
             try:
                 # Run blocking MongoDB operations in thread pool
                 await asyncio.to_thread(

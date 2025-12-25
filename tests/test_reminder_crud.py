@@ -318,7 +318,7 @@ class TestReminderCRUD:
             "reminder_id": str(uuid.uuid4()),
             "title": "已到期提醒",
             "action_template": "记得已到期提醒",
-            "next_trigger_time": current_time - 60,  # 1分钟前
+            "next_trigger_time": current_time-60,  # 1分钟前
             "time_original": "1分钟前",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},

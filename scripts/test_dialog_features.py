@@ -17,14 +17,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import asyncio
-import logging
 import time
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
@@ -88,7 +85,7 @@ def check_reminders():
     logger.info(f"=== 提醒列表 ({len(reminders)} 条) ===")
     for r in reminders:
         logger.info(
-            f"  [{r.get('status')}] {r.get('title')} - 触发时间: {r.get('next_trigger_time')}"
+            f"  [{r.get('status')}] {r.get('title')}-触发时间: {r.get('next_trigger_time')}"
         )
     return reminders
 
@@ -213,11 +210,11 @@ async def test_dialog_loop():
     logger.info("=" * 60)
     logger.info("输入消息进行测试，输入 'quit' 退出")
     logger.info("特殊命令:")
-    logger.info("  /status - 查看当前状态")
-    logger.info("  /clear - 清理测试数据")
-    logger.info("  /reminder - 查看提醒列表")
-    logger.info("  /future - 查看未来消息规划")
-    logger.info("  /bg - 运行后台任务")
+    logger.info("  /status-查看当前状态")
+    logger.info("  /clear-清理测试数据")
+    logger.info("  /reminder-查看提醒列表")
+    logger.info("  /future-查看未来消息规划")
+    logger.info("  /bg-运行后台任务")
     logger.info("=" * 60)
 
     user = user_dao.get_user_by_id(from_user)

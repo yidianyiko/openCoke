@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-端到端测试 - 测试 Agno 迁移后的实际 API 调用
+端到端测试-测试 Agno 迁移后的实际 API 调用
 
 需要配置 DEEPSEEK_API_KEY 环境变量
 """
@@ -100,7 +100,7 @@ class TestAgnoAgentE2E:
 
 ## 注意事项
 - 消息要自然、温暖
-- 不要太长，1 - 2句话即可
+- 不要太长，1-2句话即可
 """
 
         logger.info("开始测试 FutureMessageChatAgent...")
@@ -165,7 +165,7 @@ class TestFutureMessageWorkflowE2E:
             "current_time": "2024年12月6日 早上8点",
             "history": "用户：今天天气真好\n角色：是啊，阳光明媚的日子最适合出去走走了",
             "future_action": "早上问候用户，关心用户的睡眠情况",
-            "news": "今日天气晴朗，气温15 - 22度",
+            "news": "今日天气晴朗，气温15-22度",
             "character_info": "巧云是一个温柔体贴的AI角色",
             "character_profile": "性格温和，善解人意",
             "user_profile": "小明是一个上班族，喜欢运动",

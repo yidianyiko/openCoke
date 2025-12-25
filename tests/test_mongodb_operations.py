@@ -5,10 +5,10 @@ MongoDB 操作全面测试
 测试所有涉及 MongoDB 操作的场景，确保没有 _id 类型不匹配问题.
 
 测试覆盖：
-1. entity / message.py - save_inputmessage, save_outputmessage
-2. agent / runner / agent_handler.py - relation 更新
-3. agent/runner/agent_background_handler.py - relation 更新, conversation 更新
-4. dao/conversation_dao.py - update_conversation_info
+1. entity/message.py-save_inputmessage, save_outputmessage
+2. agent/runner/agent_handler.py-relation 更新
+3. agent/runner/agent_background_handler.py-relation 更新, conversation 更新
+4. dao/conversation_dao.py-update_conversation_info
 """
 import sys
 
@@ -244,7 +244,7 @@ class TestInputMessageFlow(unittest.TestCase):
         # 2. 更新状态（第 178 行）
         for msg in input_messages:
             msg["status"] = "handling"
-            # save_inputmessage(msg) - 此时 _id 仍是 ObjectId
+            # save_inputmessage(msg)-此时 _id 仍是 ObjectId
             self.assertIsInstance(msg["_id"], ObjectId)
 
         # 3. 放入 conversation（第 181 行）

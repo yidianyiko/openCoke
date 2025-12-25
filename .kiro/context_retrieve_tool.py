@@ -12,13 +12,13 @@ This tool provides vector search capabilities for retrieving:
 Requirements: 3.1
 """
 
+import logging
 from typing import Optional
 
 from dao.mongo import MongoDBBase
 from util.embedding_util import embedding_by_aliyun
-from util.log_util import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _merge_results_embedding(

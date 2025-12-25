@@ -148,7 +148,7 @@ class TestReminderCreationFlow(unittest.TestCase):
     def test_reminder_tool_response_structure(self):
         """测试 reminder_tool 响应结构"""
         # 创建成功响应
-        create_success = {"ok": True, "reminder_id": "test - uuid"}
+        create_success = {"ok": True, "reminder_id": "test-uuid"}
         self.assertTrue(create_success["ok"])
         self.assertIn("reminder_id", create_success)
 

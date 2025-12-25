@@ -163,7 +163,7 @@ class TestCheckAndTrigger(unittest.TestCase):
             ProactiveMessageTriggerService,
         )
 
-        # 创建模拟会话 - 使用 talkers 格式
+        # 创建模拟会话-使用 talkers 格式
         mock_conversation = {
             "_id": "conv_123",
             "talkers": [
@@ -171,7 +171,7 @@ class TestCheckAndTrigger(unittest.TestCase):
                 {"id": "char_789", "nickname": "测试角色"},
             ],
             "conversation_info": {
-                "future": {"timestamp": int(time.time()) - 100, "action": "测试行动"}
+                "future": {"timestamp": int(time.time())-100, "action": "测试行动"}
             },
         }
 

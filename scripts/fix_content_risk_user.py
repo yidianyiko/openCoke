@@ -70,8 +70,8 @@ def main():
     # 验证
     updated_relation = mongo.find_one("relations", {"uid": user_id})
     updated_desc = updated_relation.get("relationship", {}).get("description", "")
-    print(f"验证 - 更新后描述长度: {len(updated_desc)} 字符")
-    print(f"验证 - 更新后描述内容: {updated_desc}")
+    print(f"验证-更新后描述长度: {len(updated_desc)} 字符")
+    print(f"验证-更新后描述内容: {updated_desc}")
 
 
 if __name__ == "__main__":

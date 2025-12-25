@@ -41,7 +41,7 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
         # 检查 id 和 name
         self.assertEqual(
             future_message_query_rewrite_agent.id,
-            "future - message - query - rewrite - agent",
+            "future-message-query-rewrite-agent",
         )
         self.assertEqual(
             future_message_query_rewrite_agent.name, "FutureMessageQueryRewriteAgent"
@@ -61,7 +61,7 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
         # 检查 id 和 name
         self.assertEqual(
             future_message_context_retrieve_agent.id,
-            "future - message - context - retrieve - agent",
+            "future-message-context-retrieve-agent",
         )
         self.assertEqual(
             future_message_context_retrieve_agent.name,
@@ -81,7 +81,7 @@ class TestFutureMessageAgentInstantiation(unittest.TestCase):
 
         # 检查 id 和 name
         self.assertEqual(
-            future_message_chat_agent.id, "future - message - chat - agent"
+            future_message_chat_agent.id, "future-message-chat-agent"
         )
         self.assertEqual(future_message_chat_agent.name, "FutureMessageChatAgent")
 

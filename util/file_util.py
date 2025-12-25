@@ -4,12 +4,11 @@ import pysilk
 
 sys.path.append(".")
 
-import logging
 import traceback
-from logging import getLogger
 
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 
 def pcm_to_silk(file_path, bit_rate=128000, sample_rate=24000):

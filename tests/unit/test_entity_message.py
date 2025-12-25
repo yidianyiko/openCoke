@@ -30,7 +30,7 @@ class TestMessageEntity:
         assert isinstance(timestamp, int)
         assert timestamp > 0
         # 时间戳应该接近当前时间
-        assert abs(timestamp - int(time.time())) < 10
+        assert abs(timestamp-int(time.time())) < 10
 
     def test_message_sender(self, sample_text_message):
         """测试消息发送者"""

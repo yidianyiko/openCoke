@@ -21,13 +21,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 import asyncio
-import logging
-from logging import getLogger
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = getLogger(__name__)
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 
 async def run_handler_loop():
@@ -39,11 +36,11 @@ async def run_handler_loop():
     logger.info("=" * 60)
     logger.info("")
     logger.info("测试步骤：")
-    logger.info("1. 在另一个终端运行: python connector / terminal/terminal_input.py")
-    logger.info("2. 在另一个终端运行: python connector / terminal/terminal_output.py")
+    logger.info("1. 在另一个终端运行: python connector/terminal/terminal_input.py")
+    logger.info("2. 在另一个终端运行: python connector/terminal/terminal_output.py")
     logger.info("3. 在 terminal_input 中输入消息，观察 terminal_output 的回复")
     logger.info("")
-    logger.info("按 Ctrl + C 停止测试")
+    logger.info("按 Ctrl+C 停止测试")
     logger.info("=" * 60)
 
     while True:

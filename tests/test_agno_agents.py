@@ -109,10 +109,10 @@ class TestAgentInstantiation:
         )
 
         # 检查 id 属性
-        assert query_rewrite_agent.id == "query - rewrite - agent"
-        assert chat_response_agent.id == "chat - response - agent"
-        assert post_analyze_agent.id == "post - analyze - agent"
-        assert orchestrator_agent.id == "orchestrator - agent"
+        assert query_rewrite_agent.id == "query-rewrite-agent"
+        assert chat_response_agent.id == "chat-response-agent"
+        assert post_analyze_agent.id == "post-analyze-agent"
+        assert orchestrator_agent.id == "orchestrator-agent"
 
         # 检查 name 属性
         assert query_rewrite_agent.name == "QueryRewriteAgent"
