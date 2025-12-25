@@ -12,7 +12,7 @@ from bson import ObjectId
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
-from util.time_util import timestamp2str
+from util.time_util import get_message_timestamp, safe_timestamp_compare, timestamp2str
 
 
 def messages_to_str(messages, language="cn"):
@@ -28,11 +28,13 @@ def messages_to_str(messages, language="cn"):
 
 def message_to_str(message, language="cn"):
     try:
-        if message["message_type"] in ["text", "voice"]:
+        # BUG-003 fix: Use .get() with default instead of direct key access
+        message_type = message.get("message_type", "text")
+        if message_type in ["text", "voice"]:
             return normal_message_to_str(message, language=language)
-        if message["message_type"] in ["reference"]:
+        if message_type in ["reference"]:
             return reference_message_to_str(message, language=language)
-        if message["message_type"] in ["image"]:
+        if message_type in ["image"]:
             return image_message_to_str(message, language=language)
     except Exception:
         logger.error(traceback.format_exc())
@@ -59,13 +61,19 @@ def _resolve_talker_name(talker, message):
 
 
 def normal_message_to_str(message, language="cn"):
+    # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
-        message_time = message["input_timestamp"]
-    else:
-        if message["expect_output_timestamp"] <= int(time.time()):
-            message_time = message["expect_output_timestamp"]
-        else:
+        message_time = get_message_timestamp(message)
+    elif "expect_output_timestamp" in message:
+        # Check if message is in the future (not yet sent)
+        if not safe_timestamp_compare(
+            message["expect_output_timestamp"], int(time.time()), default_result=False
+        ):
             return ""  # 如果expect_output_timestamp比now大，证明还没发出去
+        message_time = get_message_timestamp(message)
+    else:
+        # No timestamp available, use current time as fallback
+        message_time = int(time.time())
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])
@@ -92,13 +100,19 @@ def normal_message_to_str(message, language="cn"):
 
 
 def reference_message_to_str(message, language="cn"):
+    # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
-        message_time = message["input_timestamp"]
-    else:
-        if message["expect_output_timestamp"] <= int(time.time()):
-            message_time = message["expect_output_timestamp"]
-        else:
+        message_time = get_message_timestamp(message)
+    elif "expect_output_timestamp" in message:
+        # Check if message is in the future (not yet sent)
+        if not safe_timestamp_compare(
+            message["expect_output_timestamp"], int(time.time()), default_result=False
+        ):
             return ""  # 如果expect_output_timestamp比now大，证明还没发出去
+        message_time = get_message_timestamp(message)
+    else:
+        # No timestamp available, use current time as fallback
+        message_time = int(time.time())
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])
@@ -106,8 +120,11 @@ def reference_message_to_str(message, language="cn"):
     time_str = timestamp2str(message_time)
 
     message_content = message.get("message", "") or ""
-    reference_user = message["metadata"]["reference"]["user"] or ""
-    reference_text = message["metadata"]["reference"]["text"] or ""
+    # BUG-005 fix: Use .get() for nested metadata access
+    metadata = message.get("metadata", {})
+    reference = metadata.get("reference", {})
+    reference_user = reference.get("user", "")
+    reference_text = reference.get("text", "")
     return (
         "（"
         + time_str
@@ -124,13 +141,19 @@ def reference_message_to_str(message, language="cn"):
 
 
 def image_message_to_str(message, language="cn"):
+    # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
-        message_time = message["input_timestamp"]
-    else:
-        if message["expect_output_timestamp"] <= int(time.time()):
-            message_time = message["expect_output_timestamp"]
-        else:
+        message_time = get_message_timestamp(message)
+    elif "expect_output_timestamp" in message:
+        # Check if message is in the future (not yet sent)
+        if not safe_timestamp_compare(
+            message["expect_output_timestamp"], int(time.time()), default_result=False
+        ):
             return ""  # 如果expect_output_timestamp比now大，证明还没发出去
+        message_time = get_message_timestamp(message)
+    else:
+        # No timestamp available, use current time as fallback
+        message_time = int(time.time())
 
     user_dao = UserDAO()
     talker = user_dao.get_user_by_id(message["from_user"])

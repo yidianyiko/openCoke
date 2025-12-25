@@ -52,7 +52,8 @@ def detect_repeated_input(input_messages, chat_history):
     if not input_messages or not chat_history:
         return False, None
 
-    current_msg = input_messages[-1].get("message", "").strip()
+    # BUG-001 fix: Handle None message content safely
+    current_msg = (input_messages[-1].get("message") or "").strip()
     current_user = input_messages[-1].get("from_user")
 
     if not current_msg:
@@ -61,8 +62,11 @@ def detect_repeated_input(input_messages, chat_history):
     # 从历史对话中提取最近5条该用户的消息
     recent_user_msgs = []
     for msg in reversed(chat_history):
+        # BUG-C01 fix: Skip None items in chat_history
+        if msg is None:
+            continue
         if msg.get("from_user") == current_user:
-            message_content = msg.get("message", "") or ""
+            message_content = msg.get("message") or ""
             recent_user_msgs.append(message_content.strip())
             if len(recent_user_msgs) >= 5:
                 break
@@ -92,8 +96,12 @@ def get_recent_character_responses(chat_history, character_user_id, limit=5):
 
     recent_responses = []
     for msg in reversed(chat_history):
+        # BUG-C01 fix: Skip None items in chat_history
+        if msg is None:
+            continue
         if msg.get("from_user") == character_user_id:
-            content = msg.get("message", "").strip()
+            # BUG-002 fix: Handle None message content safely
+            content = (msg.get("message") or "").strip()
             if content and content not in recent_responses:
                 recent_responses.append(content)
                 if len(recent_responses) >= limit:
@@ -134,6 +142,10 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 def context_prepare(user, character, conversation):
     context = {"user": user, "character": character, "conversation": conversation}
 
+    # BUG-006 Medium fix: Validate user and character IDs are not None
+    if not user.get("_id") or not character.get("_id"):
+        raise ValueError("Invalid user or character ID: _id cannot be None")
+
     mongo = MongoDBBase()
     relation = mongo.find_one(
         "relations", {"uid": str(user["_id"]), "cid": str(character["_id"])}
@@ -169,6 +181,10 @@ def context_prepare(user, character, conversation):
             "timestamp": None,
             "action": None,
         }
+
+    # BUG-006 High fix: Handle corrupted relation data with missing "relationship" field
+    if "relationship" not in relation:
+        relation["relationship"] = {"closeness": 20, "trustness": 20, "dislike": 0}
 
     if "dislike" not in relation["relationship"]:
         relation["relationship"]["dislike"] = 0

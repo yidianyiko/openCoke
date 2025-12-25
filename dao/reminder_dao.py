@@ -3,6 +3,7 @@ import sys
 
 sys.path.append(".")
 
+import re
 import time
 import uuid
 
@@ -53,7 +54,15 @@ class ReminderDAO:
 
         Returns:
             str: 插入的提醒ID
+
+        Raises:
+            ValueError: 如果 user_id 为空或缺失
         """
+        # BUG-009 fix: Validate that user_id is non-empty
+        user_id = reminder_data.get("user_id")
+        if not user_id or (isinstance(user_id, str) and not user_id.strip()):
+            raise ValueError("user_id is required and cannot be empty")
+
         # 确保必要字段存在
         if "reminder_id" not in reminder_data:
             reminder_data["reminder_id"] = str(uuid.uuid4())
@@ -337,10 +346,13 @@ class ReminderDAO:
         if status_list is None:
             status_list = ["confirmed", "pending"]
 
+        # BUG-005 Medium fix: Escape regex special characters to prevent injection
+        safe_keyword = re.escape(keyword)
+
         query = {
             "user_id": user_id,
             "status": {"$in": status_list},
-            "title": {"$regex": keyword, "$options": "i"},  # 不区分大小写
+            "title": {"$regex": safe_keyword, "$options": "i"},  # 不区分大小写
         }
         return list(self.collection.find(query).sort("next_trigger_time", 1))
 

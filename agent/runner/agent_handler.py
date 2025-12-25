@@ -20,6 +20,7 @@ V2.4 更新：
 import sys
 
 sys.path.append(".")
+import copy
 import random
 import time
 import traceback
@@ -138,9 +139,16 @@ def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
 
 
 def store_messages_background(context: dict, resp_messages: list):
-    """Submit message storage to background thread pool."""
+    """Submit message storage to background thread pool.
+    
+    BUG-008 fix: Use deep copy to prevent concurrent modification of context
+    while the background thread is accessing it.
+    """
+    # Deep copy to avoid race condition with concurrent context modifications
+    context_copy = copy.deepcopy(context)
+    resp_messages_copy = copy.deepcopy(resp_messages)
     _embedding_executor.submit(
-        _store_messages_for_retrieval_sync, context, resp_messages
+        _store_messages_for_retrieval_sync, context_copy, resp_messages_copy
     )
 
 

@@ -2,7 +2,136 @@ import sys
 
 sys.path.append(".")
 import re
+import time
 from datetime import datetime, timedelta
+
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
+
+
+# ========== BUG-010 fix: Timestamp validation utilities ==========
+
+
+def validate_timestamp(value, field_name="timestamp", default_to_now=True):
+    """
+    Validate and convert a value to a valid Unix timestamp (int).
+
+    Args:
+        value: The value to validate (can be int, float, str, or None)
+        field_name: Name of the field for logging purposes
+        default_to_now: If True, return current time for invalid values;
+                        if False, return None for invalid values
+
+    Returns:
+        int: Valid Unix timestamp, or None if invalid and default_to_now=False
+
+    Examples:
+        >>> validate_timestamp(1703500800)  # int
+        1703500800
+        >>> validate_timestamp(1703500800.5)  # float
+        1703500800
+        >>> validate_timestamp("1703500800")  # numeric string
+        1703500800
+        >>> validate_timestamp(None)  # None -> current time
+        <current timestamp>
+        >>> validate_timestamp("not_a_timestamp")  # invalid -> current time
+        <current timestamp>
+    """
+    if value is None:
+        if default_to_now:
+            return int(time.time())
+        return None
+
+    if isinstance(value, int):
+        # Validate reasonable range (year 2000 to year 2100)
+        if 946684800 <= value <= 4102444800:
+            return value
+        # Might be milliseconds, convert to seconds
+        if 946684800000 <= value <= 4102444800000:
+            return int(value / 1000)
+        logger.warning(f"Timestamp {field_name} out of range: {value}")
+        return int(time.time()) if default_to_now else None
+
+    if isinstance(value, float):
+        return validate_timestamp(int(value), field_name, default_to_now)
+
+    if isinstance(value, str):
+        # Try to parse as numeric string
+        try:
+            numeric_value = float(value)
+            return validate_timestamp(int(numeric_value), field_name, default_to_now)
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid {field_name} string: '{value}', "
+                f"{'using current time' if default_to_now else 'returning None'}"
+            )
+            return int(time.time()) if default_to_now else None
+
+    # Unknown type
+    logger.warning(
+        f"Invalid {field_name} type: {type(value).__name__}, "
+        f"{'using current time' if default_to_now else 'returning None'}"
+    )
+    return int(time.time()) if default_to_now else None
+
+
+def safe_timestamp_compare(ts, reference, default_result=False):
+    """
+    Safely compare a timestamp with a reference value.
+
+    Args:
+        ts: Timestamp to compare (may be invalid)
+        reference: Reference timestamp (int)
+        default_result: Result to return if ts is invalid
+
+    Returns:
+        bool: True if ts <= reference, False otherwise, or default_result if invalid
+    """
+    validated_ts = validate_timestamp(ts, "compare_ts", default_to_now=False)
+    if validated_ts is None:
+        return default_result
+    return validated_ts <= reference
+
+
+def get_message_timestamp(message, default_to_now=True):
+    """
+    Extract and validate timestamp from a message dict.
+
+    Checks 'input_timestamp' first, then 'expect_output_timestamp'.
+
+    Args:
+        message: Message dict
+        default_to_now: If True, return current time if no valid timestamp found
+
+    Returns:
+        int: Valid timestamp, or None if not found and default_to_now=False
+    """
+    if not isinstance(message, dict):
+        return int(time.time()) if default_to_now else None
+
+    # Try input_timestamp first
+    if "input_timestamp" in message:
+        ts = validate_timestamp(
+            message["input_timestamp"], "input_timestamp", default_to_now=False
+        )
+        if ts is not None:
+            return ts
+
+    # Try expect_output_timestamp
+    if "expect_output_timestamp" in message:
+        ts = validate_timestamp(
+            message["expect_output_timestamp"],
+            "expect_output_timestamp",
+            default_to_now=False,
+        )
+        if ts is not None:
+            return ts
+
+    return int(time.time()) if default_to_now else None
+
+
+# ========== Original time utility functions ==========
 
 
 def timestamp2str(timestamp, week=False):
