@@ -222,6 +222,12 @@ def _send_single_message(context, multimodal_response, expect_output_timestamp, 
     msg_type = multimodal_response.get("type", "text")
     content = multimodal_response.get("content", "")
     
+    # ========== 去重检查：跳过 rollback 恢复场景中已发送的内容 ==========
+    turn_sent = context.get("conversation", {}).get("conversation_info", {}).get("turn_sent_contents", [])
+    if turn_sent and content in turn_sent:
+        logger.info(f"[去重] 跳过已发送内容: {content[:30]}...")
+        return None, expect_output_timestamp
+    
     if msg_type == "voice":
         voice_messages = character_voice(content, multimodal_response.get("emotion", "无"))
         for voice_url, voice_length in voice_messages:
@@ -708,6 +714,13 @@ def create_handler(worker_id: int = 0):
                     if resp_messages:
                         conversation = context["conversation"]
                         conversation = record_sent_messages_to_history(conversation, resp_messages)
+                        
+                        # ========== 记录本轮已发送内容，用于下一轮去重 ==========
+                        sent_contents = [msg.get("message", "") for msg in resp_messages if msg.get("message")]
+                        existing = conversation["conversation_info"].get("turn_sent_contents", [])
+                        conversation["conversation_info"]["turn_sent_contents"] = existing + sent_contents
+                        logger.info(f"{worker_tag} [去重] 记录已发送内容: {len(sent_contents)} 条")
+                        
                         conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
                     # 使用安全锁释放
                     released, reason = lock_manager.release_lock_safe("conversation", conversation_id, lock_id)
@@ -729,6 +742,11 @@ def create_handler(worker_id: int = 0):
                 
                 if len(conversation["conversation_info"]["chat_history"]) > max_conversation_round:
                     conversation["conversation_info"]["chat_history"] = conversation["conversation_info"]["chat_history"][-max_conversation_round:]
+                
+                # ========== Turn 完成，清空去重列表 ==========
+                if conversation["conversation_info"].get("turn_sent_contents"):
+                    logger.info(f"{worker_tag} [去重] Turn 完成，清空 turn_sent_contents")
+                    conversation["conversation_info"]["turn_sent_contents"] = []
                 
                 conversation_dao.update_conversation_info(conversation_id, conversation["conversation_info"])
                 
