@@ -204,21 +204,32 @@ class StreamingChatWorkflow:
         reminders_context = get_reminders_context(context_retrieve, user_nickname)
 
         # 按需生成相关历史对话上下文（仅用户消息场景）
+        # V2.13 优化：传入最近历史对话字符串，过滤掉重复内容
         relevant_history_context = ""
         if message_source == "user":
-            relevant_history_context = get_relevant_history_context(context_retrieve)
+            recent_history_str = (
+                session_state.get("conversation", {})
+                .get("conversation_info", {})
+                .get("chat_history_str", "")
+            )
+            relevant_history_context = get_relevant_history_context(
+                context_retrieve, recent_history_str
+            )
 
         # 组合完整模板（包含消息来源说明、分段注意事项和按需加载的上下文）
         # V2.12：消息来源说明放在最前面，让 LLM 第一时间知道这是什么类型的消息
         # V2.9 优化：reminder_result_context 已经是渲染后的字符串，直接拼接
+        # V2.13：添加换行符确保各模块之间正确分隔
         full_template = (
             message_source_context
             + "\n"
             + base_template
-            + reminders_context
-            + relevant_history_context
+            + ("\n" + reminders_context if reminders_context else "")
+            + ("\n" + relevant_history_context if relevant_history_context else "")
+            + "\n"
             + source_template
-            + notice_segmentation
+            + ("\n" + notice_segmentation if notice_segmentation else "")
+            + "\n"
             + self.userp_template_task
         )
 
