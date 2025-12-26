@@ -182,6 +182,13 @@ CHAT_AGENT_PERSONALITY = (
     + CONTEXT_HIERARCHY
 )
 
+# V2.13 精简版人格提示词（去除与角色 system_prompt 重复的部分）
+# 角色的 system_prompt 已包含：温暖度、机智度、简洁度、适应性的具体规则
+# 此精简版保留角色 system_prompt 中通常不包含的通用规则：
+# - TRANSPARENCY_RULES：技术透明度规则（不暴露工具名、Agent 过程等）
+# - CONTEXT_HIERARCHY：上下文优先级层次（用户即时消息 > 最近对话 > 检索资料）
+CHAT_AGENT_PERSONALITY_MINIMAL = TRANSPARENCY_RULES + CONTEXT_HIERARCHY
+
 # FutureMessageChatAgent 完整人格提示词（包含主动消息方向说明和错误触发处理）
 FUTURE_MESSAGE_AGENT_PERSONALITY = (
     PROACTIVE_MESSAGE_DIRECTION

@@ -46,7 +46,7 @@ from agent.prompt.chat_contextprompt import (
     get_reminders_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
-from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY
+from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
     TASKPROMPT_微信对话_推理要求_纯文本,
@@ -74,11 +74,14 @@ class StreamingChatWorkflow:
 
     # User prompt 模板组合-基础部分（不包含按需加载的上下文）
     # V2.7 优化：移除 CONTEXTPROMPT_待办提醒 和 CONTEXTPROMPT_历史最相关的十条对话，改为按需加载
+    # V2.13 重构：
+    #   - 使用 CHAT_AGENT_PERSONALITY_MINIMAL 替代完整版（去除与角色 system_prompt 重复的部分）
+    #   - 人格规范放在角色信息后面（先定义“你是谁”，再定义“如何行为”）
     userp_template_base_core = (
         TASKPROMPT_微信对话
-        + CHAT_AGENT_PERSONALITY
         + CONTEXTPROMPT_时间
         + CONTEXTPROMPT_人物信息
+        + CHAT_AGENT_PERSONALITY_MINIMAL  # 精简版人格规范，放在角色信息后
         + CONTEXTPROMPT_人物资料
         + CONTEXTPROMPT_用户资料
         + CONTEXTPROMPT_人物知识和技能
@@ -216,29 +219,40 @@ class StreamingChatWorkflow:
                 context_retrieve, recent_history_str
             )
 
-        # 组合完整模板（包含消息来源说明、分段注意事项和按需加载的上下文）
-        # V2.12：消息来源说明放在最前面，让 LLM 第一时间知道这是什么类型的消息
-        # V2.9 优化：reminder_result_context 已经是渲染后的字符串，直接拼接
-        # V2.13：添加换行符确保各模块之间正确分隔
+        # 组合完整模板
+        # V2.13 重构：优化模板顺序，提升 LLM 注意力分配
+        # 新顺序：
+        #   1. 消息来源说明 - 让 LLM 知道场景
+        #   2. 当前输入 - 提前，让 LLM 立即知道要回复什么
+        #   3. 基础上下文 - 角色信息、人格规范、历史对话等
+        #   4. 补充上下文 - 待办提醒、相关历史
+        #   5. 注意事项 - 分段注意等
+        #   6. 提醒工具结果 - 放在输出格式前
+        #   7. 输出格式要求 - 放最后，利用 recency effect
         full_template = (
             message_source_context
+            + "\n"
+            + source_template  # 当前输入提前
             + "\n"
             + base_template
             + ("\n" + reminders_context if reminders_context else "")
             + ("\n" + relevant_history_context if relevant_history_context else "")
-            + "\n"
-            + source_template
             + ("\n" + notice_segmentation if notice_segmentation else "")
-            + "\n"
-            + self.userp_template_task
         )
+        # 注意：userp_template_task 和 reminder_result_context 在渲染后追加
 
         # 渲染 user prompt
         try:
             rendered_userp = self._render_template(full_template, session_state)
-            # V2.9：追加已渲染的提醒结果上下文
+            # V2.13：提醒结果上下文放在输出格式前
             if reminder_result_context:
                 rendered_userp = rendered_userp + "\n" + reminder_result_context
+            # 输出格式要求放最后
+            rendered_userp = (
+                rendered_userp
+                + "\n"
+                + self._render_template(self.userp_template_task, session_state)
+            )
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message
