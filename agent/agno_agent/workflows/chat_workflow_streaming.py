@@ -124,7 +124,7 @@ class StreamingChatWorkflow:
         self.agent = Agent(
             id="chat-response-agent-streaming",
             name="ChatResponseAgentStreaming",
-            model=DeepSeek(id="deepseek-chat"),
+            model=DeepSeek(id="deepseek-chat", max_tokens=4096),
             instructions=INSTRUCTIONS_CHAT_RESPONSE,
             markdown=False,
             # 不使用 output_schema，让我们自己解析

@@ -109,12 +109,15 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 #-E5: 网络临时故障直接失败
 
 
-def create_deepseek_model(model_id: str = "deepseek-chat"):
+def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 4096):
     """
     创建带重试配置的 DeepSeek Model
 
     Args:
         model_id: 模型ID
+        max_tokens: 最大输出 token 数，默认 4096
+                    解决问题：LLM 输出被截断导致 JSON 解析失败
+                    ("Unterminated string" 错误)
 
     Returns:
         配置了重试的 DeepSeek 实例
@@ -124,6 +127,8 @@ def create_deepseek_model(model_id: str = "deepseek-chat"):
         # 重试配置：2次重试，指数退避
         # 注意：Agno 的 DeepSeek 继承自 OpenAI，支持 max_retries 参数
         max_retries=2,
+        # 输出 token 限制：确保复杂 output_schema 有足够空间
+        max_tokens=max_tokens,
     )
 
 
