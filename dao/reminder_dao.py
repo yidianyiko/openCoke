@@ -102,19 +102,21 @@ class ReminderDAO:
 
         Args:
             current_time: 当前时间戳
-            time_window: 时间窗口（秒），默认60秒，避免重复触发
+            time_window: 保留参数以保持API兼容性（不再使用）
 
         Returns:
             List[Dict]: 待触发的提醒列表
+
+        Note:
+            不再限制时间下界，避免错过的提醒永远无法触发。
+            重复触发由 mark_as_triggered 的状态变更（confirmed -> triggered）防止。
         """
         query = {
             "status": {"$in": ["confirmed", "pending"]},
-            "next_trigger_time": {
-                "$lte": current_time,
-                "$gte": current_time-time_window,
-            },
+            "next_trigger_time": {"$lte": current_time},
         }
-        return list(self.collection.find(query))
+        # 添加 limit 防止积压过多时一次性加载太多
+        return list(self.collection.find(query).sort("next_trigger_time", 1).limit(100))
 
     def find_reminders_by_conversation(
         self, conversation_id: str, status: Optional[str] = None
