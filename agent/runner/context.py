@@ -150,7 +150,12 @@ def context_prepare(user, character, conversation):
     relation = mongo.find_one(
         "relations", {"uid": str(user["_id"]), "cid": str(character["_id"])}
     )
+    
+    # 检测是否为新用户（relation 不存在时为首次对话）
+    is_new_user = False
     if relation is None:
+        is_new_user = True
+        logger.info(f"[新用户检测] 首次对话，创建 relation")
         realtion_id = mongo.insert_one(
             "relations", get_default_relation(user, character, conversation["platform"])
         )
@@ -213,6 +218,11 @@ def context_prepare(user, character, conversation):
         context["news_str"] = news["news"]
 
     context["relation"] = relation
+    
+    # 设置新用户标志，用于控制 onboarding 流程
+    context["is_new_user"] = is_new_user
+    if is_new_user:
+        logger.info("[新用户检测] is_new_user=True，将注入 onboarding 提示词")
 
     # 重复消息检测
     is_repeated, repeated_msg = detect_repeated_input(

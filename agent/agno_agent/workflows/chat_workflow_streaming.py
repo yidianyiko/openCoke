@@ -46,6 +46,7 @@ from agent.prompt.chat_contextprompt import (
     get_reminders_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
+from agent.prompt.onboarding_prompt import get_onboarding_context
 from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
@@ -222,19 +223,30 @@ class StreamingChatWorkflow:
                 context_retrieve, recent_history_str
             )
 
+        # V2.14 新增：新用户 onboarding 提示词（仅首次对话时注入）
+        onboarding_context = ""
+        if message_source == "user":
+            is_new_user = session_state.get("is_new_user", False)
+            onboarding_context = get_onboarding_context(is_new_user)
+            if onboarding_context:
+                logger.info("[ChatWorkflow] 新用户首次对话，注入 onboarding 提示词")
+
         # 组合完整模板
         # V2.13 重构：优化模板顺序，提升 LLM 注意力分配
+        # V2.14 新增：onboarding 提示词放在基础上下文之前，优先级最高
         # 新顺序：
         #   1. 消息来源说明 - 让 LLM 知道场景
-        #   2. 当前输入 - 提前，让 LLM 立即知道要回复什么
-        #   3. 基础上下文 - 角色信息、人格规范、历史对话等
-        #   4. 补充上下文 - 待办提醒、相关历史
-        #   5. 注意事项 - 分段注意等
-        #   6. 提醒工具结果 - 放在输出格式前
-        #   7. 输出格式要求 - 放最后，利用 recency effect
+        #   2. Onboarding 提示（仅新用户）- 高优先级指导
+        #   3. 当前输入 - 提前，让 LLM 立即知道要回复什么
+        #   4. 基础上下文 - 角色信息、人格规范、历史对话等
+        #   5. 补充上下文 - 待办提醒、相关历史
+        #   6. 注意事项 - 分段注意等
+        #   7. 提醒工具结果 - 放在输出格式前
+        #   8. 输出格式要求 - 放最后，利用 recency effect
         full_template = (
             message_source_context
             + "\n"
+            + (onboarding_context + "\n" if onboarding_context else "")  # V2.14: Onboarding
             + source_template  # 当前输入提前
             + "\n"
             + base_template
