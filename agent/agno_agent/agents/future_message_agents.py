@@ -93,6 +93,7 @@ future_message_query_rewrite_agent = Agent(
     model=create_deepseek_model(),
     instructions=INSTRUCTIONS_FUTURE_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
+    use_json_mode=True,
     markdown=False,
 )
 
@@ -115,6 +116,7 @@ future_message_chat_agent = Agent(
     model=create_deepseek_model(),
     instructions=INSTRUCTIONS_FUTURE_MESSAGE_CHAT,
     output_schema=FutureMessageResponse,
+    use_json_mode=True,
     markdown=False,
 )
 

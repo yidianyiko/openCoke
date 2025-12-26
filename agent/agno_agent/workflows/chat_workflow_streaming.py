@@ -120,14 +120,17 @@ class StreamingChatWorkflow:
     )
 
     def __init__(self):
-        """初始化流式 Agent（不使用 output_schema）"""
+        """初始化流式 Agent
+        
+        添加 use_json_mode=True 避免 DeepSeek structured output 解析失败
+        """
         self.agent = Agent(
             id="chat-response-agent-streaming",
             name="ChatResponseAgentStreaming",
             model=DeepSeek(id="deepseek-chat", max_tokens=4096),
             instructions=INSTRUCTIONS_CHAT_RESPONSE,
+            use_json_mode=True,
             markdown=False,
-            # 不使用 output_schema，让我们自己解析
         )
 
     async def run_stream(

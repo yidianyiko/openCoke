@@ -142,6 +142,7 @@ query_rewrite_agent = Agent(
     model=create_deepseek_model(),
     instructions=INSTRUCTIONS_QUERY_REWRITE,
     output_schema=QueryRewriteResponse,
+    use_json_mode=True,
     markdown=False,
 )
 
@@ -173,28 +174,38 @@ orchestrator_agent = Agent(
     model=create_deepseek_model(),
     instructions=get_orchestrator_instructions(),
     output_schema=OrchestratorResponse,
+    use_json_mode=True,
     markdown=False,
 )
 
 # ChatResponseAgent-对话生成，基于角色人设生成多模态回复
 # Requirements: 4.4
+# 添加 use_json_mode=True 避免 structured output 解析失败
 chat_response_agent = Agent(
     id="chat-response-agent",
     name="ChatResponseAgent",
     model=create_deepseek_model(),
     instructions=INSTRUCTIONS_CHAT_RESPONSE,
     output_schema=ChatResponse,
+    use_json_mode=True,
     markdown=False,
 )
 
 # PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
 # Requirements: 4.4
+#
+# 重要修复 (2025-12-26):
+# - 添加 use_json_mode=True 解决 DeepSeek structured output 频繁失败问题
+# - 问题原因：DeepSeek + output_schema 组合在复杂 schema (14+ fields) 时
+#   经常产生截断的 JSON，导致 "Unterminated string" 解析错误
+# - JSON mode 比 structured output 更可靠，虽然准确性略低但避免了解析失败
 post_analyze_agent = Agent(
     id="post-analyze-agent",
     name="PostAnalyzeAgent",
     model=create_deepseek_model(),
     instructions=INSTRUCTIONS_POST_ANALYZE,
     output_schema=PostAnalyzeResponse,
+    use_json_mode=True,  # 使用 JSON mode 避免 structured output 解析失败
     markdown=False,
 )
 
