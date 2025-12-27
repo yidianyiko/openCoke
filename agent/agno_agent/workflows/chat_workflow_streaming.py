@@ -40,6 +40,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_最近的历史对话,
     CONTEXTPROMPT_用户资料,
     CONTEXTPROMPT_系统提醒触发,
+    CONTEXTPROMPT_防重复回复,
     get_message_source_context,
     get_relevant_history_context,
     get_reminder_result_context,
@@ -210,6 +211,12 @@ class StreamingChatWorkflow:
         # 按需生成待办提醒上下文
         reminders_context = get_reminders_context(context_retrieve, user_nickname)
 
+        # V2.15 新增：获取防重复回复提示（所有消息场景）
+        anti_repeat_context = ""
+        proactive_forbidden = session_state.get("proactive_forbidden_messages", "")
+        if proactive_forbidden and proactive_forbidden.strip():
+            anti_repeat_context = CONTEXTPROMPT_防重复回复
+
         # 按需生成相关历史对话上下文（仅用户消息场景）
         # V2.13 优化：传入最近历史对话字符串，过滤掉重复内容
         relevant_history_context = ""
@@ -234,6 +241,7 @@ class StreamingChatWorkflow:
         # 组合完整模板
         # V2.13 重构：优化模板顺序，提升 LLM 注意力分配
         # V2.14 新增：onboarding 提示词放在基础上下文之前，优先级最高
+        # V2.15 新增：防重复回复提示，放在注意事项后面
         # 新顺序：
         #   1. 消息来源说明 - 让 LLM 知道场景
         #   2. Onboarding 提示（仅新用户）- 高优先级指导
@@ -241,8 +249,9 @@ class StreamingChatWorkflow:
         #   4. 基础上下文 - 角色信息、人格规范、历史对话等
         #   5. 补充上下文 - 待办提醒、相关历史
         #   6. 注意事项 - 分段注意等
-        #   7. 提醒工具结果 - 放在输出格式前
-        #   8. 输出格式要求 - 放最后，利用 recency effect
+        #   7. 防重复回复提示 - V2.15 新增
+        #   8. 提醒工具结果 - 放在输出格式前
+        #   9. 输出格式要求 - 放最后，利用 recency effect
         full_template = (
             message_source_context
             + "\n"
@@ -253,6 +262,7 @@ class StreamingChatWorkflow:
             + ("\n" + reminders_context if reminders_context else "")
             + ("\n" + relevant_history_context if relevant_history_context else "")
             + ("\n" + notice_segmentation if notice_segmentation else "")
+            + ("\n" + anti_repeat_context if anti_repeat_context else "")  # V2.15: 防重复
         )
         # 注意：userp_template_task 和 reminder_result_context 在渲染后追加
 

@@ -264,8 +264,15 @@ def context_prepare(user, character, conversation):
     # 顶层字段默认值
     context.setdefault("MultiModalResponses", [])
 
-    # V2.10 新增：主动消息防重复提示（默认为空，由 handle_pending_future_message 填充）
-    context.setdefault("proactive_forbidden_messages", "")
+    # V2.10 新增：主动消息防重复提示
+    # V2.15 优化：扩展到所有消息场景，不只是主动消息
+    # 在 context_prepare 阶段就生成，避免 AI 重复问相同问题
+    character_user_id = str(character["_id"])
+    context["proactive_forbidden_messages"] = detect_repeated_proactive_output(
+        context["conversation"]["conversation_info"]["chat_history"],
+        character_user_id,
+        limit=3,
+    )
 
     # context_retrieve 相关字段（由 ContextRetrieveAgent 填充）
     context.setdefault(

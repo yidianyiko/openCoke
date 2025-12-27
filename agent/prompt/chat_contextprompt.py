@@ -185,6 +185,16 @@ CONTEXTPROMPT_历史对话_精简 = """### 最近对话（最近3轮）
 CONTEXTPROMPT_最新聊天消息 = """### {user[platforms][wechat][nickname]}的最新聊天消息
 {conversation[conversation_info][input_messages_str]}"""
 
+# V2.15 新增：防止 AI 重复回复的提示（用于所有消息场景）
+CONTEXTPROMPT_防重复回复 = """{proactive_forbidden_messages}
+
+【严格禁止-必须遵守】上面列出的"你最近发送过的消息"是你绝对不能重复的内容，你必须：
+- 不能重复相同的问题或话题
+- 不能使用相似的句式或表达
+- 不能表达相同或相近的意思
+- 换一个完全不同的角度或话题来回应
+"""
+
 CONTEXTPROMPT_初步回复 = """### {character[platforms][wechat][nickname]}的初步回复
 {MultiModalResponses}"""
 
@@ -203,19 +213,13 @@ CONTEXTPROMPT_系统提醒触发 = """### 系统提醒触发
 提醒内容：{system_message_metadata[action_template]}
 【重要】这是{character[platforms][wechat][nickname]}要发给{user[platforms][wechat][nickname]}的提醒内容，不是{user[platforms][wechat][nickname]}发来的消息.{character[platforms][wechat][nickname]}应该基于这个提醒内容，用自然的方式提醒用户."""
 
+# V2.15 精简：移除重复的【严格禁止】部分，统一由 CONTEXTPROMPT_防重复回复 提供
 CONTEXTPROMPT_主动消息触发 = """### 主动消息触发
 {character[platforms][wechat][nickname]}计划主动向{user[platforms][wechat][nickname]}发送消息.
 行动内容：{conversation[conversation_info][future][action]}
 本轮已主动催促次数：{proactive_times}
 
-{proactive_forbidden_messages}
-
 【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是{user[platforms][wechat][nickname]}发来的消息.
-【严格禁止】如果上面列出了"你最近发送过的消息"，你必须生成与这些消息完全不同的新内容：
-- 不能重复相同的问题或话题
-- 不能使用相似的句式或表达
-- 应该换一个角度或话题来发起对话
-- 如果之前问过用户在做什么，这次可以分享自己的事情或换个话题
 """
 
 # V2.7 新增：提醒工具结果上下文
