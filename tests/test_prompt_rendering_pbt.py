@@ -165,7 +165,7 @@ class TestPromptContextInclusion(unittest.TestCase):
         # 验证包含各种上下文
         self.assertIn("人物信息", template)
         self.assertIn("人物资料", template)
-        # 用户资料在模板中使用的是 {user[platforms][wechat][nickname]}的人物资料
+        # 用户资料在模板中使用的是  {user[platforms][wechat][nickname]} 的人物资料
         self.assertTrue("人物资料" in template)
         self.assertIn("人物状态", template)
         self.assertIn("历史对话", template)

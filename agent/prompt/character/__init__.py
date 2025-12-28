@@ -15,7 +15,7 @@ from agent.prompt.character.coke_prompt import COKE_STATUS, COKE_SYSTEM_PROMPT
 # key: 角色名称（与数据库中的 name 字段对应）
 # value: (系统提示词, 状态配置)
 CHARACTER_PROMPTS = {
-    "coke": {
+    "qiaoyun": {
         "system_prompt": COKE_SYSTEM_PROMPT,
         "status": COKE_STATUS,
     },

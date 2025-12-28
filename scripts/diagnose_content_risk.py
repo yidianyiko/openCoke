@@ -146,7 +146,7 @@ async def run_diagnostic():
 
     user_id = str(user["_id"])
     user_nickname = user.get("platforms", {}).get("wechat", {}).get("nickname", "未知")
-    logger.info(f"用户ID: {user_id}, 昵称: {user_nickname}")
+    logger.info(f"用户ID: {user_id}, 昵称:  {user_nickname} ")
 
     # 2. 获取角色数据
     logger.info("\n[Step 2] 获取角色数据...")
@@ -309,7 +309,7 @@ async def run_diagnostic():
         logger.info("跳过关系数据测试（无数据）")
 
     # Test 4: 组合测试（模拟 ChatWorkflow 的完整 prompt）
-    full_prompt = """你是{character_nickname}，正在与{user_nickname}通过微信聊天.
+    full_prompt = """你是{character_nickname}，正在与 {user_nickname} 通过微信聊天.
 
 ### 角色描述
 {char_description[:500] if char_description else '无'}
