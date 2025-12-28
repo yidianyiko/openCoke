@@ -351,7 +351,7 @@ def get_default_relation(user, character, platform):
         "user_info": {
             "realname": "",
             "hobbyname": "",
-            "description": "在微信上认识的新朋友",
+            "description": "在微信上认识的朋友",
         },
         "character_info": {
             "longterm_purpose": "帮用户实现他们想实现的生活目标（比如日程管理，定期提醒等），在用户需要完成目标时督促他，关心并用户的生活（吃饭，喝水等），也在用户低落时给予鼓励.",
@@ -360,7 +360,7 @@ def get_default_relation(user, character, platform):
             "status": "空闲",
         },
         "relationship": {
-            "description": "在微信上认识的新朋友",
+            "description": "在微信上认识的朋友",
             "closeness": 20,
             "trustness": 20,
             "dislike": 0,

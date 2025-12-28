@@ -216,11 +216,6 @@ class PrepareWorkflow:
             # 设置 session_state 供 reminder_tool 使用
             set_reminder_session_state(session_state)
 
-            # 识别用户意图
-            detected_intent = self._detect_user_intent(input_message, orchestrator)
-            session_state["detected_user_intent"] = detected_intent
-            logger.info(f"[PrepareWorkflow] 识别到用户意图: {detected_intent}")
-
             # 续期锁
             self._renew_lock_if_needed(session_state)
 
@@ -233,7 +228,7 @@ class PrepareWorkflow:
             )
 
             # 记录结果
-            self._log_reminder_result(reminder_response, session_state, detected_intent)
+            self._log_reminder_result(reminder_response, session_state)
 
         except Exception as e:
             logger.error(f"ReminderDetectAgent 执行失败: {e}")
@@ -254,7 +249,6 @@ class PrepareWorkflow:
         self,
         reminder_response,
         session_state: Dict[str, Any],
-        detected_intent: str,
     ) -> None:
         """记录提醒检测结果"""
         if reminder_response:
@@ -272,13 +266,12 @@ class PrepareWorkflow:
             tool_context = session_state.get("tool_execution_context", {})
             if tool_context and not tool_context.get("intent_fulfilled", True):
                 logger.warning(
-                    f"[PrepareWorkflow] 用户意图未被满足: intent={detected_intent}, "
-                    f"action={tool_context.get('action_executed')}"
+                    f"[PrepareWorkflow] 用户意图未被满足: action={tool_context.get('action_executed')}"
                 )
         else:
             logger.warning(
                 "[PrepareWorkflow] ReminderDetectAgent 执行完成但未调用 reminder_tool，"
-                "可能是 LLM 未识别提醒意图或时间模糊"
+                "可能是 LLM 判断为普通对话而非提醒操作请求"
             )
 
     def _build_reminder_input(self, current_message: str, session_state: dict) -> str:
@@ -389,79 +382,3 @@ class PrepareWorkflow:
             "confirmed_reminders": "",
             "relevant_history": "",
         }
-
-    def _detect_user_intent(
-        self, input_message: str, orchestrator: Dict[str, Any]
-    ) -> str:
-        """
-        从用户消息中识别提醒相关意图
-
-        Args:
-            input_message: 用户输入消息
-            orchestrator: OrchestratorAgent 的输出
-
-        Returns:
-            识别到的用户意图描述
-        """
-        # message_lower 保留以备将来使用（如大小写不敏感匹配）
-        _ = input_message.lower()
-
-        # 删除意图关键词
-        delete_keywords = ["取消", "删除", "删掉", "不要了", "不提醒了", "去掉", "移除"]
-        # 创建意图关键词
-        create_keywords = [
-            "提醒我",
-            "帮我提醒",
-            "设个提醒",
-            "设置提醒",
-            "别忘了",
-            "闹钟",
-            "定时",
-            "通知我",
-            "叫我",
-        ]
-        # 修改意图关键词
-        update_keywords = ["修改", "变更", "调整", "改一下", "改成", "换成"]
-        # 查询意图关键词
-        list_keywords = ["查看提醒", "提醒列表", "有什么提醒", "我的提醒", "看看提醒"]
-
-        # 检测删除所有的意图
-        delete_all_patterns = [
-            "删除所有",
-            "取消所有",
-            "删掉所有",
-            "全部删除",
-            "全部取消",
-            "都删掉",
-            "都取消",
-        ]
-        for pattern in delete_all_patterns:
-            if pattern in input_message:
-                return "删除所有提醒"
-
-        # 检测单个删除意图
-        for keyword in delete_keywords:
-            if keyword in input_message:
-                return "删除提醒"
-
-        # 检测修改意图
-        for keyword in update_keywords:
-            if keyword in input_message:
-                return "修改提醒"
-
-        # 检测查询意图
-        for keyword in list_keywords:
-            if keyword in input_message:
-                return "查询提醒"
-
-        # 检测创建意图
-        for keyword in create_keywords:
-            if keyword in input_message:
-                return "创建提醒"
-
-        # 从 orchestrator 的 inner_monologue 中推断
-        inner_monologue = orchestrator.get("inner_monologue", "")
-        if "提醒" in inner_monologue or "闹钟" in inner_monologue:
-            return "提醒相关操作"
-
-        return "未识别"

@@ -213,9 +213,8 @@ def _save_reminder_result_to_session(
     session_state["【提醒设置工具消息】"] = message
 
     # 新增：结构化工具执行上下文
-    # 从 session_state 获取用户意图（如果未提供）
     if user_intent is None:
-        user_intent = session_state.get("detected_user_intent", "未识别")
+        user_intent = "提醒操作"
     if action_executed is None:
         action_executed = "unknown"
 
