@@ -576,7 +576,13 @@ async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> No
             conversation_id, reminder
         )
         if not all([conversation, user, character]):
-            return  # 上下文获取失败
+            # 上下文获取失败，标记提醒为完成状态避免无限重试
+            logger.info(
+                f"[REMINDER] Context fetch failed for reminder {reminder.get('reminder_id')}, "
+                "marking as completed to prevent infinite retries"
+            )
+            reminder_dao.complete_reminder(reminder["reminder_id"])
+            return
 
         # 检查用户关系状态
         if _should_cancel_reminder_for_user(user, character, conversation):
@@ -694,11 +700,19 @@ async def _get_reminder_context(conversation_id: str, reminder: dict):
     """
     conversation = conversation_dao.get_conversation_by_id(conversation_id)
     if not conversation:
+        logger.warning(
+            f"[REMINDER] Conversation not found: {conversation_id}, "
+            f"reminder_id={reminder.get('reminder_id')}, will mark as completed"
+        )
         return None, None, None
 
     user = user_dao.get_user_by_id(reminder["user_id"])
     character = user_dao.get_user_by_id(reminder["character_id"])
     if not user or not character:
+        logger.warning(
+            f"[REMINDER] User or character not found, "
+            f"reminder_id={reminder.get('reminder_id')}, will mark as completed"
+        )
         return None, None, None
 
     return conversation, user, character

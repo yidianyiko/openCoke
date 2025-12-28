@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 
 from bson import ObjectId
 
+from agent.prompt.character import get_character_prompt
 from agent.util.message_util import messages_to_str
 from dao.mongo import MongoDBBase
 from util.time_util import date2str, timestamp2str
@@ -145,6 +146,18 @@ def context_prepare(user, character, conversation):
     # BUG-006 Medium fix: Validate user and character IDs are not None
     if not user.get("_id") or not character.get("_id"):
         raise ValueError("Invalid user or character ID: _id cannot be None")
+
+    # ========== 使用文件配置的角色提示词 ==========
+    # 优先从 Python 文件读取，便于版本控制和快速迭代
+    character_name = character.get("name", "")
+    file_based_prompt = get_character_prompt(character_name)
+    if file_based_prompt:
+        # 确保 user_info 存在
+        if "user_info" not in context["character"]:
+            context["character"]["user_info"] = {}
+        # 使用文件配置覆盖数据库中的 description
+        context["character"]["user_info"]["description"] = file_based_prompt
+        logger.debug(f"[CharacterPrompt] 使用文件配置的提示词: {character_name}")
 
     mongo = MongoDBBase()
     relation = mongo.find_one(
