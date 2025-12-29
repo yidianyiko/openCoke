@@ -348,8 +348,13 @@ class ReminderDAO:
         if status_list is None:
             status_list = ["confirmed", "pending"]
 
+        # BUG-010 fix: Empty or whitespace-only keyword should not match anything
+        if not keyword or not keyword.strip():
+            logger.warning(f"Empty keyword provided for user {user_id}, returning empty list")
+            return []
+
         # BUG-005 Medium fix: Escape regex special characters to prevent injection
-        safe_keyword = re.escape(keyword)
+        safe_keyword = re.escape(keyword.strip())
 
         query = {
             "user_id": user_id,

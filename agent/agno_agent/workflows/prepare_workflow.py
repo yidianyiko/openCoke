@@ -53,7 +53,6 @@ class PrepareWorkflow:
     输出：
    -session_state["orchestrator"]-OrchestratorAgent 的输出
    -session_state["context_retrieve"]-context_retrieve_tool 的输出
-   -session_state["reminder_result"]-ReminderDetectAgent 的输出 (如果有)
 
     兼容性：
    -session_state["query_rewrite"]-保留旧字段，从 orchestrator 映射

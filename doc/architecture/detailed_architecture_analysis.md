@@ -499,12 +499,6 @@ session_state = {
         "user": "...",
         "character_knowledge": "...",
         "confirmed_reminders": "..."
-    },
-    
-    # 提醒执行结果 (如果有)
-    "reminder_result": {
-        "ok": True,
-        "reminder_id": "xxx"
     }
 }
 ```
@@ -699,27 +693,11 @@ def mark_as_triggered(self, reminder_id: str) -> bool:
     return result.modified_count > 0
 ```
 
-**时间窗口控制**
-
-```python
-def find_pending_reminders(self, current_time: int, time_window: int = 60) -> List[Dict]:
-    """查找待触发的提醒，使用60秒时间窗口防止重复触发"""
-    query = {
-        "status": {"$in": ["confirmed", "pending"]},
-        "next_trigger_time": {
-            "$lte": current_time,
-            "$gte": current_time - time_window  # 60秒时间窗口
-        }
-    }
-    return list(self.collection.find(query))
-```
-
 #### 8.4.3 防护特性
 
 | 特性 | 说明 |
 |------|------|
 | 状态隔离 | 触发后立即将状态改为 `triggered`，避免重复查询 |
-| 时间窗口 | 60秒时间窗口，减少误触发风险 |
 | 周期支持 | 周期提醒重新调度时状态正确恢复 |
 | 完成标记 | 非周期提醒触发后标记为 `completed` |
 

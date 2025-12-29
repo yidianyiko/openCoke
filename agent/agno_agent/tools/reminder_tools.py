@@ -29,6 +29,7 @@ from agno.tools import tool
 
 from dao.reminder_dao import ReminderDAO
 from util.time_util import format_time_friendly, parse_relative_time, str2timestamp
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -2015,6 +2016,66 @@ def _delete_reminder_by_keyword(
         return {"ok": False, "error": str(e)}
 
 
+def _format_time_with_date(timestamp: int) -> str:
+    """
+    格式化时间戳为带完整日期的友好格式
+
+    Args:
+        timestamp: Unix时间戳
+
+    Returns:
+        str: 完整日期时间，如 "12月30日 星期二 下午4点45分"
+    """
+    dt = datetime.fromtimestamp(timestamp)
+
+    # 日期部分
+    date_str = f"{dt.month}月{dt.day}日"
+
+    # 星期部分
+    weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+    weekday_str = weekdays[dt.weekday()]
+
+    # 时间部分
+    hour = dt.hour
+    minute = dt.minute
+    if hour < 12:
+        period = "上午"
+    elif hour < 18:
+        period = "下午"
+        if hour > 12:
+            hour = hour - 12
+    else:
+        period = "晚上"
+        if hour > 12:
+            hour = hour - 12
+
+    time_str = f"{period}{hour}点"
+    if minute > 0:
+        time_str += f"{minute}分"
+
+    return f"{date_str} {weekday_str} {time_str}"
+
+
+def _get_status_indicator(status: str) -> str:
+    """
+    获取状态的友好指示符
+
+    Args:
+        status: 提醒状态
+
+    Returns:
+        str: 状态指示符，如 "✓已完成" / "⏳待执行"
+    """
+    status_map = {
+        "confirmed": "⏳待执行",
+        "pending": "⏳待执行",
+        "triggered": "🔔已触发",
+        "completed": "✓已完成",
+        "cancelled": "✗已取消",
+    }
+    return status_map.get(status, status)
+
+
 def _list_reminders(
     reminder_dao: ReminderDAO, user_id: str, include_all: bool = False
 ) -> dict:
@@ -2040,15 +2101,20 @@ def _list_reminders(
         formatted_reminders = []
         reminder_summaries = []
         for i, reminder in enumerate(reminders, 1):
+            trigger_time = reminder.get("next_trigger_time", 0)
+            status = reminder.get("status", "")
+
             formatted = {
                 "reminder_id": reminder.get("reminder_id"),
                 "title": reminder.get("title"),
-                "status": reminder.get("status"),
-                "next_trigger_time": reminder.get("next_trigger_time"),
+                "status": status,
+                "status_display": _get_status_indicator(status),
+                "next_trigger_time": trigger_time,
                 "time_friendly": (
-                    format_time_friendly(reminder.get("next_trigger_time", 0))
-                    if reminder.get("next_trigger_time")
-                    else ""
+                    format_time_friendly(trigger_time) if trigger_time else ""
+                ),
+                "time_with_date": (
+                    _format_time_with_date(trigger_time) if trigger_time else ""
                 ),
                 "recurrence": reminder.get("recurrence", {}),
                 "created_at": reminder.get("created_at"),
@@ -2056,15 +2122,18 @@ def _list_reminders(
             }
             formatted_reminders.append(formatted)
 
-            # 构建简洁的提醒摘要
+            # 构建简洁的提醒摘要（包含完整日期和状态）
             title = reminder.get("title", "")
-            time_friendly = formatted["time_friendly"] or "未设置时间"
-            reminder_summaries.append(f"{i}.{title}({time_friendly})")
+            time_with_date = formatted["time_with_date"] or "未设置时间"
+            status_indicator = _get_status_indicator(status)
+            reminder_summaries.append(
+                f"{i}.{title}({time_with_date}) [{status_indicator}]"
+            )
 
         # 语义化输出查询结果
         if formatted_reminders:
             summary_str = " ".join(reminder_summaries)
-            semantic_message = f"查询成功：用户当前有{len(formatted_reminders)}个待执行的提醒：{summary_str}"
+            semantic_message = f"查询成功：用户当前有{len(formatted_reminders)}个提醒：{summary_str}"
         else:
             semantic_message = "查询成功：用户当前没有待执行的提醒"
         _save_reminder_result_to_session(
