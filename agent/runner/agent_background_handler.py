@@ -290,6 +290,8 @@ async def handle_pending_future_message():
     """
     lock = None
     conversation_id = None
+    conversation = None  # 用于异常时清理
+    original_future_timestamp = None  # 用于异常时清理 processing 状态
 
     try:
         now = int(time.time())
@@ -300,7 +302,7 @@ async def handle_pending_future_message():
             query={
                 "conversation_info.future.action": {"$ne": None, "$exists": True},
                 "conversation_info.future.timestamp": {"$lt": now, "$gt": now-1800},
-                "conversation_info.future.status": {"$ne": "expired"},
+                "conversation_info.future.status": {"$nin": ["expired", "processing"]},
                 "$or": [
                     {"conversation_info.future.proactive_times": {"$exists": False}},
                     {"conversation_info.future.proactive_times": {"$lt": 2}},
@@ -388,6 +390,21 @@ async def handle_pending_future_message():
 
         # 成功获取锁，清除冷却记录
         _lock_cooldown_cache.pop(conversation_id, None)
+
+        # ========== 立即标记 future 状态为 processing，防止并发重复处理 ==========
+        original_future_timestamp = conversation["conversation_info"]["future"].get("timestamp")
+        modified_count = mongo.update_one(
+            "conversations",
+            {
+                "_id": conversation["_id"],
+                "conversation_info.future.timestamp": original_future_timestamp,
+                "conversation_info.future.status": {"$nin": ["expired", "processing"]},
+            },
+            {"$set": {"conversation_info.future.status": "processing"}}
+        )
+        if modified_count == 0:
+            logger.info(f"[FUTURE] future 消息已被其他进程处理，跳过: conversation_id={conversation_id}")
+            return
 
         # 处理拉黑逻辑
         from agent.runner.context import (
@@ -500,15 +517,14 @@ async def handle_pending_future_message():
 
         # 清除 future 记录 - 使用原子更新避免竞态条件
         # 注意：不能用 replace_one，因为 PostAnalyzeWorkflow 在后台可能已更新了 future
-        # 需要检查 timestamp 是否仍是当前处理的那个，避免覆盖新的 future 规划
-        original_timestamp = conversation["conversation_info"].get("future", {}).get("timestamp")
-        if original_timestamp:
+        # 使用 original_future_timestamp 而不是从 conversation 中重新获取，避免被中间更新影响
+        if original_future_timestamp:
             # 只有当 timestamp 仍是原来的值时才清除（避免覆盖 PostAnalyze 设置的新 future）
             mongo.update_one(
                 "conversations",
                 {
                     "_id": conversation["_id"],
-                    "conversation_info.future.timestamp": original_timestamp
+                    "conversation_info.future.timestamp": original_future_timestamp
                 },
                 {"$set": {"conversation_info.future": {}}}
             )
@@ -522,6 +538,18 @@ async def handle_pending_future_message():
 
     except Exception:
         logger.error(traceback.format_exc())
+        # ========== 异常情况下清除 processing 状态，避免残留 ==========
+        if conversation and original_future_timestamp:
+            mongo.update_one(
+                "conversations",
+                {
+                    "_id": conversation["_id"],
+                    "conversation_info.future.timestamp": original_future_timestamp,
+                    "conversation_info.future.status": "processing"
+                },
+                {"$set": {"conversation_info.future": {}}}
+            )
+            logger.info(f"[FUTURE] 异常后清除 processing 状态: conversation_id={conversation_id}")
     finally:
         if conversation_id and lock:
             try:
