@@ -468,8 +468,17 @@ async def handle_pending_future_message():
                             ]
                         )
 
-                    conversation_dao.update_conversation_info(
-                        conversation_id, conversation["conversation_info"]
+                    # 只更新 chat_history 和 photo_history，不更新 future
+                    # future 由后台 PostAnalyzeWorkflow 负责更新，避免竞态条件
+                    mongo.update_one(
+                        "conversations",
+                        {"_id": conversation["_id"]},
+                        {
+                            "$set": {
+                                "conversation_info.chat_history": conversation["conversation_info"].get("chat_history", []),
+                                "conversation_info.photo_history": conversation["conversation_info"].get("photo_history", []),
+                            }
+                        }
                     )
 
                     # 更新关系
@@ -489,9 +498,27 @@ async def handle_pending_future_message():
                 logger.error(f"[FUTURE] handle_message failed: {e}")
                 logger.error(traceback.format_exc())
 
-        # 清除 future 记录
-        conversation["conversation_info"]["future"] = {}
-        mongo.replace_one("conversations", {"_id": conversation["_id"]}, conversation)
+        # 清除 future 记录 - 使用原子更新避免竞态条件
+        # 注意：不能用 replace_one，因为 PostAnalyzeWorkflow 在后台可能已更新了 future
+        # 需要检查 timestamp 是否仍是当前处理的那个，避免覆盖新的 future 规划
+        original_timestamp = conversation["conversation_info"].get("future", {}).get("timestamp")
+        if original_timestamp:
+            # 只有当 timestamp 仍是原来的值时才清除（避免覆盖 PostAnalyze 设置的新 future）
+            mongo.update_one(
+                "conversations",
+                {
+                    "_id": conversation["_id"],
+                    "conversation_info.future.timestamp": original_timestamp
+                },
+                {"$set": {"conversation_info.future": {}}}
+            )
+        else:
+            # 如果原来没有 timestamp，直接清除
+            mongo.update_one(
+                "conversations",
+                {"_id": conversation["_id"]},
+                {"$set": {"conversation_info.future": {}}}  
+            )
 
     except Exception:
         logger.error(traceback.format_exc())

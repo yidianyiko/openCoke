@@ -28,6 +28,8 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
+from bson import ObjectId
+
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -185,12 +187,17 @@ async def _run_post_analyze_background(
                 update=relation_update,
             )
 
-        # 更新 conversation.future 到数据库
+        # 只更新 conversation.future 字段到数据库
+        # 注意：不能更新整个 conversation_info，会覆盖主流程的 chat_history 更新
         if conversation_id:
-            conversation_info = context.get("conversation", {}).get(
+            future_info = context.get("conversation", {}).get(
                 "conversation_info", {}
+            ).get("future", {})
+            mongo.update_one(
+                "conversations",
+                {"_id": ObjectId(conversation_id)},
+                {"$set": {"conversation_info.future": future_info}}
             )
-            conversation_dao.update_conversation_info(conversation_id, conversation_info)
 
         logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 完成")
 
