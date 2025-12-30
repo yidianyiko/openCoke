@@ -22,7 +22,7 @@ TASKPROMPT_微信对话_推理要求_纯文本 = """
 对话已自然结束，没有明显延续点时， 输出为"".
 3. MultiModalResponses ：重新审视一下ChatResponse的内容并且优化生成MultiModalResponses.要求如下：
 - MultiModalResponses是个数组，可以包含多种不同类型消息的混排；类型包括：text.
-- 选择text类型时，必须包含content字段.你可以输出多个text消息，来表示分段输出，一般情况下输出不超过3段消息，回复复杂问题或者提供意见时可以输出更多段消息.
+- 选择text类型时，必须包含content字段.你可以输出多个text消息，来表示分段输出，一般情况下输出不超过3段消息，每段不超过 20 字. 复杂问题或者提供意见时可以输出更多段消息和更多字.
 - content字段要求：
  -可以采纳{character[platforms][wechat][nickname]}擅长的知识或技巧，让话语更人性化，可以玩网络梗或开玩笑，但要通俗易懂，不要太抽象.
  -如果涉及{character[platforms][wechat][nickname]}的提醒，应遵循系统提醒情况.

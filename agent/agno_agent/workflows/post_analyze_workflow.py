@@ -213,12 +213,19 @@ class PostAnalyzeWorkflow:
                 f"关系变化: closeness={closeness_change}, trustness={trustness_change}"
             )
 
+    # 主动消息次数上限，与 FutureMessageWorkflow 保持一致
+    MAX_PROACTIVE_TIMES = 2
+
     def _handle_future_response(self, content: Dict, session_state: Dict) -> None:
         """
         处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
 
         V2.11 更新：
        -新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
+
+        V2.12 更新：
+       -新增 MAX_PROACTIVE_TIMES 检查，防止主动消息重复触发
+       -当 message_source=future 且 proactive_times >= MAX_PROACTIVE_TIMES 时，跳过设置
 
         Args:
             content: PostAnalyze 返回的内容
@@ -241,6 +248,24 @@ class PostAnalyzeWorkflow:
         if "proactive_times" not in future_info:
             future_info["proactive_times"] = 0
 
+        # V2.12 新增：检查消息来源和主动消息次数
+        message_source = session_state.get("message_source", "user")
+        current_proactive_times = future_info.get("proactive_times", 0)
+
+        # 如果是主动消息/提醒消息，且已达到次数上限，则设置为过期状态并跳过
+        if message_source in ("future", "reminder") and current_proactive_times >= self.MAX_PROACTIVE_TIMES:
+            logger.info(
+                f"[FutureResponse] 主动消息已达上限 ({current_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态"
+            )
+            future_info["status"] = "expired"
+            future_info["timestamp"] = None
+            future_info["action"] = None
+            # 更新回 session_state
+            if "future" not in conversation_info:
+                conversation_info["future"] = {}
+            conversation_info["future"] = future_info
+            return
+
         # 获取未来消息规划
         future_resp = content.get("FutureResponse", {})
         if isinstance(future_resp, str):
@@ -262,20 +287,27 @@ class PostAnalyzeWorkflow:
             future_info["action"] = future_action
 
             # 根据消息来源决定是否重置 proactive_times
-            message_source = session_state.get("message_source", "user")
             if message_source == "user":
                 # 用户消息：重置主动消息次数和状态
                 future_info["proactive_times"] = 0
                 future_info["status"] = "pending"  # 重置状态，允许再次发送主动消息
             else:
                 # 主动消息/提醒消息：递增次数
-                future_info["proactive_times"] = (
-                    future_info.get("proactive_times", 0) + 1
-                )
+                new_proactive_times = current_proactive_times + 1
+                future_info["proactive_times"] = new_proactive_times
 
-            logger.info(
-                f"设置未来消息规划: time={future_time_str}, action={future_action}, proactive_times={future_info['proactive_times']}"
-            )
+                # V2.12 新增：检查是否达到上限
+                if new_proactive_times >= self.MAX_PROACTIVE_TIMES:
+                    future_info["status"] = "expired"
+                    future_info["timestamp"] = None
+                    future_info["action"] = None
+                    logger.info(
+                        f"[FutureResponse] 主动消息达到上限 ({new_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态"
+                    )
+                else:
+                    logger.info(
+                        f"设置未来消息规划: time={future_time_str}, action={future_action}, proactive_times={new_proactive_times}"
+                    )
         else:
             # 清除未来消息规划
             future_info["timestamp"] = None

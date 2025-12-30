@@ -17,6 +17,7 @@ V2.4 更新：
 - 通过 message_source 参数区分消息来源
 """
 
+import asyncio
 import sys
 
 sys.path.append(".")
@@ -150,6 +151,51 @@ def store_messages_background(context: dict, resp_messages: list):
     _embedding_executor.submit(
         _store_messages_for_retrieval_sync, context_copy, resp_messages_copy
     )
+
+
+async def _run_post_analyze_background(
+    context: dict,
+    conversation_id: str,
+    worker_tag: str,
+) -> None:
+    """
+    后台执行 PostAnalyzeWorkflow（Fire-and-Forget 模式）
+
+    优化目的：
+    - 不阻塞主流程，Phase 2 完成后立即返回
+    - 失败时仅记录日志，不影响用户体验
+    - 成功后更新 relation 和 conversation 到数据库
+
+    Args:
+        context: 深拷贝的上下文（避免并发修改）
+        conversation_id: 会话ID
+        worker_tag: 日志标签
+    """
+    try:
+        logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 开始")
+        await post_analyze_workflow.run(session_state=context)
+
+        # 更新 relation 到数据库
+        relation = context.get("relation", {})
+        if relation.get("uid") and relation.get("cid"):
+            relation_update = {k: v for k, v in relation.items() if k != "_id"}
+            mongo.replace_one(
+                "relations",
+                query={"uid": relation["uid"], "cid": relation["cid"]},
+                update=relation_update,
+            )
+
+        # 更新 conversation.future 到数据库
+        if conversation_id:
+            conversation_info = context.get("conversation", {}).get(
+                "conversation_info", {}
+            )
+            conversation_dao.update_conversation_info(conversation_id, conversation_info)
+
+        logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 完成")
+
+    except Exception as e:
+        logger.warning(f"{worker_tag} [BG] PostAnalyzeWorkflow 失败: {e}")
 
 
 def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
@@ -498,10 +544,16 @@ async def handle_message(
                         f"{worker_tag} Phase 3: 提醒消息，跳过 PostAnalyze LLM，proactive_times={future_info['proactive_times']}"
                     )
                 else:
-                    # 用户消息/主动消息：正常执行 PostAnalyze
-                    logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 开始")
-                    await post_analyze_workflow.run(session_state=context)
-                    logger.info(f"{worker_tag} Phase 3: PostAnalyzeWorkflow 完成")
+                    # 用户消息/主动消息：后台执行 PostAnalyze（Fire-and-Forget）
+                    context_copy = copy.deepcopy(context)
+                    asyncio.create_task(
+                        _run_post_analyze_background(
+                            context_copy, conversation_id, worker_tag
+                        )
+                    )
+                    logger.info(
+                        f"{worker_tag} Phase 3: PostAnalyzeWorkflow 已提交后台执行"
+                    )
             elif is_content_blocked:
                 logger.warning(f"{worker_tag} 跳过 Phase 3: 内容安全审核失败")
 
