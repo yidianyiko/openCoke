@@ -69,12 +69,12 @@ def get_future_context_retrieve_instructions(
 # 解决问题：P17, E4, E5-API 限流和网络故障自动重试
 
 
-def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 4096):
+def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 8000):
     """创建带重试配置的 DeepSeek Model
     
     Args:
         model_id: 模型ID
-        max_tokens: 最大输出 token 数，默认 4096
+        max_tokens: 最大输出 token 数，默认 8000（DeepSeek API 最大限制）
     """
     return DeepSeek(
         id=model_id,

@@ -465,7 +465,7 @@ class PostAnalyzeWorkflow:
             compress_agent = Agent(
                 id="relation-compress-agent",
                 name="RelationCompressAgent",
-                model=DeepSeek(id="deepseek-chat", max_retries=1, max_tokens=1024),
+                model=DeepSeek(id="deepseek-chat", max_retries=1, max_tokens=8000),
                 markdown=False,
             )
 

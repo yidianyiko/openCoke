@@ -110,13 +110,13 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 #-E5: 网络临时故障直接失败
 
 
-def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 4096):
+def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 8000):
     """
     创建带重试配置的 DeepSeek Model
 
     Args:
         model_id: 模型ID
-        max_tokens: 最大输出 token 数，默认 4096
+        max_tokens: 最大输出 token 数，默认 8000（DeepSeek API 最大限制）
                     解决问题：LLM 输出被截断导致 JSON 解析失败
                     ("Unterminated string" 错误)
 
