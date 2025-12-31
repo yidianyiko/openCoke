@@ -1,0 +1,334 @@
+{
+  "test_cases_continued": [
+    {
+      "id": "recurrence_daily_001",
+      "name": "每天重复提醒",
+      "category": "recurrence",
+      "tags": ["daily", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每天早上8点提醒我吃早餐"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "每天", "8点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "早餐",
+        "trigger_time": {"hour": 8, "minute": 0},
+        "recurrence": {"enabled": true, "type": "daily"}
+      }
+    },
+    {
+      "id": "recurrence_daily_002",
+      "name": "每天晚上提醒",
+      "category": "recurrence",
+      "tags": ["daily", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每天晚上10点提醒我睡觉"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "每天", "10点", "22"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "睡觉",
+        "trigger_time": {"hour": 22, "minute": 0},
+        "recurrence": {"enabled": true, "type": "daily"}
+      }
+    },
+    {
+      "id": "recurrence_weekly_001",
+      "name": "每周固定提醒",
+      "category": "recurrence",
+      "tags": ["weekly", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每周五下午5点提醒我写周报"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "每周五", "周五", "5点", "17"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "周报",
+        "trigger_time": {"weekday": 5, "hour": 17, "minute": 0},
+        "recurrence": {"enabled": true, "type": "weekly"}
+      }
+    },
+    {
+      "id": "recurrence_weekly_002",
+      "name": "每周一提醒",
+      "category": "recurrence",
+      "tags": ["weekly", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每周一早上9点提醒我开周会"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "每周一", "周一", "9点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "周会",
+        "trigger_time": {"weekday": 1, "hour": 9, "minute": 0},
+        "recurrence": {"enabled": true, "type": "weekly"}
+      }
+    },
+    {
+      "id": "recurrence_workday_001",
+      "name": "工作日重复提醒",
+      "category": "recurrence",
+      "tags": ["workday", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每个工作日早上9点提醒我打卡"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "工作日", "9点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "打卡",
+        "trigger_time": {"hour": 9, "minute": 0},
+        "recurrence": {"enabled": true}
+      }
+    },
+    {
+      "id": "recurrence_weekend_001",
+      "name": "周末重复提醒",
+      "category": "recurrence",
+      "tags": ["weekend", "recurrence"],
+      "conversation": [
+        {"role": "user", "content": "每个周末上午10点提醒我运动"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "周末", "10点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "运动",
+        "trigger_time": {"hour": 10, "minute": 0},
+        "recurrence": {"enabled": true}
+      }
+    },
+    {
+      "id": "recurrence_interval_001",
+      "name": "间隔重复-带时间段追问",
+      "category": "recurrence",
+      "tags": ["interval", "recurrence", "followup", "multi_turn"],
+      "conversation": [
+        {"role": "user", "content": "每30分钟提醒我喝水"},
+        {"role": "assistant", "expect": {"type": "followup", "contains_any": ["几点到几点", "时间段", "什么时候开始", "什么时候结束"]}},
+        {"role": "user", "content": "上午9点到下午6点"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "30分钟", "9点", "6点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "喝水",
+        "recurrence": {"enabled": true, "type": "interval", "interval": 30}
+      }
+    },
+    {
+      "id": "recurrence_interval_002",
+      "name": "间隔重复-每小时",
+      "category": "recurrence",
+      "tags": ["interval", "recurrence", "followup", "multi_turn"],
+      "conversation": [
+        {"role": "user", "content": "每小时提醒我休息一下眼睛"},
+        {"role": "assistant", "expect": {"type": "followup", "contains_any": ["几点到几点", "时间段", "什么时候", "开始", "结束"]}},
+        {"role": "user", "content": "早上8点到晚上8点"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "每小时", "8点"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "眼睛",
+        "recurrence": {"enabled": true, "type": "interval", "interval": 60}
+      }
+    },
+    {
+      "id": "random_check_001",
+      "name": "随机抽查-一小时内",
+      "category": "recurrence",
+      "tags": ["random", "single"],
+      "conversation": [
+        {"role": "user", "content": "一小时内随机抽查我背单词"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "随机", "抽查", "一小时"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "单词",
+        "trigger_time": {"relative_minutes_max": 60}
+      }
+    },
+    {
+      "id": "crud_list_001",
+      "name": "查询提醒列表-有提醒",
+      "category": "crud",
+      "tags": ["list", "read"],
+      "setup": {"create_reminder": {"title": "测试提醒A", "relative_minutes": 60}},
+      "conversation": [
+        {"role": "user", "content": "我有哪些提醒"},
+        {"role": "assistant", "expect": {"type": "list", "contains_any": ["测试提醒A", "提醒", "个"]}}
+      ],
+      "final_db_state": {}
+    },
+    {
+      "id": "crud_list_002",
+      "name": "查询提醒列表-查看待办",
+      "category": "crud",
+      "tags": ["list", "read"],
+      "setup": {"create_reminder": {"title": "待办事项B", "relative_minutes": 120}},
+      "conversation": [
+        {"role": "user", "content": "查看我的提醒"},
+        {"role": "assistant", "expect": {"type": "list", "contains_any": ["待办事项B", "提醒", "个"]}}
+      ],
+      "final_db_state": {}
+    },
+    {
+      "id": "crud_update_001",
+      "name": "修改提醒时间",
+      "category": "crud",
+      "tags": ["update", "modify"],
+      "setup": {"create_reminder": {"title": "开会提醒", "hour": 14, "minute": 0}},
+      "conversation": [
+        {"role": "user", "content": "把开会的提醒改到下午3点"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "修改", "改", "3点", "15"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "开会",
+        "trigger_time": {"hour": 15, "minute": 0}
+      }
+    },
+    {
+      "id": "crud_update_002",
+      "name": "修改提醒内容",
+      "category": "crud",
+      "tags": ["update", "modify"],
+      "setup": {"create_reminder": {"title": "买菜", "hour": 17, "minute": 0}},
+      "conversation": [
+        {"role": "user", "content": "把买菜的提醒改成买水果"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "修改", "改", "水果"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "水果",
+        "trigger_time": {"hour": 17, "minute": 0}
+      }
+    },
+    {
+      "id": "crud_update_003",
+      "name": "修改提醒-同时改时间和内容",
+      "category": "crud",
+      "tags": ["update", "modify"],
+      "setup": {"create_reminder": {"title": "健身", "hour": 18, "minute": 0}},
+      "conversation": [
+        {"role": "user", "content": "把健身的提醒改成晚上7点去跑步"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "修改", "改", "跑步", "7点", "19"]}}
+      ],
+      "final_db_state": {
+        "reminder_exists": true,
+        "title_contains": "跑步",
+        "trigger_time": {"hour": 19, "minute": 0}
+      }
+    },
+    {
+      "id": "crud_delete_001",
+      "name": "删除单个提醒",
+      "category": "crud",
+      "tags": ["delete", "single"],
+      "setup": {"create_reminder": {"title": "取快递", "hour": 16, "minute": 0}},
+      "conversation": [
+        {"role": "user", "content": "取消取快递的提醒"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "取消", "删除", "快递"]}}
+      ],
+      "final_db_state": {
+        "reminder_not_exists": true,
+        "title_contains": "快递"
+      }
+    },
+    {
+      "id": "crud_delete_002",
+      "name": "删除提醒-关键字匹配",
+      "category": "crud",
+      "tags": ["delete", "keyword"],
+      "setup": {"create_reminder": {"title": "喝水提醒", "hour": 15, "minute": 0}},
+      "conversation": [
+        {"role": "user", "content": "删除喝水的提醒"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "取消", "删除", "喝水"]}}
+      ],
+      "final_db_state": {
+        "reminder_not_exists": true,
+        "title_contains": "喝水"
+      }
+    },
+    {
+      "id": "crud_delete_003",
+      "name": "删除所有提醒",
+      "category": "crud",
+      "tags": ["delete", "all"],
+      "setup": {"create_reminders": [
+        {"title": "提醒1", "relative_minutes": 30},
+        {"title": "提醒2", "relative_minutes": 60}
+      ]},
+      "conversation": [
+        {"role": "user", "content": "删除我所有的提醒"},
+        {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "删除", "全部", "所有"]}}
+      ],
+      "final_db_state": {
+        "no_active_reminders": true
+      }
+    },
+    {
+      "id": "combo_create_update_delete_001",
+      "name": "组合-创建修改删除",
+      "category": "combo",
+      "tags": ["combo", "multi_step"],
+      "steps": [
+        {
+          "conversation": [
+            {"role": "user", "content": "明天上午10点提醒我面试"},
+            {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "面试", "10点"]}}
+          ],
+          "verify": {"reminder_exists": true, "title_contains": "面试"}
+        },
+        {
+          "conversation": [
+            {"role": "user", "content": "把面试改到11点"},
+            {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "修改", "11点"]}}
+          ],
+          "verify": {"reminder_exists": true, "title_contains": "面试", "trigger_time": {"hour": 11}}
+        },
+        {
+          "conversation": [
+            {"role": "user", "content": "取消面试的提醒"},
+            {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "取消", "删除"]}}
+          ],
+          "verify": {"reminder_not_exists": true, "title_contains": "面试"}
+        }
+      ]
+    },
+    {
+      "id": "combo_create_list_001",
+      "name": "组合-创建后查询",
+      "category": "combo",
+      "tags": ["combo", "multi_step"],
+      "steps": [
+        {
+          "conversation": [
+            {"role": "user", "content": "下午3点提醒我开会"},
+            {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "放心", "已", "开会", "3点"]}}
+          ],
+          "verify": {"reminder_exists": true, "title_contains": "开会"}
+        },
+        {
+          "conversation": [
+            {"role": "user", "content": "我有什么提醒"},
+            {"role": "assistant", "expect": {"type": "list", "contains_any": ["开会", "3点", "15"]}}
+          ],
+          "verify": {}
+        }
+      ]
+    },
+    {
+      "id": "combo_multi_create_001",
+      "name": "组合-批量创建",
+      "category": "combo",
+      "tags": ["combo", "multi_step", "batch"],
+      "steps": [
+        {
+          "conversation": [
+            {"role": "user", "content": "帮我设两个提醒，一个是下午2点开会，一个是下午5点下班"},
+            {"role": "assistant", "expect": {"type": "ack", "contains_any": ["好的", "没问题", "已", "开会", "下班", "2点", "5点"]}}
+          ],
+          "verify": {"reminders_count_gte": 2}
+        }
+      ]
+    }
+  ]
+}

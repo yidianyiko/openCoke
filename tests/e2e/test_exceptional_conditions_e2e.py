@@ -114,7 +114,6 @@ class TestMissingRequiredFields:
     def test_reminder_missing_required_fields(self):
         """测试缺失必要字段的提醒"""
         incomplete_reminder = {
-            "reminder_id": str(uuid.uuid4()),
             # 缺少 user_id, title, next_trigger_time, status
         }
 
@@ -186,7 +185,6 @@ class TestBoundaryValues:
 
         for ts in boundary_timestamps:
             reminder = {
-                "reminder_id": str(uuid.uuid4()),
                 "next_trigger_time": ts,
             }
             assert reminder["next_trigger_time"] == ts
@@ -242,7 +240,6 @@ class TestConcurrentProcessing:
 
         def create_reminder(i):
             return {
-                "reminder_id": str(uuid.uuid4()),
                 "user_id": f"user_{i % 10}",
                 "title": f"提醒_{i}",
                 "next_trigger_time": base_time + 3600 + i,
@@ -255,9 +252,9 @@ class TestConcurrentProcessing:
 
         # 验证所有提醒都被创建
         assert len(reminders) == 100
-        # 验证ID唯一
-        reminder_ids = [r["reminder_id"] for r in reminders]
-        assert len(set(reminder_ids)) == 100
+        # 验证 title 唯一（_id 由 MongoDB 插入时生成）
+        reminder_titles = [r["title"] for r in reminders]
+        assert len(set(reminder_titles)) == 100
 
     def test_interleaved_user_messages(self):
         """测试交错的多用户消息"""
@@ -638,7 +635,6 @@ class TestStateCorruption:
         """测试不一致的提醒状态"""
         # 已触发但未设置触发时间
         inconsistent_reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "triggered",
             "triggered_count": 0,  # 应该 > 0
             "last_triggered_at": None,  # 应该有值

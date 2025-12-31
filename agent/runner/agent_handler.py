@@ -18,6 +18,7 @@ V2.4 更新：
 """
 
 import asyncio
+import os
 import sys
 
 sys.path.append(".")
@@ -552,15 +553,21 @@ async def handle_message(
                     )
                 else:
                     # 用户消息/主动消息：后台执行 PostAnalyze（Fire-and-Forget）
-                    context_copy = copy.deepcopy(context)
-                    asyncio.create_task(
-                        _run_post_analyze_background(
-                            context_copy, conversation_id, worker_tag
+                    # E2E 测试时可通过环境变量 SKIP_POST_ANALYZE=1 跳过
+                    if os.environ.get("SKIP_POST_ANALYZE") == "1":
+                        logger.info(
+                            f"{worker_tag} Phase 3: SKIP_POST_ANALYZE=1，跳过 PostAnalyze"
                         )
-                    )
-                    logger.info(
-                        f"{worker_tag} Phase 3: PostAnalyzeWorkflow 已提交后台执行"
-                    )
+                    else:
+                        context_copy = copy.deepcopy(context)
+                        asyncio.create_task(
+                            _run_post_analyze_background(
+                                context_copy, conversation_id, worker_tag
+                            )
+                        )
+                        logger.info(
+                            f"{worker_tag} Phase 3: PostAnalyzeWorkflow 已提交后台执行"
+                        )
             elif is_content_blocked:
                 logger.warning(f"{worker_tag} 跳过 Phase 3: 内容安全审核失败")
 

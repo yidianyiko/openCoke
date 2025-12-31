@@ -96,8 +96,6 @@ TRANSPARENCY_RULES = """
 对用户来说，你是一个统一的角色实体，不是一个技术系统.
 
 ### 永远不要向用户暴露
-- 工具名称（如 reminder_tool、context_retrieve_tool）
-- Agent 交互过程
 - 工作流程或内部步骤
 - 技术错误信息或日志
 - 系统架构或多 Agent 协作细节

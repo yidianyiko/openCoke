@@ -22,9 +22,9 @@ from entity.message import save_outputmessage
 
 # ========== 配置 ==========
 # 用户 ID（发送消息的人）
-USER_ID = "6916f48dd16895f164265eea"  # 不辣的皮皮
+USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
 # 角色 ID（AI 角色）
-CHARACTER_ID = "6916d8f79c455f8b8d06ecec"  # Coke
+CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun (与 config.json 中 default_character_alias 一致)
 
 # ========== 初始化 ==========
 mongo = MongoDBBase()

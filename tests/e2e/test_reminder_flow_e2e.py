@@ -29,16 +29,14 @@ class TestReminderFlowE2E:
     # ============ 基本结构测试 ============
 
     def test_reminder_creation_flow(self, sample_reminder):
-        """测试提醒创建流程"""
+        """测试提醒创建流程（_id 由 MongoDB 插入时生成）"""
         assert sample_reminder is not None
-        assert "reminder_id" in sample_reminder
         assert "title" in sample_reminder
         assert "next_trigger_time" in sample_reminder
 
     def test_reminder_structure(self, sample_reminder):
-        """测试提醒数据结构"""
+        """测试提醒数据结构（不含 _id，_id 由 MongoDB 插入时生成）"""
         required_keys = [
-            "reminder_id",
             "user_id",
             "character_id",
             "title",
@@ -74,12 +72,10 @@ class TestReminderFlowE2E:
     def test_create_one_time_reminder(self):
         """测试创建一次性提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "character_id": "test_char",
             "conversation_id": "test_conv",
             "title": "开会提醒",
-            "action_template": "提醒：开会",
             "next_trigger_time": int(time.time()) + 3600,
             "time_original": "1小时后",
             "timezone": "Asia/Shanghai",
@@ -93,7 +89,6 @@ class TestReminderFlowE2E:
     def test_create_daily_reminder(self):
         """测试创建每日提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "character_id": "test_char",
             "title": "每日吃药提醒",
@@ -112,7 +107,6 @@ class TestReminderFlowE2E:
     def test_create_weekly_reminder(self):
         """测试创建每周提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "character_id": "test_char",
             "title": "每周例会提醒",
@@ -132,7 +126,6 @@ class TestReminderFlowE2E:
     def test_create_monthly_reminder(self):
         """测试创建每月提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "character_id": "test_char",
             "title": "月初报表提醒",
@@ -154,7 +147,6 @@ class TestReminderFlowE2E:
     def test_reminder_status_confirmed(self):
         """测试已确认状态的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "confirmed",
             "next_trigger_time": int(time.time()) + 3600,
         }
@@ -164,7 +156,6 @@ class TestReminderFlowE2E:
     def test_reminder_status_pending(self):
         """测试待确认状态的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "pending",
             "next_trigger_time": int(time.time()) + 3600,
         }
@@ -174,7 +165,6 @@ class TestReminderFlowE2E:
     def test_reminder_status_triggered(self):
         """测试已触发状态的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "triggered",
             "last_triggered_at": int(time.time()),
             "triggered_count": 1,
@@ -186,7 +176,6 @@ class TestReminderFlowE2E:
     def test_reminder_status_cancelled(self):
         """测试已取消状态的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "cancelled",
         }
 
@@ -195,7 +184,6 @@ class TestReminderFlowE2E:
     def test_reminder_status_completed(self):
         """测试已完成状态的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "completed",
         }
 
@@ -209,7 +197,6 @@ class TestReminderFlowE2E:
         future_time = current_time + 3600  # 1小时后
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": future_time,
         }
 
@@ -221,7 +208,6 @@ class TestReminderFlowE2E:
         past_time = current_time - 3600  # 1小时前
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": past_time,
         }
 
@@ -234,13 +220,11 @@ class TestReminderFlowE2E:
 
         # 在时间窗口内的提醒
         reminder_in_window = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time - 30,
         }
 
         # 在时间窗口外的提醒
         reminder_out_window = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time - 120,
         }
 
@@ -323,7 +307,6 @@ class TestReminderFlowE2E:
         msg = get_reminder_trigger_message("reminder_001", "开会提醒")
         assert msg["type"] == "system"
         assert msg["source"] == "reminder"
-        assert msg["reminder_id"] == "reminder_001"
         assert msg["title"] == "开会提醒"
 
     # ============ 去重检测测试 ============
@@ -334,14 +317,12 @@ class TestReminderFlowE2E:
         time_tolerance = 300  # 5分钟
 
         reminder1 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "开会提醒",
             "next_trigger_time": trigger_time,
         }
 
         reminder2 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "开会提醒",
             "next_trigger_time": trigger_time + 60,  # 1分钟后
@@ -358,14 +339,12 @@ class TestReminderFlowE2E:
         time_tolerance = 300  # 5分钟
 
         reminder1 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "开会提醒",
             "next_trigger_time": trigger_time,
         }
 
         reminder2 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "开会提醒",
             "next_trigger_time": trigger_time + 7200,  # 2小时后
@@ -380,9 +359,9 @@ class TestReminderFlowE2E:
     def test_keyword_search_exact_match(self):
         """测试关键字精确匹配"""
         reminders = [
-            {"reminder_id": "1", "title": "开会提醒", "status": "confirmed"},
-            {"reminder_id": "2", "title": "吃药提醒", "status": "confirmed"},
-            {"reminder_id": "3", "title": "开会通知", "status": "confirmed"},
+            {"_id": "1", "title": "开会提醒", "status": "confirmed"},
+            {"_id": "2", "title": "吃药提醒", "status": "confirmed"},
+            {"_id": "3", "title": "开会通知", "status": "confirmed"},
         ]
 
         keyword = "开会"
@@ -392,9 +371,9 @@ class TestReminderFlowE2E:
     def test_keyword_search_partial_match(self):
         """测试关键字部分匹配"""
         reminders = [
-            {"reminder_id": "1", "title": "每日健身提醒", "status": "confirmed"},
-            {"reminder_id": "2", "title": "健身房预约", "status": "confirmed"},
-            {"reminder_id": "3", "title": "吃早餐", "status": "confirmed"},
+            {"_id": "1", "title": "每日健身提醒", "status": "confirmed"},
+            {"_id": "2", "title": "健身房预约", "status": "confirmed"},
+            {"_id": "3", "title": "吃早餐", "status": "confirmed"},
         ]
 
         keyword = "健身"
@@ -404,8 +383,8 @@ class TestReminderFlowE2E:
     def test_keyword_search_no_match(self):
         """测试关键字无匹配"""
         reminders = [
-            {"reminder_id": "1", "title": "开会提醒", "status": "confirmed"},
-            {"reminder_id": "2", "title": "吃药提醒", "status": "confirmed"},
+            {"_id": "1", "title": "开会提醒", "status": "confirmed"},
+            {"_id": "2", "title": "吃药提醒", "status": "confirmed"},
         ]
 
         keyword = "睡觉"
@@ -420,7 +399,6 @@ class TestReminderFlowE2E:
         daily_interval = 86400  # 24小时
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time,
             "recurrence": {
                 "enabled": True,
@@ -440,7 +418,6 @@ class TestReminderFlowE2E:
         weekly_interval = 86400 * 7  # 7天
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time,
             "recurrence": {
                 "enabled": True,
@@ -461,7 +438,6 @@ class TestReminderFlowE2E:
         long_title = "这是一个非常长的提醒标题" * 10
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": long_title,
             "status": "confirmed",
         }
@@ -473,7 +449,6 @@ class TestReminderFlowE2E:
         special_title = "提醒：\n换行\t制表符<html>"
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": special_title,
             "status": "confirmed",
         }
@@ -486,7 +461,6 @@ class TestReminderFlowE2E:
         emoji_title = "🎉 生日派对提醒 🎂"
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": emoji_title,
             "status": "confirmed",
         }
@@ -508,7 +482,6 @@ class TestReminderFlowE2E:
         current_time = int(time.time())
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "created_at": current_time,
             "updated_at": current_time,
             "next_trigger_time": current_time + 3600,
@@ -520,7 +493,6 @@ class TestReminderFlowE2E:
     def test_reminder_triggered_count(self):
         """测试提醒触发次数"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "triggered_count": 0,
         }
 
@@ -640,14 +612,12 @@ class TestReminderTimeParsing:
 
         # 刚好在当前时间
         reminder_now = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time,
         }
         assert reminder_now["next_trigger_time"] == current_time
 
         # 1秒后
         reminder_soon = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time + 1,
         }
         assert reminder_soon["next_trigger_time"] > current_time
@@ -666,7 +636,6 @@ class TestReminderConflicts:
         trigger_time = int(time.time()) + 3600
 
         reminder1 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "开会",
             "next_trigger_time": trigger_time,
@@ -674,7 +643,6 @@ class TestReminderConflicts:
         }
 
         reminder2 = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "吃药",
             "next_trigger_time": trigger_time,  # 同一时间
@@ -690,7 +658,6 @@ class TestReminderConflicts:
 
         reminders = [
             {
-                "reminder_id": str(uuid.uuid4()),
                 "user_id": "test_user",
                 "title": "开会",
                 "next_trigger_time": base_time + i * 3600,
@@ -726,7 +693,6 @@ class TestReminderCancellation:
     def test_cancel_single_reminder(self):
         """测试取消单个提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "confirmed",
             "title": "要取消的提醒",
         }
@@ -738,9 +704,9 @@ class TestReminderCancellation:
     def test_cancel_multiple_reminders_by_keyword(self):
         """测试按关键字取消多个提醒"""
         reminders = [
-            {"reminder_id": "1", "title": "开会-上午", "status": "confirmed"},
-            {"reminder_id": "2", "title": "开会-下午", "status": "confirmed"},
-            {"reminder_id": "3", "title": "吃药", "status": "confirmed"},
+            {"_id": "1", "title": "开会-上午", "status": "confirmed"},
+            {"_id": "2", "title": "开会-下午", "status": "confirmed"},
+            {"_id": "3", "title": "吃药", "status": "confirmed"},
         ]
 
         keyword = "开会"
@@ -750,7 +716,7 @@ class TestReminderCancellation:
     def test_cancel_nonexistent_reminder(self):
         """测试取消不存在的提醒"""
         reminders = [
-            {"reminder_id": "1", "title": "开会", "status": "confirmed"},
+            {"_id": "1", "title": "开会", "status": "confirmed"},
         ]
 
         keyword = "不存在的关键字"
@@ -760,7 +726,6 @@ class TestReminderCancellation:
     def test_cancel_already_triggered_reminder(self):
         """测试取消已触发的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "status": "triggered",
             "title": "已触发的提醒",
             "last_triggered_at": int(time.time()),
@@ -784,7 +749,6 @@ class TestRecurringReminders:
         daily_interval = 86400
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": current_time,
             "recurrence": {
                 "enabled": True,
@@ -800,7 +764,6 @@ class TestRecurringReminders:
     def test_weekly_recurrence_with_specific_days(self):
         """测试每周特定天的周期"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": int(time.time()),
             "recurrence": {
                 "enabled": True,
@@ -815,7 +778,6 @@ class TestRecurringReminders:
     def test_monthly_recurrence_end_of_month(self):
         """测试每月末周期"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": int(time.time()),
             "recurrence": {
                 "enabled": True,
@@ -831,7 +793,6 @@ class TestRecurringReminders:
     def test_recurring_reminder_max_triggers(self):
         """测试周期提醒最大触发次数"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "recurrence": {
                 "enabled": True,
                 "type": "daily",
@@ -857,7 +818,6 @@ class TestReminderEdgeCases:
         long_title = "这是一个非常非常长的提醒标题" * 100  # ~2000字符
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": long_title,
             "status": "confirmed",
         }
@@ -867,7 +827,6 @@ class TestReminderEdgeCases:
     def test_reminder_with_empty_title(self):
         """测试空标题的提醒"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": "",
             "status": "confirmed",
         }
@@ -879,7 +838,6 @@ class TestReminderEdgeCases:
         special_title = "<script>alert('xss')</script> 提醒\n\t特殊字符"
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "title": special_title,
             "status": "confirmed",
         }
@@ -890,7 +848,6 @@ class TestReminderEdgeCases:
     def test_reminder_negative_trigger_time(self):
         """测试负数触发时间"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": -1000,
             "status": "confirmed",
         }
@@ -900,7 +857,6 @@ class TestReminderEdgeCases:
     def test_reminder_zero_trigger_time(self):
         """测试零时间戳触发时间（纪元时间）"""
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": 0,
             "status": "confirmed",
         }
@@ -912,7 +868,6 @@ class TestReminderEdgeCases:
         far_future = int(time.time()) + 86400 * 365 * 10  # 10年后
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "next_trigger_time": far_future,
             "status": "confirmed",
         }
@@ -982,7 +937,6 @@ class TestConcurrentReminderOperations:
 
         reminders = [
             {
-                "reminder_id": str(uuid.uuid4()),
                 "user_id": f"user_{i}",
                 "title": "同时提醒",
                 "next_trigger_time": trigger_time,
@@ -990,9 +944,9 @@ class TestConcurrentReminderOperations:
             for i in range(10)
         ]
 
-        # 验证所有提醒都有唯一ID
-        reminder_ids = [r["reminder_id"] for r in reminders]
-        assert len(set(reminder_ids)) == 10
+        # 验证所有提醒都有唯一 user_id
+        user_ids = [r["user_id"] for r in reminders]
+        assert len(set(user_ids)) == 10
 
     def test_rapid_reminder_creation(self):
         """测试快速创建多个提醒"""
@@ -1000,7 +954,6 @@ class TestConcurrentReminderOperations:
 
         reminders = [
             {
-                "reminder_id": str(uuid.uuid4()),
                 "user_id": "test_user",
                 "title": f"快速提醒_{i}",
                 "next_trigger_time": base_time + 3600 + i,
@@ -1019,7 +972,6 @@ class TestConcurrentReminderOperations:
         # 创建多个在触发窗口内的提醒
         pending_reminders = [
             {
-                "reminder_id": str(uuid.uuid4()),
                 "user_id": "test_user",
                 "next_trigger_time": current_time - i * 10,
                 "status": "confirmed",
@@ -1045,9 +997,8 @@ class TestReminderDataIntegrity:
     """提醒数据完整性测试"""
 
     def test_reminder_required_fields(self):
-        """测试提醒必要字段"""
+        """测试提醒必要字段（不含 _id，_id 由 MongoDB 插入时生成）"""
         required_fields = [
-            "reminder_id",
             "user_id",
             "title",
             "next_trigger_time",
@@ -1055,7 +1006,6 @@ class TestReminderDataIntegrity:
         ]
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "user_id": "test_user",
             "title": "测试提醒",
             "next_trigger_time": int(time.time()) + 3600,
@@ -1075,7 +1025,6 @@ class TestReminderDataIntegrity:
         current_time = int(time.time())
 
         reminder = {
-            "reminder_id": str(uuid.uuid4()),
             "created_at": current_time,
             "updated_at": current_time,
             "next_trigger_time": current_time + 3600,
