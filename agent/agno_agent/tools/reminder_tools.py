@@ -1271,7 +1271,7 @@ class _BatchOperationContext:
     MIN_INTERVAL_INFINITE = 60  # 无限重复提醒最小间隔：60分钟
     MIN_INTERVAL_PERIOD = 25  # 时间段提醒最小间隔：25分钟
     DEFAULT_MAX_TRIGGERS = 10
-    TIME_TOLERANCE = 300  # 去重时间容差（秒）
+    TIME_TOLERANCE = 180  # 去重时间容差（秒），与 _TIME_TOLERANCE 保持一致
 
     def __init__(
         self,
@@ -1689,13 +1689,17 @@ def _batch_operations(
 
     # 保存结果到 session
     # V2.12: intent_fulfilled 只有在没有失败时才为 True
-    # 如果有任何失败，即使部分成功，也应该告知用户哪些失败了
+    # V2.13: 如果有跳过的重复提醒，也视为意图未完全满足，模型需要告知用户
+    # 如果有任何失败或重复，即使部分成功，也应该告知用户
     has_failures = len(summary["failed"]) > 0
+    has_duplicates = len(summary["duplicate"]) > 0
+    # 意图满足条件：有成功、无失败、无重复跳过
+    intent_fulfilled = success_count > 0 and not has_failures and not has_duplicates
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="批量操作提醒",
         action_executed="batch",
-        intent_fulfilled=(success_count > 0 and not has_failures),
+        intent_fulfilled=intent_fulfilled,
         details={
             "total": len(operations_list),
             "success": success_count,
