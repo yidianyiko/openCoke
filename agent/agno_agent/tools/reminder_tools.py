@@ -16,7 +16,6 @@ Supports:
 Requirements: 3.2, 3.3, 3.4
 
 Fix: 使用 contextvars 解决 asyncio 环境下多协程并发时的跨用户数据污染问题
-     (threading.local 只能隔离线程，无法隔离同一线程内的不同协程)
 """
 
 import contextvars
@@ -2161,3 +2160,67 @@ def _list_reminders(
             intent_fulfilled=False,
         )
         return {"ok": False, "error": str(e)}
+
+
+# ========== Reminder Context Tool ==========
+# 用于 ReminderDetectAgent 在无法直接创建提醒时，向 ChatResponseAgent 传递上下文
+# 简化设计：只需一个 message 参数，让 LLM 决定如何向用户提问
+
+
+@tool(
+    stop_after_tool_call=True,
+    description="""提醒上下文工具，用于在无法直接创建提醒时，向 ChatAgent 传递上下文信息。
+
+## 使用场景
+当检测到提醒意图，但无法直接创建提醒时使用：
+- 时间模糊："晚一点"、"待会"等
+- 信息不完整：缺少提醒内容或时间
+- 日期不确定：凌晨说"8点"，需确认今天还是明天
+
+## 参数
+- message: 描述需要向用户确认什么信息，ChatAgent 会根据此信息生成回复
+
+## 示例
+- "用户想设置洗澡提醒，但'晚一点'时间模糊，需询问具体时间"
+- "用户说下午三点，但没说提醒什么，需询问内容"
+- "凌晨2点用户说'8点提醒我开会'，需确认是今天还是明天"
+""",
+)
+def reminder_context_tool(
+    message: str,
+    session_state: Optional[dict] = None,
+) -> dict:
+    """
+    设置提醒上下文，供 ChatResponseAgent 使用
+
+    Args:
+        message: 描述需要向用户确认什么信息
+        session_state: Agno 框架自动注入的会话状态
+
+    Returns:
+        操作结果字典
+    """
+    # 获取 session_state
+    current_session_state = (
+        session_state if session_state else _get_current_session_state()
+    )
+
+    if session_state:
+        _context_session_state.set(session_state)
+
+    if not message:
+        return {"ok": False, "error": "message 参数不能为空"}
+
+    # 保存到 session_state
+    _save_reminder_result_to_session(
+        message,
+        session_state=current_session_state,
+        user_intent="创建提醒",
+        action_executed="context_set",
+        intent_fulfilled=False,
+        details={"message": message},
+    )
+
+    logger.info(f"Reminder context set: {message}")
+
+    return {"ok": True, "message": message}

@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from bson import ObjectId
 import pytest
 
 # Ensure project root is in path
@@ -517,7 +518,7 @@ class TestRealReminder:
         
         for i in range(50):
             try:
-                reminder_id = reminder_dao.create_reminder({
+                reminder_doc = {
                     "user_id": test_user_id,
                     "character_id": test_char_id,
                     "conversation_id": test_conv_id,
@@ -526,8 +527,14 @@ class TestRealReminder:
                     "next_trigger_time": int(time.time()) + 3600 + i,
                     "status": "confirmed",
                     "recurrence": {"enabled": False}
-                })
-                created_reminders.append(reminder_id)
+                }
+                reminder_id = reminder_dao.create_reminder(reminder_doc)
+                created_reminders.append(
+                    {
+                        "object_id": reminder_id,
+                        "reminder_id": reminder_doc.get("reminder_id"),
+                    }
+                )
             except Exception as e:
                 errors.append((i, str(e)))
         
@@ -536,9 +543,16 @@ class TestRealReminder:
         # Cleanup created reminders
         for reminder in created_reminders:
             try:
-                reminder_dao.collection.delete_one({"_id": reminder})
+                reminder_dao.collection.delete_one(
+                    {"_id": ObjectId(reminder["object_id"])}
+                )
             except Exception:
-                pass
+                try:
+                    reminder_dao.collection.delete_one(
+                        {"reminder_id": reminder.get("reminder_id")}
+                    )
+                except Exception:
+                    pass
         
         if errors:
             bug_collector.add_bug(
@@ -586,7 +600,7 @@ class TestRealReminder:
                 if similar:
                     duplicates_found.append(i)
                 else:
-                    reminder_id = reminder_dao.create_reminder({
+                    reminder_doc = {
                         "user_id": test_user_id,
                         "character_id": test_char_id,
                         "conversation_id": test_conv_id,
@@ -595,17 +609,30 @@ class TestRealReminder:
                         "next_trigger_time": trigger_time,
                         "status": "confirmed",
                         "recurrence": {"enabled": False, "type": "none"}
-                    })
-                    created_reminders.append(reminder_id)
+                    }
+                    reminder_id = reminder_dao.create_reminder(reminder_doc)
+                    created_reminders.append(
+                        {
+                            "object_id": reminder_id,
+                            "reminder_id": reminder_doc.get("reminder_id"),
+                        }
+                    )
             except Exception as e:
                 pass  # Ignore errors in this test
         
         # Cleanup
         for reminder in created_reminders:
             try:
-                reminder_dao.collection.delete_one({"_id": reminder})
+                reminder_dao.collection.delete_one(
+                    {"_id": ObjectId(reminder["object_id"])}
+                )
             except Exception:
-                pass
+                try:
+                    reminder_dao.collection.delete_one(
+                        {"reminder_id": reminder.get("reminder_id")}
+                    )
+                except Exception:
+                    pass
         
         # Should have detected duplicates
         if len(created_reminders) > 1 and len(duplicates_found) == 0:
