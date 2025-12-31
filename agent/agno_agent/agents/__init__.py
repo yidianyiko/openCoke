@@ -22,6 +22,7 @@ from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.prompt.agent_instructions_prompt import (
+    DESCRIPTION_ORCHESTRATOR,
     INSTRUCTIONS_CHAT_RESPONSE,
     INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_POST_ANALYZE,
@@ -166,12 +167,18 @@ reminder_detect_agent = Agent(
 )
 
 
-# OrchestratorAgent-V2 架构核心，语义理解 + 调度决策
+# OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
 # 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
+#
+# 设计原则（参考 Agno 框架标准）：
+# - description: 角色身份（你是谁）
+# - instructions: 决策逻辑（怎么做决策）
+# - output_schema: 格式约束（输出什么格式）
 orchestrator_agent = Agent(
     id="orchestrator-agent",
     name="OrchestratorAgent",
     model=create_deepseek_model(),
+    description=DESCRIPTION_ORCHESTRATOR,
     instructions=get_orchestrator_instructions(),
     output_schema=OrchestratorResponse,
     use_json_mode=True,
