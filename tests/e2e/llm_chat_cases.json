@@ -1,0 +1,216 @@
+{
+  "description": "LLM 聊天 E2E 测试用例 - 真实 LLM 调用",
+  "version": "1.1",
+  "test_user_id": "692c14aaa538f0baad5561b3",
+  "character_id": "692c147e972f64f2b65da6ee",
+  "config": {
+    "response_timeout_seconds": 180,
+    "poll_interval_seconds": 1.0
+  },
+  "test_cases": [
+    {
+      "id": "basic_001",
+      "name": "简单问候-你好",
+      "category": "basic_chat",
+      "tags": ["greeting", "single"],
+      "conversation": [
+        {"role": "user", "content": "你好"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["你好", "好", "嗨", "hi", "Hi", "哈喽", "在", "嘿", "哎", "呀", "~", "！", "呢", "哦", "啊", "嘛", "吗"]}}
+      ]
+    },
+    {
+      "id": "basic_002",
+      "name": "简单问候-早上好",
+      "category": "basic_chat",
+      "tags": ["greeting", "single"],
+      "conversation": [
+        {"role": "user", "content": "早上好"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["早", "好", "morning", "起", "醒", "~", "！", "呢", "哦", "啊"]}}
+      ]
+    },
+    {
+      "id": "basic_003",
+      "name": "简单问候-晚安",
+      "category": "basic_chat",
+      "tags": ["greeting", "single"],
+      "conversation": [
+        {"role": "user", "content": "晚安"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["晚安", "安", "睡", "梦", "好梦", "休息", "night", "~", "！", "哦", "啦", "觉"]}}
+      ]
+    },
+    {
+      "id": "question_001",
+      "name": "简单问题-天气",
+      "category": "question",
+      "tags": ["question", "single"],
+      "conversation": [
+        {"role": "user", "content": "今天天气怎么样？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["天气", "晴", "阴", "雨", "冷", "热", "温度", "度", "风", "不知道", "不太清楚", "看看", "查", "外面", "今天"]}}
+      ]
+    },
+    {
+      "id": "question_002",
+      "name": "简单问题-在干嘛",
+      "category": "question",
+      "tags": ["question", "single"],
+      "conversation": [
+        {"role": "user", "content": "你在干嘛呢？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["在", "正在", "刚", "呢", "忙", "休息", "玩", "看", "听", "想", "等", "陪", "聊", "没", "干嘛", "做"]}}
+      ]
+    },
+    {
+      "id": "question_003",
+      "name": "简单问题-吃了吗",
+      "category": "question",
+      "tags": ["question", "single"],
+      "conversation": [
+        {"role": "user", "content": "吃饭了吗？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["吃", "饭", "没", "还", "刚", "正", "饿", "饱", "呢", "了", "嘛", "你"]}}
+      ]
+    },
+    {
+      "id": "multi_turn_001",
+      "name": "多轮对话-记住名字",
+      "category": "multi_turn",
+      "tags": ["context", "multi_turn"],
+      "conversation": [
+        {"role": "user", "content": "我叫小明"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["小明", "名字", "好", "嗯", "知道", "记", "你好", "认识", "叫"]}},
+        {"role": "user", "content": "你还记得我叫什么吗？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["小明", "记得", "知道", "当然", "是", "叫"]}}
+      ]
+    },
+    {
+      "id": "multi_turn_002",
+      "name": "多轮对话-话题延续",
+      "category": "multi_turn",
+      "tags": ["context", "multi_turn"],
+      "conversation": [
+        {"role": "user", "content": "我今天心情不太好"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["怎么", "什么", "发生", "心情", "不好", "难过", "伤心", "抱", "陪", "聊", "说", "听", "关心", "没事", "好", "吗", "呢", "？"]}},
+        {"role": "user", "content": "因为工作太累了"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["累", "工作", "辛苦", "休息", "放松", "压力", "忙", "加班", "理解", "心疼", "抱", "陪", "好好", "注意"]}}
+      ]
+    },
+    {
+      "id": "emoji_001",
+      "name": "表情输入-单个表情",
+      "category": "edge_case",
+      "tags": ["emoji", "single"],
+      "conversation": [
+        {"role": "user", "content": "😊"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["😊", "😄", "🙂", "开心", "笑", "心情", "好", "嘿", "哈", "~", "！", "呢", "嘛", "？"]}}
+      ]
+    },
+    {
+      "id": "emoji_002",
+      "name": "表情输入-多个表情",
+      "category": "edge_case",
+      "tags": ["emoji", "single"],
+      "conversation": [
+        {"role": "user", "content": "😄🎉👍"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["开心", "高兴", "棒", "好", "庆祝", "恭喜", "什么", "怎么", "嘿", "哈", "~", "！", "呢", "嘛", "？", "😄", "🎉", "👍"]}}
+      ]
+    },
+    {
+      "id": "emoji_003",
+      "name": "表情输入-文字加表情",
+      "category": "edge_case",
+      "tags": ["emoji", "single"],
+      "conversation": [
+        {"role": "user", "content": "今天好开心啊😄"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["开心", "高兴", "好", "棒", "什么", "怎么", "恭喜", "太好了", "真好", "嘿", "哈", "~", "！", "呢", "嘛", "？"]}}
+      ]
+    },
+    {
+      "id": "special_001",
+      "name": "特殊字符-标点符号",
+      "category": "edge_case",
+      "tags": ["special_char", "single"],
+      "conversation": [
+        {"role": "user", "content": "测试特殊字符：@#$%^&*()"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["测试", "特殊", "字符", "什么", "怎么", "干嘛", "？", "哈", "好", "嗯", "哦", "呢"]}}
+      ]
+    },
+    {
+      "id": "special_002",
+      "name": "特殊字符-中文标点",
+      "category": "edge_case",
+      "tags": ["special_char", "single"],
+      "conversation": [
+        {"role": "user", "content": "你好！这是测试，对吧？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["对", "是", "嗯", "好", "测试", "什么", "没错", "哈", "呢", "吗", "？"]}}
+      ]
+    },
+    {
+      "id": "long_001",
+      "name": "长文本输入",
+      "category": "edge_case",
+      "tags": ["long_text", "single"],
+      "conversation": [
+        {"role": "user", "content": "这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。这是一段很长的测试文本。"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["长", "文本", "测试", "好", "嗯", "哦", "什么", "怎么", "干嘛", "？", "呢", "说"]}}
+      ]
+    },
+    {
+      "id": "emotion_001",
+      "name": "情感表达-开心",
+      "category": "emotion",
+      "tags": ["emotion", "single"],
+      "conversation": [
+        {"role": "user", "content": "我今天升职了，好开心！"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["恭喜", "开心", "高兴", "棒", "厉害", "太好了", "真好", "升职", "祝贺", "为你", "替你", "！"]}}
+      ]
+    },
+    {
+      "id": "emotion_002",
+      "name": "情感表达-难过",
+      "category": "emotion",
+      "tags": ["emotion", "single"],
+      "conversation": [
+        {"role": "user", "content": "我今天被老板骂了，好难过"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["难过", "伤心", "抱", "心疼", "没事", "别", "不要", "会好", "陪", "理解", "委屈", "辛苦", "老板", "骂"]}}
+      ]
+    },
+    {
+      "id": "emotion_003",
+      "name": "情感表达-无聊",
+      "category": "emotion",
+      "tags": ["emotion", "single"],
+      "conversation": [
+        {"role": "user", "content": "好无聊啊，不知道干什么"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["无聊", "干", "做", "玩", "看", "聊", "陪", "一起", "推荐", "建议", "要不", "不如", "可以", "？"]}}
+      ]
+    },
+    {
+      "id": "daily_001",
+      "name": "日常对话-分享美食",
+      "category": "daily",
+      "tags": ["daily", "single"],
+      "conversation": [
+        {"role": "user", "content": "我刚吃了一顿火锅，太好吃了"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["火锅", "好吃", "吃", "馋", "羡慕", "喜欢", "什么", "哪", "味道", "辣", "真好", "太好了", "！"]}}
+      ]
+    },
+    {
+      "id": "daily_002",
+      "name": "日常对话-周末计划",
+      "category": "daily",
+      "tags": ["daily", "single"],
+      "conversation": [
+        {"role": "user", "content": "周末你有什么计划吗？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["周末", "计划", "打算", "想", "要", "去", "玩", "休息", "在家", "出去", "没", "还", "你", "呢"]}}
+      ]
+    },
+    {
+      "id": "daily_003",
+      "name": "日常对话-推荐电影",
+      "category": "daily",
+      "tags": ["daily", "single"],
+      "conversation": [
+        {"role": "user", "content": "有什么好看的电影推荐吗？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["电影", "推荐", "看", "喜欢", "类型", "最近", "好看", "片", "剧", "什么", "哪", "？"]}}
+      ]
+    }
+  ]
+}

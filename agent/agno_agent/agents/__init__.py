@@ -16,10 +16,8 @@ from typing import Any, Dict
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
-from agent.agno_agent.schemas.chat_response_schema import ChatResponse
 from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
-from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.prompt.agent_instructions_prompt import (
     DESCRIPTION_ORCHESTRATOR,
@@ -135,18 +133,6 @@ def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 800
 
 # ========== 模块级预创建 Agent ==========
 
-# QueryRewriteAgent-问题重写，生成检索查询词
-# Requirements: 4.1
-query_rewrite_agent = Agent(
-    id="query-rewrite-agent",
-    name="QueryRewriteAgent",
-    model=create_deepseek_model(),
-    instructions=INSTRUCTIONS_QUERY_REWRITE,
-    output_schema=QueryRewriteResponse,
-    use_json_mode=True,
-    markdown=False,
-)
-
 # ReminderDetectAgent-提醒检测，识别提醒意图并创建提醒
 # Requirements: 4.2
 #
@@ -185,19 +171,6 @@ orchestrator_agent = Agent(
     markdown=False,
 )
 
-# ChatResponseAgent-对话生成，基于角色人设生成多模态回复
-# Requirements: 4.4
-# 添加 use_json_mode=True 避免 structured output 解析失败
-chat_response_agent = Agent(
-    id="chat-response-agent",
-    name="ChatResponseAgent",
-    model=create_deepseek_model(),
-    instructions=INSTRUCTIONS_CHAT_RESPONSE,
-    output_schema=ChatResponse,
-    use_json_mode=True,
-    markdown=False,
-)
-
 # PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
 # Requirements: 4.4
 #
@@ -227,9 +200,7 @@ __all__ = [
     "get_reminder_detect_instructions",
     "get_orchestrator_instructions",
     # 预创建 Agent
-    "query_rewrite_agent",
     "reminder_detect_agent",
     "orchestrator_agent",  # V2 架构核心
-    "chat_response_agent",
     "post_analyze_agent",
 ]

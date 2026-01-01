@@ -21,8 +21,11 @@ tests/
 │   ├── test_vector_pbt.py
 │   └── test_str_util_pbt.py
 └── e2e/              # 端到端测试
+    ├── conftest.py           # E2E fixtures (terminal_client)
     ├── test_chat_flow_e2e.py
-    └── test_reminder_flow_e2e.py
+    ├── test_reminder_flow_e2e.py
+    ├── test_llm_chat_e2e.py      # 真实 LLM 聊天测试
+    └── test_llm_reminder_e2e.py  # 真实 LLM 提醒测试
 ```
 
 ## 运行测试
@@ -74,6 +77,7 @@ pytest tests/unit/test_util_str.py::TestRemoveChinese::test_pure_chinese
 - `@pytest.mark.slow` - 耗时较长的测试
 - `@pytest.mark.pbt` - 属性测试（Property-Based Testing）
 - `@pytest.mark.e2e` - 端到端测试
+- `@pytest.mark.llm` - 需要真实 LLM 调用的测试（需要 agent_start.sh 运行中）
 
 ## 测试覆盖率目标
 

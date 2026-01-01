@@ -374,65 +374,11 @@ class TestRelationAndMemoryUpdate(unittest.TestCase):
 
 
 class TestMultiModalMessages(unittest.TestCase):
-    """测试多模态消息处理（Happy Path 9）"""
+    """测试多模态消息处理（Happy Path 9）
 
-    @classmethod
-    def setUpClass(cls):
-        if should_use_real_api():
-            print("\n" + "=" * 70)
-            print("集成测试-多模态消息处理")
-            print("=" * 70)
-
-    @requires_real_api("deepseek")
-    def test_multimodal_response_generation(self):
-        """测试生成多模态回复"""
-        print("\n[测试 9.1] ChatResponseAgent-多模态回复")
-
-        from agent.agno_agent.agents import chat_response_agent
-        from bson import ObjectId
-
-        # 准备可能触发多模态回复的场景
-        session_state = {
-            "latest_message": "给我看看你的照片",
-            "character": {
-                "_id": ObjectId(),
-                "name": "小助手",
-                "platforms": {"wechat": {"nickname": "小助手"}},
-            },
-            "user": {
-                "_id": ObjectId(),
-                "platforms": {"wechat": {"nickname": "测试用户"}},
-            },
-            "conversation": {
-                "_id": ObjectId(),
-                "conversation_info": {"chat_history": []},
-            },
-            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "MultiModalResponses": [],
-        }
-
-        try:
-            response = chat_response_agent.run(
-                input="生成回复", session_state=session_state
-            )
-
-            self.assertIsNotNone(response)
-            content = response.content.model_dump()
-            responses = content.get("MultiModalResponses", [])
-
-            print(f"  ✓ 生成了 {len(responses)} 条回复")
-
-            # 统计回复类型
-            types = {}
-            for resp in responses:
-                resp_type = resp.get("type", "unknown")
-                types[resp_type] = types.get(resp_type, 0) + 1
-
-            for resp_type, count in types.items():
-                print(f"  ✓ {resp_type}: {count} 条")
-
-        except Exception as e:
-            print(f"  ℹ 测试执行失败: {str(e)[:100]}")
+    已移除对预创建 ChatResponseAgent 的依赖；此用例不再执行。
+    """
+    pass
 
 
 class TestReminderOperations(unittest.TestCase):

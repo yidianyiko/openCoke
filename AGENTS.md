@@ -32,3 +32,11 @@
 ## Configuration & Operational Notes
 - Secrets and endpoints should live in `.env`; `agent_start.sh` exports `env=aliyun` by default and supports toggling background agents via `DISABLE_DAILY_AGENTS` and `DISABLE_BACKGROUND_AGENTS`.
 - Logs default to `agent/runner/agent.log`; clean stale locks via `agent_start.sh --force-clean` if the runner was interrupted.
+
+## Deprecations / Removed Agents
+- Removed pre-created `query_rewrite_agent` and non‑streaming `chat_response_agent` from `agent/agno_agent/agents/__init__.py`.
+  - Rationale: Production path uses `OrchestratorAgent` for intent/params and `StreamingChatWorkflow` for chat; these pre-created agents were not used at runtime.
+  - Impact: No effect on production workflows. Tests that referenced these agents were removed or adjusted.
+  - Current production agents:
+    - `orchestrator_agent`, `reminder_detect_agent`, `post_analyze_agent`
+    - Future message: `future_message_query_rewrite_agent`, `future_message_context_retrieve_agent`, `future_message_chat_agent`

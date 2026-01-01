@@ -302,7 +302,7 @@ def _save_reminder_result_to_session(
 """,
 )
 def reminder_tool(
-    action: str,
+    action: Optional[str] = None,  # LLM 有时会漏传此参数，设为可选以便在函数内处理
     session_state: Optional[dict] = None,  # Agno 框架会自动注入 session_state
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
@@ -353,6 +353,14 @@ def reminder_tool(
     # 修正 LLM 可能传递的嵌套参数格式问题
     if isinstance(action, dict) and "action" in action:
         action = action["action"]
+
+    # 处理 action 缺失的情况
+    if action is None:
+        logger.error("reminder_tool: action 参数缺失，LLM 未正确传递")
+        return {
+            "ok": False,
+            "error": "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）",
+        }
 
     # 手动验证 action 值
     valid_actions = ("create", "batch", "update", "delete", "list")
