@@ -631,14 +631,12 @@ async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> No
             conversation_id, reminder
         )
         if not all([conversation, user, character]):
-            # 上下文获取失败，批量完成该会话下的所有有效提醒，避免重复日志
-            completed = reminder_dao.complete_reminders_by_conversation(
-                conversation_id
-            )
+            # 上下文获取失败，标记提醒为完成状态避免无限重试
             logger.info(
-                f"[REMINDER] Context fetch failed for reminder {reminder.get('reminder_id')} "
-                f"(conversation={conversation_id}), completed {completed} pending reminders to prevent retries"
+                f"[REMINDER] Context fetch failed for reminder {reminder.get('reminder_id')}, "
+                "marking as completed to prevent infinite retries"
             )
+            reminder_dao.complete_reminder(reminder["reminder_id"])
             return
 
         # 检查用户关系状态

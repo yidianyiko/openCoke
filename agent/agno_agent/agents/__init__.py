@@ -20,10 +20,9 @@ from agent.agno_agent.schemas.chat_response_schema import ChatResponse
 from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.schemas.query_rewrite_schema import QueryRewriteResponse
-from agent.agno_agent.tools.reminder_tools import reminder_context_tool, reminder_tool
+from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.prompt.agent_instructions_prompt import (
     DESCRIPTION_ORCHESTRATOR,
-    DESCRIPTION_REMINDER_DETECT,
     INSTRUCTIONS_CHAT_RESPONSE,
     INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_POST_ANALYZE,
@@ -148,26 +147,20 @@ query_rewrite_agent = Agent(
     markdown=False,
 )
 
-# ReminderDetectAgent - 提醒检测，识别提醒意图并创建提醒
-# 设计原则（参考 Agno 框架标准）：
-# - description: 角色身份（你是谁）
-# - instructions: 决策逻辑（怎么做决策）
-# - 本 Agent 使用 Tool Calling，格式约束在 Tool 参数中定义
-#
+# ReminderDetectAgent-提醒检测，识别提醒意图并创建提醒
 # Requirements: 4.2
 #
 # 重要修复 (2025-12-23):
-# - 在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
-# - 问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
+#-在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
+#-问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
 #   导致大量无效的 API 请求（观察到单次处理 50+ 次 POST 请求）
-# - tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
-# - stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
+#-tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
+#-stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
     model=create_deepseek_model(),
-    description=DESCRIPTION_REMINDER_DETECT,
-    tools=[reminder_tool, reminder_context_tool],
+    tools=[reminder_tool],
     tool_call_limit=1,  # 限制为1次调用，使用 batch_create 处理多任务
     instructions=get_reminder_detect_instructions(),
     markdown=False,

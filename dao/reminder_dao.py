@@ -300,25 +300,6 @@ class ReminderDAO:
         """完成提醒（非周期提醒触发后）"""
         return self.update_reminder(reminder_id, {"status": "completed"})
 
-    def complete_reminders_by_conversation(self, conversation_id: str) -> int:
-        """批量完成某个会话下的所有有效提醒，避免孤儿提醒反复触发"""
-        if not conversation_id:
-            return 0
-
-        result = self.collection.update_many(
-            {
-                "conversation_id": conversation_id,
-                "status": {"$in": ["confirmed", "pending"]},
-            },
-            {
-                "$set": {
-                    "status": "completed",
-                    "updated_at": int(time.time()),
-                }
-            },
-        )
-        return result.modified_count
-
     def reschedule_reminder(self, reminder_id: str, next_time: int) -> bool:
         """重新安排提醒时间（用于周期提醒），将状态重置为 confirmed"""
         return self.update_reminder(
