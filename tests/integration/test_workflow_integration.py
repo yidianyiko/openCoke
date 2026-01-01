@@ -36,12 +36,3 @@ class TestWorkflowIntegration:
             assert post_analyze_workflow is not None
         except ImportError:
             pytest.skip("post_analyze_workflow 模块导入失败")
-
-    def test_future_message_workflow_import(self):
-        """测试 future message workflow 导入"""
-        try:
-            from agent.agno_agent.workflows import future_message_workflow
-
-            assert future_message_workflow is not None
-        except ImportError:
-            pytest.skip("future_message_workflow 模块导入失败")

@@ -104,116 +104,11 @@ class TestFutureMessageAgents(unittest.TestCase):
 class TestFutureMessageWorkflow(unittest.TestCase):
     """测试 FutureMessageWorkflow"""
 
-    def test_workflow_has_run_method(self):
-        """测试 Workflow 有 run 方法"""
-        from agent.agno_agent.workflows.future_message_workflow import (
-            FutureMessageWorkflow,
-        )
-
-        workflow = FutureMessageWorkflow()
-        self.assertTrue(hasattr(workflow, "run"))
-        self.assertTrue(callable(workflow.run))
-
-    def test_workflow_has_templates(self):
-        """测试 Workflow 有 prompt 模板"""
-        from agent.agno_agent.workflows.future_message_workflow import (
-            FutureMessageWorkflow,
-        )
-
-        workflow = FutureMessageWorkflow()
-        self.assertTrue(hasattr(workflow, "query_rewrite_userp_template"))
-        self.assertTrue(hasattr(workflow, "chat_userp_template"))
-        self.assertIsInstance(workflow.query_rewrite_userp_template, str)
-        self.assertIsInstance(workflow.chat_userp_template, str)
-
-    def test_build_retrieve_message(self):
-        """测试构建检索消息"""
-        from agent.agno_agent.workflows.future_message_workflow import (
-            FutureMessageWorkflow,
-        )
-
-        workflow = FutureMessageWorkflow()
-
-        query_rewrite = {
-            "CharacterSettingQueryQuestion": "角色的日常习惯",
-            "CharacterSettingQueryKeywords": "习惯,日常",
-            "UserProfileQueryQuestion": "用户的学习情况",
-            "UserProfileQueryKeywords": "学习,进度",
-            "CharacterKnowledgeQueryQuestion": "",
-            "CharacterKnowledgeQueryKeywords": "",
-        }
-
-        session_state = {
-            "character": {"_id": "char123"},
-            "user": {"_id": "user456"},
-            "conversation": {
-                "conversation_info": {"future": {"action": "检查学习进度"}}
-            },
-        }
-
-        message = workflow._build_retrieve_message(query_rewrite, session_state)
-
-        self.assertIn("检查学习进度", message)
-        self.assertIn("角色的日常习惯", message)
-        self.assertIn("char123", message)
-        self.assertIn("user456", message)
-
-    def test_handle_relation_change(self):
-        """测试关系变化处理"""
-        from agent.agno_agent.workflows.future_message_workflow import (
-            FutureMessageWorkflow,
-        )
-
-        workflow = FutureMessageWorkflow()
-
-        content = {"RelationChange": {"Closeness": 2.0, "Trustness": 1.0}}
-
-        session_state = {
-            "relation": {"relationship": {"closeness": 50, "trustness": 50}}
-        }
-
-        workflow._handle_relation_change(content, session_state)
-
-        self.assertEqual(session_state["relation"]["relationship"]["closeness"], 52)
-        self.assertEqual(session_state["relation"]["relationship"]["trustness"], 51)
-
-    def test_handle_relation_change_bounds(self):
-        """测试关系变化边界处理"""
-        from agent.agno_agent.workflows.future_message_workflow import (
-            FutureMessageWorkflow,
-        )
-
-        workflow = FutureMessageWorkflow()
-
-        # 测试上限
-        content = {"RelationChange": {"Closeness": 100, "Trustness": 100}}
-        session_state = {
-            "relation": {"relationship": {"closeness": 90, "trustness": 90}}
-        }
-        workflow._handle_relation_change(content, session_state)
-        self.assertEqual(session_state["relation"]["relationship"]["closeness"], 100)
-        self.assertEqual(session_state["relation"]["relationship"]["trustness"], 100)
-
-        # 测试下限
-        content = {"RelationChange": {"Closeness": -100, "Trustness": -100}}
-        session_state = {
-            "relation": {"relationship": {"closeness": 10, "trustness": 10}}
-        }
-        workflow._handle_relation_change(content, session_state)
-        self.assertEqual(session_state["relation"]["relationship"]["closeness"], 0)
-        self.assertEqual(session_state["relation"]["relationship"]["trustness"], 0)
+    pass
 
 
 class TestFutureMessageWorkflowExport(unittest.TestCase):
     """测试 FutureMessageWorkflow 导出"""
-
-    def test_workflow_exported_from_init(self):
-        """测试 Workflow 从 __init__ 正确导出"""
-        from agent.agno_agent.workflows import FutureMessageWorkflow
-
-        self.assertIsNotNone(FutureMessageWorkflow)
-        workflow = FutureMessageWorkflow()
-        self.assertTrue(hasattr(workflow, "run"))
 
     def test_schema_exported_from_init(self):
         """测试 Schema 从 __init__ 正确导出"""

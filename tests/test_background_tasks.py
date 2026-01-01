@@ -17,9 +17,6 @@ import uuid
 
 import pytest
 
-from agent.agno_agent.services.proactive_message_trigger_service import (
-    ProactiveMessageTriggerService,
-)
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from dao.reminder_dao import ReminderDAO
@@ -189,47 +186,7 @@ class TestBackgroundTasks:
         reminder_dao.delete_reminder(reminder_id)
         reminder_dao.close()
     
-    def test_trigger_proactive_message(self, mongo_client, test_user, test_character, test_conversation):
-        """测试触发主动消息"""
-        conv_dao = ConversationDAO()
-        current_time = int(time.time())
-        
-        # 设置会话的 future 信息（主动消息计划）
-        conversation = conv_dao.get_conversation_by_id(test_conversation)
-        conversation["conversation_info"]["future"] = {
-            "timestamp": current_time-60,  # 1分钟前到期
-            "action": "询问用户今天的学习进度",
-            "proactive_times": 0,
-            "status": "pending"
-        }
-        conv_dao.update_conversation_info(
-            test_conversation,
-            conversation["conversation_info"]
-        )
-        logger.info("✓ 设置主动消息计划")
-        
-        # 使用 ProactiveMessageTriggerService 检查并触发
-        service = ProactiveMessageTriggerService()
-        
-        # 查找到期的会话
-        due_conversations = service._get_due_conversations()
-        
-        # 验证找到了到期的会话
-        due_conv_ids = [str(c.get("_id", "")) for c in due_conversations]
-        assert test_conversation in due_conv_ids
-        logger.info(f"✓ 找到 {len(due_conversations)} 个到期的主动消息会话")
-        
-        # 清理
-        conversation["conversation_info"]["future"] = {
-            "timestamp": None,
-            "action": None,
-            "proactive_times": 0,
-            "status": "pending"
-        }
-        conv_dao.update_conversation_info(
-            test_conversation,
-            conversation["conversation_info"]
-        )
+    # 已移除依赖 ProactiveMessageTriggerService 的用例
     
     def test_recurring_reminder_reschedule(self, mongo_client, test_user):
         """测试周期性提醒的重新安排"""
@@ -333,44 +290,7 @@ class TestBackgroundTasks:
         reminder_dao.delete_reminder(active_reminder["reminder_id"])
         reminder_dao.close()
     
-    def test_proactive_message_limit(self, mongo_client, test_user, test_character, test_conversation):
-        """测试主动消息次数限制"""
-        conv_dao = ConversationDAO()
-        current_time = int(time.time())
-        
-        # 设置已达到上限的主动消息
-        conversation = conv_dao.get_conversation_by_id(test_conversation)
-        conversation["conversation_info"]["future"] = {
-            "timestamp": current_time-60,
-            "action": "询问用户",
-            "proactive_times": 2,  # 已达到上限
-            "status": "pending"
-        }
-        conv_dao.update_conversation_info(
-            test_conversation,
-            conversation["conversation_info"]
-        )
-        
-        # 使用 ProactiveMessageTriggerService 检查
-        service = ProactiveMessageTriggerService()
-        due_conversations = service._get_due_conversations()
-        
-        # 验证不会触发（因为已达到次数上限）
-        due_conv_ids = [str(c.get("_id", "")) for c in due_conversations]
-        assert test_conversation not in due_conv_ids
-        logger.info("✓ 主动消息次数限制生效")
-        
-        # 清理
-        conversation["conversation_info"]["future"] = {
-            "timestamp": None,
-            "action": None,
-            "proactive_times": 0,
-            "status": "pending"
-        }
-        conv_dao.update_conversation_info(
-            test_conversation,
-            conversation["conversation_info"]
-        )
+    # 已移除依赖 ProactiveMessageTriggerService 的用例
 
 
 if __name__ == "__main__":

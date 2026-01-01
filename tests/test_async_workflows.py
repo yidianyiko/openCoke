@@ -35,13 +35,6 @@ class TestAsyncWorkflows(unittest.TestCase):
         workflow = PostAnalyzeWorkflow()
         self.assertTrue(inspect.iscoroutinefunction(workflow.run))
 
-    def test_future_message_workflow_run_is_async(self):
-        """测试 FutureMessageWorkflow.run 是异步方法"""
-        from agent.agno_agent.workflows import FutureMessageWorkflow
-
-        workflow = FutureMessageWorkflow()
-        self.assertTrue(inspect.iscoroutinefunction(workflow.run))
-
     def test_streaming_chat_workflow_run_stream_is_async(self):
         """测试 StreamingChatWorkflow.run_stream 是异步生成器"""
         from agent.agno_agent.workflows import StreamingChatWorkflow
