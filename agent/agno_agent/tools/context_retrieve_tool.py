@@ -416,11 +416,8 @@ def context_retrieve_tool(
             reminder_dao = ReminderDAO()
             current_time = int(time.time())
 
-            # 获取有效状态的提醒（confirmed 和 pending 都是有效状态）
-            all_reminders = []
-            for status in ["confirmed", "pending"]:
-                items = reminder_dao.find_reminders_by_user(user_id, status=status)
-                all_reminders.extend(items)
+            # 获取有效状态的提醒（阶段二状态重构：使用 active 状态）
+            all_reminders = reminder_dao.find_reminders_by_user(user_id, status="active")
 
             lines = []
             for c in all_reminders[:30]:  # 限制最多 30 条

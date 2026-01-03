@@ -392,12 +392,22 @@ class PostAnalyzeWorkflow:
         # 更新用户描述
         user_description = content.get("UserDescription", "")
         if user_description and user_description != "无":
+            # V2.13: 检查是否需要压缩
+            if len(user_description) > self.USER_DESC_COMPRESS_THRESHOLD:
+                logger.info(
+                    f"[用户信息更新] 描述过长({len(user_description)}字)，触发压缩"
+                )
+                user_description = self._compress_user_description(user_description)
             user_info["description"] = user_description
             logger.info(f"[用户信息更新] 描述: {user_description[:50]}...")
 
     # RelationDescription 压缩阈值
     RELATION_DESC_COMPRESS_THRESHOLD = 500  # 超过此长度触发压缩
     RELATION_DESC_TARGET_LENGTH = 300  # 压缩后的目标长度
+
+    # UserDescription 压缩阈值（V2.13 新增）
+    USER_DESC_COMPRESS_THRESHOLD = 800  # 超过此长度触发压缩
+    USER_DESC_TARGET_LENGTH = 500  # 压缩后的目标长度
 
     def _handle_relationship_update(self, content: Dict, session_state: Dict) -> None:
         """
@@ -457,25 +467,65 @@ class PostAnalyzeWorkflow:
         Returns:
             压缩后的关系描述
         """
+        return self._compress_description(
+            description,
+            self.RELATION_DESC_TARGET_LENGTH,
+            "关系描述"
+        )
+
+    def _compress_user_description(self, description: str) -> str:
+        """
+        压缩过长的用户印象描述（V2.13 新增）
+
+        使用 Agno DeepSeek 模型对超长的用户印象描述进行摘要压缩，保留关键信息.
+
+        Args:
+            description: 原始用户印象描述
+
+        Returns:
+            压缩后的用户印象描述
+        """
+        return self._compress_description(
+            description,
+            self.USER_DESC_TARGET_LENGTH,
+            "用户印象描述"
+        )
+
+    def _compress_description(
+        self, description: str, target_length: int, desc_type: str
+    ) -> str:
+        """
+        通用描述压缩方法（V2.13 重构）
+
+        使用 Agno DeepSeek 模型对超长描述进行摘要压缩，保留关键信息.
+
+        Args:
+            description: 原始描述
+            target_length: 压缩后的目标长度
+            desc_type: 描述类型（用于日志）
+
+        Returns:
+            压缩后的描述
+        """
         try:
             from agno.agent import Agent
             from agno.models.deepseek import DeepSeek
 
             # 创建轻量级压缩 Agent
             compress_agent = Agent(
-                id="relation-compress-agent",
-                name="RelationCompressAgent",
+                id="description-compress-agent",
+                name="DescriptionCompressAgent",
                 model=DeepSeek(id="deepseek-chat", max_retries=1, max_tokens=8000),
                 markdown=False,
             )
 
-            compress_prompt = """请将以下关系描述压缩为不超过{self.RELATION_DESC_TARGET_LENGTH}字的摘要.
+            compress_prompt = f"""请将以下{desc_type}压缩为不超过{target_length}字的摘要.
 
 要求：
-1. 保留关系的核心特征（如：专业督促员、朋友等）
-2. 保留最重要的关系变化节点
-3. 删除重复的"没有明显变化"等冗余信息
-4. 保留最新的关系状态
+1. 保留核心特征和关键信息
+2. 保留最重要的变化节点
+3. 删除重复的"没有明显变化"、"进一步强化了"等冗余信息
+4. 保留最新的状态
 5. 直接输出压缩后的描述，不要添加任何解释
 
 原始描述：
@@ -487,16 +537,16 @@ class PostAnalyzeWorkflow:
             if response and response.content:
                 compressed = str(response.content).strip()
                 logger.info(
-                    f"[关系描述压缩] {len(description)}字 -> {len(compressed)}字"
+                    f"[{desc_type}压缩] {len(description)}字 -> {len(compressed)}字"
                 )
                 return compressed
             else:
                 raise ValueError("压缩响应为空")
 
         except Exception as e:
-            logger.warning(f"[关系描述压缩] 压缩失败: {e}，使用截断方式")
+            logger.warning(f"[{desc_type}压缩] 压缩失败: {e}，使用截断方式")
             # 压缩失败时，简单截断保留最新部分
-            return description[-self.RELATION_DESC_TARGET_LENGTH :]
+            return description[-target_length:]
 
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """
