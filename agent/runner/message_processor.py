@@ -43,7 +43,7 @@ from entity.message import (
 # ========== 配置常量 ==========
 MAX_HANDLE_AGE = 3600 * 12  # 只处理12小时以内的消息
 MAX_RETRIES = 3  # 最大重试次数
-MAX_ROLLBACK = 3  # 最大 rollback 次数
+MAX_ROLLBACK = 4  # 最大 rollback 次数
 LOCK_TIMEOUT = 180  # 锁超时时间（秒）
 PLATFORM = "wechat"
 

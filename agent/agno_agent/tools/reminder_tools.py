@@ -373,7 +373,15 @@ def reminder_tool(
 
     # 处理 action 缺失的情况
     if action is None:
+        error_message = "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）"
         logger.error("reminder_tool: action 参数缺失，LLM 未正确传递")
+        _save_reminder_result_to_session(
+            f"提醒操作失败：{error_message}",
+            user_intent="提醒操作",
+            action_executed="unknown",
+            intent_fulfilled=False,
+            details={"error": "action_missing"},
+        )
         return {
             "ok": False,
             "error": "操作类型缺失，请指定 action 参数（create/batch/update/delete/filter/complete）",
