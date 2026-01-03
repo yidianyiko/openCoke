@@ -1629,11 +1629,38 @@ def _batch_op_delete(ctx: _BatchOperationContext, op: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _batch_op_complete(ctx: _BatchOperationContext, op: dict) -> dict:
+    """批量操作：按关键字完成提醒"""
+    keyword = op.get("keyword")
+    if not keyword or not keyword.strip():
+        return {"ok": False, "error": "缺少 keyword（要完成的提醒关键字）"}
+
+    keyword = keyword.strip()
+
+    try:
+        completed_count, completed_reminders = ctx.reminder_dao.complete_reminders_by_keyword(
+            ctx.user_id, keyword
+        )
+        if completed_count > 0:
+            completed_titles = [r.get("title", "") for r in completed_reminders]
+            return {
+                "ok": True,
+                "status": "completed",
+                "keyword": keyword,
+                "completed_count": completed_count,
+                "completed_titles": completed_titles,
+            }
+        return {"ok": False, "error": f"没有找到包含「{keyword}」的待完成提醒"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # 操作处理器映射表
 _BATCH_OP_HANDLERS = {
     "create": _batch_op_create,
     "update": _batch_op_update,
     "delete": _batch_op_delete,
+    "complete": _batch_op_complete,
 }
 
 
@@ -1675,6 +1702,7 @@ def _build_batch_summary(results: list) -> dict:
     duplicate = [r for r in results if r.get("status") == "duplicate"]
     updated = [r for r in results if r.get("status") == "updated"]
     deleted = [r for r in results if r.get("status") == "deleted"]
+    completed = [r for r in results if r.get("status") == "completed"]
     failed = [r for r in results if not r.get("ok")]
 
     return {
@@ -1683,6 +1711,7 @@ def _build_batch_summary(results: list) -> dict:
         "duplicate": duplicate,
         "updated": updated,
         "deleted": deleted,
+        "completed": completed,
         "failed": failed,
     }
 
@@ -1700,6 +1729,8 @@ def _build_batch_message(summary: dict) -> str:
         msg_parts.append(f"更新{len(summary['updated'])}个提醒")
     if summary["deleted"]:
         msg_parts.append(f"删除{len(summary['deleted'])}个提醒")
+    if summary.get("completed"):
+        msg_parts.append(f"完成{len(summary['completed'])}个提醒")
     if summary["failed"]:
         msg_parts.append(f"失败{len(summary['failed'])}个")
 
@@ -1769,6 +1800,7 @@ def _batch_operations(
             "duplicate": len(summary["duplicate"]),
             "updated": len(summary["updated"]),
             "deleted": len(summary["deleted"]),
+            "completed": len(summary["completed"]),
             "failed": len(summary["failed"]),
         },
     )
@@ -1791,6 +1823,7 @@ def _batch_operations(
             "duplicate": len(summary["duplicate"]),
             "updated": len(summary["updated"]),
             "deleted": len(summary["deleted"]),
+            "completed": len(summary["completed"]),
             "failed": len(summary["failed"]),
         },
         "message": semantic_message,
