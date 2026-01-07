@@ -156,7 +156,7 @@ def sample_reminder():
         "time_original": "1小时后",
         "timezone": "Asia/Shanghai",
         "recurrence": {"enabled": False},
-        "status": "confirmed",
+        "status": "active",
     }
 
 

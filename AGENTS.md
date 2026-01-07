@@ -6,7 +6,7 @@
 - `connector/`: external connectors (e.g., terminal, ecloud) built on `base_connector.py`.
 - `conf/`: runtime configuration (`config.json`, `config.py`); `util/`: cross-cutting helpers.
 - `scripts/`: maintenance and analysis utilities for reminders, content safety, and usage metrics.
-- `tests/`: pytest suite organized by marker (`unit/`, `integration/`, `pbt/`, `e2e/`), with fixtures under `tests/fixtures/`.
+- `tests/`: pytest E2E 测试套件，位于 `tests/e2e/`。
 
 ## Setup, Build, and Development Commands
 - Python 3.12+. Create a venv and install deps: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (runner scripts auto-install `agent/requirements.txt` when missing).
@@ -19,10 +19,8 @@
 - Keep prompts/workflows in `agent/prompt` and `agent/agno_agent/workflows` cohesive; co-locate tests alongside module area in `tests/<scope>/test_*.py`.
 
 ## Testing Guidelines
-- Default quick suite: `pytest -m "not integration" -v`.
-- Targeted runs: `pytest -m unit`, `pytest -m integration`, `pytest -m e2e`, or `pytest tests/unit/test_util_str.py::TestRemoveChinese`.
-- Coverage: `pytest --cov --cov-report=html` outputs to `htmlcov/`; project threshold is 70%+ (see `pyproject.toml`), with higher expectations for `util` and `entity`.
-- Use markers (`unit`, `integration`, `slow`, `pbt`, `e2e`) and fixtures from `tests/fixtures/`; mark Mongo-dependent tests with `integration`.
+- 运行 E2E 测试: `pytest tests/e2e/ -v` 或 `pytest -m e2e -v`
+- Coverage: `pytest --cov --cov-report=html` 输出到 `htmlcov/`
 
 ## Commit & Pull Request Guidelines
 - Use conventional commits observed in history: `type(scope): summary` (e.g., `fix(reminder): remove time window and add limit`).

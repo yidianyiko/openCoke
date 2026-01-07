@@ -80,11 +80,11 @@ class TestReminderFlowE2E:
             "time_original": "1小时后",
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False},
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["recurrence"]["enabled"] is False
-        assert reminder["status"] == "confirmed"
+        assert reminder["status"] == "active"
 
     def test_create_daily_reminder(self):
         """测试创建每日提醒"""
@@ -98,7 +98,7 @@ class TestReminderFlowE2E:
                 "type": "daily",
                 "interval": 1,
             },
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["recurrence"]["enabled"] is True
@@ -117,7 +117,7 @@ class TestReminderFlowE2E:
                 "interval": 1,
                 "days_of_week": [1],  # Monday
             },
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["recurrence"]["type"] == "weekly"
@@ -136,7 +136,7 @@ class TestReminderFlowE2E:
                 "interval": 1,
                 "day_of_month": 1,
             },
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["recurrence"]["type"] == "monthly"
@@ -144,23 +144,14 @@ class TestReminderFlowE2E:
 
     # ============ 状态管理测试 ============
 
-    def test_reminder_status_confirmed(self):
-        """测试已确认状态的提醒"""
+    def test_reminder_status_active(self):
+        """测试活跃状态的提醒（替代原 confirmed/pending）"""
         reminder = {
-            "status": "confirmed",
+            "status": "active",
             "next_trigger_time": int(time.time()) + 3600,
         }
 
-        assert reminder["status"] == "confirmed"
-
-    def test_reminder_status_pending(self):
-        """测试待确认状态的提醒"""
-        reminder = {
-            "status": "pending",
-            "next_trigger_time": int(time.time()) + 3600,
-        }
-
-        assert reminder["status"] == "pending"
+        assert reminder["status"] == "active"
 
     def test_reminder_status_triggered(self):
         """测试已触发状态的提醒"""
@@ -173,16 +164,8 @@ class TestReminderFlowE2E:
         assert reminder["status"] == "triggered"
         assert reminder["triggered_count"] == 1
 
-    def test_reminder_status_cancelled(self):
-        """测试已取消状态的提醒"""
-        reminder = {
-            "status": "cancelled",
-        }
-
-        assert reminder["status"] == "cancelled"
-
     def test_reminder_status_completed(self):
-        """测试已完成状态的提醒"""
+        """测试已完成状态的提醒（包含原 cancelled 场景）"""
         reminder = {
             "status": "completed",
         }
@@ -359,9 +342,9 @@ class TestReminderFlowE2E:
     def test_keyword_search_exact_match(self):
         """测试关键字精确匹配"""
         reminders = [
-            {"_id": "1", "title": "开会提醒", "status": "confirmed"},
-            {"_id": "2", "title": "吃药提醒", "status": "confirmed"},
-            {"_id": "3", "title": "开会通知", "status": "confirmed"},
+            {"_id": "1", "title": "开会提醒", "status": "active"},
+            {"_id": "2", "title": "吃药提醒", "status": "active"},
+            {"_id": "3", "title": "开会通知", "status": "active"},
         ]
 
         keyword = "开会"
@@ -371,9 +354,9 @@ class TestReminderFlowE2E:
     def test_keyword_search_partial_match(self):
         """测试关键字部分匹配"""
         reminders = [
-            {"_id": "1", "title": "每日健身提醒", "status": "confirmed"},
-            {"_id": "2", "title": "健身房预约", "status": "confirmed"},
-            {"_id": "3", "title": "吃早餐", "status": "confirmed"},
+            {"_id": "1", "title": "每日健身提醒", "status": "active"},
+            {"_id": "2", "title": "健身房预约", "status": "active"},
+            {"_id": "3", "title": "吃早餐", "status": "active"},
         ]
 
         keyword = "健身"
@@ -383,8 +366,8 @@ class TestReminderFlowE2E:
     def test_keyword_search_no_match(self):
         """测试关键字无匹配"""
         reminders = [
-            {"_id": "1", "title": "开会提醒", "status": "confirmed"},
-            {"_id": "2", "title": "吃药提醒", "status": "confirmed"},
+            {"_id": "1", "title": "开会提醒", "status": "active"},
+            {"_id": "2", "title": "吃药提醒", "status": "active"},
         ]
 
         keyword = "睡觉"
@@ -439,7 +422,7 @@ class TestReminderFlowE2E:
 
         reminder = {
             "title": long_title,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert len(reminder["title"]) > 100
@@ -450,7 +433,7 @@ class TestReminderFlowE2E:
 
         reminder = {
             "title": special_title,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert "\n" in reminder["title"]
@@ -462,7 +445,7 @@ class TestReminderFlowE2E:
 
         reminder = {
             "title": emoji_title,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert "🎉" in reminder["title"]
@@ -639,14 +622,14 @@ class TestReminderConflicts:
             "user_id": "test_user",
             "title": "开会",
             "next_trigger_time": trigger_time,
-            "status": "confirmed",
+            "status": "active",
         }
 
         reminder2 = {
             "user_id": "test_user",
             "title": "吃药",
             "next_trigger_time": trigger_time,  # 同一时间
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder1["next_trigger_time"] == reminder2["next_trigger_time"]
@@ -661,7 +644,7 @@ class TestReminderConflicts:
                 "user_id": "test_user",
                 "title": "开会",
                 "next_trigger_time": base_time + i * 3600,
-                "status": "confirmed",
+                "status": "active",
             }
             for i in range(5)
         ]
@@ -691,22 +674,22 @@ class TestReminderCancellation:
     """提醒取消测试"""
 
     def test_cancel_single_reminder(self):
-        """测试取消单个提醒"""
+        """测试取消单个提醒（取消后状态变为 completed）"""
         reminder = {
-            "status": "confirmed",
+            "status": "active",
             "title": "要取消的提醒",
         }
 
-        # 模拟取消
-        reminder["status"] = "cancelled"
-        assert reminder["status"] == "cancelled"
+        # 模拟取消（新状态系统中取消 = completed）
+        reminder["status"] = "completed"
+        assert reminder["status"] == "completed"
 
     def test_cancel_multiple_reminders_by_keyword(self):
         """测试按关键字取消多个提醒"""
         reminders = [
-            {"_id": "1", "title": "开会-上午", "status": "confirmed"},
-            {"_id": "2", "title": "开会-下午", "status": "confirmed"},
-            {"_id": "3", "title": "吃药", "status": "confirmed"},
+            {"_id": "1", "title": "开会-上午", "status": "active"},
+            {"_id": "2", "title": "开会-下午", "status": "active"},
+            {"_id": "3", "title": "吃药", "status": "active"},
         ]
 
         keyword = "开会"
@@ -716,7 +699,7 @@ class TestReminderCancellation:
     def test_cancel_nonexistent_reminder(self):
         """测试取消不存在的提醒"""
         reminders = [
-            {"_id": "1", "title": "开会", "status": "confirmed"},
+            {"_id": "1", "title": "开会", "status": "active"},
         ]
 
         keyword = "不存在的关键字"
@@ -819,7 +802,7 @@ class TestReminderEdgeCases:
 
         reminder = {
             "title": long_title,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert len(reminder["title"]) > 1000
@@ -828,7 +811,7 @@ class TestReminderEdgeCases:
         """测试空标题的提醒"""
         reminder = {
             "title": "",
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["title"] == ""
@@ -839,7 +822,7 @@ class TestReminderEdgeCases:
 
         reminder = {
             "title": special_title,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert "<script>" in reminder["title"]
@@ -849,7 +832,7 @@ class TestReminderEdgeCases:
         """测试负数触发时间"""
         reminder = {
             "next_trigger_time": -1000,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["next_trigger_time"] < 0
@@ -858,7 +841,7 @@ class TestReminderEdgeCases:
         """测试零时间戳触发时间（纪元时间）"""
         reminder = {
             "next_trigger_time": 0,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["next_trigger_time"] == 0
@@ -869,7 +852,7 @@ class TestReminderEdgeCases:
 
         reminder = {
             "next_trigger_time": far_future,
-            "status": "confirmed",
+            "status": "active",
         }
 
         assert reminder["next_trigger_time"] > int(time.time()) + 86400 * 365 * 9
@@ -884,13 +867,12 @@ class TestReminderStatusTransitions:
     """提醒状态转换测试"""
 
     def test_valid_status_transitions(self):
-        """测试有效的状态转换"""
+        """测试有效的状态转换（新状态系统：active, triggered, completed）"""
         valid_transitions = [
-            ("pending", "confirmed"),
-            ("confirmed", "triggered"),
-            ("triggered", "completed"),
-            ("confirmed", "cancelled"),
-            ("triggered", "confirmed"),  # 周期提醒重新安排
+            ("active", "triggered"),      # 提醒触发
+            ("triggered", "completed"),   # 触发后完成
+            ("active", "completed"),      # 直接完成/取消
+            ("triggered", "active"),      # 周期提醒重新安排
         ]
 
         for from_status, to_status in valid_transitions:
@@ -900,11 +882,11 @@ class TestReminderStatusTransitions:
 
     def test_invalid_status_values(self):
         """测试无效的状态值"""
-        invalid_statuses = ["unknown", "CONFIRMED", "", None, 123]
+        invalid_statuses = ["unknown", "ACTIVE", "confirmed", "pending", "cancelled", "", None, 123]
 
         for invalid_status in invalid_statuses:
             reminder = {"status": invalid_status}
-            assert reminder["status"] not in ["confirmed", "pending", "triggered", "completed", "cancelled"]
+            assert reminder["status"] not in ["active", "triggered", "completed"]
 
     def test_status_change_timestamp_update(self):
         """测试状态变更时的时间戳更新"""
@@ -912,7 +894,7 @@ class TestReminderStatusTransitions:
         current_time = int(time.time())
 
         reminder = {
-            "status": "confirmed",
+            "status": "active",
             "updated_at": original_time,
         }
 
@@ -974,7 +956,7 @@ class TestConcurrentReminderOperations:
             {
                 "user_id": "test_user",
                 "next_trigger_time": current_time - i * 10,
-                "status": "confirmed",
+                "status": "active",
             }
             for i in range(6)  # 0-50秒前
         ]
@@ -1009,7 +991,7 @@ class TestReminderDataIntegrity:
             "user_id": "test_user",
             "title": "测试提醒",
             "next_trigger_time": int(time.time()) + 3600,
-            "status": "confirmed",
+            "status": "active",
         }
 
         for field in required_fields:

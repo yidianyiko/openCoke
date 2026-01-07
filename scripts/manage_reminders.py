@@ -12,7 +12,7 @@
     python scripts/manage_reminders.py                  # 交互式菜单
     python scripts/manage_reminders.py list             # 列出所有待触发提醒
     python scripts/manage_reminders.py list --all       # 列出所有提醒
-    python scripts/manage_reminders.py list --status confirmed  # 按状态筛选
+    python scripts/manage_reminders.py list --status active  # 按状态筛选
     python scripts/manage_reminders.py delete <id>      # 删除指定ID的提醒
     python scripts/manage_reminders.py delete --keyword "关键词"  # 删除匹配关键词的提醒
 """
@@ -50,11 +50,9 @@ def colorize(text: str, color: str) -> str:
 def format_status(status: str) -> str:
     """格式化状态显示"""
     status_map = {
-        "confirmed": ("✅ 待触发", Colors.GREEN),
-        "pending": ("⏳ 待确认", Colors.YELLOW),
+        "active": ("✅ 待触发", Colors.GREEN),
         "triggered": ("🔔 已触发", Colors.BLUE),
         "completed": ("✓ 已完成", Colors.DIM),
-        "cancelled": ("✗ 已取消", Colors.RED),
     }
     display, color = status_map.get(status, (status, Colors.ENDC))
     return colorize(display, color)
@@ -161,7 +159,7 @@ def list_reminders(
             query["status"] = status
         elif not show_all:
             # 默认只显示待触发的提醒
-            query["status"] = {"$in": ["confirmed", "pending"]}
+            query["status"] = "active"
 
         # 查询并排序
         reminders = list(dao.collection.find(query).sort("next_trigger_time", 1))
@@ -232,11 +230,11 @@ def reschedule_expired(reminder_ids: List[str] = None, dry_run: bool = True) -> 
         if reminder_ids:
             query = {
                 "reminder_id": {"$in": reminder_ids},
-                "status": {"$in": ["confirmed", "pending"]},
+                "status": "active",
             }
         else:
             query = {
-                "status": {"$in": ["confirmed", "pending"]},
+                "status": "active",
                 "next_trigger_time": {"$lt": now_ts},
             }
 
@@ -394,7 +392,7 @@ def interactive_menu():
         elif choice == "2":
             list_reminders(show_all=True)
         elif choice == "3":
-            print("\n状态选项: confirmed, pending, triggered, completed, cancelled")
+            print("\n状态选项: active, triggered, completed")
             status = input("输入状态: ").strip()
             if status:
                 list_reminders(status=status)
@@ -427,7 +425,7 @@ def main():
     python scripts/manage_reminders.py                      # 交互式菜单
     python scripts/manage_reminders.py list                 # 列出待触发提醒
     python scripts/manage_reminders.py list --all           # 列出所有提醒
-    python scripts/manage_reminders.py list --status confirmed
+    python scripts/manage_reminders.py list --status active
     python scripts/manage_reminders.py delete abc123        # 删除指定ID
     python scripts/manage_reminders.py delete --keyword "关键词" --execute
     python scripts/manage_reminders.py reschedule           # 预览过期提醒重新调度
@@ -445,7 +443,7 @@ def main():
     list_parser.add_argument(
         "--status",
         "-s",
-        help="按状态筛选 (confirmed/pending/triggered/completed/cancelled)",
+        help="按状态筛选 (active/triggered/completed)",
     )
     list_parser.add_argument("--user", "-u", help="按用户ID筛选")
 

@@ -135,7 +135,7 @@ class ReminderE2ETestRunner:
 
         # 查询用户的提醒
         reminders = self.reminder_dao.find_reminders_by_user(
-            self.user_id, status_list=["confirmed", "pending"]
+            self.user_id, status_list=["active"]
         )
 
         # 验证提醒是否存在
@@ -293,7 +293,7 @@ class ReminderE2ETestRunner:
             "next_trigger_time": trigger_time,
             "timezone": "Asia/Shanghai",
             "recurrence": {"enabled": False, "type": None, "interval": 1},
-            "status": "confirmed",
+            "status": "active",
             "created_at": now,
             "updated_at": now,
             "triggered_count": 0,

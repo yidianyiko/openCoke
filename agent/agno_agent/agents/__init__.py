@@ -21,6 +21,7 @@ from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
 from agent.prompt.agent_instructions_prompt import (
     DESCRIPTION_ORCHESTRATOR,
+    DESCRIPTION_REMINDER_DETECT,
     INSTRUCTIONS_CHAT_RESPONSE,
     INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_POST_ANALYZE,
@@ -133,19 +134,25 @@ def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 800
 
 # ========== 模块级预创建 Agent ==========
 
-# ReminderDetectAgent-提醒检测，识别提醒意图并创建提醒
+# ReminderDetectAgent - 提醒检测，识别提醒意图并调用提醒工具
 # Requirements: 4.2
 #
+# 设计原则（工具调用型 Agent）：
+# - description: 角色身份（你是谁）
+# - instructions: 决策逻辑（怎么做决策）
+# - 无 output_schema：直接调用 reminder_tool 执行操作
+#
 # 重要修复 (2025-12-23):
-#-在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
-#-问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
+# - 在 reminder_tool 上添加 stop_after_tool_call=True，工具执行后立即停止 Agent
+# - 问题原因：LLM 在工具成功执行后不知道如何退出，持续尝试调用工具
 #   导致大量无效的 API 请求（观察到单次处理 50+ 次 POST 请求）
-#-tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
-#-stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
+# - tool_call_limit=1 只阻止工具执行，但 LLM 仍会持续尝试调用
+# - stop_after_tool_call=True 从根本上解决问题，工具执行后直接结束
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
     model=create_deepseek_model(),
+    description=DESCRIPTION_REMINDER_DETECT,
     tools=[reminder_tool],
     tool_call_limit=1,  # 限制为1次调用，使用 batch_create 处理多任务
     instructions=get_reminder_detect_instructions(),

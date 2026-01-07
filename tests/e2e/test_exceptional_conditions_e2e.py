@@ -243,7 +243,7 @@ class TestConcurrentProcessing:
                 "user_id": f"user_{i % 10}",
                 "title": f"提醒_{i}",
                 "next_trigger_time": base_time + 3600 + i,
-                "status": "confirmed",
+                "status": "active",
                 "created_at": base_time,
             }
 

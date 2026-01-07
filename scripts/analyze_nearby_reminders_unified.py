@@ -68,7 +68,7 @@ def analyze_nearby_reminders(window_seconds=30):
         if (
             next_trigger
             and next_trigger > current_time
-            and reminder.get("status") in ["confirmed", "triggered"]
+            and reminder.get("status") in ["active", "triggered"]
         ):
             future_reminders.append(reminder)
 
