@@ -244,7 +244,8 @@ def _save_reminder_result_to_session(
 - "batch": 批量操作（推荐），一次调用执行多个操作（创建/更新/删除的任意组合）
 - "update": 更新提醒（按关键字匹配）
 - "delete": 删除提醒（按关键字匹配）
-- "list": 查询提醒列表
+- "filter": 查询提醒（支持灵活的筛选组合）
+- "complete": 完成提醒（按关键字匹配）
 
 ## 单个操作参数
 
@@ -270,8 +271,15 @@ def _save_reminder_result_to_session(
 - keyword: 关键字，模糊匹配要删除的提醒标题（必需）
 - 使用 "*" 作为 keyword 可删除所有提醒
 
-### list 参数
-- include_all: 是否包含所有状态的提醒，默认 false 只返回有效提醒(confirmed/pending)，设为 true 时返回包括已触发、已完成的所有提醒
+### filter 参数（查询提醒，替代原 list 操作）
+- status: 状态筛选，可选值列表: ["active", "triggered", "completed"]，默认 ["active"]
+- reminder_type: 提醒类型，可选值: "one_time" | "recurring"
+- keyword: 关键字搜索，模糊匹配 title
+- trigger_after: 时间范围开始，格式"xxxx年xx月xx日xx时xx分"或"今天00:00"
+- trigger_before: 时间范围结束，格式"xxxx年xx月xx日xx时xx分"或"今天23:59"
+
+### complete 参数（完成提醒）
+- keyword: 关键字，模糊匹配要完成的提醒标题（必需）
 
 ## 批量操作 (action="batch")-推荐用于复杂场景
 
@@ -307,7 +315,7 @@ def reminder_tool(
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
     action_template: Optional[str] = None,
-    keyword: Optional[str] = None,  # 关键字（update/delete 必需）
+    keyword: Optional[str] = None,  # 关键字（update/delete/complete 必需）
     new_title: Optional[str] = None,  # update 时的新标题
     new_trigger_time: Optional[str] = None,  # update 时的新时间
     recurrence_type: str = "none",
@@ -318,25 +326,34 @@ def reminder_tool(
     period_days: Optional[str] = None,
     # 批量操作参数
     operations: Optional[str] = None,
-    # list 操作参数
+    # filter 操作参数（阶段二新增，替代 list）
+    status: Optional[str] = None,  # JSON 字符串，如 '["active", "triggered"]'
+    reminder_type: Optional[str] = None,  # "one_time" | "recurring"
+    trigger_after: Optional[str] = None,  # 时间范围开始
+    trigger_before: Optional[str] = None,  # 时间范围结束
+    # list 操作参数（向后兼容，已废弃）
     include_all: bool = False,
 ) -> dict:
     """
     提醒管理统一工具（基于关键字操作，不使用 ID）
 
     Args:
-        action: 操作类型-"create"、"batch"、"update"、"delete"、"list"
+        action: 操作类型-"create"、"batch"、"update"、"delete"、"filter"、"complete"
         session_state: Agno 框架自动注入的会话状态
         title: 提醒标题（create 时必需）
         trigger_time: 触发时间（create 时必需）
         action_template: 提醒文案模板（可选）
-        keyword: 关键字（update/delete 时必需，模糊匹配标题）
+        keyword: 关键字（update/delete/complete 时必需，模糊匹配标题）
         new_title: 新标题（update 时可选）
         new_trigger_time: 新触发时间（update 时可选）
         recurrence_type: 周期类型，默认"none"
         recurrence_interval: 周期间隔数，默认1
         operations: 批量操作时的操作列表JSON字符串
-        include_all: list操作时是否包含所有状态的提醒，默认False只返回有效提醒
+        status: filter操作的状态筛选，JSON字符串
+        reminder_type: filter操作的提醒类型筛选
+        trigger_after: filter操作的时间范围开始
+        trigger_before: filter操作的时间范围结束
+        include_all: list操作时是否包含所有状态（已废弃，使用filter替代）
 
     Returns:
         操作结果字典
@@ -356,14 +373,22 @@ def reminder_tool(
 
     # 处理 action 缺失的情况
     if action is None:
+        error_message = "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）"
         logger.error("reminder_tool: action 参数缺失，LLM 未正确传递")
+        _save_reminder_result_to_session(
+            f"提醒操作失败：{error_message}",
+            user_intent="提醒操作",
+            action_executed="unknown",
+            intent_fulfilled=False,
+            details={"error": "action_missing"},
+        )
         return {
             "ok": False,
-            "error": "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）",
+            "error": "操作类型缺失，请指定 action 参数（create/batch/update/delete/filter/complete）",
         }
 
-    # 手动验证 action 值
-    valid_actions = ("create", "batch", "update", "delete", "list")
+    # 手动验证 action 值（阶段二：移除 list，新增 filter/complete）
+    valid_actions = ("create", "batch", "update", "delete", "filter", "complete", "list")
     if action not in valid_actions:
         return {
             "ok": False,
@@ -382,7 +407,7 @@ def reminder_tool(
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
 
-    if not user_id and action in ["create", "batch", "list", "update", "delete"]:
+    if not user_id and action in ["create", "batch", "filter", "update", "delete", "complete", "list"]:
         logger.warning("reminder_tool: user_id not found in session_state")
         return {"ok": False, "error": "无法获取用户信息，请稍后重试"}
 
@@ -445,9 +470,37 @@ def reminder_tool(
                 keyword=keyword,
             )
 
+        elif action == "filter":
+            return _filter_reminders(
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                status=status,
+                reminder_type=reminder_type,
+                keyword=keyword,
+                trigger_after=trigger_after,
+                trigger_before=trigger_before,
+                base_timestamp=message_timestamp,
+            )
+
+        elif action == "complete":
+            return _complete_reminder(
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                keyword=keyword,
+            )
+
         elif action == "list":
-            return _list_reminders(
-                reminder_dao=reminder_dao, user_id=user_id, include_all=include_all
+            # 向后兼容：list 操作重定向到 filter
+            logger.warning("reminder_tool: 'list' action is deprecated, use 'filter' instead")
+            return _filter_reminders(
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                status='["active"]' if not include_all else None,
+                reminder_type=None,
+                keyword=None,
+                trigger_after=None,
+                trigger_before=None,
+                base_timestamp=message_timestamp,
             )
 
         else:
@@ -801,7 +854,7 @@ def _build_reminder_document(
             "type": recurrence_type if recurrence_type != "none" else None,
             "interval": recurrence_interval,
         },
-        "status": "confirmed",
+        "status": "active",  # 阶段二状态重构：confirmed -> active
         "created_at": current_time,
         "updated_at": current_time,
         "triggered_count": 0,
@@ -1175,7 +1228,7 @@ def _batch_create_reminders(
                 "type": recurrence_type if recurrence_type != "none" else None,
                 "interval": recurrence_interval,
             },
-            "status": "confirmed",
+            "status": "active",  # 阶段二状态重构：confirmed -> active
             "created_at": current_time,
             "updated_at": current_time,
             "triggered_count": 0,
@@ -1464,7 +1517,7 @@ def _do_create_reminder(
             "type": recurrence_type if recurrence_type != "none" else None,
             "interval": recurrence_interval,
         },
-        "status": "confirmed",
+        "status": "active",  # 阶段二状态重构：confirmed -> active
         "created_at": ctx.current_time,
         "updated_at": ctx.current_time,
         "triggered_count": 0,
@@ -1576,11 +1629,38 @@ def _batch_op_delete(ctx: _BatchOperationContext, op: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _batch_op_complete(ctx: _BatchOperationContext, op: dict) -> dict:
+    """批量操作：按关键字完成提醒"""
+    keyword = op.get("keyword")
+    if not keyword or not keyword.strip():
+        return {"ok": False, "error": "缺少 keyword（要完成的提醒关键字）"}
+
+    keyword = keyword.strip()
+
+    try:
+        completed_count, completed_reminders = ctx.reminder_dao.complete_reminders_by_keyword(
+            ctx.user_id, keyword
+        )
+        if completed_count > 0:
+            completed_titles = [r.get("title", "") for r in completed_reminders]
+            return {
+                "ok": True,
+                "status": "completed",
+                "keyword": keyword,
+                "completed_count": completed_count,
+                "completed_titles": completed_titles,
+            }
+        return {"ok": False, "error": f"没有找到包含「{keyword}」的待完成提醒"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 # 操作处理器映射表
 _BATCH_OP_HANDLERS = {
     "create": _batch_op_create,
     "update": _batch_op_update,
     "delete": _batch_op_delete,
+    "complete": _batch_op_complete,
 }
 
 
@@ -1622,6 +1702,7 @@ def _build_batch_summary(results: list) -> dict:
     duplicate = [r for r in results if r.get("status") == "duplicate"]
     updated = [r for r in results if r.get("status") == "updated"]
     deleted = [r for r in results if r.get("status") == "deleted"]
+    completed = [r for r in results if r.get("status") == "completed"]
     failed = [r for r in results if not r.get("ok")]
 
     return {
@@ -1630,6 +1711,7 @@ def _build_batch_summary(results: list) -> dict:
         "duplicate": duplicate,
         "updated": updated,
         "deleted": deleted,
+        "completed": completed,
         "failed": failed,
     }
 
@@ -1647,6 +1729,8 @@ def _build_batch_message(summary: dict) -> str:
         msg_parts.append(f"更新{len(summary['updated'])}个提醒")
     if summary["deleted"]:
         msg_parts.append(f"删除{len(summary['deleted'])}个提醒")
+    if summary.get("completed"):
+        msg_parts.append(f"完成{len(summary['completed'])}个提醒")
     if summary["failed"]:
         msg_parts.append(f"失败{len(summary['failed'])}个")
 
@@ -1716,6 +1800,7 @@ def _batch_operations(
             "duplicate": len(summary["duplicate"]),
             "updated": len(summary["updated"]),
             "deleted": len(summary["deleted"]),
+            "completed": len(summary["completed"]),
             "failed": len(summary["failed"]),
         },
     )
@@ -1738,6 +1823,7 @@ def _batch_operations(
             "duplicate": len(summary["duplicate"]),
             "updated": len(summary["updated"]),
             "deleted": len(summary["deleted"]),
+            "completed": len(summary["completed"]),
             "failed": len(summary["failed"]),
         },
         "message": semantic_message,
@@ -2077,12 +2163,21 @@ def _get_status_indicator(status: str) -> str:
 
     Returns:
         str: 状态指示符，如 "✓已完成" / "⏳待执行"
+
+    Note:
+        阶段二状态重构：
+        - active: 未完成（替代 confirmed/pending）
+        - triggered: 已触发
+        - completed: 已完成（替代 completed/cancelled）
     """
     status_map = {
-        "confirmed": "⏳待执行",
-        "pending": "⏳待执行",
+        # 新状态系统（阶段二）
+        "active": "⏳待执行",
         "triggered": "🔔已触发",
         "completed": "✓已完成",
+        # 向后兼容旧状态
+        "confirmed": "⏳待执行",
+        "pending": "⏳待执行",
         "cancelled": "✗已取消",
     }
     return status_map.get(status, status)
@@ -2094,19 +2189,21 @@ def _list_reminders(
     """
     List reminders for a user.
 
+    已废弃：请使用 _filter_reminders 替代
+
     Args:
         reminder_dao: ReminderDAO 实例
         user_id: 用户ID
-        include_all: 是否包含所有状态的提醒，默认 False 只返回有效提醒(confirmed/pending)
+        include_all: 是否包含所有状态的提醒，默认 False 只返回有效提醒
     """
     try:
         if include_all:
             # 查询所有状态的提醒
             reminders = reminder_dao.find_reminders_by_user(user_id)
         else:
-            # 默认只查询有效状态的提醒，与 delete_all_by_user 保持一致
+            # 默认只查询有效状态的提醒（阶段二：active）
             reminders = reminder_dao.find_reminders_by_user(
-                user_id, status_list=["confirmed", "pending"]
+                user_id, status_list=["active"]
             )
 
         # Format reminders for output
@@ -2166,6 +2263,248 @@ def _list_reminders(
             f"提醒查询失败：{str(e)}",
             user_intent="查询提醒",
             action_executed="list",
+            intent_fulfilled=False,
+        )
+        return {"ok": False, "error": str(e)}
+
+
+def _filter_reminders(
+    reminder_dao: ReminderDAO,
+    user_id: str,
+    status: Optional[str] = None,
+    reminder_type: Optional[str] = None,
+    keyword: Optional[str] = None,
+    trigger_after: Optional[str] = None,
+    trigger_before: Optional[str] = None,
+    base_timestamp: Optional[int] = None,
+) -> dict:
+    """
+    灵活筛选用户的提醒（阶段二新增，替代 list）
+
+    Args:
+        reminder_dao: ReminderDAO 实例
+        user_id: 用户ID
+        status: 状态筛选，JSON字符串如 '["active", "triggered"]'，默认 ["active"]
+        reminder_type: 提醒类型，"one_time" | "recurring"
+        keyword: 关键字搜索，模糊匹配 title
+        trigger_after: 时间范围开始，如 "今天00:00" 或 "2026年01月03日00时00分"
+        trigger_before: 时间范围结束，如 "今天23:59" 或 "2026年01月03日23时59分"
+        base_timestamp: 基准时间戳（用于相对时间计算）
+
+    Returns:
+        查询结果字典
+    """
+    import json
+
+    try:
+        # 解析状态参数
+        status_list = None
+        if status:
+            try:
+                status_list = json.loads(status)
+                if not isinstance(status_list, list):
+                    status_list = [status_list]
+            except json.JSONDecodeError:
+                # 如果不是 JSON，尝试作为单个状态处理
+                status_list = [status]
+
+        # 解析时间范围
+        trigger_after_ts = None
+        trigger_before_ts = None
+        current_time = int(time.time())
+
+        if trigger_after:
+            trigger_after_ts = _parse_trigger_time(trigger_after, base_timestamp or current_time)
+            if not trigger_after_ts:
+                logger.warning(f"Failed to parse trigger_after: {trigger_after}")
+
+        if trigger_before:
+            trigger_before_ts = _parse_trigger_time(trigger_before, base_timestamp or current_time)
+            if not trigger_before_ts:
+                logger.warning(f"Failed to parse trigger_before: {trigger_before}")
+
+        # 调用 DAO 层的 filter 方法
+        reminders = reminder_dao.filter_reminders(
+            user_id=user_id,
+            status_list=status_list,
+            reminder_type=reminder_type,
+            keyword=keyword,
+            trigger_after=trigger_after_ts,
+            trigger_before=trigger_before_ts,
+        )
+
+        # 格式化输出
+        formatted_reminders = []
+        reminder_summaries = []
+        for i, reminder in enumerate(reminders, 1):
+            trigger_time = reminder.get("next_trigger_time", 0)
+            reminder_status = reminder.get("status", "")
+
+            formatted = {
+                "reminder_id": reminder.get("reminder_id"),
+                "title": reminder.get("title"),
+                "status": reminder_status,
+                "status_display": _get_status_indicator(reminder_status),
+                "next_trigger_time": trigger_time,
+                "time_friendly": (
+                    format_time_friendly(trigger_time) if trigger_time else ""
+                ),
+                "time_with_date": (
+                    _format_time_with_date(trigger_time) if trigger_time else ""
+                ),
+                "recurrence": reminder.get("recurrence", {}),
+                "created_at": reminder.get("created_at"),
+                "triggered_count": reminder.get("triggered_count", 0),
+            }
+            formatted_reminders.append(formatted)
+
+            # 构建简洁的提醒摘要
+            title = reminder.get("title", "")
+            time_with_date = formatted["time_with_date"] or "未设置时间"
+            status_indicator = _get_status_indicator(reminder_status)
+            reminder_summaries.append(
+                f"{i}.{title}({time_with_date}) [{status_indicator}]"
+            )
+
+        # 构建筛选条件描述
+        filter_desc_parts = []
+        if status_list:
+            filter_desc_parts.append(f"状态={status_list}")
+        if reminder_type:
+            type_desc = "单次" if reminder_type == "one_time" else "周期"
+            filter_desc_parts.append(f"类型={type_desc}")
+        if keyword:
+            filter_desc_parts.append(f"关键字={keyword}")
+        if trigger_after:
+            filter_desc_parts.append(f"从={trigger_after}")
+        if trigger_before:
+            filter_desc_parts.append(f"到={trigger_before}")
+        filter_desc = "，".join(filter_desc_parts) if filter_desc_parts else "默认条件"
+
+        # 语义化输出查询结果
+        if formatted_reminders:
+            summary_str = " ".join(reminder_summaries)
+            semantic_message = f"查询成功（{filter_desc}）：找到{len(formatted_reminders)}个提醒：{summary_str}"
+        else:
+            semantic_message = f"查询成功（{filter_desc}）：没有找到符合条件的提醒"
+
+        _save_reminder_result_to_session(
+            semantic_message,
+            user_intent="筛选提醒",
+            action_executed="filter",
+            intent_fulfilled=True,
+            details={
+                "count": len(formatted_reminders),
+                "filter": {
+                    "status": status_list,
+                    "reminder_type": reminder_type,
+                    "keyword": keyword,
+                    "trigger_after": trigger_after,
+                    "trigger_before": trigger_before,
+                },
+                "reminders": formatted_reminders,
+            },
+        )
+
+        return {"ok": True, "reminders": formatted_reminders, "count": len(formatted_reminders)}
+
+    except Exception as e:
+        logger.error(f"Failed to filter reminders: {e}")
+        _save_reminder_result_to_session(
+            f"提醒筛选失败：{str(e)}",
+            user_intent="筛选提醒",
+            action_executed="filter",
+            intent_fulfilled=False,
+        )
+        return {"ok": False, "error": str(e)}
+
+
+def _complete_reminder(
+    reminder_dao: ReminderDAO,
+    user_id: str,
+    keyword: Optional[str],
+) -> dict:
+    """
+    根据关键字完成提醒（阶段二新增）
+
+    Args:
+        reminder_dao: ReminderDAO 实例
+        user_id: 用户ID
+        keyword: 搜索关键字（必需）
+
+    Returns:
+        完成结果字典
+    """
+    if not user_id:
+        _save_reminder_result_to_session(
+            "提醒完成失败：无法获取用户信息",
+            user_intent="完成提醒",
+            action_executed="complete",
+            intent_fulfilled=False,
+        )
+        return {"ok": False, "error": "完成提醒需要用户信息"}
+
+    if not keyword or not keyword.strip():
+        _save_reminder_result_to_session(
+            "提醒完成失败：未指定要完成的提醒关键字",
+            user_intent="完成提醒",
+            action_executed="complete",
+            intent_fulfilled=False,
+        )
+        return {"ok": False, "error": "完成操作需要提供 keyword（要完成的提醒关键字）"}
+
+    keyword = keyword.strip()
+
+    try:
+        completed_count, completed_reminders = reminder_dao.complete_reminders_by_keyword(
+            user_id, keyword
+        )
+
+        if completed_count > 0:
+            completed_titles = [r.get("title", "") for r in completed_reminders]
+            titles_str = "、".join([f"「{t}」" for t in completed_titles[:5]])
+            if len(completed_titles) > 5:
+                titles_str += f" 等{len(completed_titles)}个"
+
+            semantic_message = f"提醒完成成功：已完成包含「{keyword}」的提醒：{titles_str}"
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="完成提醒",
+                action_executed="complete",
+                intent_fulfilled=True,
+                details={
+                    "keyword": keyword,
+                    "completed_count": completed_count,
+                    "completed_titles": completed_titles,
+                },
+            )
+            return {
+                "ok": True,
+                "completed_count": completed_count,
+                "completed_reminders": completed_reminders,
+                "message": semantic_message,
+            }
+        else:
+            semantic_message = f"提醒完成失败：没有找到包含「{keyword}」的待完成提醒"
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="完成提醒",
+                action_executed="complete",
+                intent_fulfilled=False,
+                details={"keyword": keyword, "completed_count": 0},
+            )
+            return {
+                "ok": False,
+                "error": f"没有找到包含「{keyword}」的待完成提醒",
+                "completed_count": 0,
+            }
+
+    except Exception as e:
+        logger.error(f"Failed to complete reminders by keyword '{keyword}': {e}")
+        _save_reminder_result_to_session(
+            f"提醒完成失败：{str(e)}",
+            user_intent="完成提醒",
+            action_executed="complete",
             intent_fulfilled=False,
         )
         return {"ok": False, "error": str(e)}

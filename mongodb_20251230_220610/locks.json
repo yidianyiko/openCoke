@@ -1,0 +1,17 @@
+[
+  {
+    "_id": {
+      "$oid": "6953dc477424c2ee07d6819a"
+    },
+    "resource_id": "conversation:6945f896b08d001d4f2f0493",
+    "lock_id": "e1ac7e71-8b31-4c7d-b634-755d6feb29f7",
+    "owner_id": "7fca9a36-71dd-4bb7-b46d-83d6e74005ab",
+    "created_at": {
+      "$date": "2025-12-30T14:05:59.932Z"
+    },
+    "expires_at": {
+      "$date": "2025-12-30T14:09:10.994Z"
+    },
+    "resource_type": "conversation"
+  }
+]

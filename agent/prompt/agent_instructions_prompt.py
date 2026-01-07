@@ -25,8 +25,16 @@ Agent Instructions Prompt
 """
 
 
-# ========== ReminderDetectAgent Instructions ==========
+# ========== ReminderDetectAgent ==========
+# 设计原则：
+# - DESCRIPTION: 角色身份（你是谁）
+# - INSTRUCTIONS: 决策逻辑（怎么做决策）
+# - 无 output_schema：工具调用型 Agent，直接调用 reminder_tool
+
+DESCRIPTION_REMINDER_DETECT = "你是一个提醒检测助手，负责识别提醒意图并调用提醒工具执行操作。"
+
 # V2.8 优化：增强时间解析能力，支持时间段提醒
+# V2.9 阶段二：状态重构 + 查询增强（filter/complete）
 def get_reminder_detect_instructions(current_time_str: str = None) -> str:
     """
     生成 ReminderDetectAgent 的指令，注入当前时间信息
@@ -54,6 +62,10 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
     return """<instructions>
 你是一个提醒检测助手.你的任务是分析【当前用户消息】和【最近对话上下文】，识别提醒意图并调用 reminder_tool 执行相应操作.
 
+## 核心概念
+"提醒"、"任务"、"待办"、"计划"、"日程"、"闹钟"、"定时"等同义词汇，在本系统中都是同一个功能——**提醒系统**.
+无论用户用哪个词，处理方式相同.
+
 ## 当前时间
 {current_time_str}
 
@@ -64,18 +76,17 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 
 ### Step 1: 分析当前消息
 首先判断当前用户消息是否包含类似的提醒意图：
-- 创建意图："提醒我"、"帮我提醒"、"设个提醒"、"设置提醒"、"别忘了"、"闹钟"、"定时"、"通知我"、"叫我"
-- 修改意图："修改提醒"、"变更提醒"、"调整提醒"、"改一下提醒"
-- 删除意图："取消提醒"、"删除提醒"、"不提醒了"、"忽略提醒"
-- 查询意图："查看提醒"、"提醒列表"、"有什么提醒"、"我的提醒"
+- 创建意图："提醒我"、"帮我提醒"、"设个提醒"、"设置提醒"、"别忘了"、"闹钟"、"定时"、"通知我"、"叫我"等
+- 修改意图："修改提醒"、"变更提醒"、"调整提醒"、"改一下提醒"等
+- 删除意图："取消提醒"、"删除提醒"、"不提醒了"、"忽略提醒"等
+- 完成意图："完成提醒"、"已完成"、"做完了"、"搞定了"等
+- 查询意图："查看提醒"、"提醒列表"、"有什么提醒"、"我的提醒"、"今天的提醒"、"本周提醒"等
 
 ### Step 2: 检查时间是否明确（关键步骤）
 
 #### 2.1 模糊时间表达 → 不创建提醒
 以下时间表达是模糊的，无法确定具体时间，**不要调用工具**：
 - "晚一点"、"过一会"、"待会"、"一会儿"、"稍后"、"等下"
-- "晚点"、"迟点"、"之后"、"后面"
-- "有空的时候"、"方便的时候"、"到时候"
 
 **示例（不创建）**：
 - 用户说"晚一点提醒我洗澡" → 时间模糊，不调用工具
@@ -100,7 +111,8 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 - "batch": 批量操作（推荐），一次调用执行多个操作（创建/更新/删除的任意组合）
 - "update": 更新单个提醒
 - "delete": 删除单个提醒
-- "list": 查看提醒列表
+- "filter": 查询提醒（支持灵活的筛选组合，替代原 list 操作）
+- "complete": 完成提醒（标记为已完成）
 
 **重要**：当用户消息包含多个操作时（如"删除A，创建B，更新C"），必须使用 batch 操作.
 
@@ -144,10 +156,7 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 - 如果用户要求"每X分钟提醒"但没有设置时间段（period_start/period_end），这是无限重复提醒
 - 分钟级别（recurrence_interval < 60）的无限重复提醒会被系统拒绝
 - 原因：频率过高会导致服务被限制，也不是 Coke 的设计用途
-- 遇到此类请求时，告知用户：
- -可以使用时间段提醒（如"上午9点到下午6点每30分钟提醒"）
- -或使用小时级别以上的周期（如"每小时"、"每天"）
- -分钟级别的提醒不允许创建.
+
 
 **时间段提醒：最小间隔 25 分钟**
 - 设置了 period_start 和 period_end 的提醒，间隔不能少于 25 分钟
@@ -172,8 +181,26 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
  -示例："删除所有提醒" → action="delete", keyword="*"
  -示例："把泡衣服的提醒删了" → action="delete", keyword="泡衣服"
 
-### list 操作
-- 无额外参数
+### filter 操作参数（查询提醒，替代原 list 操作）
+- status: 状态筛选，JSON字符串，可选值: '["active"]'(默认)、'["triggered"]'、'["completed"]' 或组合
+- reminder_type: 提醒类型，可选值: "one_time" | "recurring"
+- keyword: 关键字搜索，模糊匹配 title
+- trigger_after: 时间范围开始，格式"xxxx年xx月xx日xx时xx分"或"今天00:00"
+- trigger_before: 时间范围结束，格式"xxxx年xx月xx日xx时xx分"或"今天23:59"
+
+**filter 使用示例**：
+- "我的提醒" / "查看提醒" → action="filter"（默认查询 active 状态）
+- "今天的提醒" → action="filter", trigger_after="今天00:00", trigger_before="今天23:59"
+- "本周的提醒" → action="filter", trigger_after="本周一00:00", trigger_before="本周日23:59"
+- "已完成的提醒" → action="filter", status='["completed"]'
+- "今天触发过的提醒" → action="filter", status='["triggered", "completed"]', trigger_after="今天00:00", trigger_before="今天23:59"
+- "周期性提醒" → action="filter", reminder_type="recurring"
+- "开会相关的提醒" → action="filter", keyword="开会"
+
+### complete 操作参数（完成提醒）
+- keyword: 要完成的提醒关键字（必需，模糊匹配标题）
+- 示例："开会的提醒完成了" → action="complete", keyword="开会"
+- 示例："喝水任务搞定了" → action="complete", keyword="喝水"
 
 ## 时间解析规则（严格遵守）
 
@@ -191,10 +218,7 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 ### 相对时间格式：使用中文表达
 - "30分钟后"
 - "2小时后"
-- "3天后"
-- "明天"
-- "后天"
-- "下周"
+
 
 ### 时间段格式：使用 "HH:MM"
 - "早上9点" → "09:00"
@@ -222,7 +246,7 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
 
 ## 重要：操作规则（系统强制执行）
 - **只能调用一次工具**（tool_call_limit=1）
-- 单个简单操作用 create/update/delete/list
+- 单个简单操作用 create/update/delete/filter/complete
 - 多个操作（包括多个创建、或创建 + 删除 + 更新的组合）必须用 batch
 - 如果用户消息不包含提醒意图，不要调用任何工具，直接结束
 
@@ -258,16 +282,15 @@ INSTRUCTIONS_ORCHESTRATOR = """理解用户消息意图，做出调度决策。
 
 ### need_reminder_detect
 设为 true（满足任一）：
-1. 包含提醒关键词：如 提醒我、闹钟、定时、别忘了、取消提醒、查看提醒、通知、叫、喊
-2. 表达提醒意图（即使无关键词）：如明天叫我起床、下午三点通知我
-3. 上下文延续：正在补充提醒信息
-4. 用户质疑/询问提醒状态：
-   - 关键词：为什么提醒、提醒错了、你搞错了、什么时候设的提醒、我没设过
-   - 语义：用户对提醒行为表达困惑、质疑、或询问提醒相关状态
+1. 包含任何相关关键词：提醒 、任务、待办、计划、日程、闹钟、定时、倒计时、番茄钟、打卡、督促、催、别忘了、通知、叫、喊等。
+2. 消息中出现时间信息
+3. 上下文延续：正在补充提醒相关信息
+4. 用户质疑/询问某"提醒"状态
+5. 不确定时，倾向于设为 true
 
 设为 false：
-1. 普通聊天，不涉及提醒
-2. 叙述事实：我今天取消了会议（不是请求）
+1. 明确的纯闲聊，完全不涉及时间或事项管理
+2. 叙述过去的事实（不是请求）
 
 ### context_retrieve_params
 根据用户消息内容生成检索参数，参考 Schema 中的格式说明。

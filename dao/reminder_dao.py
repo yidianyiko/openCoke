@@ -77,7 +77,7 @@ class ReminderDAO:
             reminder_data["triggered_count"] = 0
 
         if "status" not in reminder_data:
-            reminder_data["status"] = "confirmed"
+            reminder_data["status"] = "active"
 
         result = self.collection.insert_one(reminder_data)
         return str(result.inserted_id)
@@ -109,10 +109,11 @@ class ReminderDAO:
 
         Note:
             不再限制时间下界，避免错过的提醒永远无法触发。
-            重复触发由 mark_as_triggered 的状态变更（confirmed -> triggered）防止。
+            重复触发由 mark_as_triggered 的状态变更（active -> triggered）防止。
+            阶段二状态重构：confirmed/pending -> active
         """
         query = {
-            "status": {"$in": ["confirmed", "pending"]},
+            "status": "active",
             "next_trigger_time": {"$lte": current_time},
         }
         # 添加 limit 防止积压过多时一次性加载太多
@@ -148,6 +149,110 @@ class ReminderDAO:
             query["status"] = status
         return list(self.collection.find(query).sort("next_trigger_time", 1))
 
+    def filter_reminders(
+        self,
+        user_id: str,
+        status_list: Optional[List[str]] = None,
+        reminder_type: Optional[str] = None,
+        keyword: Optional[str] = None,
+        trigger_after: Optional[int] = None,
+        trigger_before: Optional[int] = None,
+    ) -> List[Dict]:
+        """
+        灵活筛选用户的提醒（阶段二新增）
+
+        Args:
+            user_id: 用户ID
+            status_list: 状态过滤，可选值: ["active", "triggered", "completed"]
+                        默认: ["active"] - 只查询未完成的提醒
+            reminder_type: 提醒类型，可选值: "one_time" | "recurring"
+            keyword: 关键字，模糊匹配 title
+            trigger_after: 时间范围开始（Unix时间戳）
+            trigger_before: 时间范围结束（Unix时间戳）
+
+        Returns:
+            List[Dict]: 匹配的提醒列表，按 trigger_time 升序排序
+        """
+        # 默认只查询 active 状态
+        if status_list is None:
+            status_list = ["active"]
+
+        query = {"user_id": user_id, "status": {"$in": status_list}}
+
+        # 提醒类型筛选
+        if reminder_type == "one_time":
+            query["$or"] = [
+                {"recurrence.enabled": False},
+                {"recurrence.enabled": {"$exists": False}},
+            ]
+        elif reminder_type == "recurring":
+            query["recurrence.enabled"] = True
+
+        # 关键字搜索
+        if keyword and keyword.strip():
+            safe_keyword = re.escape(keyword.strip())
+            query["title"] = {"$regex": safe_keyword, "$options": "i"}
+
+        # 时间范围筛选
+        if trigger_after is not None or trigger_before is not None:
+            time_query = {}
+            if trigger_after is not None:
+                time_query["$gte"] = trigger_after
+            if trigger_before is not None:
+                time_query["$lte"] = trigger_before
+            query["next_trigger_time"] = time_query
+
+        return list(self.collection.find(query).sort("next_trigger_time", 1))
+
+    def complete_reminders_by_keyword(
+        self,
+        user_id: str,
+        keyword: str,
+    ) -> tuple[int, List[Dict]]:
+        """
+        根据关键字完成用户的提醒（阶段二新增）
+
+        Args:
+            user_id: 用户ID
+            keyword: 搜索关键字
+
+        Returns:
+            tuple[int, List[Dict]]: (完成数量, 被完成的提醒列表)
+        """
+        # 只能完成 active 状态的提醒
+        if not keyword or not keyword.strip():
+            logger.warning(f"Empty keyword provided for user {user_id}, returning empty list")
+            return 0, []
+
+        safe_keyword = re.escape(keyword.strip())
+        query = {
+            "user_id": user_id,
+            "status": "active",
+            "title": {"$regex": safe_keyword, "$options": "i"},
+        }
+
+        matched = list(self.collection.find(query))
+        if not matched:
+            return 0, []
+
+        # 记录被完成的提醒信息
+        completed_reminders = [
+            {"reminder_id": r.get("reminder_id"), "title": r.get("title")}
+            for r in matched
+        ]
+
+        # 更新状态为 completed
+        reminder_ids = [r.get("reminder_id") for r in matched]
+        result = self.collection.update_many(
+            {"user_id": user_id, "reminder_id": {"$in": reminder_ids}},
+            {"$set": {"status": "completed", "updated_at": int(time.time())}},
+        )
+
+        logger.info(
+            f"Completed {result.modified_count} reminders by keyword '{keyword}' for user {user_id}"
+        )
+        return result.modified_count, completed_reminders
+
     def find_similar_reminder(
         self,
         user_id: str,
@@ -164,7 +269,7 @@ class ReminderDAO:
         2. 标题完全相同
         3. 触发时间在容差范围内（默认5分钟）
         4. 周期类型相同
-        5. 状态为有效状态（confirmed/pending）
+        5. 状态为有效状态（active）
 
         Args:
             user_id: 用户ID
@@ -175,6 +280,9 @@ class ReminderDAO:
 
         Returns:
             Optional[Dict]: 找到的相似提醒，或 None
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
         # 处理周期类型：none 和 None 视为等同
         normalized_recurrence = (
@@ -184,7 +292,7 @@ class ReminderDAO:
         query = {
             "user_id": user_id,
             "title": title,
-            "status": {"$in": ["confirmed", "pending"]},
+            "status": "active",
             "next_trigger_time": {
                 "$gte": trigger_time-time_tolerance,
                 "$lte": trigger_time + time_tolerance,
@@ -215,10 +323,13 @@ class ReminderDAO:
 
         Returns:
             Optional[Dict]: 找到的同时间提醒，或 None
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
         query = {
             "user_id": user_id,
-            "status": {"$in": ["confirmed", "pending"]},
+            "status": "active",
             "next_trigger_time": {
                 "$gte": trigger_time-time_tolerance,
                 "$lte": trigger_time + time_tolerance,
@@ -301,9 +412,9 @@ class ReminderDAO:
         return self.update_reminder(reminder_id, {"status": "completed"})
 
     def reschedule_reminder(self, reminder_id: str, next_time: int) -> bool:
-        """重新安排提醒时间（用于周期提醒），将状态重置为 confirmed"""
+        """重新安排提醒时间（用于周期提醒），将状态重置为 active"""
         return self.update_reminder(
-            reminder_id, {"next_trigger_time": next_time, "status": "confirmed"}
+            reminder_id, {"next_trigger_time": next_time, "status": "active"}
         )
 
     def delete_reminder(self, reminder_id: str) -> bool:
@@ -320,10 +431,13 @@ class ReminderDAO:
 
         Returns:
             int: 删除的提醒数量
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
-        # 只删除有效状态的提醒（confirmed/pending）
+        # 只删除有效状态的提醒（active）
         result = self.collection.delete_many(
-            {"user_id": user_id, "status": {"$in": ["confirmed", "pending"]}}
+            {"user_id": user_id, "status": "active"}
         )
         logger.info(f"Deleted {result.deleted_count} reminders for user {user_id}")
         return result.deleted_count
@@ -344,9 +458,12 @@ class ReminderDAO:
 
         Returns:
             List[Dict]: 匹配的提醒列表
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
         if status_list is None:
-            status_list = ["confirmed", "pending"]
+            status_list = ["active"]
 
         # BUG-010 fix: Empty or whitespace-only keyword should not match anything
         if not keyword or not keyword.strip():
@@ -377,6 +494,9 @@ class ReminderDAO:
 
         Returns:
             tuple[int, List[Dict]]: (删除数量, 被删除的提醒列表)
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
         # 先查找匹配的提醒
         matched = self.find_reminders_by_keyword(user_id, keyword)
@@ -395,7 +515,7 @@ class ReminderDAO:
             {
                 "user_id": user_id,
                 "reminder_id": {"$in": reminder_ids},
-                "status": {"$in": ["confirmed", "pending"]},
+                "status": "active",
             }
         )
 
@@ -420,6 +540,9 @@ class ReminderDAO:
 
         Returns:
             tuple[int, List[Dict]]: (更新数量, 被更新的提醒列表)
+
+        Note:
+            阶段二状态重构：confirmed/pending -> active
         """
         # 先查找匹配的提醒
         matched = self.find_reminders_by_keyword(user_id, keyword)
@@ -441,7 +564,7 @@ class ReminderDAO:
             {
                 "user_id": user_id,
                 "reminder_id": {"$in": reminder_ids},
-                "status": {"$in": ["confirmed", "pending"]},
+                "status": "active",
             },
             {"$set": update_data},
         )

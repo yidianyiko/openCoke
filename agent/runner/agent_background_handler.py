@@ -883,7 +883,7 @@ async def _handle_reminder_message(
         logger.error(f"[REMINDER] handle_message failed: {e}")
         logger.error(traceback.format_exc())
         logger.warning(
-            f"[REMINDER] 提醒处理失败，保留 confirmed 状态等待重试: {reminder['reminder_id']}"
+            f"[REMINDER] 提醒处理失败，保留 active 状态等待重试: {reminder['reminder_id']}"
         )
 
 
@@ -938,7 +938,7 @@ def _handle_reminder_completion(reminder: dict, conversation_id: str):
                     should_continue = False
 
                 if should_continue:
-                    # 周期提醒：重新调度到下次触发时间，状态改回 confirmed
+                    # 周期提醒：重新调度到下次触发时间，状态改回 active
                     reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
                 else:
                     # 周期结束：标记为完成
