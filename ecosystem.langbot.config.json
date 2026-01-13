@@ -1,0 +1,27 @@
+{
+  "apps": [
+    {
+      "name": "langbot-core",
+      "script": "uvx",
+      "args": "langbot@latest",
+      "cwd": "/home/ydyk/workspace/active-projects/coke/langbot-workdir",
+      "interpreter": "none",
+      "exec_mode": "fork",
+      "instances": 1,
+      "autorestart": true,
+      "watch": false,
+      "max_memory_restart": "1G",
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "error_file": "./logs/langbot-error.log",
+      "out_file": "./logs/langbot-out.log",
+      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
+      "merge_logs": true,
+      "kill_timeout": 5000,
+      "wait_ready": true,
+      "listen_timeout": 10000,
+      "shutdown_with_message": true
+    }
+  ]
+}
