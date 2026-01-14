@@ -130,8 +130,7 @@ class MessageAcquirer:
             return None
 
         target_user_id = str(characters[0]["_id"])
-        logger.debug(f"{self.worker_tag} 找到目标角色: {self.target_user_alias} (ID: {target_user_id})")
-        
+
         # 获取待处理消息
         top_messages = read_top_inputmessages(
             to_user=target_user_id,
@@ -140,12 +139,13 @@ class MessageAcquirer:
             limit=16,
             max_handle_age=MAX_HANDLE_AGE,
         )
-        logger.debug(
-            f"{self.worker_tag} 查询待处理消息: to_user={target_user_id}, "
-            f"找到 {len(top_messages)} 条"
-        )
         if len(top_messages) == 0:
             return None
+
+        # 只在有消息时才输出日志
+        logger.info(
+            f"{self.worker_tag} 找到 {len(top_messages)} 条待处理消息 (角色: {self.target_user_alias})"
+        )
         
         # 获取已锁定的会话列表
         locked_conversation_ids = get_locked_conversation_ids()
