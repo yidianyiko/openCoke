@@ -43,6 +43,7 @@ def langbot_webhook_to_std(webhook_payload: dict) -> dict:
         "langbot_bot_uuid": bot_uuid,
         "langbot_sender_id": sender_id,
         "langbot_sender_name": sender_name,
+        "langbot_target_id": sender_id,  # For replies, target is the original sender
         "langbot_target_type": "group" if is_group else "person",
         "langbot_event_uuid": webhook_payload.get("uuid", ""),
     }
@@ -54,11 +55,14 @@ def langbot_webhook_to_std(webhook_payload: dict) -> dict:
     # Merge extra metadata (e.g., image URL)
     metadata.update(extra_metadata)
 
+    # Platform key should match the user's platform key (langbot_{adapter_name})
+    platform = f"langbot_{adapter_name}" if adapter_name else "langbot"
+
     return {
         "input_timestamp": timestamp,
         "handled_timestamp": None,
         "status": "pending",
-        "platform": "langbot",
+        "platform": platform,
         "chatroom_name": chatroom_name,
         "message_type": message_type,
         "message": message_content,

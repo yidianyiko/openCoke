@@ -45,7 +45,7 @@ MAX_HANDLE_AGE = 3600 * 12  # 只处理12小时以内的消息
 MAX_RETRIES = 3  # 最大重试次数
 MAX_ROLLBACK = 4  # 最大 rollback 次数
 LOCK_TIMEOUT = 180  # 锁超时时间（秒）
-PLATFORM = "wechat"
+# 多平台支持：平台从消息中动态获取（wechat, langbot_telegram, 等）
 
 
 class ProcessResult(Enum):
@@ -109,29 +109,40 @@ class MessageAcquirer:
     def acquire(self) -> Optional[MessageContext]:
         """
         获取一个可处理的消息上下文
-        
+
         Returns:
             MessageContext 或 None（无可处理消息）
         """
-        if self.target_wechat_id is None:
-            return None
-        
-        # 获取目标角色
+        # 获取目标角色 - 优先按名称查找，支持多平台
         characters = self.user_dao.find_characters(
-            {"platforms.wechat.id": self.target_wechat_id}
+            {"name": self.target_user_alias}
         )
+        # 如果按名称找不到，尝试按 wechat ID 查找（向后兼容）
+        if len(characters) == 0 and self.target_wechat_id:
+            characters = self.user_dao.find_characters(
+                {"platforms.wechat.id": self.target_wechat_id}
+            )
+
         if len(characters) == 0:
+            logger.debug(
+                f"{self.worker_tag} 未找到目标角色: {self.target_user_alias}"
+            )
             return None
-        
+
         target_user_id = str(characters[0]["_id"])
+        logger.debug(f"{self.worker_tag} 找到目标角色: {self.target_user_alias} (ID: {target_user_id})")
         
         # 获取待处理消息
         top_messages = read_top_inputmessages(
             to_user=target_user_id,
             status="pending",
-            platform=PLATFORM,
+            platform=None,  # None 表示处理所有平台
             limit=16,
             max_handle_age=MAX_HANDLE_AGE,
+        )
+        logger.debug(
+            f"{self.worker_tag} 查询待处理消息: to_user={target_user_id}, "
+            f"找到 {len(top_messages)} 条"
         )
         if len(top_messages) == 0:
             return None
@@ -181,17 +192,26 @@ class MessageAcquirer:
             save_inputmessage(top_message)
             return None
         
-        # 验证 platform 字段
-        if not self._validate_platform(user, character, top_message):
+        # Get platform from the message (support multi-platform)
+        platform = top_message.get("platform")
+        if not platform:
+            logger.error(f"{self.worker_tag} 消息缺少 platform 字段: {top_message.get('_id')}")
+            top_message["status"] = "failed"
+            top_message["error"] = "missing_platform_in_message"
+            save_inputmessage(top_message)
             return None
-        
+
+        # 验证 platform 字段
+        if not self._validate_platform(user, character, top_message, platform):
+            return None
+
         # 获取/创建会话
         conversation_id, _ = self.conversation_dao.get_or_create_private_conversation(
-            platform=PLATFORM,
-            user_id1=user["platforms"][PLATFORM]["id"],
-            nickname1=user["platforms"][PLATFORM]["nickname"],
-            user_id2=character["platforms"][PLATFORM]["id"],
-            nickname2=character["platforms"][PLATFORM]["nickname"],
+            platform=platform,
+            user_id1=user["platforms"][platform]["id"],
+            nickname1=user["platforms"][platform]["nickname"],
+            user_id2=character["platforms"][platform]["id"],
+            nickname2=character["platforms"][platform]["nickname"],
         )
         
         # 跳过已锁定的会话
@@ -215,7 +235,7 @@ class MessageAcquirer:
         
         # 读取该会话所有待处理消息
         input_messages = read_all_inputmessages(
-            str(user["_id"]), str(character["_id"]), PLATFORM, "pending"
+            str(user["_id"]), str(character["_id"]), platform, "pending"
         )
         
         return MessageContext(
@@ -228,27 +248,27 @@ class MessageAcquirer:
         )
     
     def _validate_platform(
-        self, user: Dict, character: Dict, top_message: Dict
+        self, user: Dict, character: Dict, top_message: Dict, platform: str
     ) -> bool:
         """验证 platform 字段"""
-        if PLATFORM not in user.get("platforms", {}):
+        if platform not in user.get("platforms", {}):
             logger.error(
-                f"{self.worker_tag} 用户缺少 platforms.{PLATFORM} 字段: {user.get('_id')}"
+                f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: {user.get('_id')}"
             )
             top_message["status"] = "failed"
             top_message["error"] = "missing_platform"
             save_inputmessage(top_message)
             return False
-        
-        if PLATFORM not in character.get("platforms", {}):
+
+        if platform not in character.get("platforms", {}):
             logger.error(
-                f"{self.worker_tag} 角色缺少 platforms.{PLATFORM} 字段: {character.get('_id')}"
+                f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: {character.get('_id')}"
             )
             top_message["status"] = "failed"
             top_message["error"] = "missing_platform"
             save_inputmessage(top_message)
             return False
-        
+
         return True
     
     def release_lock(self, msg_ctx: MessageContext, reason: str = ""):

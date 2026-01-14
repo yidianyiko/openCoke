@@ -39,10 +39,11 @@ async def output_handler():
 
     try:
         now = int(time.time())
+        # Support all langbot_* platforms (langbot_telegram, langbot_qq, etc.)
         message = mongo.find_one(
             "outputmessages",
             {
-                "platform": "langbot",
+                "platform": {"$regex": r"^langbot_"},
                 "status": "pending",
                 "expect_output_timestamp": {"$lte": now},
             },
