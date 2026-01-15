@@ -96,17 +96,15 @@ async def send_via_feishu_api(message: dict, metadata: dict):
         metadata: Message metadata containing Feishu credentials
     """
     try:
-        # Get Feishu credentials from metadata or config
+        # Get Feishu credentials from config
         langbot_conf = CONF.get("langbot", {})
-        feishu_app_id = metadata.get("feishu_app_id") or langbot_conf.get("feishu_app_id")
-        feishu_app_secret = metadata.get("feishu_app_secret") or langbot_conf.get("feishu_app_secret")
+        feishu_conf = langbot_conf.get("feishu", {})
 
-        # Fall back to bot_uuid's credentials if not in metadata
+        feishu_app_id = feishu_conf.get("app_id")
+        feishu_app_secret = feishu_conf.get("app_secret")
+
         if not feishu_app_id or not feishu_app_secret:
-            # Need to get from bot config - for now use hardcoded values or config
-            # In production, should fetch from LangBot database or config
-            feishu_app_id = "cli_a9e2c9da8cf85cd4"
-            feishu_app_secret = "w8xxkD4CrIKO6blg25tTbbMfoGQ3oRFi"
+            raise ValueError("Feishu credentials not configured in config.json under langbot.feishu")
 
         feishu_api = get_feishu_api(feishu_app_id, feishu_app_secret)
 
