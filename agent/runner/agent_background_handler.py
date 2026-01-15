@@ -343,19 +343,21 @@ async def handle_pending_future_message():
             clear_invalid_future()
             return
 
+        # 使用平台字段动态构建查询（支持 wechat, langbot_LarkAdapter 等）
+        platform = conversation.get("platform", "wechat")
         users = user_dao.find_users(
-            {"platforms.wechat.id": conversation["talkers"][0]["id"]}, 1
+            {f"platforms.{platform}.id": conversation["talkers"][0]["id"]}, 1
         )
         if not users:
             logger.warning(
-                f"找不到用户: {conversation['talkers'][0]['id']}，清除 future"
+                f"找不到用户: {conversation['talkers'][0]['id']} (platform={platform})，清除 future"
             )
             clear_invalid_future()
             return
         user = users[0]
 
         characters = user_dao.find_users(
-            {"platforms.wechat.id": conversation["talkers"][1]["id"]}, 1
+            {f"platforms.{platform}.id": conversation["talkers"][1]["id"]}, 1
         )
         if not characters:
             logger.warning(
