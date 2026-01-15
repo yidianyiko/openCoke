@@ -146,7 +146,9 @@ async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata:
             logger.info(f"Feishu group message, target_id: {target_id}")
         else:
             # 私聊：target_id 从用户配置获取
-            target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
+            target_id = user_platform_info.get("id") or metadata.get(
+                "langbot_target_id"
+            )
             target_type = "open_id"
             if not target_id:
                 raise ValueError(
@@ -159,7 +161,9 @@ async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata:
 
         # Send message
         result = feishu_api.send_message(
-            target_id=target_id, text=message.get("message", ""), target_type=target_type
+            target_id=target_id,
+            text=message.get("message", ""),
+            target_type=target_type,
         )
 
         if result.get("code") == 0:

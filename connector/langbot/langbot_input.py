@@ -2,6 +2,7 @@
 
 Receives webhook events from LangBot and inserts messages into MongoDB.
 """
+
 import sys
 
 sys.path.append(".")
@@ -93,7 +94,9 @@ def webhook_handler():
 
         logger.info("Step 1: Converting webhook to std format")
         std = langbot_webhook_to_std(payload)
-        logger.info(f"Step 1 done: platform={std.get('platform')}, message={std.get('message', '')[:30]}")
+        logger.info(
+            f"Step 1 done: platform={std.get('platform')}, message={std.get('message', '')[:30]}"
+        )
 
         data = payload.get("data", {})
         adapter_name = data.get("adapter_name", "")
@@ -101,18 +104,24 @@ def webhook_handler():
         sender_id = sender.get("id", "")
         sender_name = sender.get("name", "")
 
-        logger.info(f"Step 2: Getting character and user (adapter={adapter_name}, sender_id={sender_id})")
+        logger.info(
+            f"Step 2: Getting character and user (adapter={adapter_name}, sender_id={sender_id})"
+        )
         # resolve from_user and to_user
         character = get_default_character()
         user = get_or_create_user(adapter_name, sender_id, sender_name)
-        logger.info(f"Step 2 done: character={bool(character)}, user_id={user.get('_id') if user else None}")
+        logger.info(
+            f"Step 2 done: character={bool(character)}, user_id={user.get('_id') if user else None}"
+        )
 
         if character:
             std["to_user"] = str(character.get("_id"))
         if user:
             std["from_user"] = str(user.get("_id"))
 
-        logger.info(f"Step 3: Inserting into MongoDB (from_user={std.get('from_user')}, to_user={std.get('to_user')})")
+        logger.info(
+            f"Step 3: Inserting into MongoDB (from_user={std.get('from_user')}, to_user={std.get('to_user')})"
+        )
         # Insert into Mongo
         mongo = MongoDBBase()
         result = mongo.insert_one("inputmessages", std)
@@ -122,6 +131,7 @@ def webhook_handler():
 
     except Exception as e:
         import traceback
+
         logger.error(f"Error handling LangBot webhook: {e}\n{traceback.format_exc()}")
         return jsonify({"status": "error"}), 200
 
