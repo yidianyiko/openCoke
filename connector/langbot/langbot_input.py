@@ -56,8 +56,10 @@ def get_or_create_user(adapter_name: str, sender_id: str, sender_name: str):
             "name": sender_name or f"User_{str(sender_id)[:8]}",
             "platforms": {
                 platform_key: {
-                    "account": sender_id,
-                    "name": sender_name,
+                    "id": sender_id,
+                    "nickname": sender_name,
+                    "account": sender_id,  # For backward compatibility
+                    "name": sender_name,  # For backward compatibility
                 }
             },
             "status": "normal",
