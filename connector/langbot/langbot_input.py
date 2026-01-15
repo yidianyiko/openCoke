@@ -86,7 +86,9 @@ def webhook_handler():
         if event_type not in ("bot.person_message", "bot.group_message"):
             return jsonify({"status": "ok", "skip_pipeline": True}), 200
 
+        logger.info("Step 1: Converting webhook to std format")
         std = langbot_webhook_to_std(payload)
+        logger.info(f"Step 1 done: platform={std.get('platform')}, message={std.get('message', '')[:30]}")
 
         data = payload.get("data", {})
         adapter_name = data.get("adapter_name", "")
@@ -94,23 +96,28 @@ def webhook_handler():
         sender_id = sender.get("id", "")
         sender_name = sender.get("name", "")
 
+        logger.info(f"Step 2: Getting character and user (adapter={adapter_name}, sender_id={sender_id})")
         # resolve from_user and to_user
         character = get_default_character()
         user = get_or_create_user(adapter_name, sender_id, sender_name)
+        logger.info(f"Step 2 done: character={bool(character)}, user_id={user.get('_id') if user else None}")
 
         if character:
             std["to_user"] = str(character.get("_id"))
         if user:
             std["from_user"] = str(user.get("_id"))
 
+        logger.info(f"Step 3: Inserting into MongoDB (from_user={std.get('from_user')}, to_user={std.get('to_user')})")
         # Insert into Mongo
         mongo = MongoDBBase()
-        mongo.insert_one("inputmessages", std)
+        result = mongo.insert_one("inputmessages", std)
+        logger.info(f"Step 3 done: inserted_id={result}")
 
         return jsonify({"status": "ok", "skip_pipeline": True}), 200
 
     except Exception as e:
-        logger.error(f"Error handling LangBot webhook: {e}")
+        import traceback
+        logger.error(f"Error handling LangBot webhook: {e}\n{traceback.format_exc()}")
         return jsonify({"status": "error"}), 200
 
 
