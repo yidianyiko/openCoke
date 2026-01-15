@@ -271,20 +271,19 @@ class UserDAO:
         )
         return list(cursor)
 
-    def find_by_platform(self, platform_key: str, account_id: str) -> Optional[Dict]:
+    def find_by_platform(self, platform_key: str, platform_id: str) -> Optional[Dict]:
         """
-        通过平台账号查找单个用户
+        通过平台 ID 查找单个用户
 
         Args:
-            platform_key: 平台键名 (e.g., "langbot_telegram", "wechat")
-            account_id: 平台账号 ID
+            platform_key: 平台键名 (e.g., "langbot_feishu", "wechat")
+            platform_id: 平台用户 ID (如 wxid, open_id 等)
 
         Returns:
             Optional[Dict]: 用户文档，如果不存在返回 None
         """
-        user = self.collection.find_one(
-            {f"platforms.{platform_key}.account": account_id}
-        )
+        # 使用 id 字段查询，与 ecloud_input.py 的 find_users 保持一致
+        user = self.collection.find_one({f"platforms.{platform_key}.id": platform_id})
         return user
 
     def find_characters(self, query: Dict = None, limit: int = 0) -> List[Dict]:

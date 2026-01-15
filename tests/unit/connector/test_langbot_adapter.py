@@ -22,7 +22,8 @@ class TestLangbotWebhookToStd:
 
         result = langbot_webhook_to_std(webhook_payload)
 
-        assert result["platform"] == "langbot"
+        # platform 格式为 langbot_{adapter_name}，用于匹配用户的 platforms 配置
+        assert result["platform"] == "langbot_telegram"
         assert result["message_type"] == "text"
         assert result["message"] == "Hello world"
         assert result["input_timestamp"] == 1704153600
@@ -53,7 +54,8 @@ class TestLangbotWebhookToStd:
 
         result = langbot_webhook_to_std(webhook_payload)
 
-        assert result["platform"] == "langbot"
+        # platform 格式为 langbot_{adapter_name}，用于匹配用户的 platforms 配置
+        assert result["platform"] == "langbot_qq_official"
         assert result["message_type"] == "text"
         assert result["message"] == "Hello group"
         assert result["chatroom_name"] == "group-123"
@@ -128,7 +130,9 @@ class TestStdToLangbotMessage:
         assert result["bot_uuid"] == "bot-123"
         assert result["target_type"] == "person"
         assert result["target_id"] == "user-456"
-        assert result["message_chain"] == [{"type": "Plain", "text": "Hello from Coke!"}]
+        assert result["message_chain"] == [
+            {"type": "Plain", "text": "Hello from Coke!"}
+        ]
 
     def test_group_message(self):
         """Test converting group message for sending."""
@@ -148,4 +152,3 @@ class TestStdToLangbotMessage:
 
         assert result["target_type"] == "group"
         assert result["target_id"] == "group-123"
-
