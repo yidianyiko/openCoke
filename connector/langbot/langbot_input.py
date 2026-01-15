@@ -81,6 +81,7 @@ def webhook_handler():
         payload = request.json or {}
         event_type = payload.get("event_type", "")
         logger.info(f"Received LangBot webhook: {event_type}")
+        logger.debug(f"Full payload: {payload}")
 
         # Only process message events
         if event_type not in ("bot.person_message", "bot.group_message"):
