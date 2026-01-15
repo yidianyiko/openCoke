@@ -216,7 +216,7 @@ def send_message_via_context(
         expect_output_timestamp: 预期输出时间戳
         metadata: 额外的 metadata（会与 inputmessage 的 metadata 合并）
     """
-    # 如果没有提供 metadata，尝试从第一条 inputmessage 复制
+    # 如果没有提供 metadata，尝试从 inputmessage 或 chat_history 复制
     if metadata is None:
         metadata = {}
 
@@ -227,6 +227,24 @@ def send_message_via_context(
         input_metadata = first_input.get("metadata", {})
         # 将 inputmessage 的 metadata 合并到输出消息
         metadata = {**input_metadata, **metadata}
+    elif not metadata.get("langbot_adapter"):
+        # 对于主动消息（提醒等），从 chat_history 中查找最近的消息 metadata
+        chat_history = context.get("conversation", {}).get("conversation_info", {}).get("chat_history", [])
+        # 查找最近一条有 langbot_adapter 的消息
+        for msg in reversed(chat_history[-20:]):  # 只检查最近 20 条消息
+            msg_metadata = msg.get("metadata", {})
+            if msg_metadata.get("langbot_adapter"):
+                # 找到了，复制这个 metadata（保留关键的 langbot 路由信息）
+                metadata = {
+                    "langbot_adapter": msg_metadata.get("langbot_adapter"),
+                    "langbot_bot_uuid": msg_metadata.get("langbot_bot_uuid"),
+                    "langbot_sender_id": msg_metadata.get("langbot_sender_id"),
+                    "langbot_sender_name": msg_metadata.get("langbot_sender_name"),
+                    "langbot_target_id": msg_metadata.get("langbot_target_id"),
+                    "langbot_target_type": msg_metadata.get("langbot_target_type"),
+                    **metadata  # 允许覆盖
+                }
+                break
 
     return send_message(
         platform=context["conversation"]["platform"],
