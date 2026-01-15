@@ -34,6 +34,8 @@ def get_or_create_user(adapter_name: str, sender_id: str, sender_name: str):
     """
     Find or create user based on LangBot platform info.
 
+    使用 upsert 操作避免多线程竞态条件导致的重复用户创建。
+
     Args:
         adapter_name: LangBot adapter name (e.g., "telegram", "qq_official")
         sender_id: Sender ID from the platform
@@ -45,29 +47,29 @@ def get_or_create_user(adapter_name: str, sender_id: str, sender_name: str):
     user_dao = UserDAO()
     platform_key = f"langbot_{adapter_name}"
 
-    # Try to find existing user
-    user = user_dao.find_by_platform(platform_key, sender_id)
+    # 使用 upsert 避免竞态条件：多个请求同时创建同一用户
+    user_data = {
+        "is_character": False,
+        "name": sender_name or f"User_{str(sender_id)[:8]}",
+        "platforms": {
+            platform_key: {
+                "id": sender_id,
+                "nickname": sender_name,
+                "account": sender_id,
+                "name": sender_name,
+            }
+        },
+        "status": "normal",
+        "user_info": {},
+    }
 
-    if user is None:
-        # Create new user
-        logger.info(f"Creating new user for {platform_key}:{sender_id}")
-        user = {
-            "is_character": False,
-            "name": sender_name or f"User_{str(sender_id)[:8]}",
-            "platforms": {
-                platform_key: {
-                    "id": sender_id,
-                    "nickname": sender_name,
-                    "account": sender_id,  # For backward compatibility
-                    "name": sender_name,  # For backward compatibility
-                }
-            },
-            "status": "normal",
-            "user_info": {},
-        }
-        user_id = user_dao.create_user(user)
-        user["_id"] = user_id
+    # upsert: 如果存在则返回现有用户，不存在则创建
+    user_id = user_dao.upsert_user(
+        query={f"platforms.{platform_key}.id": sender_id},
+        user_data=user_data,
+    )
 
+    user = user_dao.get_user_by_id(user_id)
     return user
 
 

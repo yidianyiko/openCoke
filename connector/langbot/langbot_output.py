@@ -137,20 +137,29 @@ async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata:
 
         feishu_api = get_feishu_api(feishu_app_id, feishu_app_secret)
 
-        # 优先从用户配置获取 target_id，回退到 metadata
-        target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
-        if not target_id:
-            raise ValueError(
-                "Cannot determine target_id: not found in user platforms or metadata"
+        # 判断是群聊还是私聊
+        chatroom_name = message.get("chatroom_name")
+        if chatroom_name:
+            # 群聊：target_id 是群 ID
+            target_id = chatroom_name
+            target_type = "chat_id"
+            logger.info(f"Feishu group message, target_id: {target_id}")
+        else:
+            # 私聊：target_id 从用户配置获取
+            target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
+            target_type = "open_id"
+            if not target_id:
+                raise ValueError(
+                    "Cannot determine target_id: not found in user platforms or metadata"
+                )
+            logger.info(
+                f"Feishu private message, target_id: {target_id} "
+                f"(from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
             )
-
-        logger.info(
-            f"Feishu target_id: {target_id} (from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
-        )
 
         # Send message
         result = feishu_api.send_message(
-            target_id=target_id, text=message.get("message", ""), target_type="open_id"
+            target_id=target_id, text=message.get("message", ""), target_type=target_type
         )
 
         if result.get("code") == 0:
@@ -179,19 +188,27 @@ async def send_via_langbot_api(message: dict, user_platform_info: dict, metadata
     """
     langbot_api = get_langbot_api()
 
-    # 优先从用户配置获取 target_id，回退到 metadata
-    target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
-    if not target_id:
-        raise ValueError(
-            "Cannot determine target_id: not found in user platforms or metadata"
+    # 判断是群聊还是私聊
+    chatroom_name = message.get("chatroom_name")
+    if chatroom_name:
+        # 群聊：target_id 是群 ID
+        target_id = chatroom_name
+        target_type = "group"
+        logger.info(f"LangBot group message, target_id: {target_id}")
+    else:
+        # 私聊：target_id 从用户配置获取
+        target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
+        target_type = "person"
+        if not target_id:
+            raise ValueError(
+                "Cannot determine target_id: not found in user platforms or metadata"
+            )
+        logger.info(
+            f"LangBot private message, target_id: {target_id} "
+            f"(from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
         )
 
-    target_type = metadata.get("langbot_target_type", "person")
     bot_uuid = metadata.get("langbot_bot_uuid", "")
-
-    logger.info(
-        f"LangBot target_id: {target_id} (from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
-    )
 
     # Build message chain
     message_type = message.get("message_type", "text")
