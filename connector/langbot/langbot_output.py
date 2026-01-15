@@ -3,7 +3,12 @@
 Polls MongoDB for pending messages and sends them via appropriate API:
 - For Feishu/Lark: Direct Feishu API (LangBot Lark adapter doesn't support send_message)
 - For other platforms: LangBot Service API
+
+路由信息获取优先级：
+1. 从用户的 platforms 配置获取（与 ecloud 一致）
+2. 回退到 metadata（兼容旧消息）
 """
+
 import sys
 
 sys.path.append(".")
@@ -13,10 +18,11 @@ import time
 import traceback
 
 from conf.config import CONF
+from connector.langbot.feishu_api import FeishuAPI
 from connector.langbot.langbot_adapter import std_to_langbot_message
 from connector.langbot.langbot_api import LangBotAPI
-from connector.langbot.feishu_api import FeishuAPI
 from dao.mongo import MongoDBBase
+from dao.user_dao import UserDAO
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -41,8 +47,10 @@ async def output_handler():
     Process one pending output message.
 
     Finds a pending message for langbot platform and sends it via appropriate API.
+    路由信息从用户的 platforms 配置获取，与 ecloud 保持一致。
     """
     mongo = MongoDBBase()
+    user_dao = UserDAO()
 
     try:
         now = int(time.time())
@@ -62,16 +70,34 @@ async def output_handler():
         logger.info(f"Sending LangBot message: {message.get('message', '')[:50]}")
         logger.debug(f"Full message: {message}")
 
+        # 获取目标用户信息（与 ecloud 一致的方式）
+        user = user_dao.get_user_by_id(message.get("to_user"))
+        if user is None:
+            raise Exception(f"User not found: {message.get('to_user')}")
+
+        # 从 platform 字段获取平台信息（如 langbot_feishu, langbot_telegram）
+        platform = message.get("platform", "")
+
+        # 从用户的 platforms 配置获取路由信息
+        user_platform_info = user.get("platforms", {}).get(platform, {})
+
+        # 构建 metadata，优先使用用户配置，回退到消息自带的 metadata
         metadata = message.get("metadata", {})
-        adapter = metadata.get("langbot_adapter", "")
+
+        # 从 platform 提取 adapter 名称（langbot_feishu -> feishu）
+        adapter = (
+            platform.replace("langbot_", "")
+            if platform.startswith("langbot_")
+            else metadata.get("langbot_adapter", "")
+        )
 
         # Check if this is a Feishu/Lark message
-        if adapter.lower() in ("lark", "larkadapter"):
+        if adapter.lower() in ("lark", "larkadapter", "feishu"):
             # Use direct Feishu API
-            await send_via_feishu_api(message, metadata)
+            await send_via_feishu_api(message, user_platform_info, metadata)
         else:
             # Use LangBot Service API
-            await send_via_langbot_api(message)
+            await send_via_langbot_api(message, user_platform_info, metadata)
 
         # Update status
         now = int(time.time())
@@ -87,13 +113,14 @@ async def output_handler():
             mongo.replace_one("outputmessages", {"_id": message["_id"]}, message)
 
 
-async def send_via_feishu_api(message: dict, metadata: dict):
+async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata: dict):
     """
     Send message via direct Feishu API.
 
     Args:
         message: Output message document
-        metadata: Message metadata containing Feishu credentials
+        user_platform_info: 用户的平台配置信息（从 user.platforms.langbot_feishu 获取）
+        metadata: Message metadata（回退用）
     """
     try:
         # Get Feishu credentials from config
@@ -104,19 +131,26 @@ async def send_via_feishu_api(message: dict, metadata: dict):
         feishu_app_secret = feishu_conf.get("app_secret")
 
         if not feishu_app_id or not feishu_app_secret:
-            raise ValueError("Feishu credentials not configured in config.json under langbot.feishu")
+            raise ValueError(
+                "Feishu credentials not configured in config.json under langbot.feishu"
+            )
 
         feishu_api = get_feishu_api(feishu_app_id, feishu_app_secret)
 
-        target_id = metadata.get("langbot_target_id")
+        # 优先从用户配置获取 target_id，回退到 metadata
+        target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
         if not target_id:
-            raise ValueError("langbot_target_id not found in metadata")
+            raise ValueError(
+                "Cannot determine target_id: not found in user platforms or metadata"
+            )
+
+        logger.info(
+            f"Feishu target_id: {target_id} (from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
+        )
 
         # Send message
         result = feishu_api.send_message(
-            target_id=target_id,
-            text=message.get("message", ""),
-            target_type="open_id"
+            target_id=target_id, text=message.get("message", ""), target_type="open_id"
         )
 
         if result.get("code") == 0:
@@ -134,24 +168,50 @@ async def send_via_feishu_api(message: dict, metadata: dict):
         raise
 
 
-async def send_via_langbot_api(message: dict):
+async def send_via_langbot_api(message: dict, user_platform_info: dict, metadata: dict):
     """
     Send message via LangBot Service API.
 
     Args:
         message: Output message document
+        user_platform_info: 用户的平台配置信息
+        metadata: Message metadata（回退用）
     """
     langbot_api = get_langbot_api()
 
-    # Convert to LangBot format
-    langbot_msg = std_to_langbot_message(message)
+    # 优先从用户配置获取 target_id，回退到 metadata
+    target_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
+    if not target_id:
+        raise ValueError(
+            "Cannot determine target_id: not found in user platforms or metadata"
+        )
+
+    target_type = metadata.get("langbot_target_type", "person")
+    bot_uuid = metadata.get("langbot_bot_uuid", "")
+
+    logger.info(
+        f"LangBot target_id: {target_id} (from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
+    )
+
+    # Build message chain
+    message_type = message.get("message_type", "text")
+    message_content = message.get("message", "")
+
+    if message_type == "text":
+        message_chain = [{"type": "Plain", "text": message_content}]
+    elif message_type == "image":
+        message_chain = [{"type": "Image", "url": metadata.get("url", "")}]
+    elif message_type == "voice":
+        message_chain = [{"type": "Voice", "url": metadata.get("url", "")}]
+    else:
+        message_chain = [{"type": "Plain", "text": message_content}]
 
     # Send via LangBot API
     result = langbot_api.send_message(
-        bot_uuid=langbot_msg["bot_uuid"],
-        target_type=langbot_msg["target_type"],
-        target_id=langbot_msg["target_id"],
-        message_chain=langbot_msg["message_chain"],
+        bot_uuid=bot_uuid,
+        target_type=target_type,
+        target_id=target_id,
+        message_chain=message_chain,
     )
 
     logger.info(f"LangBot send result: {result}")
