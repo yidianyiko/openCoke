@@ -38,18 +38,18 @@ def _parse_trigger_time(
     trigger_time: str, base_timestamp: Optional[int] = None
 ) -> Optional[int]:
     """
-    Parse trigger time from string to timestamp.
+     Parse trigger time from string to timestamp.
 
-    Supports:
-   -Relative time: "30分钟后", "2小时后", "明天", "后天", "下周"
-   -Absolute time: "2024年12月25日09时00分"
+     Supports:
+    -Relative time: "30分钟后", "2小时后", "明天", "后天", "下周"
+    -Absolute time: "2024年12月25日09时00分"
 
-    Args:
-        trigger_time: Time string to parse
-        base_timestamp: 基准时间戳（用于相对时间计算），默认为当前时间
+     Args:
+         trigger_time: Time string to parse
+         base_timestamp: 基准时间戳（用于相对时间计算），默认为当前时间
 
-    Returns:
-        Unix timestamp or None if parsing fails
+     Returns:
+         Unix timestamp or None if parsing fails
     """
     if not trigger_time:
         return None
@@ -109,19 +109,19 @@ def _get_session_operations() -> list:
 
 def _check_operation_allowed(action: str) -> tuple[bool, str]:
     """
-    检查操作是否允许，防止循环调用
+     检查操作是否允许，防止循环调用
 
-    规则：
-   -batch 操作只能调用一次（内部可包含多种操作类型）
-   -单独的 create/update/delete/list 各只能调用一次
-   -batch 之后不能再调用其他操作
-   -其他操作之后不能调用 batch
+     规则：
+    -batch 操作只能调用一次（内部可包含多种操作类型）
+    -单独的 create/update/delete/list 各只能调用一次
+    -batch 之后不能再调用其他操作
+    -其他操作之后不能调用 batch
 
-    Args:
-        action: 操作类型
+     Args:
+         action: 操作类型
 
-    Returns:
-        (是否允许, 错误信息)
+     Returns:
+         (是否允许, 错误信息)
     """
     session_operations = _get_session_operations()
 
@@ -373,7 +373,9 @@ def reminder_tool(
 
     # 处理 action 缺失的情况
     if action is None:
-        error_message = "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）"
+        error_message = (
+            "操作类型缺失，请指定 action 参数（create/batch/update/delete/list）"
+        )
         logger.error("reminder_tool: action 参数缺失，LLM 未正确传递")
         _save_reminder_result_to_session(
             f"提醒操作失败：{error_message}",
@@ -388,7 +390,15 @@ def reminder_tool(
         }
 
     # 手动验证 action 值（阶段二：移除 list，新增 filter/complete）
-    valid_actions = ("create", "batch", "update", "delete", "filter", "complete", "list")
+    valid_actions = (
+        "create",
+        "batch",
+        "update",
+        "delete",
+        "filter",
+        "complete",
+        "list",
+    )
     if action not in valid_actions:
         return {
             "ok": False,
@@ -407,7 +417,15 @@ def reminder_tool(
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
 
-    if not user_id and action in ["create", "batch", "filter", "update", "delete", "complete", "list"]:
+    if not user_id and action in [
+        "create",
+        "batch",
+        "filter",
+        "update",
+        "delete",
+        "complete",
+        "list",
+    ]:
         logger.warning("reminder_tool: user_id not found in session_state")
         return {"ok": False, "error": "无法获取用户信息，请稍后重试"}
 
@@ -491,7 +509,9 @@ def reminder_tool(
 
         elif action == "list":
             # 向后兼容：list 操作重定向到 filter
-            logger.warning("reminder_tool: 'list' action is deprecated, use 'filter' instead")
+            logger.warning(
+                "reminder_tool: 'list' action is deprecated, use 'filter' instead"
+            )
             return _filter_reminders(
                 reminder_dao=reminder_dao,
                 user_id=user_id,
@@ -548,12 +568,16 @@ def _check_required_fields(
     if not missing_fields:
         return None
 
-    logger.info(f"Reminder needs more info: missing={missing_fields}, draft={draft_info}")
+    logger.info(
+        f"Reminder needs more info: missing={missing_fields}, draft={draft_info}"
+    )
 
     missing_desc = "、".join(
         ["提醒内容" if f == "title" else "提醒时间" for f in missing_fields]
     )
-    semantic_message = f"信息不足：用户想设置提醒，但缺少【{missing_desc}】，请询问用户补充"
+    semantic_message = (
+        f"信息不足：用户想设置提醒，但缺少【{missing_desc}】，请询问用户补充"
+    )
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="创建提醒",
@@ -616,7 +640,10 @@ def _check_frequency_limit(
         user_intent="创建提醒",
         action_executed="create",
         intent_fulfilled=False,
-        details={"error": "frequency_too_high", "recurrence_interval": recurrence_interval},
+        details={
+            "error": "frequency_too_high",
+            "recurrence_interval": recurrence_interval,
+        },
     )
     return {"ok": False, "error": error_msg}
 
@@ -662,7 +689,9 @@ def _parse_and_validate_time(
         }
 
     if timestamp <= current_time:
-        trigger_time_str = datetime.fromtimestamp(timestamp).strftime("%Y年%m月%d日%H时%M分")
+        trigger_time_str = datetime.fromtimestamp(timestamp).strftime(
+            "%Y年%m月%d日%H时%M分"
+        )
         current_time_str = datetime.fromtimestamp(current_time).strftime("%H时%M分")
         semantic_message = (
             f"提醒创建失败：触发时间 {trigger_time_str} 已经过去"
@@ -718,9 +747,13 @@ def _check_duplicate_reminder(
         else ""
     )
 
-    logger.info(f"Duplicate reminder detected: title={title}, existing_id={existing_id}")
+    logger.info(
+        f"Duplicate reminder detected: title={title}, existing_id={existing_id}"
+    )
 
-    semantic_message = f"重复提醒：用户已有相同的提醒「{title}」({existing_time_str})，无需重复创建"
+    semantic_message = (
+        f"重复提醒：用户已有相同的提醒「{title}」({existing_time_str})，无需重复创建"
+    )
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="创建提醒",
@@ -771,7 +804,9 @@ def _try_append_to_same_time_reminder(
         else ""
     )
 
-    logger.info(f"Appended to existing reminder: id={existing_id}, new_title={new_title}")
+    logger.info(
+        f"Appended to existing reminder: id={existing_id}, new_title={new_title}"
+    )
 
     semantic_message = (
         f"提醒追加成功：在{existing_time_str}已有提醒「{existing_title}」，"
@@ -782,7 +817,11 @@ def _try_append_to_same_time_reminder(
         user_intent="创建提醒",
         action_executed="append",
         intent_fulfilled=True,
-        details={"status": "appended", "reminder_id": existing_id, "new_title": new_title},
+        details={
+            "status": "appended",
+            "reminder_id": existing_id,
+            "new_title": new_title,
+        },
     )
 
     return {
@@ -863,7 +902,9 @@ def _build_reminder_document(
     # 设置默认次数上限（非时间段的周期提醒）
     if recurrence_type != "none" and not time_period_config:
         reminder_doc["recurrence"]["max_count"] = _DEFAULT_MAX_TRIGGERS
-        logger.info(f"Set default max_count={_DEFAULT_MAX_TRIGGERS} for recurring reminder")
+        logger.info(
+            f"Set default max_count={_DEFAULT_MAX_TRIGGERS} for recurring reminder"
+        )
 
     # 添加时间段配置
     if time_period_config:
@@ -894,7 +935,9 @@ def _format_success_message(
     """格式化创建成功的语义化消息."""
     from datetime import datetime
 
-    trigger_time_str = datetime.fromtimestamp(timestamp).strftime("%Y年%m月%d日%H时%M分")
+    trigger_time_str = datetime.fromtimestamp(timestamp).strftime(
+        "%Y年%m月%d日%H时%M分"
+    )
 
     # 周期描述
     recurrence_desc = ""
@@ -908,14 +951,24 @@ def _format_success_message(
             "hourly": "每小时",
             "interval": f"每{recurrence_interval}分钟",
         }
-        recurrence_desc = f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+        recurrence_desc = (
+            f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+        )
         if reminder_doc["recurrence"].get("max_count"):
             max_count_desc = f"（最多提醒{reminder_doc['recurrence']['max_count']}次）"
 
     # 时间段描述
     period_desc = ""
     if time_period_config:
-        days_map = {1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日"}
+        days_map = {
+            1: "周一",
+            2: "周二",
+            3: "周三",
+            4: "周四",
+            5: "周五",
+            6: "周六",
+            7: "周日",
+        }
         active_days = time_period_config.get("active_days")
         if active_days == [1, 2, 3, 4, 5]:
             days_str = "工作日"
@@ -947,15 +1000,15 @@ def _create_reminder(
     period_days: Optional[str] = None,
 ) -> dict:
     """
-    Create a new reminder with deduplication check.
+     Create a new reminder with deduplication check.
 
-    返回状态说明：
-   -ok=True, status="created": 提醒创建成功
-   -ok=True, status="duplicate": 已存在相同提醒
-   -ok=True, status="needs_info": 信息不完整，需要用户补充（不写入数据库）
-   -ok=False: 真正的错误（如时间解析失败、时间已过去等）
+     返回状态说明：
+    -ok=True, status="created": 提醒创建成功
+    -ok=True, status="duplicate": 已存在相同提醒
+    -ok=True, status="needs_info": 信息不完整，需要用户补充（不写入数据库）
+    -ok=False: 真正的错误（如时间解析失败、时间已过去等）
 
-    重构说明：复杂度从 32 降低到约 12，通过提取辅助函数实现
+     重构说明：复杂度从 32 降低到约 12，通过提取辅助函数实现
     """
     from datetime import datetime
 
@@ -985,12 +1038,16 @@ def _create_reminder(
         return duplicate
 
     # Step 5: 尝试追加到同一时间的提醒
-    appended = _try_append_to_same_time_reminder(reminder_dao, user_id, title, timestamp)
+    appended = _try_append_to_same_time_reminder(
+        reminder_dao, user_id, title, timestamp
+    )
     if appended:
         return appended
 
     # Step 6: 解析时间段配置
-    time_period_config = _parse_time_period_config(period_start, period_end, period_days)
+    time_period_config = _parse_time_period_config(
+        period_start, period_end, period_days
+    )
 
     # Step 7: 构建提醒文档
     reminder_doc = _build_reminder_document(
@@ -1019,13 +1076,21 @@ def _create_reminder(
             )
             return {"ok": False, "error": "创建提醒失败"}
 
-        trigger_time_str = datetime.fromtimestamp(timestamp).strftime("%Y年%m月%d日%H时%M分")
-        logger.info(f"Reminder created: id={reminder_id}, title={title}, time={trigger_time_str}")
+        trigger_time_str = datetime.fromtimestamp(timestamp).strftime(
+            "%Y年%m月%d日%H时%M分"
+        )
+        logger.info(
+            f"Reminder created: id={reminder_id}, title={title}, time={trigger_time_str}"
+        )
 
         # 构建成功消息
         semantic_message = _format_success_message(
-            title, timestamp, recurrence_type, recurrence_interval,
-            reminder_doc, time_period_config
+            title,
+            timestamp,
+            recurrence_type,
+            recurrence_interval,
+            reminder_doc,
+            time_period_config,
         )
         _save_reminder_result_to_session(
             semantic_message,
@@ -1053,14 +1118,27 @@ def _create_reminder(
         period_desc = ""
         if recurrence_type != "none":
             recurrence_map = {
-                "daily": "每天", "weekly": "每周", "monthly": "每月",
-                "yearly": "每年", "hourly": "每小时",
+                "daily": "每天",
+                "weekly": "每周",
+                "monthly": "每月",
+                "yearly": "每年",
+                "hourly": "每小时",
                 "interval": f"每{recurrence_interval}分钟",
             }
-            recurrence_desc = f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+            recurrence_desc = (
+                f"，周期：{recurrence_map.get(recurrence_type, recurrence_type)}"
+            )
 
         if time_period_config:
-            days_map = {1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日"}
+            days_map = {
+                1: "周一",
+                2: "周二",
+                3: "周三",
+                4: "周四",
+                5: "周五",
+                6: "周六",
+                7: "周日",
+            }
             active_days = time_period_config.get("active_days")
             if active_days == [1, 2, 3, 4, 5]:
                 days_str = "工作日"
@@ -1402,8 +1480,7 @@ def _batch_op_create(ctx: _BatchOperationContext, op: dict) -> dict:
 
     # 解析时间
     is_relative = any(
-        k in trigger_time
-        for k in ["分钟后", "小时后", "天后", "明天", "后天", "下周"]
+        k in trigger_time for k in ["分钟后", "小时后", "天后", "明天", "后天", "下周"]
     )
     timestamp = _parse_trigger_time(
         trigger_time, ctx.current_time if is_relative else ctx.base_timestamp
@@ -1456,7 +1533,13 @@ def _batch_op_create(ctx: _BatchOperationContext, op: dict) -> dict:
 
     # 创建提醒
     return _do_create_reminder(
-        ctx, title, trigger_time, timestamp, recurrence_type, recurrence_interval, is_period_reminder
+        ctx,
+        title,
+        trigger_time,
+        timestamp,
+        recurrence_type,
+        recurrence_interval,
+        is_period_reminder,
     )
 
 
@@ -1480,7 +1563,9 @@ def _try_append_to_reminder(
         else ""
     )
 
-    logger.info(f"Batch appended to reminder: id={existing_id}, title={new_title_combined}")
+    logger.info(
+        f"Batch appended to reminder: id={existing_id}, title={new_title_combined}"
+    )
     return {
         "ok": True,
         "status": "appended",
@@ -1571,7 +1656,10 @@ def _batch_op_update(ctx: _BatchOperationContext, op: dict) -> dict:
             return {"ok": False, "error": f"无法解析时间: {op['new_trigger_time']}"}
 
     if not update_fields:
-        return {"ok": False, "error": "没有要更新的字段（需要 new_title 或 new_trigger_time）"}
+        return {
+            "ok": False,
+            "error": "没有要更新的字段（需要 new_title 或 new_trigger_time）",
+        }
 
     try:
         updated_count, updated_reminders = ctx.reminder_dao.update_reminders_by_keyword(
@@ -1638,8 +1726,8 @@ def _batch_op_complete(ctx: _BatchOperationContext, op: dict) -> dict:
     keyword = keyword.strip()
 
     try:
-        completed_count, completed_reminders = ctx.reminder_dao.complete_reminders_by_keyword(
-            ctx.user_id, keyword
+        completed_count, completed_reminders = (
+            ctx.reminder_dao.complete_reminders_by_keyword(ctx.user_id, keyword)
         )
         if completed_count > 0:
             completed_titles = [r.get("title", "") for r in completed_reminders]
@@ -1650,7 +1738,34 @@ def _batch_op_complete(ctx: _BatchOperationContext, op: dict) -> dict:
                 "completed_count": completed_count,
                 "completed_titles": completed_titles,
             }
-        return {"ok": False, "error": f"没有找到包含「{keyword}」的待完成提醒"}
+
+        # 检查是否有已完成的提醒
+        import re
+
+        safe_keyword = re.escape(keyword)
+        already_completed = list(
+            ctx.reminder_dao.collection.find(
+                {
+                    "user_id": ctx.user_id,
+                    "status": "completed",
+                    "title": {"$regex": safe_keyword, "$options": "i"},
+                }
+            ).limit(5)
+        )
+
+        if already_completed:
+            # 找到已完成的提醒，返回成功
+            completed_titles = [r.get("title", "") for r in already_completed]
+            return {
+                "ok": True,
+                "status": "already_completed",
+                "keyword": keyword,
+                "completed_count": 0,
+                "already_completed_count": len(already_completed),
+                "already_completed_titles": completed_titles,
+            }
+
+        return {"ok": False, "error": f"没有找到包含「{keyword}」的提醒"}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -1703,6 +1818,7 @@ def _build_batch_summary(results: list) -> dict:
     updated = [r for r in results if r.get("status") == "updated"]
     deleted = [r for r in results if r.get("status") == "deleted"]
     completed = [r for r in results if r.get("status") == "completed"]
+    already_completed = [r for r in results if r.get("status") == "already_completed"]
     failed = [r for r in results if not r.get("ok")]
 
     return {
@@ -1712,6 +1828,7 @@ def _build_batch_summary(results: list) -> dict:
         "updated": updated,
         "deleted": deleted,
         "completed": completed,
+        "already_completed": already_completed,
         "failed": failed,
     }
 
@@ -1731,6 +1848,9 @@ def _build_batch_message(summary: dict) -> str:
         msg_parts.append(f"删除{len(summary['deleted'])}个提醒")
     if summary.get("completed"):
         msg_parts.append(f"完成{len(summary['completed'])}个提醒")
+    if summary.get("already_completed"):
+        # 已完成的提醒也算成功，不显示为失败
+        msg_parts.append(f"确认{len(summary['already_completed'])}个已完成的提醒")
     if summary["failed"]:
         msg_parts.append(f"失败{len(summary['failed'])}个")
 
@@ -1927,7 +2047,10 @@ def _update_reminder_by_keyword(
             action_executed="update",
             intent_fulfilled=False,
         )
-        return {"ok": False, "error": "没有提供要更新的字段（需要 new_title 或 new_trigger_time）"}
+        return {
+            "ok": False,
+            "error": "没有提供要更新的字段（需要 new_title 或 new_trigger_time）",
+        }
 
     try:
         updated_count, updated_reminders = reminder_dao.update_reminders_by_keyword(
@@ -1941,7 +2064,9 @@ def _update_reminder_by_keyword(
                 titles_str += f" 等{len(updated_titles)}个"
 
             desc_str = "、".join(update_desc) if update_desc else "已更新"
-            semantic_message = f"提醒修改成功：已更新包含「{keyword}」的提醒 {titles_str}，{desc_str}"
+            semantic_message = (
+                f"提醒修改成功：已更新包含「{keyword}」的提醒 {titles_str}，{desc_str}"
+            )
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="修改提醒",
@@ -1971,7 +2096,7 @@ def _update_reminder_by_keyword(
             )
             return {
                 "ok": False,
-                "error": f"没有找到包含「{keyword}」的提醒",
+                "error": f"没有找到或已经完成了包含「{keyword}」的提醒",
                 "updated_count": 0,
             }
 
@@ -2025,7 +2150,9 @@ def _delete_reminder_by_keyword(
         try:
             deleted_count = reminder_dao.delete_all_by_user(user_id)
             if deleted_count > 0:
-                semantic_message = f"提醒删除成功：已删除全部 {deleted_count} 个待办提醒"
+                semantic_message = (
+                    f"提醒删除成功：已删除全部 {deleted_count} 个待办提醒"
+                )
                 _save_reminder_result_to_session(
                     semantic_message,
                     user_intent="删除所有提醒",
@@ -2070,7 +2197,9 @@ def _delete_reminder_by_keyword(
             if len(deleted_titles) > 5:
                 titles_str += f" 等{len(deleted_titles)}个"
 
-            semantic_message = f"提醒删除成功：已删除包含「{keyword}」的提醒：{titles_str}"
+            semantic_message = (
+                f"提醒删除成功：已删除包含「{keyword}」的提醒：{titles_str}"
+            )
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="删除提醒",
@@ -2099,7 +2228,7 @@ def _delete_reminder_by_keyword(
             )
             return {
                 "ok": False,
-                "error": f"没有找到包含「{keyword}」的提醒",
+                "error": f"没有找到或已经完成了包含「{keyword}」的提醒",
                 "deleted_count": 0,
             }
 
@@ -2242,7 +2371,9 @@ def _list_reminders(
         # 语义化输出查询结果
         if formatted_reminders:
             summary_str = " ".join(reminder_summaries)
-            semantic_message = f"查询成功：用户当前有{len(formatted_reminders)}个提醒：{summary_str}"
+            semantic_message = (
+                f"查询成功：用户当前有{len(formatted_reminders)}个提醒：{summary_str}"
+            )
         else:
             semantic_message = "查询成功：用户当前没有待执行的提醒"
         _save_reminder_result_to_session(
@@ -2314,12 +2445,16 @@ def _filter_reminders(
         current_time = int(time.time())
 
         if trigger_after:
-            trigger_after_ts = _parse_trigger_time(trigger_after, base_timestamp or current_time)
+            trigger_after_ts = _parse_trigger_time(
+                trigger_after, base_timestamp or current_time
+            )
             if not trigger_after_ts:
                 logger.warning(f"Failed to parse trigger_after: {trigger_after}")
 
         if trigger_before:
-            trigger_before_ts = _parse_trigger_time(trigger_before, base_timestamp or current_time)
+            trigger_before_ts = _parse_trigger_time(
+                trigger_before, base_timestamp or current_time
+            )
             if not trigger_before_ts:
                 logger.warning(f"Failed to parse trigger_before: {trigger_before}")
 
@@ -2406,7 +2541,11 @@ def _filter_reminders(
             },
         )
 
-        return {"ok": True, "reminders": formatted_reminders, "count": len(formatted_reminders)}
+        return {
+            "ok": True,
+            "reminders": formatted_reminders,
+            "count": len(formatted_reminders),
+        }
 
     except Exception as e:
         logger.error(f"Failed to filter reminders: {e}")
@@ -2456,8 +2595,8 @@ def _complete_reminder(
     keyword = keyword.strip()
 
     try:
-        completed_count, completed_reminders = reminder_dao.complete_reminders_by_keyword(
-            user_id, keyword
+        completed_count, completed_reminders = (
+            reminder_dao.complete_reminders_by_keyword(user_id, keyword)
         )
 
         if completed_count > 0:
@@ -2466,7 +2605,9 @@ def _complete_reminder(
             if len(completed_titles) > 5:
                 titles_str += f" 等{len(completed_titles)}个"
 
-            semantic_message = f"提醒完成成功：已完成包含「{keyword}」的提醒：{titles_str}"
+            semantic_message = (
+                f"提醒完成成功：已完成包含「{keyword}」的提醒：{titles_str}"
+            )
             _save_reminder_result_to_session(
                 semantic_message,
                 user_intent="完成提醒",
@@ -2485,19 +2626,63 @@ def _complete_reminder(
                 "message": semantic_message,
             }
         else:
-            semantic_message = f"提醒完成失败：没有找到包含「{keyword}」的待完成提醒"
-            _save_reminder_result_to_session(
-                semantic_message,
-                user_intent="完成提醒",
-                action_executed="complete",
-                intent_fulfilled=False,
-                details={"keyword": keyword, "completed_count": 0},
+            # 检查是否有已完成的提醒（用户可能在确认已完成的任务）
+            import re
+
+            safe_keyword = re.escape(keyword)
+            already_completed = list(
+                reminder_dao.collection.find(
+                    {
+                        "user_id": user_id,
+                        "status": "completed",
+                        "title": {"$regex": safe_keyword, "$options": "i"},
+                    }
+                ).limit(5)
             )
-            return {
-                "ok": False,
-                "error": f"没有找到包含「{keyword}」的待完成提醒",
-                "completed_count": 0,
-            }
+
+            if already_completed:
+                # 找到已完成的提醒，这是正常情况，不应报错
+                completed_titles = [r.get("title", "") for r in already_completed]
+                titles_str = "、".join([f"「{t}」" for t in completed_titles[:3]])
+                if len(completed_titles) > 3:
+                    titles_str += f" 等{len(completed_titles)}个"
+
+                semantic_message = (
+                    f"好的，包含「{keyword}」的提醒（{titles_str}）已经完成了"
+                )
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="完成提醒",
+                    action_executed="complete",
+                    intent_fulfilled=True,  # 标记为成功，因为提醒确实已完成
+                    details={
+                        "keyword": keyword,
+                        "completed_count": 0,
+                        "already_completed_count": len(already_completed),
+                        "already_completed_titles": completed_titles,
+                    },
+                )
+                return {
+                    "ok": True,
+                    "completed_count": 0,
+                    "already_completed": True,
+                    "message": semantic_message,
+                }
+            else:
+                # 真的没有找到任何相关提醒
+                semantic_message = f"没有找到包含「{keyword}」的提醒"
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="完成提醒",
+                    action_executed="complete",
+                    intent_fulfilled=False,
+                    details={"keyword": keyword, "completed_count": 0},
+                )
+                return {
+                    "ok": False,
+                    "error": f"没有找到包含「{keyword}」的提醒",
+                    "completed_count": 0,
+                }
 
     except Exception as e:
         logger.error(f"Failed to complete reminders by keyword '{keyword}': {e}")

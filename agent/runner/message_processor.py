@@ -141,9 +141,9 @@ class MessageAcquirer:
             return None
 
         # 只在有消息时才输出日志
-        logger.info(
-            f"{self.worker_tag} 找到 {len(top_messages)} 条待处理消息 (角色: {self.target_user_alias})"
-        )
+        # logger.info(
+        #     f"{self.worker_tag} 找到 {len(top_messages)} 条待处理消息 (角色: {self.target_user_alias})"
+        # )
 
         # 获取已锁定的会话列表
         locked_conversation_ids = get_locked_conversation_ids()

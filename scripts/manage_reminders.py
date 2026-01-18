@@ -331,7 +331,7 @@ def delete_by_keyword(keyword: str, dry_run: bool = True) -> int:
         reminders = list(dao.collection.find(query))
 
         if not reminders:
-            print(colorize(f'\n📭 没有找到包含 "{keyword}" 的提醒\n', Colors.YELLOW))
+            print(colorize(f'\n📭 没有找到或已经完成了包含 "{keyword}" 的提醒\n', Colors.YELLOW))
             return 0
 
         print(

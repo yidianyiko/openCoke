@@ -219,15 +219,18 @@ class ReminderDAO:
         Returns:
             tuple[int, List[Dict]]: (完成数量, 被完成的提醒列表)
         """
-        # 只能完成 active 状态的提醒
+        # 可以完成 active 或 triggered 状态的提醒
+        # triggered 状态表示提醒已触发但用户尚未确认完成
         if not keyword or not keyword.strip():
-            logger.warning(f"Empty keyword provided for user {user_id}, returning empty list")
+            logger.warning(
+                f"Empty keyword provided for user {user_id}, returning empty list"
+            )
             return 0, []
 
         safe_keyword = re.escape(keyword.strip())
         query = {
             "user_id": user_id,
-            "status": "active",
+            "status": {"$in": ["active", "triggered"]},
             "title": {"$regex": safe_keyword, "$options": "i"},
         }
 
@@ -294,7 +297,7 @@ class ReminderDAO:
             "title": title,
             "status": "active",
             "next_trigger_time": {
-                "$gte": trigger_time-time_tolerance,
+                "$gte": trigger_time - time_tolerance,
                 "$lte": trigger_time + time_tolerance,
             },
         }
@@ -331,7 +334,7 @@ class ReminderDAO:
             "user_id": user_id,
             "status": "active",
             "next_trigger_time": {
-                "$gte": trigger_time-time_tolerance,
+                "$gte": trigger_time - time_tolerance,
                 "$lte": trigger_time + time_tolerance,
             },
         }
@@ -436,9 +439,7 @@ class ReminderDAO:
             阶段二状态重构：confirmed/pending -> active
         """
         # 只删除有效状态的提醒（active）
-        result = self.collection.delete_many(
-            {"user_id": user_id, "status": "active"}
-        )
+        result = self.collection.delete_many({"user_id": user_id, "status": "active"})
         logger.info(f"Deleted {result.deleted_count} reminders for user {user_id}")
         return result.deleted_count
 
@@ -467,7 +468,9 @@ class ReminderDAO:
 
         # BUG-010 fix: Empty or whitespace-only keyword should not match anything
         if not keyword or not keyword.strip():
-            logger.warning(f"Empty keyword provided for user {user_id}, returning empty list")
+            logger.warning(
+                f"Empty keyword provided for user {user_id}, returning empty list"
+            )
             return []
 
         # BUG-005 Medium fix: Escape regex special characters to prevent injection
