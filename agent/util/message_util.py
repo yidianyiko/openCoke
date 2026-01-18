@@ -204,8 +204,35 @@ def image_message_to_str(message, language="cn"):
 
 
 def send_message_via_context(
-    context, message, message_type="text", expect_output_timestamp=None, metadata={}
+    context, message, message_type="text", expect_output_timestamp=None, metadata=None
 ):
+    """
+    通过 context 发送消息，自动从 inputmessage 复制 metadata
+
+    Args:
+        context: 上下文信息
+        message: 消息内容
+        message_type: 消息类型
+        expect_output_timestamp: 预期输出时间戳
+        metadata: 额外的 metadata（会与 inputmessage 的 metadata 合并）
+    """
+    # 如果没有提供 metadata，尝试从 inputmessage 复制
+    if metadata is None:
+        metadata = {}
+
+    # 从 inputmessage 复制 metadata（用于 langbot 等需要回传信息的平台）
+    # 注意：主动消息（提醒等）不依赖这个 metadata，output 阶段会从用户配置获取路由信息
+    input_messages = (
+        context.get("conversation", {})
+        .get("conversation_info", {})
+        .get("input_messages", [])
+    )
+    if input_messages and len(input_messages) > 0:
+        first_input = input_messages[0]
+        input_metadata = first_input.get("metadata", {})
+        # 将 inputmessage 的 metadata 合并到输出消息
+        metadata = {**input_metadata, **metadata}
+
     return send_message(
         platform=context["conversation"]["platform"],
         from_user=str(context["character"]["_id"]),
