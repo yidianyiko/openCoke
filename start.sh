@@ -95,16 +95,30 @@ echo "=========================================="
 bash connector/ecloud/ecloud_start.sh &
 ECLOUD_PID=$!
 
+# 启动 LangBot（多平台网关）
+if [ -f connector/langbot/langbot_start.sh ]; then
+    echo ""
+    echo "=========================================="
+    echo "启动 LangBot 网关..."
+    echo "=========================================="
+    bash connector/langbot/langbot_start.sh &
+    LANGBOT_PID=$!
+fi
+
 echo ""
 echo "=========================================="
 echo "所有服务已启动"
 echo "  Agent PID: $AGENT_PID"
 echo "  Ecloud PID: $ECLOUD_PID"
+if [ -n "$LANGBOT_PID" ]; then
+echo "  LangBot PID: $LANGBOT_PID"
+fi
 echo "=========================================="
 echo ""
 echo "查看日志:"
 echo "  Agent:  tail -f agent/runner/agent.log"
 echo "  Ecloud: tail -f connector/ecloud/ecloud.log"
+echo "  LangBot: tail -f connector/langbot/langbot.log"
 echo ""
 
 # 等待任意进程结束

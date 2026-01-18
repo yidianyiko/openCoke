@@ -166,10 +166,15 @@ def decrease_all():
     """降低所有用户的关系数值"""
     logger.info("decrease all relationships...")
     # relations.cid 存储的是 MongoDB ObjectId 字符串，不是 WeChat ID
-    character = user_dao.get_user_by_platform(platform, target_user_id)
-    if not character:
-        logger.warning("Cannot get character, skip decrease_all")
+    # 使用名称查找角色，支持多平台（不再依赖 wechat 平台配置）
+    characters = user_dao.find_characters({"name": target_user_alias})
+    if not characters:
+        # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
+        characters = user_dao.find_characters({"platforms.wechat.id": target_user_id})
+    if not characters:
+        logger.warning(f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip decrease_all")
         return
+    character = characters[0]
     character_oid = str(character["_id"])
     relations = mongo.find_many("relations", query={"cid": character_oid}, limit=10000)
     for relation in relations:
@@ -195,10 +200,15 @@ def handle_proactive_message():
         logger.info("start character proactive agent...")
         now = int(time.time())
         date_str = date2str(now)
-        character = user_dao.get_user_by_platform(platform, target_user_id)
-        if not character:
-            logger.warning("Cannot get character, skip handle_proactive_message")
+        # 使用名称查找角色，支持多平台
+        characters = user_dao.find_characters({"name": target_user_alias})
+        if not characters:
+            # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
+            characters = user_dao.find_characters({"platforms.wechat.id": target_user_id})
+        if not characters:
+            logger.warning(f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip handle_proactive_message")
             return
+        character = characters[0]
         character_oid = str(character["_id"])
 
         current_script = mongo.find_one(
@@ -229,10 +239,22 @@ def handle_proactive_message():
 
                     user = user_dao.get_user_by_id(relation["uid"])
                     character = user_dao.get_user_by_id(relation["cid"])
+                    
+                    # 动态获取用户的平台（支持 wechat, langbot_LarkAdapter 等）
+                    user_platform = None
+                    for plat in user.get("platforms", {}).keys():
+                        if plat in character.get("platforms", {}):
+                            user_platform = plat
+                            break
+                    
+                    if not user_platform:
+                        logger.debug(f"用户和角色没有共同平台，跳过: user={user.get('name')}")
+                        continue
+                    
                     conversation = conversation_dao.get_private_conversation(
-                        "wechat",
-                        user["platforms"]["wechat"]["id"],
-                        character["platforms"]["wechat"]["id"],
+                        user_platform,
+                        user["platforms"][user_platform]["id"],
+                        character["platforms"][user_platform]["id"],
                     )
 
                     if conversation is None:
@@ -343,19 +365,21 @@ async def handle_pending_future_message():
             clear_invalid_future()
             return
 
+        # 使用平台字段动态构建查询（支持 wechat, langbot_LarkAdapter 等）
+        platform = conversation.get("platform", "wechat")
         users = user_dao.find_users(
-            {"platforms.wechat.id": conversation["talkers"][0]["id"]}, 1
+            {f"platforms.{platform}.id": conversation["talkers"][0]["id"]}, 1
         )
         if not users:
             logger.warning(
-                f"找不到用户: {conversation['talkers'][0]['id']}，清除 future"
+                f"找不到用户: {conversation['talkers'][0]['id']} (platform={platform})，清除 future"
             )
             clear_invalid_future()
             return
         user = users[0]
 
         characters = user_dao.find_users(
-            {"platforms.wechat.id": conversation["talkers"][1]["id"]}, 1
+            {f"platforms.{platform}.id": conversation["talkers"][1]["id"]}, 1
         )
         if not characters:
             logger.warning(
