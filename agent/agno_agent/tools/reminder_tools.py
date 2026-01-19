@@ -33,6 +33,163 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+_DELETE_ALL_WORDS = ["全部", "所有", "清空", "都删", "全删"]
+
+
+def _get_current_input_messages_text(session_state: Optional[dict] = None) -> str:
+    if session_state is None:
+        session_state = _get_current_session_state()
+    conversation_info = (
+        (session_state or {}).get("conversation", {}).get("conversation_info", {}) or {}
+    )
+    input_messages = conversation_info.get("input_messages") or []
+    if not isinstance(input_messages, list) or not input_messages:
+        return ""
+
+    texts: list[str] = []
+    for msg in input_messages:
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get("message")
+        if content is None:
+            continue
+        content_str = str(content).strip()
+        if content_str:
+            texts.append(content_str)
+    return "\n".join(texts)
+
+
+def _contains_any(text: str, candidates: list[str]) -> bool:
+    if not text:
+        return False
+    for w in candidates:
+        if w and w in text:
+            return True
+    return False
+
+
+def _get_active_candidates(reminder_dao: ReminderDAO, user_id: str) -> list[dict]:
+    try:
+        reminders = reminder_dao.filter_reminders(
+            user_id=user_id, status_list=["active", "triggered"]
+        )
+    except Exception:
+        reminders = []
+    if not isinstance(reminders, list):
+        return []
+    return reminders
+
+
+def _summarize_candidates(reminders: list[dict], limit: int = 3) -> tuple[list[dict], str]:
+    candidates: list[dict] = []
+    lines: list[str] = []
+    for r in reminders[:limit]:
+        title = str(r.get("title") or "").strip()
+        ts = r.get("next_trigger_time")
+        time_str = ""
+        if isinstance(ts, (int, float)) and ts > 0:
+            time_str = datetime.fromtimestamp(int(ts)).strftime("%m月%d日%H:%M")
+        if title:
+            candidates.append({"title": title, "time": time_str, "reminder_id": r.get("reminder_id")})
+            lines.append(f"「{title}」{('(' + time_str + ')') if time_str else ''}")
+    return candidates, "、".join(lines)
+
+
+def _guard_side_effect_action(
+    action: str,
+    reminder_dao: ReminderDAO,
+    user_id: str,
+    keyword: Optional[str],
+    session_state: Optional[dict] = None,
+) -> dict:
+    user_text = _get_current_input_messages_text(session_state=session_state).strip()
+    kw = (keyword or "").strip()
+
+    if action not in ("delete", "complete"):
+        return {"allowed": True}
+
+    if not user_text:
+        return {
+            "allowed": False,
+            "needs_confirmation": True,
+            "error": "无法获取用户本轮原文，已阻止执行有副作用的提醒操作",
+            "candidates": [],
+            "resolved_keyword": None,
+            "reason": "missing_user_text",
+        }
+
+    active_candidates = _get_active_candidates(reminder_dao, user_id)
+    matched_titles = []
+    for r in active_candidates:
+        title = str(r.get("title") or "").strip()
+        if title and title in user_text:
+            matched_titles.append(title)
+    matched_titles = list(dict.fromkeys(matched_titles))
+
+    if len(matched_titles) == 1:
+        return {
+            "allowed": True,
+            "needs_confirmation": False,
+            "error": "",
+            "candidates": [],
+            "resolved_keyword": matched_titles[0],
+            "reason": "matched_active_title_in_user_text",
+        }
+
+    if len(matched_titles) > 1:
+        candidates, display = _summarize_candidates(active_candidates, limit=3)
+        return {
+            "allowed": False,
+            "needs_confirmation": True,
+            "error": "本轮消息同时命中多个提醒，无法确定要操作哪一个",
+            "candidates": candidates,
+            "resolved_keyword": None,
+            "reason": "ambiguous_title_matches",
+            "display": display,
+        }
+
+    if kw == "*" and action == "delete":
+        if _contains_any(user_text, _DELETE_ALL_WORDS):
+            return {
+                "allowed": True,
+                "needs_confirmation": False,
+                "error": "",
+                "candidates": [],
+                "resolved_keyword": None,
+                "reason": "explicit_delete_all",
+            }
+        candidates, display = _summarize_candidates(active_candidates, limit=3)
+        return {
+            "allowed": False,
+            "needs_confirmation": True,
+            "error": "删除全部提醒需要用户明确表示“全部/清空/所有”等意图",
+            "candidates": candidates,
+            "resolved_keyword": None,
+            "reason": "delete_all_not_explicit",
+            "display": display,
+        }
+
+    if kw and kw in user_text:
+        return {
+            "allowed": True,
+            "needs_confirmation": False,
+            "error": "",
+            "candidates": [],
+            "resolved_keyword": kw,
+            "reason": "keyword_in_user_text",
+        }
+
+    candidates, display = _summarize_candidates(active_candidates, limit=3)
+    return {
+        "allowed": False,
+        "needs_confirmation": True,
+        "error": "用户本轮消息未明确包含要操作的提醒关键字或标题",
+        "candidates": candidates,
+        "resolved_keyword": None,
+        "reason": "keyword_not_in_user_text",
+        "display": display,
+    }
+
 
 def _parse_trigger_time(
     trigger_time: str, base_timestamp: Optional[int] = None
@@ -482,6 +639,40 @@ def reminder_tool(
             )
 
         elif action == "delete":
+            guard = _guard_side_effect_action(
+                action="delete",
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                keyword=keyword,
+                session_state=current_session_state,
+            )
+            if not guard.get("allowed"):
+                candidates = guard.get("candidates") or []
+                display = guard.get("display") or ""
+                semantic_message = (
+                    f"提醒删除未执行：{guard.get('error')}"
+                    + (f"。可选提醒：{display}" if display else "")
+                )
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="删除提醒",
+                    action_executed="delete",
+                    intent_fulfilled=False,
+                    details={
+                        "reason": guard.get("reason"),
+                        "keyword": (keyword or "").strip(),
+                        "needs_confirmation": bool(guard.get("needs_confirmation")),
+                        "candidates": candidates,
+                    },
+                )
+                return {
+                    "ok": False,
+                    "error": guard.get("error"),
+                    "needs_confirmation": bool(guard.get("needs_confirmation")),
+                    "candidates": candidates,
+                }
+            if guard.get("resolved_keyword") is not None:
+                keyword = guard.get("resolved_keyword")
             return _delete_reminder_by_keyword(
                 reminder_dao=reminder_dao,
                 user_id=user_id,
@@ -501,6 +692,40 @@ def reminder_tool(
             )
 
         elif action == "complete":
+            guard = _guard_side_effect_action(
+                action="complete",
+                reminder_dao=reminder_dao,
+                user_id=user_id,
+                keyword=keyword,
+                session_state=current_session_state,
+            )
+            if not guard.get("allowed"):
+                candidates = guard.get("candidates") or []
+                display = guard.get("display") or ""
+                semantic_message = (
+                    f"提醒完成未执行：{guard.get('error')}"
+                    + (f"。可选提醒：{display}" if display else "")
+                )
+                _save_reminder_result_to_session(
+                    semantic_message,
+                    user_intent="完成提醒",
+                    action_executed="complete",
+                    intent_fulfilled=False,
+                    details={
+                        "reason": guard.get("reason"),
+                        "keyword": (keyword or "").strip(),
+                        "needs_confirmation": bool(guard.get("needs_confirmation")),
+                        "candidates": candidates,
+                    },
+                )
+                return {
+                    "ok": False,
+                    "error": guard.get("error"),
+                    "needs_confirmation": bool(guard.get("needs_confirmation")),
+                    "candidates": candidates,
+                }
+            if guard.get("resolved_keyword") is not None:
+                keyword = guard.get("resolved_keyword")
             return _complete_reminder(
                 reminder_dao=reminder_dao,
                 user_id=user_id,
@@ -1687,6 +1912,23 @@ def _batch_op_delete(ctx: _BatchOperationContext, op: dict) -> dict:
 
     keyword = keyword.strip()
 
+    guard = _guard_side_effect_action(
+        action="delete",
+        reminder_dao=ctx.reminder_dao,
+        user_id=ctx.user_id,
+        keyword=keyword,
+        session_state=_get_current_session_state(),
+    )
+    if not guard.get("allowed"):
+        return {
+            "ok": False,
+            "error": guard.get("error"),
+            "needs_confirmation": bool(guard.get("needs_confirmation")),
+            "candidates": guard.get("candidates") or [],
+        }
+    if guard.get("resolved_keyword") is not None:
+        keyword = guard.get("resolved_keyword")
+
     # 支持 "*" 删除所有
     if keyword == "*":
         try:
@@ -1724,6 +1966,23 @@ def _batch_op_complete(ctx: _BatchOperationContext, op: dict) -> dict:
         return {"ok": False, "error": "缺少 keyword（要完成的提醒关键字）"}
 
     keyword = keyword.strip()
+
+    guard = _guard_side_effect_action(
+        action="complete",
+        reminder_dao=ctx.reminder_dao,
+        user_id=ctx.user_id,
+        keyword=keyword,
+        session_state=_get_current_session_state(),
+    )
+    if not guard.get("allowed"):
+        return {
+            "ok": False,
+            "error": guard.get("error"),
+            "needs_confirmation": bool(guard.get("needs_confirmation")),
+            "candidates": guard.get("candidates") or [],
+        }
+    if guard.get("resolved_keyword") is not None:
+        keyword = guard.get("resolved_keyword")
 
     try:
         completed_count, completed_reminders = (
