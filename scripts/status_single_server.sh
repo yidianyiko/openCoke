@@ -42,8 +42,8 @@ else
 fi
 
 # LangBot Input Handler
-if pgrep -f "langbot_input.py" > /dev/null; then
-    echo "  ✓ LangBot Input Handler: 运行中 (PID: $(pgrep -f langbot_input.py))"
+if pgrep -f "gunicorn.*langbot_input|python.*-m gunicorn.*langbot_input" > /dev/null; then
+    echo "  ✓ LangBot Input Handler: 运行中 (PID: $(pgrep -f 'gunicorn.*langbot_input|python.*-m gunicorn.*langbot_input' | head -1))"
 else
     echo "  ✗ LangBot Input Handler: 未运行"
 fi

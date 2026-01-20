@@ -48,7 +48,10 @@ echo "Coke 主服务 PID: $COKE_MAIN_PID" >> "$PIDS_FILE"
 
 # 4. 启动 LangBot Input Handler (Webhook 服务器)
 echo "启动 LangBot Input Handler (端口 8081)..."
-python -u connector/langbot/langbot_input.py > "$LOG_DIR/langbot_input.log" 2>&1 &
+python -m gunicorn -w 2 -b 0.0.0.0:8081 --log-level info \
+    --access-logfile "$LOG_DIR/langbot_input_access.log" \
+    --error-logfile "$LOG_DIR/langbot_input_error.log" \
+    connector.langbot.langbot_input:app > "$LOG_DIR/langbot_input.log" 2>&1 &
 LANGBOT_INPUT_PID=$!
 echo "LangBot Input Handler PID: $LANGBOT_INPUT_PID" >> "$PIDS_FILE"
 
