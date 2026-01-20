@@ -58,6 +58,11 @@ from entity.message import (
     set_hold_status,
     update_message_status_safe,
 )
+from util.message_log_util import (
+    preview_text,
+    should_log_full_message_content,
+    should_log_message_content,
+)
 
 # 预创建 Workflow 实例
 prepare_workflow = PrepareWorkflow()
@@ -396,6 +401,13 @@ async def handle_message(
     context["conversation"]["conversation_info"][
         "input_messages_str"
     ] = input_message_str
+
+    if should_log_message_content():
+        max_chars = 0 if should_log_full_message_content() else None
+        logger.info(
+            f"{worker_tag} 输入消息聚合 (source={message_source}): "
+            f"{preview_text(input_message_str, max_chars=max_chars)}"
+        )
 
     # 将 proactive_times 放到顶层，供模板使用
     context["proactive_times"] = (metadata or {}).get("proactive_times", 0)

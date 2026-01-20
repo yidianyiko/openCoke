@@ -8,6 +8,8 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from util.message_log_util import format_std_message_for_log, should_log_message_content
+
 from bson import ObjectId
 
 from dao.mongo import MongoDBBase
@@ -279,6 +281,8 @@ def send_message(
 
     if mid is not None:
         outputmessage["_id"] = ObjectId(mid)
+        if should_log_message_content():
+            logger.info(f"写入输出消息: {format_std_message_for_log(outputmessage)}")
         return outputmessage
     else:
         return None

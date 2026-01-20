@@ -38,6 +38,10 @@ from entity.message import (
     set_hold_status,
     update_message_status_safe,
 )
+from util.message_log_util import (
+    format_std_messages_for_log,
+    should_log_message_content,
+)
 
 # ========== 配置常量 ==========
 MAX_HANDLE_AGE = 3600 * 12  # 只处理12小时以内的消息
@@ -233,6 +237,13 @@ class MessageAcquirer:
         input_messages = read_all_inputmessages(
             str(user["_id"]), str(character["_id"]), platform, "pending"
         )
+
+        if should_log_message_content():
+            logger.info(
+                f"{self.worker_tag} 待处理消息: conversation_id={conversation_id}, "
+                f"platform={platform}, count={len(input_messages)}; "
+                f"{format_std_messages_for_log(input_messages)}"
+            )
 
         return MessageContext(
             user=user,
