@@ -157,8 +157,6 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-agent/runner/agent_start.sh
-connector/ecloud/ecloud_start.sh
 conf/config.json
 .trae/documents/
 

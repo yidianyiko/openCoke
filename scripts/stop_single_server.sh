@@ -12,7 +12,7 @@ if [ ! -f "$PIDS_FILE" ]; then
     echo "尝试通过进程名停止服务..."
     
     # 通过进程名停止
-    pkill -f "langbot_input.py" && echo "已停止 LangBot Input Handler"
+    pkill -f "gunicorn.*langbot_input|python.*-m gunicorn.*langbot_input" && echo "已停止 LangBot Input Handler"
     pkill -f "langbot_output.py" && echo "已停止 LangBot Output Handler"
     pkill -f "agent_start.sh" && echo "已停止 Coke 主服务"
     

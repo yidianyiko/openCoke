@@ -137,5 +137,4 @@ def webhook_handler():
 
 
 if __name__ == "__main__":
-    # Simple dev server if needed
-    app.run(host="0.0.0.0", port=8081, debug=True)
+    app.run(host="0.0.0.0", port=8081, debug=False)
