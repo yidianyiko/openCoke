@@ -976,9 +976,7 @@ def _check_duplicate_reminder(
         f"Duplicate reminder detected: title={title}, existing_id={existing_id}"
     )
 
-    semantic_message = (
-        f"重复提醒：用户已有相同的提醒「{title}」({existing_time_str})，无需重复创建"
-    )
+    semantic_message = f"创建提醒成功：已为用户设置「{title}」提醒，时间为{existing_time_str}"
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="创建提醒",
@@ -992,7 +990,7 @@ def _check_duplicate_reminder(
         "status": "duplicate",
         "reminder_id": existing_id,
         "duplicate": True,
-        "message": f"已存在相同的提醒「{title}」，时间: {existing_time_str}",
+        "message": f"已为用户设置「{title}」提醒，时间为{existing_time_str}",
     }
 
 
