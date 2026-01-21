@@ -48,12 +48,17 @@
 
 ### 2.2 服务停止脚本
 ```bash
-# 创建脚本 scripts/stop_single_server.sh
+# 统一停止脚本（自动检测部署模式）
+./stop.sh
 ```
 
 ### 2.3 状态检查脚本
 ```bash
-# 创建脚本 scripts/status_single_server.sh
+# 基础状态检查
+./status.sh
+
+# 详细状态检查（包含端口和连通性测试）
+./status.sh --detailed
 ```
 
 ## 3. 配置文件调整
@@ -94,23 +99,32 @@ LOG_DIR=./logs
 ### 4.1 生产环境部署
 ```bash
 # 1. 确保 LangBot 核心服务已在端口 5300 运行
+# 提示: 可以使用 PM2 模式自动启动，或手动启动：
+#   cd langbot-workdir && uvx langbot@latest
+
 # 2. 准备环境
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# 3. 启动 Coke 相关服务
-bash scripts/deploy_single_server.sh
+# 3. 检查数据库中的 LangBot 平台配置（重要！）
+python scripts/check_langbot_platform.py
 
-# 4. 检查服务状态
-bash scripts/status_single_server.sh
+# 如果检查失败，需要先配置平台信息：
+# python add_feishu_platform.py  # 为角色添加飞书平台
 
-# 5. 测试消息发送
+# 4. 启动 Coke 相关服务（生产模式）
+./start.sh --mode prod --check
+
+# 5. 检查服务状态（支持详细模式）
+./status.sh --detailed
+
+# 6. 测试消息发送（可选）
 python scripts/langbot_insert_pending_output.py \
   --bot-uuid "production-bot-uuid" \
   --target-type "person" \
   --target-id "test-user" \
-  --message "Hello from single server!"
+  --text "Hello from single server!"
 ```
 
 ## 5. 进程管理
@@ -204,6 +218,32 @@ done
 2. **进程僵死**：使用 kill -9 强制终止
 3. **日志文件过大**：配置日志轮转
 4. **内存不足**：监控系统资源使用
+5. **LangBot 平台未配置**：运行 `python scripts/check_langbot_platform.py` 检查
+
+### 8.1.1 LangBot 平台配置问题
+
+如果消息无法发送，可能是用户/角色缺少 LangBot 平台配置：
+
+```bash
+# 检查配置
+python scripts/check_langbot_platform.py
+
+# 如果角色缺少配置，添加平台
+python add_feishu_platform.py
+
+# 手动在 MongoDB 中添加配置示例：
+# db.users.updateOne(
+#   { name: "qiaoyun", is_character: true },
+#   { $set: {
+#       "platforms.langbot_feishu": {
+#         "id": "qiaoyun-feishu",
+#         "account": "qiaoyun-feishu",
+#         "bot_uuid": "your-bot-uuid-here"
+#       }
+#     }
+#   }
+# )
+```
 
 ### 8.2 调试命令
 ```bash

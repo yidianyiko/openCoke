@@ -19,16 +19,40 @@ logger = get_logger(__name__)
 app = Flask(__name__)
 
 
-def get_default_character():
-    """Get the default character for LangBot messages."""
+def get_character_by_bot_uuid(bot_uuid: str):
+    """
+    Get character by bot_uuid from config.json bots mapping.
+
+    Args:
+        bot_uuid: The bot UUID from LangBot webhook payload
+
+    Returns:
+        Character document from MongoDB, or None if not found
+    """
     from conf.config import CONF
 
     user_dao = UserDAO()
-    default_alias = CONF.get("langbot", {}).get("default_character_alias", "qiaoyun")
+    langbot_conf = CONF.get("langbot", {})
+    bots = langbot_conf.get("bots", {})
+
+    # Find character by bot_uuid in bots config
+    for bot_key, bot_config in bots.items():
+        if bot_config.get("bot_uuid") == bot_uuid:
+            character_name = bot_config.get("character")
+            if character_name:
+                characters = user_dao.find_characters({"name": character_name})
+                if characters:
+                    logger.info(f"Found character '{character_name}' for bot '{bot_key}'")
+                    return characters[0]
+            break
+
+    # Fallback to default character
+    default_alias = langbot_conf.get("default_character_alias", "qiaoyun")
+    logger.warning(
+        f"bot_uuid '{bot_uuid}' not found in config, falling back to '{default_alias}'"
+    )
     characters = user_dao.find_characters({"name": default_alias})
-    if characters:
-        return characters[0]
-    return None
+    return characters[0] if characters else None
 
 
 def get_or_create_user(adapter_name: str, sender_id: str, sender_name: str):
@@ -108,7 +132,9 @@ def webhook_handler():
             f"Step 2: Getting character and user (adapter={adapter_name}, sender_id={sender_id})"
         )
         # resolve from_user and to_user
-        character = get_default_character()
+        # Get bot_uuid from converted message metadata
+        bot_uuid = std.get("metadata", {}).get("langbot_bot_uuid", "")
+        character = get_character_by_bot_uuid(bot_uuid)
         user = get_or_create_user(adapter_name, sender_id, sender_name)
         logger.info(
             f"Step 2 done: character={bool(character)}, user_id={user.get('_id') if user else None}"
