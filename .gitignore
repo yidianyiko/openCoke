@@ -6,6 +6,12 @@ mongodb/data/
 luoyun/temp/
 agent/temp/
 
+# PID files
+.start.pid
+.agent.pid
+.ecloud.pid
+.langbot.pid
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
