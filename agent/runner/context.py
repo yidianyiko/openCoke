@@ -226,7 +226,7 @@ def context_prepare(user, character, conversation):
         group_config = CONF.get("ecloud", {}).get("group_chat", {})
         context_message_count = group_config.get("context_message_count", 10)
 
-        # 获取群聊最近消息
+        # 获取群聊最近消息（包含用户消息和机器人回复）
         conversation_dao = ConversationDAO()
         recent_group_messages = conversation_dao.get_recent_group_messages(
             chatroom_name, limit=context_message_count
@@ -234,16 +234,8 @@ def context_prepare(user, character, conversation):
 
         # 将群聊消息转换为上下文格式
         if recent_group_messages:
-            # 格式化群聊消息为上下文字符串
-            group_context_lines = []
-            for msg in recent_group_messages:
-                sender_nickname = msg.get("metadata", {}).get(
-                    "sender_nickname", "群成员"
-                )
-                message_content = msg.get("message", "")
-                group_context_lines.append(f"{sender_nickname}: {message_content}")
-
-            context["group_chat_context"] = "\n".join(group_context_lines)
+            # 复用 messages_to_str 进行格式化（与私聊格式一致）
+            context["group_chat_context"] = messages_to_str(recent_group_messages)
             logger.info(f"[群聊上下文] 加载了 {len(recent_group_messages)} 条群聊消息")
         else:
             context["group_chat_context"] = ""

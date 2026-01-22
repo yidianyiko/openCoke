@@ -580,10 +580,10 @@ class ConversationDAO:
         self, chatroom_name: str, limit: int = 10
     ) -> List[Dict]:
         """
-        获取群聊最近 N 条消息
+        获取群聊最近 N 条消息（包含用户消息和机器人回复）
 
-        从 inputmessages 集合中获取指定群聊的最近消息，
-        用于构建群聊上下文。
+        从 inputmessages 和 outputmessages 集合中获取指定群聊的最近消息，
+        按时间戳合并排序后返回，用于构建群聊上下文。
 
         Args:
             chatroom_name: 群聊 ID (如 "xxx@chatroom")
@@ -595,24 +595,45 @@ class ConversationDAO:
         if not chatroom_name:
             return []
 
-        # 从 inputmessages 集合查询
+        # 1. 从 inputmessages 查询用户消息
         inputmessages_collection = self.db["inputmessages"]
-
-        # 查询该群聊已处理的消息，按时间倒序获取最近 N 条
-        cursor = (
+        input_cursor = (
             inputmessages_collection.find(
                 {"chatroom_name": chatroom_name, "status": "handled"}
             )
             .sort("input_timestamp", -1)
             .limit(limit)
         )
+        input_messages = list(input_cursor)
 
-        messages = list(cursor)
+        # 2. 从 outputmessages 查询机器人回复
+        outputmessages_collection = self.db["outputmessages"]
+        output_cursor = (
+            outputmessages_collection.find(
+                {"chatroom_name": chatroom_name, "status": "handled"}
+            )
+            .sort("expect_output_timestamp", -1)
+            .limit(limit)
+        )
+        output_messages = list(output_cursor)
 
-        # 反转为正序（旧消息在前）
-        messages.reverse()
+        # 3. 合并并按时间戳排序
+        all_messages = input_messages + output_messages
 
-        return messages
+        def get_timestamp(msg):
+            if "input_timestamp" in msg:
+                return msg["input_timestamp"]
+            elif "expect_output_timestamp" in msg:
+                return msg["expect_output_timestamp"]
+            return 0
+
+        all_messages.sort(key=get_timestamp, reverse=True)
+        recent_messages = all_messages[:limit]
+
+        # 4. 反转为正序（旧消息在前）
+        recent_messages.reverse()
+
+        return recent_messages
 
     def close(self):
         """关闭MongoDB连接"""
