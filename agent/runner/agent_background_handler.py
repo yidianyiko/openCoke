@@ -35,7 +35,7 @@ _characters_conf = (
 )
 target_user_id = _characters_conf.get(target_user_alias, "default_id")  # WeChat ID
 
-platform = "wechat"
+platform = CONF.get("default_platform", "wechat")
 typing_speed = 2.2
 max_conversation_round = 50
 descrease_frequency = 30240  # 多少秒降低一次关系数值
@@ -64,7 +64,7 @@ def _cleanup_cooldown_cache():
     expired_keys = [
         key
         for key, last_failed in _lock_cooldown_cache.items()
-        if now-last_failed > LOCK_COOLDOWN_SECONDS * 2
+        if now - last_failed > LOCK_COOLDOWN_SECONDS * 2
     ]
     for key in expired_keys:
         _lock_cooldown_cache.pop(key, None)
@@ -111,11 +111,11 @@ async def background_handler():
 
 async def check_hold_messages():
     """
-    检查 hold 状态消息，超时或角色空闲时恢复为 pending
+     检查 hold 状态消息，超时或角色空闲时恢复为 pending
 
-    解决问题：
-   -P3: hold 状态消息无恢复机制
-   -E3: hold 状态超时永久挂起
+     解决问题：
+    -P3: hold 状态消息无恢复机制
+    -E3: hold 状态超时永久挂起
     """
     try:
         now = int(time.time())
@@ -143,7 +143,7 @@ async def check_hold_messages():
 
                 # 检查 hold 超时
                 hold_started_at = msg.get("hold_started_at", now)
-                is_timeout = (now-hold_started_at) > HOLD_TIMEOUT
+                is_timeout = (now - hold_started_at) > HOLD_TIMEOUT
 
                 # 角色空闲或超时时恢复为 pending
                 if character_status == "空闲" or is_timeout:
@@ -172,7 +172,9 @@ def decrease_all():
         # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
         characters = user_dao.find_characters({"platforms.wechat.id": target_user_id})
     if not characters:
-        logger.warning(f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip decrease_all")
+        logger.warning(
+            f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip decrease_all"
+        )
         return
     character = characters[0]
     character_oid = str(character["_id"])
@@ -184,10 +186,10 @@ def decrease_all():
                 or relation["relationship"]["trustness"] > 0
             ):
                 relation["relationship"]["closeness"] = max(
-                    0, relation["relationship"]["closeness"]-1
+                    0, relation["relationship"]["closeness"] - 1
                 )
                 relation["relationship"]["trustness"] = max(
-                    0, relation["relationship"]["trustness"]-1
+                    0, relation["relationship"]["trustness"] - 1
                 )
                 mongo.replace_one("relations", {"_id": relation["_id"]}, relation)
         except Exception:
@@ -204,9 +206,13 @@ def handle_proactive_message():
         characters = user_dao.find_characters({"name": target_user_alias})
         if not characters:
             # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
-            characters = user_dao.find_characters({"platforms.wechat.id": target_user_id})
+            characters = user_dao.find_characters(
+                {"platforms.wechat.id": target_user_id}
+            )
         if not characters:
-            logger.warning(f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip handle_proactive_message")
+            logger.warning(
+                f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip handle_proactive_message"
+            )
             return
         character = characters[0]
         character_oid = str(character["_id"])
@@ -239,18 +245,20 @@ def handle_proactive_message():
 
                     user = user_dao.get_user_by_id(relation["uid"])
                     character = user_dao.get_user_by_id(relation["cid"])
-                    
+
                     # 动态获取用户的平台（支持 wechat, langbot_LarkAdapter 等）
                     user_platform = None
                     for plat in user.get("platforms", {}).keys():
                         if plat in character.get("platforms", {}):
                             user_platform = plat
                             break
-                    
+
                     if not user_platform:
-                        logger.debug(f"用户和角色没有共同平台，跳过: user={user.get('name')}")
+                        logger.debug(
+                            f"用户和角色没有共同平台，跳过: user={user.get('name')}"
+                        )
                         continue
-                    
+
                     conversation = conversation_dao.get_private_conversation(
                         user_platform,
                         user["platforms"][user_platform]["id"],
@@ -271,7 +279,7 @@ def handle_proactive_message():
                             relation["relationship"]["closeness"]
                             + relation["relationship"]["trustness"]
                         )
-                       /200
+                        / 200
                         + 0.5
                     ) * proactive_chance
                     if chance < random.random():
@@ -323,7 +331,7 @@ async def handle_pending_future_message():
         conversations = conversation_dao.find_conversations(
             query={
                 "conversation_info.future.action": {"$ne": None, "$exists": True},
-                "conversation_info.future.timestamp": {"$lt": now, "$gt": now-1800},
+                "conversation_info.future.timestamp": {"$lt": now, "$gt": now - 1800},
                 "conversation_info.future.status": {"$nin": ["expired", "processing"]},
                 "$or": [
                     {"conversation_info.future.proactive_times": {"$exists": False}},
@@ -341,7 +349,7 @@ async def handle_pending_future_message():
         # ========== 冷却机制：在日志之前检查，避免频繁输出 ==========
         now_time = time.time()
         last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-        if now_time-last_failed < LOCK_COOLDOWN_SECONDS:
+        if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
             # 仍在冷却期内，静默跳过
             return
 
@@ -416,7 +424,9 @@ async def handle_pending_future_message():
         _lock_cooldown_cache.pop(conversation_id, None)
 
         # ========== 立即标记 future 状态为 processing，防止并发重复处理 ==========
-        original_future_timestamp = conversation["conversation_info"]["future"].get("timestamp")
+        original_future_timestamp = conversation["conversation_info"]["future"].get(
+            "timestamp"
+        )
         modified_count = mongo.update_one(
             "conversations",
             {
@@ -424,10 +434,12 @@ async def handle_pending_future_message():
                 "conversation_info.future.timestamp": original_future_timestamp,
                 "conversation_info.future.status": {"$nin": ["expired", "processing"]},
             },
-            {"$set": {"conversation_info.future.status": "processing"}}
+            {"$set": {"conversation_info.future.status": "processing"}},
         )
         if modified_count == 0:
-            logger.info(f"[FUTURE] future 消息已被其他进程处理，跳过: conversation_id={conversation_id}")
+            logger.info(
+                f"[FUTURE] future 消息已被其他进程处理，跳过: conversation_id={conversation_id}"
+            )
             return
 
         # 处理拉黑逻辑
@@ -516,10 +528,14 @@ async def handle_pending_future_message():
                         {"_id": conversation["_id"]},
                         {
                             "$set": {
-                                "conversation_info.chat_history": conversation["conversation_info"].get("chat_history", []),
-                                "conversation_info.photo_history": conversation["conversation_info"].get("photo_history", []),
+                                "conversation_info.chat_history": conversation[
+                                    "conversation_info"
+                                ].get("chat_history", []),
+                                "conversation_info.photo_history": conversation[
+                                    "conversation_info"
+                                ].get("photo_history", []),
                             }
-                        }
+                        },
                     )
 
                     # 更新关系
@@ -548,16 +564,16 @@ async def handle_pending_future_message():
                 "conversations",
                 {
                     "_id": conversation["_id"],
-                    "conversation_info.future.timestamp": original_future_timestamp
+                    "conversation_info.future.timestamp": original_future_timestamp,
                 },
-                {"$set": {"conversation_info.future": {}}}
+                {"$set": {"conversation_info.future": {}}},
             )
         else:
             # 如果原来没有 timestamp，直接清除
             mongo.update_one(
                 "conversations",
                 {"_id": conversation["_id"]},
-                {"$set": {"conversation_info.future": {}}}  
+                {"$set": {"conversation_info.future": {}}},
             )
 
     except Exception:
@@ -569,11 +585,13 @@ async def handle_pending_future_message():
                 {
                     "_id": conversation["_id"],
                     "conversation_info.future.timestamp": original_future_timestamp,
-                    "conversation_info.future.status": "processing"
+                    "conversation_info.future.status": "processing",
                 },
-                {"$set": {"conversation_info.future": {}}}
+                {"$set": {"conversation_info.future": {}}},
             )
-            logger.info(f"[FUTURE] 异常后清除 processing 状态: conversation_id={conversation_id}")
+            logger.info(
+                f"[FUTURE] 异常后清除 processing 状态: conversation_id={conversation_id}"
+            )
     finally:
         if conversation_id and lock:
             try:
@@ -611,7 +629,7 @@ async def handle_pending_reminders():
             conversation_id = reminder.get("conversation_id")
             if conversation_id:
                 last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-                if time.time()-last_failed >= LOCK_COOLDOWN_SECONDS:
+                if time.time() - last_failed >= LOCK_COOLDOWN_SECONDS:
                     all_in_cooldown = False
                     break
 
@@ -746,7 +764,7 @@ async def _acquire_reminder_lock(conversation_id: str):
     # 冷却机制：避免频繁重试同一个锁
     now_time = time.time()
     last_failed = _lock_cooldown_cache.get(conversation_id, 0)
-    if now_time-last_failed < LOCK_COOLDOWN_SECONDS:
+    if now_time - last_failed < LOCK_COOLDOWN_SECONDS:
         # 仍在冷却期内，静默跳过
         return None
 

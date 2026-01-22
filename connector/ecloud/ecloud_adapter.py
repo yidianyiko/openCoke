@@ -21,7 +21,9 @@ def is_group_message(data: dict) -> bool:
     return data.get("messageType", "").startswith("8")
 
 
-def is_mention_bot(content: str, bot_wxid: str, bot_nickname: str, atlist: list = None) -> bool:
+def is_mention_bot(
+    content: str, bot_wxid: str, bot_nickname: str, atlist: list = None
+) -> bool:
     """检测消息是否@了机器人
 
     E云@消息格式: @昵称 消息内容
@@ -39,7 +41,7 @@ def is_mention_bot(content: str, bot_wxid: str, bot_nickname: str, atlist: list 
     # 优先检查 atlist（E云提供的明确@列表）
     if atlist and bot_wxid in atlist:
         return True
-    
+
     # 备用方案：检查消息内容
     if not content:
         return False
@@ -145,6 +147,10 @@ def ecloud_message_to_std(message):
     if handler:
         std_msg = handler(message)
         std_msg["chatroom_name"] = group_id
+        # 保存 newMsgId 用于消息去重
+        new_msg_id = message["data"].get("newMsgId")
+        if new_msg_id:
+            std_msg["metadata"]["new_msg_id"] = str(new_msg_id)
         # 群消息时记录发送者wxid，用于回复时@
         if is_group:
             std_msg["metadata"]["original_sender_wxid"] = message["data"].get(

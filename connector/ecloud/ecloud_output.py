@@ -1,6 +1,7 @@
 import sys
 
 sys.path.append(".")
+import copy
 import time
 import traceback
 
@@ -82,7 +83,12 @@ async def output_handler():
         ecloud = std_to_ecloud_message(message)
         ecloud["wId"] = wid
         if message["chatroom_name"] is None:
-            ecloud["wcId"] = user["platforms"]["wechat"]["account"]
+            # 私聊：安全获取用户微信账号
+            wechat_info = user.get("platforms", {}).get("wechat", {})
+            wcid = wechat_info.get("account") or wechat_info.get("id")
+            if not wcid:
+                raise Exception(f"user {message['to_user']} missing wechat account/id")
+            ecloud["wcId"] = wcid
         else:
             ecloud["wcId"] = message["chatroom_name"]
             # 群聊回复时，添加 @原发送者
@@ -103,11 +109,17 @@ async def output_handler():
             resp_json = Ecloud_API.sendVoice(ecloud)
             if resp_json["code"] != "1000":
                 logger.info("sending voice error, fall back to text")
-                message["message_type"] = "text"
-                ecloud = std_to_ecloud_message(message)
+                # 使用深拷贝避免修改原消息对象
+                fallback_message = copy.deepcopy(message)
+                fallback_message["message_type"] = "text"
+                ecloud = std_to_ecloud_message(fallback_message)
                 ecloud["wId"] = wid
                 if message["chatroom_name"] is None:
-                    ecloud["wcId"] = user["platforms"]["wechat"]["account"]
+                    # 私聊：安全获取用户微信账号
+                    wechat_info = user.get("platforms", {}).get("wechat", {})
+                    wcid = wechat_info.get("account") or wechat_info.get("id")
+                    if wcid:
+                        ecloud["wcId"] = wcid
                 else:
                     ecloud["wcId"] = message["chatroom_name"]
                     # 群聊回复时，添加 @原发送者

@@ -82,7 +82,7 @@ _characters_conf = (
 )
 target_wechat_id = _characters_conf.get(target_user_alias)
 
-platform = "wechat"
+platform = CONF.get("default_platform", "wechat")
 typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
@@ -149,7 +149,7 @@ def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
 
 def store_messages_background(context: dict, resp_messages: list):
     """Submit message storage to background thread pool.
-    
+
     BUG-008 fix: Use deep copy to prevent concurrent modification of context
     while the background thread is accessing it.
     """
@@ -196,13 +196,15 @@ async def _run_post_analyze_background(
         # 只更新 conversation.future 字段到数据库
         # 注意：不能更新整个 conversation_info，会覆盖主流程的 chat_history 更新
         if conversation_id:
-            future_info = context.get("conversation", {}).get(
-                "conversation_info", {}
-            ).get("future", {})
+            future_info = (
+                context.get("conversation", {})
+                .get("conversation_info", {})
+                .get("future", {})
+            )
             mongo.update_one(
                 "conversations",
                 {"_id": ObjectId(conversation_id)},
-                {"$set": {"conversation_info.future": future_info}}
+                {"$set": {"conversation_info.future": future_info}},
             )
 
         logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 完成")
@@ -310,7 +312,7 @@ def _send_single_message(
         )
         for voice_url, voice_length in voice_messages:
             if not is_first:
-                expect_output_timestamp += int(voice_length/1000) + random.randint(
+                expect_output_timestamp += int(voice_length / 1000) + random.randint(
                     2, 5
                 )
             outputmessage = send_message_via_context(
@@ -345,7 +347,7 @@ def _send_single_message(
     else:  # text
         text_message = str(content).replace("<换行>", "\n")
         if not is_first:
-            expect_output_timestamp += int(len(text_message)/typing_speed)
+            expect_output_timestamp += int(len(text_message) / typing_speed)
         outputmessage = send_message_via_context(
             context,
             message=text_message,
@@ -646,22 +648,22 @@ def record_sent_messages_to_history(conversation: dict, sent_messages: list) -> 
 
 def create_handler(worker_id: int = 0):
     """
-    创建带 worker_id 的消息处理函数（用户消息入口）
-    
-    重构说明：
-   -使用 MessageAcquirer 处理消息获取和锁管理
-   -使用 MessageDispatcher 处理消息分发
-   -使用 MessageFinalizer 处理后续状态更新
-   -复杂度从 50 降低到约 15
+     创建带 worker_id 的消息处理函数（用户消息入口）
+
+     重构说明：
+    -使用 MessageAcquirer 处理消息获取和锁管理
+    -使用 MessageDispatcher 处理消息分发
+    -使用 MessageFinalizer 处理后续状态更新
+    -复杂度从 50 降低到约 15
     """
     from agent.runner.message_processor import (
         MessageAcquirer,
         MessageDispatcher,
         MessageFinalizer,
     )
-    
+
     worker_tag = f"[W{worker_id}]"
-    
+
     # 初始化处理器组件
     acquirer = MessageAcquirer(worker_tag)
     dispatcher = MessageDispatcher(worker_tag)
@@ -672,23 +674,25 @@ def create_handler(worker_id: int = 0):
         msg_ctx = acquirer.acquire()
         if msg_ctx is None:
             return
-        
+
         try:
             # 准备上下文
-            msg_ctx.conversation["conversation_info"]["input_messages"] = msg_ctx.input_messages
+            msg_ctx.conversation["conversation_info"][
+                "input_messages"
+            ] = msg_ctx.input_messages
             logger.info(f"{worker_tag} 处理 {len(msg_ctx.input_messages)} 条消息")
-            
+
             msg_ctx.context = context_prepare(
                 msg_ctx.user, msg_ctx.character, msg_ctx.conversation
             )
-            
+
             # Step 2: 分发消息
             dispatch_type, dispatch_data = dispatcher.dispatch(msg_ctx)
-            
+
             resp_messages = []
             is_rollback = False
             is_content_blocked = False
-            
+
             if dispatch_type == "blocked":
                 # 用户被拉黑
                 send_message_via_context(
@@ -698,7 +702,7 @@ def create_handler(worker_id: int = 0):
                     expect_output_timestamp=int(time.time()),
                 )
                 finalizer.finalize_success(msg_ctx, [], store_messages_background)
-                
+
             elif dispatch_type == "hardcode":
                 # 硬指令
                 handle_hardcode(msg_ctx.context, dispatch_data["command"])
@@ -709,22 +713,26 @@ def create_handler(worker_id: int = 0):
                     expect_output_timestamp=int(time.time()),
                 )
                 finalizer.finalize_hardfinish(msg_ctx)
-                
+
             elif dispatch_type == "hold":
                 # 角色繁忙
                 finalizer.finalize_hold(msg_ctx)
-                
+
             else:
                 # 正常消息处理
                 try:
-                    input_message_str = msg_ctx.context["conversation"]["conversation_info"]["input_messages_str"]
-                    
+                    input_message_str = msg_ctx.context["conversation"][
+                        "conversation_info"
+                    ]["input_messages_str"]
+
                     # 锁续期
                     acquirer.renew_lock(msg_ctx)
-                    
+
                     # 提取当前消息ID用于排除新消息检测
-                    current_message_ids = [str(m["_id"]) for m in msg_ctx.input_messages]
-                    
+                    current_message_ids = [
+                        str(m["_id"]) for m in msg_ctx.input_messages
+                    ]
+
                     resp_messages, msg_ctx.context, is_rollback, is_content_blocked = (
                         await handle_message(
                             context=msg_ctx.context,
@@ -737,12 +745,14 @@ def create_handler(worker_id: int = 0):
                             current_message_ids=current_message_ids,
                         )
                     )
-                    
+
                     # Step 3: 后处理
                     if is_content_blocked:
                         finalizer.finalize_blocked(msg_ctx)
                     elif is_rollback:
-                        should_rollback = finalizer.finalize_rollback(msg_ctx, resp_messages)
+                        should_rollback = finalizer.finalize_rollback(
+                            msg_ctx, resp_messages
+                        )
                         if not should_rollback:
                             # 达到最大 rollback 次数，强制完成
                             finalizer.finalize_success(
@@ -752,12 +762,12 @@ def create_handler(worker_id: int = 0):
                         finalizer.finalize_success(
                             msg_ctx, resp_messages, store_messages_background
                         )
-                        
+
                 except Exception as e:
                     logger.error(f"{worker_tag} Workflow failed: {e}")
                     logger.error(traceback.format_exc())
                     raise
-                    
+
         except Exception as e:
             finalizer.finalize_error(msg_ctx, e)
         finally:

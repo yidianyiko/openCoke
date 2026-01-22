@@ -20,7 +20,7 @@ from conf.config import CONF
 class ConversationDAO:
     """
     会话模型类，提供conversations集合的增删改查操作
-    
+
     Conversation 数据结构：
     {
         "_id": ObjectId,
@@ -55,18 +55,18 @@ class ConversationDAO:
         """
         确保会话的 conversation_info 结构完整
         用于向后兼容旧数据
-        
+
         Args:
             conversation: 会话数据
-            
+
         Returns:
             Dict: 结构完整的会话数据
         """
         if "conversation_info" not in conversation:
             conversation["conversation_info"] = {}
-        
+
         info = conversation["conversation_info"]
-        
+
         # 确保所有必要字段存在
         if "chat_history" not in info:
             info["chat_history"] = []
@@ -83,7 +83,7 @@ class ConversationDAO:
                 "timestamp": None,
                 "action": None,
                 "proactive_times": 0,
-                "status": "pending"
+                "status": "pending",
             }
         else:
             # 确保 future 的子字段存在
@@ -98,7 +98,7 @@ class ConversationDAO:
                 future["status"] = "pending"
         if "turn_sent_contents" not in info:
             info["turn_sent_contents"] = []
-        
+
         return conversation
 
     def __init__(
@@ -486,9 +486,9 @@ class ConversationDAO:
                     "timestamp": None,
                     "action": None,
                     "proactive_times": 0,
-                    "status": "pending"
+                    "status": "pending",
                 },
-                "turn_sent_contents": []
+                "turn_sent_contents": [],
             },
         }
 
@@ -530,9 +530,9 @@ class ConversationDAO:
                     "timestamp": None,
                     "action": None,
                     "proactive_times": 0,
-                    "status": "pending"
+                    "status": "pending",
                 },
-                "turn_sent_contents": []
+                "turn_sent_contents": [],
             },
         }
 
@@ -575,6 +575,44 @@ class ConversationDAO:
             query = {}
 
         return self.collection.count_documents(query)
+
+    def get_recent_group_messages(
+        self, chatroom_name: str, limit: int = 10
+    ) -> List[Dict]:
+        """
+        获取群聊最近 N 条消息
+
+        从 inputmessages 集合中获取指定群聊的最近消息，
+        用于构建群聊上下文。
+
+        Args:
+            chatroom_name: 群聊 ID (如 "xxx@chatroom")
+            limit: 最多返回的消息数量
+
+        Returns:
+            List[Dict]: 消息列表，按时间正序排列（旧消息在前）
+        """
+        if not chatroom_name:
+            return []
+
+        # 从 inputmessages 集合查询
+        inputmessages_collection = self.db["inputmessages"]
+
+        # 查询该群聊已处理的消息，按时间倒序获取最近 N 条
+        cursor = (
+            inputmessages_collection.find(
+                {"chatroom_name": chatroom_name, "status": "handled"}
+            )
+            .sort("input_timestamp", -1)
+            .limit(limit)
+        )
+
+        messages = list(cursor)
+
+        # 反转为正序（旧消息在前）
+        messages.reverse()
+
+        return messages
 
     def close(self):
         """关闭MongoDB连接"""
