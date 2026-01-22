@@ -117,10 +117,13 @@ class ReminderDAO:
             不再限制时间下界，避免错过的提醒永远无法触发。
             重复触发由 mark_as_triggered 的状态变更（active -> triggered）防止。
             阶段二状态重构：confirmed/pending -> active
+
+            trigger_time=None 的任务（inbox 待安排任务）会被自然过滤，
+            因为 None 不满足 $lte 比较条件。
         """
         query = {
             "status": "active",
-            "next_trigger_time": {"$lte": current_time},
+            "next_trigger_time": {"$lte": current_time},  # None 会被自动排除
         }
         # 添加 limit 防止积压过多时一次性加载太多
         return list(self.collection.find(query).sort("next_trigger_time", 1).limit(100))
@@ -147,12 +150,17 @@ class ReminderDAO:
             user_id: 用户ID
             status: 单个状态过滤（向后兼容）
             status_list: 多个状态过滤，如 ["confirmed", "pending"]
+
+        Note:
+            支持 trigger_time=None 的任务，排序时 None 值会排在最后
         """
         query = {"user_id": user_id}
         if status_list:
             query["status"] = {"$in": status_list}
         elif status:
             query["status"] = status
+
+        # MongoDB 排序：null 值会排在最后（升序时）
         return list(self.collection.find(query).sort("next_trigger_time", 1))
 
     def filter_reminders(
