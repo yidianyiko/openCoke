@@ -2819,7 +2819,32 @@ def _filter_reminders(
                 f"{i}.{title}({time_with_date}) [{status_indicator}]"
             )
 
-        # 构建筛选条件描述
+        # 分组：有时间 vs 无时间
+        reminders_with_time = [r for r in formatted_reminders if r.get("next_trigger_time")]
+        reminders_inbox = [r for r in formatted_reminders if not r.get("next_trigger_time")]
+
+        # 构建分组显示消息
+        message_parts = []
+
+        if reminders_with_time:
+            message_parts.append("📅 定时提醒：")
+            for r in reminders_with_time:
+                title = r.get("title", "未命名")
+                time_with_date = r.get("time_with_date", "")
+                message_parts.append(f"  • {title} - {time_with_date}")
+
+        if reminders_inbox:
+            message_parts.append("\n📥 待安排（Inbox）：")
+            for r in reminders_inbox:
+                title = r.get("title", "未命名")
+                message_parts.append(f"  • {title}")
+
+        if not reminders_with_time and not reminders_inbox:
+            final_message = "当前没有符合条件的提醒"
+        else:
+            final_message = "\n".join(message_parts)
+
+        # 构建筛选条件描述（用于日志）
         filter_desc_parts = []
         if status_list:
             filter_desc_parts.append(f"状态={status_list}")
@@ -2834,7 +2859,7 @@ def _filter_reminders(
             filter_desc_parts.append(f"到={trigger_before}")
         filter_desc = "，".join(filter_desc_parts) if filter_desc_parts else "默认条件"
 
-        # 语义化输出查询结果
+        # 语义化输出查询结果（保留旧格式用于session）
         if formatted_reminders:
             summary_str = " ".join(reminder_summaries)
             semantic_message = f"查询成功（{filter_desc}）：找到{len(formatted_reminders)}个提醒：{summary_str}"
@@ -2861,8 +2886,10 @@ def _filter_reminders(
 
         return {
             "ok": True,
+            "status": "success",
             "reminders": formatted_reminders,
             "count": len(formatted_reminders),
+            "message": final_message,
         }
 
     except Exception as e:
