@@ -11,10 +11,6 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-from agent.tool.image import download_image
-from framework.tool.image2text.ark import ark_image2text
-from framework.tool.voice2text.aliyun_asr import voice_to_text
-
 
 def is_group_message(data: dict) -> bool:
     """判断是否为群消息
@@ -143,7 +139,9 @@ def ecloud_message_to_std(message):
         std_msg["chatroom_name"] = group_id
         # 群消息时记录发送者wxid，用于回复时@
         if is_group:
-            std_msg["metadata"]["original_sender_wxid"] = message["data"].get("fromUser")
+            std_msg["metadata"]["original_sender_wxid"] = message["data"].get(
+                "fromUser"
+            )
         return std_msg
     return None
 
@@ -192,6 +190,9 @@ def ecloud_message_to_std_reference_single(message):
 
 
 def ecloud_message_to_std_voice_single(message):
+    from agent.tool.image import download_image
+    from framework.tool.voice2text.aliyun_asr import voice_to_text
+
     resp_json = Ecloud_API.getMsgVoice(
         {
             "wId": message["data"]["wId"],
@@ -226,6 +227,8 @@ def ecloud_message_to_std_voice_single(message):
 
 
 def ecloud_message_to_std_image_single(message):
+    from framework.tool.image2text.ark import ark_image2text
+
     resp_json = Ecloud_API.getMsgImg(
         {
             "wId": message["data"]["wId"],
