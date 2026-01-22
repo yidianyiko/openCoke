@@ -1,0 +1,67 @@
+{
+  "dev": {
+    "disable_daily_tasks": true
+  },
+  "default_character_alias": "qiaoyun",
+  "characters": {
+    "qiaoyun": "your_wechat_wxid"
+  },
+  "aliyun": {
+    "characters": {
+      "qiaoyun": "your_wechat_wxid"
+    }
+  },
+  "ecloud": {
+    "Authorization": "your_ecloud_authorization_token",
+    "wId": {
+      "qiaoyun": "your_ecloud_wid"
+    },
+    "group_chat": {
+      "enabled": false,
+      "context_message_count": 10,
+      "whitelist_groups": [],
+      "reply_mode": {
+        "whitelist": "all",
+        "others": "mention_only"
+      }
+    }
+  },
+  "mongodb": {
+    "mongodb_ip": "127.0.0.1",
+    "mongodb_port": "27017",
+    "mongodb_name": "mymongo"
+  },
+  "liblib": {
+    "AccessKey": "your_liblib_access_key",
+    "SecretKey": "your_liblib_secret_key"
+  },
+  "doubao_models": {
+    "deepseek_r1": "your_deepseek_r1_endpoint",
+    "deepseek_v3.1": "your_deepseek_v3_endpoint",
+    "doubao_1.5_pro": "your_doubao_1.5_pro_endpoint",
+    "doubao_1.6_pro": "your_doubao_1.6_pro_endpoint"
+  },
+  "aliyun_asr": {
+    "URL": "wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1",
+    "APPKEY": "your_aliyun_asr_appkey"
+  },
+  "admin_user_id": "your_admin_user_id",
+  "langbot": {
+    "enabled": true,
+    "base_url": "http://127.0.0.1:5300",
+    "api_key": "your_langbot_api_key",
+    "webhook_port": 8081,
+    "default_character_alias": "qiaoyun",
+    "single_server_mode": true,
+    "bots": {
+      "qiaoyun-feishu": {
+        "bot_uuid": "your_bot_uuid",
+        "character": "qiaoyun"
+      }
+    },
+    "feishu": {
+      "app_id": "your_feishu_app_id",
+      "app_secret": "your_feishu_app_secret"
+    }
+  }
+}
