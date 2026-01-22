@@ -25,6 +25,61 @@ def is_group_message(data: dict) -> bool:
     return data.get("messageType", "").startswith("8")
 
 
+def is_mention_bot(content: str, bot_wxid: str, bot_nickname: str) -> bool:
+    """检测消息是否@了机器人
+
+    E云@消息格式: @昵称 消息内容
+
+    Args:
+        content: 消息内容
+        bot_wxid: 机器人的微信ID
+        bot_nickname: 机器人的昵称
+
+    Returns:
+        bool: 是否@了机器人
+    """
+    if not content:
+        return False
+    # 检查是否包含 @昵称 格式
+    mention_pattern = f"@{bot_nickname}"
+    return mention_pattern in content
+
+
+def should_respond_to_group_message(
+    data: dict, config: dict, bot_wxid: str, bot_nickname: str
+) -> bool:
+    """判断是否应该响应群消息
+
+    Args:
+        data: E云消息数据
+        config: group_chat 配置
+        bot_wxid: 机器人的微信ID
+        bot_nickname: 机器人的昵称
+
+    Returns:
+        bool: 是否应该响应
+    """
+    if not config.get("enabled", False):
+        return False
+
+    group_id = data["data"].get("fromGroup")
+    if not group_id:
+        return False
+
+    whitelist = config.get("whitelist_groups", [])
+    reply_mode = config.get("reply_mode", {})
+
+    if group_id in whitelist:
+        # 白名单群：根据配置决定
+        return reply_mode.get("whitelist") == "all"
+    else:
+        # 其他群：只响应@
+        if reply_mode.get("others") == "mention_only":
+            content = data["data"].get("content", "")
+            return is_mention_bot(content, bot_wxid, bot_nickname)
+        return False
+
+
 # {
 #     "account": "17200000000",
 #     "data": {
