@@ -15,6 +15,16 @@ from agent.tool.image import download_image
 from framework.tool.image2text.ark import ark_image2text
 from framework.tool.voice2text.aliyun_asr import voice_to_text
 
+
+def is_group_message(data: dict) -> bool:
+    """判断是否为群消息
+
+    群消息类型以 '8' 开头：80001, 80002, 80004, 80014
+    私聊消息类型以 '6' 开头：60001, 60002, 60004, 60014
+    """
+    return data.get("messageType", "").startswith("8")
+
+
 # {
 #     "account": "17200000000",
 #     "data": {
