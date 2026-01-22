@@ -43,6 +43,8 @@ class ReminderDAO:
         self.collection.create_index([("status", 1), ("next_trigger_time", 1)])
         self.collection.create_index([("reminder_id", 1)], unique=True)
         self.collection.create_index([("user_id", 1), ("status", 1)])
+        # 新增：list_id 复合索引
+        self.collection.create_index([("list_id", 1), ("user_id", 1), ("status", 1)])
         logger.info("Reminder indexes created")
 
     def create_reminder(self, reminder_data: Dict) -> str:
@@ -78,6 +80,10 @@ class ReminderDAO:
 
         if "status" not in reminder_data:
             reminder_data["status"] = "active"
+
+        # 新增：list_id 默认值
+        if "list_id" not in reminder_data:
+            reminder_data["list_id"] = "inbox"
 
         result = self.collection.insert_one(reminder_data)
         return str(result.inserted_id)
