@@ -75,6 +75,33 @@ Phase 3: PostAnalyzeWorkflow (2-5s)
 - `list_id` field: defaults to "inbox", supports task organization
 - `trigger_time` field: can be `None` for tasks without specific time
 
+### Ecloud Group Chat Support
+
+**Configuration (conf/config.json):**
+```json
+"ecloud": {
+  "group_chat": {
+    "enabled": false,
+    "context_message_count": 10,
+    "whitelist_groups": ["xxx@chatroom"],
+    "reply_mode": {
+      "whitelist": "all",
+      "others": "mention_only"
+    }
+  }
+}
+```
+
+**Reply Modes:**
+- `whitelist: "all"` - Respond to all messages in whitelist groups
+- `others: "mention_only"` - Only respond when @mentioned in non-whitelist groups
+
+**Message Types Supported:**
+- 80001: Group text
+- 80002: Group image
+- 80004: Group voice
+- 80014: Group reference/quote
+
 ### GTD Task System
 
 **P0 Features (Completed):**
