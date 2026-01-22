@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-from connector.ecloud.ecloud_adapter import ecloud_message_to_std
+from conf.config import CONF
+from connector.ecloud.ecloud_adapter import (
+    ecloud_message_to_std,
+    is_group_message,
+    should_respond_to_group_message,
+)
 from connector.ecloud.ecloud_api import Ecloud_API
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -36,10 +41,16 @@ user_whitelist = []
 # user_whitelist = ["LeanInWind", "z4656207", "wxid_vex849hfamd822", "samueli", "DoonsSong", "annie--y"]
 
 supported_message_types = [
+    # 私聊消息
     "60001",  # 私聊文本
     "60014",  # 私聊引用
     "60004",  # 私聊语音
     "60002",  # 私聊图片
+    # 群聊消息
+    "80001",  # 群聊文本
+    "80014",  # 群聊引用
+    "80004",  # 群聊语音
+    "80002",  # 群聊图片
 ]
 
 
