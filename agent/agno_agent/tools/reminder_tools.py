@@ -408,11 +408,15 @@ def _save_reminder_result_to_session(
 
 ### create 参数
 - title: 提醒标题（必需），如"开会"、"喝水"
-- trigger_time: 触发时间（必需），格式"xxxx年xx月xx日xx时xx分"或"30分钟后"
+- trigger_time: 触发时间（可选），格式"xxxx年xx月xx日xx时xx分"或"30分钟后"。为 None 时创建无时间任务（存入 inbox）
 - recurrence_type: 周期类型，可选值: "none"(默认)、"daily"、"weekly"、"monthly"、"interval"
 - recurrence_interval: 周期间隔数，默认1（interval类型时单位为分钟）
 - period_start/period_end: 时间段，格式 "HH:MM"
 - period_days: 生效星期，格式 "1,2,3,4,5"
+
+### GTD 无时间任务支持（P0）
+- 创建提醒时 trigger_time 可以为 None，任务会存入 inbox（list_id="inbox"）
+- 无时间任务不会被定时触发，需要用户手动查看或通过每日汇总了解（P1 功能）
 
 ### 重复提醒频率限制（系统强制执行）
 - 分钟级别（interval < 60分钟）的无限重复提醒：禁止创建（频率过高会导致服务被限制）
@@ -785,9 +789,9 @@ def _check_required_fields(
     else:
         draft_info["title"] = title
 
-    if not trigger_time:
-        missing_fields.append("trigger_time")
-    else:
+    # 移除 trigger_time 必需检查 - GTD P0: 支持无时间任务
+    # trigger_time 可选，为 None 时创建无时间任务（存入 inbox）
+    if trigger_time:
         draft_info["trigger_time"] = trigger_time
 
     if not missing_fields:
@@ -1239,6 +1243,63 @@ def _create_reminder(
     needs_info = _check_required_fields(title, trigger_time)
     if needs_info:
         return needs_info
+
+    # GTD P0: 支持无时间任务 - 当 trigger_time 为 None 时，创建 inbox 任务
+    if trigger_time is None:
+        # 无时间任务：直接创建，不进行时间解析、去重检查等
+        reminder_doc = _build_reminder_document(
+            user_id=user_id,
+            title=title,
+            trigger_time=None,
+            timestamp=None,
+            action_template=action_template,
+            recurrence_type="none",
+            recurrence_interval=1,
+            conversation_id=conversation_id,
+            character_id=character_id,
+            time_period_config=None,
+        )
+        reminder_id = reminder_doc["reminder_id"]
+
+        try:
+            inserted_id = reminder_dao.create_reminder(reminder_doc)
+            if not inserted_id:
+                _save_reminder_result_to_session(
+                    "提醒创建失败：数据库写入失败，请稍后重试",
+                    user_intent="创建提醒",
+                    action_executed="create",
+                    intent_fulfilled=False,
+                )
+                return {"ok": False, "error": "创建提醒失败"}
+
+            logger.info(f"Inbox task created: id={reminder_id}, title={title}")
+
+            semantic_message = f"系统动作(非用户消息)：已按照用户最新的要求创建任务成功：已为用户记录任务「{title}」（无时间，存入收集箱）"
+            _save_reminder_result_to_session(
+                semantic_message,
+                user_intent="创建提醒",
+                action_executed="create",
+                intent_fulfilled=True,
+                details={
+                    "status": "created",
+                    "reminder_id": reminder_id,
+                    "title": title,
+                    "trigger_time": None,
+                    "list_id": "inbox",
+                },
+            )
+
+            return {
+                "ok": True,
+                "status": "created",
+                "reminder_id": reminder_id,
+                "title": title,
+                "trigger_time": None,
+                "message": f"已创建任务「{title}」（无时间，存入收集箱）",
+            }
+        except Exception as e:
+            logger.error(f"Error creating inbox task: {e}")
+            return {"ok": False, "error": f"创建任务失败: {str(e)}"}
 
     # Step 2: 检查频率限制
     is_period_reminder = bool(period_start and period_end)
