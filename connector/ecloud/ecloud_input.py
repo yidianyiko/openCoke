@@ -152,6 +152,20 @@ def handle_message():
             )
 
         cid = str(characters[0]["_id"])
+        character = characters[0]
+
+        # 群消息特殊处理
+        if is_group_message(data):
+            group_config = CONF.get("ecloud", {}).get("group_chat", {})
+            bot_wxid = data["data"]["toUser"]
+            bot_nickname = character.get("name", "")
+
+            if not should_respond_to_group_message(data, group_config, bot_wxid, bot_nickname):
+                logger.info("group message filtered by reply policy")
+                return jsonify({
+                    "status": "success",
+                    "message": "group message filtered by reply policy",
+                }), 200
 
         # 用 id 字段查询（fromUser 是 wxid，存储在 id 字段）
         users = user_dao.find_users({"platforms.wechat.id": data["data"]["fromUser"]})
