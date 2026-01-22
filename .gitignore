@@ -169,3 +169,6 @@ conf/config.json
 .venv/
 langbot-workdir/data/langbot.db
 langbot-workdir/data/chroma/chroma.sqlite3
+
+# Git worktrees
+.worktrees/
