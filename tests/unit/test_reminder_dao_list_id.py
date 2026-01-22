@@ -2,7 +2,7 @@
 import pytest
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_list_id_defaults_to_inbox():
     """测试 list_id 默认值为 inbox"""
     from dao.reminder_dao import ReminderDAO
@@ -36,7 +36,7 @@ def test_list_id_defaults_to_inbox():
     dao.close()
 
 
-@pytest.mark.unit
+@pytest.mark.integration
 def test_create_reminder_with_custom_list_id():
     """测试创建提醒时可以指定自定义 list_id"""
     from dao.reminder_dao import ReminderDAO
