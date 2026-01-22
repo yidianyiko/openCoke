@@ -168,6 +168,52 @@ class TestShouldRespondToGroupMessage:
         result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
         assert result is True
 
+    def test_non_whitelist_group_with_atlist_mention_returns_true(self):
+        """Non-whitelist group with atlist mention should respond (real E云format)."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": True,
+            "whitelist_groups": [],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {
+                "fromGroup": "50088706710@chatroom",
+                "content": "@Coke\u2005test",  # Real E云 format with special space
+                "atlist": ["wxid_58bfckbpioh822"],
+            },
+        }
+
+        result = should_respond_to_group_message(
+            data, config, "wxid_58bfckbpioh822", "Coke"
+        )
+        assert result is True
+
+    def test_non_whitelist_group_without_atlist_mention_returns_false(self):
+        """Non-whitelist group without bot in atlist should not respond."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": True,
+            "whitelist_groups": [],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {
+                "fromGroup": "50088706710@chatroom",
+                "content": "@Someone test",
+                "atlist": ["wxid_other_person"],
+            },
+        }
+
+        result = should_respond_to_group_message(
+            data, config, "wxid_58bfckbpioh822", "Coke"
+        )
+        assert result is False
+
 
 class TestIsMentionBot:
     """Test @mention detection logic."""
@@ -195,3 +241,41 @@ class TestIsMentionBot:
         content = "@张三 你好"
         result = is_mention_bot(content, "wxid_bot", "洛云")
         assert result is False
+
+    def test_mention_by_atlist(self):
+        """Should detect mention via atlist (most reliable method)."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        # Even if content doesn't have proper @mention format, atlist should work
+        content = "@Coke\u2005test"  # Has special unicode space
+        atlist = ["wxid_bot", "wxid_other"]
+        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
+        assert result is True
+
+    def test_mention_by_atlist_only(self):
+        """Should detect mention via atlist even without @ in content."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "hello"  # No @ at all
+        atlist = ["wxid_bot"]
+        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
+        assert result is True
+
+    def test_no_mention_empty_atlist(self):
+        """Should return False when atlist is empty and no @ in content."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "hello"
+        atlist = []
+        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
+        assert result is False
+
+    def test_no_mention_different_wxid_in_atlist(self):
+        """Should return False when bot wxid not in atlist."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "@Someone test"
+        atlist = ["wxid_other"]
+        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
+        assert result is False
+

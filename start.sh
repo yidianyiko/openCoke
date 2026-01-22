@@ -59,15 +59,27 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h             显示此帮助信息"
             echo ""
             echo "模式说明:"
-            echo "  dev   - 开发模式: 启动 Agent + Ecloud + LangBot 连接器"
+            echo "  dev   - 开发模式: 启动 Agent + Ecloud + LangBot 连接器 (nohup)"
             echo "  prod  - 生产模式: 完整部署 (MongoDB + LangBot 核心 + Coke)"
-            echo "  pm2   - PM2 模式: 使用 PM2 管理 LangBot 核心服务"
+            echo "  pm2   - PM2 模式: 使用 PM2 统一管理所有服务 (推荐)"
+            echo ""
+            echo "PM2 模式优势:"
+            echo "  - 统一管理所有服务 (LangBot + Agent + ecloud + connectors)"
+            echo "  - 自动重启崩溃的服务"
+            echo "  - 日志管理和轮转"
+            echo "  - 支持单独重启某个服务"
+            echo "  - 实时监控和状态查看"
             echo ""
             echo "示例:"
             echo "  ./start.sh                    # 开发模式"
-            echo "  ./start.sh --mode prod        # 生产模式"
+            echo "  ./start.sh --mode pm2         # PM2 模式 (推荐)"
             echo "  ./start.sh --check            # 启动前检查配置"
             echo "  ./start.sh -w abc123          # 更新 wId 后启动"
+            echo ""
+            echo "PM2 管理命令 (启动后):"
+            echo "  ./pm2-manager.sh status       # 查看状态"
+            echo "  ./pm2-manager.sh restart coke-agent  # 重启单个服务"
+            echo "  ./pm2-manager.sh logs         # 查看日志"
             exit 0
             ;;
         *)
@@ -216,12 +228,42 @@ PYUPDATE
 
 # PM2 模式启动函数
 start_pm2_mode() {
-    echo "启动 PM2 模式..."
+    echo "启动 PM2 模式（统一管理所有服务）..."
     echo ""
     
-    # 启动 LangBot 核心（使用 PM2）
-    echo "1. 启动 LangBot 核心服务 (PM2)..."
-    bash scripts/pm2_langbot_manager.sh start
+    # 激活虚拟环境
+    if [ -d ".venv" ]; then
+        source .venv/bin/activate
+    fi
+    
+    # 清理过期锁（如果需要）
+    if [ -n "$FORCE_CLEAN" ]; then
+        echo "清理锁..."
+        python3 - <<'PYCLEAN'
+import sys
+sys.path.append(".")
+from dao.lock import MongoDBLockManager
+lock_manager = MongoDBLockManager()
+result = lock_manager.locks.delete_many({})
+print(f"Force cleaned {result.deleted_count} locks")
+PYCLEAN
+        echo ""
+    fi
+    
+    # 停止旧的非 PM2 进程
+    echo "清理旧进程..."
+    pkill -f "agent_runner.py" 2>/dev/null || true
+    pkill -f "gunicorn.*ecloud_input" 2>/dev/null || true
+    pkill -f "ecloud_output.py" 2>/dev/null || true
+    pkill -f "gunicorn.*langbot_input" 2>/dev/null || true
+    pkill -f "langbot_output.py" 2>/dev/null || true
+    sleep 2
+    echo ""
+    
+    # 使用 PM2 启动所有服务
+    echo "1. 启动所有服务 (PM2)..."
+    pm2 start ecosystem.config.json
+    pm2 save
     
     echo ""
     echo "2. 等待 LangBot 核心启动..."
@@ -245,42 +287,40 @@ start_pm2_mode() {
     done
     
     echo ""
-    echo "3. 启动 Coke 应用层服务..."
-    
-    # 激活虚拟环境
-    if [ -d ".venv" ]; then
-        source .venv/bin/activate
-    fi
-    
-    # 启动 Agent
-    echo "  - 启动 Agent..."
-    nohup bash agent/runner/agent_start.sh $FORCE_CLEAN > logs/agent-startup.log 2>&1 &
-    AGENT_PID=$!
-    echo $AGENT_PID > "$SCRIPT_DIR/.agent.pid"
-    
-    sleep 2
-    
-    # 启动 LangBot 连接器
-    echo "  - 启动 LangBot 连接器..."
-    nohup bash connector/langbot/langbot_start.sh > logs/langbot-startup.log 2>&1 &
-    LANGBOT_PID=$!
-    echo $LANGBOT_PID > "$SCRIPT_DIR/.langbot.pid"
-    
-    echo ""
     echo "=========================================="
     echo "PM2 模式启动完成"
     echo "=========================================="
     echo ""
-    echo "服务状态:"
-    echo "  LangBot 核心: PM2 管理 (pm2 status)"
-    echo "  Agent PID: $AGENT_PID"
-    echo "  LangBot 连接器 PID: $LANGBOT_PID"
+    pm2 status
+    echo ""
+    echo "服务列表:"
+    echo "  - langbot-core    (LangBot 核心服务，端口 5300)"
+    echo "  - coke-agent      (Agent 服务)"
+    echo "  - ecloud-input    (E云管家 webhook，端口 8080)"
+    echo "  - ecloud-output   (E云管家消息发送)"
+    echo "  - langbot-input   (LangBot webhook，端口 8081)"
+    echo "  - langbot-output  (LangBot 消息发送)"
     echo ""
     echo "管理命令:"
-    echo "  查看状态: ./status.sh --detailed"
-    echo "  PM2 状态: pm2 status"
-    echo "  PM2 日志: pm2 logs langbot-core"
-    echo "  停止服务: ./stop.sh && pm2 stop langbot-core"
+    echo "  查看状态:     pm2 status"
+    echo "  查看日志:     pm2 logs [service-name]"
+    echo "  重启服务:     pm2 restart [service-name]"
+    echo "  重启全部:     pm2 restart all"
+    echo "  停止服务:     pm2 stop [service-name]"
+    echo "  停止全部:     pm2 stop all"
+    echo "  删除服务:     pm2 delete [service-name]"
+    echo ""
+    echo "单独重启某个服务:"
+    echo "  pm2 restart langbot-core   # 重启 LangBot 核心"
+    echo "  pm2 restart coke-agent     # 重启 Agent"
+    echo "  pm2 restart ecloud-input   # 重启 ecloud input"
+    echo "  pm2 restart ecloud-output  # 重启 ecloud output"
+    echo "  pm2 restart langbot-input  # 重启 langbot input"
+    echo "  pm2 restart langbot-output # 重启 langbot output"
+    echo ""
+    echo "查看实时日志:"
+    echo "  pm2 logs --lines 100       # 所有服务"
+    echo "  pm2 logs coke-agent        # 单个服务"
     echo "=========================================="
 }
 

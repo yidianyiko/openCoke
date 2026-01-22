@@ -205,14 +205,33 @@ class MessageAcquirer:
         if not self._validate_platform(user, character, top_message, platform):
             return None
 
-        # 获取/创建会话
-        conversation_id, _ = self.conversation_dao.get_or_create_private_conversation(
-            platform=platform,
-            user_id1=user["platforms"][platform]["id"],
-            nickname1=user["platforms"][platform]["nickname"],
-            user_id2=character["platforms"][platform]["id"],
-            nickname2=character["platforms"][platform]["nickname"],
-        )
+        # 获取/创建会话（群聊或私聊）
+        chatroom_name = top_message.get("chatroom_name")
+        if chatroom_name:
+            # 群聊消息：使用群聊会话
+            conversation_id, _ = self.conversation_dao.get_or_create_group_conversation(
+                platform=platform,
+                chatroom_name=chatroom_name,
+                initial_talkers=[
+                    {
+                        "id": user["platforms"][platform]["id"],
+                        "nickname": user["platforms"][platform]["nickname"],
+                    },
+                    {
+                        "id": character["platforms"][platform]["id"],
+                        "nickname": character["platforms"][platform]["nickname"],
+                    },
+                ],
+            )
+        else:
+            # 私聊消息：使用私聊会话
+            conversation_id, _ = self.conversation_dao.get_or_create_private_conversation(
+                platform=platform,
+                user_id1=user["platforms"][platform]["id"],
+                nickname1=user["platforms"][platform]["nickname"],
+                user_id2=character["platforms"][platform]["id"],
+                nickname2=character["platforms"][platform]["nickname"],
+            )
 
         # 跳过已锁定的会话
         if conversation_id in locked_conversation_ids:

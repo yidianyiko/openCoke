@@ -21,19 +21,26 @@ def is_group_message(data: dict) -> bool:
     return data.get("messageType", "").startswith("8")
 
 
-def is_mention_bot(content: str, bot_wxid: str, bot_nickname: str) -> bool:
+def is_mention_bot(content: str, bot_wxid: str, bot_nickname: str, atlist: list = None) -> bool:
     """检测消息是否@了机器人
 
     E云@消息格式: @昵称 消息内容
+    优先检查 atlist 字段（更可靠），其次检查消息内容
 
     Args:
         content: 消息内容
         bot_wxid: 机器人的微信ID
         bot_nickname: 机器人的昵称
+        atlist: E云提供的@列表，包含被@的wxid
 
     Returns:
         bool: 是否@了机器人
     """
+    # 优先检查 atlist（E云提供的明确@列表）
+    if atlist and bot_wxid in atlist:
+        return True
+    
+    # 备用方案：检查消息内容
     if not content:
         return False
     # 检查是否包含 @昵称 格式
@@ -72,7 +79,8 @@ def should_respond_to_group_message(
         # 其他群：只响应@
         if reply_mode.get("others") == "mention_only":
             content = data["data"].get("content", "")
-            return is_mention_bot(content, bot_wxid, bot_nickname)
+            atlist = data["data"].get("atlist", [])
+            return is_mention_bot(content, bot_wxid, bot_nickname, atlist)
         return False
 
 
