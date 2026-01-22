@@ -70,6 +70,24 @@ Phase 3: PostAnalyzeWorkflow (2-5s)
 
 `inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`
 
+**GTD Support (P0):**
+- `reminders` collection now supports GTD-style task collection
+- `list_id` field: defaults to "inbox", supports task organization
+- `trigger_time` field: can be `None` for tasks without specific time
+
+### GTD Task System
+
+**P0 Features (Completed):**
+- Quick capture: Create tasks without trigger_time
+- Inbox collection: Tasks default to `list_id="inbox"`
+- Query differentiation: Displays scheduled vs inbox tasks separately
+
+**P1 Roadmap:**
+- Agent prompt adjustments for conversational task creation
+- Daily inbox digest (8:30 AM summary)
+- Custom list support beyond "inbox"
+- Priority and tags
+
 ### Async/Concurrency Patterns
 
 - Full async pipeline using `asyncio` with `agent.arun()` for LLM calls
