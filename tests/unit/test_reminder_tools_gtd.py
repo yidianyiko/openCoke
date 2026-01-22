@@ -99,3 +99,63 @@ def test_create_reminder_with_trigger_time_still_works(sample_context, monkeypat
     assert result["status"] == "created"
     assert len(created_reminders) == 1
     assert created_reminders[0]["next_trigger_time"] is not None
+
+
+@pytest.mark.unit
+def test_filter_reminders_shows_inbox_tasks_separately(sample_context, monkeypatch):
+    """测试查询提醒时区分有时间和无时间任务"""
+    from agent.agno_agent.tools import reminder_tools
+    import time
+
+    class FakeReminderDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def filter_reminders(self, user_id, status_list=None, **kwargs):
+            current_time = int(time.time())
+            return [
+                {
+                    "reminder_id": "r1",
+                    "title": "开会",
+                    "next_trigger_time": current_time + 3600,
+                    "list_id": "inbox",
+                    "status": "active"
+                },
+                {
+                    "reminder_id": "r2",
+                    "title": "买牛奶",
+                    "next_trigger_time": None,
+                    "list_id": "inbox",
+                    "status": "active"
+                },
+                {
+                    "reminder_id": "r3",
+                    "title": "整理书架",
+                    "next_trigger_time": None,
+                    "list_id": "inbox",
+                    "status": "active"
+                }
+            ]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    reminder_tools.set_reminder_session_state(sample_context)
+
+    result = reminder_tools.reminder_tool.entrypoint(
+        action="filter",
+        session_state=sample_context
+    )
+
+    assert result["ok"] is True
+    message = result["message"]
+
+    # 应该包含分组标题
+    assert "定时提醒" in message or "已安排" in message
+    assert "待安排" in message or "Inbox" in message or "收集篮" in message
+
+    # 应该包含所有任务
+    assert "开会" in message
+    assert "买牛奶" in message
+    assert "整理书架" in message
