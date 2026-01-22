@@ -180,21 +180,67 @@ def handle_message():
         if len(users) == 0:
             logger.info("user not exist, create a new one")
             target_user_alias = characters[0]["name"]
-            resp_json = Ecloud_API.getContact(
-                data["data"]["fromUser"], target_user_alias
-            )
-            logger.info(resp_json)
-            user_wechat_info = resp_json["data"][0]
+
+            # 安全获取用户信息
+            try:
+                resp_json = Ecloud_API.getContact(
+                    data["data"]["fromUser"], target_user_alias
+                )
+                logger.info(resp_json)
+
+                # 检查 API 返回是否成功
+                if not resp_json or resp_json.get("code") != "1000":
+                    logger.error(
+                        f"getContact API failed: {resp_json.get('message', 'unknown error')}"
+                    )
+                    return (
+                        jsonify(
+                            {
+                                "status": "error",
+                                "message": "failed to get user contact info",
+                            }
+                        ),
+                        500,
+                    )
+
+                # 检查 data 数组是否非空
+                contact_data = resp_json.get("data", [])
+                if not contact_data:
+                    logger.error("getContact returned empty data array")
+                    return (
+                        jsonify(
+                            {
+                                "status": "error",
+                                "message": "user contact info not found",
+                            }
+                        ),
+                        500,
+                    )
+
+                user_wechat_info = contact_data[0]
+            except Exception as e:
+                logger.error(f"getContact exception: {str(e)}")
+                return (
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": f"failed to get user contact: {str(e)}",
+                        }
+                    ),
+                    500,
+                )
 
             uid = user_dao.create_user(
                 {
                     "is_character": False,  # 是否是角色
-                    "name": user_wechat_info["userName"],  # 统一注册名
+                    "name": user_wechat_info.get("userName", data["data"]["fromUser"]),
                     "platforms": {
                         "wechat": {
                             "id": data["data"]["fromUser"],  # 微信统一id
-                            "account": user_wechat_info["userName"],  # 微信号
-                            "nickname": user_wechat_info["nickName"],  # 微信昵称
+                            "account": user_wechat_info.get(
+                                "userName", data["data"]["fromUser"]
+                            ),
+                            "nickname": user_wechat_info.get("nickName", ""),
                         },
                     },
                     "status": "normal",  # normal | stopped
@@ -209,6 +255,21 @@ def handle_message():
         std = ecloud_message_to_std(data)
         std["from_user"] = uid
         std["to_user"] = cid
+
+        # 消息去重：检查 newMsgId 是否已存在
+        new_msg_id = std.get("metadata", {}).get("new_msg_id")
+        if new_msg_id:
+            existing = mongo.find_one(
+                "inputmessages", {"metadata.new_msg_id": new_msg_id}
+            )
+            if existing:
+                logger.info(f"duplicate message detected, newMsgId={new_msg_id}")
+                return (
+                    jsonify(
+                        {"status": "success", "message": "duplicate message, skipped"}
+                    ),
+                    200,
+                )
 
         # 插入到数据库
         mongo.insert_one("inputmessages", std)

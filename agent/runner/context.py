@@ -11,6 +11,8 @@ from bson import ObjectId
 
 from agent.prompt.character import get_character_prompt
 from agent.util.message_util import messages_to_str
+from conf.config import CONF
+from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from util.time_util import date2str, timestamp2str
 
@@ -163,7 +165,7 @@ def context_prepare(user, character, conversation):
     relation = mongo.find_one(
         "relations", {"uid": str(user["_id"]), "cid": str(character["_id"])}
     )
-    
+
     # 检测是否为新用户（relation 不存在时为首次对话）
     is_new_user = False
     if relation is None:
@@ -213,8 +215,42 @@ def context_prepare(user, character, conversation):
     context["conversation"]["conversation_info"]["time_str"] = timestamp2str(
         int(time.time()), week=True
     )
-    # V2.7 优化：只取最近 15 条历史对话，减少 token 消耗
+
+    # 获取聊天历史
     chat_history = context["conversation"]["conversation_info"]["chat_history"]
+
+    # 群聊场景：使用 context_message_count 获取群聊上下文
+    chatroom_name = context["conversation"].get("chatroom_name")
+    if chatroom_name:
+        # 从配置中读取群聊上下文消息数量
+        group_config = CONF.get("ecloud", {}).get("group_chat", {})
+        context_message_count = group_config.get("context_message_count", 10)
+
+        # 获取群聊最近消息
+        conversation_dao = ConversationDAO()
+        recent_group_messages = conversation_dao.get_recent_group_messages(
+            chatroom_name, limit=context_message_count
+        )
+
+        # 将群聊消息转换为上下文格式
+        if recent_group_messages:
+            # 格式化群聊消息为上下文字符串
+            group_context_lines = []
+            for msg in recent_group_messages:
+                sender_nickname = msg.get("metadata", {}).get(
+                    "sender_nickname", "群成员"
+                )
+                message_content = msg.get("message", "")
+                group_context_lines.append(f"{sender_nickname}: {message_content}")
+
+            context["group_chat_context"] = "\n".join(group_context_lines)
+            logger.info(f"[群聊上下文] 加载了 {len(recent_group_messages)} 条群聊消息")
+        else:
+            context["group_chat_context"] = ""
+    else:
+        context["group_chat_context"] = ""
+
+    # V2.7 优化：只取最近 15 条历史对话，减少 token 消耗
     recent_chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
     context["conversation"]["conversation_info"]["chat_history_str"] = messages_to_str(
         recent_chat_history
@@ -231,7 +267,7 @@ def context_prepare(user, character, conversation):
         context["news_str"] = news["news"]
 
     context["relation"] = relation
-    
+
     # 设置新用户标志，用于控制 onboarding 流程
     context["is_new_user"] = is_new_user
     if is_new_user:
