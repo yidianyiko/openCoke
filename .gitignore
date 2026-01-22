@@ -167,3 +167,5 @@ conf/config.json
 .trae/documents/
 
 .venv/
+langbot-workdir/data/langbot.db
+langbot-workdir/data/chroma/chroma.sqlite3

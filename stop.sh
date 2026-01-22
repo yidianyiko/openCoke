@@ -19,7 +19,10 @@ echo "=========================================="
 STOPPED_ANY=false
 
 # 检测部署模式
-if [ -f "$SINGLE_SERVER_PIDS_FILE" ]; then
+if pm2 list 2>/dev/null | grep -q "langbot-core\|coke-agent\|ecloud-input"; then
+    echo "检测到 PM2 模式"
+    MODE="pm2"
+elif [ -f "$SINGLE_SERVER_PIDS_FILE" ]; then
     echo "检测到单服务器部署模式"
     MODE="single_server"
 elif [ -f "$AGENT_PID_FILE" ] || [ -f "$ECLOUD_PID_FILE" ] || [ -f "$LANGBOT_PID_FILE" ]; then
@@ -61,6 +64,19 @@ stop_process() {
 
 # 根据模式停止服务
 case $MODE in
+    pm2)
+        # PM2 模式：停止所有 PM2 管理的服务
+        echo "停止 PM2 管理的服务..."
+        pm2 stop all
+        echo "✓ 所有 PM2 服务已停止"
+        STOPPED_ANY=true
+        
+        echo ""
+        echo "是否要删除 PM2 服务配置？(y/n)"
+        echo "提示: 停止服务不会删除配置，下次可以直接 pm2 restart all"
+        echo "     删除后需要重新运行 ./start.sh --mode pm2"
+        ;;
+        
     single_server)
         # 单服务器模式：从 .langbot_pids 读取
         while IFS= read -r line; do
