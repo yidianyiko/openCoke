@@ -86,7 +86,9 @@ async def output_handler():
         else:
             ecloud["wcId"] = message["chatroom_name"]
             # 群聊回复时，添加 @原发送者
-            original_sender_wxid = message.get("metadata", {}).get("original_sender_wxid")
+            original_sender_wxid = message.get("metadata", {}).get(
+                "original_sender_wxid"
+            )
             if original_sender_wxid:
                 ecloud["at"] = original_sender_wxid
 
@@ -109,7 +111,9 @@ async def output_handler():
                 else:
                     ecloud["wcId"] = message["chatroom_name"]
                     # 群聊回复时，添加 @原发送者
-                    original_sender_wxid = message.get("metadata", {}).get("original_sender_wxid")
+                    original_sender_wxid = message.get("metadata", {}).get(
+                        "original_sender_wxid"
+                    )
                     if original_sender_wxid:
                         ecloud["at"] = original_sender_wxid
                 resp_json = Ecloud_API.sendText(ecloud)

@@ -93,8 +93,7 @@ def handle_message():
                     "forward_status": response.status_code,
                     "forward_response": (
                         response.json()
-                        if response.headers.get("content-type")
-                        == "application/json"
+                        if response.headers.get("content-type") == "application/json"
                         else response.text
                     ),
                 }
@@ -160,12 +159,19 @@ def handle_message():
             bot_wxid = data["data"]["toUser"]
             bot_nickname = character.get("name", "")
 
-            if not should_respond_to_group_message(data, group_config, bot_wxid, bot_nickname):
+            if not should_respond_to_group_message(
+                data, group_config, bot_wxid, bot_nickname
+            ):
                 logger.info("group message filtered by reply policy")
-                return jsonify({
-                    "status": "success",
-                    "message": "group message filtered by reply policy",
-                }), 200
+                return (
+                    jsonify(
+                        {
+                            "status": "success",
+                            "message": "group message filtered by reply policy",
+                        }
+                    ),
+                    200,
+                )
 
         # 用 id 字段查询（fromUser 是 wxid，存储在 id 字段）
         users = user_dao.find_users({"platforms.wechat.id": data["data"]["fromUser"]})
