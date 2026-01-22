@@ -59,14 +59,38 @@ def is_group_message(data: dict) -> bool:
 
 
 def ecloud_message_to_std(message):
-    if message["messageType"] in ["60001"]:
-        return ecloud_message_to_std_text_single(message)
-    if message["messageType"] in ["60002"]:
-        return ecloud_message_to_std_image_single(message)
-    if message["messageType"] in ["60014"]:
-        return ecloud_message_to_std_reference_single(message)
-    if message["messageType"] in ["60004"]:
-        return ecloud_message_to_std_voice_single(message)
+    """将 E云消息转换为标准格式
+
+    支持私聊消息类型：60001(文本), 60002(图片), 60004(语音), 60014(引用)
+    支持群聊消息类型：80001(文本), 80002(图片), 80004(语音), 80014(引用)
+    """
+    msg_type = message["messageType"]
+
+    # 判断是否群消息，提取群ID
+    is_group = is_group_message(message)
+    group_id = message["data"].get("fromGroup") if is_group else None
+
+    # 映射到对应的处理函数（私聊和群聊使用相同的处理逻辑）
+    type_mapping = {
+        "60001": ecloud_message_to_std_text_single,
+        "80001": ecloud_message_to_std_text_single,
+        "60002": ecloud_message_to_std_image_single,
+        "80002": ecloud_message_to_std_image_single,
+        "60004": ecloud_message_to_std_voice_single,
+        "80004": ecloud_message_to_std_voice_single,
+        "60014": ecloud_message_to_std_reference_single,
+        "80014": ecloud_message_to_std_reference_single,
+    }
+
+    handler = type_mapping.get(msg_type)
+    if handler:
+        std_msg = handler(message)
+        std_msg["chatroom_name"] = group_id
+        # 群消息时记录发送者wxid，用于回复时@
+        if is_group:
+            std_msg["metadata"]["original_sender_wxid"] = message["data"].get("fromUser")
+        return std_msg
+    return None
 
 
 def ecloud_message_to_std_text_single(message):
