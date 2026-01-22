@@ -95,3 +95,103 @@ class TestEcloudMessageToStdGroup:
         result = ecloud_message_to_std(message)
 
         assert result["metadata"]["original_sender_wxid"] == "wxid_sender123"
+
+
+class TestShouldRespondToGroupMessage:
+    """Test group message response decision logic."""
+
+    def test_disabled_group_chat_returns_false(self):
+        """When group_chat.enabled is False, should not respond."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": False,
+            "whitelist_groups": ["12345@chatroom"],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
+        }
+
+        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
+        assert result is False
+
+    def test_whitelist_group_all_mode_returns_true(self):
+        """Whitelist group with 'all' mode should respond to any message."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": True,
+            "whitelist_groups": ["12345@chatroom"],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
+        }
+
+        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
+        assert result is True
+
+    def test_non_whitelist_group_without_mention_returns_false(self):
+        """Non-whitelist group without mention should not respond."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": True,
+            "whitelist_groups": ["other_group@chatroom"],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
+        }
+
+        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
+        assert result is False
+
+    def test_non_whitelist_group_with_mention_returns_true(self):
+        """Non-whitelist group with @mention should respond."""
+        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+
+        config = {
+            "enabled": True,
+            "whitelist_groups": [],
+            "reply_mode": {"whitelist": "all", "others": "mention_only"},
+        }
+        data = {
+            "messageType": "80001",
+            "data": {"fromGroup": "12345@chatroom", "content": "@机器人 你好"},
+        }
+
+        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
+        assert result is True
+
+
+class TestIsMentionBot:
+    """Test @mention detection logic."""
+
+    def test_mention_by_nickname(self):
+        """Should detect mention by nickname."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "@洛云 你好啊"
+        result = is_mention_bot(content, "wxid_bot", "洛云")
+        assert result is True
+
+    def test_no_mention(self):
+        """Should return False when no mention."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "大家好"
+        result = is_mention_bot(content, "wxid_bot", "洛云")
+        assert result is False
+
+    def test_mention_other_user(self):
+        """Should return False when mentioning other user."""
+        from connector.ecloud.ecloud_adapter import is_mention_bot
+
+        content = "@张三 你好"
+        result = is_mention_bot(content, "wxid_bot", "洛云")
+        assert result is False
