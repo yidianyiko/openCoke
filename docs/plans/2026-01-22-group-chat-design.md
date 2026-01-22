@@ -47,9 +47,90 @@ ecloud_api.py    → E云 API 封装
 - `80004`: 群语音
 - `80014`: 群引用消息
 
-## 3. 配置设计
+## 3. 数据结构变更
 
-### 3.1 新增配置项 (conf/config.json)
+### 3.1 变更总览
+
+| 存储位置 | 变更类型 | 说明 |
+|----------|----------|------|
+| `conf/config.json` | **新增** | 添加 `group_chat` 配置块 |
+| `inputmessages` 集合 | **复用** | `chatroom_name` 字段从 `None` 变为群ID |
+| `inputmessages.metadata` | **扩展** | 新增 `sender_nickname`, `original_sender_wxid` |
+| `outputmessages` 集合 | **无变化** | 已有 `chatroom_name` 字段支持 |
+| `users` 集合 | **无变化** | 群成员复用现有用户结构 |
+| `conversations` 集合 | **无变化** | 已有群聊支持 |
+
+### 3.2 inputmessages 集合结构
+
+**现有字段** (无需修改 schema):
+```python
+{
+    "_id": ObjectId,
+    "input_timestamp": int,           # 输入时间戳
+    "handled_timestamp": int | None,  # 处理完成时间戳
+    "status": str,                    # pending | handled | canceled | failed
+    "platform": str,                  # "wechat"
+    "chatroom_name": str | None,      # 私聊=None, 群聊=群ID (如 "xxx@chatroom")
+    "from_user": str,                 # 发送者 MongoDB user ID
+    "to_user": str,                   # 接收者 MongoDB character ID
+    "message_type": str,              # text | image | voice | reference
+    "message": str,                   # 消息内容
+    "metadata": dict                  # 扩展元数据
+}
+```
+
+**metadata 扩展** (群聊消息新增):
+```python
+"metadata": {
+    # 现有字段
+    "file_path": str,        # 语音/图片文件路径
+    "url": str,              # 图片URL
+    "reference": dict,       # 引用消息信息
+
+    # 群聊新增字段
+    "sender_nickname": str,       # 群消息发送者昵称 (用于上下文显示)
+    "original_sender_wxid": str,  # 发送者微信ID (用于回复时@)
+    "is_mention": bool,           # 是否@了机器人
+}
+```
+
+### 3.3 outputmessages 集合结构
+
+**无需修改**，现有结构已支持群聊:
+```python
+{
+    "_id": ObjectId,
+    "platform": str,
+    "chatroom_name": str | None,  # 群聊时填群ID，私聊为None
+    "from_user": str,             # character ID
+    "to_user": str,               # user ID
+    "message_type": str,
+    "message": str,
+    "metadata": {
+        "at": str | None,         # 可选：@的用户wxid (群聊回复时使用)
+    }
+}
+```
+
+### 3.4 数据流示意
+
+```
+E云群消息 (fromGroup: "xxx@chatroom")
+    ↓
+ecloud_adapter.py: chatroom_name = fromGroup
+    ↓
+inputmessages: { chatroom_name: "xxx@chatroom", metadata: { sender_nickname, ... } }
+    ↓
+agent 处理
+    ↓
+outputmessages: { chatroom_name: "xxx@chatroom", metadata: { at: "wxid_xxx" } }
+    ↓
+ecloud_output.py: wcId = chatroom_name, at = metadata.at
+```
+
+## 4. 配置设计
+
+### 4.1 新增配置项 (conf/config.json)
 
 ```json
 {
@@ -69,7 +150,7 @@ ecloud_api.py    → E云 API 封装
 }
 ```
 
-### 3.2 配置说明
+### 4.2 配置说明
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -79,7 +160,7 @@ ecloud_api.py    → E云 API 封装
 | `reply_mode.whitelist` | str | 白名单群回复模式: `all` |
 | `reply_mode.others` | str | 其他群回复模式: `mention_only` |
 
-## 4. 实现计划
+## 5. 实现计划
 
 ### Phase 1: 消息接收 (ecloud_input.py)
 
@@ -264,7 +345,7 @@ if message["chatroom_name"] is not None:
         ecloud["at"] = original_sender_wxid
 ```
 
-## 5. 测试计划
+## 6. 测试计划
 
 ### 5.1 单元测试
 
@@ -279,7 +360,7 @@ if message["chatroom_name"] is not None:
 - [ ] 非白名单群被@消息 → 回复
 - [ ] 群聊回复正确发送到群
 
-## 6. 实现顺序
+## 7. 实现顺序
 
 ```
 Phase 1: 消息接收
@@ -300,7 +381,7 @@ Phase 4: 消息发送
 └── Task 4.2: @用户功能 (ecloud_api.py, ecloud_output.py)
 ```
 
-## 7. 风险与注意事项
+## 8. 风险与注意事项
 
 1. **@检测准确性**: E云@消息格式需实际测试验证
 2. **群成员信息获取**: `getChatRoomMemberInfo` 一次只能查一个成员，可能需要缓存
