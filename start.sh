@@ -15,8 +15,21 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# 颜色输出
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+success() { echo -e "${GREEN}[OK]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
 # 默认参数
 MODE="dev"
+SKIP_INSTALL=false
 CHECK_PLATFORM=false
 NEW_WID=""
 FORCE_CLEAN=""
@@ -45,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             FORCE_CLEAN="--force-clean"
             shift
             ;;
+        --skip-install)
+            SKIP_INSTALL=true
+            shift
+            ;;
         --help|-h)
             echo "Coke Project 统一启动脚本"
             echo ""
@@ -56,6 +73,7 @@ while [[ $# -gt 0 ]]; do
             echo "  -w, --wid <wId>        更新 ecloud wId"
             echo "  -c, --character <name> 指定角色名称 (默认: qiaoyun)"
             echo "  --force-clean          强制清理所有锁"
+            echo "  --skip-install         跳过环境检查和安装"
             echo "  --help, -h             显示此帮助信息"
             echo ""
             echo "模式说明:"
@@ -95,13 +113,244 @@ echo "Coke Project 统一启动脚本"
 echo "部署模式: $MODE"
 echo "=========================================="
 
+# ==========================================
+# 环境检查与安装
+# ==========================================
+
+# 检查 Python 版本
+check_python() {
+    info "检查 Python 环境..."
+    
+    # 查找 Python
+    PYTHON_CMD=""
+    for cmd in python3.12 python3.11 python3 python; do
+        if command -v $cmd &> /dev/null; then
+            PYTHON_CMD=$cmd
+            break
+        fi
+    done
+    
+    if [ -z "$PYTHON_CMD" ]; then
+        error "未找到 Python。请安装 Python 3.11 或更高版本"
+        echo ""
+        echo "安装建议:"
+        echo "  Ubuntu/Debian: sudo apt update && sudo apt install python3.12 python3.12-venv"
+        echo "  macOS:         brew install python@3.12"
+        echo "  或使用 pyenv:  pyenv install 3.12"
+        exit 1
+    fi
+    
+    # 检查版本
+    PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    MAJOR=$(echo $PYTHON_VERSION | cut -d. -f1)
+    MINOR=$(echo $PYTHON_VERSION | cut -d. -f2)
+    
+    if [ "$MAJOR" -lt 3 ] || ([ "$MAJOR" -eq 3 ] && [ "$MINOR" -lt 11 ]); then
+        error "Python 版本过低: $PYTHON_VERSION (需要 >= 3.11)"
+        echo ""
+        echo "请安装 Python 3.11 或更高版本"
+        exit 1
+    fi
+    
+    success "Python $PYTHON_VERSION ($PYTHON_CMD)"
+    export PYTHON_CMD
+}
+
+# 检查并创建虚拟环境
+check_venv() {
+    info "检查虚拟环境..."
+    
+    VENV_VALID=false
+    
+    # 检查虚拟环境是否存在且完整
+    if [ -d ".venv" ] && [ -f ".venv/bin/activate" ] && [ -f ".venv/bin/python" ]; then
+        VENV_VALID=true
+    fi
+    
+    if [ "$VENV_VALID" = false ]; then
+        if [ -d ".venv" ]; then
+            warn "虚拟环境不完整，正在重新创建..."
+            rm -rf .venv
+        else
+            warn "虚拟环境不存在，正在创建..."
+        fi
+        
+        $PYTHON_CMD -m venv .venv
+        if [ $? -ne 0 ]; then
+            error "创建虚拟环境失败"
+            echo ""
+            echo "可能的解决方案:"
+            echo "  Ubuntu/Debian: sudo apt install python3.12-venv python3.12-full"
+            exit 1
+        fi
+        success "虚拟环境已创建: .venv"
+        # 标记需要安装依赖
+        export NEED_INSTALL_DEPS=true
+    else
+        success "虚拟环境已存在: .venv"
+    fi
+    
+    # 激活虚拟环境
+    source .venv/bin/activate
+    if [ $? -ne 0 ]; then
+        error "无法激活虚拟环境"
+        exit 1
+    fi
+}
+
+# 安装 Python 依赖
+install_python_deps() {
+    info "检查 Python 依赖..."
+    
+    # 确保使用虚拟环境中的 pip
+    VENV_PIP=".venv/bin/pip"
+    VENV_PYTHON=".venv/bin/python"
+    
+    if [ ! -x "$VENV_PIP" ]; then
+        error "虚拟环境中的 pip 不存在"
+        exit 1
+    fi
+    
+    # 检查核心依赖是否已安装
+    MISSING_DEPS=false
+    for pkg in pymongo flask agno pydantic; do
+        if ! $VENV_PYTHON -c "import $pkg" 2>/dev/null; then
+            MISSING_DEPS=true
+            break
+        fi
+    done
+    
+    if [ "$MISSING_DEPS" = true ] || [ "$NEED_INSTALL_DEPS" = true ]; then
+        warn "安装 Python 依赖..."
+        $VENV_PIP install --upgrade pip -q
+        $VENV_PIP install -r requirements.txt -q
+        if [ $? -ne 0 ]; then
+            error "依赖安装失败"
+            exit 1
+        fi
+        
+        # 安装 agent 特定依赖
+        if [ -f "agent/requirements.txt" ]; then
+            $VENV_PIP install -r agent/requirements.txt -q
+        fi
+        
+        success "Python 依赖安装完成"
+    else
+        success "Python 依赖已安装"
+    fi
+}
+
+# 检查 PM2 (仅 pm2 模式需要)
+check_pm2() {
+    if [ "$MODE" != "pm2" ]; then
+        return 0
+    fi
+    
+    info "检查 PM2..."
+    
+    if ! command -v pm2 &> /dev/null; then
+        warn "PM2 未安装，正在安装..."
+        
+        # 检查 Node.js
+        if ! command -v node &> /dev/null; then
+            error "Node.js 未安装。PM2 模式需要 Node.js"
+            echo ""
+            echo "安装建议:"
+            echo "  Ubuntu/Debian: curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs"
+            echo "  macOS:         brew install node"
+            echo "  或使用 nvm:    nvm install 20"
+            exit 1
+        fi
+        
+        npm install -g pm2
+        if [ $? -ne 0 ]; then
+            error "PM2 安装失败"
+            echo "请尝试: sudo npm install -g pm2"
+            exit 1
+        fi
+    fi
+    
+    PM2_VERSION=$(pm2 --version)
+    success "PM2 $PM2_VERSION"
+}
+
+# 检查配置文件
+check_config() {
+    info "检查配置文件..."
+    
+    if [ ! -f "conf/config.json" ]; then
+        if [ -f "conf/config.example.json" ]; then
+            warn "配置文件不存在，从示例创建..."
+            cp conf/config.example.json conf/config.json
+            success "已创建 conf/config.json，请根据需要编辑配置"
+            echo ""
+            echo "  编辑配置: nano conf/config.json"
+            echo ""
+        else
+            error "配置文件和示例配置都不存在"
+            exit 1
+        fi
+    else
+        success "配置文件已存在: conf/config.json"
+    fi
+}
+
+# 创建必要的目录
+ensure_directories() {
+    info "检查目录结构..."
+    
+    mkdir -p logs
+    mkdir -p agent/runner
+    mkdir -p data/labels
+    mkdir -p data/metadata
+    
+    success "目录结构已就绪"
+}
+
+# 检查 .env 文件
+check_env_file() {
+    if [ ! -f ".env" ]; then
+        warn ".env 文件不存在"
+        echo "  如需配置环境变量，请创建 .env 文件"
+        echo "  示例: cp .env.example .env  (如果有)"
+    fi
+}
+
+# 执行环境检查和安装
+run_setup() {
+    echo ""
+    echo "=========================================="
+    echo "环境检查与安装"
+    echo "=========================================="
+    
+    check_python
+    check_venv
+    install_python_deps
+    check_pm2
+    check_config
+    ensure_directories
+    check_env_file
+    
+    echo ""
+    success "环境准备完成!"
+    echo "=========================================="
+    echo ""
+}
+
+# 首次安装或非跳过模式时执行环境检查
+if [ "$SKIP_INSTALL" = false ]; then
+    run_setup
+else
+    info "跳过环境检查 (--skip-install)"
+    if [ -f ".venv/bin/activate" ]; then
+        source .venv/bin/activate
+    fi
+fi
+
 # 部署前检查（可选）
 if [ "$CHECK_PLATFORM" = true ]; then
     echo ""
     echo "运行部署前检查..."
-    if [ -d ".venv" ]; then
-        source .venv/bin/activate
-    fi
     python scripts/check_langbot_platform.py
     if [ $? -ne 0 ]; then
         echo ""
@@ -133,12 +382,6 @@ start_dev_mode() {
 
     # 注册信号处理
     trap cleanup SIGINT SIGTERM
-
-    # 激活虚拟环境
-    if [ -d ".venv" ]; then
-        echo "激活虚拟环境..."
-        source .venv/bin/activate
-    fi
 
     # 更新 wId（如果指定）
     if [ -n "$NEW_WID" ]; then
@@ -230,11 +473,6 @@ PYUPDATE
 start_pm2_mode() {
     echo "启动 PM2 模式（统一管理所有服务）..."
     echo ""
-    
-    # 激活虚拟环境
-    if [ -d ".venv" ]; then
-        source .venv/bin/activate
-    fi
     
     # 清理过期锁（如果需要）
     if [ -n "$FORCE_CLEAN" ]; then
