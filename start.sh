@@ -234,9 +234,93 @@ install_python_deps() {
             $VENV_PIP install -r agent/requirements.txt -q
         fi
         
+        # 安装本地阿里云 NLS SDK（语音识别）
+        if [ -d "alibabacloud-nls-python-sdk-dev" ]; then
+            info "安装阿里云 NLS SDK..."
+            $VENV_PIP install -e alibabacloud-nls-python-sdk-dev -q
+        fi
+        
         success "Python 依赖安装完成"
     else
         success "Python 依赖已安装"
+    fi
+}
+
+# 检查系统依赖
+check_system_deps() {
+    info "检查系统依赖..."
+    
+    MISSING_SYSTEM_DEPS=""
+    
+    # 检查 ffmpeg (音频处理需要)
+    if ! command -v ffmpeg &> /dev/null; then
+        MISSING_SYSTEM_DEPS="$MISSING_SYSTEM_DEPS ffmpeg"
+    fi
+    
+    if [ -n "$MISSING_SYSTEM_DEPS" ]; then
+        warn "缺少系统依赖:$MISSING_SYSTEM_DEPS"
+        echo "  请安装缺少的依赖:"
+        echo "    Ubuntu/Debian: sudo apt install$MISSING_SYSTEM_DEPS"
+        echo "    macOS:         brew install$MISSING_SYSTEM_DEPS"
+        echo ""
+        echo "  该依赖用于音频处理（语音转换），如不需要可忽略"
+    else
+        success "系统依赖已安装"
+    fi
+}
+
+# 检查 MongoDB (生产模式需要)
+check_mongodb() {
+    if [ "$MODE" = "dev" ]; then
+        # 开发模式可以使用远程 MongoDB
+        return 0
+    fi
+    
+    info "检查 MongoDB..."
+    
+    # 检查 mongod 是否运行
+    if pgrep -x "mongod" > /dev/null; then
+        MONGO_VERSION=$(mongod --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
+        success "MongoDB 已运行 (v$MONGO_VERSION)"
+        return 0
+    fi
+    
+    # 检查是否可连接到 MongoDB
+    if command -v mongosh &> /dev/null; then
+        if mongosh --eval "db.runCommand({ping:1})" --quiet 2>/dev/null; then
+            success "MongoDB 可连接"
+            return 0
+        fi
+    elif command -v mongo &> /dev/null; then
+        if mongo --eval "db.runCommand({ping:1})" --quiet 2>/dev/null; then
+            success "MongoDB 可连接"
+            return 0
+        fi
+    fi
+    
+    # MongoDB 未运行
+    warn "MongoDB 未运行或未安装"
+    echo "  生产/PM2 模式需要 MongoDB"
+    echo ""
+    echo "  安装建议 (Ubuntu 22.04+):"
+    echo "    # 导入 MongoDB GPG 密钥"
+    echo "    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor"
+    echo "    # 添加源"
+    echo "    echo \"deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse\" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list"
+    echo "    # 安装"
+    echo "    sudo apt update && sudo apt install -y mongodb-org"
+    echo "    # 启动"
+    echo "    sudo systemctl start mongod && sudo systemctl enable mongod"
+    echo ""
+    echo "  或者使用 Docker:"
+    echo "    docker run -d -p 27017:27017 --name mongodb mongo:7"
+    echo ""
+    
+    # 不退出，让用户决定是否继续
+    read -p "是否继续启动？(y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
     fi
 }
 
@@ -325,7 +409,9 @@ run_setup() {
     
     check_python
     check_venv
+    check_system_deps
     install_python_deps
+    check_mongodb
     check_pm2
     check_config
     ensure_directories
@@ -473,6 +559,62 @@ PYUPDATE
 start_pm2_mode() {
     echo "启动 PM2 模式（统一管理所有服务）..."
     echo ""
+    
+    # 检查并更新 ecosystem.config.json 中的路径
+    info "检查 PM2 配置..."
+    
+    # 查找 uvx 路径
+    UVX_PATH=$(command -v uvx 2>/dev/null || echo "")
+    if [ -z "$UVX_PATH" ]; then
+        # 尝试常见位置
+        for path in "$HOME/.local/bin/uvx" "$HOME/.cargo/bin/uvx" "/usr/local/bin/uvx"; do
+            if [ -x "$path" ]; then
+                UVX_PATH="$path"
+                break
+            fi
+        done
+    fi
+    
+    if [ -z "$UVX_PATH" ]; then
+        warn "uvx 未安装，正在安装..."
+        # 安装 uv (包含 uvx)
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        UVX_PATH="$HOME/.local/bin/uvx"
+        
+        if [ ! -x "$UVX_PATH" ]; then
+            error "uvx 安装失败"
+            echo "  请手动安装: curl -LsSf https://astral.sh/uv/install.sh | sh"
+            exit 1
+        fi
+    fi
+    success "uvx 路径: $UVX_PATH"
+    
+    # 动态更新 ecosystem.config.json 中的 uvx 路径
+    VENV_PYTHON=".venv/bin/python"
+    if [ -x "$VENV_PYTHON" ]; then
+        $VENV_PYTHON - "$UVX_PATH" <<'PYUPDATE'
+import json
+import sys
+
+uvx_path = sys.argv[1]
+
+with open("ecosystem.config.json", "r", encoding="utf-8") as f:
+    config = json.load(f)
+
+# 更新 langbot-core 的 script 路径
+for app in config.get("apps", []):
+    if app.get("name") == "langbot-core":
+        old_path = app.get("script", "")
+        app["script"] = uvx_path
+        if old_path != uvx_path:
+            print(f"  更新 langbot-core script: {old_path} -> {uvx_path}")
+        break
+
+with open("ecosystem.config.json", "w", encoding="utf-8") as f:
+    json.dump(config, f, ensure_ascii=False, indent=2)
+PYUPDATE
+    fi
     
     # 清理过期锁（如果需要）
     if [ -n "$FORCE_CLEAN" ]; then
