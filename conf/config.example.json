@@ -62,6 +62,10 @@
     "feishu": {
       "app_id": "your_feishu_app_id",
       "app_secret": "your_feishu_app_secret"
+    },
+    "telegram": {
+      "bot_token": "your_telegram_bot_token",
+      "parse_mode": null
     }
   }
 }
