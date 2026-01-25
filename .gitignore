@@ -172,3 +172,4 @@ langbot-workdir/data/chroma/chroma.sqlite3
 
 # Git worktrees
 .worktrees/
+langbot-workdir/data/chroma/chroma.sqlite3
