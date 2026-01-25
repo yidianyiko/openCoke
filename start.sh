@@ -269,57 +269,98 @@ check_system_deps() {
     fi
 }
 
-# 检查 MongoDB (生产模式需要)
-check_mongodb() {
-    if [ "$MODE" = "dev" ]; then
-        # 开发模式可以使用远程 MongoDB
-        return 0
+# 检查 Docker
+check_docker() {
+    info "检查 Docker..."
+    
+    if ! command -v docker &> /dev/null; then
+        error "Docker 未安装"
+        echo ""
+        echo "  安装 Docker:"
+        echo "    Ubuntu/Debian:"
+        echo "      sudo apt-get update"
+        echo "      sudo apt install -y docker.io"
+        echo "      sudo usermod -aG docker \$USER"
+        echo "      newgrp docker"
+        echo "      sudo systemctl start docker"
+        echo "      sudo systemctl enable docker"
+        echo ""
+        echo "    macOS:"
+        echo "      brew install --cask docker"
+        echo ""
+        exit 1
     fi
     
+    # 检查 Docker 是否运行
+    if ! docker info &> /dev/null; then
+        error "Docker 未运行或当前用户无权限"
+        echo ""
+        echo "  启动 Docker:"
+        echo "    sudo systemctl start docker"
+        echo ""
+        echo "  添加用户到 docker 组（需重新登录生效）:"
+        echo "    sudo usermod -aG docker \$USER"
+        echo "    newgrp docker"
+        echo ""
+        exit 1
+    fi
+    
+    DOCKER_VERSION=$(docker --version | grep -oP '\d+\.\d+\.\d+' | head -1)
+    success "Docker $DOCKER_VERSION"
+}
+
+# 检查 MongoDB (通过 Docker 容器运行)
+check_mongodb() {
     info "检查 MongoDB..."
     
-    # 检查 mongod 是否运行
-    if pgrep -x "mongod" > /dev/null; then
-        MONGO_VERSION=$(mongod --version 2>/dev/null | head -1 | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
-        success "MongoDB 已运行 (v$MONGO_VERSION)"
-        return 0
+    # 检查 MongoDB 容器是否存在
+    if docker ps -a --format '{{.Names}}' | grep -q '^mongodb$'; then
+        # 容器存在，检查是否运行中
+        if docker ps --format '{{.Names}}' | grep -q '^mongodb$'; then
+            success "MongoDB 容器已运行"
+            return 0
+        else
+            # 容器存在但未运行，尝试启动
+            warn "MongoDB 容器已停止，正在启动..."
+            docker start mongodb
+            if [ $? -eq 0 ]; then
+                success "MongoDB 容器已启动"
+                return 0
+            else
+                error "MongoDB 容器启动失败"
+                echo "  请检查: docker logs mongodb"
+                exit 1
+            fi
+        fi
     fi
     
-    # 检查是否可连接到 MongoDB
-    if command -v mongosh &> /dev/null; then
-        if mongosh --eval "db.runCommand({ping:1})" --quiet 2>/dev/null; then
-            success "MongoDB 可连接"
-            return 0
-        fi
-    elif command -v mongo &> /dev/null; then
-        if mongo --eval "db.runCommand({ping:1})" --quiet 2>/dev/null; then
-            success "MongoDB 可连接"
-            return 0
-        fi
-    fi
+    # 容器不存在，创建并启动
+    warn "MongoDB 容器不存在，正在创建..."
     
-    # MongoDB 未运行
-    warn "MongoDB 未运行或未安装"
-    echo "  生产/PM2 模式需要 MongoDB"
-    echo ""
-    echo "  安装建议 (Ubuntu 22.04+):"
-    echo "    # 导入 MongoDB GPG 密钥"
-    echo "    curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor"
-    echo "    # 添加源"
-    echo "    echo \"deb [ signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse\" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list"
-    echo "    # 安装"
-    echo "    sudo apt update && sudo apt install -y mongodb-org"
-    echo "    # 启动"
-    echo "    sudo systemctl start mongod && sudo systemctl enable mongod"
-    echo ""
-    echo "  或者使用 Docker:"
-    echo "    docker run -d -p 27017:27017 --name mongodb mongo:7"
-    echo ""
+    # 创建数据目录
+    MONGO_DATA_DIR="$HOME/mongodb/data"
+    mkdir -p "$MONGO_DATA_DIR"
     
-    # 不退出，让用户决定是否继续
-    read -p "是否继续启动？(y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    # 拉取并启动 MongoDB 容器
+    docker pull mongo:5.0.5
+    docker run -d \
+        --name mongodb \
+        -p 27017:27017 \
+        -v "$MONGO_DATA_DIR":/data/db \
+        mongo:5.0.5
+    
+    if [ $? -eq 0 ]; then
+        success "MongoDB 容器创建并启动成功"
+        echo "  数据目录: $MONGO_DATA_DIR"
+        # 等待 MongoDB 启动
+        sleep 3
+    else
+        error "MongoDB 容器创建失败"
+        echo ""
+        echo "  手动创建:"
+        echo "    docker pull mongo:5.0.5"
+        echo "    docker run -d --name mongodb -p 27017:27017 -v \$HOME/mongodb/data:/data/db mongo:5.0.5"
+        echo ""
         exit 1
     fi
 }
@@ -387,6 +428,7 @@ ensure_directories() {
     mkdir -p agent/runner
     mkdir -p data/labels
     mkdir -p data/metadata
+    mkdir -p agent/temp  # 临时文件目录 (语音/图片处理)
     
     success "目录结构已就绪"
 }
@@ -400,6 +442,64 @@ check_env_file() {
     fi
 }
 
+# 检查角色是否已初始化
+check_character_init() {
+    info "检查角色初始化状态..."
+    
+    VENV_PYTHON=".venv/bin/python"
+    
+    # 检查角色是否存在于数据库
+    CHARACTER_EXISTS=$($VENV_PYTHON -c "
+import sys
+sys.path.insert(0, '.')
+try:
+    from dao.user_dao import UserDAO
+    dao = UserDAO()
+    chars = dao.find_characters({'name': '$CHARACTER'})
+    print('yes' if chars else 'no')
+except Exception as e:
+    print('error')
+" 2>/dev/null || echo "error")
+    
+    if [ "$CHARACTER_EXISTS" = "yes" ]; then
+        success "角色 '$CHARACTER' 已初始化"
+    elif [ "$CHARACTER_EXISTS" = "no" ]; then
+        warn "角色 '$CHARACTER' 未初始化"
+        echo ""
+        echo "  首次部署需要初始化角色数据:"
+        echo "    1. 编辑角色配置: nano agent/role/prepare_character.py"
+        echo "    2. 执行初始化: python agent/role/prepare_character.py"
+        echo "    3. 获取角色 ID: python dao/get_special_users.py"
+        echo "    4. 将角色 ID 填入 conf/config.json"
+        echo ""
+        read -p "是否继续启动？(y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
+    else
+        # 数据库连接失败等错误，不阻塞启动
+        warn "无法检查角色状态（数据库可能未运行）"
+    fi
+}
+
+# 检查端口转发规则（可选）
+check_port_forward() {
+    info "检查端口转发规则..."
+    
+    # 检查 iptables 规则是否存在
+    if command -v iptables &> /dev/null; then
+        if sudo iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q "redir ports 8080"; then
+            success "端口转发 80→8080 已配置"
+        else
+            warn "端口转发 80→8080 未配置"
+            echo "  如需通过 80 端口访问（而非 8080），执行:"
+            echo "    sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080"
+            echo "  （此步骤可选，仅在需要 80 端口时配置）"
+        fi
+    fi
+}
+
 # 执行环境检查和安装
 run_setup() {
     echo ""
@@ -409,6 +509,7 @@ run_setup() {
     
     check_python
     check_venv
+    check_docker
     check_system_deps
     install_python_deps
     check_mongodb
@@ -416,6 +517,8 @@ run_setup() {
     check_config
     ensure_directories
     check_env_file
+    check_character_init
+    check_port_forward
     
     echo ""
     success "环境准备完成!"
