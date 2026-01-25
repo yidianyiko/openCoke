@@ -21,6 +21,7 @@ from conf.config import CONF
 from connector.langbot.feishu_api import FeishuAPI
 from connector.langbot.langbot_adapter import std_to_langbot_message
 from connector.langbot.langbot_api import LangBotAPI
+from connector.langbot.telegram_api import TelegramAPI
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from util.log_util import get_logger
@@ -40,6 +41,11 @@ def get_langbot_api() -> LangBotAPI:
 def get_feishu_api(app_id: str, app_secret: str) -> FeishuAPI:
     """Get Feishu API client."""
     return FeishuAPI(app_id=app_id, app_secret=app_secret)
+
+
+def get_telegram_api(bot_token: str) -> TelegramAPI:
+    """Get Telegram API client."""
+    return TelegramAPI(bot_token=bot_token)
 
 
 async def output_handler():
@@ -91,10 +97,13 @@ async def output_handler():
             else metadata.get("langbot_adapter", "")
         )
 
-        # Check if this is a Feishu/Lark message
+        # Route to appropriate API based on adapter
         if adapter.lower() in ("lark", "larkadapter", "feishu"):
             # Use direct Feishu API
             await send_via_feishu_api(message, user_platform_info, metadata)
+        elif adapter.lower() in ("telegram", "telegramadapter"):
+            # Use direct Telegram API (LangBot's send_message is not implemented)
+            await send_via_telegram_api(message, user_platform_info, metadata)
         else:
             # Use LangBot Service API
             await send_via_langbot_api(message, user_platform_info, metadata)
@@ -178,6 +187,73 @@ async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata:
         message["status"] = "failed"
         message["error"] = str(e)
         logger.error(f"Error sending via Feishu API: {e}")
+        raise
+
+
+async def send_via_telegram_api(message: dict, user_platform_info: dict, metadata: dict):
+    """
+    Send message via direct Telegram Bot API.
+
+    Args:
+        message: Output message document
+        user_platform_info: User's platform config (from user.platforms.langbot_TelegramAdapter)
+        metadata: Message metadata (fallback)
+    """
+    try:
+        # Get Telegram credentials from config
+        langbot_conf = CONF.get("langbot", {})
+        telegram_conf = langbot_conf.get("telegram", {})
+
+        bot_token = telegram_conf.get("bot_token")
+
+        if not bot_token:
+            raise ValueError(
+                "Telegram bot_token not configured in config.json under langbot.telegram"
+            )
+
+        telegram_api = get_telegram_api(bot_token)
+
+        # Get target chat_id
+        chatroom_name = message.get("chatroom_name")
+        if chatroom_name:
+            # Group chat
+            chat_id = chatroom_name
+            logger.info(f"Telegram group message, chat_id: {chat_id}")
+        else:
+            # Private chat: get from user platforms or metadata
+            chat_id = user_platform_info.get("id") or metadata.get("langbot_target_id")
+            if not chat_id:
+                raise ValueError(
+                    "Cannot determine chat_id: not found in user platforms or metadata"
+                )
+            logger.info(
+                f"Telegram private message, chat_id: {chat_id} "
+                f"(from {'user_platforms' if user_platform_info.get('id') else 'metadata'})"
+            )
+
+        # Determine parse_mode from config
+        parse_mode = telegram_conf.get("parse_mode")  # Optional: "MarkdownV2" or None
+
+        # Send message
+        result = telegram_api.send_message(
+            chat_id=chat_id,
+            text=message.get("message", ""),
+            parse_mode=parse_mode,
+        )
+
+        logger.info(f"Telegram send result: {result}")
+
+        # Update status based on response
+        if result.get("ok"):
+            message["status"] = "handled"
+        else:
+            message["status"] = "failed"
+            message["error"] = result.get("description", "Unknown error")
+
+    except Exception as e:
+        message["status"] = "failed"
+        message["error"] = str(e)
+        logger.error(f"Error sending via Telegram API: {e}")
         raise
 
 
