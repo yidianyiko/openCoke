@@ -1,6 +1,6 @@
 dashscope==1.23.2
 flask==3.1.0
-nls==1.1.0
+./alibabacloud-nls-python-sdk-dev
 openai==1.75.0
 pilk==0.2.4
 pip==23.0.1
