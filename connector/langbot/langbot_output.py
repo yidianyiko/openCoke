@@ -77,15 +77,18 @@ async def output_handler():
         logger.debug(f"Full message: {message}")
 
         # 获取目标用户信息（与 ecloud 一致的方式）
-        user = user_dao.get_user_by_id(message.get("to_user"))
-        if user is None:
-            raise Exception(f"User not found: {message.get('to_user')}")
+        user = None
+        to_user_id = message.get("to_user")
+        if to_user_id:
+            user = user_dao.get_user_by_id(to_user_id)
+            if user is None:
+                logger.warning(f"User not found: {to_user_id}, fallback to metadata")
 
         # 从 platform 字段获取平台信息（如 langbot_feishu, langbot_telegram）
         platform = message.get("platform", "")
 
         # 从用户的 platforms 配置获取路由信息
-        user_platform_info = user.get("platforms", {}).get(platform, {})
+        user_platform_info = (user or {}).get("platforms", {}).get(platform, {})
 
         # 构建 metadata，优先使用用户配置，回退到消息自带的 metadata
         metadata = message.get("metadata", {})

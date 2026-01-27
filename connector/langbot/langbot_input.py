@@ -19,6 +19,22 @@ logger = get_logger(__name__)
 app = Flask(__name__)
 
 
+def get_default_character():
+    """
+    Get default character from config.
+
+    Returns:
+        Default character document or None
+    """
+    from conf.config import CONF
+
+    user_dao = UserDAO()
+    langbot_conf = CONF.get("langbot", {})
+    default_alias = langbot_conf.get("default_character_alias", "qiaoyun")
+    characters = user_dao.find_characters({"name": default_alias})
+    return characters[0] if characters else None
+
+
 def get_character_by_bot_uuid(bot_uuid: str):
     """
     Get character by bot_uuid from config.json bots mapping.
@@ -47,12 +63,10 @@ def get_character_by_bot_uuid(bot_uuid: str):
             break
 
     # Fallback to default character
-    default_alias = langbot_conf.get("default_character_alias", "qiaoyun")
     logger.warning(
-        f"bot_uuid '{bot_uuid}' not found in config, falling back to '{default_alias}'"
+        f"bot_uuid '{bot_uuid}' not found in config, falling back to default character"
     )
-    characters = user_dao.find_characters({"name": default_alias})
-    return characters[0] if characters else None
+    return get_default_character()
 
 
 def get_or_create_user(adapter_name: str, sender_id: str, sender_name: str):
@@ -118,6 +132,8 @@ def webhook_handler():
 
         logger.info("Step 1: Converting webhook to std format")
         std = langbot_webhook_to_std(payload)
+        if str(std.get("platform", "")).startswith("langbot_"):
+            std["platform"] = "langbot"
         logger.info(
             f"Step 1 done: platform={std.get('platform')}, message={std.get('message', '')[:30]}"
         )
