@@ -230,6 +230,9 @@ def _parse_trigger_time(
 _context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar(
     "session_state", default={}
 )
+_context_session_state_ref: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+    "session_state_ref", default=None
+)
 _context_session_operations: contextvars.ContextVar[list] = contextvars.ContextVar(
     "session_operations", default=[]
 )
@@ -243,6 +246,7 @@ def set_reminder_session_state(session_state: dict):
     避免 asyncio 并发处理时的跨用户数据污染.
     """
     _context_session_state.set(session_state or {})
+    _context_session_state_ref.set(session_state or None)
     _context_session_operations.set([])
 
     # 记录设置的 user_id，便于调试
@@ -384,6 +388,10 @@ def _save_reminder_result_to_session(
         details=details,
     )
     session_state["tool_execution_context"] = tool_execution_context
+    session_state_ref = _context_session_state_ref.get()
+    if session_state_ref is not None and session_state_ref is not session_state:
+        session_state_ref["【提醒设置工具消息】"] = message
+        session_state_ref["tool_execution_context"] = tool_execution_context
 
     logger.info(f"提醒结果已写入 session_state: {message}")
     logger.debug(f"工具执行上下文: {tool_execution_context}")
