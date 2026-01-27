@@ -277,26 +277,57 @@ class MessageAcquirer:
         self, user: Dict, character: Dict, top_message: Dict, platform: str
     ) -> bool:
         """验证 platform 字段"""
-        if platform not in user.get("platforms", {}):
-            logger.error(
-                f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: "
-                f"user_id={user.get('_id')}, user_name={user.get('name')}"
-            )
-            top_message["status"] = "failed"
-            top_message["error"] = f"user_missing_platform:{platform}"
-            save_inputmessage(top_message)
-            return False
+        # 特殊处理 LangBot 平台：如果平台是以 langbot_ 开头，检查用户是否有对应的 langbot_* 平台字段
+        if platform.startswith("langbot_"):
+            user_platforms = user.get("platforms", {})
+            character_platforms = character.get("platforms", {})
+            
+            # 检查用户是否有对应的 langbot_* 平台字段
+            if platform not in user_platforms:
+                logger.error(
+                    f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: "
+                    f"user_id={user.get('_id')}, user_name={user.get('name')}, "
+                    f"available_platforms={list(user_platforms.keys())}"
+                )
+                top_message["status"] = "failed"
+                top_message["error"] = f"user_missing_platform:{platform}"
+                save_inputmessage(top_message)
+                return False
 
-        if platform not in character.get("platforms", {}):
-            logger.error(
-                f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: "
-                f"character_id={character.get('_id')}, character_name={character.get('name')}. "
-                f"请运行 add_feishu_platform.py 或手动添加角色的 {platform} 平台配置"
-            )
-            top_message["status"] = "failed"
-            top_message["error"] = f"character_missing_platform:{platform}"
-            save_inputmessage(top_message)
-            return False
+            # 检查角色是否有对应的 langbot_* 平台字段
+            if platform not in character_platforms:
+                logger.error(
+                    f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: "
+                    f"character_id={character.get('_id')}, character_name={character.get('name')}. "
+                    f"请运行相关脚本或手动添加角色的 {platform} 平台配置"
+                )
+                top_message["status"] = "failed"
+                top_message["error"] = f"character_missing_platform:{platform}"
+                save_inputmessage(top_message)
+                return False
+                
+        else:
+            # 对于非 LangBot 平台，使用原有逻辑
+            if platform not in user.get("platforms", {}):
+                logger.error(
+                    f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: "
+                    f"user_id={user.get('_id')}, user_name={user.get('name')}"
+                )
+                top_message["status"] = "failed"
+                top_message["error"] = f"user_missing_platform:{platform}"
+                save_inputmessage(top_message)
+                return False
+
+            if platform not in character.get("platforms", {}):
+                logger.error(
+                    f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: "
+                    f"character_id={character.get('_id')}, character_name={character.get('name')}. "
+                    f"请运行 add_feishu_platform.py 或手动添加角色的 {platform} 平台配置"
+                )
+                top_message["status"] = "failed"
+                top_message["error"] = f"character_missing_platform:{platform}"
+                save_inputmessage(top_message)
+                return False
 
         return True
 

@@ -59,6 +59,7 @@ def get_character_by_bot_uuid(bot_uuid: str):
                 characters = user_dao.find_characters({"name": character_name})
                 if characters:
                     logger.info(f"Found character '{character_name}' for bot '{bot_key}'")
+                    # 返回角色，后续会在消息处理中确保它有正确的平台信息
                     return characters[0]
             break
 
@@ -132,14 +133,16 @@ def webhook_handler():
 
         logger.info("Step 1: Converting webhook to std format")
         std = langbot_webhook_to_std(payload)
-        if str(std.get("platform", "")).startswith("langbot_"):
-            std["platform"] = "langbot"
+        
+        data = payload.get("data", {})
+        adapter_name = data.get("adapter_name", "")
+        if str(std.get("platform", "")).startswith("langbot_") and adapter_name:
+            # 修改这里：根据 adapter_name 设置具体的平台键
+            std["platform"] = f"langbot_{adapter_name}"
         logger.info(
             f"Step 1 done: platform={std.get('platform')}, message={std.get('message', '')[:30]}"
         )
 
-        data = payload.get("data", {})
-        adapter_name = data.get("adapter_name", "")
         sender = data.get("sender", {}) or {}
         sender_id = sender.get("id", "")
         sender_name = sender.get("name", "")
