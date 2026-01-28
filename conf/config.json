@@ -1,0 +1,75 @@
+{
+    "dev": {
+        "disable_daily_tasks": true
+    },
+    "default_character_alias": "qiaoyun",
+    "characters": {
+        "coke": "${CHARACTER_WXID_COKE}",
+        "qiaoyun": "${CHARACTER_WXID_QIAOYUN}"
+    },
+    "ecloud": {
+        "Authorization": "${ECLOUD_AUTHORIZATION}",
+        "wId": {
+            "qiaoyun": "${ECLOUD_WID_QIAOYUN}"
+        },
+        "group_chat": {
+            "enabled": false,
+            "context_message_count": 10,
+            "whitelist_groups": [],
+            "reply_mode": {
+                "whitelist": "all",
+                "others": "mention_only"
+            }
+        }
+    },
+    "mongodb": {
+        "mongodb_ip": "127.0.0.1",
+        "mongodb_port": "27017",
+        "mongodb_name": "mymongo"
+    },
+    "liblib": {
+        "AccessKey": "${LIBLIB_ACCESS_KEY}",
+        "SecretKey": "${LIBLIB_SECRET_KEY}"
+    },
+    "doubao_models": {
+        "deepseek_r1": "${DOUBAO_DEEPSEEK_R1_EP}",
+        "deepseek_v3.1": "${DOUBAO_DEEPSEEK_V3_EP}",
+        "doubao_1.5_pro": "${DOUBAO_PRO_EP}",
+        "doubao_1.6_pro": "${DOUBAO_PRO_EP}"
+    },
+    "aliyun_asr": {
+        "URL": "wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1",
+        "APPKEY": "${ALIYUN_ASR_APPKEY}"
+    },
+    "admin_user_id": "${ADMIN_USER_ID}",
+    "reminder": {
+        "v1_polling_enabled": false,
+        "v2_scheduler_enabled": true
+    },
+    "langbot": {
+        "enabled": true,
+        "base_url": "http://127.0.0.1:5300",
+        "api_key": "${LANGBOT_API_KEY}",
+        "webhook_port": 8081,
+        "default_character_alias": "qiaoyun",
+        "single_server_mode": true,
+        "bots": {
+            "qiaoyun-feishu": {
+                "bot_uuid": "${LANGBOT_BOT_FEISHU_UUID}",
+                "character": "qiaoyun"
+            },
+            "qiaoyun-telegram": {
+                "bot_uuid": "${LANGBOT_BOT_TELEGRAM_UUID}",
+                "character": "qiaoyun"
+            }
+        },
+        "feishu": {
+            "app_id": "${FEISHU_APP_ID}",
+            "app_secret": "${FEISHU_APP_SECRET}"
+        },
+        "telegram": {
+            "bot_token": "${TELEGRAM_BOT_TOKEN}",
+            "parse_mode": null
+        }
+    }
+}
