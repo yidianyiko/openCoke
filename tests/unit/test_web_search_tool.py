@@ -102,3 +102,9 @@ class TestWebSearchTool:
             assert len(result["results"]) == 2
             assert result["results"][0]["title"] == "标题1"
             assert result["results"][0]["url"] == "https://example1.com"
+
+    def test_web_search_tool_exported_from_tools_module(self):
+        """测试工具从 tools 模块正确导出"""
+        import agent.agno_agent.tools as tools
+        assert hasattr(tools, "web_search_tool")
+        assert "web_search_tool" in tools.__all__
