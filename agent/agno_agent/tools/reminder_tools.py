@@ -1329,19 +1329,14 @@ def _create_reminder(
     if duplicate:
         return duplicate
 
-    # Step 5: 尝试追加到同一时间的提醒
-    appended = _try_append_to_same_time_reminder(
-        reminder_dao, user_id, title, timestamp
-    )
-    if appended:
-        return appended
 
-    # Step 6: 解析时间段配置
+
+    # Step 5: 解析时间段配置
     time_period_config = _parse_time_period_config(
         period_start, period_end, period_days
     )
 
-    # Step 7: 构建提醒文档
+    # Step 6: 构建提醒文档
     reminder_doc = _build_reminder_document(
         user_id=user_id,
         title=title,
@@ -1356,7 +1351,7 @@ def _create_reminder(
     )
     reminder_id = reminder_doc["reminder_id"]
 
-    # Step 8: 创建提醒
+    # Step 7: 创建提醒
     try:
         inserted_id = reminder_dao.create_reminder(reminder_doc)
         if not inserted_id:

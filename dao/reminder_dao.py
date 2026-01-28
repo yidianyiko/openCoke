@@ -101,7 +101,7 @@ class ReminderDAO:
             return None
 
     def find_pending_reminders(
-        self, current_time: int, time_window: int = 60
+        self, current_time: int, time_window: int = 60, lookahead: int = 0
     ) -> List[Dict]:
         """
         查找待触发的提醒
@@ -109,6 +109,8 @@ class ReminderDAO:
         Args:
             current_time: 当前时间戳
             time_window: 保留参数以保持API兼容性（不再使用）
+            lookahead: 前瞻时间（秒），查询 current_time + lookahead 内的提醒
+                       用于支持提醒分组合并（将相近时间的提醒一起查出来）
 
         Returns:
             List[Dict]: 待触发的提醒列表
@@ -121,9 +123,10 @@ class ReminderDAO:
             trigger_time=None 的任务（inbox 待安排任务）会被自然过滤，
             因为 None 不满足 $lte 比较条件。
         """
+        upper_bound = current_time + lookahead
         query = {
             "status": "active",
-            "next_trigger_time": {"$lte": current_time},  # None 会被自动排除
+            "next_trigger_time": {"$lte": upper_bound},  # None 会被自动排除
         }
         # 添加 limit 防止积压过多时一次性加载太多
         return list(self.collection.find(query).sort("next_trigger_time", 1).limit(100))

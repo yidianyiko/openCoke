@@ -13,8 +13,8 @@
             "qiaoyun": "${ECLOUD_WID_QIAOYUN}"
         },
         "group_chat": {
-            "enabled": false,
-            "context_message_count": 10,
+            "enabled": true,
+            "context_message_count": 20,
             "whitelist_groups": [],
             "reply_mode": {
                 "whitelist": "all",
@@ -42,10 +42,6 @@
         "APPKEY": "${ALIYUN_ASR_APPKEY}"
     },
     "admin_user_id": "${ADMIN_USER_ID}",
-    "reminder": {
-        "v1_polling_enabled": false,
-        "v2_scheduler_enabled": true
-    },
     "langbot": {
         "enabled": true,
         "base_url": "http://127.0.0.1:5300",

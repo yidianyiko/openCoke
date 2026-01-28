@@ -605,11 +605,59 @@ async def handle_pending_future_message():
                 logger.error(f"释放锁失败: {release_err}")
 
 
+# 提醒分组时间容差（秒）- 按5分钟时间桶分组（0:00-4:59, 5:00-9:59...）
+_REMINDER_GROUP_TOLERANCE = 300
+
+
+def _group_reminders_by_time(
+    reminders: list, tolerance: int = _REMINDER_GROUP_TOLERANCE
+) -> dict:
+    """
+    按会话和触发时间分组提醒，将同一时间桶内的提醒合并处理。
+
+    避免在创建时合并不同类型（重复/非重复）的提醒，
+    改为在触发时分组，处理完成后各自独立更新生命周期。
+
+    分组方式：使用固定时间桶（trigger_time // tolerance），
+    例如 tolerance=300 时：
+    - 8:00:00 - 8:04:59 → bucket 0
+    - 8:05:00 - 8:09:59 → bucket 300
+    - 8:10:00 - 8:14:59 → bucket 600
+    
+    注意：跨桶边界的提醒不会合并（如 8:04:59 和 8:05:01 属于不同桶）
+
+    Args:
+        reminders: 待触发的提醒列表
+        tolerance: 时间桶大小（秒），默认300秒（5分钟）
+
+    Returns:
+        dict: {(conversation_id, time_bucket): [reminder1, reminder2, ...]}
+    """
+    groups = {}
+    for reminder in reminders:
+        conv_id = reminder.get("conversation_id")
+        trigger_time = reminder.get("next_trigger_time", 0)
+        # 按容差分桶：同一分桶内的提醒视为同一时间
+        bucket = (trigger_time // tolerance) * tolerance
+        key = (conv_id, bucket)
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(reminder)
+    return groups
+
+
 async def handle_pending_reminders():
     """
-    处理待触发的提醒任务 (V2.8-支持时间段提醒)
+    处理待触发的提醒任务 (V3.0-支持前瞻分组触发)
 
-    使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程
+    使用 handle_message 复用完整的 Phase 1 → 2 → 3 流程。
+    同一时间桶（5分钟）内触发的提醒会被分组合并为单条消息，
+    但每个提醒的生命周期（重复/非重复）独立管理。
+
+    前瞻查询机制：
+    - 查询范围扩大到 now + 5分钟，预取未来即将触发的提醒
+    - 只有当分组内最早的提醒已到期时，才处理整个分组
+    - 避免无故提前触发，同时实现相近时间提醒的合并
     """
     from dao.reminder_dao import ReminderDAO
 
@@ -618,7 +666,10 @@ async def handle_pending_reminders():
 
     try:
         now = int(time.time())
-        reminders = reminder_dao.find_pending_reminders(now)
+        # 前瞻查询：查询 now + 5分钟内的所有提醒
+        reminders = reminder_dao.find_pending_reminders(
+            now, lookahead=_REMINDER_GROUP_TOLERANCE
+        )
 
         if len(reminders) == 0:
             return
@@ -634,10 +685,24 @@ async def handle_pending_reminders():
                     break
 
         if not all_in_cooldown:
-            logger.info(f"发现 {len(reminders)} 个待触发的提醒")
+            logger.info(f"发现 {len(reminders)} 个待触发的提醒（含前瞻）")
 
-        for reminder in reminders:
-            await _process_single_reminder(reminder, now, reminder_dao)
+        # 按会话和时间分组提醒
+        grouped = _group_reminders_by_time(reminders)
+
+        for (conv_id, _time_bucket), reminder_group in grouped.items():
+            # 检查分组内最早的提醒是否已到期
+            earliest_time = min(r.get("next_trigger_time", 0) for r in reminder_group)
+            if earliest_time > now:
+                # 最早的提醒还没到期，跳过整组，等下次轮询
+                continue
+
+            if len(reminder_group) == 1:
+                # 单个提醒，使用原有逻辑
+                await _process_single_reminder(reminder_group[0], now, reminder_dao)
+            else:
+                # 多个提醒，合并处理
+                await _process_reminder_group(reminder_group, now, reminder_dao)
 
     except Exception:
         logger.error(f"提醒处理异常: {traceback.format_exc()}")
@@ -696,6 +761,73 @@ async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> No
     finally:
         if lock and conversation_id:
             # 使用安全锁释放
+            released, reason = lock_manager.release_lock_safe(
+                "conversation", conversation_id, lock
+            )
+            if not released:
+                logger.warning(f"[REMINDER] 锁释放异常: {reason}")
+
+
+async def _process_reminder_group(
+    reminder_group: list, now: int, reminder_dao
+) -> None:
+    """处理同一时间触发的多个提醒（合并为单条消息）
+
+    Args:
+        reminder_group: 同一时间触发的提醒列表
+        now: 当前时间戳
+        reminder_dao: 提醒DAO实例
+    """
+    conversation_id = None
+    lock = None
+
+    # 筛选出可以触发的提醒（检查时间段限制）
+    valid_reminders = []
+    for reminder in reminder_group:
+        if await _check_time_period_and_reschedule(reminder, now, reminder_dao):
+            valid_reminders.append(reminder)
+
+    if not valid_reminders:
+        return  # 所有提醒都不在时间段内
+
+    try:
+        # 使用第一个提醒的会话ID（同一组的会话ID相同）
+        conversation_id = valid_reminders[0]["conversation_id"]
+
+        # 检查锁和冷却机制
+        lock = await _acquire_reminder_lock(conversation_id)
+        if lock is None:
+            return  # 获取锁失败
+
+        # 获取会话和用户信息（使用第一个提醒）
+        conversation, user, character = await _get_reminder_context(
+            conversation_id, valid_reminders[0]
+        )
+        if not all([conversation, user, character]):
+            # 上下文获取失败，标记所有提醒为完成状态避免无限重试
+            logger.info(
+                f"[REMINDER] Context fetch failed for reminder group, "
+                "marking all as completed to prevent infinite retries"
+            )
+            for reminder in valid_reminders:
+                reminder_dao.complete_reminder(reminder["reminder_id"])
+            return
+
+        # 检查用户关系状态
+        if _should_cancel_reminder_for_user(user, character, conversation):
+            for reminder in valid_reminders:
+                reminder_dao.cancel_reminder(reminder["reminder_id"])
+            return
+
+        # 处理合并的提醒消息
+        await _handle_reminder_group_message(
+            valid_reminders, user, character, conversation, lock, conversation_id
+        )
+
+    except Exception:
+        logger.error(f"处理提醒组失败: {traceback.format_exc()}")
+    finally:
+        if lock and conversation_id:
             released, reason = lock_manager.release_lock_safe(
                 "conversation", conversation_id, lock
             )
@@ -926,6 +1058,117 @@ async def _handle_reminder_message(
         logger.error(traceback.format_exc())
         logger.warning(
             f"[REMINDER] 提醒处理失败，保留 active 状态等待重试: {reminder['reminder_id']}"
+        )
+
+
+async def _handle_reminder_group_message(
+    reminders: list, user, character, conversation, lock, conversation_id
+):
+    """处理合并的提醒消息（多个提醒合并为单条消息发送）
+
+    Args:
+        reminders: 提醒列表
+        user: 用户信息
+        character: 角色信息
+        conversation: 会话信息
+        lock: 锁对象
+        conversation_id: 会话ID
+    """
+    from agent.runner.agent_handler import handle_message
+    from agent.runner.context import context_prepare
+
+    try:
+        # 合并所有提醒的内容
+        combined_titles = []
+        combined_contents = []
+        for reminder in reminders:
+            title = reminder.get("title", "提醒")
+            content = reminder.get("action_template", title)
+            combined_titles.append(title)
+            combined_contents.append(content)
+
+        combined_title = "；".join(combined_titles)
+        combined_content = "；".join(combined_contents)
+        input_message_str = f"[系统提醒触发] {combined_content}"
+
+        # 构建 context
+        context = context_prepare(user, character, conversation)
+
+        logger.info(
+            f"[REMINDER] 开始处理合并提醒 ({len(reminders)} 个): {combined_title}"
+        )
+        resp_messages, context, _, is_content_blocked = await handle_message(
+            context=context,
+            input_message_str=input_message_str,
+            message_source="reminder",
+            metadata={
+                "reminder_ids": [r["reminder_id"] for r in reminders],
+                "titles": combined_titles,
+                "combined_title": combined_title,
+                "is_grouped": True,
+            },
+            check_new_message=False,
+            worker_tag="[REMINDER]",
+            lock_id=lock,
+            conversation_id=conversation_id,
+        )
+
+        # 内容安全审核失败，跳过后续处理
+        if is_content_blocked:
+            logger.warning("[REMINDER] 内容安全审核失败，跳过提醒处理")
+            return
+
+        logger.info(f"[REMINDER] 合并提醒处理完成，发送 {len(resp_messages)} 条消息")
+
+        if not resp_messages:
+            from dao.reminder_dao import ReminderDAO
+
+            reminder_dao = ReminderDAO()
+            try:
+                for reminder in reminders:
+                    reminder_dao.complete_reminder(reminder["reminder_id"])
+            finally:
+                reminder_dao.close()
+            return
+
+        # 更新会话历史
+        conversation = context["conversation"]
+        for resp_message in resp_messages:
+            conversation["conversation_info"]["chat_history"].append(resp_message)
+
+        if (
+            len(conversation["conversation_info"]["chat_history"])
+            > max_conversation_round
+        ):
+            conversation["conversation_info"]["chat_history"] = conversation[
+                "conversation_info"
+            ]["chat_history"][-max_conversation_round:]
+
+        conversation_dao.update_conversation_info(
+            conversation_id, conversation["conversation_info"]
+        )
+
+        # 更新关系
+        relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+        mongo.replace_one(
+            "relations",
+            query={
+                "uid": context["relation"]["uid"],
+                "cid": context["relation"]["cid"],
+            },
+            update=relation_update,
+        )
+
+        # 独立处理每个提醒的生命周期（重复/非重复各自更新）
+        for reminder in reminders:
+            _handle_reminder_completion(reminder, conversation_id)
+
+    except Exception as e:
+        logger.error(f"[REMINDER] handle_message failed for group: {e}")
+        logger.error(traceback.format_exc())
+        logger.warning(
+            f"[REMINDER] 合并提醒处理失败，保留 active 状态等待重试: "
+            f"{[r['reminder_id'] for r in reminders]}"
         )
 
 
