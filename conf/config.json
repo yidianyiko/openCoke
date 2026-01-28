@@ -41,6 +41,11 @@
         "URL": "wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1",
         "APPKEY": "${ALIYUN_ASR_APPKEY}"
     },
+    "bocha": {
+        "base_url": "https://api.bochaai.com/v1/web-search",
+        "default_count": 5,
+        "timeout": 10
+    },
     "admin_user_id": "${ADMIN_USER_ID}",
     "langbot": {
         "enabled": true,
