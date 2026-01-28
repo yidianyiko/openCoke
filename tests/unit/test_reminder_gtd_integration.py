@@ -45,9 +45,6 @@ def test_gtd_inbox_workflow(sample_context, monkeypatch):
         def find_similar_reminder(self, *args, **kwargs):
             return None
 
-        def find_reminder_at_same_time(self, *args, **kwargs):
-            return None
-
         def close(self):
             pass
 

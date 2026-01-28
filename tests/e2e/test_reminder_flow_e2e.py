@@ -451,15 +451,6 @@ class TestReminderFlowE2E:
         assert "🎉" in reminder["title"]
         assert "🎂" in reminder["title"]
 
-    def test_reminder_append_content(self):
-        """测试追加内容到已有提醒"""
-        original_title = "开会"
-        additional_title = "带文件"
-
-        # 模拟追加逻辑
-        new_title = f"{original_title}；{additional_title}"
-        assert new_title == "开会；带文件"
-
     def test_reminder_timestamp_fields(self):
         """测试提醒时间戳字段"""
         current_time = int(time.time())

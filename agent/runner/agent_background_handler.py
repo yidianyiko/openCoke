@@ -605,44 +605,68 @@ async def handle_pending_future_message():
                 logger.error(f"释放锁失败: {release_err}")
 
 
-# 提醒分组时间容差（秒）- 按5分钟时间桶分组（0:00-4:59, 5:00-9:59...）
-_REMINDER_GROUP_TOLERANCE = 300
+# 提醒分组时间容差（秒）- 滑动窗口分组（从最早提醒开始的3分钟内）
+_REMINDER_GROUP_TOLERANCE = 180
 
 
 def _group_reminders_by_time(
     reminders: list, tolerance: int = _REMINDER_GROUP_TOLERANCE
 ) -> dict:
     """
-    按会话和触发时间分组提醒，将同一时间桶内的提醒合并处理。
+    按会话和触发时间分组提醒，将相近时间的提醒合并处理。
 
     避免在创建时合并不同类型（重复/非重复）的提醒，
     改为在触发时分组，处理完成后各自独立更新生命周期。
 
-    分组方式：使用固定时间桶（trigger_time // tolerance），
+    分组方式：使用滑动窗口，从最早提醒的触发时间开始，
+    将 tolerance 范围内的所有提醒归入同一组。
+
     例如 tolerance=300 时：
-    - 8:00:00 - 8:04:59 → bucket 0
-    - 8:05:00 - 8:09:59 → bucket 300
-    - 8:10:00 - 8:14:59 → bucket 600
-    
-    注意：跨桶边界的提醒不会合并（如 8:04:59 和 8:05:01 属于不同桶）
+    - 提醒A: 8:03:00 → 窗口 8:03:00 - 8:07:59
 
     Args:
         reminders: 待触发的提醒列表
-        tolerance: 时间桶大小（秒），默认300秒（5分钟）
+        tolerance: 滑动窗口大小（秒），默认300秒（5分钟）
 
     Returns:
-        dict: {(conversation_id, time_bucket): [reminder1, reminder2, ...]}
+        dict: {(conversation_id, anchor_time): [reminder1, reminder2, ...]}
     """
-    groups = {}
+    # 先按会话分组
+    by_conversation: dict[str, list] = {}
     for reminder in reminders:
         conv_id = reminder.get("conversation_id")
-        trigger_time = reminder.get("next_trigger_time", 0)
-        # 按容差分桶：同一分桶内的提醒视为同一时间
-        bucket = (trigger_time // tolerance) * tolerance
-        key = (conv_id, bucket)
-        if key not in groups:
-            groups[key] = []
-        groups[key].append(reminder)
+        if conv_id not in by_conversation:
+            by_conversation[conv_id] = []
+        by_conversation[conv_id].append(reminder)
+
+    groups = {}
+    for conv_id, conv_reminders in by_conversation.items():
+        # 按触发时间排序
+        conv_reminders.sort(key=lambda r: r.get("next_trigger_time", 0))
+
+        # 使用滑动窗口分组
+        remaining = conv_reminders[:]
+        while remaining:
+            # 以最早的提醒为锚点
+            anchor = remaining[0]
+            anchor_time = anchor.get("next_trigger_time", 0)
+            window_end = anchor_time + tolerance
+
+            # 找出在窗口内的所有提醒
+            group = []
+            next_remaining = []
+            for r in remaining:
+                t = r.get("next_trigger_time", 0)
+                if t < window_end:
+                    group.append(r)
+                else:
+                    next_remaining.append(r)
+
+            # 使用锚点时间作为分组key
+            key = (conv_id, anchor_time)
+            groups[key] = group
+            remaining = next_remaining
+
     return groups
 
 
@@ -1012,46 +1036,47 @@ async def _handle_reminder_message(
 
         logger.info(f"[REMINDER] 提醒处理完成，发送 {len(resp_messages)} 条消息")
 
-        if not resp_messages:
-            from dao.reminder_dao import ReminderDAO
+        # 【关键修复】立即标记提醒状态，防止重复触发
+        # 无论后续会话/关系更新是否成功，提醒状态都应该被更新
+        _handle_reminder_completion(reminder, conversation_id)
 
-            reminder_dao = ReminderDAO()
-            try:
-                reminder_dao.complete_reminder(reminder["reminder_id"])
-            finally:
-                reminder_dao.close()
+        # 如果没有响应消息，跳过会话历史更新
+        if not resp_messages:
             return
 
-        # 更新会话历史
-        conversation = context["conversation"]
-        for resp_message in resp_messages:
-            conversation["conversation_info"]["chat_history"].append(resp_message)
+        # 更新会话历史（失败不影响提醒状态）
+        try:
+            conversation = context["conversation"]
+            for resp_message in resp_messages:
+                conversation["conversation_info"]["chat_history"].append(resp_message)
 
-        if (
-            len(conversation["conversation_info"]["chat_history"])
-            > max_conversation_round
-        ):
-            conversation["conversation_info"]["chat_history"] = conversation[
-                "conversation_info"
-            ]["chat_history"][-max_conversation_round:]
+            if (
+                len(conversation["conversation_info"]["chat_history"])
+                > max_conversation_round
+            ):
+                conversation["conversation_info"]["chat_history"] = conversation[
+                    "conversation_info"
+                ]["chat_history"][-max_conversation_round:]
 
-        conversation_dao.update_conversation_info(
-            conversation_id, conversation["conversation_info"]
-        )
+            conversation_dao.update_conversation_info(
+                conversation_id, conversation["conversation_info"]
+            )
 
-        # 更新关系
-        relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
-        mongo.replace_one(
-            "relations",
-            query={
-                "uid": context["relation"]["uid"],
-                "cid": context["relation"]["cid"],
-            },
-            update=relation_update,
-        )
-
-        # 标记为已触发并处理周期逻辑
-        _handle_reminder_completion(reminder, conversation_id)
+            # 更新关系
+            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+            mongo.replace_one(
+                "relations",
+                query={
+                    "uid": context["relation"]["uid"],
+                    "cid": context["relation"]["cid"],
+                },
+                update=relation_update,
+            )
+        except Exception as update_err:
+            # 会话/关系更新失败不影响提醒状态（已在前面更新）
+            logger.warning(
+                f"[REMINDER] 会话/关系更新失败（提醒状态已更新）: {update_err}"
+            )
 
     except Exception as e:
         logger.error(f"[REMINDER] handle_message failed: {e}")
@@ -1061,13 +1086,14 @@ async def _handle_reminder_message(
         )
 
 
+
 async def _handle_reminder_group_message(
     reminders: list, user, character, conversation, lock, conversation_id
 ):
     """处理合并的提醒消息（多个提醒合并为单条消息发送）
 
     Args:
-        reminders: 提醒列表
+        reminders: 提醒列表（已按触发时间排序）
         user: 用户信息
         character: 角色信息
         conversation: 会话信息
@@ -1078,18 +1104,37 @@ async def _handle_reminder_group_message(
     from agent.runner.context import context_prepare
 
     try:
-        # 合并所有提醒的内容
+        now = int(time.time())
+        
+        # 按触发时间排序确保顺序正确
+        sorted_reminders = sorted(reminders, key=lambda r: r.get("next_trigger_time", 0))
+        
+        # 构建带时间信息的合并内容
         combined_titles = []
-        combined_contents = []
-        for reminder in reminders:
+        combined_items = []
+        for i, reminder in enumerate(sorted_reminders, 1):
             title = reminder.get("title", "提醒")
             content = reminder.get("action_template", title)
+            trigger_time = reminder.get("next_trigger_time", now)
+            
             combined_titles.append(title)
-            combined_contents.append(content)
+            
+            # 计算相对时间描述
+            diff_seconds = trigger_time - now
+            if diff_seconds <= 0:
+                time_desc = "现在"
+            elif diff_seconds < 60:
+                time_desc = f"{diff_seconds}秒后"
+            else:
+                minutes = diff_seconds // 60
+                time_desc = f"{minutes}分钟后"
+            
+            combined_items.append(f"{i}. {content}（{time_desc}）")
 
         combined_title = "；".join(combined_titles)
-        combined_content = "；".join(combined_contents)
-        input_message_str = f"[系统提醒触发] {combined_content}"
+        # 新格式：带序号和时间的列表
+        combined_content = "\n".join(combined_items)
+        input_message_str = f"[系统提醒触发-多条合并] 按顺序提醒用户：\n{combined_content}"
 
         # 构建 context
         context = context_prepare(user, character, conversation)
@@ -1120,48 +1165,48 @@ async def _handle_reminder_group_message(
 
         logger.info(f"[REMINDER] 合并提醒处理完成，发送 {len(resp_messages)} 条消息")
 
-        if not resp_messages:
-            from dao.reminder_dao import ReminderDAO
+        # 【关键修复】立即标记所有提醒状态，防止重复触发
+        # 无论后续会话/关系更新是否成功，提醒状态都应该被更新
+        for reminder in sorted_reminders:
+            _handle_reminder_completion(reminder, conversation_id)
 
-            reminder_dao = ReminderDAO()
-            try:
-                for reminder in reminders:
-                    reminder_dao.complete_reminder(reminder["reminder_id"])
-            finally:
-                reminder_dao.close()
+        # 如果没有响应消息，跳过会话历史更新
+        if not resp_messages:
             return
 
-        # 更新会话历史
-        conversation = context["conversation"]
-        for resp_message in resp_messages:
-            conversation["conversation_info"]["chat_history"].append(resp_message)
+        # 更新会话历史（失败不影响提醒状态）
+        try:
+            conversation = context["conversation"]
+            for resp_message in resp_messages:
+                conversation["conversation_info"]["chat_history"].append(resp_message)
 
-        if (
-            len(conversation["conversation_info"]["chat_history"])
-            > max_conversation_round
-        ):
-            conversation["conversation_info"]["chat_history"] = conversation[
-                "conversation_info"
-            ]["chat_history"][-max_conversation_round:]
+            if (
+                len(conversation["conversation_info"]["chat_history"])
+                > max_conversation_round
+            ):
+                conversation["conversation_info"]["chat_history"] = conversation[
+                    "conversation_info"
+                ]["chat_history"][-max_conversation_round:]
 
-        conversation_dao.update_conversation_info(
-            conversation_id, conversation["conversation_info"]
-        )
+            conversation_dao.update_conversation_info(
+                conversation_id, conversation["conversation_info"]
+            )
 
-        # 更新关系
-        relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
-        mongo.replace_one(
-            "relations",
-            query={
-                "uid": context["relation"]["uid"],
-                "cid": context["relation"]["cid"],
-            },
-            update=relation_update,
-        )
-
-        # 独立处理每个提醒的生命周期（重复/非重复各自更新）
-        for reminder in reminders:
-            _handle_reminder_completion(reminder, conversation_id)
+            # 更新关系
+            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+            mongo.replace_one(
+                "relations",
+                query={
+                    "uid": context["relation"]["uid"],
+                    "cid": context["relation"]["cid"],
+                },
+                update=relation_update,
+            )
+        except Exception as update_err:
+            # 会话/关系更新失败不影响提醒状态（已在前面更新）
+            logger.warning(
+                f"[REMINDER] 会话/关系更新失败（提醒状态已更新）: {update_err}"
+            )
 
     except Exception as e:
         logger.error(f"[REMINDER] handle_message failed for group: {e}")
@@ -1170,6 +1215,7 @@ async def _handle_reminder_group_message(
             f"[REMINDER] 合并提醒处理失败，保留 active 状态等待重试: "
             f"{[r['reminder_id'] for r in reminders]}"
         )
+
 
 
 def _handle_reminder_completion(reminder: dict, conversation_id: str):
@@ -1182,10 +1228,17 @@ def _handle_reminder_completion(reminder: dict, conversation_id: str):
     from dao.reminder_dao import ReminderDAO
     from util.time_util import calculate_next_period_trigger, calculate_next_recurrence
 
+    reminder_id = reminder["reminder_id"]
     reminder_dao = ReminderDAO()
     try:
-        # 先标记为已触发（增加触发计数）
-        reminder_dao.mark_as_triggered(reminder["reminder_id"])
+        # 先标记为已触发（增加触发计数，状态改为 triggered 防止重复触发）
+        if not reminder_dao.mark_as_triggered(reminder_id):
+            logger.warning(
+                f"[REMINDER] mark_as_triggered 失败，提醒可能已被处理: {reminder_id}"
+            )
+            return  # 避免重复处理
+
+        logger.info(f"[REMINDER] 已标记提醒为 triggered: {reminder_id}")
 
         # 处理周期提醒
         recurrence = reminder.get("recurrence", {})
@@ -1224,14 +1277,23 @@ def _handle_reminder_completion(reminder: dict, conversation_id: str):
 
                 if should_continue:
                     # 周期提醒：重新调度到下次触发时间，状态改回 active
-                    reminder_dao.reschedule_reminder(reminder["reminder_id"], next_time)
+                    if reminder_dao.reschedule_reminder(reminder_id, next_time):
+                        logger.info(
+                            f"[REMINDER] 周期提醒已重新调度: {reminder_id}, next_time={next_time}"
+                        )
+                    else:
+                        logger.warning(f"[REMINDER] reschedule_reminder 失败: {reminder_id}")
                 else:
                     # 周期结束：标记为完成
-                    reminder_dao.complete_reminder(reminder["reminder_id"])
+                    reminder_dao.complete_reminder(reminder_id)
+                    logger.info(f"[REMINDER] 周期提醒已结束: {reminder_id}")
             else:
-                reminder_dao.complete_reminder(reminder["reminder_id"])
+                reminder_dao.complete_reminder(reminder_id)
         else:
             # 非周期提醒：触发后直接标记为完成
-            reminder_dao.complete_reminder(reminder["reminder_id"])
+            if reminder_dao.complete_reminder(reminder_id):
+                logger.info(f"[REMINDER] 一次性提醒已完成: {reminder_id}")
+            else:
+                logger.warning(f"[REMINDER] complete_reminder 失败: {reminder_id}")
     finally:
         reminder_dao.close()
