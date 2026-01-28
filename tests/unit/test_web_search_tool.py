@@ -19,7 +19,8 @@ class TestWebSearchTool:
         """测试工具有 @tool 装饰器"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
         # Agno tool decorator adds __tool__ attribute
-        assert hasattr(web_search_tool, '__wrapped__') or callable(web_search_tool)
+        assert hasattr(web_search_tool, "entrypoint")
+        assert callable(web_search_tool.entrypoint)
 
     def test_web_search_tool_returns_dict(self):
         """测试工具返回字典格式"""
@@ -41,7 +42,7 @@ class TestWebSearchTool:
             }
             mock_client.return_value.__enter__.return_value.post.return_value = mock_response
 
-            result = web_search_tool(query="测试搜索")
+            result = web_search_tool.entrypoint(query="测试搜索")
 
             assert isinstance(result, dict)
             assert "ok" in result
@@ -50,7 +51,7 @@ class TestWebSearchTool:
         """测试空查询返回错误"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
 
-        result = web_search_tool(query="")
+        result = web_search_tool.entrypoint(query="")
 
         assert result["ok"] is False
         assert "error" in result
@@ -62,7 +63,7 @@ class TestWebSearchTool:
         with patch('agent.agno_agent.tools.web_search_tool.httpx.Client') as mock_client:
             mock_client.return_value.__enter__.return_value.post.side_effect = Exception("API Error")
 
-            result = web_search_tool(query="测试搜索")
+            result = web_search_tool.entrypoint(query="测试搜索")
 
             assert result["ok"] is False
             assert "error" in result
@@ -94,7 +95,7 @@ class TestWebSearchTool:
             }
             mock_client.return_value.__enter__.return_value.post.return_value = mock_response
 
-            result = web_search_tool(query="测试", count=2)
+            result = web_search_tool.entrypoint(query="测试", count=2)
 
             assert result["ok"] is True
             assert "results" in result
