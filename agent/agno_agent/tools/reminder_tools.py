@@ -1006,70 +1006,6 @@ def _check_duplicate_reminder(
     }
 
 
-def _try_append_to_same_time_reminder(
-    reminder_dao: ReminderDAO, user_id: str, title: str, timestamp: int
-) -> Optional[dict]:
-    """
-    尝试追加到同一时间的已有提醒.
-
-    Returns:
-        如果追加成功返回 appended 响应，否则返回 None
-    """
-    from datetime import datetime
-
-    same_time_reminder = reminder_dao.find_reminder_at_same_time(
-        user_id=user_id, trigger_time=timestamp, time_tolerance=_TIME_TOLERANCE
-    )
-
-    if not same_time_reminder:
-        return None
-
-    existing_id = same_time_reminder.get("reminder_id", "")
-    existing_title = same_time_reminder.get("title", "")
-    existing_time = same_time_reminder.get("next_trigger_time", 0)
-
-    if not reminder_dao.append_to_reminder(existing_id, title):
-        logger.warning(f"Failed to append to reminder: id={existing_id}")
-        return None
-
-    new_title = f"{existing_title}；{title}"
-    existing_time_str = (
-        datetime.fromtimestamp(existing_time).strftime("%Y年%m月%d日%H时%M分")
-        if existing_time
-        else ""
-    )
-
-    logger.info(
-        f"Appended to existing reminder: id={existing_id}, new_title={new_title}"
-    )
-
-    semantic_message = (
-        f"提醒追加成功：在{existing_time_str}已有提醒「{existing_title}」，"
-        f"已追加新内容「{title}」，合并后为「{new_title}」"
-    )
-    _save_reminder_result_to_session(
-        semantic_message,
-        user_intent="创建提醒",
-        action_executed="append",
-        intent_fulfilled=True,
-        details={
-            "status": "appended",
-            "reminder_id": existing_id,
-            "new_title": new_title,
-        },
-    )
-
-    return {
-        "ok": True,
-        "status": "appended",
-        "reminder_id": existing_id,
-        "title": new_title,
-        "trigger_time": existing_time_str,
-        "appended_content": title,
-        "message": f"已追加到现有提醒，合并后为「{new_title}」，时间: {existing_time_str}",
-    }
-
-
 def _parse_time_period_config(
     period_start: Optional[str], period_end: Optional[str], period_days: Optional[str]
 ) -> Optional[dict]:
@@ -1809,15 +1745,6 @@ def _batch_op_create(ctx: _BatchOperationContext, op: dict) -> dict:
     if existing:
         return {"ok": True, "status": "duplicate", "title": title}
 
-    # 去重检查：同一时间追加
-    same_time = ctx.reminder_dao.find_reminder_at_same_time(
-        ctx.user_id, timestamp, ctx.TIME_TOLERANCE
-    )
-    if same_time:
-        result = _try_append_to_reminder(ctx.reminder_dao, same_time, title)
-        if result:
-            return result
-
     # 创建提醒
     return _do_create_reminder(
         ctx,
@@ -1828,39 +1755,6 @@ def _batch_op_create(ctx: _BatchOperationContext, op: dict) -> dict:
         recurrence_interval,
         is_period_reminder,
     )
-
-
-def _try_append_to_reminder(
-    reminder_dao: ReminderDAO, existing_reminder: dict, new_title: str
-) -> Optional[dict]:
-    """尝试追加内容到已有提醒"""
-    from datetime import datetime
-
-    existing_id = existing_reminder.get("reminder_id", "")
-    existing_title = existing_reminder.get("title", "")
-    existing_time = existing_reminder.get("next_trigger_time", 0)
-
-    if not reminder_dao.append_to_reminder(existing_id, new_title):
-        return None
-
-    new_title_combined = f"{existing_title}；{new_title}"
-    existing_time_str = (
-        datetime.fromtimestamp(existing_time).strftime("%Y年%m月%d日%H时%M分")
-        if existing_time
-        else ""
-    )
-
-    logger.info(
-        f"Batch appended to reminder: id={existing_id}, title={new_title_combined}"
-    )
-    return {
-        "ok": True,
-        "status": "appended",
-        "reminder_id": existing_id,
-        "title": new_title_combined,
-        "trigger_time": existing_time_str,
-        "appended_content": new_title,
-    }
 
 
 def _do_create_reminder(

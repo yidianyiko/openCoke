@@ -433,22 +433,6 @@ class TestReminderDAODeepBugs:
         # 验证查询结构正确
         assert "$or" in query
 
-    def test_append_to_reminder_with_unicode(self):
-        """BUG检测: 追加包含 Unicode 的内容"""
-        existing = {
-            "title": "原标题",
-            "action_template": "原模板",
-        }
-
-        additional = "新增内容🎉"
-
-        # 模拟 append 逻辑
-        new_title = f"{existing['title']}；{additional}"
-        new_template = f"{existing['action_template']}；记得{additional}"
-
-        assert "🎉" in new_title
-        assert "🎉" in new_template
-
     def test_update_reminder_timestamp_overflow(self):
         """BUG检测: 更新时间戳在极端值时的处理"""
         # 2100年的时间戳

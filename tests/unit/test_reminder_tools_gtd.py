@@ -22,9 +22,6 @@ def test_create_reminder_without_trigger_time_succeeds(sample_context, monkeypat
         def find_similar_reminder(self, *args, **kwargs):
             return None
 
-        def find_reminder_at_same_time(self, *args, **kwargs):
-            return None
-
         def close(self):
             pass
 
@@ -70,9 +67,6 @@ def test_create_reminder_with_trigger_time_still_works(sample_context, monkeypat
             return "fake_object_id"
 
         def find_similar_reminder(self, *args, **kwargs):
-            return None
-
-        def find_reminder_at_same_time(self, *args, **kwargs):
             return None
 
         def close(self):
