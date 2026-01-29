@@ -45,6 +45,7 @@ from agent.prompt.chat_contextprompt import (
     get_relevant_history_context,
     get_reminder_result_context,
     get_reminders_context,
+    get_web_search_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
 from agent.prompt.onboarding_prompt import get_onboarding_context
@@ -211,6 +212,11 @@ class StreamingChatWorkflow:
         # 按需生成待办提醒上下文
         reminders_context = get_reminders_context(context_retrieve, user_nickname)
 
+        # 联网搜索结果上下文
+        web_search_context = get_web_search_context(session_state)
+        if web_search_context:
+            logger.info("[ChatWorkflow] 添加联网搜索结果上下文")
+
         # V2.15 新增：获取防重复回复提示（所有消息场景）
         anti_repeat_context = ""
         proactive_forbidden = session_state.get("proactive_forbidden_messages", "")
@@ -261,6 +267,7 @@ class StreamingChatWorkflow:
             + base_template
             + ("\n" + reminders_context if reminders_context else "")
             + ("\n" + relevant_history_context if relevant_history_context else "")
+            + ("\n" + web_search_context if web_search_context else "")  # 联网搜索结果
             + ("\n" + notice_segmentation if notice_segmentation else "")
             + ("\n" + anti_repeat_context if anti_repeat_context else "")  # V2.15: 防重复
         )
