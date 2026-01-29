@@ -14,8 +14,9 @@ import pytest
 @pytest.mark.unit
 def test_gtd_inbox_workflow(sample_context, monkeypatch):
     """测试 GTD Inbox 工作流程"""
-    from agent.agno_agent.tools import reminder_tools
     import time
+
+    from agent.agno_agent.tools import reminder_tools
 
     # 使用真实 DAO 的内存模拟
     class InMemoryReminderDAO:
@@ -40,7 +41,13 @@ def test_gtd_inbox_workflow(sample_context, monkeypatch):
                     continue
                 results.append(r)
             # 按 trigger_time 排序，None 排最后
-            return sorted(results, key=lambda x: (x.get("next_trigger_time") is None, x.get("next_trigger_time") or 0))
+            return sorted(
+                results,
+                key=lambda x: (
+                    x.get("next_trigger_time") is None,
+                    x.get("next_trigger_time") or 0,
+                ),
+            )
 
         def find_similar_reminder(self, *args, **kwargs):
             return None
@@ -62,10 +69,7 @@ def test_gtd_inbox_workflow(sample_context, monkeypatch):
 
     # Step 1: 创建无时间任务
     result1 = reminder_tools.reminder_tool.entrypoint(
-        action="create",
-        title="买牛奶",
-        trigger_time=None,
-        session_state=sample_context
+        action="create", title="买牛奶", trigger_time=None, session_state=sample_context
     )
     assert result1["ok"] is True
     assert result1["status"] == "created"
@@ -80,7 +84,7 @@ def test_gtd_inbox_workflow(sample_context, monkeypatch):
         action="create",
         title="整理书架",
         trigger_time=None,
-        session_state=sample_context
+        session_state=sample_context,
     )
     assert result2["ok"] is True
 
@@ -94,14 +98,13 @@ def test_gtd_inbox_workflow(sample_context, monkeypatch):
         action="create",
         title="开会",
         trigger_time="明天09时00分",
-        session_state=sample_context
+        session_state=sample_context,
     )
     assert result3["ok"] is True
 
     # Step 4: 查询所有任务
     result_query = reminder_tools.reminder_tool.entrypoint(
-        action="filter",
-        session_state=sample_context
+        action="filter", session_state=sample_context
     )
 
     assert result_query["ok"] is True

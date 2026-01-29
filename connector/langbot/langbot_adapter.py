@@ -2,6 +2,7 @@
 
 Converts between LangBot webhook format and Coke standard message format.
 """
+
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +36,9 @@ def langbot_webhook_to_std(webhook_payload: dict) -> dict:
     chatroom_name = group_data.get("id") if is_group else None
 
     # Extract message content and type
-    message_type, message_content, extra_metadata = _extract_message_content(message_parts)
+    message_type, message_content, extra_metadata = _extract_message_content(
+        message_parts
+    )
 
     # Build metadata
     metadata = {
@@ -137,4 +140,3 @@ def std_to_langbot_message(outputmessage: dict) -> dict:
         "target_id": metadata.get("langbot_target_id", ""),
         "message_chain": message_chain,
     }
-

@@ -7,6 +7,7 @@ Migration script: Add list_id field to existing reminders
 """
 
 import sys
+
 sys.path.append(".")
 
 from dao.reminder_dao import ReminderDAO
@@ -31,20 +32,21 @@ def migrate_add_list_id():
         logger.info(f"Found {count} reminders without list_id field")
 
         # 添加 list_id="inbox" 到所有缺少此字段的文档
-        result = dao.collection.update_many(
-            count_query,
-            {"$set": {"list_id": "inbox"}}
-        )
+        result = dao.collection.update_many(count_query, {"$set": {"list_id": "inbox"}})
 
         logger.info(f"Migration complete: {result.modified_count} reminders updated")
 
         # 验证迁移结果
         remaining = dao.collection.count_documents(count_query)
         if remaining > 0:
-            logger.error(f"Migration incomplete: {remaining} reminders still missing list_id")
+            logger.error(
+                f"Migration incomplete: {remaining} reminders still missing list_id"
+            )
             return False
 
-        logger.info("Migration verification passed: all reminders now have list_id field")
+        logger.info(
+            "Migration verification passed: all reminders now have list_id field"
+        )
         return True
 
     except Exception as e:

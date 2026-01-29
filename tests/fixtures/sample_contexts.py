@@ -95,9 +95,7 @@ def get_context_for_reminder_conflict() -> dict:
     """获取提醒冲突检测的 context"""
     ctx = get_full_context()
     ctx["context_retrieve"]["confirmed_reminders"] = (
-        "1. 明天早上8点 - 开会\n"
-        "2. 明天早上8点 - 吃药\n"
-        "3. 明天早上8点 - 健身"
+        "1. 明天早上8点 - 开会\n" "2. 明天早上8点 - 吃药\n" "3. 明天早上8点 - 健身"
     )
     return ctx
 
@@ -138,9 +136,9 @@ def get_context_with_history() -> dict:
         {"role": "assistant", "content": "你好！有什么可以帮你的吗？"},
         {"role": "user", "content": "今天天气怎么样"},
     ]
-    ctx["conversation"]["conversation_info"]["chat_history_str"] = (
-        "用户: 你好\n助手: 你好！有什么可以帮你的吗？\n用户: 今天天气怎么样"
-    )
+    ctx["conversation"]["conversation_info"][
+        "chat_history_str"
+    ] = "用户: 你好\n助手: 你好！有什么可以帮你的吗？\n用户: 今天天气怎么样"
     return ctx
 
 
@@ -248,7 +246,9 @@ def get_context_with_very_long_history() -> dict:
     history = []
     for i in range(500):
         history.append({"role": "user", "content": f"这是一条很长的用户消息_{i}" * 10})
-        history.append({"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10})
+        history.append(
+            {"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10}
+        )
     ctx["conversation"]["conversation_info"]["chat_history"] = history
     return ctx
 

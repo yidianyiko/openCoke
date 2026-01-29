@@ -329,3 +329,50 @@ def get_reminder_result_context(session_state: dict) -> str:
 """
 
     return ""
+
+
+# ========== 联网搜索相关 ==========
+
+CONTEXTPROMPT_联网搜索结果 = """### 联网搜索结果
+{web_search_result}
+
+【说明】以上是联网搜索获取的实时信息。请根据搜索结果回答用户问题：
+- 引用信息时可以提及来源
+- 如果搜索结果不足以回答问题，可以如实告知
+- 结合角色人设自然地表达"""
+
+
+def get_web_search_context(session_state: dict) -> str:
+    """
+    获取联网搜索结果上下文
+
+    Args:
+        session_state: 会话状态字典
+
+    Returns:
+        格式化的搜索结果上下文，如果没有结果则返回空字符串
+    """
+    web_search_result = session_state.get("web_search_result", {})
+
+    if not web_search_result:
+        return ""
+
+    # 检查是否成功
+    if not web_search_result.get("ok", False):
+        error = web_search_result.get("error", "搜索失败")
+        return f"""### 联网搜索提示
+搜索未能成功：{error}
+请根据已有知识回答用户问题，或告知用户搜索暂时不可用。"""
+
+    # 获取格式化结果
+    formatted = web_search_result.get("formatted", "")
+    if not formatted:
+        return ""
+
+    return f"""### 联网搜索结果
+{formatted}
+
+【说明】以上是联网搜索获取的实时信息。请根据搜索结果回答用户问题：
+- 引用信息时可以提及来源
+- 如果搜索结果不足以回答问题，可以如实告知
+- 结合角色人设自然地表达"""

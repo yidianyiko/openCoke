@@ -2,10 +2,13 @@
 
 This bypasses LangBot's Service API since Lark adapter doesn't implement send_message.
 """
-import requests
+
 import json
 import time
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
+import requests
+
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -40,10 +43,7 @@ class FeishuAPI:
 
         # 获取新的 token
         url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
-        payload = {
-            "app_id": self.app_id,
-            "app_secret": self.app_secret
-        }
+        payload = {"app_id": self.app_id, "app_secret": self.app_secret}
 
         resp = requests.post(url, json=payload)
         result = resp.json()
@@ -59,10 +59,7 @@ class FeishuAPI:
         return self._tenant_access_token
 
     def send_message(
-        self,
-        target_id: str,
-        text: str,
-        target_type: str = "open_id"
+        self, target_id: str, text: str, target_type: str = "open_id"
     ) -> Dict[str, Any]:
         """
         Send text message to Feishu.
@@ -80,29 +77,24 @@ class FeishuAPI:
         url = f"https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type={target_type}"
         headers = {
             "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # 构建飞书消息格式
         content = json.dumps({"text": text})
 
-        payload = {
-            "receive_id": target_id,
-            "msg_type": "text",
-            "content": content
-        }
+        payload = {"receive_id": target_id, "msg_type": "text", "content": content}
 
         resp = requests.post(url, headers=headers, json=payload)
         result = resp.json()
 
-        logger.info(f"Feishu API response: code={result.get('code')}, msg={result.get('msg')}")
+        logger.info(
+            f"Feishu API response: code={result.get('code')}, msg={result.get('msg')}"
+        )
 
         return result
 
-    def send_messages(
-        self,
-        messages: List[Dict[str, str]]
-    ) -> List[Dict[str, Any]]:
+    def send_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, Any]]:
         """
         Send multiple messages.
 
@@ -115,10 +107,7 @@ class FeishuAPI:
         results = []
         for msg in messages:
             try:
-                result = self.send_message(
-                    target_id=msg["target_id"],
-                    text=msg["text"]
-                )
+                result = self.send_message(target_id=msg["target_id"], text=msg["text"])
                 results.append(result)
                 time.sleep(0.5)  # Avoid rate limiting
             except Exception as e:

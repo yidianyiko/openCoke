@@ -3,8 +3,10 @@
 This bypasses LangBot's Service API since Telegram adapter doesn't implement send_message.
 """
 
+from typing import Any, Dict
+
 import requests
-from typing import Dict, Any
+
 from util.log_util import get_logger
 
 logger = get_logger(__name__)

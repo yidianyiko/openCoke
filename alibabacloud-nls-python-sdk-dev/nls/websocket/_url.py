@@ -1,6 +1,5 @@
-"""
+""" """
 
-"""
 """
 _url.py
 websocket - WebSocket client library for Python
@@ -23,9 +22,7 @@ limitations under the License.
 import os
 import socket
 import struct
-
 from urllib.parse import unquote, urlparse
-
 
 __all__ = ["parse_url", "get_proxy_info"]
 
@@ -97,9 +94,9 @@ def _is_subnet_address(hostname):
 
 
 def _is_address_in_network(ip, net):
-    ipaddr = struct.unpack('!I', socket.inet_aton(ip))[0]
-    netaddr, netmask = net.split('/')
-    netaddr = struct.unpack('!I', socket.inet_aton(netaddr))[0]
+    ipaddr = struct.unpack("!I", socket.inet_aton(ip))[0]
+    netaddr, netmask = net.split("/")
+    netaddr = struct.unpack("!I", socket.inet_aton(netaddr))[0]
 
     netmask = (0xFFFFFFFF << (32 - int(netmask))) & 0xFFFFFFFF
     return ipaddr & netmask == netaddr
@@ -113,21 +110,33 @@ def _is_no_proxy_host(hostname, no_proxy):
     if not no_proxy:
         no_proxy = DEFAULT_NO_PROXY_HOST
 
-    if '*' in no_proxy:
+    if "*" in no_proxy:
         return True
     if hostname in no_proxy:
         return True
     if _is_ip_address(hostname):
-        return any([_is_address_in_network(hostname, subnet) for subnet in no_proxy if _is_subnet_address(subnet)])
-    for domain in [domain for domain in no_proxy if domain.startswith('.')]:
+        return any(
+            [
+                _is_address_in_network(hostname, subnet)
+                for subnet in no_proxy
+                if _is_subnet_address(subnet)
+            ]
+        )
+    for domain in [domain for domain in no_proxy if domain.startswith(".")]:
         if hostname.endswith(domain):
             return True
     return False
 
 
 def get_proxy_info(
-        hostname, is_secure, proxy_host=None, proxy_port=0, proxy_auth=None,
-        no_proxy=None, proxy_type='http'):
+    hostname,
+    is_secure,
+    proxy_host=None,
+    proxy_port=0,
+    proxy_auth=None,
+    no_proxy=None,
+    proxy_type="http",
+):
     """
     Try to retrieve proxy host and port from environment
     if not provided in options.
@@ -170,7 +179,11 @@ def get_proxy_info(
         value = os.environ.get(key, os.environ.get(key.upper(), "")).replace(" ", "")
         if value:
             proxy = urlparse(value)
-            auth = (unquote(proxy.username), unquote(proxy.password)) if proxy.username else None
+            auth = (
+                (unquote(proxy.username), unquote(proxy.password))
+                if proxy.username
+                else None
+            )
             return proxy.hostname, proxy.port, auth
 
     return None, 0, None

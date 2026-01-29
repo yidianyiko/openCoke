@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestLangBotAPI:
@@ -71,7 +72,10 @@ class TestLangBotAPI:
             )
 
             call_args = mock_post.call_args[0]
-            assert call_args[0] == "http://langbot:8080/api/v1/platform/bots/my-bot-uuid/send_message"
+            assert (
+                call_args[0]
+                == "http://langbot:8080/api/v1/platform/bots/my-bot-uuid/send_message"
+            )
 
     def test_send_message_error_handling(self):
         """Test error handling when API fails."""

@@ -193,7 +193,9 @@ async def send_via_feishu_api(message: dict, user_platform_info: dict, metadata:
         raise
 
 
-async def send_via_telegram_api(message: dict, user_platform_info: dict, metadata: dict):
+async def send_via_telegram_api(
+    message: dict, user_platform_info: dict, metadata: dict
+):
     """
     Send message via direct Telegram Bot API.
 

@@ -262,7 +262,7 @@ class MongoDBBase:
         if norm_a == 0 or norm_b == 0:
             return 0
 
-        return dot_product/(norm_a * norm_b)
+        return dot_product / (norm_a * norm_b)
 
     def vector_search(
         self,
@@ -616,7 +616,7 @@ class VectorUtils:
         if norm_a == 0 or norm_b == 0:
             return 0
 
-        return np.dot(a, b)/(norm_a * norm_b)
+        return np.dot(a, b) / (norm_a * norm_b)
 
     @staticmethod
     def euclidean_distance(vector_a: List[float], vector_b: List[float]) -> float:
@@ -624,7 +624,7 @@ class VectorUtils:
         a = np.array(vector_a)
         b = np.array(vector_b)
 
-        return np.linalg.norm(a-b)
+        return np.linalg.norm(a - b)
 
     @staticmethod
     def dot_product(vector_a: List[float], vector_b: List[float]) -> float:
@@ -640,7 +640,7 @@ class VectorUtils:
         if norm == 0:
             return vector
 
-        return (v/norm).tolist()
+        return (v / norm).tolist()
 
     @staticmethod
     def average_vectors(vectors: List[List[float]]) -> List[float]:

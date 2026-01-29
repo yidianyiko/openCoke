@@ -3,11 +3,18 @@ import os
 import re
 from typing import Any, Dict, Iterable, Optional
 
-
 _REDACTION_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"(?i)\b(authorization)\s*:\s*bearer\s+[^\s]+"), r"\1: Bearer [REDACTED]"),
+    (
+        re.compile(r"(?i)\b(authorization)\s*:\s*bearer\s+[^\s]+"),
+        r"\1: Bearer [REDACTED]",
+    ),
     (re.compile(r"(?i)\b(bearer)\s+[^\s]+"), r"\1 [REDACTED]"),
-    (re.compile(r"(?i)\b(api[_-]?key|access[_-]?key|secret|password|token)\b\s*[:=]\s*([^\s,'\";]+)"), r"\1=[REDACTED]"),
+    (
+        re.compile(
+            r"(?i)\b(api[_-]?key|access[_-]?key|secret|password|token)\b\s*[:=]\s*([^\s,'\";]+)"
+        ),
+        r"\1=[REDACTED]",
+    ),
     (re.compile(r"\bsk-[A-Za-z0-9]{16,}\b"), "sk-[REDACTED]"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AKIA[REDACTED]"),
 ]
@@ -101,8 +108,10 @@ def format_std_message_for_log(message: Dict[str, Any]) -> str:
     if content is None and "content" in message:
         content = message.get("content")
 
-    max_chars = None if should_log_full_message_content() else _env_int(
-        "LOG_MESSAGE_MAX_CHARS", 200
+    max_chars = (
+        None
+        if should_log_full_message_content()
+        else _env_int("LOG_MESSAGE_MAX_CHARS", 200)
     )
     content_preview = preview_text(content, max_chars=max_chars, keep_newlines=False)
 
@@ -145,8 +154,9 @@ def safe_json_preview(obj: Any) -> str:
         s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"), default=str)
     except Exception:
         s = str(obj)
-    max_chars = None if should_log_full_message_content() else _env_int(
-        "LOG_MESSAGE_MAX_CHARS", 200
+    max_chars = (
+        None
+        if should_log_full_message_content()
+        else _env_int("LOG_MESSAGE_MAX_CHARS", 200)
     )
     return preview_text(s, max_chars=max_chars, keep_newlines=False)
-

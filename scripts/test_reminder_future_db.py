@@ -139,7 +139,7 @@ def test_reminder_trigger():
         "user_id": from_user,
         "character_id": to_user,
         "title": "测试触发提醒",
-        "next_trigger_time": int(time.time())-60,  # 1分钟前（已到期）
+        "next_trigger_time": int(time.time()) - 60,  # 1分钟前（已到期）
         "time_original": "测试",
         "timezone": "Asia/Shanghai",
         "recurrence": {"enabled": False},
@@ -242,7 +242,7 @@ def test_future_message_query():
             "conversation_info.future.action": {"$ne": None, "$exists": True},
             "conversation_info.future.timestamp": {
                 "$lt": now + 7200,
-                "$gt": now-1800,
+                "$gt": now - 1800,
             },  # 2小时内
         }
     )

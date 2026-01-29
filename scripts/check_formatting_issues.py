@@ -44,7 +44,9 @@ def check_file(file_path: Path) -> list[dict]:
                 )
 
             # 检查 2: endpoint/region/bucket_name 包含空格
-            if re.search(r'(endpoint|region|bucket_name)\s*=\s*["\'][^"\']*\s-\s', line):
+            if re.search(
+                r'(endpoint|region|bucket_name)\s*=\s*["\'][^"\']*\s-\s', line
+            ):
                 issues.append(
                     {
                         "line_number": line_num,

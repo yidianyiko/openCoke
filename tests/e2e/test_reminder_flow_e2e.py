@@ -211,12 +211,8 @@ class TestReminderFlowE2E:
             "next_trigger_time": current_time - 120,
         }
 
-        assert (
-            current_time - reminder_in_window["next_trigger_time"]
-        ) <= time_window
-        assert (
-            current_time - reminder_out_window["next_trigger_time"]
-        ) > time_window
+        assert (current_time - reminder_in_window["next_trigger_time"]) <= time_window
+        assert (current_time - reminder_out_window["next_trigger_time"]) > time_window
 
     # ============ 消息测试 ============
 
@@ -574,7 +570,9 @@ class TestReminderTimeParsing:
 
     def test_recurring_reminder_complex_pattern(self):
         """测试复杂周期模式的提醒"""
-        from tests.fixtures.sample_messages import get_recurring_reminder_with_complex_pattern
+        from tests.fixtures.sample_messages import (
+            get_recurring_reminder_with_complex_pattern,
+        )
 
         msg = get_recurring_reminder_with_complex_pattern()
         assert "每个月" in msg["content"]
@@ -860,10 +858,10 @@ class TestReminderStatusTransitions:
     def test_valid_status_transitions(self):
         """测试有效的状态转换（新状态系统：active, triggered, completed）"""
         valid_transitions = [
-            ("active", "triggered"),      # 提醒触发
-            ("triggered", "completed"),   # 触发后完成
-            ("active", "completed"),      # 直接完成/取消
-            ("triggered", "active"),      # 周期提醒重新安排
+            ("active", "triggered"),  # 提醒触发
+            ("triggered", "completed"),  # 触发后完成
+            ("active", "completed"),  # 直接完成/取消
+            ("triggered", "active"),  # 周期提醒重新安排
         ]
 
         for from_status, to_status in valid_transitions:
@@ -873,7 +871,16 @@ class TestReminderStatusTransitions:
 
     def test_invalid_status_values(self):
         """测试无效的状态值"""
-        invalid_statuses = ["unknown", "ACTIVE", "confirmed", "pending", "cancelled", "", None, 123]
+        invalid_statuses = [
+            "unknown",
+            "ACTIVE",
+            "confirmed",
+            "pending",
+            "cancelled",
+            "",
+            None,
+            123,
+        ]
 
         for invalid_status in invalid_statuses:
             reminder = {"status": invalid_status}
@@ -954,7 +961,8 @@ class TestConcurrentReminderOperations:
 
         # 筛选在窗口内的
         in_window = [
-            r for r in pending_reminders
+            r
+            for r in pending_reminders
             if current_time - r["next_trigger_time"] <= time_window
         ]
 

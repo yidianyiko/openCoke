@@ -792,9 +792,7 @@ async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> No
                 logger.warning(f"[REMINDER] 锁释放异常: {reason}")
 
 
-async def _process_reminder_group(
-    reminder_group: list, now: int, reminder_dao
-) -> None:
+async def _process_reminder_group(reminder_group: list, now: int, reminder_dao) -> None:
     """处理同一时间触发的多个提醒（合并为单条消息）
 
     Args:

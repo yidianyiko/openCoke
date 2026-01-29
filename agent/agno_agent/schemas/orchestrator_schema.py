@@ -130,3 +130,21 @@ class OrchestratorResponse(BaseModel):
             "何时设为 true：用户表达提醒相关意图（创建/修改/删除/查看提醒）"
         ),
     )
+
+    need_web_search: bool = Field(
+        default=False,
+        description=(
+            "是否需要联网搜索。"
+            "默认：false。"
+            "何时设为 true：用户询问实时信息（天气、新闻、股价）或外部世界的事实"
+        ),
+    )
+
+    web_search_query: str = Field(
+        default="",
+        description=(
+            "联网搜索的关键词。"
+            "格式：简洁的搜索词，中英文皆可。"
+            "示例：'杭州今天天气'、'特斯拉最新股价'、'2024世界杯'"
+        ),
+    )
