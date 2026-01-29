@@ -47,28 +47,28 @@ logger = logging.getLogger(__name__)
 
 class PostAnalyzeWorkflow:
     """
-    后处理 Workflow：总结对话，更新记忆
+     后处理 Workflow：总结对话，更新记忆
 
-    注意：这是自定义 Workflow 类，不继承 Agno Workflow.
+     注意：这是自定义 Workflow 类，不继承 Agno Workflow.
 
-    执行流程：
-    1. 渲染 user prompt（包含最新聊天消息和回复）
-    2. 调用 PostAnalyzeAgent 进行后处理分析
-    3. 返回分析结果（用于更新用户/角色记忆）
+     执行流程：
+     1. 渲染 user prompt（包含最新聊天消息和回复）
+     2. 调用 PostAnalyzeAgent 进行后处理分析
+     3. 返回分析结果（用于更新用户/角色记忆）
 
-    输入：
-   -session_state["MultiModalResponses"]-来自 ChatWorkflow 的回复
-   -session_state["context_retrieve"]-来自 PrepareWorkflow
+     输入：
+    -session_state["MultiModalResponses"]-来自 ChatWorkflow 的回复
+    -session_state["context_retrieve"]-来自 PrepareWorkflow
 
-    输出：
-   -CharacterPublicSettings-角色公开设定更新
-   -CharacterPrivateSettings-角色私有设定更新
-   -UserSettings-用户资料更新
-   -UserRealName-用户真名
-   -RelationDescription-关系描述更新
+     输出：
+    -CharacterPublicSettings-角色公开设定更新
+    -CharacterPrivateSettings-角色私有设定更新
+    -UserSettings-用户资料更新
+    -UserRealName-用户真名
+    -RelationDescription-关系描述更新
 
-    V2.11 更新：
-   -支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
+     V2.11 更新：
+    -支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
     """
 
     # User prompt 模板组合（静态部分）
@@ -218,18 +218,18 @@ class PostAnalyzeWorkflow:
 
     def _handle_future_response(self, content: Dict, session_state: Dict) -> None:
         """
-        处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
+         处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
 
-        V2.11 更新：
-       -新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
+         V2.11 更新：
+        -新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
 
-        V2.12 更新：
-       -新增 MAX_PROACTIVE_TIMES 检查，防止主动消息重复触发
-       -当 message_source=future 且 proactive_times >= MAX_PROACTIVE_TIMES 时，跳过设置
+         V2.12 更新：
+        -新增 MAX_PROACTIVE_TIMES 检查，防止主动消息重复触发
+        -当 message_source=future 且 proactive_times >= MAX_PROACTIVE_TIMES 时，跳过设置
 
-        Args:
-            content: PostAnalyze 返回的内容
-            session_state: 会话状态
+         Args:
+             content: PostAnalyze 返回的内容
+             session_state: 会话状态
         """
         # V2.11 新增：如果本轮已创建定时提醒，跳过 FutureResponse 设置
         # 解决问题：番茄钟等定时提醒被同时存储在 reminders 和 conversation.future 中导致重复触发
@@ -253,7 +253,10 @@ class PostAnalyzeWorkflow:
         current_proactive_times = future_info.get("proactive_times", 0)
 
         # 如果是主动消息/提醒消息，且已达到次数上限，则设置为过期状态并跳过
-        if message_source in ("future", "reminder") and current_proactive_times >= self.MAX_PROACTIVE_TIMES:
+        if (
+            message_source in ("future", "reminder")
+            and current_proactive_times >= self.MAX_PROACTIVE_TIMES
+        ):
             logger.info(
                 f"[FutureResponse] 主动消息已达上限 ({current_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态"
             )
@@ -321,16 +324,16 @@ class PostAnalyzeWorkflow:
 
     def _handle_character_info_update(self, content: Dict, session_state: Dict) -> None:
         """
-        处理角色信息更新（V2.5 新增）
+         处理角色信息更新（V2.5 新增）
 
-        将 PostAnalyze 输出的字段映射到 relation.character_info：
-       -CharacterLongtermPurpose → longterm_purpose
-       -CharacterPurpose → shortterm_purpose
-       -CharacterAttitude → attitude
+         将 PostAnalyze 输出的字段映射到 relation.character_info：
+        -CharacterLongtermPurpose → longterm_purpose
+        -CharacterPurpose → shortterm_purpose
+        -CharacterAttitude → attitude
 
-        Args:
-            content: PostAnalyze 返回的内容
-            session_state: 会话状态
+         Args:
+             content: PostAnalyze 返回的内容
+             session_state: 会话状态
         """
         if (
             "relation" not in session_state
@@ -468,9 +471,7 @@ class PostAnalyzeWorkflow:
             压缩后的关系描述
         """
         return self._compress_description(
-            description,
-            self.RELATION_DESC_TARGET_LENGTH,
-            "关系描述"
+            description, self.RELATION_DESC_TARGET_LENGTH, "关系描述"
         )
 
     def _compress_user_description(self, description: str) -> str:
@@ -486,9 +487,7 @@ class PostAnalyzeWorkflow:
             压缩后的用户印象描述
         """
         return self._compress_description(
-            description,
-            self.USER_DESC_TARGET_LENGTH,
-            "用户印象描述"
+            description, self.USER_DESC_TARGET_LENGTH, "用户印象描述"
         )
 
     def _compress_description(

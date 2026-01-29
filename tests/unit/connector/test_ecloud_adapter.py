@@ -278,4 +278,3 @@ class TestIsMentionBot:
         atlist = ["wxid_other"]
         result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
         assert result is False
-

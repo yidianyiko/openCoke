@@ -140,9 +140,7 @@ class TestTimeUtilBugs:
         # 当前逻辑可能无法正确处理
         timestamp = int(datetime(2024, 1, 1, 23, 0).timestamp())
 
-        result = is_within_time_period(
-            timestamp, start_time="22:00", end_time="06:00"
-        )
+        result = is_within_time_period(timestamp, start_time="22:00", end_time="06:00")
 
         # 当前实现: start_minutes <= current <= end_minutes
         # 22:00 = 1320, 06:00 = 360, 23:00 = 1380
@@ -258,6 +256,7 @@ class TestMessageUtilDeepBugs:
                     with patch("agent.util.message_util.UserDAO") as mock_dao:
                         mock_dao.return_value.get_user_by_id.return_value = None
                         from agent.util.message_util import image_message_to_str
+
                         result = image_message_to_str(message)
             except Exception as e:
                 pytest.fail(f"发现 BUG: 内容 '{content}' 导致崩溃 - {e}")
@@ -270,8 +269,16 @@ class TestMessageUtilDeepBugs:
             (None, {"from_user": "user1"}, "未知用户"),  # talker 为 None
             ({}, {"from_user": "user1"}, "user1"),  # talker 为空 dict
             ({"platforms": None}, {"from_user": "user1"}, "user1"),  # platforms 为 None
-            ({"platforms": {"wechat": None}}, {"from_user": "user1", "platform": "wechat"}, "user1"),
-            ({"platforms": {"wechat": {"nickname": ""}}}, {"from_user": "user1", "platform": "wechat"}, "user1"),
+            (
+                {"platforms": {"wechat": None}},
+                {"from_user": "user1", "platform": "wechat"},
+                "user1",
+            ),
+            (
+                {"platforms": {"wechat": {"nickname": ""}}},
+                {"from_user": "user1", "platform": "wechat"},
+                "user1",
+            ),
         ]
 
         for talker, message, expected in edge_cases:
@@ -592,7 +599,7 @@ class TestDataIntegrityBugs:
 
     def test_timestamp_consistency(self):
         """验证时间戳一致性"""
-        from util.time_util import timestamp2str, str2timestamp
+        from util.time_util import str2timestamp, timestamp2str
 
         # 使用整分钟的时间戳避免秒级精度损失
         original = int(time.time()) // 60 * 60  # 取整到分钟

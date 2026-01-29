@@ -46,7 +46,7 @@ def _merge_results_embedding(
             continue
 
         # Calculate weighted score
-        result_weight = weight * (result["similarity"]-bar_min)/(bar_max-bar_min)
+        result_weight = weight * (result["similarity"] - bar_min) / (bar_max - bar_min)
 
         # Merge results
         result_id = str(result["_id"])
@@ -82,7 +82,7 @@ def _merge_results_text(
         return merged_results
 
     # Distribute weight evenly
-    result_weight = total_weight/len(results)
+    result_weight = total_weight / len(results)
 
     # Merge results
     for result in results:
@@ -417,7 +417,9 @@ def context_retrieve_tool(
             current_time = int(time.time())
 
             # 获取有效状态的提醒（阶段二状态重构：使用 active 状态）
-            all_reminders = reminder_dao.find_reminders_by_user(user_id, status="active")
+            all_reminders = reminder_dao.find_reminders_by_user(
+                user_id, status="active"
+            )
 
             lines = []
             for c in all_reminders[:30]:  # 限制最多 30 条

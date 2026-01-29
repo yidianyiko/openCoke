@@ -86,8 +86,13 @@ def web_search_tool(
             )
 
             if response.status_code != 200:
-                logger.error(f"博查 API 返回错误: {response.status_code} - {response.text}")
-                return {"ok": False, "error": f"搜索服务返回错误: {response.status_code}"}
+                logger.error(
+                    f"博查 API 返回错误: {response.status_code} - {response.text}"
+                )
+                return {
+                    "ok": False,
+                    "error": f"搜索服务返回错误: {response.status_code}",
+                }
 
             data = response.json()
 

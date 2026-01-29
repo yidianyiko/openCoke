@@ -3,8 +3,9 @@
 Web Search Tool Unit Tests
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 
 class TestWebSearchTool:
@@ -13,11 +14,13 @@ class TestWebSearchTool:
     def test_import_web_search_tool(self):
         """测试工具可以正确导入"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
+
         assert web_search_tool is not None
 
     def test_web_search_tool_has_tool_decorator(self):
         """测试工具有 @tool 装饰器"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
+
         # Agno tool decorator adds __tool__ attribute
         assert hasattr(web_search_tool, "entrypoint")
         assert callable(web_search_tool.entrypoint)
@@ -26,7 +29,9 @@ class TestWebSearchTool:
         """测试工具返回字典格式"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
 
-        with patch('agent.agno_agent.tools.web_search_tool.httpx.Client') as mock_client:
+        with patch(
+            "agent.agno_agent.tools.web_search_tool.httpx.Client"
+        ) as mock_client:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
@@ -35,12 +40,14 @@ class TestWebSearchTool:
                         {
                             "name": "Test Result",
                             "url": "https://example.com",
-                            "snippet": "Test snippet"
+                            "snippet": "Test snippet",
                         }
                     ]
                 }
             }
-            mock_client.return_value.__enter__.return_value.post.return_value = mock_response
+            mock_client.return_value.__enter__.return_value.post.return_value = (
+                mock_response
+            )
 
             result = web_search_tool.entrypoint(query="测试搜索")
 
@@ -60,8 +67,12 @@ class TestWebSearchTool:
         """测试 API 错误处理"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
 
-        with patch('agent.agno_agent.tools.web_search_tool.httpx.Client') as mock_client:
-            mock_client.return_value.__enter__.return_value.post.side_effect = Exception("API Error")
+        with patch(
+            "agent.agno_agent.tools.web_search_tool.httpx.Client"
+        ) as mock_client:
+            mock_client.return_value.__enter__.return_value.post.side_effect = (
+                Exception("API Error")
+            )
 
             result = web_search_tool.entrypoint(query="测试搜索")
 
@@ -72,7 +83,9 @@ class TestWebSearchTool:
         """测试搜索结果格式化"""
         from agent.agno_agent.tools.web_search_tool import web_search_tool
 
-        with patch('agent.agno_agent.tools.web_search_tool.httpx.Client') as mock_client:
+        with patch(
+            "agent.agno_agent.tools.web_search_tool.httpx.Client"
+        ) as mock_client:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {
@@ -82,18 +95,20 @@ class TestWebSearchTool:
                             "name": "标题1",
                             "url": "https://example1.com",
                             "snippet": "摘要1",
-                            "siteName": "网站1"
+                            "siteName": "网站1",
                         },
                         {
                             "name": "标题2",
                             "url": "https://example2.com",
                             "snippet": "摘要2",
-                            "siteName": "网站2"
-                        }
+                            "siteName": "网站2",
+                        },
                     ]
                 }
             }
-            mock_client.return_value.__enter__.return_value.post.return_value = mock_response
+            mock_client.return_value.__enter__.return_value.post.return_value = (
+                mock_response
+            )
 
             result = web_search_tool.entrypoint(query="测试", count=2)
 
@@ -106,5 +121,6 @@ class TestWebSearchTool:
     def test_web_search_tool_exported_from_tools_module(self):
         """测试工具从 tools 模块正确导出"""
         import agent.agno_agent.tools as tools
+
         assert hasattr(tools, "web_search_tool")
         assert "web_search_tool" in tools.__all__

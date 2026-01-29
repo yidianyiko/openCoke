@@ -31,7 +31,10 @@ Agent Instructions Prompt
 # - INSTRUCTIONS: 决策逻辑（怎么做决策）
 # - 无 output_schema：工具调用型 Agent，直接调用 reminder_tool
 
-DESCRIPTION_REMINDER_DETECT = "你是一个提醒检测助手，负责识别提醒意图并调用提醒工具执行操作。"
+DESCRIPTION_REMINDER_DETECT = (
+    "你是一个提醒检测助手，负责识别提醒意图并调用提醒工具执行操作。"
+)
+
 
 # V2.8 优化：增强时间解析能力，支持时间段提醒
 # V2.9 阶段二：状态重构 + 查询增强（filter/complete）

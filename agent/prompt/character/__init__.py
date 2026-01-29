@@ -30,10 +30,10 @@ CHARACTER_PROMPTS = {
 def get_character_prompt(character_name: str) -> str | None:
     """
     获取角色的系统提示词
-    
+
     Args:
         character_name: 角色名称
-        
+
     Returns:
         系统提示词字符串，如果角色不存在则返回 None
     """
@@ -46,10 +46,10 @@ def get_character_prompt(character_name: str) -> str | None:
 def get_character_status(character_name: str) -> dict | None:
     """
     获取角色的状态配置
-    
+
     Args:
         character_name: 角色名称
-        
+
     Returns:
         状态配置字典，如果角色不存在则返回 None
     """

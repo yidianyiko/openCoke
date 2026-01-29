@@ -1,5 +1,5 @@
 #!/usr/bin/python
-'''
+"""
 Licensed to the Apache Software Foundation(ASF) under one
 or more contributor license agreements.  See the NOTICE file
 distributed with this work for additional information
@@ -14,36 +14,33 @@ software distributed under the License is distributed on an
 KIND, either express or implied.  See the License for the
 specific language governing permissions and limitations under
 the License.
-'''
+"""
 import os
+
 import setuptools
 
 with open("README.md", "r") as f:
     long_description = f.read()
 
-requires = [
-    "oss2",
-    "aliyun-python-sdk-core>=2.13.3",
-    "matplotlib>=3.3.4"
-]
+requires = ["oss2", "aliyun-python-sdk-core>=2.13.3", "matplotlib>=3.3.4"]
 
 setup_args = {
-    'version': "1.1.0",
-    'author': "jiaqi.sjq",
-    'author_email': "jiaqi.sjq@alibaba-inc.com",
-    'description': "python sdk for nls",
-    'license':"Apache License 2.0",
-    'long_description': long_description,
-    'long_description_content_type': "text/markdown",
-    'keywords': ["nls", "sdk"],
-    'url': "https://github.com/..",
-    'packages': ["nls", "nls/websocket"],
-    'install_requires': requires,
-    'classifiers': [
+    "version": "1.1.0",
+    "author": "jiaqi.sjq",
+    "author_email": "jiaqi.sjq@alibaba-inc.com",
+    "description": "python sdk for nls",
+    "license": "Apache License 2.0",
+    "long_description": long_description,
+    "long_description_content_type": "text/markdown",
+    "keywords": ["nls", "sdk"],
+    "url": "https://github.com/..",
+    "packages": ["nls", "nls/websocket"],
+    "install_requires": requires,
+    "classifiers": [
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
 }
 
-setuptools.setup(name='nls', **setup_args)
+setuptools.setup(name="nls", **setup_args)

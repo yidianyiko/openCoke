@@ -30,7 +30,7 @@ def character_voice_single(text, emotion=None):
 
     file_size = os.path.getsize(file_path)
     logger.info("file_size: " + str(file_size))
-    voice_length = int(file_size / 1000/50) * 1000
+    voice_length = int(file_size / 1000 / 50) * 1000
 
     new_file_path = pcm_to_silk(file_path)
 

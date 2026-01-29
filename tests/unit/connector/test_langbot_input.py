@@ -1,5 +1,6 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestLangbotWebhookHandler:
@@ -42,7 +43,9 @@ class TestLangbotWebhookHandler:
             mock.return_value = {"_id": "char-mongo-id", "name": "qiaoyun"}
             yield mock
 
-    def test_webhook_returns_skip_pipeline(self, client, mock_mongo, mock_user_dao, mock_character):
+    def test_webhook_returns_skip_pipeline(
+        self, client, mock_mongo, mock_user_dao, mock_character
+    ):
         """Test that webhook returns skip_pipeline: true."""
         payload = {
             "uuid": "event-123",
@@ -67,7 +70,9 @@ class TestLangbotWebhookHandler:
         assert data["status"] == "ok"
         assert data["skip_pipeline"] is True
 
-    def test_webhook_inserts_message_to_mongo(self, client, mock_mongo, mock_user_dao, mock_character):
+    def test_webhook_inserts_message_to_mongo(
+        self, client, mock_mongo, mock_user_dao, mock_character
+    ):
         """Test that webhook inserts message into inputmessages."""
         payload = {
             "uuid": "event-123",
@@ -90,7 +95,9 @@ class TestLangbotWebhookHandler:
         assert inserted_doc["platform"] == "langbot"
         assert inserted_doc["message"] == "Hello"
 
-    def test_webhook_ignores_unknown_event_type(self, client, mock_mongo, mock_user_dao, mock_character):
+    def test_webhook_ignores_unknown_event_type(
+        self, client, mock_mongo, mock_user_dao, mock_character
+    ):
         """Test that unknown event types are ignored."""
         payload = {
             "uuid": "event-123",
@@ -98,11 +105,12 @@ class TestLangbotWebhookHandler:
             "data": {},
         }
 
-        response = client.post("/langbot/webhook", json=payload, content_type="application/json")
+        response = client.post(
+            "/langbot/webhook", json=payload, content_type="application/json"
+        )
 
         assert response.status_code == 200
         data = response.get_json()
         assert data["status"] == "ok"
         assert data["skip_pipeline"] is True
         mock_mongo.insert_one.assert_not_called()
-

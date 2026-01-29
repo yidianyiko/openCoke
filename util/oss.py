@@ -7,9 +7,7 @@ import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s-%(levelname)s-%(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s-%(levelname)s-%(message)s")
 
 # 检查环境变量是否已设置
 required_env_vars = ["OSS_ACCESS_KEY_ID", "OSS_ACCESS_KEY_SECRET"]

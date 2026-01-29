@@ -25,8 +25,8 @@ from agent.agno_agent.tools.image_tools import (
     image_send_tool,
 )
 from agent.agno_agent.tools.reminder_tools import reminder_tool
-from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.tools.voice_tools import text2voice_tool, voice2text_tool
+from agent.agno_agent.tools.web_search_tool import web_search_tool
 
 __all__ = [
     # 核心 Tool

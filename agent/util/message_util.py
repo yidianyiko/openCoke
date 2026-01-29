@@ -8,12 +8,11 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-from util.message_log_util import format_std_message_for_log, should_log_message_content
-
 from bson import ObjectId
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
+from util.message_log_util import format_std_message_for_log, should_log_message_content
 from util.time_util import get_message_timestamp, safe_timestamp_compare, timestamp2str
 
 

@@ -122,9 +122,7 @@ class ReminderE2ETestRunner:
             for keyword in contains_any:
                 if keyword.lower() in response.lower():
                     return True
-            logger.warning(
-                f"[E2E] Response doesn't contain any of: {contains_any}"
-            )
+            logger.warning(f"[E2E] Response doesn't contain any of: {contains_any}")
             return False
         return True
 
@@ -143,9 +141,7 @@ class ReminderE2ETestRunner:
             title_contains = expected.get("title_contains", "")
             matching = [r for r in reminders if title_contains in r.get("title", "")]
             if not matching:
-                logger.warning(
-                    f"[E2E] No reminder found containing '{title_contains}'"
-                )
+                logger.warning(f"[E2E] No reminder found containing '{title_contains}'")
                 return False
 
             # 验证触发时间
@@ -153,7 +149,9 @@ class ReminderE2ETestRunner:
             if trigger_time_spec:
                 reminder = matching[0]
                 trigger_ts = reminder.get("next_trigger_time", 0)
-                if not self._verify_trigger_time(trigger_ts, trigger_time_spec, test_start_time):
+                if not self._verify_trigger_time(
+                    trigger_ts, trigger_time_spec, test_start_time
+                ):
                     return False
 
             # 验证周期设置
@@ -346,7 +344,9 @@ class ReminderE2ETestRunner:
                     if step.get("verify"):
                         if not self.verify_db_state(step["verify"], test_start_time):
                             result["status"] = "failed"
-                            result["errors"].append(f"Step {i+1} DB verification failed")
+                            result["errors"].append(
+                                f"Step {i+1} DB verification failed"
+                            )
                             return result
             else:
                 # 普通测试
@@ -377,9 +377,7 @@ class ReminderE2ETestRunner:
 
         return result
 
-    def _run_conversation(
-        self, conversation: List[Dict], test_start_time: int
-    ) -> Dict:
+    def _run_conversation(self, conversation: List[Dict], test_start_time: int) -> Dict:
         """执行对话流程"""
         log = []
         for i, turn in enumerate(conversation):
@@ -433,9 +431,7 @@ class ReminderE2ETestRunner:
                 logger.info(f"[E2E] ✓ PASSED: {test_case['id']}")
             elif result["status"] == "failed":
                 self.failed += 1
-                logger.error(
-                    f"[E2E] ✗ FAILED: {test_case['id']} - {result['errors']}"
-                )
+                logger.error(f"[E2E] ✗ FAILED: {test_case['id']} - {result['errors']}")
             else:
                 self.skipped += 1
                 logger.warning(f"[E2E] ? SKIPPED/ERROR: {test_case['id']}")

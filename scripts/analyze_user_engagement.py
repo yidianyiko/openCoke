@@ -159,15 +159,15 @@ def calculate_average_usage(user_data, current_time):
         # 计算用户活跃周期
         if user["first_message_time"] and user["last_message_time"]:
             active_duration_days = (
-                user["last_message_time"]-user["first_message_time"]
-            )/86400
+                user["last_message_time"] - user["first_message_time"]
+            ) / 86400
             # 至少活跃1天才能计算平均值
             if active_duration_days >= 1:
                 # 计算平均每日调用量
                 user["avg_daily_usage"] = user["total_count"] / active_duration_days
 
                 # 计算平均每周调用量
-                active_duration_weeks = active_duration_days/7
+                active_duration_weeks = active_duration_days / 7
                 user["avg_weekly_usage"] = (
                     user["total_count"] / active_duration_weeks
                     if active_duration_weeks > 0
@@ -176,10 +176,10 @@ def calculate_average_usage(user_data, current_time):
 
                 # 计算平均每月调用量
                 active_duration_months = (
-                    active_duration_days/30
+                    active_duration_days / 30
                 )  # 简化按30天一个月计算
                 user["avg_monthly_usage"] = (
-                    user["total_count"]/active_duration_months
+                    user["total_count"] / active_duration_months
                     if active_duration_months > 0
                     else 0
                 )
@@ -348,7 +348,7 @@ def analyze_user_engagement():
         print("日期         | 新注册用户 | 活跃用户")
         print("-------------|-----------|----------")
         for i in range(13, -1, -1):  # 从13天前到今天
-            date = today-timedelta(days=i)
+            date = today - timedelta(days=i)
             registrations = daily_registration.get(date, 0)
             active_users = daily_activity.get(date, 0)
             print(f"{date} | {registrations:10} | {active_users:8}")
@@ -397,7 +397,7 @@ def analyze_user_engagement():
             if user["creation_time"]:
                 creation_date = datetime.fromtimestamp(user["creation_time"]).date()
                 # 计算是第几周注册的（相对于今天）
-                days_since_creation = (today-creation_date).days
+                days_since_creation = (today - creation_date).days
                 week_since_creation = days_since_creation // 7
                 # 确保不会出现负数周
                 week_key = max(0, week_since_creation)
@@ -418,13 +418,13 @@ def analyze_user_engagement():
                 # 如果用户在过去7天内有活动，则认为是活跃的
                 if user["last_message_time"]:
                     days_since_last_activity = (
-                        current_time-user["last_message_time"]
+                        current_time - user["last_message_time"]
                     ) / 86400
                     if days_since_last_activity <= 7:  # 一周内有活动
                         active_users += 1
 
             active_rate = (
-                (active_users/registered_users * 100) if registered_users > 0 else 0
+                (active_users / registered_users * 100) if registered_users > 0 else 0
             )
             week_label = "本周" if week == 0 else f"{week}周前"
             explanation = "当前仍活跃用户占比（最近7天内有活动）"
@@ -456,7 +456,7 @@ def analyze_user_engagement():
 
         for user in user_data:
             if user["creation_time"]:
-                days_since_creation = (current_time-user["creation_time"])/86400
+                days_since_creation = (current_time - user["creation_time"]) / 86400
                 # 归类到对应的时间段
                 if days_since_creation <= 7:
                     segment = "最近1周"
@@ -475,8 +475,8 @@ def analyze_user_engagement():
                 # 检查用户最近是否活跃（最近7天内有活动）
                 if user["last_message_time"]:
                     days_since_last_activity = (
-                        current_time-user["last_message_time"]
-                    )/86400
+                        current_time - user["last_message_time"]
+                    ) / 86400
                     if days_since_last_activity <= 7:
                         segment_stats[segment]["active"] += 1
 
@@ -488,7 +488,7 @@ def analyze_user_engagement():
         for segment, stats in segment_stats.items():
             registered = stats["registered"]
             active = stats["active"]
-            retention_rate = (active/registered * 100) if registered > 0 else 0
+            retention_rate = (active / registered * 100) if registered > 0 else 0
             print(
                 f"{segment:12} | {registered:10} | {active:14} | {retention_rate:6.1f}% | 最近7天内有活动的用户占比"
             )
@@ -507,13 +507,13 @@ def analyze_user_engagement():
         active_users = [u for u in user_data if u["total_count"] > 0]
 
         if active_users:
-            avg_daily = sum(u["avg_daily_usage"] for u in active_users)/len(
+            avg_daily = sum(u["avg_daily_usage"] for u in active_users) / len(
                 active_users
             )
-            avg_weekly = sum(u["avg_weekly_usage"] for u in active_users)/len(
+            avg_weekly = sum(u["avg_weekly_usage"] for u in active_users) / len(
                 active_users
             )
-            avg_monthly = sum(u["avg_monthly_usage"] for u in active_users)/len(
+            avg_monthly = sum(u["avg_monthly_usage"] for u in active_users) / len(
                 active_users
             )
 
@@ -531,9 +531,9 @@ def analyze_user_engagement():
                 categories[category].append(user)
 
             for category, users in categories.items():
-                avg_daily_cat = sum(u["avg_daily_usage"] for u in users)/len(users)
-                avg_weekly_cat = sum(u["avg_weekly_usage"] for u in users)/len(users)
-                avg_monthly_cat = sum(u["avg_monthly_usage"] for u in users)/len(
+                avg_daily_cat = sum(u["avg_daily_usage"] for u in users) / len(users)
+                avg_weekly_cat = sum(u["avg_weekly_usage"] for u in users) / len(users)
+                avg_monthly_cat = sum(u["avg_monthly_usage"] for u in users) / len(
                     users
                 )
                 print(

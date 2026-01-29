@@ -225,12 +225,14 @@ class MessageAcquirer:
             )
         else:
             # 私聊消息：使用私聊会话
-            conversation_id, _ = self.conversation_dao.get_or_create_private_conversation(
-                platform=platform,
-                user_id1=user["platforms"][platform]["id"],
-                nickname1=user["platforms"][platform]["nickname"],
-                user_id2=character["platforms"][platform]["id"],
-                nickname2=character["platforms"][platform]["nickname"],
+            conversation_id, _ = (
+                self.conversation_dao.get_or_create_private_conversation(
+                    platform=platform,
+                    user_id1=user["platforms"][platform]["id"],
+                    nickname1=user["platforms"][platform]["nickname"],
+                    user_id2=character["platforms"][platform]["id"],
+                    nickname2=character["platforms"][platform]["nickname"],
+                )
             )
 
         # 跳过已锁定的会话
@@ -281,7 +283,7 @@ class MessageAcquirer:
         if platform.startswith("langbot_"):
             user_platforms = user.get("platforms", {})
             character_platforms = character.get("platforms", {})
-            
+
             # 检查用户是否有对应的 langbot_* 平台字段
             if platform not in user_platforms:
                 logger.error(
@@ -305,7 +307,7 @@ class MessageAcquirer:
                 top_message["error"] = f"character_missing_platform:{platform}"
                 save_inputmessage(top_message)
                 return False
-                
+
         else:
             # 对于非 LangBot 平台，使用原有逻辑
             if platform not in user.get("platforms", {}):

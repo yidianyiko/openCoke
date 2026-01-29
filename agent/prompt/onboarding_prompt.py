@@ -6,7 +6,7 @@ Onboarding Prompt - 新用户引导提示词
 
 使用方式：
     from agent.prompt.onboarding_prompt import get_onboarding_context
-    
+
     onboarding_context = get_onboarding_context(context.get("is_new_user", False))
 """
 
@@ -38,10 +38,10 @@ ONBOARDING_PROMPT = """
 def get_onboarding_context(is_new_user: bool) -> str:
     """
     获取 Onboarding 上下文提示词
-    
+
     Args:
         is_new_user: 是否为新用户（首次对话）
-        
+
     Returns:
         如果是新用户，返回 onboarding 提示词；否则返回空字符串
     """

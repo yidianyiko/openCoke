@@ -1,6 +1,4 @@
-"""
-
-"""
+""" """
 
 """
 test_cookiejar.py
@@ -21,6 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import unittest
+
 from websocket._cookiejar import SimpleCookieJar
 
 
@@ -28,11 +27,15 @@ class CookieJarTest(unittest.TestCase):
     def testAdd(self):
         cookie_jar = SimpleCookieJar()
         cookie_jar.add("")
-        self.assertFalse(cookie_jar.jar, "Cookie with no domain should not be added to the jar")
+        self.assertFalse(
+            cookie_jar.jar, "Cookie with no domain should not be added to the jar"
+        )
 
         cookie_jar = SimpleCookieJar()
         cookie_jar.add("a=b")
-        self.assertFalse(cookie_jar.jar, "Cookie with no domain should not be added to the jar")
+        self.assertFalse(
+            cookie_jar.jar, "Cookie with no domain should not be added to the jar"
+        )
 
         cookie_jar = SimpleCookieJar()
         cookie_jar.add("a=b; domain=.abc")
@@ -68,7 +71,9 @@ class CookieJarTest(unittest.TestCase):
     def testSet(self):
         cookie_jar = SimpleCookieJar()
         cookie_jar.set("a=b")
-        self.assertFalse(cookie_jar.jar, "Cookie with no domain should not be added to the jar")
+        self.assertFalse(
+            cookie_jar.jar, "Cookie with no domain should not be added to the jar"
+        )
 
         cookie_jar = SimpleCookieJar()
         cookie_jar.set("a=b; domain=.abc")

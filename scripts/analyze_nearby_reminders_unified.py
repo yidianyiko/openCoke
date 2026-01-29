@@ -116,7 +116,7 @@ def analyze_nearby_reminders(window_seconds=30):
                 next_reminder = reminders[j]
                 next_time = next_reminder.get("next_trigger_time")
 
-                if next_time and next_time-current_time <= window_seconds:
+                if next_time and next_time - current_time <= window_seconds:
                     nearby_group.append(next_reminder)
                     processed_reminders.add(next_reminder.get("reminder_id"))
                 else:
@@ -135,7 +135,7 @@ def analyze_nearby_reminders(window_seconds=30):
                 if not is_duplicate:
                     first_time = nearby_group[0].get("next_trigger_time")
                     last_time = nearby_group[-1].get("next_trigger_time")
-                    time_span = last_time-first_time
+                    time_span = last_time - first_time
                     nearby_candidates.append(
                         (user_id, first_time, last_time, time_span, nearby_group)
                     )

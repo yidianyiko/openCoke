@@ -21,15 +21,15 @@ from agent.agno_agent.schemas.chat_response_schema import (
 
 class FutureMessageResponse(BaseModel):
     """
-    主动消息响应模型
+     主动消息响应模型
 
-    与 ChatResponse 结构类似，但用于主动消息场景.
-    主动消息是角色在用户没有回复的情况下，主动发起的消息.
+     与 ChatResponse 结构类似，但用于主动消息场景.
+     主动消息是角色在用户没有回复的情况下，主动发起的消息.
 
-    Requirements:
-   -1.1: 包含 InnerMonologue、MultiModalResponses、RelationChange、FutureResponse 字段
-   -1.2: FutureResponse 包含 FutureResponseTime 和 FutureResponseAction 子字段
-   -1.3: MultiModalResponse 支持 text、voice、photo 三种消息类型
+     Requirements:
+    -1.1: 包含 InnerMonologue、MultiModalResponses、RelationChange、FutureResponse 字段
+    -1.2: FutureResponse 包含 FutureResponseTime 和 FutureResponseAction 子字段
+    -1.3: MultiModalResponse 支持 text、voice、photo 三种消息类型
     """
 
     InnerMonologue: str = Field(

@@ -23,13 +23,13 @@ import contextvars
 import logging
 import time
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from agno.tools import tool
 
 from dao.reminder_dao import ReminderDAO
 from util.time_util import format_time_friendly, parse_relative_time, str2timestamp
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,9 @@ _DELETE_ALL_WORDS = ["全部", "所有", "清空", "都删", "全删"]
 def _get_current_input_messages_text(session_state: Optional[dict] = None) -> str:
     if session_state is None:
         session_state = _get_current_session_state()
-    conversation_info = (
-        (session_state or {}).get("conversation", {}).get("conversation_info", {}) or {}
-    )
+    conversation_info = (session_state or {}).get("conversation", {}).get(
+        "conversation_info", {}
+    ) or {}
     input_messages = conversation_info.get("input_messages") or []
     if not isinstance(input_messages, list) or not input_messages:
         return ""
@@ -80,7 +80,9 @@ def _get_active_candidates(reminder_dao: ReminderDAO, user_id: str) -> list[dict
     return reminders
 
 
-def _summarize_candidates(reminders: list[dict], limit: int = 3) -> tuple[list[dict], str]:
+def _summarize_candidates(
+    reminders: list[dict], limit: int = 3
+) -> tuple[list[dict], str]:
     candidates: list[dict] = []
     lines: list[str] = []
     for r in reminders[:limit]:
@@ -90,7 +92,9 @@ def _summarize_candidates(reminders: list[dict], limit: int = 3) -> tuple[list[d
         if isinstance(ts, (int, float)) and ts > 0:
             time_str = datetime.fromtimestamp(int(ts)).strftime("%m月%d日%H:%M")
         if title:
-            candidates.append({"title": title, "time": time_str, "reminder_id": r.get("reminder_id")})
+            candidates.append(
+                {"title": title, "time": time_str, "reminder_id": r.get("reminder_id")}
+            )
             lines.append(f"「{title}」{('(' + time_str + ')') if time_str else ''}")
     return candidates, "、".join(lines)
 
@@ -230,8 +234,8 @@ def _parse_trigger_time(
 _context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar(
     "session_state", default={}
 )
-_context_session_state_ref: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
-    "session_state_ref", default=None
+_context_session_state_ref: contextvars.ContextVar[Optional[dict]] = (
+    contextvars.ContextVar("session_state_ref", default=None)
 )
 _context_session_operations: contextvars.ContextVar[list] = contextvars.ContextVar(
     "session_operations", default=[]
@@ -661,9 +665,8 @@ def reminder_tool(
             if not guard.get("allowed"):
                 candidates = guard.get("candidates") or []
                 display = guard.get("display") or ""
-                semantic_message = (
-                    f"提醒删除未执行：{guard.get('error')}"
-                    + (f"。可选提醒：{display}" if display else "")
+                semantic_message = f"提醒删除未执行：{guard.get('error')}" + (
+                    f"。可选提醒：{display}" if display else ""
                 )
                 _save_reminder_result_to_session(
                     semantic_message,
@@ -714,9 +717,8 @@ def reminder_tool(
             if not guard.get("allowed"):
                 candidates = guard.get("candidates") or []
                 display = guard.get("display") or ""
-                semantic_message = (
-                    f"提醒完成未执行：{guard.get('error')}"
-                    + (f"。可选提醒：{display}" if display else "")
+                semantic_message = f"提醒完成未执行：{guard.get('error')}" + (
+                    f"。可选提醒：{display}" if display else ""
                 )
                 _save_reminder_result_to_session(
                     semantic_message,
@@ -988,7 +990,9 @@ def _check_duplicate_reminder(
         f"Duplicate reminder detected: title={title}, existing_id={existing_id}"
     )
 
-    semantic_message = f"创建提醒成功：已为用户设置「{title}」提醒，时间为{existing_time_str}"
+    semantic_message = (
+        f"创建提醒成功：已为用户设置「{title}」提醒，时间为{existing_time_str}"
+    )
     _save_reminder_result_to_session(
         semantic_message,
         user_intent="创建提醒",
@@ -1328,8 +1332,6 @@ def _create_reminder(
     )
     if duplicate:
         return duplicate
-
-
 
     # Step 5: 解析时间段配置
     time_period_config = _parse_time_period_config(
@@ -2823,8 +2825,12 @@ def _filter_reminders(
             )
 
         # 分组：有时间 vs 无时间
-        reminders_with_time = [r for r in formatted_reminders if r.get("next_trigger_time")]
-        reminders_inbox = [r for r in formatted_reminders if not r.get("next_trigger_time")]
+        reminders_with_time = [
+            r for r in formatted_reminders if r.get("next_trigger_time")
+        ]
+        reminders_inbox = [
+            r for r in formatted_reminders if not r.get("next_trigger_time")
+        ]
 
         # 构建分组显示消息
         message_parts = []
