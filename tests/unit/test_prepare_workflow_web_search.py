@@ -31,7 +31,7 @@ class TestPrepareWorkflowWebSearch:
 
         with patch('agent.agno_agent.workflows.prepare_workflow.orchestrator_agent') as mock_orch, \
              patch('agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool') as mock_ctx, \
-             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool') as mock_search:
+             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint') as mock_search:
 
             mock_orch.arun = AsyncMock(return_value=mock_orchestrator_response)
             mock_ctx.return_value = {"character_global": "", "user": ""}
@@ -76,7 +76,7 @@ class TestPrepareWorkflowWebSearch:
 
         with patch('agent.agno_agent.workflows.prepare_workflow.orchestrator_agent') as mock_orch, \
              patch('agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool') as mock_ctx, \
-             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool') as mock_search:
+             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint') as mock_search:
 
             mock_orch.arun = AsyncMock(return_value=mock_orchestrator_response)
             mock_ctx.return_value = {"character_global": "", "user": ""}

@@ -25,6 +25,7 @@ from agent.agno_agent.agents import (
 )
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
+from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_历史对话_精简,
     CONTEXTPROMPT_时间,
@@ -48,11 +49,13 @@ class PrepareWorkflow:
     执行流程：
     1. OrchestratorAgent-语义理解 + 调度决策 (1次 LLM)
     2. context_retrieve_tool-直接函数调用 (0次 LLM)
+    2.5. web_search_tool-联网搜索 (0次 LLM, 按需)
     3. ReminderDetectAgent-按需调用 (0-1次 LLM)
 
     输出：
    -session_state["orchestrator"]-OrchestratorAgent 的输出
    -session_state["context_retrieve"]-context_retrieve_tool 的输出
+   -session_state["web_search_result"]-联网搜索结果 (按需)
 
     兼容性：
    -session_state["query_rewrite"]-保留旧字段，从 orchestrator 映射
@@ -106,6 +109,13 @@ class PrepareWorkflow:
 
         # Step 2: 上下文检索 (直接调用 Tool，0次 LLM)
         self._run_context_retrieve(session_state, need_context)
+
+        # Step 2.5: 联网搜索 (按需调用，0次 LLM)
+        need_web_search = orchestrator.get("need_web_search", False)
+        if need_web_search:
+            self._run_web_search(session_state, orchestrator)
+        else:
+            logger.info("跳过联网搜索 (need_web_search=False)")
 
         # Step 3: 提醒检测 (按需调用 Agent，0-1次 LLM)
         if need_reminder:
@@ -203,6 +213,31 @@ class PrepareWorkflow:
         except Exception as e:
             logger.error(f"context_retrieve_tool 执行失败: {e}")
             session_state["context_retrieve"] = self._get_default_context_retrieve()
+
+    def _run_web_search(self, session_state: Dict[str, Any], orchestrator: dict) -> None:
+        """执行联网搜索"""
+        try:
+            query = orchestrator.get("web_search_query", "")
+            if not query:
+                logger.warning("联网搜索被请求但未提供搜索词")
+                return
+
+            logger.info(f"执行联网搜索: query='{query}'")
+
+            search_result = web_search_tool.entrypoint(query=query)
+            session_state["web_search_result"] = search_result
+
+            if search_result.get("ok"):
+                result_count = len(search_result.get("results", []))
+                logger.info(f"联网搜索完成: 获取 {result_count} 条结果")
+            else:
+                logger.warning(
+                    f"联网搜索失败: {search_result.get('error', 'unknown')}"
+                )
+
+        except Exception as e:
+            logger.error(f"联网搜索执行异常: {e}")
+            session_state["web_search_result"] = {"ok": False, "error": str(e)}
 
     async def _run_reminder_detect(
         self,
