@@ -1,6 +1,4 @@
-"""
-
-"""
+""" """
 
 """
 _logging.py
@@ -22,20 +20,31 @@ limitations under the License.
 """
 import logging
 
-_logger = logging.getLogger('websocket')
+_logger = logging.getLogger("websocket")
 try:
     from logging import NullHandler
 except ImportError:
+
     class NullHandler(logging.Handler):
         def emit(self, record):
             pass
+
 
 _logger.addHandler(NullHandler())
 
 _traceEnabled = False
 
-__all__ = ["enableTrace", "dump", "error", "warning", "debug", "trace",
-           "isEnabledForError", "isEnabledForDebug", "isEnabledForTrace"]
+__all__ = [
+    "enableTrace",
+    "dump",
+    "error",
+    "warning",
+    "debug",
+    "trace",
+    "isEnabledForError",
+    "isEnabledForDebug",
+    "isEnabledForTrace",
+]
 
 
 def enableTrace(traceable, handler=logging.StreamHandler()):

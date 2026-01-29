@@ -25,12 +25,12 @@ from agent.agno_agent.schemas.chat_response_schema import (
 
 class PostAnalyzeResponse(BaseModel):
     """
-    PostAnalyzeAgent 的响应模型-扩展版
+     PostAnalyzeAgent 的响应模型-扩展版
 
-    V2 重构后承担更多分析职责：
-   -关系变化分析（从 ChatResponse 移入）
-   -未来消息规划（从 ChatResponse 移入）
-   -记忆更新（原有职责）
+     V2 重构后承担更多分析职责：
+    -关系变化分析（从 ChatResponse 移入）
+    -未来消息规划（从 ChatResponse 移入）
+    -记忆更新（原有职责）
     """
 
     InnerMonologue: str = Field(default="", description="角色的内心独白")

@@ -89,7 +89,7 @@ def analyze_reminders():
                 for j in range(i + 1, len(sorted_reminders)):
                     other_reminder = sorted_reminders[j]
                     other_time = other_reminder.get("next_trigger_time", 0)
-                    if other_time-trigger_time <= 30:  # 30秒内
+                    if other_time - trigger_time <= 30:  # 30秒内
                         near_group.append(other_reminder)
                     else:
                         break
@@ -157,9 +157,7 @@ def analyze_reminders():
                 max_time = max(times)
 
                 print(f"[{i}] 用户: {user_id}")
-                print(
-                    f"    时间范围: {format_time(min_time)}-{format_time(max_time)}"
-                )
+                print(f"    时间范围: {format_time(min_time)}-{format_time(max_time)}")
                 print(f"    时间差: {max_time-min_time} 秒")
                 print(f"    数量: {len(group)} 个提醒")
                 print("    详细信息:")

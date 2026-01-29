@@ -45,14 +45,15 @@ from agent.prompt.chat_contextprompt import (
     get_relevant_history_context,
     get_reminder_result_context,
     get_reminders_context,
+    get_web_search_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
-from agent.prompt.onboarding_prompt import get_onboarding_context
-from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
     TASKPROMPT_微信对话_推理要求_纯文本,
 )
+from agent.prompt.onboarding_prompt import get_onboarding_context
+from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +64,15 @@ logger = logging.getLogger(__name__)
 
 class StreamingChatWorkflow:
     """
-    流式回复生成 Workflow
+     流式回复生成 Workflow
 
-    与 ChatWorkflow 的区别：
-   -使用 stream=True 调用 Agent
-   -实时解析输出，检测到完整消息立即 yield
-   -不使用 output_schema，改用标签格式
+     与 ChatWorkflow 的区别：
+    -使用 stream=True 调用 Agent
+    -实时解析输出，检测到完整消息立即 yield
+    -不使用 output_schema，改用标签格式
 
-    V2.7 优化：
-   -待办提醒和相关历史对话按需加载（仅在有内容时添加到上下文）
+     V2.7 优化：
+    -待办提醒和相关历史对话按需加载（仅在有内容时添加到上下文）
     """
 
     # User prompt 模板组合-基础部分（不包含按需加载的上下文）
@@ -123,7 +124,7 @@ class StreamingChatWorkflow:
 
     def __init__(self):
         """初始化流式 Agent
-        
+
         添加 use_json_mode=True 避免 DeepSeek structured output 解析失败
         """
         self.agent = Agent(
@@ -211,6 +212,11 @@ class StreamingChatWorkflow:
         # 按需生成待办提醒上下文
         reminders_context = get_reminders_context(context_retrieve, user_nickname)
 
+        # 联网搜索结果上下文
+        web_search_context = get_web_search_context(session_state)
+        if web_search_context:
+            logger.info("[ChatWorkflow] 添加联网搜索结果上下文")
+
         # V2.15 新增：获取防重复回复提示（所有消息场景）
         anti_repeat_context = ""
         proactive_forbidden = session_state.get("proactive_forbidden_messages", "")
@@ -255,14 +261,19 @@ class StreamingChatWorkflow:
         full_template = (
             message_source_context
             + "\n"
-            + (onboarding_context + "\n" if onboarding_context else "")  # V2.14: Onboarding
+            + (
+                onboarding_context + "\n" if onboarding_context else ""
+            )  # V2.14: Onboarding
             + source_template  # 当前输入提前
             + "\n"
             + base_template
             + ("\n" + reminders_context if reminders_context else "")
             + ("\n" + relevant_history_context if relevant_history_context else "")
+            + ("\n" + web_search_context if web_search_context else "")  # 联网搜索结果
             + ("\n" + notice_segmentation if notice_segmentation else "")
-            + ("\n" + anti_repeat_context if anti_repeat_context else "")  # V2.15: 防重复
+            + (
+                "\n" + anti_repeat_context if anti_repeat_context else ""
+            )  # V2.15: 防重复
         )
         # 注意：userp_template_task 和 reminder_result_context 在渲染后追加
 

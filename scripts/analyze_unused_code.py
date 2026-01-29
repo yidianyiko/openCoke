@@ -115,8 +115,12 @@ class UsageIndex:
         target = self.test_symbol_usage if is_test else self.prod_symbol_usage
         target.setdefault(symbol, set()).add(user_module)
 
-    def note_module_import(self, imported_mod: str, user_module: str, is_test: bool) -> None:
-        target = self.test_module_imported_by if is_test else self.prod_module_imported_by
+    def note_module_import(
+        self, imported_mod: str, user_module: str, is_test: bool
+    ) -> None:
+        target = (
+            self.test_module_imported_by if is_test else self.prod_module_imported_by
+        )
         target.setdefault(imported_mod, set()).add(user_module)
 
 
@@ -134,7 +138,9 @@ def collect_symbols(py_path: Path) -> Optional[ModuleSymbols]:
             classes.add(node.name)
         elif isinstance(node, ast.FunctionDef):
             functions.add(node.name)
-    return ModuleSymbols(module=mod_name, filepath=py_path, classes=classes, functions=functions)
+    return ModuleSymbols(
+        module=mod_name, filepath=py_path, classes=classes, functions=functions
+    )
 
 
 def is_test_path(p: Path) -> bool:
@@ -186,7 +192,21 @@ def analyze() -> dict:
     usage = UsageIndex()
     all_py_files: List[Path] = []
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
-        dirnames[:] = [d for d in dirnames if d not in {".git", ".hg", ".svn", ".venv", "venv", "env", "__pycache__", "node_modules"}]
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d
+            not in {
+                ".git",
+                ".hg",
+                ".svn",
+                ".venv",
+                "venv",
+                "env",
+                "__pycache__",
+                "node_modules",
+            }
+        ]
         for fn in filenames:
             if fn.endswith(".py"):
                 all_py_files.append(Path(dirpath) / fn)
@@ -200,8 +220,12 @@ def analyze() -> dict:
 
     for mod, ms in symbol_index.items():
         for func in sorted(ms.functions):
-            prod_used = func in usage.prod_symbol_usage and bool(usage.prod_symbol_usage[func])
-            test_used = func in usage.test_symbol_usage and bool(usage.test_symbol_usage[func])
+            prod_used = func in usage.prod_symbol_usage and bool(
+                usage.prod_symbol_usage[func]
+            )
+            test_used = func in usage.test_symbol_usage and bool(
+                usage.test_symbol_usage[func]
+            )
             if prod_used:
                 used_in_prod_symbols.append((mod, "function", func))
             elif test_used:
@@ -209,8 +233,12 @@ def analyze() -> dict:
             else:
                 unused_symbols.append((mod, "function", func))
         for cls in sorted(ms.classes):
-            prod_used = cls in usage.prod_symbol_usage and bool(usage.prod_symbol_usage[cls])
-            test_used = cls in usage.test_symbol_usage and bool(usage.test_symbol_usage[cls])
+            prod_used = cls in usage.prod_symbol_usage and bool(
+                usage.prod_symbol_usage[cls]
+            )
+            test_used = cls in usage.test_symbol_usage and bool(
+                usage.test_symbol_usage[cls]
+            )
             if prod_used:
                 used_in_prod_symbols.append((mod, "class", cls))
             elif test_used:
@@ -244,7 +272,9 @@ def analyze() -> dict:
     result = {
         "summary": {
             "prod_modules_scanned": len(prod_modules_set),
-            "symbols_total": sum(len(ms.functions) + len(ms.classes) for ms in symbol_index.values()),
+            "symbols_total": sum(
+                len(ms.functions) + len(ms.classes) for ms in symbol_index.values()
+            ),
             "symbols_used_in_prod": len(used_in_prod_symbols),
             "symbols_only_in_tests": len(only_in_tests_symbols),
             "symbols_unused": len(unused_symbols),
@@ -287,4 +317,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

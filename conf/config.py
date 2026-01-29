@@ -15,6 +15,7 @@ ENV_VAR_PATTERN = re.compile(r"\$\{([^}]+)\}")
 def _expand_env_vars(value: Any) -> Any:
     """Recursively expand ${VAR_NAME} placeholders with environment variables."""
     if isinstance(value, str):
+
         def replace_env_var(match):
             var_name = match.group(1)
             env_value = os.getenv(var_name)

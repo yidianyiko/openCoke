@@ -25,7 +25,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from bson import ObjectId
 
-
 # ============ Invalid Input Data Tests ============
 
 
@@ -207,6 +206,7 @@ class TestBoundaryValues:
 
         # 空消息
         from tests.fixtures.sample_messages import get_empty_message
+
         empty_msg = get_empty_message()
         assert len(empty_msg["content"]) == 0
 
@@ -262,14 +262,14 @@ class TestConcurrentProcessing:
 
         messages = get_interleaved_messages(
             user_ids=["user_a", "user_b", "user_c", "user_d", "user_e"],
-            messages_per_user=5
+            messages_per_user=5,
         )
 
         assert len(messages) == 25
 
         # 验证时间戳递增
         for i in range(1, len(messages)):
-            assert messages[i]["timestamp"] >= messages[i-1]["timestamp"]
+            assert messages[i]["timestamp"] >= messages[i - 1]["timestamp"]
 
     def test_race_condition_simulation(self):
         """模拟竞态条件场景"""
@@ -331,6 +331,7 @@ class TestResourceLimits:
 
     def test_deep_nested_structure(self):
         """测试深层嵌套结构"""
+
         def create_nested(depth):
             if depth == 0:
                 return {"value": "leaf"}
@@ -365,6 +366,7 @@ class TestErrorConditionSimulation:
 
     def test_api_timeout_handling(self):
         """测试API超时处理"""
+
         async def slow_operation():
             await asyncio.sleep(10)
             return "completed"
@@ -443,7 +445,12 @@ class TestDataValidation:
         valid_recurrences = [
             {"enabled": False},
             {"enabled": True, "type": "daily", "interval": 1},
-            {"enabled": True, "type": "weekly", "interval": 1, "days_of_week": [1, 3, 5]},
+            {
+                "enabled": True,
+                "type": "weekly",
+                "interval": 1,
+                "days_of_week": [1, 3, 5],
+            },
             {"enabled": True, "type": "monthly", "interval": 1, "day_of_month": 15},
         ]
 
@@ -465,6 +472,7 @@ class TestDataValidation:
 
     def test_validate_relationship_value_ranges(self):
         """测试验证关系值范围"""
+
         def validate_relationship(closeness, trustness, dislike):
             errors = []
             if not 0 <= closeness <= 100:
@@ -538,7 +546,9 @@ class TestSecurityVulnerabilities:
         from tests.fixtures.sample_contexts import get_context_with_binary_like_content
 
         ctx = get_context_with_binary_like_content()
-        content = ctx["conversation"]["conversation_info"]["input_messages"][0]["content"]
+        content = ctx["conversation"]["conversation_info"]["input_messages"][0][
+            "content"
+        ]
 
         # 验证包含二进制类似字符
         assert "\x00" in content or "正常文本" in content
@@ -558,11 +568,13 @@ class TestPerformanceEdgeCases:
         operations = []
 
         for i in range(100):
-            operations.append({
-                "id": i,
-                "timestamp": time.time(),
-                "data": f"operation_{i}",
-            })
+            operations.append(
+                {
+                    "id": i,
+                    "timestamp": time.time(),
+                    "data": f"operation_{i}",
+                }
+            )
 
         elapsed = time.time() - start_time
         assert elapsed < 1.0  # 应该在1秒内完成
@@ -573,12 +585,11 @@ class TestPerformanceEdgeCases:
         # 创建一个大型JSON结构
         large_data = {
             "messages": [
-                {"id": i, "content": f"消息内容_{i}" * 10}
-                for i in range(1000)
+                {"id": i, "content": f"消息内容_{i}" * 10} for i in range(1000)
             ],
             "metadata": {
                 "user_info": {"field_" + str(i): f"value_{i}" for i in range(100)},
-            }
+            },
         }
 
         start_time = time.time()
@@ -736,6 +747,7 @@ class TestAsyncOperations:
     @pytest.mark.asyncio
     async def test_async_exception_handling(self):
         """测试异步异常处理"""
+
         async def failing_operation():
             await asyncio.sleep(0.01)
             raise ValueError("Async operation failed")
@@ -746,6 +758,7 @@ class TestAsyncOperations:
     @pytest.mark.asyncio
     async def test_async_timeout_handling(self):
         """测试异步超时处理"""
+
         async def slow_operation():
             await asyncio.sleep(10)
             return "done"
@@ -786,13 +799,7 @@ class TestDataConsistency:
         """测试嵌套数据修改隔离"""
         import copy
 
-        original = {
-            "nested": {
-                "deep": {
-                    "value": "original"
-                }
-            }
-        }
+        original = {"nested": {"deep": {"value": "original"}}}
 
         # 深拷贝
         copied = copy.deepcopy(original)

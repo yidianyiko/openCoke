@@ -136,11 +136,13 @@ def get_chat_history(length: int = 10) -> list:
     base_time = int(time.time()) - length * 60
     for i in range(length):
         role = "user" if i % 2 == 0 else "assistant"
-        history.append({
-            "role": role,
-            "content": f"消息_{i}",
-            "timestamp": base_time + i * 60,
-        })
+        history.append(
+            {
+                "role": role,
+                "content": f"消息_{i}",
+                "timestamp": base_time + i * 60,
+            }
+        )
     return history
 
 
@@ -182,11 +184,13 @@ def get_interleaved_messages(user_ids: list, messages_per_user: int = 5) -> list
     base_time = int(time.time())
     for i in range(messages_per_user):
         for j, user_id in enumerate(user_ids):
-            messages.append({
-                "user_id": user_id,
-                "content": f"用户{user_id}的消息_{i}",
-                "timestamp": base_time + i * len(user_ids) + j,
-            })
+            messages.append(
+                {
+                    "user_id": user_id,
+                    "content": f"用户{user_id}的消息_{i}",
+                    "timestamp": base_time + i * len(user_ids) + j,
+                }
+            )
     return messages
 
 

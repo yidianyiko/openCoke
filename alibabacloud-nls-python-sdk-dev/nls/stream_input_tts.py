@@ -1,14 +1,15 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 
-import logging
-import uuid
 import json
+import logging
 import threading
+import uuid
 from enum import IntEnum
 
 from nls.core import NlsCore
+
 from . import logging
-from .exception import StartTimeoutException, WrongStateException, InvalidParameter
+from .exception import InvalidParameter, StartTimeoutException, WrongStateException
 
 __STREAM_INPUT_TTS_NAMESPACE__ = "FlowingSpeechSynthesizer"
 
@@ -37,7 +38,9 @@ class NlsStreamInputTtsRequest:
         self.appkey = appkey
         self.session_id = session_id
 
-    def getStartCMD(self, voice, format, sample_rate, volume, speech_rate, pitch_rate, bit_rate, ex):
+    def getStartCMD(
+        self, voice, format, sample_rate, volume, speech_rate, pitch_rate, bit_rate, ex
+    ):
         self.voice = voice
         self.format = format
         self.sample_rate = sample_rate
@@ -65,7 +68,7 @@ class NlsStreamInputTtsRequest:
         if bit_rate:
             cmd["payload"]["bit_rate"] = bit_rate
         if ex:
-            cmd["payload"].update(ex)        
+            cmd["payload"].update(ex)
         return json.dumps(cmd)
 
     def getSendCMD(self, text):
@@ -103,15 +106,16 @@ class NlsStreamInputTtsStatus(IntEnum):
     Failed = 5
     Closed = 6
 
+
 class ThreadSafeStatus:
     def __init__(self, state: NlsStreamInputTtsStatus):
         self._state = state
         self._lock = threading.Lock()
-    
+
     def get(self) -> NlsStreamInputTtsStatus:
         with self._lock:
             return self._state
-    
+
     def set(self, state: NlsStreamInputTtsStatus):
         with self._lock:
             self._state = state
@@ -229,9 +233,9 @@ class NlsStreamInputTtsSynthesizer:
             44100,
             48000,
         )
-        self.state = ThreadSafeStatus(NlsStreamInputTtsStatus.Begin)     
+        self.state = ThreadSafeStatus(NlsStreamInputTtsStatus.Begin)
         if not self.__session_id:
-            self.__session_id = uuid.uuid4().hex   
+            self.__session_id = uuid.uuid4().hex
         self.request = NlsStreamInputTtsRequest(
             uuid.uuid4().hex, self.__session_id, self.__appkey
         )
@@ -302,7 +306,6 @@ class NlsStreamInputTtsSynthesizer:
         logging.debug("__synthesis_completed shutdown done")
         self.complete_event.set()
 
-
     def __task_failed(self, message):
         logging.debug("__task_failed")
         self.start_sended.set()
@@ -321,7 +324,7 @@ class NlsStreamInputTtsSynthesizer:
         speech_rate=0,
         pitch_rate=0,
         bit_rate=None,
-        ex:dict=None,
+        ex: dict = None,
     ):
         """
         Synthesis start
@@ -372,7 +375,7 @@ class NlsStreamInputTtsSynthesizer:
         request = self.request.getStartCMD(
             voice, aformat, sample_rate, volume, speech_rate, pitch_rate, bit_rate, ex
         )
-        
+
         last_state = self.state.get()
         if last_state != NlsStreamInputTtsStatus.Begin:
             logging.debug("start with wrong state {}".format(last_state))
@@ -427,7 +430,6 @@ class NlsStreamInputTtsSynthesizer:
             self.state.set(NlsStreamInputTtsStatus.Failed)
             raise WrongStateException("stop with wrong state {}".format(last_state))
 
-
         request = self.request.getStopCMD()
         logging.debug("stop with request: {}".format(request))
         self.__nls.send(request, None)
@@ -435,7 +437,6 @@ class NlsStreamInputTtsSynthesizer:
         self.complete_event.wait()
         self.state.set(NlsStreamInputTtsStatus.Completed)
         self.shutdown()
-
 
     def startTts(
         self,
@@ -447,7 +448,7 @@ class NlsStreamInputTtsSynthesizer:
         speech_rate=0,
         pitch_rate=0,
         bit_rate=None,
-        ex:dict=None,
+        ex: dict = None,
     ):
         """
         Synthesis start
@@ -476,7 +477,7 @@ class NlsStreamInputTtsSynthesizer:
         """
         if ex is None:
             ex = {}
-        ex['enable_ssml'] = True
+        ex["enable_ssml"] = True
         self.startStreamInputTts(
             voice, aformat, sample_rate, volume, speech_rate, pitch_rate, bit_rate, ex
         )
@@ -487,7 +488,6 @@ class NlsStreamInputTtsSynthesizer:
         Waiting for synthesis complete, use after startTts
         """
         self.stopStreamInputTts()
-
 
     def shutdown(self):
         """

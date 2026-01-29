@@ -1,25 +1,23 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 
-import logging
-import uuid
 import json
+import logging
 import threading
+import uuid
 
 from nls.core import NlsCore
-from . import logging
-from . import util
-from nls.exception import (StartTimeoutException,
-                        StopTimeoutException,
-                        InvalidParameter)
+from nls.exception import InvalidParameter, StartTimeoutException, StopTimeoutException
 
-__REALTIME_MEETING_NAMESPACE__ = 'SpeechTranscriber'
+from . import logging, util
+
+__REALTIME_MEETING_NAMESPACE__ = "SpeechTranscriber"
 
 __REALTIME_MEETING_REQUEST_CMD__ = {
-    'start': 'StartTranscription',
-    'stop': 'StopTranscription'
+    "start": "StartTranscription",
+    "stop": "StopTranscription",
 }
 
-__all__ = ['NlsRealtimeMeeting']
+__all__ = ["NlsRealtimeMeeting"]
 
 
 class NlsRealtimeMeeting:
@@ -27,18 +25,20 @@ class NlsRealtimeMeeting:
     Api for realtime meeting
     """
 
-    def __init__(self,
-                 url=None,
-                 on_start=None,
-                 on_sentence_begin=None,
-                 on_sentence_end=None,
-                 on_result_changed=None,
-                 on_result_translated=None,
-                 on_completed=None,
-                 on_error=None,
-                 on_close=None,
-                 callback_args=[]):
-        '''
+    def __init__(
+        self,
+        url=None,
+        on_start=None,
+        on_sentence_begin=None,
+        on_sentence_end=None,
+        on_result_changed=None,
+        on_result_translated=None,
+        on_completed=None,
+        on_error=None,
+        on_close=None,
+        callback_args=[],
+    ):
+        """
         NlsRealtimeMeeting initialization
 
         Parameters:
@@ -88,17 +88,17 @@ class NlsRealtimeMeeting:
             The 1st argument is *args which is callback_args.
         callback_args: list
             callback_args will return in callbacks above for *args.
-        '''
+        """
         if not url:
-            raise InvalidParameter('Must provide url')
+            raise InvalidParameter("Must provide url")
         self.__response_handler__ = {
-            'SentenceBegin': self.__sentence_begin,
-            'SentenceEnd': self.__sentence_end,
-            'TranscriptionStarted': self.__transcription_started,
-            'TranscriptionResultChanged': self.__transcription_result_changed,
-            'ResultTranslated': self.__transcription_result_translated,
-            'TranscriptionCompleted': self.__transcription_completed,
-            'TaskFailed': self.__task_failed
+            "SentenceBegin": self.__sentence_begin,
+            "SentenceEnd": self.__sentence_end,
+            "TranscriptionStarted": self.__transcription_started,
+            "TranscriptionResultChanged": self.__transcription_result_changed,
+            "ResultTranslated": self.__transcription_result_translated,
+            "TranscriptionCompleted": self.__transcription_completed,
+            "TaskFailed": self.__task_failed,
         }
         self.__callback_args = callback_args
         self.__url = url
@@ -114,30 +114,28 @@ class NlsRealtimeMeeting:
         self.__on_close = on_close
 
     def __handle_message(self, message):
-        logging.debug('__handle_message {}'.format(message))
+        logging.debug("__handle_message {}".format(message))
         try:
             __result = json.loads(message)
-            if __result['header']['name'] in self.__response_handler__:
-                __handler = self.__response_handler__[
-                    __result['header']['name']]
+            if __result["header"]["name"] in self.__response_handler__:
+                __handler = self.__response_handler__[__result["header"]["name"]]
                 __handler(message)
             else:
-                logging.error('cannot handle cmd{}'.format(
-                    __result['header']['name']))
+                logging.error("cannot handle cmd{}".format(__result["header"]["name"]))
                 return
         except json.JSONDecodeError:
-            logging.error('cannot parse message:{}'.format(message))
+            logging.error("cannot parse message:{}".format(message))
             return
 
     def __tr_core_on_open(self):
-        logging.debug('__tr_core_on_open')
+        logging.debug("__tr_core_on_open")
 
     def __tr_core_on_msg(self, msg, *args):
-        logging.debug('__tr_core_on_msg:msg={} args={}'.format(msg, args))
+        logging.debug("__tr_core_on_msg:msg={} args={}".format(msg, args))
         self.__handle_message(msg)
 
     def __tr_core_on_error(self, msg, *args):
-        logging.debug('__tr_core_on_error:msg={} args={}'.format(msg, args))
+        logging.debug("__tr_core_on_error:msg={} args={}".format(msg, args))
         with self.__start_cond:
             self.__start_flag = False
             self.__start_cond.notify()
@@ -145,7 +143,7 @@ class NlsRealtimeMeeting:
             self.__on_error(msg, *self.__callback_args)
 
     def __tr_core_on_close(self):
-        logging.debug('__tr_core_on_close')
+        logging.debug("__tr_core_on_close")
         if self.__on_close:
             self.__on_close(*self.__callback_args)
         with self.__start_cond:
@@ -153,17 +151,17 @@ class NlsRealtimeMeeting:
             self.__start_cond.notify()
 
     def __sentence_begin(self, message):
-        logging.debug('__sentence_begin')
+        logging.debug("__sentence_begin")
         if self.__on_sentence_begin:
             self.__on_sentence_begin(message, *self.__callback_args)
 
     def __sentence_end(self, message):
-        logging.debug('__sentence_end')
+        logging.debug("__sentence_end")
         if self.__on_sentence_end:
             self.__on_sentence_end(message, *self.__callback_args)
 
     def __transcription_started(self, message):
-        logging.debug('__transcription_started')
+        logging.debug("__transcription_started")
         if self.__on_start:
             self.__on_start(message, *self.__callback_args)
         with self.__start_cond:
@@ -171,19 +169,19 @@ class NlsRealtimeMeeting:
             self.__start_cond.notify()
 
     def __transcription_result_changed(self, message):
-        logging.debug('__transcription_result_changed')
+        logging.debug("__transcription_result_changed")
         if self.__on_result_changed:
             self.__on_result_changed(message, *self.__callback_args)
 
     def __transcription_result_translated(self, message):
-        logging.debug('__transcription_result_translated')
+        logging.debug("__transcription_result_translated")
         if self.__on_result_translated:
             self.__on_result_translated(message, *self.__callback_args)
 
     def __transcription_completed(self, message):
-        logging.debug('__transcription_completed')
+        logging.debug("__transcription_completed")
         self.__nls.shutdown()
-        logging.debug('__transcription_completed shutdown done')
+        logging.debug("__transcription_completed shutdown done")
         if self.__on_completed:
             self.__on_completed(message, *self.__callback_args)
         with self.__start_cond:
@@ -191,18 +189,14 @@ class NlsRealtimeMeeting:
             self.__start_cond.notify()
 
     def __task_failed(self, message):
-        logging.debug('__task_failed')
+        logging.debug("__task_failed")
         with self.__start_cond:
             self.__start_flag = False
             self.__start_cond.notify()
         if self.__on_error:
             self.__on_error(message, *self.__callback_args)
 
-    def start(self,
-              timeout=10,
-              ping_interval=8,
-              ping_timeout=None,
-              ex:dict=None):
+    def start(self, timeout=10, ping_interval=8, ping_timeout=None, ex: dict = None):
         """
         Realtime meeting start
 
@@ -219,44 +213,44 @@ class NlsRealtimeMeeting:
         """
         self.__nls = NlsCore(
             url=self.__url,
-            token='default',
+            token="default",
             on_open=self.__tr_core_on_open,
             on_message=self.__tr_core_on_msg,
             on_close=self.__tr_core_on_close,
             on_error=self.__tr_core_on_error,
-            callback_args=[])
+            callback_args=[],
+        )
 
         __id4 = uuid.uuid4().hex
         self.__task_id = uuid.uuid4().hex
         __header = {
-            'message_id': __id4,
-            'task_id': self.__task_id,
-            'namespace': __REALTIME_MEETING_NAMESPACE__,
-            'name': __REALTIME_MEETING_REQUEST_CMD__['start'],
-            'appkey': 'default'
+            "message_id": __id4,
+            "task_id": self.__task_id,
+            "namespace": __REALTIME_MEETING_NAMESPACE__,
+            "name": __REALTIME_MEETING_REQUEST_CMD__["start"],
+            "appkey": "default",
         }
-        __payload = {
-        }
+        __payload = {}
 
         if ex:
             __payload.update(ex)
 
         __msg = {
-            'header': __header,
-            'payload': __payload,
-            'context': util.GetDefaultContext()
+            "header": __header,
+            "payload": __payload,
+            "context": util.GetDefaultContext(),
         }
         __jmsg = json.dumps(__msg)
         with self.__start_cond:
             if self.__start_flag:
-                logging.debug('already start...')
+                logging.debug("already start...")
                 return
             self.__nls.start(__jmsg, ping_interval, ping_timeout)
             if self.__start_flag == False:
                 if self.__start_cond.wait(timeout):
                     return
                 else:
-                    raise StartTimeoutException(f'Waiting Start over {timeout}s')
+                    raise StartTimeoutException(f"Waiting Start over {timeout}s")
 
     def stop(self, timeout=10):
         """
@@ -269,28 +263,25 @@ class NlsRealtimeMeeting:
         """
         __id4 = uuid.uuid4().hex
         __header = {
-            'message_id': __id4,
-            'task_id': self.__task_id,
-            'namespace': __REALTIME_MEETING_NAMESPACE__,
-            'name': __REALTIME_MEETING_REQUEST_CMD__['stop'],
-            'appkey': 'default'
+            "message_id": __id4,
+            "task_id": self.__task_id,
+            "namespace": __REALTIME_MEETING_NAMESPACE__,
+            "name": __REALTIME_MEETING_REQUEST_CMD__["stop"],
+            "appkey": "default",
         }
-        __msg = {
-            'header': __header,
-            'context': util.GetDefaultContext()
-        }
+        __msg = {"header": __header, "context": util.GetDefaultContext()}
         __jmsg = json.dumps(__msg)
         with self.__start_cond:
             if not self.__start_flag:
-                logging.debug('not start yet...')
+                logging.debug("not start yet...")
                 return
             self.__nls.send(__jmsg, False)
             if self.__start_flag == True:
-                logging.debug('stop wait..')
+                logging.debug("stop wait..")
                 if self.__start_cond.wait(timeout):
                     return
                 else:
-                    raise StopTimeoutException(f'Waiting stop over {timeout}s')
+                    raise StopTimeoutException(f"Waiting stop over {timeout}s")
 
     def shutdown(self):
         """
@@ -315,7 +306,7 @@ class NlsRealtimeMeeting:
         try:
             self.__nls.send(__data, True)
         except ConnectionResetError as __e:
-            logging.error('connection reset')
+            logging.error("connection reset")
             self.__start_flag = False
             self.__nls.shutdown()
             raise __e

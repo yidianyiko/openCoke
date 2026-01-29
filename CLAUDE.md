@@ -35,9 +35,10 @@ black . && isort .                       # Format (88-char lines, Black profile)
 Messages are processed through three async phases with interruption detection between phases:
 
 ```
-Phase 1: PrepareWorkflow (2-4s)
+Phase 1: PrepareWorkflow (2-6s)
   ├─ OrchestratorAgent: semantic understanding + scheduling decisions
   ├─ context_retrieve_tool: direct function call for context retrieval
+  ├─ web_search_tool: optional, when need_web_search=true (Bocha Search API)
   └─ ReminderDetectAgent: optional, only when reminder intent detected
 
 Phase 2: StreamingChatWorkflow (3-10s)
@@ -132,7 +133,7 @@ Phase 3: PostAnalyzeWorkflow (2-5s)
 
 ## Configuration
 
-- Secrets in `.env` file (DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, etc.)
+- Secrets in `.env` file (DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, BOCHA_API_KEY, etc.)
 - Runtime config in `conf/config.json`
 - Test markers defined in `pyproject.toml`: unit, integration, slow, pbt, e2e
 

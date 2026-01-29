@@ -5,6 +5,7 @@
 
 import logging
 import os
+
 from dotenv import load_dotenv
 
 # 加载 .env 文件
@@ -37,18 +38,18 @@ def setup_logging():
     global _initialized
     if _initialized:
         return
-    
+
     logging.basicConfig(
         level=getattr(logging, LOG_LEVEL, logging.INFO),
         format=LOG_FORMAT,
         datefmt=DATE_FORMAT,
         force=True,  # 强制重新配置，覆盖之前的配置
     )
-    
+
     # 降低第三方库日志级别
     for noisy_logger in NOISY_LOGGERS:
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
-    
+
     _initialized = True
 
 

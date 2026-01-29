@@ -319,7 +319,7 @@ def format_time_friendly(timestamp):
     now = datetime.now()
 
     # 计算天数差
-    days_diff = (dt.date()-now.date()).days
+    days_diff = (dt.date() - now.date()).days
 
     # 时间部分
     hour = dt.hour
@@ -330,11 +330,11 @@ def format_time_friendly(timestamp):
     elif hour < 18:
         period = "下午"
         if hour > 12:
-            hour = hour-12
+            hour = hour - 12
     else:
         period = "晚上"
         if hour > 12:
-            hour = hour-12
+            hour = hour - 12
 
     time_str = f"{period}{hour}点"
     if minute > 0:

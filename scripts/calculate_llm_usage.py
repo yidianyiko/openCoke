@@ -177,13 +177,13 @@ def main():
             active_days = 0
             active_weeks = 0
             if first_message_time:
-                active_seconds = current_time-first_message_time
+                active_seconds = current_time - first_message_time
                 active_days = max(1, active_seconds / (24 * 3600))  # 至少为1天
                 active_weeks = max(1, active_days / 7)  # 至少为1周
 
             # 计算日均和周均调用次数
-            daily_avg = total_count/active_days if active_days > 0 else 0
-            weekly_avg = total_count/active_weeks if active_weeks > 0 else 0
+            daily_avg = total_count / active_days if active_days > 0 else 0
+            weekly_avg = total_count / active_weeks if active_weeks > 0 else 0
 
             total_input_messages += input_count
             total_output_messages += output_count
@@ -225,17 +225,17 @@ def main():
         # 计算平均调用次数（过滤后用户）
         avg_total_calls_filtered = (
             (total_input_messages_filtered + total_output_messages_filtered)
-           /filtered_user_count
+            / filtered_user_count
             if filtered_user_count > 0
             else 0
         )
         avg_input_calls_filtered = (
-            total_input_messages_filtered/filtered_user_count
+            total_input_messages_filtered / filtered_user_count
             if filtered_user_count > 0
             else 0
         )
         avg_output_calls_filtered = (
-            total_output_messages_filtered/filtered_user_count
+            total_output_messages_filtered / filtered_user_count
             if filtered_user_count > 0
             else 0
         )
@@ -320,7 +320,7 @@ def main():
             total_input_messages_filtered + total_output_messages_filtered
         ) * 1000
         estimated_cost = (total_tokens / 1000000) * 0.50
-        estimated_cost_filtered = (total_tokens_filtered/1000000) * 0.50
+        estimated_cost_filtered = (total_tokens_filtered / 1000000) * 0.50
         print(f"- 总token消耗估算: {total_tokens:,}")
         print(f"- 总预估费用: ${estimated_cost:.2f}")
         print(f"- 过滤后token消耗估算: {total_tokens_filtered:,}")
