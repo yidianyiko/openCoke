@@ -96,8 +96,9 @@ def web_search_tool(
 
             data = response.json()
 
-            # 解析搜索结果
-            web_pages = data.get("webPages", {}).get("value", [])
+            # 解析搜索结果（API 返回结构: {code, data: {webPages: {value: [...]}}}）
+            inner_data = data.get("data", data)
+            web_pages = inner_data.get("webPages", {}).get("value", [])
             if not web_pages:
                 return {
                     "ok": True,
