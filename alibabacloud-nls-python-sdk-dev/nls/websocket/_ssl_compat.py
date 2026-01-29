@@ -16,15 +16,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 __all__ = ["HAVE_SSL", "ssl", "SSLError", "SSLWantReadError", "SSLWantWriteError"]
 
 try:
     import ssl
-    from ssl import SSLError
-    from ssl import SSLWantReadError
-    from ssl import SSLWantWriteError
+    from ssl import SSLError, SSLWantReadError, SSLWantWriteError
+
     HAVE_CONTEXT_CHECK_HOSTNAME = False
-    if hasattr(ssl, 'SSLContext') and hasattr(ssl.SSLContext, 'check_hostname'):
+    if hasattr(ssl, "SSLContext") and hasattr(ssl.SSLContext, "check_hostname"):
         HAVE_CONTEXT_CHECK_HOSTNAME = True
 
     __all__.append("HAVE_CONTEXT_CHECK_HOSTNAME")

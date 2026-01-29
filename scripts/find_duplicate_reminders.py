@@ -64,7 +64,7 @@ def find_duplicate_reminders():
                 status = reminder.get("status", "")
 
                 # 将时间四舍五入到5分钟以内，用于分组
-                time_key = round(trigger_time/300) * 300 if trigger_time else 0
+                time_key = round(trigger_time / 300) * 300 if trigger_time else 0
 
                 # 仅使用时间作为键（忽略标题）
                 key = time_key
@@ -79,7 +79,7 @@ def find_duplicate_reminders():
                     max_time = max(times)
 
                     # 如果最大时间差超过5分钟，则不是重复提醒
-                    if max_time-min_time <= 300:  # 5分钟 = 300秒
+                    if max_time - min_time <= 300:  # 5分钟 = 300秒
                         duplicates.append((user_id, time_key, group))
         # 显示结果
         if not duplicates:

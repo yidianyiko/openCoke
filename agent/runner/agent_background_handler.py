@@ -623,7 +623,7 @@ def _group_reminders_by_time(
     - 8:00:00 - 8:04:59 → bucket 0
     - 8:05:00 - 8:09:59 → bucket 300
     - 8:10:00 - 8:14:59 → bucket 600
-    
+
     注意：跨桶边界的提醒不会合并（如 8:04:59 和 8:05:01 属于不同桶）
 
     Args:
@@ -768,9 +768,7 @@ async def _process_single_reminder(reminder: dict, now: int, reminder_dao) -> No
                 logger.warning(f"[REMINDER] 锁释放异常: {reason}")
 
 
-async def _process_reminder_group(
-    reminder_group: list, now: int, reminder_dao
-) -> None:
+async def _process_reminder_group(reminder_group: list, now: int, reminder_dao) -> None:
     """处理同一时间触发的多个提醒（合并为单条消息）
 
     Args:

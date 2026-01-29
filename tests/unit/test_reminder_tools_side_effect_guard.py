@@ -5,17 +5,37 @@ import pytest
 
 
 @pytest.mark.unit
-def test_complete_blocks_without_intent_or_keyword_in_user_text(sample_context, monkeypatch):
+def test_complete_blocks_without_intent_or_keyword_in_user_text(
+    sample_context, monkeypatch
+):
     from agent.agno_agent.tools import reminder_tools
 
     class FakeReminderDAO:
         def __init__(self, *args, **kwargs):
             pass
 
-        def filter_reminders(self, user_id, status_list=None, reminder_type=None, keyword=None, trigger_after=None, trigger_before=None):
+        def filter_reminders(
+            self,
+            user_id,
+            status_list=None,
+            reminder_type=None,
+            keyword=None,
+            trigger_after=None,
+            trigger_before=None,
+        ):
             return [
-                {"reminder_id": "r1", "title": "休息", "next_trigger_time": 1737314400, "status": "active"},
-                {"reminder_id": "r2", "title": "喝水", "next_trigger_time": 1737318000, "status": "active"},
+                {
+                    "reminder_id": "r1",
+                    "title": "休息",
+                    "next_trigger_time": 1737314400,
+                    "status": "active",
+                },
+                {
+                    "reminder_id": "r2",
+                    "title": "喝水",
+                    "next_trigger_time": 1737318000,
+                    "status": "active",
+                },
             ]
 
         def complete_reminders_by_keyword(self, user_id, keyword):
@@ -27,7 +47,11 @@ def test_complete_blocks_without_intent_or_keyword_in_user_text(sample_context, 
     monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
-        {"message_type": "text", "message": "就这样吧，我先去吃饭", "input_timestamp": 1737314222}
+        {
+            "message_type": "text",
+            "message": "就这样吧，我先去吃饭",
+            "input_timestamp": 1737314222,
+        }
     ]
     reminder_tools.set_reminder_session_state(sample_context)
 
@@ -54,9 +78,22 @@ def test_complete_allows_when_active_title_in_user_text_even_if_keyword_wrong(
         def __init__(self, *args, **kwargs):
             pass
 
-        def filter_reminders(self, user_id, status_list=None, reminder_type=None, keyword=None, trigger_after=None, trigger_before=None):
+        def filter_reminders(
+            self,
+            user_id,
+            status_list=None,
+            reminder_type=None,
+            keyword=None,
+            trigger_after=None,
+            trigger_before=None,
+        ):
             return [
-                {"reminder_id": "r1", "title": "休息", "next_trigger_time": 1737314400, "status": "active"}
+                {
+                    "reminder_id": "r1",
+                    "title": "休息",
+                    "next_trigger_time": 1737314400,
+                    "status": "active",
+                }
             ]
 
         def complete_reminders_by_keyword(self, user_id, keyword):
@@ -69,7 +106,11 @@ def test_complete_allows_when_active_title_in_user_text_even_if_keyword_wrong(
     monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
-        {"message_type": "text", "message": "帮我把休息提醒完成掉", "input_timestamp": 1737314222}
+        {
+            "message_type": "text",
+            "message": "帮我把休息提醒完成掉",
+            "input_timestamp": 1737314222,
+        }
     ]
     reminder_tools.set_reminder_session_state(sample_context)
 
@@ -82,20 +123,37 @@ def test_complete_allows_when_active_title_in_user_text_even_if_keyword_wrong(
 
 
 @pytest.mark.unit
-def test_complete_blocks_even_if_intent_only_and_single_candidate(sample_context, monkeypatch):
+def test_complete_blocks_even_if_intent_only_and_single_candidate(
+    sample_context, monkeypatch
+):
     from agent.agno_agent.tools import reminder_tools
 
     class FakeReminderDAO:
         def __init__(self, *args, **kwargs):
             pass
 
-        def filter_reminders(self, user_id, status_list=None, reminder_type=None, keyword=None, trigger_after=None, trigger_before=None):
+        def filter_reminders(
+            self,
+            user_id,
+            status_list=None,
+            reminder_type=None,
+            keyword=None,
+            trigger_after=None,
+            trigger_before=None,
+        ):
             return [
-                {"reminder_id": "r9", "title": "喝水", "next_trigger_time": 1737314400, "status": "active"}
+                {
+                    "reminder_id": "r9",
+                    "title": "喝水",
+                    "next_trigger_time": 1737314400,
+                    "status": "active",
+                }
             ]
 
         def complete_reminders_by_keyword(self, user_id, keyword):
-            raise AssertionError("should not execute complete when keyword/title not in user text")
+            raise AssertionError(
+                "should not execute complete when keyword/title not in user text"
+            )
 
         def close(self):
             return None
@@ -103,7 +161,11 @@ def test_complete_blocks_even_if_intent_only_and_single_candidate(sample_context
     monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
-        {"message_type": "text", "message": "把提醒完成了", "input_timestamp": 1737314222}
+        {
+            "message_type": "text",
+            "message": "把提醒完成了",
+            "input_timestamp": 1737314222,
+        }
     ]
     reminder_tools.set_reminder_session_state(sample_context)
 
@@ -123,10 +185,28 @@ def test_delete_all_requires_explicit_all_words(sample_context, monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        def filter_reminders(self, user_id, status_list=None, reminder_type=None, keyword=None, trigger_after=None, trigger_before=None):
+        def filter_reminders(
+            self,
+            user_id,
+            status_list=None,
+            reminder_type=None,
+            keyword=None,
+            trigger_after=None,
+            trigger_before=None,
+        ):
             return [
-                {"reminder_id": "r1", "title": "休息", "next_trigger_time": 1737314400, "status": "active"},
-                {"reminder_id": "r2", "title": "喝水", "next_trigger_time": 1737318000, "status": "active"},
+                {
+                    "reminder_id": "r1",
+                    "title": "休息",
+                    "next_trigger_time": 1737314400,
+                    "status": "active",
+                },
+                {
+                    "reminder_id": "r2",
+                    "title": "喝水",
+                    "next_trigger_time": 1737318000,
+                    "status": "active",
+                },
             ]
 
         def delete_all_by_user(self, user_id):
@@ -138,7 +218,11 @@ def test_delete_all_requires_explicit_all_words(sample_context, monkeypatch):
     monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
-        {"message_type": "text", "message": "帮我把提醒删掉", "input_timestamp": 1737314222}
+        {
+            "message_type": "text",
+            "message": "帮我把提醒删掉",
+            "input_timestamp": 1737314222,
+        }
     ]
     reminder_tools.set_reminder_session_state(sample_context)
 
@@ -158,9 +242,22 @@ def test_batch_complete_is_guarded(sample_context, monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        def filter_reminders(self, user_id, status_list=None, reminder_type=None, keyword=None, trigger_after=None, trigger_before=None):
+        def filter_reminders(
+            self,
+            user_id,
+            status_list=None,
+            reminder_type=None,
+            keyword=None,
+            trigger_after=None,
+            trigger_before=None,
+        ):
             return [
-                {"reminder_id": "r1", "title": "休息", "next_trigger_time": 1737314400, "status": "active"}
+                {
+                    "reminder_id": "r1",
+                    "title": "休息",
+                    "next_trigger_time": 1737314400,
+                    "status": "active",
+                }
             ]
 
         def complete_reminders_by_keyword(self, user_id, keyword):
@@ -176,7 +273,9 @@ def test_batch_complete_is_guarded(sample_context, monkeypatch):
     ]
     reminder_tools.set_reminder_session_state(sample_context)
 
-    operations = json.dumps([{"action": "complete", "keyword": "休息"}], ensure_ascii=False)
+    operations = json.dumps(
+        [{"action": "complete", "keyword": "休息"}], ensure_ascii=False
+    )
     result = reminder_tools.reminder_tool.entrypoint(
         action="batch", session_state=sample_context, operations=operations
     )

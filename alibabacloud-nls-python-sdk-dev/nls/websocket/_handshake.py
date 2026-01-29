@@ -16,11 +16,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import hashlib
 import hmac
 import os
 from base64 import encodebytes as base64encode
 from http import client as HTTPStatus
+
 from ._cookiejar import SimpleCookieJar
 from ._exceptions import *
 from ._http import *
@@ -32,7 +34,11 @@ __all__ = ["handshake_response", "handshake", "SUPPORTED_REDIRECT_STATUSES"]
 # websocket supported version.
 VERSION = 13
 
-SUPPORTED_REDIRECT_STATUSES = (HTTPStatus.MOVED_PERMANENTLY, HTTPStatus.FOUND, HTTPStatus.SEE_OTHER,)
+SUPPORTED_REDIRECT_STATUSES = (
+    HTTPStatus.MOVED_PERMANENTLY,
+    HTTPStatus.FOUND,
+    HTTPStatus.SEE_OTHER,
+)
 SUCCESS_STATUSES = SUPPORTED_REDIRECT_STATUSES + (HTTPStatus.SWITCHING_PROTOCOLS,)
 
 CookieJar = SimpleCookieJar()
@@ -53,7 +59,7 @@ def handshake(sock, hostname, port, resource, **options):
     header_str = "\r\n".join(headers)
     send(sock, header_str)
     dump("request header", header_str)
-    #print("request header:", header_str)
+    # print("request header:", header_str)
 
     status, resp = _get_resp_headers(sock)
     if status in SUPPORTED_REDIRECT_STATUSES:
@@ -67,17 +73,14 @@ def handshake(sock, hostname, port, resource, **options):
 
 def _pack_hostname(hostname):
     # IPv6 address
-    if ':' in hostname:
-        return '[' + hostname + ']'
+    if ":" in hostname:
+        return "[" + hostname + "]"
 
     return hostname
 
 
 def _get_handshake_headers(resource, host, port, options):
-    headers = [
-        "GET %s HTTP/1.1" % resource,
-        "Upgrade: websocket"
-    ]
+    headers = ["GET %s HTTP/1.1" % resource, "Upgrade: websocket"]
     if port == 80 or port == 443:
         hostport = _pack_hostname(host)
     else:
@@ -96,19 +99,19 @@ def _get_handshake_headers(resource, host, port, options):
     key = _create_sec_websocket_key()
 
     # Append Sec-WebSocket-Key & Sec-WebSocket-Version if not manually specified
-    if 'header' not in options or 'Sec-WebSocket-Key' not in options['header']:
+    if "header" not in options or "Sec-WebSocket-Key" not in options["header"]:
         key = _create_sec_websocket_key()
         headers.append("Sec-WebSocket-Key: %s" % key)
     else:
-        key = options['header']['Sec-WebSocket-Key']
+        key = options["header"]["Sec-WebSocket-Key"]
 
-    if 'header' not in options or 'Sec-WebSocket-Version' not in options['header']:
+    if "header" not in options or "Sec-WebSocket-Version" not in options["header"]:
         headers.append("Sec-WebSocket-Version: %s" % VERSION)
 
-    if 'connection' not in options or options['connection'] is None:
-        headers.append('Connection: Upgrade')
+    if "connection" not in options or options["connection"] is None:
+        headers.append("Connection: Upgrade")
     else:
-        headers.append(options['connection'])
+        headers.append(options["connection"])
 
     subprotocols = options.get("subprotocols")
     if subprotocols:
@@ -117,11 +120,7 @@ def _get_handshake_headers(resource, host, port, options):
     if "header" in options:
         header = options["header"]
         if isinstance(header, dict):
-            header = [
-                ": ".join([k, v])
-                for k, v in header.items()
-                if v is not None
-            ]
+            header = [": ".join([k, v]) for k, v in header.items() if v is not None]
         headers.extend(header)
 
     server_cookie = CookieJar.get(host)
@@ -141,7 +140,9 @@ def _get_handshake_headers(resource, host, port, options):
 def _get_resp_headers(sock, success_statuses=SUCCESS_STATUSES):
     status, resp_headers, status_message = read_headers(sock)
     if status not in success_statuses:
-        raise WebSocketBadStatusException("Handshake status %d %s", status, status_message, resp_headers)
+        raise WebSocketBadStatusException(
+            "Handshake status %d %s", status, status_message, resp_headers
+        )
     return status, resp_headers
 
 
@@ -157,7 +158,7 @@ def _validate(headers, key, subprotocols):
         r = headers.get(k, None)
         if not r:
             return False, None
-        r = [x.strip().lower() for x in r.split(',')]
+        r = [x.strip().lower() for x in r.split(",")]
         if v not in r:
             return False, None
 
@@ -174,9 +175,9 @@ def _validate(headers, key, subprotocols):
     result = result.lower()
 
     if isinstance(result, str):
-        result = result.encode('utf-8')
+        result = result.encode("utf-8")
 
-    value = (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode('utf-8')
+    value = (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("utf-8")
     hashed = base64encode(hashlib.sha1(value).digest()).strip().lower()
     success = hmac.compare_digest(hashed, result)
 
@@ -188,4 +189,4 @@ def _validate(headers, key, subprotocols):
 
 def _create_sec_websocket_key():
     randomness = os.urandom(16)
-    return base64encode(randomness).decode('utf-8').strip()
+    return base64encode(randomness).decode("utf-8").strip()

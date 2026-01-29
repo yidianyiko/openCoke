@@ -53,7 +53,7 @@ def get_time_status(ts, status=None):
         return "无计划"
     now = int(time.time())
     if ts <= now:
-        diff = now-ts
+        diff = now - ts
         if diff < 60:
             return f"已到期 ({diff}秒前)"
         elif diff < 3600:
@@ -61,7 +61,7 @@ def get_time_status(ts, status=None):
         else:
             return f"已到期 ({diff // 3600}小时前)"
     else:
-        diff = ts-now
+        diff = ts - now
         if diff < 60:
             return f"待触发 ({diff}秒后)"
         elif diff < 3600:

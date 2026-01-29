@@ -13,8 +13,9 @@
 8. 上下文检索结果验证
 9. 边缘情况处理
 """
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 
 @pytest.mark.e2e
@@ -490,7 +491,9 @@ class TestRelationshipLevels:
 
     def test_regular_user_relation_context(self):
         """测试普通用户关系 context（中等亲密度 30-60）"""
-        from tests.fixtures.sample_contexts import get_context_with_regular_user_relation
+        from tests.fixtures.sample_contexts import (
+            get_context_with_regular_user_relation,
+        )
 
         ctx = get_context_with_regular_user_relation()
         relation = ctx["relation"]
@@ -607,7 +610,9 @@ class TestMultimodalInputs:
 
     def test_multiple_text_messages(self):
         """测试多条连续文本消息"""
-        from tests.fixtures.sample_contexts import get_context_with_multiple_text_messages
+        from tests.fixtures.sample_contexts import (
+            get_context_with_multiple_text_messages,
+        )
 
         ctx = get_context_with_multiple_text_messages()
         input_msgs = ctx["conversation"]["conversation_info"]["input_messages"]
@@ -618,7 +623,9 @@ class TestMultimodalInputs:
 
     def test_mixed_multimodal_input(self):
         """测试混合多模态输入"""
-        from tests.fixtures.sample_contexts import get_context_with_mixed_multimodal_input
+        from tests.fixtures.sample_contexts import (
+            get_context_with_mixed_multimodal_input,
+        )
 
         ctx = get_context_with_mixed_multimodal_input()
         input_msgs = ctx["conversation"]["conversation_info"]["input_messages"]
@@ -646,7 +653,9 @@ class TestMultimodalInputs:
 
     def test_voice_transcription_error(self):
         """测试语音转写失败场景"""
-        from tests.fixtures.sample_messages import get_voice_message_with_transcription_error
+        from tests.fixtures.sample_messages import (
+            get_voice_message_with_transcription_error,
+        )
 
         msg = get_voice_message_with_transcription_error()
         assert msg["transcription_status"] == "failed"
@@ -711,7 +720,9 @@ class TestEdgeCaseInputs:
         from tests.fixtures.sample_contexts import get_context_with_unicode_content
 
         ctx = get_context_with_unicode_content()
-        content = ctx["conversation"]["conversation_info"]["input_messages"][0]["content"]
+        content = ctx["conversation"]["conversation_info"]["input_messages"][0][
+            "content"
+        ]
 
         assert "😀" in content
         assert "🎉" in content
@@ -721,7 +732,9 @@ class TestEdgeCaseInputs:
         from tests.fixtures.sample_contexts import get_context_with_html_injection
 
         ctx = get_context_with_html_injection()
-        content = ctx["conversation"]["conversation_info"]["input_messages"][0]["content"]
+        content = ctx["conversation"]["conversation_info"]["input_messages"][0][
+            "content"
+        ]
 
         assert "<script>" in content
         # 验证内容被保留（稍后应该被转义或清理）
@@ -731,7 +744,9 @@ class TestEdgeCaseInputs:
         from tests.fixtures.sample_contexts import get_context_with_sql_injection
 
         ctx = get_context_with_sql_injection()
-        content = ctx["conversation"]["conversation_info"]["input_messages"][0]["content"]
+        content = ctx["conversation"]["conversation_info"]["input_messages"][0][
+            "content"
+        ]
 
         assert "DROP TABLE" in content
 
@@ -783,8 +798,9 @@ class TestProactiveMessages:
 
     def test_expired_proactive_context(self):
         """测试过期主动消息context"""
-        from tests.fixtures.sample_contexts import get_context_for_expired_proactive
         import time
+
+        from tests.fixtures.sample_contexts import get_context_for_expired_proactive
 
         ctx = get_context_for_expired_proactive()
         future = ctx["conversation"]["conversation_info"]["future"]
@@ -817,7 +833,7 @@ class TestDuplicateDetection:
         messages = get_rapid_fire_messages(count=10)
 
         for i in range(1, len(messages)):
-            assert messages[i]["timestamp"] >= messages[i-1]["timestamp"]
+            assert messages[i]["timestamp"] >= messages[i - 1]["timestamp"]
 
     def test_duplicate_messages_detection(self):
         """测试重复消息内容检测"""
@@ -930,8 +946,9 @@ class TestMessageTypeValidation:
 
     def test_future_timestamp_message(self):
         """测试未来时间戳消息"""
-        from tests.fixtures.sample_messages import get_message_with_future_timestamp
         import time
+
+        from tests.fixtures.sample_messages import get_message_with_future_timestamp
 
         msg = get_message_with_future_timestamp()
         assert msg["timestamp"] > int(time.time())
@@ -1001,7 +1018,9 @@ class TestContextRetrieve:
         from tests.fixtures.sample_contexts import get_context_for_reminder_cancellation
 
         ctx = get_context_for_reminder_cancellation()
-        content = ctx["conversation"]["conversation_info"]["input_messages"][0]["content"]
+        content = ctx["conversation"]["conversation_info"]["input_messages"][0][
+            "content"
+        ]
 
         assert "取消" in content
 

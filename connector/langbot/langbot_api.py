@@ -1,4 +1,5 @@
 """LangBot HTTP API client."""
+
 import requests
 
 from util.log_util import get_logger

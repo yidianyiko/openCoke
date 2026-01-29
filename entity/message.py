@@ -95,19 +95,19 @@ def find_one_byid(message_id, message_type="inputmessages"):
 
 def update_message_status_safe(message_id, new_status, expected_status="pending"):
     """
-    乐观锁更新消息状态：只有当状态是预期值时才更新
+     乐观锁更新消息状态：只有当状态是预期值时才更新
 
-    解决问题：
-   -P9: 锁超时后原 Worker 和新 Worker 同时处理同一消息
-   -MT-4: 锁超时后重复处理
+     解决问题：
+    -P9: 锁超时后原 Worker 和新 Worker 同时处理同一消息
+    -MT-4: 锁超时后重复处理
 
-    Args:
-        message_id: 消息ID
-        new_status: 新状态
-        expected_status: 预期的当前状态（默认 pending）
+     Args:
+         message_id: 消息ID
+         new_status: 新状态
+         expected_status: 预期的当前状态（默认 pending）
 
-    Returns:
-        bool: 是否更新成功
+     Returns:
+         bool: 是否更新成功
     """
     modified_count = _mongo.update_one(
         "inputmessages",

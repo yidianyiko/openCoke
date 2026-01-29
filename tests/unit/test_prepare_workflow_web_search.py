@@ -3,8 +3,9 @@
 PrepareWorkflow Web Search Integration Tests
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 
 class TestPrepareWorkflowWebSearch:
@@ -29,20 +30,33 @@ class TestPrepareWorkflowWebSearch:
             "web_search_query": "杭州今天天气",
         }
 
-        with patch('agent.agno_agent.workflows.prepare_workflow.orchestrator_agent') as mock_orch, \
-             patch('agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool') as mock_ctx, \
-             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint') as mock_search:
+        with (
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+            ) as mock_orch,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+            ) as mock_ctx,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint"
+            ) as mock_search,
+        ):
 
             mock_orch.arun = AsyncMock(return_value=mock_orchestrator_response)
             mock_ctx.return_value = {"character_global": "", "user": ""}
             mock_search.return_value = {
                 "ok": True,
                 "results": [{"title": "天气", "snippet": "晴天"}],
-                "formatted": "【联网搜索结果】\n1. 天气 - 晴天"
+                "formatted": "【联网搜索结果】\n1. 天气 - 晴天",
             }
 
             session_state = {
-                "conversation": {"conversation_info": {"time_str": "2026年01月28日", "chat_history": []}},
+                "conversation": {
+                    "conversation_info": {
+                        "time_str": "2026年01月28日",
+                        "chat_history": [],
+                    }
+                },
                 "character": {"_id": "char1"},
                 "user": {"_id": "user1"},
             }
@@ -74,15 +88,28 @@ class TestPrepareWorkflowWebSearch:
             "web_search_query": "",
         }
 
-        with patch('agent.agno_agent.workflows.prepare_workflow.orchestrator_agent') as mock_orch, \
-             patch('agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool') as mock_ctx, \
-             patch('agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint') as mock_search:
+        with (
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+            ) as mock_orch,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+            ) as mock_ctx,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.web_search_tool.entrypoint"
+            ) as mock_search,
+        ):
 
             mock_orch.arun = AsyncMock(return_value=mock_orchestrator_response)
             mock_ctx.return_value = {"character_global": "", "user": ""}
 
             session_state = {
-                "conversation": {"conversation_info": {"time_str": "2026年01月28日", "chat_history": []}},
+                "conversation": {
+                    "conversation_info": {
+                        "time_str": "2026年01月28日",
+                        "chat_history": [],
+                    }
+                },
                 "character": {"_id": "char1"},
                 "user": {"_id": "user1"},
             }

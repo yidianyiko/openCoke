@@ -1,6 +1,4 @@
-"""
-
-"""
+""" """
 
 """
 _socket.py
@@ -29,19 +27,26 @@ from ._ssl_compat import *
 from ._utils import *
 
 DEFAULT_SOCKET_OPTION = [(socket.SOL_TCP, socket.TCP_NODELAY, 1)]
-#if hasattr(socket, "SO_KEEPALIVE"):
+# if hasattr(socket, "SO_KEEPALIVE"):
 #    DEFAULT_SOCKET_OPTION.append((socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1))
-#if hasattr(socket, "TCP_KEEPIDLE"):
+# if hasattr(socket, "TCP_KEEPIDLE"):
 #    DEFAULT_SOCKET_OPTION.append((socket.SOL_TCP, socket.TCP_KEEPIDLE, 30))
-#if hasattr(socket, "TCP_KEEPINTVL"):
+# if hasattr(socket, "TCP_KEEPINTVL"):
 #    DEFAULT_SOCKET_OPTION.append((socket.SOL_TCP, socket.TCP_KEEPINTVL, 10))
-#if hasattr(socket, "TCP_KEEPCNT"):
+# if hasattr(socket, "TCP_KEEPCNT"):
 #    DEFAULT_SOCKET_OPTION.append((socket.SOL_TCP, socket.TCP_KEEPCNT, 3))
 
 _default_timeout = None
 
-__all__ = ["DEFAULT_SOCKET_OPTION", "sock_opt", "setdefaulttimeout", "getdefaulttimeout",
-           "recv", "recv_line", "send"]
+__all__ = [
+    "DEFAULT_SOCKET_OPTION",
+    "sock_opt",
+    "setdefaulttimeout",
+    "getdefaulttimeout",
+    "recv",
+    "recv_line",
+    "send",
+]
 
 
 class sock_opt:
@@ -116,14 +121,13 @@ def recv(sock, bufsize):
         raise WebSocketTimeoutException(message)
     except SSLError as e:
         message = extract_err_message(e)
-        if isinstance(message, str) and 'timed out' in message:
+        if isinstance(message, str) and "timed out" in message:
             raise WebSocketTimeoutException(message)
         else:
             raise
 
     if not bytes_:
-        raise WebSocketConnectionClosedException(
-            "Connection to remote host was lost.")
+        raise WebSocketConnectionClosedException("Connection to remote host was lost.")
 
     return bytes_
 
@@ -133,14 +137,14 @@ def recv_line(sock):
     while True:
         c = recv(sock, 1)
         line.append(c)
-        if c == b'\n':
+        if c == b"\n":
             break
-    return b''.join(line)
+    return b"".join(line)
 
 
 def send(sock, data):
     if isinstance(data, str):
-        data = data.encode('utf-8')
+        data = data.encode("utf-8")
 
     if not sock:
         raise WebSocketConnectionClosedException("socket is already closed.")

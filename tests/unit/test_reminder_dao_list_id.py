@@ -5,8 +5,9 @@ import pytest
 @pytest.mark.integration
 def test_list_id_defaults_to_inbox():
     """测试 list_id 默认值为 inbox"""
-    from dao.reminder_dao import ReminderDAO
     import time
+
+    from dao.reminder_dao import ReminderDAO
 
     dao = ReminderDAO()
 
@@ -26,7 +27,9 @@ def test_list_id_defaults_to_inbox():
     assert inserted_id is not None
 
     # 获取创建的提醒
-    reminder = dao.collection.find_one({"user_id": "test_user", "title": "test reminder"})
+    reminder = dao.collection.find_one(
+        {"user_id": "test_user", "title": "test reminder"}
+    )
 
     # 验证 list_id 为 inbox
     assert reminder["list_id"] == "inbox"
@@ -39,25 +42,30 @@ def test_list_id_defaults_to_inbox():
 @pytest.mark.integration
 def test_create_reminder_with_custom_list_id():
     """测试创建提醒时可以指定自定义 list_id"""
-    from dao.reminder_dao import ReminderDAO
     import time
+
+    from dao.reminder_dao import ReminderDAO
 
     dao = ReminderDAO()
 
     # 先清理可能存在的旧数据
-    dao.collection.delete_many({"user_id": "test_user", "title": "test reminder with custom list"})
+    dao.collection.delete_many(
+        {"user_id": "test_user", "title": "test reminder with custom list"}
+    )
 
     reminder_data = {
         "user_id": "test_user",
         "title": "test reminder with custom list",
         "next_trigger_time": int(time.time()) + 3600,
-        "list_id": "work"  # 自定义 list_id
+        "list_id": "work",  # 自定义 list_id
     }
 
     inserted_id = dao.create_reminder(reminder_data)
     assert inserted_id is not None
 
-    reminder = dao.collection.find_one({"user_id": "test_user", "title": "test reminder with custom list"})
+    reminder = dao.collection.find_one(
+        {"user_id": "test_user", "title": "test reminder with custom list"}
+    )
     assert reminder["list_id"] == "work"
 
     # 清理
@@ -76,7 +84,7 @@ def test_create_reminder_without_trigger_time():
         "user_id": "test_user",
         "title": "buy milk",
         "next_trigger_time": None,  # 无触发时间
-        "list_id": "inbox"
+        "list_id": "inbox",
     }
 
     inserted_id = dao.create_reminder(reminder_data)
@@ -94,8 +102,9 @@ def test_create_reminder_without_trigger_time():
 @pytest.mark.integration
 def test_find_reminders_by_user_includes_null_trigger_time():
     """测试查询用户提醒时包含无时间的任务"""
-    from dao.reminder_dao import ReminderDAO
     import time
+
+    from dao.reminder_dao import ReminderDAO
 
     dao = ReminderDAO()
 
@@ -105,7 +114,7 @@ def test_find_reminders_by_user_includes_null_trigger_time():
         "title": "reminder with time",
         "next_trigger_time": int(time.time()) + 3600,
         "list_id": "inbox",
-        "status": "active"
+        "status": "active",
     }
     dao.create_reminder(reminder_with_time)
 
@@ -115,7 +124,7 @@ def test_find_reminders_by_user_includes_null_trigger_time():
         "title": "reminder without time",
         "next_trigger_time": None,
         "list_id": "inbox",
-        "status": "active"
+        "status": "active",
     }
     dao.create_reminder(reminder_no_time)
 
@@ -132,4 +141,3 @@ def test_find_reminders_by_user_includes_null_trigger_time():
     # 清理
     dao.collection.delete_many({"user_id": "test_user_2"})
     dao.close()
-

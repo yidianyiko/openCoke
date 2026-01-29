@@ -306,6 +306,7 @@ class TestReminderDAOBugs:
             # 如果直接用于 regex，可能导致意外匹配或错误
             try:
                 import re
+
                 pattern = re.compile(keyword)
             except re.error:
                 # 某些关键字会导致正则错误
@@ -519,7 +520,10 @@ class TestMemoryPerformanceBugs:
         """BUG检测: 大列表内存使用"""
         # 创建一个包含 10000 条消息的历史
         large_history = [
-            {"role": "user" if i % 2 == 0 else "assistant", "message": f"消息内容_{i}" * 100}
+            {
+                "role": "user" if i % 2 == 0 else "assistant",
+                "message": f"消息内容_{i}" * 100,
+            }
             for i in range(10000)
         ]
 
@@ -530,15 +534,7 @@ class TestMemoryPerformanceBugs:
         """BUG检测: 深拷贝性能"""
         import copy
 
-        complex_data = {
-            "level1": {
-                "level2": {
-                    "level3": {
-                        "data": list(range(1000))
-                    }
-                }
-            }
-        }
+        complex_data = {"level1": {"level2": {"level3": {"data": list(range(1000))}}}}
 
         start = time.time()
         for _ in range(100):
@@ -618,7 +614,7 @@ class TestBugSummary:
 
         # 记录发现的问题数量
         assert len(potential_bugs) >= 1
-        
+
         # 输出问题汇总
         for bug in potential_bugs:
             print(f"\n{bug['id']} [{bug['severity'].upper()}]")

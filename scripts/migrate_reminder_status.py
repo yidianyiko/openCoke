@@ -25,8 +25,9 @@ from datetime import datetime
 
 sys.path.append(".")
 
-from conf.config import CONF
 from pymongo import MongoClient
+
+from conf.config import CONF
 from util.log_util import get_logger
 
 logger = get_logger(__name__)

@@ -1,14 +1,20 @@
 import sys
+
 sys.path.append(".")
-import time
 import argparse
+import time
+
 from dao.mongo import MongoDBBase
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Insert a pending LangBot outputmessage for testing.")
+    parser = argparse.ArgumentParser(
+        description="Insert a pending LangBot outputmessage for testing."
+    )
     parser.add_argument("--bot-uuid", required=True, help="LangBot bot UUID")
-    parser.add_argument("--target-type", choices=["person", "group"], required=True, help="Target type")
+    parser.add_argument(
+        "--target-type", choices=["person", "group"], required=True, help="Target type"
+    )
     parser.add_argument("--target-id", required=True, help="Target user/group ID")
     parser.add_argument("--text", required=True, help="Text to send")
     args = parser.parse_args()
@@ -36,4 +42,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
