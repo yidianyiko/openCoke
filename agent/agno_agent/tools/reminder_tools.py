@@ -424,11 +424,7 @@ def _save_reminder_result_to_session(
 - recurrence_type: 周期类型，可选值: "none"(默认)、"daily"、"weekly"、"monthly"、"interval"
 - recurrence_interval: 周期间隔数，默认1（interval类型时单位为分钟）
 - period_start/period_end: 时间段，格式 "HH:MM"
-- period_days: 生效星期，格式 "1,2,3,4,5"
-
-### GTD 无时间任务支持（P0）
-- 创建提醒时 trigger_time 可以为 None，任务会存入 inbox（list_id="inbox"）
-- 无时间任务不会被定时触发，需要用户手动查看或通过每日汇总了解（P1 功能）
+- period_days: 生效星期，格式 "1,2,3,4,5，6，7"
 
 ### 重复提醒频率限制（系统强制执行）
 - 分钟级别（interval < 60分钟）的无限重复提醒：禁止创建（频率过高会导致服务被限制）

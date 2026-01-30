@@ -21,6 +21,7 @@ class TestPrepareWorkflowWebSearch:
         # Mock orchestrator_agent 返回 need_web_search=True
         mock_orchestrator_response = MagicMock()
         mock_orchestrator_response.content = MagicMock()
+        mock_orchestrator_response.metrics = None
         mock_orchestrator_response.content.model_dump.return_value = {
             "inner_monologue": "用户询问天气",
             "need_context_retrieve": True,
@@ -79,6 +80,7 @@ class TestPrepareWorkflowWebSearch:
 
         mock_orchestrator_response = MagicMock()
         mock_orchestrator_response.content = MagicMock()
+        mock_orchestrator_response.metrics = None
         mock_orchestrator_response.content.model_dump.return_value = {
             "inner_monologue": "普通闲聊",
             "need_context_retrieve": True,

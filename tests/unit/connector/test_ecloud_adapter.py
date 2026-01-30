@@ -1,280 +1,168 @@
+# -*- coding: utf-8 -*-
+"""
+Unit tests for Ecloud Adapter (migrated)
+"""
+
 import pytest
 
-
-class TestIsGroupMessage:
-    """Test group message detection."""
-
-    def test_group_text_message(self):
-        """80001 should be detected as group message."""
-        from connector.ecloud.ecloud_adapter import is_group_message
-
-        data = {"messageType": "80001"}
-        assert is_group_message(data) is True
-
-    def test_group_image_message(self):
-        """80002 should be detected as group message."""
-        from connector.ecloud.ecloud_adapter import is_group_message
-
-        data = {"messageType": "80002"}
-        assert is_group_message(data) is True
-
-    def test_private_text_message(self):
-        """60001 should not be detected as group message."""
-        from connector.ecloud.ecloud_adapter import is_group_message
-
-        data = {"messageType": "60001"}
-        assert is_group_message(data) is False
-
-    def test_private_image_message(self):
-        """60002 should not be detected as group message."""
-        from connector.ecloud.ecloud_adapter import is_group_message
-
-        data = {"messageType": "60002"}
-        assert is_group_message(data) is False
+from connector.adapters.ecloud.ecloud_adapter import EcloudAdapter
+from connector.channel.types import MessageType, ChatType
 
 
-class TestEcloudMessageToStdGroup:
-    """Test group message conversion to standard format."""
+class TestEcloudAdapter:
+    """Test Ecloud adapter (WeChat) message conversion."""
 
-    def test_group_text_message_sets_chatroom_name(self):
-        """Group text message should have chatroom_name set."""
-        from connector.ecloud.ecloud_adapter import ecloud_message_to_std
+    def setup_method(self):
+        """Create adapter instance for testing."""
+        self.adapter = EcloudAdapter(
+            bot_wxid="wxid_bot123",
+            bot_nickname="TestBot",
+        )
 
-        message = {
-            "messageType": "80001",
+    def test_channel_properties(self):
+        """Test adapter channel properties."""
+        assert self.adapter.channel_id == "wechat"
+        assert "WeChat" in self.adapter.display_name
+        assert "Ecloud" in self.adapter.display_name
+        assert self.adapter.delivery_mode.value == "polling"
+
+    def test_capabilities(self):
+        """Test adapter capabilities."""
+        caps = self.adapter.capabilities
+        assert MessageType.TEXT in caps.message_types
+        assert MessageType.IMAGE in caps.message_types
+        assert MessageType.VOICE in caps.message_types
+        assert MessageType.REFERENCE in caps.message_types
+        assert ChatType.PRIVATE in caps.chat_types
+        assert ChatType.GROUP in caps.chat_types
+        assert caps.supports_mention is True
+
+    def test_to_standard_private_text(self):
+        """Test converting private text message."""
+        ecloud_message = {
+            "account": "15618861103",
             "data": {
-                "fromUser": "wxid_sender",
-                "fromGroup": "12345678@chatroom",
-                "toUser": "wxid_bot",
-                "content": "Hello group",
-                "timestamp": 1640845960,
+                "content": "hello",
+                "fromUser": "wxid_user123",
+                "msgId": 1052001123,
+                "newMsgId": 3166120021925175285,
+                "sel": False,
+                "timestamp": 1640594470,
+                "toUser": "wxid_bot123",
+                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
             },
-        }
-
-        result = ecloud_message_to_std(message)
-
-        assert result["chatroom_name"] == "12345678@chatroom"
-        assert result["message"] == "Hello group"
-        assert result["message_type"] == "text"
-        assert result["platform"] == "wechat"
-
-    def test_private_text_message_chatroom_name_is_none(self):
-        """Private text message should have chatroom_name as None."""
-        from connector.ecloud.ecloud_adapter import ecloud_message_to_std
-
-        message = {
             "messageType": "60001",
+            "wcId": "wxid_bot123"
+        }
+
+        std_msg = self.adapter.to_standard(ecloud_message)
+
+        assert std_msg.platform == "wechat"
+        assert std_msg.chat_type == ChatType.PRIVATE
+        assert std_msg.from_user == "wxid_user123"
+        assert std_msg.to_user == "wxid_bot123"
+        assert std_msg.message_type == MessageType.TEXT
+        assert std_msg.content == "hello"
+        assert std_msg.metadata["ecloud_msg_type"] == "60001"
+
+    def test_to_standard_group_text(self):
+        """Test converting group text message."""
+        ecloud_message = {
+            "account": "15618861103",
             "data": {
-                "fromUser": "wxid_sender",
-                "toUser": "wxid_bot",
-                "content": "Hello private",
-                "timestamp": 1640845960,
+                "content": "hello group",
+                "fromUser": "wxid_user456",
+                "fromGroup": "123456789@chatroom",
+                "msgId": 1052001124,
+                "newMsgId": 3166120021925175286,
+                "timestamp": 1640594471,
+                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
             },
+            "messageType": "80001",
         }
 
-        result = ecloud_message_to_std(message)
+        std_msg = self.adapter.to_standard(ecloud_message)
 
-        assert result["chatroom_name"] is None
-        assert result["message"] == "Hello private"
+        assert std_msg.chat_type == ChatType.GROUP
+        assert std_msg.chatroom_id == "123456789@chatroom"
+        assert std_msg.content == "hello group"
 
-    def test_group_message_extracts_sender_wxid(self):
-        """Group message should extract sender wxid to metadata."""
-        from connector.ecloud.ecloud_adapter import ecloud_message_to_std
+    def test_to_standard_reference(self):
+        """Test converting reference message."""
+        import xml.etree.ElementTree as ET
 
-        message = {
-            "messageType": "80001",
+        xml_content = '''<?xml version="1.0"?>
+<msg>
+    <appmsg appid="" sdkver="0">
+        <title>好的</title>
+        <refermsg>
+            <type>1</type>
+            <displayname>李洛云</displayname>
+            <content>这是引用的内容</content>
+        </refermsg>
+    </appmsg>
+</msg>'''
+
+        ecloud_message = {
             "data": {
-                "fromUser": "wxid_sender123",
-                "fromGroup": "12345678@chatroom",
-                "toUser": "wxid_bot",
-                "content": "Test message",
-                "timestamp": 1640845960,
+                "toUser": "wxid_bot123",
+                "msgId": 349799730,
+                "newMsgId": 6288973548168670026,
+                "wId": "ca9518dd-bec6-4421-b0f0-cbf81ecdb2f8",
+                "fromUser": "wxid_user789",
+                "title": "好的",
+                "content": xml_content,
+                "timestamp": 1748141489,
             },
+            "messageType": "60014",
         }
 
-        result = ecloud_message_to_std(message)
+        std_msg = self.adapter.to_standard(ecloud_message)
 
-        assert result["metadata"]["original_sender_wxid"] == "wxid_sender123"
+        assert std_msg.message_type == MessageType.REFERENCE
+        assert std_msg.content == "好的"
 
+    def test_is_mentioned_with_nickname(self):
+        """Test mention detection with nickname."""
+        from connector.channel.types import StandardMessage
 
-class TestShouldRespondToGroupMessage:
-    """Test group message response decision logic."""
-
-    def test_disabled_group_chat_returns_false(self):
-        """When group_chat.enabled is False, should not respond."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
-
-        config = {
-            "enabled": False,
-            "whitelist_groups": ["12345@chatroom"],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
-        }
-
-        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
-        assert result is False
-
-    def test_whitelist_group_all_mode_returns_true(self):
-        """Whitelist group with 'all' mode should respond to any message."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
-
-        config = {
-            "enabled": True,
-            "whitelist_groups": ["12345@chatroom"],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
-        }
-
-        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
-        assert result is True
-
-    def test_non_whitelist_group_without_mention_returns_false(self):
-        """Non-whitelist group without mention should not respond."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
-
-        config = {
-            "enabled": True,
-            "whitelist_groups": ["other_group@chatroom"],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {"fromGroup": "12345@chatroom", "content": "Hello"},
-        }
-
-        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
-        assert result is False
-
-    def test_non_whitelist_group_with_mention_returns_true(self):
-        """Non-whitelist group with @mention should respond."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
-
-        config = {
-            "enabled": True,
-            "whitelist_groups": [],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {"fromGroup": "12345@chatroom", "content": "@机器人 你好"},
-        }
-
-        result = should_respond_to_group_message(data, config, "wxid_bot", "机器人")
-        assert result is True
-
-    def test_non_whitelist_group_with_atlist_mention_returns_true(self):
-        """Non-whitelist group with atlist mention should respond (real E云format)."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
-
-        config = {
-            "enabled": True,
-            "whitelist_groups": [],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {
-                "fromGroup": "50088706710@chatroom",
-                "content": "@Coke\u2005test",  # Real E云 format with special space
-                "atlist": ["wxid_58bfckbpioh822"],
-            },
-        }
-
-        result = should_respond_to_group_message(
-            data, config, "wxid_58bfckbpioh822", "Coke"
+        msg = StandardMessage(
+            platform="wechat",
+            content="@TestBot hello there",
         )
+
+        result = self.adapter.is_mentioned(msg, "wxid_bot123")
         assert result is True
 
-    def test_non_whitelist_group_without_atlist_mention_returns_false(self):
-        """Non-whitelist group without bot in atlist should not respond."""
-        from connector.ecloud.ecloud_adapter import should_respond_to_group_message
+    def test_is_mentioned_with_atlist(self):
+        """Test mention detection with atlist."""
+        from connector.channel.types import StandardMessage
 
-        config = {
-            "enabled": True,
-            "whitelist_groups": [],
-            "reply_mode": {"whitelist": "all", "others": "mention_only"},
-        }
-        data = {
-            "messageType": "80001",
-            "data": {
-                "fromGroup": "50088706710@chatroom",
-                "content": "@Someone test",
-                "atlist": ["wxid_other_person"],
-            },
-        }
-
-        result = should_respond_to_group_message(
-            data, config, "wxid_58bfckbpioh822", "Coke"
+        msg = StandardMessage(
+            platform="wechat",
+            content="hello there",
+            metadata={"atlist": ["wxid_bot123", "wxid_other"]},
         )
-        assert result is False
 
-
-class TestIsMentionBot:
-    """Test @mention detection logic."""
-
-    def test_mention_by_nickname(self):
-        """Should detect mention by nickname."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
-
-        content = "@洛云 你好啊"
-        result = is_mention_bot(content, "wxid_bot", "洛云")
+        result = self.adapter.is_mentioned(msg, "wxid_bot123")
         assert result is True
 
-    def test_no_mention(self):
-        """Should return False when no mention."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
+    def test_strip_mention(self):
+        """Test stripping mention from text."""
+        result = self.adapter.strip_mention("@TestBot hello world")
+        assert result == "hello world"
 
-        content = "大家好"
-        result = is_mention_bot(content, "wxid_bot", "洛云")
-        assert result is False
+    def test_from_standard_text(self):
+        """Test converting standard text message to Ecloud format."""
+        from connector.channel.types import StandardMessage
 
-    def test_mention_other_user(self):
-        """Should return False when mentioning other user."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
+        std_msg = StandardMessage(
+            platform="wechat",
+            to_user="wxid_user123",
+            message_type=MessageType.TEXT,
+            content="Hello, user!",
+        )
 
-        content = "@张三 你好"
-        result = is_mention_bot(content, "wxid_bot", "洛云")
-        assert result is False
+        result = self.adapter.from_standard(std_msg)
 
-    def test_mention_by_atlist(self):
-        """Should detect mention via atlist (most reliable method)."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
-
-        # Even if content doesn't have proper @mention format, atlist should work
-        content = "@Coke\u2005test"  # Has special unicode space
-        atlist = ["wxid_bot", "wxid_other"]
-        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
-        assert result is True
-
-    def test_mention_by_atlist_only(self):
-        """Should detect mention via atlist even without @ in content."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
-
-        content = "hello"  # No @ at all
-        atlist = ["wxid_bot"]
-        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
-        assert result is True
-
-    def test_no_mention_empty_atlist(self):
-        """Should return False when atlist is empty and no @ in content."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
-
-        content = "hello"
-        atlist = []
-        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
-        assert result is False
-
-    def test_no_mention_different_wxid_in_atlist(self):
-        """Should return False when bot wxid not in atlist."""
-        from connector.ecloud.ecloud_adapter import is_mention_bot
-
-        content = "@Someone test"
-        atlist = ["wxid_other"]
-        result = is_mention_bot(content, "wxid_bot", "Coke", atlist)
-        assert result is False
+        assert result["content"] == "Hello, user!"
