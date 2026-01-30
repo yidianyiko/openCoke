@@ -77,15 +77,17 @@ def normal_message_to_str(message, language="cn"):
         message_time = int(time.time())
 
     user_dao = UserDAO()
-    talker = user_dao.get_user_by_id(message["from_user"])
+    from_user = message.get("from_user")
+    talker = user_dao.get_user_by_id(from_user) if from_user else None
     talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
     if language == "cn":
         message_type_map = {"text": "文本", "voice": "语音"}
         message_type_str = "文本"
-        if message["message_type"] in message_type_map:
-            message_type_str = message_type_map[message["message_type"]]
+        msg_type = message.get("message_type", "text")
+        if msg_type in message_type_map:
+            message_type_str = message_type_map[msg_type]
 
     message_content = message.get("message", "") or ""
     return (
@@ -116,7 +118,8 @@ def reference_message_to_str(message, language="cn"):
         message_time = int(time.time())
 
     user_dao = UserDAO()
-    talker = user_dao.get_user_by_id(message["from_user"])
+    from_user = message.get("from_user")
+    talker = user_dao.get_user_by_id(from_user) if from_user else None
     talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
@@ -157,7 +160,8 @@ def image_message_to_str(message, language="cn"):
         message_time = int(time.time())
 
     user_dao = UserDAO()
-    talker = user_dao.get_user_by_id(message["from_user"])
+    from_user = message.get("from_user")
+    talker = user_dao.get_user_by_id(from_user) if from_user else None
     talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
