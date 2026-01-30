@@ -100,3 +100,63 @@ class TestOrderDAO:
 
         assert result == expected_order
         mock_collection.find_one.assert_called_once_with({"order_no": "ORD123456"})
+
+    @pytest.mark.unit
+    def test_create_order_returns_inserted_id(self, order_dao, mock_collection):
+        """Should create order with correct structure and return inserted ID"""
+        inserted_id = ObjectId()
+        mock_result = MagicMock()
+        mock_result.inserted_id = inserted_id
+        mock_collection.insert_one.return_value = mock_result
+
+        expire_time = datetime.now() + timedelta(days=30)
+        metadata = {"source": "test", "price": 100}
+
+        result = order_dao.create_order("ORD789", expire_time, metadata)
+
+        assert result == str(inserted_id)
+        mock_collection.insert_one.assert_called_once()
+
+        # Verify document structure
+        call_args = mock_collection.insert_one.call_args[0][0]
+        assert call_args["order_no"] == "ORD789"
+        assert call_args["expire_time"] == expire_time
+        assert call_args["bound_user_id"] is None
+        assert call_args["bound_at"] is None
+        assert call_args["metadata"] == metadata
+        assert "created_at" in call_args
+
+    @pytest.mark.unit
+    def test_create_order_with_empty_metadata(self, order_dao, mock_collection):
+        """Should create order with empty dict when metadata is None"""
+        inserted_id = ObjectId()
+        mock_result = MagicMock()
+        mock_result.inserted_id = inserted_id
+        mock_collection.insert_one.return_value = mock_result
+
+        expire_time = datetime.now() + timedelta(days=30)
+
+        result = order_dao.create_order("ORD789", expire_time)
+
+        call_args = mock_collection.insert_one.call_args[0][0]
+        assert call_args["metadata"] == {}
+
+    @pytest.mark.unit
+    def test_create_indexes_creates_all_required_indexes(self, order_dao, mock_collection):
+        """Should create all 3 indexes: order_no (unique), bound_user_id, expire_time"""
+        order_dao.create_indexes()
+
+        assert mock_collection.create_index.call_count == 3
+
+        # Verify each index was created
+        calls = mock_collection.create_index.call_args_list
+        call_args_list = [(c[0], c[1]) for c in calls]
+
+        # Check order_no unique index
+        assert (("order_no",), {"unique": True}) in call_args_list
+
+        # Check bound_user_id index
+        assert (("bound_user_id",), {}) in call_args_list
+
+        # Check expire_time index
+        assert (("expire_time",), {}) in call_args_list
