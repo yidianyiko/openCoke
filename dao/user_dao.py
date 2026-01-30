@@ -6,6 +6,7 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from bson import ObjectId
@@ -343,6 +344,32 @@ class UserDAO:
             # 获取匹配文档的ID
             user = self.collection.find_one(query, {"_id": 1})
             return str(user["_id"]) if user else None
+
+    def update_access(
+        self, user_id: ObjectId, order_no: str, expire_time: datetime
+    ) -> bool:
+        """
+        更新用户访问授权
+
+        Args:
+            user_id: 用户 ObjectId
+            order_no: 订单编号
+            expire_time: 过期时间
+
+        Returns:
+            更新是否成功
+        """
+        result = self.collection.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    "access.order_no": order_no,
+                    "access.granted_at": datetime.now(),
+                    "access.expire_time": expire_time,
+                }
+            },
+        )
+        return result.modified_count > 0
 
     def add_platform_to_user(
         self, user_id: str, platform: str, platform_data: Dict
