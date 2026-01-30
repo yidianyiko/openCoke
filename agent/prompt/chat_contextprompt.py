@@ -376,3 +376,26 @@ def get_web_search_context(session_state: dict) -> str:
 - 引用信息时可以提及来源
 - 如果搜索结果不足以回答问题，可以如实告知
 - 结合角色人设自然地表达"""
+
+
+def get_url_context(session_state: dict) -> str:
+    """
+    获取链接内容上下文
+
+    Args:
+        session_state: 会话状态字典
+
+    Returns:
+        格式化的链接内容上下文，如果没有则返回空字符串
+    """
+    url_context_str = session_state.get("url_context_str", "")
+
+    if not url_context_str:
+        return ""
+
+    return f"""{url_context_str}
+
+【说明】以上是用户消息中链接的内容摘要。请根据链接内容回答用户问题：
+- 可以提及链接标题或来源
+- 如果链接内容不足以回答问题，可以如实告知
+- 结合角色人设自然地表达"""

@@ -88,6 +88,11 @@
             "num_history_messages": 15,
             "compress_tool_results": true,
             "max_tool_calls_from_history": 5
+        },
+        "link_understanding": {
+            "enabled": true,
+            "max_urls": 3,
+            "max_content_length": 2000
         }
     }
 }
