@@ -1,4 +1,7 @@
+import hashlib
 import sys
+from datetime import datetime
+from typing import List, Optional
 
 sys.path.append(".")
 
@@ -12,14 +15,127 @@ import dashscope
 
 from dao.mongo import MongoDBBase
 
+# Embedding cache collection name
+EMBEDDING_CACHE_COLLECTION = "embedding_cache"
 
-def embedding_by_aliyun(text, model="text-embedding-v3"):
+
+def _hash_text(text: str, model: str) -> str:
+    """Generate a hash key for caching based on text and model."""
+    content = f"{model}:{text}"
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _get_cached_embedding(text: str, model: str) -> Optional[List[float]]:
+    """Retrieve cached embedding from MongoDB."""
+    try:
+        mongo = MongoDBBase()
+        text_hash = _hash_text(text, model)
+        cached = mongo.find_one(
+            EMBEDDING_CACHE_COLLECTION, {"text_hash": text_hash, "model": model}
+        )
+        if cached and "embedding" in cached:
+            # Update last_accessed timestamp
+            mongo.update_one(
+                EMBEDDING_CACHE_COLLECTION,
+                {"text_hash": text_hash, "model": model},
+                {"$set": {"last_accessed": datetime.utcnow()}},
+            )
+            logger.debug(f"Embedding cache hit for text hash: {text_hash[:16]}...")
+            return cached["embedding"]
+    except Exception as e:
+        logger.warning(f"Failed to get cached embedding: {e}")
+    return None
+
+
+def _cache_embedding(text: str, model: str, embedding: List[float]) -> bool:
+    """Store embedding in MongoDB cache."""
+    try:
+        mongo = MongoDBBase()
+        text_hash = _hash_text(text, model)
+        now = datetime.utcnow()
+        doc = {
+            "text_hash": text_hash,
+            "model": model,
+            "embedding": embedding,
+            "text_preview": text[:100] if len(text) > 100 else text,
+            "created_at": now,
+            "last_accessed": now,
+        }
+        # Upsert to handle race conditions
+        mongo.get_collection(EMBEDDING_CACHE_COLLECTION).update_one(
+            {"text_hash": text_hash, "model": model}, {"$set": doc}, upsert=True
+        )
+        logger.debug(f"Embedding cached for text hash: {text_hash[:16]}...")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to cache embedding: {e}")
+        return False
+
+
+def embedding_by_aliyun(
+    text: str, model: str = "text-embedding-v3", use_cache: bool = True
+) -> Optional[List[float]]:
+    """
+    Generate embedding for text using DashScope API with optional caching.
+
+    Args:
+        text: Text to generate embedding for
+        model: Embedding model to use
+        use_cache: Whether to use MongoDB cache (default: True)
+
+    Returns:
+        List of floats representing the embedding, or None if failed
+    """
+    if not text or not text.strip():
+        return None
+
+    # Try cache first
+    if use_cache:
+        cached = _get_cached_embedding(text, model)
+        if cached is not None:
+            return cached
+
+    # Call DashScope API
     resp = dashscope.TextEmbedding.call(model=model, input=text)
     if resp.status_code == HTTPStatus.OK:
         output = resp.output
-        return output["embeddings"][0]["embedding"]
+        embedding = output["embeddings"][0]["embedding"]
+
+        # Cache the result
+        if use_cache:
+            _cache_embedding(text, model, embedding)
+
+        return embedding
     else:
+        logger.warning(
+            f"DashScope embedding API failed: {resp.status_code} - {resp.message if hasattr(resp, 'message') else 'Unknown error'}"
+        )
         return None
+
+
+def init_embedding_cache_index():
+    """Initialize index for embedding cache collection."""
+    try:
+        mongo = MongoDBBase()
+        collection = mongo.get_collection(EMBEDDING_CACHE_COLLECTION)
+        # Create compound index on text_hash + model for fast lookups
+        collection.create_index([("text_hash", 1), ("model", 1)], unique=True)
+        # Create index on last_accessed for cleanup queries
+        collection.create_index("last_accessed")
+        logger.info("Embedding cache indexes initialized")
+    except Exception as e:
+        logger.warning(f"Failed to create embedding cache indexes: {e}")
+
+
+def get_embedding_cache_stats() -> dict:
+    """Get statistics about the embedding cache."""
+    try:
+        mongo = MongoDBBase()
+        total = mongo.count_documents(EMBEDDING_CACHE_COLLECTION)
+        return {"total_cached": total, "collection": EMBEDDING_CACHE_COLLECTION}
+    except Exception as e:
+        logger.warning(f"Failed to get cache stats: {e}")
+        return {"error": str(e)}
 
 
 def upsert_one(key, value, metadata, collection_name="embeddings"):
