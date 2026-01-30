@@ -1,0 +1,694 @@
+# -*- coding: utf-8 -*-
+"""
+Unit tests for ReminderService module.
+
+Tests the ReminderService class which orchestrates the reminder management
+operations using DAO, parser, validator, and formatter.
+"""
+
+from unittest.mock import Mock
+
+import pytest
+
+from agent.agno_agent.tools.reminder.service import ReminderService
+
+# ============ Fixtures ============
+
+
+@pytest.fixture
+def mock_dao():
+    """Mock ReminderDAO instance."""
+    dao = Mock()
+    dao.create_reminder.return_value = "mock_reminder_id_123"
+    dao.find_similar_reminder.return_value = None
+    return dao
+
+
+@pytest.fixture
+def service(mock_dao):
+    """Create a ReminderService instance with mocked dependencies."""
+    service = ReminderService(
+        user_id="test_user_123",
+        character_id="test_char_456",
+        conversation_id="test_conv_789",
+        base_timestamp=1738289400,  # 2025-01-31 10:10:00 UTC
+        session_state=None,
+        dao=mock_dao,
+    )
+    yield service
+    # Cleanup
+    try:
+        service.close()
+    except Exception:
+        pass
+
+
+@pytest.fixture
+def service_with_duplicate(mock_dao):
+    """Create a service with mock that returns an existing duplicate."""
+    mock_dao.find_similar_reminder.return_value = {
+        "reminder_id": "existing_123",
+        "title": "开会",
+        "next_trigger_time": 1738289400,
+    }
+    service = ReminderService(
+        user_id="user123",
+        character_id="char456",
+        conversation_id="conv789",
+        base_timestamp=1738289400,
+        session_state=None,
+        dao=mock_dao,
+    )
+    yield service
+    try:
+        service.close()
+    except Exception:
+        pass
+
+
+# ============ Test Create Scheduled Reminder ============
+
+
+class TestCreateScheduledReminder:
+    """Test creating a scheduled reminder with trigger time."""
+
+    def test_create_scheduled_reminder_success(self, service, mock_dao):
+        """Test successful creation of a scheduled reminder."""
+        result = service.create(
+            title="开会",
+            trigger_time="明天9点",
+            action_template="提醒：开会",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+        assert "reminder_id" in result
+        assert "已创建提醒" in result["message"]
+        mock_dao.create_reminder.assert_called_once()
+
+        # Verify the reminder document structure
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        assert reminder_doc["user_id"] == "test_user_123"
+        assert reminder_doc["character_id"] == "test_char_456"
+        assert reminder_doc["conversation_id"] == "test_conv_789"
+        assert reminder_doc["title"] == "开会"
+        assert reminder_doc["action_template"] == "提醒：开会"
+        assert reminder_doc["status"] == "active"
+        assert reminder_doc["list_id"] != "inbox"  # Should not be inbox
+        assert reminder_doc["next_trigger_time"] is not None
+
+    def test_create_scheduled_reminder_with_parsed_time(self, service, mock_dao):
+        """Test creating reminder with specific time parsing."""
+        result = service.create(
+            title="吃药",
+            trigger_time="30分钟后",
+            action_template="该吃药了",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        # Check that time was parsed correctly
+        assert reminder_doc["next_trigger_time"] == 1738289400 + 1800  # 30 minutes
+
+
+# ============ Test Create Inbox Task (No Time) ============
+
+
+class TestCreateInboxTask:
+    """Test creating inbox tasks without trigger time."""
+
+    def test_create_inbox_task_no_time(self, service, mock_dao):
+        """Test creating an inbox task without trigger time."""
+        result = service.create(
+            title="买牛奶",
+            trigger_time=None,
+            action_template="记得买牛奶",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        # Inbox task should have list_id="inbox" and no trigger_time
+        assert reminder_doc["list_id"] == "inbox"
+        assert reminder_doc["next_trigger_time"] is None
+
+    def test_create_inbox_task_empty_trigger_time(self, service, mock_dao):
+        """Test creating inbox task with empty trigger_time string."""
+        result = service.create(
+            title="发邮件",
+            trigger_time="",
+            action_template="发邮件给客户",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        # Empty string should be treated as no time
+        assert reminder_doc["list_id"] == "inbox"
+        assert reminder_doc["next_trigger_time"] is None
+
+
+# ============ Test Missing Title ============
+
+
+class TestCreateMissingTitle:
+    """Test validation errors when title is missing."""
+
+    def test_create_missing_title_none(self, service, mock_dao):
+        """Test validation fails when title is None."""
+        result = service.create(
+            title=None,
+            trigger_time="明天9点",
+            action_template="提醒",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is False
+        assert "error" in result
+        assert "提醒内容" in result["error"] or "不能为空" in result["error"]
+        mock_dao.create_reminder.assert_not_called()
+
+    def test_create_missing_title_empty(self, service, mock_dao):
+        """Test validation fails when title is empty string."""
+        result = service.create(
+            title="",
+            trigger_time="明天9点",
+            action_template="提醒",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is False
+        mock_dao.create_reminder.assert_not_called()
+
+    def test_create_missing_title_whitespace(self, service, mock_dao):
+        """Test validation fails when title is whitespace only."""
+        result = service.create(
+            title="   ",
+            trigger_time="明天9点",
+            action_template="提醒",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is False
+        mock_dao.create_reminder.assert_not_called()
+
+
+# ============ Test Duplicate Detection ============
+
+
+class TestCreateDuplicateDetected:
+    """Test duplicate reminder detection."""
+
+    def test_create_duplicate_detected(self, service_with_duplicate):
+        """Test duplicate reminder is detected and rejected."""
+        service = service_with_duplicate
+
+        result = service.create(
+            title="开会",
+            trigger_time="明天9点",
+            action_template="提醒：开会",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "duplicate"
+        assert result["existing_id"] == "existing_123"
+        service.dao.create_reminder.assert_not_called()
+
+    def test_create_no_duplicate_proceeds(self, service):
+        """Test creation proceeds when no duplicate found."""
+        service.dao.find_similar_reminder.return_value = None
+
+        result = service.create(
+            title="新提醒",
+            trigger_time="明天9点",
+            action_template="新提醒",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+        service.dao.create_reminder.assert_called_once()
+
+
+# ============ Test Frequency Limit Violation ============
+
+
+class TestCreateFrequencyLimitViolation:
+    """Test frequency limit validation."""
+
+    def test_create_frequency_limit_violation_interval_too_small(self, mock_dao):
+        """Test interval type with frequency too low is rejected."""
+        # Need to patch the validator to return an error
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        # Use the real validator's check
+        result = service.create(
+            title="频繁提醒",
+            trigger_time="明天9点",
+            action_template="频繁提醒",
+            recurrence_type="interval",
+            recurrence_interval=10,  # Less than MIN_INTERVAL_INFINITE (60)
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is False
+        assert "频率过高" in result["error"]
+        mock_dao.create_reminder.assert_not_called()
+
+    def test_create_frequency_limit_interval_ok(self, mock_dao):
+        """Test interval type with acceptable frequency is allowed."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        result = service.create(
+            title="每小时提醒",
+            trigger_time="明天9点",
+            action_template="每小时提醒",
+            recurrence_type="interval",
+            recurrence_interval=60,  # Exactly MIN_INTERVAL_INFINITE
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+
+    def test_create_frequency_limit_period_too_small(self, mock_dao):
+        """Test period reminder with frequency too low is rejected."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        result = service.create(
+            title="时间段频繁提醒",
+            trigger_time="明天9点",
+            action_template="时间段提醒",
+            recurrence_type="interval",
+            recurrence_interval=20,  # Less than MIN_INTERVAL_PERIOD (25)
+            period_start="09:00",
+            period_end="18:00",
+            period_days="1,2,3,4,5",
+        )
+
+        assert result["ok"] is False
+        assert "频率过高" in result["error"]
+        assert "25分钟" in result["error"]
+        mock_dao.create_reminder.assert_not_called()
+
+    def test_create_frequency_limit_period_ok(self, mock_dao):
+        """Test period reminder with acceptable frequency is allowed."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        result = service.create(
+            title="工作时间提醒",
+            trigger_time="明天9点",
+            action_template="工作时间提醒",
+            recurrence_type="interval",
+            recurrence_interval=30,  # >= MIN_INTERVAL_PERIOD
+            period_start="09:00",
+            period_end="18:00",
+            period_days="1,2,3,4,5",
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+
+
+# ============ Test Create With Recurrence ============
+
+
+class TestCreateWithRecurrence:
+    """Test creating reminders with recurrence configuration."""
+
+    def test_create_daily_recurrence(self, service, mock_dao):
+        """Test creating a daily recurring reminder."""
+        result = service.create(
+            title="每天喝水",
+            trigger_time="每天9点",
+            action_template="记得喝水",
+            recurrence_type="daily",
+            recurrence_interval=1,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+        assert result["status"] == "created"
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        assert reminder_doc["recurrence"]["enabled"] is True
+        assert reminder_doc["recurrence"]["type"] == "daily"
+        assert reminder_doc["recurrence"]["interval"] == 1
+
+    def test_create_weekly_recurrence(self, service, mock_dao):
+        """Test creating a weekly recurring reminder."""
+        result = service.create(
+            title="周会",
+            trigger_time="周一10点",
+            action_template="参加周会",
+            recurrence_type="weekly",
+            recurrence_interval=1,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        assert reminder_doc["recurrence"]["enabled"] is True
+        assert reminder_doc["recurrence"]["type"] == "weekly"
+
+    def test_create_monthly_recurrence(self, service, mock_dao):
+        """Test creating a monthly recurring reminder."""
+        result = service.create(
+            title="交房租",
+            trigger_time="每月1号",
+            action_template="该交房租了",
+            recurrence_type="monthly",
+            recurrence_interval=1,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        assert reminder_doc["recurrence"]["enabled"] is True
+        assert reminder_doc["recurrence"]["type"] == "monthly"
+
+    def test_create_interval_recurrence(self, service, mock_dao):
+        """Test creating an interval recurring reminder."""
+        result = service.create(
+            title="休息提醒",
+            trigger_time="明天9点",
+            action_template="休息一下",
+            recurrence_type="interval",
+            recurrence_interval=120,  # 2 hours
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        assert reminder_doc["recurrence"]["enabled"] is True
+        assert reminder_doc["recurrence"]["type"] == "interval"
+        assert reminder_doc["recurrence"]["interval"] == 120
+
+    def test_create_with_time_period(self, service, mock_dao):
+        """Test creating reminder with time period constraints."""
+        result = service.create(
+            title="工作喝水",
+            trigger_time="明天9点",
+            action_template="喝水",
+            recurrence_type="interval",
+            recurrence_interval=30,
+            period_start="09:00",
+            period_end="18:00",
+            period_days="1,2,3,4,5",
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        # Check time period configuration
+        assert reminder_doc["time_period"]["enabled"] is True
+        assert reminder_doc["time_period"]["start_time"] == "09:00"
+        assert reminder_doc["time_period"]["end_time"] == "18:00"
+        assert reminder_doc["time_period"]["active_days"] == [1, 2, 3, 4, 5]
+        assert reminder_doc["time_period"]["timezone"] == "Asia/Shanghai"
+
+    def test_create_no_recurrence(self, service, mock_dao):
+        """Test creating a one-time reminder without recurrence."""
+        result = service.create(
+            title="一次性提醒",
+            trigger_time="明天9点",
+            action_template="一次性",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_start=None,
+            period_end=None,
+            period_days=None,
+        )
+
+        assert result["ok"] is True
+
+        call_args = mock_dao.create_reminder.call_args
+        reminder_doc = call_args[0][0]
+
+        # No recurrence or recurrence disabled
+        recurrence = reminder_doc.get("recurrence", {})
+        assert (
+            recurrence.get("enabled", True) is False or recurrence.get("type") == "none"
+        )
+
+
+# ============ Test Build Reminder Doc ============
+
+
+class TestBuildReminderDoc:
+    """Test _build_reminder_doc helper method."""
+
+    def test_build_reminder_doc_with_all_fields(self, mock_dao):
+        """Test building reminder document with all fields."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        doc = service._build_reminder_doc(
+            title="完整提醒",
+            trigger_time=1738375800,
+            action_template="完整提醒模板",
+            recurrence_type="daily",
+            recurrence_interval=1,
+            period_config={"enabled": True, "start_time": "09:00", "end_time": "18:00"},
+        )
+
+        assert doc["user_id"] == "user123"
+        assert doc["character_id"] == "char456"
+        assert doc["conversation_id"] == "conv789"
+        assert doc["title"] == "完整提醒"
+        assert doc["action_template"] == "完整提醒模板"
+        assert doc["next_trigger_time"] == 1738375800
+        assert doc["recurrence"]["enabled"] is True
+        assert doc["recurrence"]["type"] == "daily"
+        assert doc["time_period"]["enabled"] is True
+        assert doc["status"] == "active"
+        assert "reminder_id" in doc
+        assert "created_at" in doc
+        assert "updated_at" in doc
+
+    def test_build_reminder_doc_inbox_task(self, mock_dao):
+        """Test building inbox task document (no trigger time)."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        doc = service._build_reminder_doc(
+            title="收集箱任务",
+            trigger_time=None,
+            action_template="任务",
+            recurrence_type=None,
+            recurrence_interval=None,
+            period_config=None,
+        )
+
+        assert doc["list_id"] == "inbox"
+        assert doc["next_trigger_time"] is None
+        assert doc["recurrence"]["enabled"] is False
+
+
+# ============ Test Close ============
+
+
+class TestClose:
+    """Test close method."""
+
+    def test_close_calls_dao_close(self, mock_dao):
+        """Test close method calls DAO close."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+        service.dao = mock_dao
+
+        service.close()
+
+        mock_dao.close.assert_called_once()
+
+    def test_close_handles_none_dao(self):
+        """Test close handles None DAO gracefully."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+        service.dao = None
+
+        # Should not raise an exception
+        service.close()
+
+
+# ============ Test Init ============
+
+
+class TestInit:
+    """Test ReminderService initialization."""
+
+    def test_init_creates_dependencies(self):
+        """Test initialization creates all necessary dependencies."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        assert service.user_id == "user123"
+        assert service.character_id == "char456"
+        assert service.conversation_id == "conv789"
+        assert service.base_timestamp == 1738289400
+        assert service.session_state is None
+        assert service.dao is not None
+        assert service.parser is not None
+        assert service.validator is not None
+        assert service.formatter is not None
+
+    def test_init_parser_has_base_timestamp(self):
+        """Test parser is initialized with base_timestamp."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        assert service.parser.base_timestamp == 1738289400
+
+    def test_init_validator_has_user_id(self):
+        """Test validator is initialized with user_id."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        assert service.validator.user_id == "user123"
+
+
+# ============ Test Default Max Triggers ============
+
+
+class TestDefaultMaxTriggers:
+    """Test DEFAULT_MAX_TRIGGERS constant usage."""
+
+    def test_default_max_triggers_constant(self):
+        """Test DEFAULT_MAX_TRIGGERS is accessible."""
+        from agent.agno_agent.tools.reminder.validator import ReminderValidator
+
+        assert ReminderValidator.DEFAULT_MAX_TRIGGERS == 10
