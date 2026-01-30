@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "langbot-core",
-      "script": "/home/zihaoli/.local/bin/uvx",
+      "script": "/home/ydyk/.local/bin/uvx",
       "args": "langbot@latest",
       "cwd": "./langbot-workdir",
       "interpreter": "none",

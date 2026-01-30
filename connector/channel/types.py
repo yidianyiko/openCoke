@@ -7,11 +7,12 @@ Channel Adapter 基础类型定义
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 class MessageType(Enum):
     """消息类型"""
+
     TEXT = "text"
     IMAGE = "image"
     VOICE = "voice"
@@ -25,6 +26,7 @@ class MessageType(Enum):
 
 class ChatType(Enum):
     """会话类型"""
+
     PRIVATE = "private"  # 私聊
     GROUP = "group"  # 群聊
     CHANNEL = "channel"  # 频道 (Discord/Slack)
@@ -32,6 +34,7 @@ class ChatType(Enum):
 
 class DeliveryMode(Enum):
     """消息投递模式"""
+
     POLLING = "polling"  # 轮询 MongoDB
     GATEWAY = "gateway"  # Gateway 实时推送
     HYBRID = "hybrid"  # 混合模式
@@ -40,14 +43,11 @@ class DeliveryMode(Enum):
 @dataclass
 class ChannelCapabilities:
     """渠道能力声明"""
+
     # 支持的消息类型
-    message_types: List[MessageType] = field(
-        default_factory=lambda: [MessageType.TEXT]
-    )
+    message_types: List[MessageType] = field(default_factory=lambda: [MessageType.TEXT])
     # 支持的会话类型
-    chat_types: List[ChatType] = field(
-        default_factory=lambda: [ChatType.PRIVATE]
-    )
+    chat_types: List[ChatType] = field(default_factory=lambda: [ChatType.PRIVATE])
     # 功能支持
     supports_mention: bool = False  # @提及
     supports_reply: bool = False  # 消息回复
@@ -64,6 +64,7 @@ class ChannelCapabilities:
 @dataclass
 class StandardMessage:
     """标准消息格式"""
+
     # 基础字段
     message_id: Optional[str] = None  # 消息唯一 ID
     platform: str = ""  # 平台标识
@@ -97,6 +98,7 @@ class StandardMessage:
 @dataclass
 class UserInfo:
     """用户信息"""
+
     platform_user_id: str  # 平台用户 ID
     db_user_id: Optional[str] = None  # MongoDB ObjectId
     display_name: Optional[str] = None  # 显示名称

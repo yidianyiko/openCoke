@@ -3,14 +3,15 @@
 Unit tests for Channel Adapter Types
 """
 
-import pytest
 from dataclasses import asdict
 
+import pytest
+
 from connector.channel.types import (
-    MessageType,
+    ChannelCapabilities,
     ChatType,
     DeliveryMode,
-    ChannelCapabilities,
+    MessageType,
     StandardMessage,
     UserInfo,
 )

@@ -6,7 +6,7 @@ Unit tests for Telegram Adapter
 import pytest
 
 from connector.adapters.telegram.telegram_adapter import TelegramAdapter
-from connector.channel.types import MessageType, ChatType
+from connector.channel.types import ChatType, MessageType
 
 
 class TestTelegramAdapter:
@@ -63,7 +63,11 @@ class TestTelegramAdapter:
             "message": {
                 "message_id": 124,
                 "from": {"id": 456, "first_name": "Alice"},
-                "chat": {"id": -1001234567890, "type": "supergroup", "title": "Test Group"},
+                "chat": {
+                    "id": -1001234567890,
+                    "type": "supergroup",
+                    "title": "Test Group",
+                },
                 "date": 1704153600,
                 "text": "Hello group!",
             }
@@ -242,7 +246,9 @@ class TestTelegramAdapter:
         """Test stripping mentions from text."""
         assert self.adapter.strip_mention("/start hello") == "hello"
         assert self.adapter.strip_mention("@bot_name how are you?") == "how are you?"
-        assert self.adapter.strip_mention("/command  text  ") == "text"  # No leading spaces
+        assert (
+            self.adapter.strip_mention("/command  text  ") == "text"
+        )  # No leading spaces
         assert self.adapter.strip_mention("hello @bot_name") == "hello"
 
     def test_extract_bot_id(self):

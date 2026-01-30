@@ -5,18 +5,17 @@ Terminal Adapter - 迁移版本
 Polling 模式的终端适配器，用于测试和本地开发。
 """
 
-from typing import Dict, Any, List, Optional
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.types import (
     ChannelCapabilities,
+    ChatType,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
-    ChatType,
 )
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)

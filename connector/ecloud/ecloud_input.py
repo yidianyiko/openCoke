@@ -55,6 +55,7 @@ def _publish_stream_event(message_id: str, platform: str, ts: int) -> None:
         stream_key=redis_conf.stream_key,
     )
 
+
 # Whitelist dictionary-wcId as key, forwarding URL as value
 # You can modify this dictionary as needed
 whitelist = {

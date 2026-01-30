@@ -6,20 +6,19 @@ Polling 模式的 LangBot 适配器，封装现有的 LangBot 适配器逻辑。
 支持 Feishu、Telegram 等平台。
 """
 
-from typing import Dict, Any, List, Optional
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.types import (
     ChannelCapabilities,
+    ChatType,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
-    ChatType,
 )
 from connector.langbot import langbot_adapter as legacy_adapter
 from connector.langbot import langbot_output
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -75,7 +74,9 @@ class LangBotAdapter(PollingAdapter):
             "feishu": "Feishu (LangBot)",
             "qq_official": "QQ Official (LangBot)",
         }
-        return name_map.get(self._adapter_name, f"{self._adapter_name.title()} (LangBot)")
+        return name_map.get(
+            self._adapter_name, f"{self._adapter_name.title()} (LangBot)"
+        )
 
     @property
     def capabilities(self) -> ChannelCapabilities:

@@ -237,7 +237,8 @@ def get_duplicate_messages(content: str, count: int = 3) -> list:
     """获取重复消息"""
     timestamp = int(time.time())
     return [
-        {"type": "text", "content": content, "timestamp": timestamp} for _ in range(count)
+        {"type": "text", "content": content, "timestamp": timestamp}
+        for _ in range(count)
     ]
 
 

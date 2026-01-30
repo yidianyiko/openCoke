@@ -8,13 +8,13 @@
 Usage:
     # 查询单个用户
     python scripts/fetch_user_wechat_info.py --wxid wxid_xxx
-    
+
     # 查询多个用户（逗号分隔）
     python scripts/fetch_user_wechat_info.py --wxid wxid_xxx,wxid_yyy
-    
+
     # 查询最活跃的50个用户（默认）
     python scripts/fetch_user_wechat_info.py
-    
+
     # 查询最活跃的N个用户
     python scripts/fetch_user_wechat_info.py --top 100
 """
@@ -110,29 +110,29 @@ def count_user_messages(mongo_db, user_id):
 def fetch_contact_info_batch(wxid_list, target_user_alias=None):
     """
     通过 ecloud API 批量获取联系人信息
-    
+
     Args:
         wxid_list: wxid 列表
         target_user_alias: 角色别名
-        
+
     Returns:
         dict: wxid -> contact_info 的映射
     """
     if target_user_alias is None:
         target_user_alias = CONF.get("default_character_alias", "luoyun")
-    
+
     results = {}
-    
+
     # API 每次最多支持20个，需要分批
     batch_size = 20
     for i in range(0, len(wxid_list), batch_size):
-        batch = wxid_list[i:i + batch_size]
+        batch = wxid_list[i : i + batch_size]
         wcid_str = ",".join(batch)
-        
+
         try:
             logger.info(f"正在查询第 {i//batch_size + 1} 批，共 {len(batch)} 个用户...")
             resp_json = Ecloud_API.getContact(wcid_str, target_user_alias)
-            
+
             if resp_json and resp_json.get("code") == "1000":
                 data_list = resp_json.get("data", [])
                 for contact in data_list:
@@ -146,13 +146,13 @@ def fetch_contact_info_batch(wxid_list, target_user_alias=None):
                     }
             else:
                 logger.warning(f"API 返回失败: {resp_json}")
-                
+
             # 遵循 API 调用间隔要求 (300-800ms)
             time.sleep(1)
-            
+
         except Exception as e:
             logger.error(f"获取联系人信息失败: {e}")
-    
+
     return results
 
 
@@ -160,13 +160,13 @@ def fetch_single_user(wxid, target_user_alias=None):
     """查询单个用户信息"""
     if target_user_alias is None:
         target_user_alias = CONF.get("default_character_alias", "luoyun")
-    
+
     print(f"\n查询用户: {wxid}")
     print("=" * 60)
-    
+
     try:
         resp_json = Ecloud_API.getContact(wxid, target_user_alias)
-        
+
         if resp_json and resp_json.get("code") == "1000":
             data_list = resp_json.get("data", [])
             if data_list:
@@ -182,10 +182,10 @@ def fetch_single_user(wxid, target_user_alias=None):
                 print("未找到用户信息")
         else:
             print(f"API 返回失败: {resp_json}")
-            
+
     except Exception as e:
         print(f"查询失败: {e}")
-    
+
     return None
 
 
@@ -211,15 +211,13 @@ def list_top_active_users_with_api(top_n=50):
         user_data = []
         for user in users:
             user_id = str(user.get("_id", "N/A"))
-            
+
             platforms = user.get("platforms", {})
             wechat_info = (
                 platforms.get("wechat", {}) if isinstance(platforms, dict) else {}
             )
             wechat_id = (
-                wechat_info.get("id", "N/A")
-                if isinstance(wechat_info, dict)
-                else "N/A"
+                wechat_info.get("id", "N/A") if isinstance(wechat_info, dict) else "N/A"
             )
 
             creation_time = get_user_creation_time(user_id)
@@ -227,15 +225,17 @@ def list_top_active_users_with_api(top_n=50):
             total_count = input_count + output_count
             last_message_time = get_user_last_message_time(mongo_db, user_id)
 
-            user_data.append({
-                "user_id": user_id,
-                "wechat_id": wechat_id,
-                "input_count": input_count,
-                "output_count": output_count,
-                "total_count": total_count,
-                "last_active_time": last_message_time,
-                "creation_time": creation_time,
-            })
+            user_data.append(
+                {
+                    "user_id": user_id,
+                    "wechat_id": wechat_id,
+                    "input_count": input_count,
+                    "output_count": output_count,
+                    "total_count": total_count,
+                    "last_active_time": last_message_time,
+                    "creation_time": creation_time,
+                }
+            )
 
         # 按总消息数排序，获取前N名
         user_data.sort(key=lambda x: x["total_count"], reverse=True)
@@ -244,7 +244,7 @@ def list_top_active_users_with_api(top_n=50):
         # 收集所有 wxid 并通过 API 获取信息
         wxid_list = [u["wechat_id"] for u in top_users if u["wechat_id"] != "N/A"]
         logger.info(f"正在通过 API 获取 {len(wxid_list)} 个用户的微信信息...")
-        
+
         contact_info_map = fetch_contact_info_batch(wxid_list)
         logger.info(f"成功获取 {len(contact_info_map)} 个用户的信息")
 
@@ -268,17 +268,17 @@ def list_top_active_users_with_api(top_n=50):
 
         for i, user in enumerate(top_users, 1):
             wechat_id = user["wechat_id"] if user["wechat_id"] else "N/A"
-            
+
             # 从 API 结果获取信息
             api_info = contact_info_map.get(wechat_id, {})
             alias_name = api_info.get("aliasName", "") or "N/A"
             nick_name = api_info.get("nickName", "") or "N/A"
-            
+
             # 截断显示
             wechat_id_display = wechat_id[:24] if wechat_id else "N/A"
             alias_name_display = alias_name[:18] if alias_name else "N/A"
             nick_name_display = nick_name[:16] if nick_name else "N/A"
-            
+
             last_active_str = (
                 format_timestamp(user["last_active_time"])
                 if user["last_active_time"]
@@ -304,12 +304,22 @@ def list_top_active_users_with_api(top_n=50):
             )
 
         print("=" * 160)
-        
+
         # 统计
-        has_alias = sum(1 for u in top_users if contact_info_map.get(u["wechat_id"], {}).get("aliasName"))
-        has_nick = sum(1 for u in top_users if contact_info_map.get(u["wechat_id"], {}).get("nickName"))
-        print(f"\n统计: 有微信号(aliasName): {has_alias}/{top_n}, 有昵称(nickName): {has_nick}/{top_n}")
-        
+        has_alias = sum(
+            1
+            for u in top_users
+            if contact_info_map.get(u["wechat_id"], {}).get("aliasName")
+        )
+        has_nick = sum(
+            1
+            for u in top_users
+            if contact_info_map.get(u["wechat_id"], {}).get("nickName")
+        )
+        print(
+            f"\n统计: 有微信号(aliasName): {has_alias}/{top_n}, 有昵称(nickName): {has_nick}/{top_n}"
+        )
+
         logger.info("查询完成")
 
     except Exception as e:
@@ -353,11 +363,13 @@ def main():
             print("-" * 80)
             for wxid in wxid_list:
                 info = results.get(wxid, {})
-                print("{:<26} {:<20} {:<20}".format(
-                    wxid[:24],
-                    (info.get("aliasName") or "N/A")[:18],
-                    (info.get("nickName") or "N/A")[:18],
-                ))
+                print(
+                    "{:<26} {:<20} {:<20}".format(
+                        wxid[:24],
+                        (info.get("aliasName") or "N/A")[:18],
+                        (info.get("nickName") or "N/A")[:18],
+                    )
+                )
     else:
         # 查询最活跃用户
         list_top_active_users_with_api(top_n=args.top)

@@ -6,7 +6,7 @@ Unit tests for LangBot Adapter (migrated)
 import pytest
 
 from connector.adapters.langbot.langbot_adapter import LangBotAdapter
-from connector.channel.types import MessageType, ChatType
+from connector.channel.types import ChatType, MessageType
 
 
 class TestLangBotAdapter:

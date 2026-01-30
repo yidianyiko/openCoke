@@ -131,9 +131,7 @@ def list_top_active_users(top_n=50):
                 platforms.get("wechat", {}) if isinstance(platforms, dict) else {}
             )
             wechat_id = (
-                wechat_info.get("id", "N/A")
-                if isinstance(wechat_info, dict)
-                else "N/A"
+                wechat_info.get("id", "N/A") if isinstance(wechat_info, dict) else "N/A"
             )
             wechat_nickname = (
                 wechat_info.get("nickname", "N/A")

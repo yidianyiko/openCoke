@@ -6,19 +6,18 @@ Gateway 模式的 Telegram 适配器，使用 python-telegram-bot 库。
 支持实时消息接收和发送。
 """
 
-from typing import Dict, Any, Optional, List
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from connector.channel.gateway_adapter import GatewayAdapter
 from connector.channel.types import (
-    DeliveryMode,
     ChannelCapabilities,
+    ChatType,
+    DeliveryMode,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
-    ChatType,
 )
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -174,11 +173,13 @@ class TelegramAdapter(GatewayAdapter):
             await self._emit_message(std_msg)
         elif "edited_channel_post" in update:
             message = update["edited_channel_post"]
-            std_msg = self.to_standard({
-                "message": message,
-                "edited": True,
-                "channel_post": True,
-            })
+            std_msg = self.to_standard(
+                {
+                    "message": message,
+                    "edited": True,
+                    "channel_post": True,
+                }
+            )
             await self._emit_message(std_msg)
 
     # ==================== 消息转换 ====================
@@ -443,7 +444,9 @@ class TelegramAdapter(GatewayAdapter):
         url = f"{self.API_BASE_URL}{self._bot_token}/getChat"
 
         try:
-            async with self._session.get(url, params={"chat_id": platform_user_id}) as resp:
+            async with self._session.get(
+                url, params={"chat_id": platform_user_id}
+            ) as resp:
                 result = await resp.json()
                 if result.get("ok"):
                     chat_info = result.get("result", {})

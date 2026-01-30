@@ -261,7 +261,9 @@ def get_context_with_very_long_history() -> dict:
     history = []
     for i in range(50):
         history.append({"role": "user", "content": f"这是一条很长的用户消息_{i}" * 10})
-        history.append({"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10})
+        history.append(
+            {"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10}
+        )
     ctx["conversation"]["conversation_info"]["chat_history"] = history
     ctx["conversation"]["conversation_info"]["chat_history_str"] = "\n".join(
         [
@@ -350,9 +352,9 @@ def get_context_with_short_history() -> dict:
         {"role": "assistant", "content": "在的"},
     ]
     ctx["conversation"]["conversation_info"]["chat_history"] = history
-    ctx["conversation"]["conversation_info"]["chat_history_str"] = (
-        "用户: 你好\n角色: 你好！\n用户: 在吗\n角色: 在的"
-    )
+    ctx["conversation"]["conversation_info"][
+        "chat_history_str"
+    ] = "用户: 你好\n角色: 你好！\n用户: 在吗\n角色: 在的"
     return ctx
 
 

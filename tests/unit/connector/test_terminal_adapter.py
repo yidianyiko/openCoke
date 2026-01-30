@@ -6,7 +6,7 @@ Unit tests for Terminal Adapter (migrated)
 import pytest
 
 from connector.adapters.terminal.terminal_adapter import TerminalAdapter
-from connector.channel.types import MessageType, ChatType
+from connector.channel.types import ChatType, MessageType
 
 
 class TestTerminalAdapter:
