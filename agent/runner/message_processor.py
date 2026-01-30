@@ -23,6 +23,7 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from agent.runner.access_gate import AccessGate
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
@@ -373,6 +374,7 @@ class MessageDispatcher:
     def __init__(self, worker_tag: str):
         self.worker_tag = worker_tag
         self.admin_user_id = CONF.get("admin_user_id", "")
+        self.access_gate = AccessGate()
 
     def dispatch(self, msg_ctx: MessageContext) -> Tuple[str, Optional[Dict]]:
         """
@@ -381,6 +383,9 @@ class MessageDispatcher:
         Returns:
             (dispatch_type, extra_data)
            -("blocked", None): 用户被拉黑
+           -("gate_denied", None): 门禁未通过
+           -("gate_expired", None): 门禁已过期
+           -("gate_success", {"expire_time": ...}): 门禁验证成功
            -("hardcode", {"command": ...}): 硬指令
            -("hold", None): 角色繁忙
            -("normal", None): 正常消息
@@ -391,6 +396,16 @@ class MessageDispatcher:
         # 检查拉黑
         if context["relation"]["relationship"]["dislike"] >= 100:
             return ("blocked", None)
+
+        # 检查门禁
+        gate_result = self.access_gate.check(
+            platform=context.get("platform", ""),
+            user=context["user"],
+            message=str(input_messages[0].get("message", "")),
+            admin_user_id=self.admin_user_id,
+        )
+        if gate_result:
+            return gate_result
 
         # 检查硬指令
         if str(context["user"]["_id"]) == self.admin_user_id and str(
