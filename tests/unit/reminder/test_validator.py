@@ -336,3 +336,229 @@ class TestInit:
 
         assert validator.dao is dao
         assert validator.user_id == user_id
+
+
+class TestReminderValidatorSideEffectGuard:
+    """Test side-effect guard functionality."""
+
+    def test_guard_delete_no_match_in_text(self):
+        """Test delete guard when keyword is not in user text."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "开会",
+                "next_trigger_time": 1738289400,
+            }
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {"input_messages": [{"message": "你好"}]}
+            }
+        }
+
+        result = validator.guard_side_effect(
+            action="delete",
+            keyword="开会",
+            session_state=session_state,
+        )
+
+        assert result["allowed"] is False
+        assert result["needs_confirmation"] is True
+        assert result["reason"] == "keyword_not_in_user_text"
+        assert result["candidates"] == [
+            {"title": "开会", "time": "01月31日10:10", "reminder_id": "r1"}
+        ]
+        assert result["resolved_keyword"] is None
+
+    def test_guard_delete_single_match_in_text(self):
+        """Test delete guard when exactly one active reminder title matches text."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "开会",
+                "next_trigger_time": 1738289400,
+            }
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {
+                    "input_messages": [{"message": "把开会这个提醒删掉"}]
+                }
+            }
+        }
+
+        result = validator.guard_side_effect(
+            action="delete",
+            keyword="开会",
+            session_state=session_state,
+        )
+
+        assert result["allowed"] is True
+        assert result["needs_confirmation"] is False
+        assert result["reason"] == "matched_active_title_in_user_text"
+        assert result["resolved_keyword"] == "开会"
+
+    def test_guard_delete_keyword_in_text(self):
+        """Test delete guard when provided keyword is in user text but no active match."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "买牛奶",
+                "next_trigger_time": 1738289400,
+            }
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {"input_messages": [{"message": "把任务删了"}]}
+            }
+        }
+
+        result = validator.guard_side_effect(
+            action="delete",
+            keyword="任务",
+            session_state=session_state,
+        )
+
+        assert result["allowed"] is True
+        assert result["needs_confirmation"] is False
+        assert result["reason"] == "keyword_in_user_text"
+        assert result["resolved_keyword"] == "任务"
+
+    def test_guard_delete_all_explicit(self):
+        """Test delete-all guard when user explicitly confirms delete-all."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "开会",
+                "next_trigger_time": 1738289400,
+            },
+            {
+                "reminder_id": "r2",
+                "title": "买菜",
+                "next_trigger_time": 1738290000,
+            },
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+
+        for delete_word in ["全部", "所有", "清空", "都删", "全删"]:
+            session_state = {
+                "conversation": {
+                    "conversation_info": {
+                        "input_messages": [{"message": f"把{delete_word}提醒删掉"}]
+                    }
+                }
+            }
+
+            result = validator.guard_side_effect(
+                action="delete",
+                keyword="*",
+                session_state=session_state,
+            )
+
+            assert result["allowed"] is True, f"Failed for delete word: {delete_word}"
+            assert result["needs_confirmation"] is False
+            assert result["reason"] == "explicit_delete_all"
+            assert result["resolved_keyword"] is None
+
+    def test_guard_delete_all_not_explicit(self):
+        """Test delete-all guard when user doesn't explicitly confirm delete-all."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "开会",
+                "next_trigger_time": 1738289400,
+            }
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {"input_messages": [{"message": "删除提醒"}]}
+            }
+        }
+
+        result = validator.guard_side_effect(
+            action="delete",
+            keyword="*",
+            session_state=session_state,
+        )
+
+        assert result["allowed"] is False
+        assert result["needs_confirmation"] is True
+        assert result["reason"] == "delete_all_not_explicit"
+        assert result["resolved_keyword"] is None
+
+    def test_guard_complete_allowed(self):
+        """Test complete action when active reminder title matches text."""
+        dao = Mock()
+        dao.filter_reminders.return_value = [
+            {
+                "reminder_id": "r1",
+                "title": "买牛奶",
+                "next_trigger_time": 1738289400,
+            }
+        ]
+
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {"input_messages": [{"message": "我已经买牛奶了"}]}
+            }
+        }
+
+        result = validator.guard_side_effect(
+            action="complete",
+            keyword="买牛奶",
+            session_state=session_state,
+        )
+
+        assert result["allowed"] is True
+        assert result["needs_confirmation"] is False
+        assert result["reason"] == "matched_active_title_in_user_text"
+        assert result["resolved_keyword"] == "买牛奶"
+
+    def test_guard_non_side_effect_action(self):
+        """Test non-side-effect actions (create, update, filter, batch) are always allowed."""
+        dao = Mock()
+        validator = ReminderValidator(dao, "user123")
+        session_state = {
+            "conversation": {
+                "conversation_info": {"input_messages": [{"message": "some message"}]}
+            }
+        }
+
+        for action in ["create", "update", "filter", "batch"]:
+            result = validator.guard_side_effect(
+                action=action,
+                keyword="something",
+                session_state=session_state,
+            )
+
+            assert result["allowed"] is True
+            assert (
+                result.get("needs_confirmation") is None
+                or result.get("needs_confirmation") is True
+                or result.get("needs_confirmation") is False
+            )
+
+    def test_contains_any_static_helper(self):
+        """Test _contains_any static helper method."""
+        assert ReminderValidator._contains_any("hello world", ["hello"]) is True
+        assert ReminderValidator._contains_any("hello world", ["foo", "bar"]) is False
+        assert ReminderValidator._contains_any("", ["hello"]) is False
+        assert ReminderValidator._contains_any(None, ["hello"]) is False
+        assert ReminderValidator._contains_any("test", []) is False
+        assert ReminderValidator._contains_any("test", [""]) is False
+        assert ReminderValidator._contains_any("test", [None]) is False
