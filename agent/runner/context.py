@@ -256,7 +256,7 @@ def context_prepare(user, character, conversation):
     if news is None:
         context["news_str"] = ""
     else:
-        context["news_str"] = news["news"]
+        context["news_str"] = news.get("news", "")
 
     context["relation"] = relation
 

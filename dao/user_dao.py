@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 from typing import Dict, List, Optional
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo import MongoClient
 from pymongo.collection import Collection
 from pymongo.cursor import Cursor
@@ -86,7 +87,7 @@ class UserDAO:
 
         try:
             object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidId):
             return None
 
         return self.collection.find_one({"_id": object_id})
