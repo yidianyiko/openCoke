@@ -13,13 +13,12 @@ NOTE: Modules are being implemented incrementally. Uncomment imports as they bec
 
 from .formatter import ReminderFormatter
 from .parser import TimeParser
-
-# from .service import ReminderService
+from .service import ReminderService
 from .validator import ReminderValidator
 
 __all__ = [
     "TimeParser",
     "ReminderValidator",
     "ReminderFormatter",
-    # "ReminderService",  # TODO: Add when service module is implemented
+    "ReminderService",
 ]
