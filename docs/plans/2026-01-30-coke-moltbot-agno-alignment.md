@@ -73,6 +73,72 @@
 | Chain-of-thought | ✅ 支持 | ✅ ThinkingTools | ❌ 未使用 | 使用 Agno |
 | Extended thinking | ✅ 支持 | ✅ 支持 | ❌ 未使用 | 使用 Agno |
 
+### 1.8 Skill 系统（能力管理）⚠️ 新增
+
+| 功能 | Moltbot | Agno 提供 | Coke 现状 | 对齐方案 |
+|------|---------|----------|----------|---------|
+| **模块化 Prompt** | ✅ SKILL.md 文件 | ⚠️ Agent.instructions | ❌ Python 硬编码 | 设计模块化方案 |
+| **动态能力加载** | ✅ Gating 规则过滤 | ⚠️ 代码控制 | ❌ 静态组装 | 配置驱动 |
+| **斜杠命令** | ✅ `/skill-name` | ❌ 无 | ❌ 无 | 按需实现 |
+| **能力热重载** | ✅ 文件监听 | ❌ 无 | ❌ 无 | 非必需 |
+| **Token 开销统计** | ✅ 公式计算 | ❌ 无 | ❌ 无 | 可借鉴 |
+| **能力市场** | ✅ ClawdHub | ❌ 无 | ❌ 无 | 非必需 |
+
+**Moltbot Skill 系统核心价值**：
+
+```
+skills/
+├── reminder/SKILL.md      # 提醒能力指令
+├── web-search/SKILL.md    # 搜索能力指令
+├── image-gen/SKILL.md     # 图片生成指令
+└── ...
+```
+
+1. **模块化**：每个能力是独立的 SKILL.md 文件，而非 Python 代码
+2. **动态加载**：根据 `requires.bins/env/config` 按需过滤
+3. **斜杠命令**：用户可以 `/reminder` 直接触发特定功能
+4. **可扩展**：用户可以添加自己的 skills
+
+**Coke 现状**：
+
+```python
+# agent/prompt/agent_instructions_prompt.py - 所有指令硬编码
+INSTRUCTIONS_REMINDER_DETECT = "..."
+INSTRUCTIONS_CHAT_RESPONSE = "..."
+INSTRUCTIONS_ORCHESTRATOR = "..."
+```
+
+**对齐方案**：
+
+| 方案 | 描述 | 推荐 |
+|------|------|------|
+| **A: 配置驱动** | config.json 控制能力开关，代码中动态组装 prompt | ✅ 推荐 |
+| **B: Agno Teams** | 使用 Agno Teams + Router 管理能力路由 | ⚠️ 改动大 |
+| **C: 文件驱动** | 仿照 Moltbot 实现 SKILL.md 加载 | ❌ 过度设计 |
+
+**推荐实现**：
+
+```python
+# conf/config.json
+{
+  "capabilities": {
+    "reminder": { "enabled": true },
+    "web_search": { "enabled": true },
+    "image_gen": { "enabled": false }
+  }
+}
+
+# agent/prompt/capability_loader.py
+def build_instructions(config: dict) -> str:
+    """根据配置动态组装能力指令"""
+    parts = [BASE_INSTRUCTIONS]
+    if config["capabilities"]["reminder"]["enabled"]:
+        parts.append(REMINDER_INSTRUCTIONS)
+    if config["capabilities"]["web_search"]["enabled"]:
+        parts.append(WEB_SEARCH_INSTRUCTIONS)
+    return "\n".join(parts)
+```
+
 ---
 
 ## 二、对齐路线图
