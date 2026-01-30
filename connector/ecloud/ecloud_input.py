@@ -1,5 +1,6 @@
 import logging
 import sys
+import time
 
 import requests
 from flask import Flask, jsonify, request
@@ -25,9 +26,34 @@ from connector.ecloud.ecloud_adapter import (
 from connector.ecloud.ecloud_api import Ecloud_API
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
+from util.redis_client import RedisClient
+from util.redis_stream import publish_input_event
+
+try:
+    import redis  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency until redis is installed
+    redis = None
 
 mongo = MongoDBBase()
 user_dao = UserDAO()
+redis_conf = RedisClient.from_config()
+redis_client = (
+    redis.Redis(host=redis_conf.host, port=redis_conf.port, db=redis_conf.db)
+    if redis is not None
+    else None
+)
+
+
+def _publish_stream_event(message_id: str, platform: str, ts: int) -> None:
+    if redis_client is None:
+        return
+    publish_input_event(
+        redis_client,
+        message_id,
+        platform,
+        ts,
+        stream_key=redis_conf.stream_key,
+    )
 
 # Whitelist dictionary-wcId as key, forwarding URL as value
 # You can modify this dictionary as needed
@@ -272,7 +298,12 @@ def handle_message():
                 )
 
         # 插入到数据库
-        mongo.insert_one("inputmessages", std)
+        inserted_id = mongo.insert_one("inputmessages", std)
+        _publish_stream_event(
+            inserted_id,
+            std.get("platform", "wechat"),
+            int(std.get("input_timestamp", time.time())),
+        )
 
         return jsonify({"status": "success", "message": "message handing..."}), 200
 
