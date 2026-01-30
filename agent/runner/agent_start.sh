@@ -14,7 +14,7 @@ export env=aliyun
 export DISABLE_DAILY_AGENTS="true"        # 禁用 daily agent
 export DISABLE_BACKGROUND_AGENTS="false"  # 启用 background agent（包括提醒功能）
 export AGNO_TELEMETRY=false
-export AGENT_WORKERS=5
+export AGENT_WORKERS=10
 
 # 从 .env 文件加载环境变量（如果存在）
 if [ -f ".env" ]; then
