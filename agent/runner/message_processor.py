@@ -613,3 +613,7 @@ def consume_stream_batch(
             if message_id:
                 mongo.find_one("inputmessages", {"_id": message_id})
             redis_client.xack(stream, group, entry_id)
+
+
+def get_queue_mode() -> str:
+    return CONF.get("queue_mode", "poll")
