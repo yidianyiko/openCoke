@@ -94,7 +94,7 @@ lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
 
 # Thread pool for background embedding storage
-_embedding_executor = ThreadPoolExecutor(max_workers=2)
+_embedding_executor = ThreadPoolExecutor(max_workers=4)
 
 
 def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):

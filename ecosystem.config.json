@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "langbot-core",
-      "script": "/home/ydyk/.local/bin/uvx",
+      "script": "/home/zihaoli/.local/bin/uvx",
       "args": "langbot@latest",
       "cwd": "./langbot-workdir",
       "interpreter": "none",
@@ -32,13 +32,13 @@
       "instances": 1,
       "autorestart": true,
       "watch": false,
-      "max_memory_restart": "1G",
+      "max_memory_restart": "2G",
       "env": {
         "env": "aliyun",
         "DISABLE_DAILY_AGENTS": "true",
         "DISABLE_BACKGROUND_AGENTS": "false",
         "AGNO_TELEMETRY": "false",
-        "AGENT_WORKERS": "5"
+        "AGENT_WORKERS": "10"
       },
       "error_file": "./logs/agent-error.log",
       "out_file": "./logs/agent-out.log",
