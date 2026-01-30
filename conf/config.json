@@ -78,5 +78,11 @@
         "deny_message": "[系统消息] 请发送有效订单编号开通服务",
         "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
         "success_message": "[系统消息] 验证成功，服务有效期至 {expire_time}"
+    },
+    "features": {
+        "usage_tracking": {
+            "enabled": true,
+            "persist_to_mongodb": true
+        }
     }
 }

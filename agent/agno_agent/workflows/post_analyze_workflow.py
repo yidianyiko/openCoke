@@ -29,6 +29,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import post_analyze_agent
+from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物资料,
     CONTEXTPROMPT_当前的人物关系,
@@ -152,6 +153,16 @@ class PostAnalyzeWorkflow:
             response = await post_analyze_agent.arun(
                 input=rendered_userp, session_state=session_state
             )
+
+            # 记录用量
+            if response and hasattr(response, "metrics"):
+                usage_tracker.record_from_metrics(
+                    agent_name="PostAnalyzeAgent",
+                    metrics=response.metrics,
+                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    session_id=session_state.get("conversation_id"),
+                    workflow_name="PostAnalyzeWorkflow",
+                )
 
             # 提取分析结果
             content = self._extract_content(response)

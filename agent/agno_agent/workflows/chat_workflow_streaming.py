@@ -23,6 +23,11 @@ from typing import Any, Dict, Optional
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
+# Note: Usage tracking for streaming mode is not yet implemented.
+# Metrics for ChatResponseAgent would need to be captured from the final chunk
+# or through alternative means. For now, usage is tracked in PrepareWorkflow
+# and PostAnalyzeWorkflow which use non-streaming agent calls.
+
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_主动消息触发,

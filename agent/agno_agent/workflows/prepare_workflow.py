@@ -26,6 +26,7 @@ from agent.agno_agent.agents import (
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
 from agent.agno_agent.tools.web_search_tool import web_search_tool
+from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_历史对话_精简,
     CONTEXTPROMPT_时间,
@@ -146,6 +147,16 @@ class PrepareWorkflow:
                 input=rendered_prompt, session_state=session_state
             )
 
+            # 记录用量
+            if orchestrator_response and hasattr(orchestrator_response, "metrics"):
+                usage_tracker.record_from_metrics(
+                    agent_name="OrchestratorAgent",
+                    metrics=orchestrator_response.metrics,
+                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    session_id=session_state.get("conversation_id"),
+                    workflow_name="PrepareWorkflow",
+                )
+
             if orchestrator_response and orchestrator_response.content:
                 if hasattr(orchestrator_response.content, "model_dump"):
                     orchestrator_result = orchestrator_response.content.model_dump()
@@ -262,6 +273,16 @@ class PrepareWorkflow:
             reminder_response = await reminder_detect_agent.arun(
                 input=reminder_input, session_state=session_state
             )
+
+            # 记录用量
+            if reminder_response and hasattr(reminder_response, "metrics"):
+                usage_tracker.record_from_metrics(
+                    agent_name="ReminderDetectAgent",
+                    metrics=reminder_response.metrics,
+                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    session_id=session_state.get("conversation_id"),
+                    workflow_name="PrepareWorkflow",
+                )
 
             # 记录结果
             self._log_reminder_result(reminder_response, session_state)
