@@ -428,9 +428,12 @@ class ReminderService:
             logger.warning(
                 f"Delete guard blocked: keyword={keyword}, reason={guard.get('reason')}, user={self.user_id}"
             )
+            # Use formatter to generate the guarded response message
+            message = self.formatter.guarded_response(guard, action="delete")
             return {
                 "ok": False,
                 "error": guard.get("error", "操作被阻止"),
+                "message": message,
                 "needs_confirmation": guard.get("needs_confirmation", False),
                 "candidates": guard.get("candidates", []),
             }
@@ -529,9 +532,12 @@ class ReminderService:
             logger.warning(
                 f"Complete guard blocked: keyword={keyword}, reason={guard.get('reason')}, user={self.user_id}"
             )
+            # Use formatter to generate the guarded response message
+            message = self.formatter.guarded_response(guard, action="complete")
             return {
                 "ok": False,
                 "error": guard.get("error", "操作被阻止"),
+                "message": message,
                 "needs_confirmation": guard.get("needs_confirmation", False),
                 "candidates": guard.get("candidates", []),
             }

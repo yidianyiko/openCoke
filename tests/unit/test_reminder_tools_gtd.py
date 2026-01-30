@@ -27,7 +27,8 @@ def test_create_reminder_without_trigger_time_succeeds(sample_context, monkeypat
         def close(self):
             pass
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     # 设置 session_state
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
@@ -75,7 +76,8 @@ def test_create_reminder_with_trigger_time_still_works(sample_context, monkeypat
         def close(self):
             pass
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     # 使用固定的 base_timestamp 进行时间解析
     base_timestamp = 1737532800  # 2026-01-22 12:00:00 UTC+8
@@ -138,7 +140,8 @@ def test_filter_reminders_shows_inbox_tasks_separately(sample_context, monkeypat
         def close(self):
             pass
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
     reminder_tools.set_reminder_session_state(sample_context)
 
     result = reminder_tools.reminder_tool.entrypoint(

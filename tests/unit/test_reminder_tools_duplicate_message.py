@@ -23,7 +23,8 @@ def test_create_duplicate_is_reported_as_success(sample_context, monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     reminder_tools.set_reminder_session_state(sample_context)
 

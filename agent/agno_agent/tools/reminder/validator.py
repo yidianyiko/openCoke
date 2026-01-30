@@ -195,6 +195,17 @@ class ReminderValidator:
 
         if existing:
             existing_id = existing.get("reminder_id", "")
+            existing_time = existing.get("next_trigger_time", 0)
+            # Format time for message
+            if existing_time:
+                from datetime import datetime
+                time_str = datetime.fromtimestamp(existing_time).strftime(
+                    "%Y年%m月%d日%H时%M分"
+                )
+                message = f"创建提醒成功：已为用户设置「{title}」提醒，时间为{time_str}"
+            else:
+                message = f"创建提醒成功：已为用户设置「{title}」提醒"
+
             logger.info(
                 f"Duplicate reminder detected: title={title}, "
                 f"existing_id={existing_id}, user={self.user_id}"
@@ -203,6 +214,7 @@ class ReminderValidator:
                 "ok": True,
                 "status": "duplicate",
                 "existing_id": existing_id,
+                "message": message,
             }
 
         # No duplicate found
