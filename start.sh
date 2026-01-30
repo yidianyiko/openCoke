@@ -365,6 +365,54 @@ check_mongodb() {
     fi
 }
 
+# 检查 Redis (通过 Docker 容器运行)
+check_redis() {
+    info "检查 Redis..."
+
+    if docker ps -a --format '{{.Names}}' | grep -q '^redis$'; then
+        if docker ps --format '{{.Names}}' | grep -q '^redis$'; then
+            success "Redis 容器已运行"
+            return 0
+        else
+            warn "Redis 容器已停止，正在启动..."
+            docker start redis
+            if [ $? -eq 0 ]; then
+                success "Redis 容器已启动"
+                return 0
+            else
+                error "Redis 容器启动失败"
+                echo "  请检查: docker logs redis"
+                exit 1
+            fi
+        fi
+    fi
+
+    warn "Redis 容器不存在，正在创建..."
+    REDIS_DATA_DIR="$HOME/redis/data"
+    mkdir -p "$REDIS_DATA_DIR"
+
+    docker pull redis:7.2
+    docker run -d \
+        --name redis \
+        -p 6379:6379 \
+        -v "$REDIS_DATA_DIR":/data \
+        redis:7.2 redis-server --appendonly yes
+
+    if [ $? -eq 0 ]; then
+        success "Redis 容器创建并启动成功"
+        echo "  数据目录: $REDIS_DATA_DIR"
+        sleep 2
+    else
+        error "Redis 容器创建失败"
+        echo ""
+        echo "  手动创建:"
+        echo "    docker pull redis:7.2"
+        echo "    docker run -d --name redis -p 6379:6379 -v \\$HOME/redis/data:/data redis:7.2 redis-server --appendonly yes"
+        echo ""
+        exit 1
+    fi
+}
+
 # 检查 PM2 (仅 pm2 模式需要)
 check_pm2() {
     if [ "$MODE" != "pm2" ]; then
@@ -513,6 +561,7 @@ run_setup() {
     check_system_deps
     install_python_deps
     check_mongodb
+    check_redis
     check_pm2
     check_config
     ensure_directories

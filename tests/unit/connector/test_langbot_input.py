@@ -92,7 +92,7 @@ class TestLangbotWebhookHandler:
         call_args = mock_mongo.insert_one.call_args
         assert call_args[0][0] == "inputmessages"
         inserted_doc = call_args[0][1]
-        assert inserted_doc["platform"] == "langbot"
+        assert inserted_doc["platform"] == "langbot_telegram"
         assert inserted_doc["message"] == "Hello"
 
     def test_webhook_ignores_unknown_event_type(
