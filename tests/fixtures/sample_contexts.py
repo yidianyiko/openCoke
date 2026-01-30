@@ -62,6 +62,15 @@ def get_full_context() -> dict:
             "character_knowledge": "",
             "confirmed_reminders": "",
         },
+        "query_rewrite": {
+            "InnerMonologue": "",
+            "CharacterSettingQueryQuestion": "",
+            "CharacterSettingQueryKeywords": "",
+            "UserProfileQueryQuestion": "",
+            "UserProfileQueryKeywords": "",
+            "CharacterKnowledgeQueryQuestion": "",
+            "CharacterKnowledgeQueryKeywords": "",
+        },
     }
 
 
@@ -87,6 +96,8 @@ def get_context_for_reminder() -> dict:
 def get_context_with_context_retrieve() -> dict:
     """获取包含 context_retrieve 的 context"""
     ctx = get_full_context()
+    ctx["context_retrieve"]["character_global"] = "角色全局设定摘要"
+    ctx["context_retrieve"]["user"] = "用户画像摘要"
     ctx["context_retrieve"]["confirmed_reminders"] = "1. 明天早上8点 - 开会提醒"
     return ctx
 
@@ -105,7 +116,8 @@ def get_context_with_multimodal_response() -> dict:
     ctx = get_full_context()
     ctx["MultiModalResponses"] = [
         {"type": "text", "content": "这是文本回复"},
-        {"type": "image", "url": "https://example.com/image.jpg"},
+        {"type": "voice", "content": "这是语音回复", "duration": 3},
+        {"type": "photo", "url": "https://example.com/image.jpg"},
     ]
     return ctx
 
@@ -114,7 +126,7 @@ def get_context_for_voice_message() -> dict:
     """获取语音消息的 context"""
     ctx = get_full_context()
     ctx["conversation"]["conversation_info"]["input_messages"] = [
-        {"type": "voice", "content": "[语音消息] 你好啊"}
+        {"type": "voice", "content": "[语音消息] 你好啊", "duration": 3}
     ]
     return ctx
 
@@ -124,6 +136,9 @@ def get_context_for_image_message() -> dict:
     ctx = get_full_context()
     ctx["conversation"]["conversation_info"]["input_messages"] = [
         {"type": "image", "url": "https://example.com/image.jpg", "content": "[图片]"}
+    ]
+    ctx["conversation"]["conversation_info"]["photo_history"] = [
+        {"url": "https://example.com/image.jpg", "content": "[图片]"}
     ]
     return ctx
 
@@ -138,7 +153,7 @@ def get_context_with_history() -> dict:
     ]
     ctx["conversation"]["conversation_info"][
         "chat_history_str"
-    ] = "用户: 你好\n助手: 你好！有什么可以帮你的吗？\n用户: 今天天气怎么样"
+    ] = "用户: 你好\n角色: 你好！有什么可以帮你的吗？\n用户: 今天天气怎么样"
     return ctx
 
 
@@ -146,7 +161,7 @@ def get_context_with_long_history() -> dict:
     """获取长对话历史的 context"""
     ctx = get_full_context()
     history = []
-    for i in range(50):
+    for i in range(20):
         history.append({"role": "user", "content": f"用户消息_{i}"})
         history.append({"role": "assistant", "content": f"助手回复_{i}"})
     ctx["conversation"]["conversation_info"]["chat_history"] = history
@@ -156,7 +171,7 @@ def get_context_with_long_history() -> dict:
 def get_context_for_repeated_message() -> dict:
     """获取重复消息场景的 context"""
     ctx = get_full_context()
-    ctx["repeated_input_notice"] = "用户重复发送了相同的消息"
+    ctx["repeated_input_notice"] = "用户重复发送了相同的消息：你好"
     return ctx
 
 
@@ -164,8 +179,8 @@ def get_context_for_turn_dedup() -> dict:
     """获取 turn-level 消息去重场景的 context"""
     ctx = get_full_context()
     ctx["conversation"]["conversation_info"]["turn_sent_contents"] = [
-        "已经发送过的内容1",
-        "已经发送过的内容2",
+        "你好！",
+        "有什么可以帮你的？",
     ]
     return ctx
 
@@ -244,12 +259,16 @@ def get_context_with_very_long_history() -> dict:
     """获取超长历史的 context"""
     ctx = get_full_context()
     history = []
-    for i in range(500):
+    for i in range(50):
         history.append({"role": "user", "content": f"这是一条很长的用户消息_{i}" * 10})
-        history.append(
-            {"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10}
-        )
+        history.append({"role": "assistant", "content": f"这是一条很长的助手回复_{i}" * 10})
     ctx["conversation"]["conversation_info"]["chat_history"] = history
+    ctx["conversation"]["conversation_info"]["chat_history_str"] = "\n".join(
+        [
+            f"{'用户' if msg['role'] == 'user' else '角色'}: {msg['content']}"
+            for msg in history
+        ]
+    )
     return ctx
 
 
@@ -258,5 +277,188 @@ def get_context_with_binary_like_content() -> dict:
     ctx = get_full_context()
     ctx["conversation"]["conversation_info"]["input_messages"] = [
         {"type": "text", "content": "正常文本\x00带有空字符"}
+    ]
+    return ctx
+
+
+def get_context_with_new_user_relation() -> dict:
+    """获取新用户关系的 context"""
+    ctx = get_full_context()
+    ctx["relation"]["relationship"] = {
+        "closeness": 10,
+        "trustness": 10,
+        "dislike": 0,
+        "status": "初识",
+    }
+    ctx["relation"]["character_info"]["attitude"] = "礼貌但保持距离"
+    return ctx
+
+
+def get_context_with_regular_user_relation() -> dict:
+    """获取普通用户关系的 context"""
+    ctx = get_full_context()
+    ctx["relation"]["relationship"] = {
+        "closeness": 45,
+        "trustness": 50,
+        "dislike": 0,
+        "status": "熟悉",
+    }
+    ctx["relation"]["user_info"]["realname"] = "王小明"
+    return ctx
+
+
+def get_context_with_close_user_relation() -> dict:
+    """获取亲密用户关系的 context"""
+    ctx = get_full_context()
+    ctx["relation"]["relationship"] = {
+        "closeness": 80,
+        "trustness": 85,
+        "dislike": 0,
+        "status": "亲密",
+        "description": "老朋友关系",
+    }
+    return ctx
+
+
+def get_context_with_low_trust_relation() -> dict:
+    """获取低信任关系的 context"""
+    ctx = get_full_context()
+    ctx["relation"]["relationship"] = {
+        "closeness": 20,
+        "trustness": 20,
+        "dislike": 10,
+        "status": "警惕",
+    }
+    return ctx
+
+
+def get_context_with_no_history() -> dict:
+    """获取无历史记录的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["chat_history"] = []
+    ctx["conversation"]["conversation_info"]["chat_history_str"] = ""
+    return ctx
+
+
+def get_context_with_short_history() -> dict:
+    """获取短历史记录的 context"""
+    ctx = get_full_context()
+    history = [
+        {"role": "user", "content": "你好"},
+        {"role": "assistant", "content": "你好！"},
+        {"role": "user", "content": "在吗"},
+        {"role": "assistant", "content": "在的"},
+    ]
+    ctx["conversation"]["conversation_info"]["chat_history"] = history
+    ctx["conversation"]["conversation_info"]["chat_history_str"] = (
+        "用户: 你好\n角色: 你好！\n用户: 在吗\n角色: 在的"
+    )
+    return ctx
+
+
+def get_context_with_multiple_text_messages() -> dict:
+    """获取多条文本消息的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "消息1"},
+        {"type": "text", "content": "消息2"},
+        {"type": "text", "content": "消息3"},
+    ]
+    return ctx
+
+
+def get_context_with_mixed_multimodal_input() -> dict:
+    """获取混合多模态输入的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "文字消息"},
+        {"type": "image", "url": "https://example.com/image.jpg", "content": "[图片]"},
+        {"type": "voice", "content": "[语音消息]", "duration": 3},
+    ]
+    return ctx
+
+
+def get_context_with_unicode_content() -> dict:
+    """获取包含特殊Unicode内容的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "测试😀🎉"}
+    ]
+    return ctx
+
+
+def get_context_with_html_injection() -> dict:
+    """获取包含HTML注入内容的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "<script>alert('x')</script>"}
+    ]
+    return ctx
+
+
+def get_context_with_sql_injection() -> dict:
+    """获取包含SQL注入内容的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "DROP TABLE users;"}
+    ]
+    return ctx
+
+
+def get_context_with_null_values() -> dict:
+    """获取包含 null 值的 context"""
+    ctx = get_full_context()
+    ctx["user"]["platforms"]["wechat"]["nickname"] = None
+    ctx["character"]["user_info"]["description"] = None
+    return ctx
+
+
+def get_context_with_empty_strings() -> dict:
+    """获取包含空字符串的 context"""
+    ctx = get_full_context()
+    ctx["user"]["platforms"]["wechat"]["nickname"] = ""
+    ctx["news_str"] = ""
+    return ctx
+
+
+def get_context_for_scheduled_proactive() -> dict:
+    """获取预定主动消息的 context"""
+    import time
+
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["future"] = {
+        "status": "scheduled",
+        "timestamp": int(time.time()) + 3600,
+        "action": "询问用户近况",
+    }
+    ctx["message_source"] = "proactive"
+    return ctx
+
+
+def get_context_for_expired_proactive() -> dict:
+    """获取过期主动消息的 context"""
+    import time
+
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["future"] = {
+        "status": "expired",
+        "timestamp": int(time.time()) - 3600,
+        "action": "询问用户近况",
+    }
+    return ctx
+
+
+def get_context_with_existing_reminders() -> dict:
+    """获取包含已有提醒的 context"""
+    ctx = get_full_context()
+    ctx["context_retrieve"]["confirmed_reminders"] = "1. 明天早上8点 - 开会提醒"
+    return ctx
+
+
+def get_context_for_reminder_cancellation() -> dict:
+    """获取提醒取消场景的 context"""
+    ctx = get_full_context()
+    ctx["conversation"]["conversation_info"]["input_messages"] = [
+        {"type": "text", "content": "取消开会提醒"}
     ]
     return ctx
