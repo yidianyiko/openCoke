@@ -19,10 +19,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from util.log_util import get_logger
-
-logger = get_logger(__name__)
-
 from agent.runner.access_gate import AccessGate
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
@@ -39,10 +35,13 @@ from entity.message import (
     set_hold_status,
     update_message_status_safe,
 )
+from util.log_util import get_logger
 from util.message_log_util import (
     format_std_messages_for_log,
     should_log_message_content,
 )
+
+logger = get_logger(__name__)
 
 # ========== 配置常量 ==========
 MAX_HANDLE_AGE = 3600 * 12  # 只处理12小时以内的消息
