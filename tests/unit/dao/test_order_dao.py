@@ -142,7 +142,9 @@ class TestOrderDAO:
         assert call_args["metadata"] == {}
 
     @pytest.mark.unit
-    def test_create_indexes_creates_all_required_indexes(self, order_dao, mock_collection):
+    def test_create_indexes_creates_all_required_indexes(
+        self, order_dao, mock_collection
+    ):
         """Should create all 3 indexes: order_no (unique), bound_user_id, expire_time"""
         order_dao.create_indexes()
 
