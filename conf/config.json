@@ -83,6 +83,11 @@
         "usage_tracking": {
             "enabled": true,
             "persist_to_mongodb": true
+        },
+        "context_compression": {
+            "num_history_messages": 15,
+            "compress_tool_results": true,
+            "max_tool_calls_from_history": 5
         }
     }
 }
