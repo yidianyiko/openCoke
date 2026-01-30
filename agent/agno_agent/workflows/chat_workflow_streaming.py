@@ -23,11 +23,6 @@ from typing import Any, Dict, Optional
 from agno.agent import Agent
 from agno.models.deepseek import DeepSeek
 
-# Note: Usage tracking for streaming mode is not yet implemented.
-# Metrics for ChatResponseAgent would need to be captured from the final chunk
-# or through alternative means. For now, usage is tracked in PrepareWorkflow
-# and PostAnalyzeWorkflow which use non-streaming agent calls.
-
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_主动消息触发,
@@ -59,6 +54,12 @@ from agent.prompt.chat_taskprompt import (
 )
 from agent.prompt.onboarding_prompt import get_onboarding_context
 from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
+
+# Note: Usage tracking for streaming mode is not yet implemented.
+# Metrics for ChatResponseAgent would need to be captured from the final chunk
+# or through alternative means. For now, usage is tracked in PrepareWorkflow
+# and PostAnalyzeWorkflow which use non-streaming agent calls.
+
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,9 @@ class StreamingChatWorkflow:
             instructions=INSTRUCTIONS_CHAT_RESPONSE,
             use_json_mode=True,
             markdown=False,
+            # 上下文压缩配置
+            num_history_messages=15,  # 保留最近 15 条消息
+            compress_tool_results=True,  # 压缩工具结果
         )
 
     async def run_stream(

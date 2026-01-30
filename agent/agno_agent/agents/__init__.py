@@ -157,6 +157,10 @@ reminder_detect_agent = Agent(
     tool_call_limit=1,  # 限制为1次调用，使用 batch_create 处理多任务
     instructions=get_reminder_detect_instructions(),
     markdown=False,
+    # 上下文压缩配置
+    num_history_messages=15,  # 保留最近 15 条消息
+    compress_tool_results=True,  # 压缩工具结果
+    max_tool_calls_from_history=5,  # 历史工具调用限制
 )
 
 
@@ -176,6 +180,9 @@ orchestrator_agent = Agent(
     output_schema=OrchestratorResponse,
     use_json_mode=True,
     markdown=False,
+    # 上下文压缩配置
+    num_history_messages=15,  # 保留最近 15 条消息
+    compress_tool_results=True,  # 压缩工具结果
 )
 
 # PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
@@ -194,6 +201,9 @@ post_analyze_agent = Agent(
     output_schema=PostAnalyzeResponse,
     use_json_mode=True,  # 使用 JSON mode 避免 structured output 解析失败
     markdown=False,
+    # 上下文压缩配置
+    num_history_messages=15,  # 保留最近 15 条消息
+    compress_tool_results=True,  # 压缩工具结果
 )
 
 
