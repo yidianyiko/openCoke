@@ -25,6 +25,7 @@ from agent.agno_agent.agents import (
 )
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
+from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
@@ -117,6 +118,9 @@ class PrepareWorkflow:
             self._run_web_search(session_state, orchestrator)
         else:
             logger.info("跳过联网搜索 (need_web_search=False)")
+
+        # Step 2.6: 链接内容提取 (检测消息中的 URL 并获取内容)
+        self._run_url_extraction(input_message, session_state)
 
         # Step 3: 提醒检测 (按需调用 Agent，0-1次 LLM)
         if need_reminder:
@@ -251,6 +255,25 @@ class PrepareWorkflow:
         except Exception as e:
             logger.error(f"联网搜索执行异常: {e}")
             session_state["web_search_result"] = {"ok": False, "error": str(e)}
+
+    def _run_url_extraction(
+        self, input_message: str, session_state: Dict[str, Any]
+    ) -> None:
+        """
+        提取消息中的 URL 并获取内容
+
+        链接理解功能：自动检测用户消息中的 URL，获取其内容作为上下文
+        """
+        try:
+            url_contents = extract_urls_content(input_message)
+            if url_contents:
+                session_state["url_context"] = [uc.to_dict() for uc in url_contents]
+                session_state["url_context_str"] = format_url_context(url_contents)
+                logger.info(f"[PrepareWorkflow] 提取了 {len(url_contents)} 个链接内容")
+            else:
+                logger.debug("[PrepareWorkflow] 消息中未检测到 URL")
+        except Exception as e:
+            logger.warning(f"[PrepareWorkflow] URL 提取失败: {e}")
 
     async def _run_reminder_detect(
         self,
