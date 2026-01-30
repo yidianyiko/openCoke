@@ -6,6 +6,7 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from datetime import datetime
 from typing import Dict, List, Optional
 
 from bson import ObjectId
@@ -344,7 +345,9 @@ class UserDAO:
             user = self.collection.find_one(query, {"_id": 1})
             return str(user["_id"]) if user else None
 
-    def update_access(self, user_id: ObjectId, order_no: str, expire_time) -> bool:
+    def update_access(
+        self, user_id: ObjectId, order_no: str, expire_time: datetime
+    ) -> bool:
         """
         更新用户访问授权
 
@@ -356,8 +359,6 @@ class UserDAO:
         Returns:
             更新是否成功
         """
-        from datetime import datetime
-
         result = self.collection.update_one(
             {"_id": user_id},
             {
