@@ -728,10 +728,12 @@ class ReminderService:
 
         for op in ops_list:
             if not isinstance(op, dict):
-                results.append({
-                    "ok": False,
-                    "error": "操作必须是对象格式",
-                })
+                results.append(
+                    {
+                        "ok": False,
+                        "error": "操作必须是对象格式",
+                    }
+                )
                 failed += 1
                 continue
 
