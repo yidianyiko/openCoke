@@ -11,14 +11,15 @@ Provides a layered architecture for reminder management:
 NOTE: Modules are being implemented incrementally. Uncomment imports as they become available.
 """
 
-# from .formatter import ReminderFormatter
+from .formatter import ReminderFormatter
 from .parser import TimeParser
+
 # from .service import ReminderService
-# from .validator import ReminderValidator
+from .validator import ReminderValidator
 
 __all__ = [
     "TimeParser",
     "ReminderValidator",
     "ReminderFormatter",
-    "ReminderService",
+    # "ReminderService",  # TODO: Add when service module is implemented
 ]
