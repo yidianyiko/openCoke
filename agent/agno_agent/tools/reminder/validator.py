@@ -8,11 +8,13 @@ This is Part 1: Basic Validation covering:
 - Frequency limit validation
 - Duplicate reminder detection
 - Operation allowed checks (prevents circular calls)
+- Side-effect guard for delete/complete operations
 
 Classes:
     ReminderValidator: Main validator class for reminder operations
 """
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
 from util.log_util import get_logger
@@ -264,3 +266,257 @@ class ReminderValidator:
 
         # Operation is allowed
         return None
+
+    def guard_side_effect(
+        self,
+        action: str,
+        keyword: Optional[str],
+        session_state: Optional[dict],
+    ) -> dict:
+        """
+        Guard side-effect actions (delete, complete) to prevent unintended operations.
+
+        This method enforces that destructive operations are only performed when the
+        user's intent is explicitly clear from their message text.
+
+        Args:
+            action: Operation type (delete, complete, create, update, filter, batch)
+            keyword: Keyword/identifier for the reminder to operate on
+            session_state: Current session state containing user messages
+
+        Returns:
+            Dict with keys:
+                - allowed (bool): Whether operation should proceed
+                - needs_confirmation (bool): Whether user confirmation is required
+                - error (str): Error message if not allowed
+                - candidates (list): Active reminder candidates for display
+                - resolved_keyword (str|None): The matched/resolved keyword
+                - reason (str): Reason for the decision
+                - display (str): Formatted display of candidates
+        """
+        # Non-side-effect actions are always allowed
+        if action not in ("delete", "complete"):
+            return {"allowed": True}
+
+        # Get user text from session
+        user_text = self._get_user_text(session_state).strip()
+        kw = (keyword or "").strip()
+
+        # Require user text for side-effect operations
+        if not user_text:
+            logger.warning(
+                f"Side-effect guard blocked: missing user text, action={action}, "
+                f"user={self.user_id}"
+            )
+            return {
+                "allowed": False,
+                "needs_confirmation": True,
+                "error": "无法获取用户本轮原文，已阻止执行有副作用的提醒操作",
+                "candidates": [],
+                "resolved_keyword": None,
+                "reason": "missing_user_text",
+            }
+
+        # Get active reminders for matching
+        active_candidates = self._get_active_candidates()
+
+        # Check for titles in user text (prioritize exact matches to active reminders)
+        matched_titles = []
+        for reminder in active_candidates:
+            title = str(reminder.get("title") or "").strip()
+            if title and title in user_text:
+                matched_titles.append(title)
+        # Remove duplicates while preserving order
+        matched_titles = list(dict.fromkeys(matched_titles))
+
+        # Single match in text - safe to proceed
+        if len(matched_titles) == 1:
+            logger.info(
+                f"Side-effect guard allowed: single title match, "
+                f"title={matched_titles[0]}, user={self.user_id}"
+            )
+            return {
+                "allowed": True,
+                "needs_confirmation": False,
+                "error": "",
+                "candidates": [],
+                "resolved_keyword": matched_titles[0],
+                "reason": "matched_active_title_in_user_text",
+            }
+
+        # Multiple matches - ambiguous, need clarification
+        if len(matched_titles) > 1:
+            logger.warning(
+                f"Side-effect guard blocked: ambiguous matches, "
+                f"matches={matched_titles}, user={self.user_id}"
+            )
+            candidates, display = self._summarize_candidates(active_candidates, limit=3)
+            return {
+                "allowed": False,
+                "needs_confirmation": True,
+                "error": "本轮消息同时命中多个提醒，无法确定要操作哪一个",
+                "candidates": candidates,
+                "resolved_keyword": None,
+                "reason": "ambiguous_title_matches",
+                "display": display,
+            }
+
+        # Special case: delete-all requires explicit confirmation
+        if kw == "*" and action == "delete":
+            if self._contains_any(user_text, self.DELETE_ALL_WORDS):
+                logger.info(
+                    f"Side-effect guard allowed: explicit delete-all, user={self.user_id}"
+                )
+                return {
+                    "allowed": True,
+                    "needs_confirmation": False,
+                    "error": "",
+                    "candidates": [],
+                    "resolved_keyword": None,
+                    "reason": "explicit_delete_all",
+                }
+            logger.warning(
+                f"Side-effect guard blocked: delete-all not explicit, user={self.user_id}"
+            )
+            candidates, display = self._summarize_candidates(active_candidates, limit=3)
+            return {
+                "allowed": False,
+                "needs_confirmation": True,
+                "error": '删除全部提醒需要用户明确表示"全部/清空/所有"等意图',
+                "candidates": candidates,
+                "resolved_keyword": None,
+                "reason": "delete_all_not_explicit",
+                "display": display,
+            }
+
+        # Check if provided keyword is in user text
+        if kw and kw in user_text:
+            logger.info(
+                f"Side-effect guard allowed: keyword in text, keyword={kw}, "
+                f"user={self.user_id}"
+            )
+            return {
+                "allowed": True,
+                "needs_confirmation": False,
+                "error": "",
+                "candidates": [],
+                "resolved_keyword": kw,
+                "reason": "keyword_in_user_text",
+            }
+
+        # Default: not safe, require confirmation
+        logger.warning(
+            f"Side-effect guard blocked: keyword not in text, keyword={kw}, "
+            f"user={self.user_id}"
+        )
+        candidates, display = self._summarize_candidates(active_candidates, limit=3)
+        return {
+            "allowed": False,
+            "needs_confirmation": True,
+            "error": "用户本轮消息未明确包含要操作的提醒关键字或标题",
+            "candidates": candidates,
+            "resolved_keyword": None,
+            "reason": "keyword_not_in_user_text",
+            "display": display,
+        }
+
+    def _get_user_text(self, session_state: Optional[dict]) -> str:
+        """
+        Extract the user's message text from session state.
+
+        Args:
+            session_state: Current session state dictionary
+
+        Returns:
+            Concatenated text from all input messages
+        """
+        if session_state is None:
+            return ""
+
+        conversation_info = (session_state.get("conversation", {}) or {}).get(
+            "conversation_info", {}
+        ) or {}
+        input_messages = conversation_info.get("input_messages") or []
+        if not isinstance(input_messages, list) or not input_messages:
+            return ""
+
+        texts: list[str] = []
+        for msg in input_messages:
+            if not isinstance(msg, dict):
+                continue
+            content = msg.get("message")
+            if content is None:
+                continue
+            content_str = str(content).strip()
+            if content_str:
+                texts.append(content_str)
+        return "\n".join(texts)
+
+    def _get_active_candidates(self) -> list[dict]:
+        """
+        Get all active and triggered reminders for the current user.
+
+        Returns:
+            List of reminder dictionaries with status 'active' or 'triggered'
+        """
+        try:
+            reminders = self.dao.filter_reminders(
+                user_id=self.user_id, status_list=["active", "triggered"]
+            )
+        except Exception:
+            logger.exception(f"Failed to get active reminders for user {self.user_id}")
+            reminders = []
+        if not isinstance(reminders, list):
+            return []
+        return reminders
+
+    def _summarize_candidates(
+        self, reminders: list[dict], limit: int = 3
+    ) -> tuple[list[dict], str]:
+        """
+        Format reminders for candidate display.
+
+        Args:
+            reminders: List of reminder dictionaries
+            limit: Maximum number of reminders to format
+
+        Returns:
+            Tuple of (candidate_dicts, display_string)
+        """
+        candidates: list[dict] = []
+        lines: list[str] = []
+        for r in reminders[:limit]:
+            title = str(r.get("title") or "").strip()
+            ts = r.get("next_trigger_time")
+            time_str = ""
+            if isinstance(ts, (int, float)) and ts > 0:
+                time_str = datetime.fromtimestamp(int(ts)).strftime("%m月%d日%H:%M")
+            if title:
+                candidates.append(
+                    {
+                        "title": title,
+                        "time": time_str,
+                        "reminder_id": r.get("reminder_id"),
+                    }
+                )
+                lines.append(f"「{title}」{('(' + time_str + ')') if time_str else ''}")
+        return candidates, "、".join(lines)
+
+    @staticmethod
+    def _contains_any(text: str, candidates: list[str]) -> bool:
+        """
+        Check if text contains any of the candidate strings.
+
+        Args:
+            text: Text to search in
+            candidates: List of strings to search for
+
+        Returns:
+            True if any candidate is found in text, False otherwise
+        """
+        if not text:
+            return False
+        for w in candidates:
+            if w and w in text:
+                return True
+        return False
