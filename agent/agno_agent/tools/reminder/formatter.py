@@ -239,7 +239,7 @@ class ReminderFormatter:
 
         return f"批量操作完成：{'，'.join(msg_parts)}" if msg_parts else "批量操作完成"
 
-    def guarded_response(self, guard: dict[str, Any]) -> str:
+    def guarded_response(self, guard: dict[str, Any], action: str = "") -> str:
         """
         Format side-effect guard rejection response.
 
@@ -250,6 +250,7 @@ class ReminderFormatter:
                 - reason: Rejection reason code
                 - candidates: Optional list of candidate reminders
                 - display: Optional display string for candidates
+            action: Action type for specific messaging (delete, complete, etc.)
 
         Returns:
             Formatted guard rejection message.
@@ -257,7 +258,16 @@ class ReminderFormatter:
         error_msg = guard.get("error", "操作未执行")
         display = guard.get("display", "")
 
-        base_msg = f"提醒操作未执行：{error_msg}"
+        # Action-specific prefix for better clarity
+        action_prefix_map = {
+            "delete": "提醒删除",
+            "complete": "提醒完成",
+            "update": "提醒修改",
+            "create": "提醒创建",
+        }
+        prefix = action_prefix_map.get(action, "提醒操作")
+
+        base_msg = f"{prefix}未执行：{error_msg}"
         if display:
             return f"{base_msg}。可选提醒：{display}"
         return base_msg

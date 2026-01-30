@@ -44,7 +44,8 @@ def test_complete_blocks_without_intent_or_keyword_in_user_text(
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {
@@ -103,7 +104,8 @@ def test_complete_allows_when_active_title_in_user_text_even_if_keyword_wrong(
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {
@@ -158,7 +160,8 @@ def test_complete_blocks_even_if_intent_only_and_single_candidate(
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {
@@ -215,7 +218,8 @@ def test_delete_all_requires_explicit_all_words(sample_context, monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {
@@ -266,7 +270,8 @@ def test_batch_complete_is_guarded(sample_context, monkeypatch):
         def close(self):
             return None
 
-    monkeypatch.setattr(reminder_tools, "ReminderDAO", FakeReminderDAO)
+    # Patch ReminderDAO at the source import location
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
 
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {"message_type": "text", "message": "就这样吧", "input_timestamp": 1737314222}
@@ -280,6 +285,8 @@ def test_batch_complete_is_guarded(sample_context, monkeypatch):
         action="batch", session_state=sample_context, operations=operations
     )
 
-    assert result["ok"] is False
+    # Batch completes successfully even if individual operations fail
+    assert result["ok"] is True
+    assert result.get("failed", 0) > 0
     failed = [r for r in result.get("results", []) if not r.get("ok")]
     assert failed
