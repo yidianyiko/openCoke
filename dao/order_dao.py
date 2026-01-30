@@ -13,6 +13,9 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 
 from conf.config import CONF
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 
 class OrderDAO:
