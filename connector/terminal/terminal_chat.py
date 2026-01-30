@@ -19,6 +19,13 @@ from datetime import datetime
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import save_outputmessage
+from util.redis_client import RedisClient
+from util.redis_stream import publish_input_event
+
+try:
+    import redis  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency until redis is installed
+    redis = None
 
 # ========== 配置 ==========
 # 用户 ID（发送消息的人）
@@ -29,6 +36,12 @@ CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun (与 config.json 中 defaul
 # ========== 初始化 ==========
 mongo = MongoDBBase()
 user_dao = UserDAO()
+redis_conf = RedisClient.from_config()
+redis_client = (
+    redis.Redis(host=redis_conf.host, port=redis_conf.port, db=redis_conf.db)
+    if redis is not None
+    else None
+)
 
 user = user_dao.get_user_by_id(USER_ID)
 character = user_dao.get_user_by_id(CHARACTER_ID)
@@ -80,7 +93,15 @@ def send_message(text):
         "message": text,
         "metadata": {},
     }
-    mongo.insert_one("inputmessages", message)
+    inserted_id = mongo.insert_one("inputmessages", message)
+    if redis_client is not None:
+        publish_input_event(
+            redis_client,
+            inserted_id,
+            message.get("platform", "wechat"),
+            now,
+            stream_key=redis_conf.stream_key,
+        )
     return now
 
 

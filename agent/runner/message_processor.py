@@ -603,3 +603,31 @@ class MessageFinalizer:
                 logger.warning(
                     f"{self.worker_tag} 消息达到最大重试次数，标记为 failed: {input_message['_id']}"
                 )
+
+
+def consume_stream_batch(
+    redis_client,
+    mongo: MongoDBBase,
+    group: str = "coke-workers",
+    stream: str = "coke:input",
+    consumer: str = "worker-1",
+    count: int = 10,
+    block_ms: int = 1000,
+):
+    entries = redis_client.xreadgroup(
+        group, consumer, {stream: ">"}, count=count, block=block_ms
+    )
+    for _stream, messages in entries:
+        for entry_id, data in messages:
+            message_id = None
+            if isinstance(data, dict):
+                message_id = data.get(b"message_id", data.get("message_id"))
+            if isinstance(message_id, bytes):
+                message_id = message_id.decode()
+            if message_id:
+                mongo.find_one("inputmessages", {"_id": message_id})
+            redis_client.xack(stream, group, entry_id)
+
+
+def get_queue_mode() -> str:
+    return CONF.get("queue_mode", "poll")

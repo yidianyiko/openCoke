@@ -13,10 +13,35 @@ from connector.langbot.langbot_adapter import langbot_webhook_to_std
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from util.log_util import get_logger
+from util.redis_client import RedisClient
+from util.redis_stream import publish_input_event
+
+try:
+    import redis  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency until redis is installed
+    redis = None
 
 logger = get_logger(__name__)
 
 app = Flask(__name__)
+redis_conf = RedisClient.from_config()
+redis_client = (
+    redis.Redis(host=redis_conf.host, port=redis_conf.port, db=redis_conf.db)
+    if redis is not None
+    else None
+)
+
+
+def _publish_stream_event(message_id: str, platform: str, ts: int) -> None:
+    if redis_client is None:
+        return
+    publish_input_event(
+        redis_client,
+        message_id,
+        platform,
+        ts,
+        stream_key=redis_conf.stream_key,
+    )
 
 
 def get_default_character():
@@ -173,6 +198,11 @@ def webhook_handler():
         mongo = MongoDBBase()
         result = mongo.insert_one("inputmessages", std)
         logger.info(f"Step 3 done: inserted_id={result}")
+        _publish_stream_event(
+            result,
+            std.get("platform", "langbot"),
+            int(std.get("input_timestamp", 0) or 0),
+        )
 
         return jsonify({"status": "ok", "skip_pipeline": True}), 200
 

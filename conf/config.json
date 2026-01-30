@@ -27,6 +27,13 @@
         "mongodb_port": "27017",
         "mongodb_name": "mymongo"
     },
+    "redis": {
+        "host": "127.0.0.1",
+        "port": 6379,
+        "db": 0,
+        "stream": "coke:input",
+        "group": "coke-workers"
+    },
     "liblib": {
         "AccessKey": "${LIBLIB_ACCESS_KEY}",
         "SecretKey": "${LIBLIB_SECRET_KEY}"

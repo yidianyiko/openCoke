@@ -61,6 +61,24 @@ use mymongo
 docker restart mongodb
 ```
 
+### redis
+启动（用于低延迟消息队列）
+```
+docker pull redis:7.2
+docker run -d \
+  --name redis \
+  -p 6379:6379 \
+  -v /home/ecs-user/luoyun/redis/data:/data \
+  redis:7.2 redis-server --appendonly yes
+```
+
+重启 Redis
+```
+docker restart redis
+```
+
+> 使用 `./start.sh --mode pm2` 启动时，Redis 会自动检查并拉起，无需手动执行以上步骤。
+
 ### python安装和依赖
 sudo apt update
 sudo apt install -y software-properties-common
