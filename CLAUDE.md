@@ -69,12 +69,42 @@ Phase 3: PostAnalyzeWorkflow (2-5s)
 
 ### MongoDB Collections
 
-`inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`
+`inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`, `orders`
 
 **GTD Support (P0):**
 - `reminders` collection now supports GTD-style task collection
 - `list_id` field: defaults to "inbox", supports task organization
 - `trigger_time` field: can be `None` for tasks without specific time
+
+### Access Control (Gate System)
+
+Platform-agnostic access control where users must provide valid order numbers to use the service.
+
+**Configuration (conf/config.json):**
+```json
+"access_control": {
+    "enabled": false,
+    "platforms": {
+        "wechat": false,
+        "langbot_telegram": true,
+        "langbot_feishu": true
+    },
+    "deny_message": "[系统消息] 请发送有效订单编号开通服务",
+    "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
+    "success_message": "[系统消息] 验证成功，服务有效期至 {expire_time}"
+}
+```
+
+**How it works:**
+- Platform-agnostic: each platform can independently enable/disable gate
+- Users must send valid order number to gain access
+- Orders stored in `orders` collection, bound 1:1 to users
+- User access state stored in `users.access` field
+- Admin user (configured via `admin_user_id`) is exempt
+
+**MongoDB Collections:**
+- `orders`: Order data with `order_no`, `expire_time`, `bound_user_id`
+- `users.access`: User authorization with `order_no`, `granted_at`, `expire_time`
 
 ### Ecloud Group Chat Support
 
