@@ -1061,7 +1061,9 @@ async def _handle_reminder_message(
             )
 
             # 更新关系
-            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+            relation_update = {
+                k: v for k, v in context["relation"].items() if k != "_id"
+            }
             mongo.replace_one(
                 "relations",
                 query={
@@ -1084,7 +1086,6 @@ async def _handle_reminder_message(
         )
 
 
-
 async def _handle_reminder_group_message(
     reminders: list, user, character, conversation, lock, conversation_id
 ):
@@ -1103,10 +1104,12 @@ async def _handle_reminder_group_message(
 
     try:
         now = int(time.time())
-        
+
         # 按触发时间排序确保顺序正确
-        sorted_reminders = sorted(reminders, key=lambda r: r.get("next_trigger_time", 0))
-        
+        sorted_reminders = sorted(
+            reminders, key=lambda r: r.get("next_trigger_time", 0)
+        )
+
         # 构建带时间信息的合并内容
         combined_titles = []
         combined_items = []
@@ -1114,9 +1117,9 @@ async def _handle_reminder_group_message(
             title = reminder.get("title", "提醒")
             content = reminder.get("action_template", title)
             trigger_time = reminder.get("next_trigger_time", now)
-            
+
             combined_titles.append(title)
-            
+
             # 计算相对时间描述
             diff_seconds = trigger_time - now
             if diff_seconds <= 0:
@@ -1126,13 +1129,15 @@ async def _handle_reminder_group_message(
             else:
                 minutes = diff_seconds // 60
                 time_desc = f"{minutes}分钟后"
-            
+
             combined_items.append(f"{i}. {content}（{time_desc}）")
 
         combined_title = "；".join(combined_titles)
         # 新格式：带序号和时间的列表
         combined_content = "\n".join(combined_items)
-        input_message_str = f"[系统提醒触发-多条合并] 按顺序提醒用户：\n{combined_content}"
+        input_message_str = (
+            f"[系统提醒触发-多条合并] 按顺序提醒用户：\n{combined_content}"
+        )
 
         # 构建 context
         context = context_prepare(user, character, conversation)
@@ -1191,7 +1196,9 @@ async def _handle_reminder_group_message(
             )
 
             # 更新关系
-            relation_update = {k: v for k, v in context["relation"].items() if k != "_id"}
+            relation_update = {
+                k: v for k, v in context["relation"].items() if k != "_id"
+            }
             mongo.replace_one(
                 "relations",
                 query={
@@ -1213,7 +1220,6 @@ async def _handle_reminder_group_message(
             f"[REMINDER] 合并提醒处理失败，保留 active 状态等待重试: "
             f"{[r['reminder_id'] for r in reminders]}"
         )
-
 
 
 def _handle_reminder_completion(reminder: dict, conversation_id: str):
@@ -1280,7 +1286,9 @@ def _handle_reminder_completion(reminder: dict, conversation_id: str):
                             f"[REMINDER] 周期提醒已重新调度: {reminder_id}, next_time={next_time}"
                         )
                     else:
-                        logger.warning(f"[REMINDER] reschedule_reminder 失败: {reminder_id}")
+                        logger.warning(
+                            f"[REMINDER] reschedule_reminder 失败: {reminder_id}"
+                        )
                 else:
                     # 周期结束：标记为完成
                     reminder_dao.complete_reminder(reminder_id)
