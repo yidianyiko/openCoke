@@ -6,12 +6,12 @@ Gateway 模式适配器基类
 """
 
 from abc import abstractmethod
-from typing import Optional, Callable, Awaitable
+from typing import Awaitable, Callable, Optional
 
 from connector.channel.adapter import ChannelAdapter
 from connector.channel.types import (
-    DeliveryMode,
     ChannelCapabilities,
+    DeliveryMode,
     StandardMessage,
     UserInfo,
 )

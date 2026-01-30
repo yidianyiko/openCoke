@@ -43,6 +43,8 @@ def _publish_stream_event(message_id: str, platform: str, ts: int) -> None:
         ts,
         stream_key=redis_conf.stream_key,
     )
+
+
 user = user_dao.get_user_by_id(from_user)
 user_name = user["platforms"]["wechat"]["nickname"]
 

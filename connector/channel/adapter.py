@@ -6,13 +6,13 @@ Channel Adapter 基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from connector.channel.types import (
-    MessageType,
+    ChannelCapabilities,
     ChatType,
     DeliveryMode,
-    ChannelCapabilities,
+    MessageType,
     StandardMessage,
     UserInfo,
 )
@@ -98,16 +98,14 @@ class ChannelAdapter(ABC):
         """
         pass
 
-    async def send_text(
-        self, to_user: str, text: str, **kwargs
-    ) -> bool:
+    async def send_text(self, to_user: str, text: str, **kwargs) -> bool:
         """便捷方法：发送文本消息"""
         msg = StandardMessage(
             platform=self.channel_id,
             to_user=to_user,
             message_type=MessageType.TEXT,
             content=text,
-            **kwargs
+            **kwargs,
         )
         return await self.send_message(msg)
 
@@ -117,7 +115,7 @@ class ChannelAdapter(ABC):
         media_type: MessageType,
         media_url: Optional[str] = None,
         media_data: Optional[bytes] = None,
-        **kwargs
+        **kwargs,
     ) -> bool:
         """便捷方法：发送媒体消息"""
         msg = StandardMessage(
@@ -126,7 +124,7 @@ class ChannelAdapter(ABC):
             message_type=media_type,
             media_url=media_url,
             media_data=media_data,
-            **kwargs
+            **kwargs,
         )
         return await self.send_message(msg)
 
@@ -154,7 +152,8 @@ class ChannelAdapter(ABC):
             return user
         # 创建新用户（子类可覆盖）
         return UserInfo(
-            platform_user_id=platform_user_id, display_name=default_name or platform_user_id
+            platform_user_id=platform_user_id,
+            display_name=default_name or platform_user_id,
         )
 
     # ==================== 群组支持（可选） ====================

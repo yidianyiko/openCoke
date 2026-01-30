@@ -8,8 +8,8 @@
 from typing import Dict, List, Optional
 
 from connector.channel.adapter import ChannelAdapter
-from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.gateway_adapter import GatewayAdapter
+from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.types import DeliveryMode
 
 
@@ -87,9 +87,7 @@ class ChannelRegistry:
         Returns:
             List[PollingAdapter]: 所有轮询模式适配器
         """
-        return [
-            a for a in self._adapters.values() if isinstance(a, PollingAdapter)
-        ]
+        return [a for a in self._adapters.values() if isinstance(a, PollingAdapter)]
 
     def list_gateway(self) -> List[GatewayAdapter]:
         """
@@ -98,9 +96,7 @@ class ChannelRegistry:
         Returns:
             List[GatewayAdapter]: 所有 Gateway 模式适配器
         """
-        return [
-            a for a in self._adapters.values() if isinstance(a, GatewayAdapter)
-        ]
+        return [a for a in self._adapters.values() if isinstance(a, GatewayAdapter)]
 
     def clear(self):
         """清空所有适配器（主要用于测试）"""

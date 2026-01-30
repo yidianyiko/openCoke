@@ -103,7 +103,15 @@ class TimeParser:
         date_str = f"{dt.month}月{dt.day}日"
 
         # Weekday part
-        weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+        weekdays = [
+            "星期一",
+            "星期二",
+            "星期三",
+            "星期四",
+            "星期五",
+            "星期六",
+            "星期日",
+        ]
         weekday_str = weekdays[dt.weekday()]
 
         # Time part

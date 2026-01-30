@@ -6,7 +6,7 @@ Unit tests for Ecloud Adapter (migrated)
 import pytest
 
 from connector.adapters.ecloud.ecloud_adapter import EcloudAdapter
-from connector.channel.types import MessageType, ChatType
+from connector.channel.types import ChatType, MessageType
 
 
 class TestEcloudAdapter:
@@ -49,10 +49,10 @@ class TestEcloudAdapter:
                 "sel": False,
                 "timestamp": 1640594470,
                 "toUser": "wxid_bot123",
-                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
+                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c",
             },
             "messageType": "60001",
-            "wcId": "wxid_bot123"
+            "wcId": "wxid_bot123",
         }
 
         std_msg = self.adapter.to_standard(ecloud_message)
@@ -76,7 +76,7 @@ class TestEcloudAdapter:
                 "msgId": 1052001124,
                 "newMsgId": 3166120021925175286,
                 "timestamp": 1640594471,
-                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
+                "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c",
             },
             "messageType": "80001",
         }
@@ -91,7 +91,7 @@ class TestEcloudAdapter:
         """Test converting reference message."""
         import xml.etree.ElementTree as ET
 
-        xml_content = '''<?xml version="1.0"?>
+        xml_content = """<?xml version="1.0"?>
 <msg>
     <appmsg appid="" sdkver="0">
         <title>好的</title>
@@ -101,7 +101,7 @@ class TestEcloudAdapter:
             <content>这是引用的内容</content>
         </refermsg>
     </appmsg>
-</msg>'''
+</msg>"""
 
         ecloud_message = {
             "data": {

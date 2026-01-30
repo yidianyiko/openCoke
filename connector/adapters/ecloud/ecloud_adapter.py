@@ -5,20 +5,19 @@ Ecloud Adapter (WeChat) - 迁移版本
 Polling 模式的微信适配器，封装现有的 Ecloud 适配器逻辑。
 """
 
-from typing import Dict, Any, List, Optional
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.types import (
     ChannelCapabilities,
+    ChatType,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
-    ChatType,
 )
 from connector.ecloud import ecloud_adapter as legacy_adapter
 from connector.ecloud import ecloud_output
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -142,7 +141,9 @@ class EcloudAdapter(PollingAdapter):
         if message_type == MessageType.REFERENCE:
             ref_metadata = legacy_std.get("metadata", {}).get("reference", {})
             if ref_metadata:
-                std_msg.reply_to_content = f"{ref_metadata.get('user', '')}: {ref_metadata.get('text', '')}"
+                std_msg.reply_to_content = (
+                    f"{ref_metadata.get('user', '')}: {ref_metadata.get('text', '')}"
+                )
 
         return std_msg
 
@@ -194,7 +195,9 @@ class EcloudAdapter(PollingAdapter):
                     ecloud_msg.get("length", 0),
                 )
             elif message.message_type == MessageType.IMAGE:
-                result = ecloud_output.send_image(to_user, ecloud_msg.get("content", ""))
+                result = ecloud_output.send_image(
+                    to_user, ecloud_msg.get("content", "")
+                )
             else:
                 logger.warning(f"不支持的消息类型: {message.message_type}")
                 return False

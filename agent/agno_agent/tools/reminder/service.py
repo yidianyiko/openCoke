@@ -7,6 +7,7 @@ Coordinates between DAO, parser, validator, and formatter to handle
 reminder operations.
 """
 
+import json
 import time
 import uuid
 from typing import TYPE_CHECKING, Optional
@@ -252,6 +253,417 @@ class ReminderService:
         }
 
         return reminder_doc
+
+    def update(
+        self,
+        keyword: Optional[str],
+        new_title: Optional[str],
+        new_trigger_time: Optional[str],
+        recurrence_type: Optional[str],
+        recurrence_interval: Optional[int],
+    ) -> dict:
+        """
+        Update an existing reminder by keyword matching.
+
+        This method orchestrates the reminder update process:
+        1. Validates keyword is provided
+        2. Validates at least one field to update is provided
+        3. Parses new trigger time if provided
+        4. Builds update document
+        5. Updates matching reminders via DAO
+        6. Formats success response
+
+        Args:
+            keyword: Keyword to match reminder titles (required)
+            new_title: New title for the reminder (optional)
+            new_trigger_time: New trigger time string (optional)
+            recurrence_type: New recurrence type (optional)
+            recurrence_interval: New recurrence interval (optional)
+
+        Returns:
+            Dictionary with keys:
+                - ok (bool): Whether operation succeeded
+                - updated_count (int): Number of reminders updated (on success)
+                - updated_reminders (list): List of updated reminders (on success)
+                - message (str): Formatted response message
+                - error (str): Error message (on validation failure)
+        """
+        # Step 1: Validate keyword
+        if not keyword or not keyword.strip():
+            logger.warning(
+                f"Update validation failed: missing keyword for user {self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": "更新操作需要提供 keyword（要修改的提醒关键字）",
+            }
+
+        keyword = keyword.strip()
+
+        # Step 2: Build update fields and validate at least one field
+        update_fields = {}
+        update_desc = []
+
+        if new_title:
+            update_fields["title"] = new_title
+            update_fields["action_template"] = f"记得{new_title}"
+            update_desc.append(f"标题改为「{new_title}」")
+
+        if new_trigger_time:
+            parsed_time = self.parser.parse(new_trigger_time)
+            if parsed_time is None:
+                logger.warning(
+                    f"Update validation failed: invalid time '{new_trigger_time}' for user {self.user_id}"
+                )
+                return {
+                    "ok": False,
+                    "error": f"无法解析时间: {new_trigger_time}",
+                }
+            update_fields["next_trigger_time"] = parsed_time
+            time_str = self.parser.format_with_date(parsed_time)
+            update_desc.append(f"时间改为{time_str}")
+
+        if recurrence_type and recurrence_type != "none":
+            update_fields["recurrence"] = {
+                "enabled": True,
+                "type": recurrence_type,
+                "interval": recurrence_interval or 1,
+            }
+            recurrence_map = {
+                "daily": "每天",
+                "weekly": "每周",
+                "monthly": "每月",
+                "yearly": "每年",
+                "interval": f"每{recurrence_interval or 1}分钟",
+            }
+            update_desc.append(
+                f"周期改为{recurrence_map.get(recurrence_type, recurrence_type)}"
+            )
+
+        if not update_fields:
+            logger.warning(
+                f"Update validation failed: no fields to update for user {self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": "没有提供要更新的字段（需要 new_title 或 new_trigger_time）",
+            }
+
+        # Step 3: Update via DAO
+        try:
+            updated_count, updated_reminders = self.dao.update_reminders_by_keyword(
+                user_id=self.user_id, keyword=keyword, update_data=update_fields
+            )
+
+            if updated_count > 0:
+                updated_titles = [r.get("title", "") for r in updated_reminders]
+                titles_str = "、".join([f"「{t}」" for t in updated_titles[:5]])
+                if len(updated_titles) > 5:
+                    titles_str += f" 等{len(updated_titles)}个"
+
+                desc_str = "、".join(update_desc) if update_desc else "已更新"
+                message = f"提醒修改成功：已更新包含「{keyword}」的提醒 {titles_str}，{desc_str}"
+                return {
+                    "ok": True,
+                    "updated_count": updated_count,
+                    "updated_reminders": updated_reminders,
+                    "message": message,
+                }
+            else:
+                logger.info(
+                    f"Update found no reminders: keyword='{keyword}', user={self.user_id}"
+                )
+                return {
+                    "ok": False,
+                    "error": f"没有找到或已经完成了包含「{keyword}」的提醒",
+                    "updated_count": 0,
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to update reminders by keyword '{keyword}': {e}")
+            return {
+                "ok": False,
+                "error": f"更新提醒失败：{str(e)}",
+            }
+
+    def delete(self, keyword: Optional[str], session_state: Optional[dict]) -> dict:
+        """
+        Delete reminders by keyword matching.
+
+        This method orchestrates the reminder deletion process:
+        1. Validates keyword is provided
+        2. Runs side-effect guard to prevent unintended deletions
+        3. Deletes matching reminders via DAO
+        4. Formats success response
+
+        Args:
+            keyword: Keyword to match reminder titles ("*" for all)
+            session_state: Current session state for guard validation
+
+        Returns:
+            Dictionary with keys:
+                - ok (bool): Whether operation succeeded
+                - deleted_count (int): Number of reminders deleted (on success)
+                - message (str): Formatted response message
+                - error (str): Error message (on validation failure)
+                - needs_confirmation (bool): Whether user confirmation is needed
+        """
+        # Step 1: Validate keyword
+        if not keyword or not keyword.strip():
+            logger.warning(
+                f"Delete validation failed: missing keyword for user {self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": "删除操作需要提供 keyword（要删除的提醒关键字）",
+            }
+
+        keyword = keyword.strip()
+
+        # Step 2: Run side-effect guard
+        guard = self.validator.guard_side_effect(
+            action="delete", keyword=keyword, session_state=session_state
+        )
+        if not guard.get("allowed"):
+            logger.warning(
+                f"Delete guard blocked: keyword={keyword}, reason={guard.get('reason')}, user={self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": guard.get("error", "操作被阻止"),
+                "needs_confirmation": guard.get("needs_confirmation", False),
+                "candidates": guard.get("candidates", []),
+            }
+
+        # Use resolved keyword if guard provided one
+        if guard.get("resolved_keyword") is not None:
+            keyword = guard.get("resolved_keyword")
+
+        # Step 3: Delete via DAO
+        try:
+            # Support "*" for delete all
+            if keyword == "*":
+                deleted_count = self.dao.delete_all_by_user(self.user_id)
+                message = self.formatter.delete_success(deleted_count, keyword)
+                return {
+                    "ok": True,
+                    "deleted_count": deleted_count,
+                    "message": message,
+                }
+
+            # Delete by keyword
+            deleted_count, deleted_reminders = self.dao.delete_reminders_by_keyword(
+                user_id=self.user_id, keyword=keyword
+            )
+
+            if deleted_count > 0:
+                deleted_titles = [r.get("title", "") for r in deleted_reminders]
+                titles_str = "、".join([f"「{t}」" for t in deleted_titles[:5]])
+                if len(deleted_titles) > 5:
+                    titles_str += f" 等{len(deleted_titles)}个"
+
+                message = f"提醒删除成功：已删除包含「{keyword}」的提醒：{titles_str}"
+                return {
+                    "ok": True,
+                    "deleted_count": deleted_count,
+                    "deleted_reminders": deleted_reminders,
+                    "message": message,
+                }
+            else:
+                logger.info(
+                    f"Delete found no reminders: keyword='{keyword}', user={self.user_id}"
+                )
+                return {
+                    "ok": False,
+                    "error": f"没有找到或已经完成了包含「{keyword}」的提醒",
+                    "deleted_count": 0,
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to delete reminders by keyword '{keyword}': {e}")
+            return {
+                "ok": False,
+                "error": f"删除提醒失败：{str(e)}",
+            }
+
+    def complete(self, keyword: Optional[str], session_state: Optional[dict]) -> dict:
+        """
+        Complete reminders by keyword matching.
+
+        This method orchestrates the reminder completion process:
+        1. Validates keyword is provided
+        2. Runs side-effect guard to prevent unintended completions
+        3. Marks matching reminders as completed via DAO
+        4. Formats success response
+
+        Args:
+            keyword: Keyword to match reminder titles (required)
+            session_state: Current session state for guard validation
+
+        Returns:
+            Dictionary with keys:
+                - ok (bool): Whether operation succeeded
+                - completed_count (int): Number of reminders completed (on success)
+                - completed_reminders (list): List of completed reminders (on success)
+                - message (str): Formatted response message
+                - error (str): Error message (on validation failure)
+                - needs_confirmation (bool): Whether user confirmation is needed
+        """
+        # Step 1: Validate keyword
+        if not keyword or not keyword.strip():
+            logger.warning(
+                f"Complete validation failed: missing keyword for user {self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": "完成操作需要提供 keyword（要完成的提醒关键字）",
+            }
+
+        keyword = keyword.strip()
+
+        # Step 2: Run side-effect guard
+        guard = self.validator.guard_side_effect(
+            action="complete", keyword=keyword, session_state=session_state
+        )
+        if not guard.get("allowed"):
+            logger.warning(
+                f"Complete guard blocked: keyword={keyword}, reason={guard.get('reason')}, user={self.user_id}"
+            )
+            return {
+                "ok": False,
+                "error": guard.get("error", "操作被阻止"),
+                "needs_confirmation": guard.get("needs_confirmation", False),
+                "candidates": guard.get("candidates", []),
+            }
+
+        # Use resolved keyword if guard provided one
+        if guard.get("resolved_keyword") is not None:
+            keyword = guard.get("resolved_keyword")
+
+        # Step 3: Complete via DAO
+        try:
+            completed_count, completed_reminders = (
+                self.dao.complete_reminders_by_keyword(
+                    user_id=self.user_id, keyword=keyword
+                )
+            )
+
+            if completed_count > 0:
+                completed_titles = [r.get("title", "") for r in completed_reminders]
+                titles_str = "、".join([f"「{t}」" for t in completed_titles[:5]])
+                if len(completed_titles) > 5:
+                    titles_str += f" 等{len(completed_titles)}个"
+
+                message = f"提醒完成成功：已完成包含「{keyword}」的提醒：{titles_str}"
+                return {
+                    "ok": True,
+                    "completed_count": completed_count,
+                    "completed_reminders": completed_reminders,
+                    "message": message,
+                }
+            else:
+                logger.info(
+                    f"Complete found no reminders: keyword='{keyword}', user={self.user_id}"
+                )
+                return {
+                    "ok": False,
+                    "error": f"没有找到或已经完成了包含「{keyword}」的提醒",
+                    "completed_count": 0,
+                }
+
+        except Exception as e:
+            logger.error(f"Failed to complete reminders by keyword '{keyword}': {e}")
+            return {
+                "ok": False,
+                "error": f"完成提醒失败：{str(e)}",
+            }
+
+    def filter(
+        self,
+        status: Optional[str],
+        reminder_type: Optional[str],
+        keyword: Optional[str],
+        trigger_after: Optional[str],
+        trigger_before: Optional[str],
+    ) -> dict:
+        """
+        Query/filter reminders with flexible criteria.
+
+        This method orchestrates the reminder filtering process:
+        1. Parses status parameter (JSON string or single value)
+        2. Parses time range parameters if provided
+        3. Queries reminders via DAO
+        4. Formats results grouped by type (scheduled vs inbox)
+
+        Args:
+            status: Status filter as JSON string (e.g., '["active"]') or single value
+            reminder_type: Type filter ("one_time" or "recurring")
+            keyword: Keyword to search in titles
+            trigger_after: Time range start (string to parse)
+            trigger_before: Time range end (string to parse)
+
+        Returns:
+            Dictionary with keys:
+                - ok (bool): Whether operation succeeded
+                - status (str): Operation status ("success")
+                - reminders (list): List of filtered reminders
+                - count (int): Number of reminders found
+                - message (str): Formatted response message
+                - error (str): Error message (on failure)
+        """
+        try:
+            # Step 1: Parse status parameter
+            status_list = None
+            if status:
+                try:
+                    status_list = json.loads(status)
+                    if not isinstance(status_list, list):
+                        status_list = [status_list]
+                except json.JSONDecodeError:
+                    # If not JSON, treat as single status
+                    status_list = [status]
+
+            # Step 2: Parse time range parameters
+            trigger_after_ts = None
+            trigger_before_ts = None
+
+            if trigger_after:
+                trigger_after_ts = self.parser.parse(trigger_after)
+                if trigger_after_ts is None:
+                    logger.warning(f"Failed to parse trigger_after: {trigger_after}")
+
+            if trigger_before:
+                trigger_before_ts = self.parser.parse(trigger_before)
+                if trigger_before_ts is None:
+                    logger.warning(f"Failed to parse trigger_before: {trigger_before}")
+
+            # Step 3: Query via DAO
+            reminders = self.dao.filter_reminders(
+                user_id=self.user_id,
+                status_list=status_list,
+                reminder_type=reminder_type,
+                keyword=keyword,
+                trigger_after=trigger_after_ts,
+                trigger_before=trigger_before_ts,
+            )
+
+            # Step 4: Format results
+            message = self.formatter.filter_result(reminders)
+
+            return {
+                "ok": True,
+                "status": "success",
+                "reminders": reminders,
+                "count": len(reminders),
+                "message": message,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to filter reminders: {e}")
+            return {
+                "ok": False,
+                "error": f"筛选提醒失败：{str(e)}",
+            }
 
     def close(self) -> None:
         """

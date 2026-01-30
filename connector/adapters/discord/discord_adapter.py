@@ -6,19 +6,18 @@ Gateway 模式的 Discord 适配器，使用 discord.py 库。
 支持实时消息接收和发送。
 """
 
-from typing import Dict, Any, Optional, List
 import asyncio
+from typing import Any, Dict, List, Optional
 
 from connector.channel.gateway_adapter import GatewayAdapter
 from connector.channel.types import (
-    DeliveryMode,
     ChannelCapabilities,
+    ChatType,
+    DeliveryMode,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
-    ChatType,
 )
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -211,7 +210,11 @@ class DiscordAdapter(GatewayAdapter):
             "op": 2,
             "d": {
                 "token": self._bot_token,
-                "intents": 1 << 0 | 1 << 9 | 1 << 10 | 1 << 11 | 1 << 12,  # guilds + messages
+                "intents": 1 << 0
+                | 1 << 9
+                | 1 << 10
+                | 1 << 11
+                | 1 << 12,  # guilds + messages
                 "properties": {
                     "os": "linux",
                     "browser": "coke",
@@ -347,7 +350,11 @@ class DiscordAdapter(GatewayAdapter):
             elif content_type and content_type.startswith("audio/"):
                 return MessageType.VOICE, content or "[音频]", attachment.get("url")
             else:
-                return MessageType.FILE, content or f"[文件: {attachment.get('filename', '')}]", attachment.get("url")
+                return (
+                    MessageType.FILE,
+                    content or f"[文件: {attachment.get('filename', '')}]",
+                    attachment.get("url"),
+                )
 
         # Stickers
         stickers = message.get("stickers", [])
@@ -451,7 +458,8 @@ class DiscordAdapter(GatewayAdapter):
                     user_info = await resp.json()
                     return UserInfo(
                         platform_user_id=user_info.get("id", ""),
-                        display_name=user_info.get("global_name") or user_info.get("username", ""),
+                        display_name=user_info.get("global_name")
+                        or user_info.get("username", ""),
                         username=user_info.get("username"),
                         avatar_url=(
                             f"https://cdn.discordapp.com/avatars/{user_info['id']}/{user_info['avatar']}.png"

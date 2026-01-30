@@ -6,7 +6,7 @@ Unit tests for Discord Adapter
 import pytest
 
 from connector.adapters.discord.discord_adapter import DiscordAdapter
-from connector.channel.types import MessageType, ChatType
+from connector.channel.types import ChatType, MessageType
 
 
 class TestDiscordAdapter:
@@ -42,7 +42,11 @@ class TestDiscordAdapter:
         discord_message = {
             "message": {
                 "id": "msg123",
-                "author": {"id": "user456", "username": "john_doe", "global_name": "John"},
+                "author": {
+                    "id": "user456",
+                    "username": "john_doe",
+                    "global_name": "John",
+                },
                 "channel_id": "channel789",
                 "content": "Hello, bot!",
                 "type": 0,  # DEFAULT
@@ -137,7 +141,11 @@ class TestDiscordAdapter:
                 "channel_id": "channel999",
                 "content": "",
                 "stickers": [
-                    {"id": "sticker123", "name": "thumbs_up", "url": "https://cdn.discordapp.com/stickers/123.png"}
+                    {
+                        "id": "sticker123",
+                        "name": "thumbs_up",
+                        "url": "https://cdn.discordapp.com/stickers/123.png",
+                    }
                 ],
             }
         }

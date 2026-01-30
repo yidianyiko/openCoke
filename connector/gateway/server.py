@@ -8,11 +8,10 @@ Gateway 服务器
 import asyncio
 from typing import Dict, Optional
 
-from util.log_util import get_logger
-
 from connector.channel.adapter import ChannelAdapter, StandardMessage
 from connector.channel.gateway_adapter import GatewayAdapter
 from connector.gateway.config import GatewayConfig
+from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
@@ -110,9 +109,7 @@ class GatewayServer:
         logger.info("Gateway 消息处理器启动")
         while self._running:
             try:
-                message = await asyncio.wait_for(
-                    self._message_queue.get(), timeout=1.0
-                )
+                message = await asyncio.wait_for(self._message_queue.get(), timeout=1.0)
                 await self._process_message(message)
             except asyncio.TimeoutError:
                 continue
@@ -170,7 +167,9 @@ class GatewayServer:
             f"message_id={doc.get('_id')}"
         )
 
-    async def _resolve_user_id(self, platform: str, platform_user_id: str) -> Optional[str]:
+    async def _resolve_user_id(
+        self, platform: str, platform_user_id: str
+    ) -> Optional[str]:
         """
         解析平台用户 ID 为 MongoDB ObjectId
 
@@ -203,7 +202,9 @@ class GatewayServer:
         from dao.user_dao import UserDAO
 
         user_dao = UserDAO()
-        character = user_dao.find_character_by_platform_id(platform, platform_character_id)
+        character = user_dao.find_character_by_platform_id(
+            platform, platform_character_id
+        )
         return str(character["_id"]) if character else None
 
     # ==================== 发送消息 ====================
@@ -233,9 +234,7 @@ class GatewayServer:
             logger.error(f"发送消息失败: {e}")
             return False
 
-    async def send_text(
-        self, platform: str, to_user: str, text: str, **kwargs
-    ) -> bool:
+    async def send_text(self, platform: str, to_user: str, text: str, **kwargs) -> bool:
         """
         便捷方法：发送文本消息
 

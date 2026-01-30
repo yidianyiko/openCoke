@@ -5,16 +5,16 @@ Unit tests for Channel Registry
 
 import pytest
 
-from connector.channel.types import DeliveryMode
 from connector.channel.adapter import ChannelAdapter
-from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.gateway_adapter import GatewayAdapter
+from connector.channel.polling_adapter import PollingAdapter
 from connector.channel.registry import ChannelRegistry, channel_registry
 from connector.channel.types import (
     ChannelCapabilities,
+    DeliveryMode,
+    MessageType,
     StandardMessage,
     UserInfo,
-    MessageType,
 )
 
 

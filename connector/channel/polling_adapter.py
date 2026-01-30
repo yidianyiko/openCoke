@@ -6,12 +6,12 @@ Polling 模式适配器基类
 """
 
 from abc import abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from connector.channel.adapter import ChannelAdapter
 from connector.channel.types import (
-    DeliveryMode,
     ChannelCapabilities,
+    DeliveryMode,
     StandardMessage,
     UserInfo,
 )

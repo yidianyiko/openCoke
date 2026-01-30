@@ -81,9 +81,7 @@ class TestGatewayConfig:
 
     def test_to_dict(self):
         """Test converting config to dictionary."""
-        config = GatewayConfig(
-            host="10.0.0.1", port=7000, heartbeat_interval=90.0
-        )
+        config = GatewayConfig(host="10.0.0.1", port=7000, heartbeat_interval=90.0)
         config_dict = config.to_dict()
 
         assert config_dict["host"] == "10.0.0.1"
