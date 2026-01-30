@@ -674,3 +674,326 @@ class ReminderService:
         """
         if self.dao:
             self.dao.close()
+
+    def batch(self, operations: str) -> dict:
+        """
+        Execute multiple reminder operations in a single batch.
+
+        This method parses a JSON array of operations and executes them sequentially.
+        Batch operations skip side-effect guards since user intent is explicit.
+
+        Args:
+            operations: JSON string containing array of operation dicts
+
+        Returns:
+            Dictionary with keys:
+                - ok (bool): Whether batch operation completed
+                - total (int): Total number of operations
+                - succeeded (int): Number of successful operations
+                - failed (int): Number of failed operations
+                - results (list): List of individual operation results
+                - error (str): Error message (if JSON parsing failed)
+
+        Operation format:
+            [
+                {"action": "create", "title": "...", "trigger_time": "...", ...},
+                {"action": "update", "keyword": "...", "new_title": "...", ...},
+                {"action": "delete", "keyword": "..."},
+                {"action": "complete", "keyword": "..."}
+            ]
+        """
+        try:
+            ops_list = json.loads(operations)
+        except json.JSONDecodeError as e:
+            return {
+                "ok": False,
+                "error": f"操作列表格式错误: {str(e)}",
+            }
+
+        if not isinstance(ops_list, list):
+            return {
+                "ok": False,
+                "error": "操作列表必须是数组格式",
+            }
+
+        results = []
+        succeeded = 0
+        failed = 0
+
+        for op in ops_list:
+            if not isinstance(op, dict):
+                results.append({
+                    "ok": False,
+                    "error": "操作必须是对象格式",
+                })
+                failed += 1
+                continue
+
+            action = op.get("action")
+
+            if action == "create":
+                result = self._batch_create(op)
+            elif action == "update":
+                result = self._batch_update(op)
+            elif action == "delete":
+                result = self._batch_delete(op)
+            elif action == "complete":
+                result = self._batch_complete(op)
+            else:
+                result = {
+                    "ok": False,
+                    "error": f"未知操作: {action}",
+                }
+
+            results.append(result)
+            if result.get("ok"):
+                succeeded += 1
+            else:
+                failed += 1
+
+        return {
+            "ok": True,
+            "total": len(ops_list),
+            "succeeded": succeeded,
+            "failed": failed,
+            "results": results,
+        }
+
+    def _batch_create(self, op: dict) -> dict:
+        """
+        Execute create operation within batch (skips side-effect guard).
+
+        Args:
+            op: Operation dict with create parameters
+
+        Returns:
+            Result dict from create operation
+        """
+        # Validate required fields
+        validation_error = self.validator.check_required_fields(
+            title=op.get("title"), trigger_time=op.get("trigger_time")
+        )
+        if validation_error:
+            return validation_error
+
+        # Parse trigger_time if provided
+        trigger_time = op.get("trigger_time")
+        if trigger_time:
+            parsed_time = self.parser.parse(trigger_time)
+        else:
+            parsed_time = None
+
+        # Parse period config if provided
+        period_config = self.parser.parse_period_config(
+            period_start=op.get("period_start"),
+            period_end=op.get("period_end"),
+            period_days=op.get("period_days"),
+        )
+
+        # Check frequency limit for interval type
+        recurrence_type = op.get("recurrence_type")
+        recurrence_interval = op.get("recurrence_interval")
+        has_period = period_config is not None
+
+        if recurrence_type == "interval" and recurrence_interval:
+            frequency_error = self.validator.check_frequency_limit(
+                recurrence_type=recurrence_type,
+                recurrence_interval=recurrence_interval,
+                has_period=has_period,
+            )
+            if frequency_error:
+                return frequency_error
+
+        # Check for duplicates (only if trigger time is set)
+        if parsed_time is not None:
+            duplicate_result = self.validator.check_duplicate(
+                title=op.get("title"),
+                trigger_time=parsed_time,
+                recurrence_type=recurrence_type,
+            )
+            if duplicate_result:
+                return duplicate_result
+
+        # Build and create reminder
+        reminder_doc = self._build_reminder_doc(
+            title=op.get("title"),
+            trigger_time=parsed_time,
+            action_template=op.get("action_template"),
+            recurrence_type=recurrence_type,
+            recurrence_interval=recurrence_interval,
+            period_config=period_config,
+        )
+
+        try:
+            reminder_id = self.dao.create_reminder(reminder_doc)
+            reminder_doc["reminder_id"] = reminder_id
+            return {
+                "ok": True,
+                "status": "created",
+                "reminder_id": reminder_id,
+            }
+        except Exception as e:
+            logger.error(f"Batch create failed: {e}")
+            return {
+                "ok": False,
+                "error": f"创建失败: {str(e)}",
+            }
+
+    def _batch_update(self, op: dict) -> dict:
+        """
+        Execute update operation within batch (skips side-effect guard).
+
+        Args:
+            op: Operation dict with update parameters
+
+        Returns:
+            Result dict from update operation
+        """
+        keyword = op.get("keyword")
+        if not keyword or not keyword.strip():
+            return {
+                "ok": False,
+                "error": "更新操作需要提供 keyword",
+            }
+
+        update_fields = {}
+        new_title = op.get("new_title")
+        new_trigger_time = op.get("new_trigger_time")
+        recurrence_type = op.get("recurrence_type")
+        recurrence_interval = op.get("recurrence_interval")
+
+        if new_title:
+            update_fields["title"] = new_title
+            update_fields["action_template"] = f"记得{new_title}"
+
+        if new_trigger_time:
+            parsed_time = self.parser.parse(new_trigger_time)
+            if parsed_time is None:
+                return {
+                    "ok": False,
+                    "error": f"无法解析时间: {new_trigger_time}",
+                }
+            update_fields["next_trigger_time"] = parsed_time
+
+        if recurrence_type and recurrence_type != "none":
+            update_fields["recurrence"] = {
+                "enabled": True,
+                "type": recurrence_type,
+                "interval": recurrence_interval or 1,
+            }
+
+        if not update_fields:
+            return {
+                "ok": False,
+                "error": "没有提供要更新的字段",
+            }
+
+        try:
+            updated_count, _ = self.dao.update_reminders_by_keyword(
+                user_id=self.user_id, keyword=keyword.strip(), update_data=update_fields
+            )
+            if updated_count > 0:
+                return {
+                    "ok": True,
+                    "updated_count": updated_count,
+                }
+            else:
+                return {
+                    "ok": False,
+                    "error": f"没有找到包含「{keyword}」的提醒",
+                }
+        except Exception as e:
+            logger.error(f"Batch update failed: {e}")
+            return {
+                "ok": False,
+                "error": f"更新失败: {str(e)}",
+            }
+
+    def _batch_delete(self, op: dict) -> dict:
+        """
+        Execute delete operation within batch (skips side-effect guard).
+
+        Args:
+            op: Operation dict with delete parameters
+
+        Returns:
+            Result dict from delete operation
+        """
+        keyword = op.get("keyword")
+        if not keyword or not keyword.strip():
+            return {
+                "ok": False,
+                "error": "删除操作需要提供 keyword",
+            }
+
+        keyword = keyword.strip()
+
+        try:
+            if keyword == "*":
+                deleted_count = self.dao.delete_all_by_user(self.user_id)
+                return {
+                    "ok": True,
+                    "deleted_count": deleted_count,
+                }
+
+            deleted_count, _ = self.dao.delete_reminders_by_keyword(
+                user_id=self.user_id, keyword=keyword
+            )
+
+            if deleted_count > 0:
+                return {
+                    "ok": True,
+                    "deleted_count": deleted_count,
+                }
+            else:
+                return {
+                    "ok": False,
+                    "error": f"没有找到包含「{keyword}」的提醒",
+                }
+        except Exception as e:
+            logger.error(f"Batch delete failed: {e}")
+            return {
+                "ok": False,
+                "error": f"删除失败: {str(e)}",
+            }
+
+    def _batch_complete(self, op: dict) -> dict:
+        """
+        Execute complete operation within batch (skips side-effect guard).
+
+        Args:
+            op: Operation dict with complete parameters
+
+        Returns:
+            Result dict from complete operation
+        """
+        keyword = op.get("keyword")
+        if not keyword or not keyword.strip():
+            return {
+                "ok": False,
+                "error": "完成操作需要提供 keyword",
+            }
+
+        keyword = keyword.strip()
+
+        try:
+            completed_count, _ = self.dao.complete_reminders_by_keyword(
+                user_id=self.user_id, keyword=keyword
+            )
+
+            if completed_count > 0:
+                return {
+                    "ok": True,
+                    "completed_count": completed_count,
+                }
+            else:
+                return {
+                    "ok": False,
+                    "error": f"没有找到包含「{keyword}」的提醒",
+                }
+        except Exception as e:
+            logger.error(f"Batch complete failed: {e}")
+            return {
+                "ok": False,
+                "error": f"完成失败: {str(e)}",
+            }

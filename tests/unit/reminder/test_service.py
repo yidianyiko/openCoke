@@ -6,6 +6,7 @@ Tests the ReminderService class which orchestrates the reminder management
 operations using DAO, parser, validator, and formatter.
 """
 
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -1180,3 +1181,238 @@ class TestReminderServiceFilter:
         assert result["count"] == 2
         # Message should group by type
         assert "定时提醒" in result["message"] or "待安排" in result["message"]
+
+
+# ============ Test Batch Operations ============
+
+
+class TestReminderServiceBatch:
+    """Test batch operations."""
+
+    def test_batch_multiple_creates(self, mock_dao):
+        """Test batch creating multiple reminders."""
+        mock_dao.create_reminder.side_effect = ["id1", "id2", "id3"]
+        mock_dao.find_similar_reminder.return_value = None
+        mock_dao.filter_reminders.return_value = []
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "create", "title": "开会", "trigger_time": "明天9点"},
+            {"action": "create", "title": "买菜", "trigger_time": "后天10点"},
+            {"action": "create", "title": "健身", "trigger_time": "下周"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["total"] == 3
+        assert result["succeeded"] == 3
+        assert result["failed"] == 0
+        assert len(result["results"]) == 3
+        assert mock_dao.create_reminder.call_count == 3
+
+    def test_batch_mixed_operations(self, mock_dao):
+        """Test batch with mixed create, update, delete operations."""
+        # Setup mock responses
+        mock_dao.create_reminder.return_value = "new_id"
+        mock_dao.update_reminders_by_keyword.return_value = (1, [{"title": "开会"}])
+        mock_dao.delete_reminders_by_keyword.return_value = (1, [{"title": "买菜"}])
+        mock_dao.find_similar_reminder.return_value = None
+        mock_dao.filter_reminders.return_value = []
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "create", "title": "新任务", "trigger_time": "明天9点"},
+            {"action": "update", "keyword": "开会", "new_title": "开周会"},
+            {"action": "delete", "keyword": "买菜"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["total"] == 3
+        assert result["succeeded"] == 3
+        assert result["failed"] == 0
+        assert mock_dao.create_reminder.call_count == 1
+        assert mock_dao.update_reminders_by_keyword.call_count == 1
+        assert mock_dao.delete_reminders_by_keyword.call_count == 1
+
+    def test_batch_invalid_json(self, mock_dao):
+        """Test batch with invalid JSON returns error."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        result = service.batch("not valid json")
+
+        assert result["ok"] is False
+        assert "json" in result["error"].lower() or "格式" in result["error"]
+
+    def test_batch_with_failure(self, mock_dao):
+        """Test batch where some operations fail."""
+        mock_dao.create_reminder.side_effect = ["id1", Exception("DB error")]
+        mock_dao.find_similar_reminder.return_value = None
+        mock_dao.filter_reminders.return_value = []
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "create", "title": "开会", "trigger_time": "明天9点"},
+            {"action": "create", "title": "买菜", "trigger_time": "后天10点"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True  # Batch overall succeeds
+        assert result["total"] == 2
+        assert result["succeeded"] == 1
+        assert result["failed"] == 1
+
+    def test_batch_complete_operation(self, mock_dao):
+        """Test batch complete operation."""
+        mock_dao.complete_reminders_by_keyword.return_value = (1, [{"title": "开会"}])
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "complete", "keyword": "开会"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["succeeded"] == 1
+        assert result["results"][0]["ok"] is True
+        assert result["results"][0]["completed_count"] == 1
+
+    def test_batch_delete_all_operation(self, mock_dao):
+        """Test batch delete all with '*' keyword."""
+        mock_dao.delete_all_by_user.return_value = 5
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "delete", "keyword": "*"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["succeeded"] == 1
+        assert result["results"][0]["ok"] is True
+        assert result["results"][0]["deleted_count"] == 5
+
+    def test_batch_not_list(self, mock_dao):
+        """Test batch with non-list JSON object returns error."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        result = service.batch(json.dumps({"action": "create", "title": "test"}))
+
+        assert result["ok"] is False
+        assert "数组" in result["error"]
+
+    def test_batch_invalid_operation_type(self, mock_dao):
+        """Test batch with invalid action type."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "invalid_action", "title": "test"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["succeeded"] == 0
+        assert result["failed"] == 1
+        assert "未知操作" in result["results"][0]["error"]
+
+    def test_batch_non_dict_operation(self, mock_dao):
+        """Test batch with non-dict operation (e.g., string in list)."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps(["just a string"])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["succeeded"] == 0
+        assert result["failed"] == 1
+        assert "对象格式" in result["results"][0]["error"]
+
+    def test_batch_create_missing_title(self, mock_dao):
+        """Test batch create fails validation when title is missing."""
+        mock_dao.find_similar_reminder.return_value = None
+        mock_dao.filter_reminders.return_value = []
+
+        service = ReminderService(
+            user_id="user123",
+            character_id="char1",
+            conversation_id="conv1",
+            base_timestamp=1738289400,
+            dao=mock_dao,
+        )
+
+        operations = json.dumps([
+            {"action": "create", "trigger_time": "明天9点"},
+        ])
+
+        result = service.batch(operations)
+
+        assert result["ok"] is True
+        assert result["succeeded"] == 0
+        assert result["failed"] == 1
+        assert result["results"][0]["ok"] is False
