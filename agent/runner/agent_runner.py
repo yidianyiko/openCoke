@@ -75,7 +75,7 @@ async def run_background_agent():
 async def run_webhook_server():
     """启动 Webhook 服务器（如果配置了）"""
     from connector.adapters.whatsapp.webhook_server import WebhookServer
-    from util.config_util import get_config
+    from conf.config import get_config
 
     config = get_config()
 

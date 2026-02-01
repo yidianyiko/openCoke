@@ -55,3 +55,8 @@ def save_config():
 
 
 CONF = init_conf()
+
+
+def get_config() -> dict:
+    """Get the global configuration dictionary."""
+    return CONF
