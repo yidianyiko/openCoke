@@ -27,10 +27,208 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# 加载 .env 环境变量
+source_env() {
+    if [ -f "$SCRIPT_DIR/.env" ]; then
+        set -a
+        source "$SCRIPT_DIR/.env"
+        set +a
+    fi
+}
+
+# 检查 WhatsApp Evolution API 配置状态
+check_whatsapp_setup() {
+    info "检查 WhatsApp Evolution API 配置..."
+
+    # 读取配置
+    WHATSAPP_ENABLED=$(.venv/bin/python3 -c "
+import json
+import sys
+sys.path.insert(0, '.')
+try:
+    with open('conf/config.json', 'r') as f:
+        config = json.load(f)
+    whatsapp = config.get('whatsapp', {})
+    print('yes' if whatsapp.get('enabled', False) else 'no')
+except:
+    print('error')
+" 2>/dev/null || echo "error")
+
+    if [ "$WHATSAPP_ENABLED" = "no" ] || [ "$WHATSAPP_ENABLED" = "error" ]; then
+        echo ""
+        echo "=========================================="
+        echo "📱 WhatsApp 未启用"
+        echo "=========================================="
+        echo ""
+        echo "如需启用 WhatsApp，请按以下步骤操作："
+        echo ""
+        echo "1️⃣  配置环境变量 (.env 文件):"
+        echo "   WHATSAPP_EVOLUTION_API_BASE=http://localhost:8082"
+        echo "   WHATSAPP_EVOLUTION_API_KEY=<your-api-key>"
+        echo "   WHATSAPP_EVOLUTION_INSTANCE=coke"
+        echo "   WHATSAPP_EVOLUTION_WEBHOOK_URL=http://YOUR_SERVER_IP:8081/webhook/whatsapp"
+        echo ""
+        echo "2️⃣  启动 Evolution API:"
+        echo "   ./start.sh --start-evolution"
+        echo ""
+        echo "3️⃣  启用 WhatsApp (conf/config.json):"
+        echo '   "whatsapp": {"enabled": true, ...}'
+        echo ""
+        echo "4️⃣  重启服务:"
+        echo "   ./start.sh --mode pm2"
+        echo ""
+        echo "=========================================="
+        return 0
+    fi
+
+    # WhatsApp 已启用，检查 Evolution API 配置
+    API_BASE=$(.venv/bin/python3 -c "
+import json
+import os
+with open('conf/config.json', 'r') as f:
+    config = json.load(f)
+evolution = config.get('whatsapp', {}).get('evolution', {})
+api_base = evolution.get('api_base', '')
+# 解析环境变量
+if api_base.startswith('\${') and api_base.endswith('}'):
+    env_var = api_base[2:-1].split(':')[0]
+    default = api_base[2:-1].split(':')[1] if ':' in api_base[2:-1] else ''
+    api_base = os.environ.get(env_var, default)
+elif api_base.startswith('\$'):
+    api_base = os.environ.get(api_key[1:], '')
+print(api_base)
+" 2>/dev/null || echo "")
+
+    API_KEY=$(.venv/bin/python3 -c "
+import json
+import os
+with open('conf/config.json', 'r') as f:
+    config = json.load(f)
+evolution = config.get('whatsapp', {}).get('evolution', {})
+api_key = evolution.get('api_key', '')
+if api_key.startswith('\${') and api_key.endswith('}'):
+    env_var = api_key[2:-1].split(':')[0]
+    api_key = os.environ.get(env_var, '')
+elif api_key.startswith('\$'):
+    api_key = os.environ.get(api_key[1:], '')
+print(api_key)
+" 2>/dev/null || echo "")
+
+    INSTANCE_NAME=$(.venv/bin/python3 -c "
+import json
+import os
+with open('conf/config.json', 'r') as f:
+    config = json.load(f)
+evolution = config.get('whatsapp', {}).get('evolution', {})
+instance = evolution.get('instance_name', '')
+if instance.startswith('\${') and instance.endswith('}'):
+    env_var = instance[2:-1].split(':')[0]
+    default = instance[2:-1].split(':')[1] if ':' in instance[2:-1] else ''
+    instance = os.environ.get(env_var, default)
+elif instance.startswith('\$'):
+    instance = os.environ.get(instance[1:], '')
+print(instance)
+" 2>/dev/null || echo "coke")
+
+    echo "   API 地址: ${API_BASE:-未配置}"
+    echo "   实例名称: ${INSTANCE_NAME:-coke}"
+
+    # 检查 Evolution API 是否可访问
+    if [ -z "$API_BASE" ]; then
+        echo ""
+        warn "Evolution API 地址未配置"
+        echo ""
+        echo "请在 .env 文件中配置:"
+        echo "  WHATSAPP_EVOLUTION_API_BASE=http://localhost:8082"
+        echo "  WHATSAPP_EVOLUTION_API_KEY=<your-api-key>"
+        return 0
+    fi
+
+    # 检查 Evolution API 服务状态
+    EVOLUTION_STATUS=$(curl -s "$API_BASE" 2>/dev/null || echo "")
+    if [ -z "$EVOLUTION_STATUS" ]; then
+        echo ""
+        warn "Evolution API 服务不可访问: $API_BASE"
+        echo ""
+        echo "请先启动 Evolution API:"
+        echo "  ./start.sh --start-evolution"
+        echo ""
+        return 0
+    fi
+
+    success "Evolution API 服务可访问"
+
+    # 检查实例状态
+    if [ -n "$INSTANCE_NAME" ] && [ -n "$API_KEY" ]; then
+        INSTANCE_STATUS=$(curl -s -H "apikey: $API_KEY" \
+            "$API_BASE/instance/connectionState/$INSTANCE_NAME" 2>/dev/null || echo "")
+
+        if echo "$INSTANCE_STATUS" | grep -q '"state":"open"'; then
+            success "WhatsApp 实例已连接 ✓"
+            echo ""
+            echo "=========================================="
+            echo "✅ WhatsApp 已就绪"
+            echo "=========================================="
+            echo ""
+            echo "您可以向 WhatsApp 发送消息进行测试！"
+            echo ""
+        elif echo "$INSTANCE_STATUS" | grep -q '"state":"close"'; then
+            warn "WhatsApp 实例未连接"
+            echo ""
+            echo "请执行以下步骤完成连接："
+            echo ""
+            echo "1. 检查 Evolution API 日志获取二维码:"
+            echo "   docker logs evolution_api -f"
+            echo ""
+            echo "2. 使用手机 WhatsApp 扫描二维码登录"
+            echo ""
+            echo "3. 扫码后，实例将自动连接"
+            echo ""
+            echo "4. 验证连接状态:"
+            echo "   curl -H \"apikey: \$WHATSAPP_EVOLUTION_API_KEY\" \\"
+            echo "        $API_BASE/instance/connectionState/$INSTANCE_NAME"
+            echo ""
+        elif echo "$INSTANCE_STATUS" | grep -q "instance not found"; then
+            warn "WhatsApp 实例不存在"
+            echo ""
+            echo "请创建实例:"
+            echo "  curl -X POST \"$API_BASE/instance/create\" \\"
+            echo "    -H \"apikey: \$WHATSAPP_EVOLUTION_API_KEY\" \\"
+            echo "    -H \"Content-Type: application/json\" \\"
+            echo "    -d '{"
+            echo "      \"instanceName\": \"$INSTANCE_NAME\","
+            echo "      \"qrcode\": true,"
+            echo "      \"integration\": \"WHATSAPP-BAILEYS\""
+            echo "    }'"
+            echo ""
+            echo "然后查看日志获取二维码:"
+            echo "  docker logs evolution_api -f"
+            echo ""
+            echo "使用手机 WhatsApp 扫描二维码登录"
+            echo ""
+        else
+            warn "无法检查实例状态"
+            echo "  响应: $INSTANCE_STATUS"
+        fi
+    else
+        warn "API Key 或实例名称未配置"
+        echo ""
+        echo "请在 .env 文件中配置:"
+        echo "  WHATSAPP_EVOLUTION_API_KEY=your-secret-key"
+        echo "  WHATSAPP_EVOLUTION_INSTANCE=coke"
+    fi
+
+    echo "=========================================="
+    echo ""
+}
+
 # 默认参数
 MODE="dev"
 SKIP_INSTALL=false
 CHECK_PLATFORM=false
+CHECK_WHATSAPP=false
+START_EVOLUTION=false
+STOP_EVOLUTION=false
 NEW_WID=""
 FORCE_CLEAN=""
 CHARACTER="qiaoyun"
@@ -44,6 +242,21 @@ while [[ $# -gt 0 ]]; do
             ;;
         --check)
             CHECK_PLATFORM=true
+            shift
+            ;;
+        --check-whatsapp)
+            CHECK_WHATSAPP=true
+            SKIP_INSTALL=true  # 自动跳过环境检查
+            shift
+            ;;
+        --start-evolution)
+            START_EVOLUTION=true
+            SKIP_INSTALL=true
+            shift
+            ;;
+        --stop-evolution)
+            STOP_EVOLUTION=true
+            SKIP_INSTALL=true
             shift
             ;;
         -w|--wid)
@@ -70,6 +283,9 @@ while [[ $# -gt 0 ]]; do
             echo "选项:"
             echo "  --mode, -m <mode>      部署模式: dev (默认), prod, pm2"
             echo "  --check                启动前检查 LangBot 平台配置"
+            echo "  --check-whatsapp      检查 WhatsApp Evolution API 配置状态"
+            echo "  --start-evolution     启动 Evolution API (WhatsApp Gateway)"
+            echo "  --stop-evolution      停止 Evolution API (WhatsApp Gateway)"
             echo "  -w, --wid <wId>        更新 ecloud wId"
             echo "  -c, --character <name> 指定角色名称 (默认: qiaoyun)"
             echo "  --force-clean          强制清理所有锁"
@@ -92,6 +308,9 @@ while [[ $# -gt 0 ]]; do
             echo "  ./start.sh                    # 开发模式"
             echo "  ./start.sh --mode pm2         # PM2 模式 (推荐)"
             echo "  ./start.sh --check            # 启动前检查配置"
+            echo "  ./start.sh --check-whatsapp   # 检查 WhatsApp 配置"
+            echo "  ./start.sh --start-evolution  # 启动 Evolution API"
+            echo "  ./start.sh --stop-evolution   # 停止 Evolution API"
             echo "  ./start.sh -w abc123          # 更新 wId 后启动"
             echo ""
             echo "PM2 管理命令 (启动后):"
@@ -413,6 +632,122 @@ check_redis() {
     fi
 }
 
+# 检查并启动 Evolution API (WhatsApp Gateway)
+check_evolution_api() {
+    # 检查 WhatsApp 是否启用
+    WHATSAPP_ENABLED=$(.venv/bin/python3 -c "
+import json
+try:
+    with open('conf/config.json', 'r') as f:
+        config = json.load(f)
+    print('yes' if config.get('whatsapp', {}).get('enabled', False) else 'no')
+except:
+    print('no')
+" 2>/dev/null || echo "no")
+
+    if [ "$WHATSAPP_ENABLED" != "yes" ]; then
+        info "WhatsApp 未启用，跳过 Evolution API"
+        return 0
+    fi
+
+    info "检查 Evolution API..."
+
+    # 加载 .env 获取 API Key
+    source_env
+
+    if [ -z "$WHATSAPP_EVOLUTION_API_KEY" ]; then
+        warn "WHATSAPP_EVOLUTION_API_KEY 未在 .env 中配置，跳过 Evolution API"
+        return 0
+    fi
+
+    # 检查 docker-compose.evolution.yml 是否存在
+    if [ ! -f "$SCRIPT_DIR/docker-compose.evolution.yml" ]; then
+        warn "docker-compose.evolution.yml 不存在，跳过 Evolution API"
+        return 0
+    fi
+
+    # 检查容器是否已运行
+    if docker ps --format '{{.Names}}' | grep -q '^evolution_api$'; then
+        # 检查 API 是否响应
+        API_BASE="${WHATSAPP_EVOLUTION_API_BASE:-http://localhost:8082}"
+        if curl -s "$API_BASE" > /dev/null 2>&1; then
+            success "Evolution API 已运行 ($API_BASE)"
+            return 0
+        fi
+    fi
+
+    # 启动 Evolution API
+    info "启动 Evolution API (Docker Compose)..."
+    docker compose -f "$SCRIPT_DIR/docker-compose.evolution.yml" up -d 2>&1 | tail -5
+
+    # 等待服务就绪（最多 30 秒）
+    API_BASE="${WHATSAPP_EVOLUTION_API_BASE:-http://localhost:8082}"
+    MAX_RETRIES=30
+    RETRY_COUNT=0
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if curl -s "$API_BASE" > /dev/null 2>&1; then
+            success "Evolution API 已就绪 ($API_BASE)"
+            return 0
+        fi
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo -n "."
+        sleep 1
+    done
+
+    echo ""
+    warn "Evolution API 启动超时，请检查: docker logs evolution_api"
+}
+
+# 停止 Evolution API
+stop_evolution_api() {
+    if [ -f "$SCRIPT_DIR/docker-compose.evolution.yml" ]; then
+        info "停止 Evolution API..."
+        source_env
+        docker compose -f "$SCRIPT_DIR/docker-compose.evolution.yml" down
+        success "Evolution API 已停止"
+    else
+        warn "docker-compose.evolution.yml 不存在"
+    fi
+}
+
+# 启动 Evolution API（强制启动，不检查 WhatsApp 是否启用）
+start_evolution_api() {
+    source_env
+
+    if [ -z "$WHATSAPP_EVOLUTION_API_KEY" ]; then
+        error "WHATSAPP_EVOLUTION_API_KEY 未在 .env 中配置"
+        echo "  请先在 .env 中配置 API Key"
+        exit 1
+    fi
+
+    if [ ! -f "$SCRIPT_DIR/docker-compose.evolution.yml" ]; then
+        error "docker-compose.evolution.yml 不存在"
+        exit 1
+    fi
+
+    info "启动 Evolution API (Docker Compose)..."
+    docker compose -f "$SCRIPT_DIR/docker-compose.evolution.yml" up -d
+
+    # 等待服务就绪
+    API_BASE="${WHATSAPP_EVOLUTION_API_BASE:-http://localhost:8082}"
+    MAX_RETRIES=30
+    RETRY_COUNT=0
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if curl -s "$API_BASE" > /dev/null 2>&1; then
+            success "Evolution API 已就绪 ($API_BASE)"
+            echo ""
+            echo "管理界面: $API_BASE/manager"
+            return 0
+        fi
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        echo -n "."
+        sleep 1
+    done
+
+    echo ""
+    warn "Evolution API 启动超时，请检查: docker logs evolution_api"
+}
+
 # 检查 PM2 (仅 pm2 模式需要)
 check_pm2() {
     if [ "$MODE" != "pm2" ]; then
@@ -562,6 +897,7 @@ run_setup() {
     install_python_deps
     check_mongodb
     check_redis
+    check_evolution_api
     check_pm2
     check_config
     ensure_directories
@@ -598,6 +934,28 @@ if [ "$CHECK_PLATFORM" = true ]; then
     fi
     echo "✓ 平台配置检查通过"
     echo ""
+fi
+
+# 单独检查 WhatsApp 配置（可选）
+if [ "$CHECK_WHATSAPP" = true ]; then
+    # 激活虚拟环境（如果存在）
+    if [ -f ".venv/bin/activate" ]; then
+        source .venv/bin/activate
+    fi
+    check_whatsapp_setup
+    exit 0
+fi
+
+# 单独启动 Evolution API
+if [ "$START_EVOLUTION" = true ]; then
+    start_evolution_api
+    exit 0
+fi
+
+# 单独停止 Evolution API
+if [ "$STOP_EVOLUTION" = true ]; then
+    stop_evolution_api
+    exit 0
 fi
 
 # 开发模式启动函数
@@ -791,7 +1149,11 @@ PYCLEAN
     pkill -f "langbot_output.py" 2>/dev/null || true
     sleep 2
     echo ""
-    
+
+    # 启动 Evolution API（如果 WhatsApp 已启用）
+    check_evolution_api
+    echo ""
+
     # 使用 PM2 启动所有服务
     echo "1. 启动所有服务 (PM2)..."
     pm2 start ecosystem.config.json
@@ -854,7 +1216,12 @@ PYCLEAN
     echo "  pm2 logs --lines 100       # 所有服务"
     echo "  pm2 logs coke-agent        # 单个服务"
     echo "=========================================="
+    echo ""
+
+    # 检查 WhatsApp Evolution API 配置
+    check_whatsapp_setup
 }
+
 
 # 生产模式启动函数
 start_prod_mode() {
