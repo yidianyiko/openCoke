@@ -75,6 +75,33 @@
             "parse_mode": null
         }
     },
+    "whatsapp": {
+        "enabled": false,
+        "api_type": "evolution",
+        "evolution": {
+            "api_base": "${WHATSAPP_EVOLUTION_API_BASE:http://localhost:8080}",
+            "api_key": "${WHATSAPP_EVOLUTION_API_KEY}",
+            "instance_name": "${WHATSAPP_EVOLUTION_INSTANCE:coke}",
+            "webhook_url": "${WHATSAPP_EVOLUTION_WEBHOOK_URL:http://localhost:8081/webhook/whatsapp}"
+        },
+        "cloud_api": {
+            "phone_number_id": "${WHATSAPP_PHONE_NUMBER_ID}",
+            "access_token": "${WHATSAPP_ACCESS_TOKEN}",
+            "verify_token": "${WHATSAPP_VERIFY_TOKEN}",
+            "app_secret": "${WHATSAPP_APP_SECRET}"
+        },
+        "webhook": {
+            "host": "0.0.0.0",
+            "port": 8081,
+            "path": "/webhook/whatsapp"
+        }
+    },
+    "channels": {
+        "enabled": [],
+        "registry": {
+            "enabled_channels": ["wechat", "telegram", "whatsapp"]
+        }
+    },
     "access_control": {
         "enabled": false,
         "platforms": {
