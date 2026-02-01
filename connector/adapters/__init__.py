@@ -15,6 +15,9 @@ from connector.adapters.langbot.langbot_adapter import LangBotAdapter
 from connector.adapters.telegram.telegram_adapter import TelegramAdapter
 from connector.adapters.terminal.terminal_adapter import TerminalAdapter
 
+# Webhook 模式适配器
+from connector.adapters.whatsapp.whatsapp_adapter import WhatsAppAdapter
+
 __all__ = [
     # Gateway 适配器
     "TelegramAdapter",
@@ -23,4 +26,6 @@ __all__ = [
     "EcloudAdapter",
     "LangBotAdapter",
     "TerminalAdapter",
+    # Webhook 适配器
+    "WhatsAppAdapter",
 ]

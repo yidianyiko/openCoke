@@ -36,7 +36,8 @@ class DeliveryMode(Enum):
     """消息投递模式"""
 
     POLLING = "polling"  # 轮询 MongoDB
-    GATEWAY = "gateway"  # Gateway 实时推送
+    GATEWAY = "gateway"  # Gateway 实时推送 (WebSocket)
+    WEBHOOK = "webhook"  # Webhook 回调 (HTTP)
     HYBRID = "hybrid"  # 混合模式
 
 
