@@ -549,7 +549,6 @@ if __name__ == "__main__":
         "time_original": "1小时后",
         "timezone": "Asia/Shanghai",
         "recurrence": {"enabled": False},
-        "action_template": "这是一个测试提醒",
         "requires_confirmation": False,
     }
 

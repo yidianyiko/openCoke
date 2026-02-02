@@ -78,7 +78,6 @@ class TestCreateScheduledReminder:
         result = service.create(
             title="开会",
             trigger_time="明天9点",
-            action_template="提醒：开会",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -100,7 +99,6 @@ class TestCreateScheduledReminder:
         assert reminder_doc["character_id"] == "test_char_456"
         assert reminder_doc["conversation_id"] == "test_conv_789"
         assert reminder_doc["title"] == "开会"
-        assert reminder_doc["action_template"] == "提醒：开会"
         assert reminder_doc["status"] == "active"
         assert reminder_doc["list_id"] != "inbox"  # Should not be inbox
         assert reminder_doc["next_trigger_time"] is not None
@@ -110,7 +108,6 @@ class TestCreateScheduledReminder:
         result = service.create(
             title="吃药",
             trigger_time="30分钟后",
-            action_template="该吃药了",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -137,7 +134,6 @@ class TestCreateInboxTask:
         result = service.create(
             title="买牛奶",
             trigger_time=None,
-            action_template="记得买牛奶",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -160,7 +156,6 @@ class TestCreateInboxTask:
         result = service.create(
             title="发邮件",
             trigger_time="",
-            action_template="发邮件给客户",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -189,7 +184,6 @@ class TestCreateMissingTitle:
         result = service.create(
             title=None,
             trigger_time="明天9点",
-            action_template="提醒",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -207,7 +201,6 @@ class TestCreateMissingTitle:
         result = service.create(
             title="",
             trigger_time="明天9点",
-            action_template="提醒",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -223,7 +216,6 @@ class TestCreateMissingTitle:
         result = service.create(
             title="   ",
             trigger_time="明天9点",
-            action_template="提醒",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -248,7 +240,6 @@ class TestCreateDuplicateDetected:
         result = service.create(
             title="开会",
             trigger_time="明天9点",
-            action_template="提醒：开会",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -268,7 +259,6 @@ class TestCreateDuplicateDetected:
         result = service.create(
             title="新提醒",
             trigger_time="明天9点",
-            action_template="新提醒",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -302,7 +292,6 @@ class TestCreateFrequencyLimitViolation:
         result = service.create(
             title="频繁提醒",
             trigger_time="明天9点",
-            action_template="频繁提醒",
             recurrence_type="interval",
             recurrence_interval=10,  # Less than MIN_INTERVAL_INFINITE (60)
             period_start=None,
@@ -327,7 +316,6 @@ class TestCreateFrequencyLimitViolation:
         result = service.create(
             title="每小时提醒",
             trigger_time="明天9点",
-            action_template="每小时提醒",
             recurrence_type="interval",
             recurrence_interval=60,  # Exactly MIN_INTERVAL_INFINITE
             period_start=None,
@@ -351,7 +339,6 @@ class TestCreateFrequencyLimitViolation:
         result = service.create(
             title="时间段频繁提醒",
             trigger_time="明天9点",
-            action_template="时间段提醒",
             recurrence_type="interval",
             recurrence_interval=20,  # Less than MIN_INTERVAL_PERIOD (25)
             period_start="09:00",
@@ -377,7 +364,6 @@ class TestCreateFrequencyLimitViolation:
         result = service.create(
             title="工作时间提醒",
             trigger_time="明天9点",
-            action_template="工作时间提醒",
             recurrence_type="interval",
             recurrence_interval=30,  # >= MIN_INTERVAL_PERIOD
             period_start="09:00",
@@ -400,7 +386,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="每天喝水",
             trigger_time="每天9点",
-            action_template="记得喝水",
             recurrence_type="daily",
             recurrence_interval=1,
             period_start=None,
@@ -423,7 +408,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="周会",
             trigger_time="周一10点",
-            action_template="参加周会",
             recurrence_type="weekly",
             recurrence_interval=1,
             period_start=None,
@@ -444,7 +428,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="交房租",
             trigger_time="每月1号",
-            action_template="该交房租了",
             recurrence_type="monthly",
             recurrence_interval=1,
             period_start=None,
@@ -465,7 +448,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="休息提醒",
             trigger_time="明天9点",
-            action_template="休息一下",
             recurrence_type="interval",
             recurrence_interval=120,  # 2 hours
             period_start=None,
@@ -487,7 +469,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="工作喝水",
             trigger_time="明天9点",
-            action_template="喝水",
             recurrence_type="interval",
             recurrence_interval=30,
             period_start="09:00",
@@ -512,7 +493,6 @@ class TestCreateWithRecurrence:
         result = service.create(
             title="一次性提醒",
             trigger_time="明天9点",
-            action_template="一次性",
             recurrence_type=None,
             recurrence_interval=None,
             period_start=None,
@@ -551,7 +531,6 @@ class TestBuildReminderDoc:
         doc = service._build_reminder_doc(
             title="完整提醒",
             trigger_time=1738375800,
-            action_template="完整提醒模板",
             recurrence_type="daily",
             recurrence_interval=1,
             period_config={"enabled": True, "start_time": "09:00", "end_time": "18:00"},
@@ -561,7 +540,6 @@ class TestBuildReminderDoc:
         assert doc["character_id"] == "char456"
         assert doc["conversation_id"] == "conv789"
         assert doc["title"] == "完整提醒"
-        assert doc["action_template"] == "完整提醒模板"
         assert doc["next_trigger_time"] == 1738375800
         assert doc["recurrence"]["enabled"] is True
         assert doc["recurrence"]["type"] == "daily"
@@ -584,7 +562,6 @@ class TestBuildReminderDoc:
         doc = service._build_reminder_doc(
             title="收集箱任务",
             trigger_time=None,
-            action_template="任务",
             recurrence_type=None,
             recurrence_interval=None,
             period_config=None,
