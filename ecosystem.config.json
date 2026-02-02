@@ -3,7 +3,7 @@
     {
       "name": "langbot-core",
       "script": "/home/ydyk/.local/bin/uvx",
-      "args": "langbot@latest",
+      "args": "langbot@4.8.1",
       "cwd": "./langbot-workdir",
       "interpreter": "none",
       "exec_mode": "fork",

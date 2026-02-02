@@ -115,7 +115,6 @@ def print_reminder_table(reminders: List[dict], show_user: bool = True):
         trigger_time = reminder.get("next_trigger_time")
         user_id = reminder.get("user_id", "")
         recurrence = reminder.get("recurrence", {})
-        action = reminder.get("action_template", "")
 
         print()
         print(
@@ -130,12 +129,6 @@ def print_reminder_table(reminders: List[dict], show_user: bool = True):
 
         if show_user and user_id:
             print(f"    用户: {colorize(user_id, Colors.DIM)}")
-
-        if action and action != title:
-            # 截断过长的内容
-            if len(action) > 60:
-                action = action[:60] + "..."
-            print(f"    内容: {action}")
 
         print(colorize("    " + "-" * 80, Colors.DIM))
 
@@ -321,12 +314,7 @@ def delete_by_keyword(keyword: str, dry_run: bool = True) -> int:
 
     try:
         # 查找匹配的提醒
-        query = {
-            "$or": [
-                {"title": {"$regex": keyword, "$options": "i"}},
-                {"action_template": {"$regex": keyword, "$options": "i"}},
-            ]
-        }
+        query = {"title": {"$regex": keyword, "$options": "i"}}
 
         reminders = list(dao.collection.find(query))
 

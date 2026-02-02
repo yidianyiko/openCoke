@@ -87,7 +87,6 @@ class ReminderService:
         self,
         title: Optional[str],
         trigger_time: Optional[str],
-        action_template: Optional[str],
         recurrence_type: Optional[str],
         recurrence_interval: Optional[int],
         period_start: Optional[str],
@@ -109,7 +108,6 @@ class ReminderService:
         Args:
             title: Reminder title (required)
             trigger_time: Trigger time string (optional - inbox tasks allowed)
-            action_template: Action message template for the reminder
             recurrence_type: Type of recurrence (none/daily/weekly/monthly/interval)
             recurrence_interval: Interval value for recurrence
             period_start: Start time for period-based reminders (HH:MM format)
@@ -167,7 +165,6 @@ class ReminderService:
         reminder_doc = self._build_reminder_doc(
             title=title,
             trigger_time=parsed_time,
-            action_template=action_template or f"提醒：{title}",
             recurrence_type=recurrence_type,
             recurrence_interval=recurrence_interval,
             period_config=period_config,
@@ -198,7 +195,6 @@ class ReminderService:
         self,
         title: str,
         trigger_time: Optional[int],
-        action_template: str,
         recurrence_type: Optional[str],
         recurrence_interval: Optional[int],
         period_config: Optional[dict],
@@ -209,7 +205,6 @@ class ReminderService:
         Args:
             title: Reminder title
             trigger_time: Parsed trigger time as Unix timestamp (None for inbox)
-            action_template: Action message template
             recurrence_type: Type of recurrence
             recurrence_interval: Interval value for recurrence
             period_config: Time period configuration dict
@@ -239,7 +234,6 @@ class ReminderService:
             "character_id": self.character_id,
             "conversation_id": self.conversation_id,
             "title": title,
-            "action_template": action_template,
             "next_trigger_time": trigger_time,
             "time_original": None,  # Will be set if needed
             "timezone": "Asia/Shanghai",
@@ -306,7 +300,6 @@ class ReminderService:
 
         if new_title:
             update_fields["title"] = new_title
-            update_fields["action_template"] = f"记得{new_title}"
             update_desc.append(f"标题改为「{new_title}」")
 
         if new_trigger_time:
@@ -826,7 +819,6 @@ class ReminderService:
         reminder_doc = self._build_reminder_doc(
             title=op.get("title"),
             trigger_time=parsed_time,
-            action_template=op.get("action_template"),
             recurrence_type=recurrence_type,
             recurrence_interval=recurrence_interval,
             period_config=period_config,
@@ -872,7 +864,6 @@ class ReminderService:
 
         if new_title:
             update_fields["title"] = new_title
-            update_fields["action_template"] = f"记得{new_title}"
 
         if new_trigger_time:
             parsed_time = self.parser.parse(new_trigger_time)

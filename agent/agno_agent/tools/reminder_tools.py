@@ -220,7 +220,6 @@ def reminder_tool(
     session_state: Optional[dict] = None,
     title: Optional[str] = None,
     trigger_time: Optional[str] = None,
-    action_template: Optional[str] = None,
     keyword: Optional[str] = None,
     new_title: Optional[str] = None,
     new_trigger_time: Optional[str] = None,
@@ -325,7 +324,6 @@ def reminder_tool(
             result = service.create(
                 title=title,
                 trigger_time=trigger_time,
-                action_template=action_template,
                 recurrence_type=recurrence_type,
                 recurrence_interval=recurrence_interval,
                 period_start=period_start,

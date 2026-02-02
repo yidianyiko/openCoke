@@ -151,7 +151,6 @@ def sample_reminder():
         "character_id": "test_char",
         "conversation_id": "test_conv",
         "title": "测试提醒",
-        "action_template": "提醒：测试提醒",
         "next_trigger_time": int(time.time()) + 3600,
         "time_original": "1小时后",
         "timezone": "Asia/Shanghai",

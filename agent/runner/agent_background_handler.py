@@ -1005,8 +1005,7 @@ async def _handle_reminder_message(
     try:
         # 构造系统消息
         reminder_title = reminder.get("title", "提醒")
-        reminder_content = reminder.get("action_template", reminder_title)
-        input_message_str = f"[系统提醒触发] {reminder_content}"
+        input_message_str = f"[系统提醒触发] {reminder_title}"
 
         # 构建 context
         context = context_prepare(user, character, conversation)
@@ -1019,7 +1018,6 @@ async def _handle_reminder_message(
             metadata={
                 "reminder_id": reminder["reminder_id"],
                 "title": reminder_title,
-                "action_template": reminder_content,
             },
             check_new_message=False,  # 系统消息不检测新消息
             worker_tag="[REMINDER]",
@@ -1115,7 +1113,6 @@ async def _handle_reminder_group_message(
         combined_items = []
         for i, reminder in enumerate(sorted_reminders, 1):
             title = reminder.get("title", "提醒")
-            content = reminder.get("action_template", title)
             trigger_time = reminder.get("next_trigger_time", now)
 
             combined_titles.append(title)
@@ -1130,7 +1127,7 @@ async def _handle_reminder_group_message(
                 minutes = diff_seconds // 60
                 time_desc = f"{minutes}分钟后"
 
-            combined_items.append(f"{i}. {content}（{time_desc}）")
+            combined_items.append(f"{i}. {title}（{time_desc}）")
 
         combined_title = "；".join(combined_titles)
         # 新格式：带序号和时间的列表
