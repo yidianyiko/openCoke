@@ -293,7 +293,7 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "模式说明:"
             echo "  dev   - 开发模式: 启动 Agent + Ecloud 连接器 (nohup)"
-            echo "  prod  - 生产模式: 完整部署 (MongoDB + LangBot 核心 + Coke)"
+            echo "  prod  - 生产模式: 完整部署 (MongoDB + Coke)"
             echo "  pm2   - PM2 模式: 使用 PM2 统一管理所有服务 (推荐)"
             echo ""
             echo "PM2 模式优势:"
@@ -949,7 +949,6 @@ start_dev_mode() {
     PID_FILE="$SCRIPT_DIR/.start.pid"
     AGENT_PID_FILE="$SCRIPT_DIR/.agent.pid"
     ECLOUD_PID_FILE="$SCRIPT_DIR/.ecloud.pid"
-    LANGBOT_PID_FILE="$SCRIPT_DIR/.langbot.pid"
 
     # 信号处理函数：优雅关闭所有服务
     cleanup() {
@@ -1063,8 +1062,6 @@ PYCLEAN
     pkill -f "agent_runner.py" 2>/dev/null || true
     pkill -f "gunicorn.*ecloud_input" 2>/dev/null || true
     pkill -f "ecloud_output.py" 2>/dev/null || true
-    pkill -f "gunicorn.*langbot_input" 2>/dev/null || true
-    pkill -f "langbot_output.py" 2>/dev/null || true
     sleep 2
     echo ""
 
@@ -1116,17 +1113,17 @@ PYCLEAN
 
 # 生产模式启动函数
 start_prod_mode() {
-    PIDS_FILE="$SCRIPT_DIR/.langbot_pids"
+    PIDS_FILE="$SCRIPT_DIR/.prod_pids"
     LOG_DIR="$SCRIPT_DIR/logs"
-    
+
     # 创建日志目录
     mkdir -p "$LOG_DIR"
-    
+
     # 清理旧的 PID 文件
     > "$PIDS_FILE"
-    
+
     echo "=== 单服务器生产部署 ==="
-    
+
     # 1. 启动 MongoDB (如果未运行)
     echo "检查 MongoDB 状态..."
     if ! pgrep -f mongod > /dev/null; then
@@ -1136,23 +1133,8 @@ start_prod_mode() {
     else
         echo "MongoDB 已运行"
     fi
-    
-    # 2. 检查 LangBot 核心服务
-    echo "检查 LangBot 核心服务 (端口 5300)..."
-    if ! curl -s http://localhost:5300/healthz > /dev/null 2>&1; then
-        echo "错误: LangBot 核心服务未运行在端口 5300"
-        echo "请先启动 LangBot 核心服务，然后重新运行此脚本"
-        echo ""
-        echo "提示: 使用以下命令启动 LangBot 核心："
-        echo "  cd langbot-workdir && uvx langbot@latest"
-        echo "  或"
-        echo "  ./start.sh --mode pm2"
-        exit 1
-    else
-        echo "LangBot 核心服务已运行"
-    fi
-    
-    # 3. 启动 Coke 主服务 (Agent)
+
+    # 2. 启动 Coke 主服务 (Agent)
     echo "启动 Coke 主服务 (Agent)..."
     bash agent/runner/agent_start.sh $FORCE_CLEAN > "$LOG_DIR/coke_main.log" 2>&1 &
     COKE_MAIN_PID=$!
@@ -1180,7 +1162,7 @@ start_prod_mode() {
 # 根据模式启动
 case $MODE in
     dev)
-        # 开发模式：启动 Agent + Ecloud + LangBot 连接器
+        # 开发模式：启动 Agent + Ecloud 连接器
         start_dev_mode
         ;;
     prod|production)

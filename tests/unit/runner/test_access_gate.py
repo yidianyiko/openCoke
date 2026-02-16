@@ -83,7 +83,7 @@ class TestAccessGate:
         admin_id = ObjectId()
 
         result = access_gate.check(
-            platform="langbot_telegram",
+            platform="wechat",
             user={"_id": admin_id},
             message="hello",
             admin_user_id=str(admin_id),
@@ -101,7 +101,7 @@ class TestAccessGate:
         }
 
         result = access_gate.check(
-            platform="langbot_telegram",
+            platform="wechat",
             user=user,
             message="hello",
             admin_user_id="",
@@ -116,7 +116,7 @@ class TestAccessGate:
         user = {"_id": ObjectId()}
 
         result = access_gate.check(
-            platform="langbot_telegram",
+            platform="wechat",
             user=user,
             message="hello",
             admin_user_id="",
@@ -137,7 +137,7 @@ class TestAccessGate:
         }
 
         result = access_gate.check(
-            platform="langbot_telegram",
+            platform="wechat",
             user=user,
             message="hello",
             admin_user_id="",
@@ -165,7 +165,7 @@ class TestAccessGate:
         user = {"_id": user_id}
 
         result = access_gate.check(
-            platform="langbot_telegram",
+            platform="wechat",
             user=user,
             message="ORD123456",
             admin_user_id="",
