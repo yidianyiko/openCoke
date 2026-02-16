@@ -1,29 +1,6 @@
 {
   "apps": [
     {
-      "name": "langbot-core",
-      "script": "/home/ydyk/.local/bin/uvx",
-      "args": "langbot@4.8.1",
-      "cwd": "./langbot-workdir",
-      "interpreter": "none",
-      "exec_mode": "fork",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "1G",
-      "env": {
-        "NODE_ENV": "production"
-      },
-      "error_file": "./logs/langbot-core-error.log",
-      "out_file": "./logs/langbot-core-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "merge_logs": true,
-      "kill_timeout": 5000,
-      "wait_ready": true,
-      "listen_timeout": 30000,
-      "shutdown_with_message": true
-    },
-    {
       "name": "coke-agent",
       "script": "agent/runner/agent_runner.py",
       "interpreter": ".venv/bin/python3",
@@ -81,39 +58,6 @@
       },
       "error_file": "./logs/ecloud-output-error.log",
       "out_file": "./logs/ecloud-output-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "merge_logs": true,
-      "kill_timeout": 5000
-    },
-    {
-      "name": "langbot-input",
-      "script": ".venv/bin/python3",
-      "args": "-m gunicorn -w 2 -b 0.0.0.0:8081 --log-level info connector.langbot.langbot_input:app",
-      "interpreter": "none",
-      "cwd": ".",
-      "exec_mode": "fork",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "500M",
-      "error_file": "./logs/langbot-input-error.log",
-      "out_file": "./logs/langbot-input-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "merge_logs": true,
-      "kill_timeout": 5000
-    },
-    {
-      "name": "langbot-output",
-      "script": "connector/langbot/langbot_output.py",
-      "interpreter": ".venv/bin/python3",
-      "cwd": ".",
-      "exec_mode": "fork",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "500M",
-      "error_file": "./logs/langbot-output-error.log",
-      "out_file": "./logs/langbot-output-out.log",
       "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
       "merge_logs": true,
       "kill_timeout": 5000
