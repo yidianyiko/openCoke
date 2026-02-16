@@ -20,10 +20,9 @@ Project Coke
   ```
 
 - Deployment Modes
-  - `dev`: Development mode - Agent + Ecloud + LangBot connectors
-  - `prod`: Production mode - Full deployment (MongoDB + LangBot core + Coke)
-  - `pm2`: PM2 mode - LangBot core managed by PM2
-  
+  - `dev`: Development mode - Agent + Ecloud connectors
+  - `prod`: Production mode - Full deployment (MongoDB + Coke)
+
   See `./start.sh --help` for all options.
 
 - Deprecated / Removed
@@ -35,5 +34,4 @@ Project Coke
     - Future message pipeline: `future_message_query_rewrite_agent`, `future_message_context_retrieve_agent`, `future_message_chat_agent`
 
 For development and testing guidance, see AGENTS.md and `tests/README.md`.
-For deployment details, see `doc/langbot_single_server_deployment.md`.
 
