@@ -9,7 +9,7 @@ cd "$SCRIPT_DIR"
 AGENT_PID_FILE="$SCRIPT_DIR/.agent.pid"
 ECLOUD_PID_FILE="$SCRIPT_DIR/.ecloud.pid"
 PID_FILE="$SCRIPT_DIR/.start.pid"
-SINGLE_SERVER_PIDS_FILE="$SCRIPT_DIR/.langbot_pids"
+SINGLE_SERVER_PIDS_FILE="$SCRIPT_DIR/.prod_pids"
 
 echo "=========================================="
 echo "停止 Coke Project 所有服务"
@@ -77,7 +77,7 @@ case $MODE in
         ;;
         
     single_server)
-        # 单服务器模式：从 .langbot_pids 读取
+        # 单服务器模式：从 .prod_pids 读取
         while IFS= read -r line; do
             if [[ $line =~ PID:\ ([0-9]+) ]]; then
                 pid="${BASH_REMATCH[1]}"
