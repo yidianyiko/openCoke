@@ -10,7 +10,6 @@ agent/temp/
 .start.pid
 .agent.pid
 .ecloud.pid
-.langbot.pid
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -166,8 +165,6 @@ cython_debug/
 .trae/documents/
 
 .venv/
-langbot-workdir/data/langbot.db
-langbot-workdir/data/chroma/chroma.sqlite3
 
 # Git worktrees
 .worktrees/
