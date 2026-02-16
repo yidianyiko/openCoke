@@ -278,7 +278,7 @@ class UserDAO:
         通过平台 ID 查找单个用户
 
         Args:
-            platform_key: 平台键名 (e.g., "langbot_feishu", "wechat")
+            platform_key: 平台键名 (e.g., "wechat")
             platform_id: 平台用户 ID (如 wxid, open_id 等)
 
         Returns:
