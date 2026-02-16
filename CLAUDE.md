@@ -85,9 +85,7 @@ Platform-agnostic access control where users must provide valid order numbers to
 "access_control": {
     "enabled": false,
     "platforms": {
-        "wechat": false,
-        "langbot_telegram": true,
-        "langbot_feishu": true
+        "wechat": false
     },
     "deny_message": "[系统消息] 请发送有效订单编号开通服务",
     "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
