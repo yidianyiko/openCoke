@@ -2,7 +2,7 @@
 """
 Polling 模式适配器基类
 
-适用于通过轮询 MongoDB 获取消息的平台（Ecloud、LangBot、Terminal）。
+适用于通过轮询 MongoDB 获取消息的平台（Ecloud、Terminal）。
 """
 
 from abc import abstractmethod
@@ -21,7 +21,7 @@ class PollingAdapter(ChannelAdapter):
     """
     轮询模式适配器基类
 
-    适用于：Ecloud (微信)、LangBot (Feishu/Telegram)、Terminal
+    适用于：Ecloud (微信)、Terminal
     """
 
     @property
