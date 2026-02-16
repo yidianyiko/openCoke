@@ -3,6 +3,10 @@
 > 日期：2026-01-30
 > 目标：规范化多平台接入，支持轮询 + Gateway 混合模式
 
+> **DEPRECATED (2026-02-16):** LangBot integration has been removed. This document
+> is kept for historical reference only. Future platform integrations will use
+> alternative approaches.
+
 ---
 
 ## 一、设计目标
