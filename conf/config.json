@@ -49,32 +49,6 @@
         "APPKEY": "${ALIYUN_ASR_APPKEY}"
     },
     "admin_user_id": "${ADMIN_USER_ID}",
-    "langbot": {
-        "enabled": true,
-        "base_url": "http://127.0.0.1:5300",
-        "api_key": "${LANGBOT_API_KEY}",
-        "webhook_port": 8081,
-        "default_character_alias": "qiaoyun",
-        "single_server_mode": true,
-        "bots": {
-            "qiaoyun-feishu": {
-                "bot_uuid": "${LANGBOT_BOT_FEISHU_UUID}",
-                "character": "qiaoyun"
-            },
-            "qiaoyun-telegram": {
-                "bot_uuid": "${LANGBOT_BOT_TELEGRAM_UUID}",
-                "character": "qiaoyun"
-            }
-        },
-        "feishu": {
-            "app_id": "${FEISHU_APP_ID}",
-            "app_secret": "${FEISHU_APP_SECRET}"
-        },
-        "telegram": {
-            "bot_token": "${TELEGRAM_BOT_TOKEN}",
-            "parse_mode": null
-        }
-    },
     "whatsapp": {
         "enabled": false,
         "api_type": "evolution",
@@ -105,9 +79,7 @@
     "access_control": {
         "enabled": false,
         "platforms": {
-            "wechat": false,
-            "langbot_telegram": false,
-            "langbot_feishu": false
+            "wechat": false
         },
         "deny_message": "[系统消息] 请发送有效订单编号开通服务",
         "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
