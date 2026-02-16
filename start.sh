@@ -282,7 +282,6 @@ while [[ $# -gt 0 ]]; do
             echo ""
             echo "选项:"
             echo "  --mode, -m <mode>      部署模式: dev (默认), prod, pm2"
-            echo "  --check                启动前检查 LangBot 平台配置"
             echo "  --check-whatsapp      检查 WhatsApp Evolution API 配置状态"
             echo "  --start-evolution     启动 Evolution API (WhatsApp Gateway)"
             echo "  --stop-evolution      停止 Evolution API (WhatsApp Gateway)"
@@ -293,12 +292,12 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h             显示此帮助信息"
             echo ""
             echo "模式说明:"
-            echo "  dev   - 开发模式: 启动 Agent + Ecloud + LangBot 连接器 (nohup)"
+            echo "  dev   - 开发模式: 启动 Agent + Ecloud 连接器 (nohup)"
             echo "  prod  - 生产模式: 完整部署 (MongoDB + LangBot 核心 + Coke)"
             echo "  pm2   - PM2 模式: 使用 PM2 统一管理所有服务 (推荐)"
             echo ""
             echo "PM2 模式优势:"
-            echo "  - 统一管理所有服务 (LangBot + Agent + ecloud + connectors)"
+            echo "  - 统一管理所有服务 (Agent + ecloud connectors)"
             echo "  - 自动重启崩溃的服务"
             echo "  - 日志管理和轮转"
             echo "  - 支持单独重启某个服务"
@@ -921,20 +920,6 @@ else
     fi
 fi
 
-# 部署前检查（可选）
-if [ "$CHECK_PLATFORM" = true ]; then
-    echo ""
-    echo "运行部署前检查..."
-    python scripts/check_langbot_platform.py
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo "❌ 平台配置检查失败，请先修复配置问题"
-        echo "提示: 编辑 conf/config.json 配置 langbot.bots"
-        exit 1
-    fi
-    echo "✓ 平台配置检查通过"
-    echo ""
-fi
 
 # 单独检查 WhatsApp 配置（可选）
 if [ "$CHECK_WHATSAPP" = true ]; then
@@ -1029,16 +1014,6 @@ PYUPDATE
     ECLOUD_PID=$!
     echo $ECLOUD_PID > "$ECLOUD_PID_FILE"
 
-    # 启动 LangBot（多平台网关，使用 nohup 后台运行）
-    if [ -f connector/langbot/langbot_start.sh ]; then
-        echo ""
-        echo "=========================================="
-        echo "启动 LangBot 网关..."
-        echo "=========================================="
-        nohup bash connector/langbot/langbot_start.sh > logs/langbot-startup.log 2>&1 &
-        LANGBOT_PID=$!
-        echo $LANGBOT_PID > "$LANGBOT_PID_FILE"
-    fi
 
     # 保存主进程 PID
     echo $$ > "$PID_FILE"
@@ -1048,15 +1023,11 @@ PYUPDATE
     echo "所有服务已在后台启动"
     echo "  Agent PID: $AGENT_PID"
     echo "  Ecloud PID: $ECLOUD_PID"
-    if [ -n "$LANGBOT_PID" ]; then
-        echo "  LangBot PID: $LANGBOT_PID"
-    fi
     echo "=========================================="
     echo ""
     echo "查看日志:"
     echo "  Agent:  tail -f agent/runner/agent.log"
     echo "  Ecloud: tail -f connector/ecloud/ecloud.log"
-    echo "  LangBot: tail -f connector/langbot/langbot.log"
     echo ""
     echo "查看状态: ./status.sh"
     echo "停止服务: ./stop.sh"
@@ -1072,59 +1043,6 @@ start_pm2_mode() {
     
     # 检查并更新 ecosystem.config.json 中的路径
     info "检查 PM2 配置..."
-    
-    # 查找 uvx 路径
-    UVX_PATH=$(command -v uvx 2>/dev/null || echo "")
-    if [ -z "$UVX_PATH" ]; then
-        # 尝试常见位置
-        for path in "$HOME/.local/bin/uvx" "$HOME/.cargo/bin/uvx" "/usr/local/bin/uvx"; do
-            if [ -x "$path" ]; then
-                UVX_PATH="$path"
-                break
-            fi
-        done
-    fi
-    
-    if [ -z "$UVX_PATH" ]; then
-        warn "uvx 未安装，正在安装..."
-        # 安装 uv (包含 uvx)
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-        UVX_PATH="$HOME/.local/bin/uvx"
-        
-        if [ ! -x "$UVX_PATH" ]; then
-            error "uvx 安装失败"
-            echo "  请手动安装: curl -LsSf https://astral.sh/uv/install.sh | sh"
-            exit 1
-        fi
-    fi
-    success "uvx 路径: $UVX_PATH"
-    
-    # 动态更新 ecosystem.config.json 中的 uvx 路径
-    VENV_PYTHON=".venv/bin/python"
-    if [ -x "$VENV_PYTHON" ]; then
-        $VENV_PYTHON - "$UVX_PATH" <<'PYUPDATE'
-import json
-import sys
-
-uvx_path = sys.argv[1]
-
-with open("ecosystem.config.json", "r", encoding="utf-8") as f:
-    config = json.load(f)
-
-# 更新 langbot-core 的 script 路径
-for app in config.get("apps", []):
-    if app.get("name") == "langbot-core":
-        old_path = app.get("script", "")
-        app["script"] = uvx_path
-        if old_path != uvx_path:
-            print(f"  更新 langbot-core script: {old_path} -> {uvx_path}")
-        break
-
-with open("ecosystem.config.json", "w", encoding="utf-8") as f:
-    json.dump(config, f, ensure_ascii=False, indent=2)
-PYUPDATE
-    fi
     
     # 清理过期锁（如果需要）
     if [ -n "$FORCE_CLEAN" ]; then
@@ -1160,27 +1078,6 @@ PYCLEAN
     pm2 save
     
     echo ""
-    echo "2. 等待 LangBot 核心启动..."
-    
-    # 检查 LangBot 核心是否启动成功（最多等待 30 秒）
-    MAX_RETRIES=30
-    RETRY_COUNT=0
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if curl -s http://localhost:5300/healthz > /dev/null 2>&1; then
-            echo "✓ LangBot 核心服务已启动"
-            break
-        fi
-        RETRY_COUNT=$((RETRY_COUNT + 1))
-        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-            echo "❌ LangBot 核心服务未能成功启动（超时 30 秒）"
-            echo "请检查 PM2 日志: pm2 logs langbot-core"
-            exit 1
-        fi
-        echo -n "."
-        sleep 1
-    done
-    
-    echo ""
     echo "=========================================="
     echo "PM2 模式启动完成"
     echo "=========================================="
@@ -1188,12 +1085,9 @@ PYCLEAN
     pm2 status
     echo ""
     echo "服务列表:"
-    echo "  - langbot-core    (LangBot 核心服务，端口 5300)"
     echo "  - coke-agent      (Agent 服务)"
     echo "  - ecloud-input    (E云管家 webhook，端口 8080)"
     echo "  - ecloud-output   (E云管家消息发送)"
-    echo "  - langbot-input   (LangBot webhook，端口 8081)"
-    echo "  - langbot-output  (LangBot 消息发送)"
     echo ""
     echo "管理命令:"
     echo "  查看状态:     pm2 status"
@@ -1205,12 +1099,9 @@ PYCLEAN
     echo "  删除服务:     pm2 delete [service-name]"
     echo ""
     echo "单独重启某个服务:"
-    echo "  pm2 restart langbot-core   # 重启 LangBot 核心"
     echo "  pm2 restart coke-agent     # 重启 Agent"
     echo "  pm2 restart ecloud-input   # 重启 ecloud input"
     echo "  pm2 restart ecloud-output  # 重启 ecloud output"
-    echo "  pm2 restart langbot-input  # 重启 langbot input"
-    echo "  pm2 restart langbot-output # 重启 langbot output"
     echo ""
     echo "查看实时日志:"
     echo "  pm2 logs --lines 100       # 所有服务"
@@ -1267,21 +1158,13 @@ start_prod_mode() {
     COKE_MAIN_PID=$!
     echo "Coke 主服务 PID: $COKE_MAIN_PID" >> "$PIDS_FILE"
     
-    # 4. 启动 LangBot 连接器 (Input + Output)
-    echo "启动 LangBot 连接器..."
-    bash connector/langbot/langbot_start.sh > "$LOG_DIR/langbot.log" 2>&1 &
-    LANGBOT_PID=$!
-    echo "LangBot 连接器 PID: $LANGBOT_PID" >> "$PIDS_FILE"
-    
     echo ""
     echo "=== 所有服务已启动 ==="
     echo "PID 文件: $PIDS_FILE"
     echo "日志目录: $LOG_DIR"
     echo ""
     echo "服务端口分配:"
-    echo "  - LangBot 核心服务: 5300"
     echo "  - Coke 主服务: 8080"
-    echo "  - LangBot Webhook: 8081"
     echo "  - MongoDB: 27017"
     echo ""
     echo "使用 './stop.sh' 停止所有服务"
