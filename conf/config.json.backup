@@ -1,0 +1,132 @@
+{
+    "dev": {
+        "disable_daily_tasks": true
+    },
+    "default_character_alias": "qiaoyun",
+    "characters": {
+        "coke": "${CHARACTER_WXID_COKE}",
+        "qiaoyun": "${CHARACTER_WXID_QIAOYUN}"
+    },
+    "ecloud": {
+        "Authorization": "${ECLOUD_AUTHORIZATION}",
+        "wId": {
+            "qiaoyun": "${ECLOUD_WID_QIAOYUN}"
+        },
+        "group_chat": {
+            "enabled": true,
+            "context_message_count": 20,
+            "whitelist_groups": [],
+            "reply_mode": {
+                "whitelist": "all",
+                "others": "mention_only"
+            }
+        }
+    },
+    "mongodb": {
+        "mongodb_ip": "127.0.0.1",
+        "mongodb_port": "27017",
+        "mongodb_name": "mymongo"
+    },
+    "redis": {
+        "host": "127.0.0.1",
+        "port": 6379,
+        "db": 0,
+        "stream": "coke:input",
+        "group": "coke-workers"
+    },
+    "liblib": {
+        "AccessKey": "${LIBLIB_ACCESS_KEY}",
+        "SecretKey": "${LIBLIB_SECRET_KEY}"
+    },
+    "doubao_models": {
+        "deepseek_r1": "${DOUBAO_DEEPSEEK_R1_EP}",
+        "deepseek_v3.1": "${DOUBAO_DEEPSEEK_V3_EP}",
+        "doubao_1.5_pro": "${DOUBAO_PRO_EP}",
+        "doubao_1.6_pro": "${DOUBAO_PRO_EP}"
+    },
+    "aliyun_asr": {
+        "URL": "wss://nls-gateway-cn-shanghai.aliyuncs.com/ws/v1",
+        "APPKEY": "${ALIYUN_ASR_APPKEY}"
+    },
+    "admin_user_id": "${ADMIN_USER_ID}",
+    "langbot": {
+        "enabled": true,
+        "base_url": "http://127.0.0.1:5300",
+        "api_key": "${LANGBOT_API_KEY}",
+        "webhook_port": 8081,
+        "default_character_alias": "qiaoyun",
+        "single_server_mode": true,
+        "bots": {
+            "qiaoyun-feishu": {
+                "bot_uuid": "${LANGBOT_BOT_FEISHU_UUID}",
+                "character": "qiaoyun"
+            },
+            "qiaoyun-telegram": {
+                "bot_uuid": "${LANGBOT_BOT_TELEGRAM_UUID}",
+                "character": "qiaoyun"
+            }
+        },
+        "feishu": {
+            "app_id": "${FEISHU_APP_ID}",
+            "app_secret": "${FEISHU_APP_SECRET}"
+        },
+        "telegram": {
+            "bot_token": "${TELEGRAM_BOT_TOKEN}",
+            "parse_mode": null
+        }
+    },
+    "whatsapp": {
+        "enabled": false,
+        "api_type": "evolution",
+        "evolution": {
+            "api_base": "${WHATSAPP_EVOLUTION_API_BASE:http://localhost:8080}",
+            "api_key": "${WHATSAPP_EVOLUTION_API_KEY}",
+            "instance_name": "${WHATSAPP_EVOLUTION_INSTANCE:coke}",
+            "webhook_url": "${WHATSAPP_EVOLUTION_WEBHOOK_URL:http://localhost:8081/webhook/whatsapp}"
+        },
+        "cloud_api": {
+            "phone_number_id": "${WHATSAPP_PHONE_NUMBER_ID}",
+            "access_token": "${WHATSAPP_ACCESS_TOKEN}",
+            "verify_token": "${WHATSAPP_VERIFY_TOKEN}",
+            "app_secret": "${WHATSAPP_APP_SECRET}"
+        },
+        "webhook": {
+            "host": "0.0.0.0",
+            "port": 8081,
+            "path": "/webhook/whatsapp"
+        }
+    },
+    "channels": {
+        "enabled": [],
+        "registry": {
+            "enabled_channels": ["wechat", "telegram", "whatsapp"]
+        }
+    },
+    "access_control": {
+        "enabled": false,
+        "platforms": {
+            "wechat": false,
+            "langbot_telegram": false,
+            "langbot_feishu": false
+        },
+        "deny_message": "[系统消息] 请发送有效订单编号开通服务",
+        "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
+        "success_message": "[系统消息] 验证成功，服务有效期至 {expire_time}"
+    },
+    "features": {
+        "usage_tracking": {
+            "enabled": true,
+            "persist_to_mongodb": true
+        },
+        "context_compression": {
+            "num_history_messages": 15,
+            "compress_tool_results": true,
+            "max_tool_calls_from_history": 5
+        },
+        "link_understanding": {
+            "enabled": true,
+            "max_urls": 3,
+            "max_content_length": 2000
+        }
+    }
+}
