@@ -8,7 +8,6 @@ cd "$SCRIPT_DIR"
 # PID 文件路径
 AGENT_PID_FILE="$SCRIPT_DIR/.agent.pid"
 ECLOUD_PID_FILE="$SCRIPT_DIR/.ecloud.pid"
-LANGBOT_PID_FILE="$SCRIPT_DIR/.langbot.pid"
 PID_FILE="$SCRIPT_DIR/.start.pid"
 SINGLE_SERVER_PIDS_FILE="$SCRIPT_DIR/.langbot_pids"
 
@@ -19,13 +18,13 @@ echo "=========================================="
 STOPPED_ANY=false
 
 # 检测部署模式
-if pm2 list 2>/dev/null | grep -q "langbot-core\|coke-agent\|ecloud-input"; then
+if pm2 list 2>/dev/null | grep -q "coke-agent\|ecloud-input"; then
     echo "检测到 PM2 模式"
     MODE="pm2"
 elif [ -f "$SINGLE_SERVER_PIDS_FILE" ]; then
     echo "检测到单服务器部署模式"
     MODE="single_server"
-elif [ -f "$AGENT_PID_FILE" ] || [ -f "$ECLOUD_PID_FILE" ] || [ -f "$LANGBOT_PID_FILE" ]; then
+elif [ -f "$AGENT_PID_FILE" ] || [ -f "$ECLOUD_PID_FILE" ]; then
     echo "检测到开发模式"
     MODE="dev"
 else
@@ -93,8 +92,6 @@ case $MODE in
         # 额外检查：通过进程名停止（以防 PID 文件不准确）
         echo ""
         echo "检查残留进程..."
-        pkill -f "gunicorn.*langbot_input" 2>/dev/null && echo "  已停止残留的 LangBot Input Handler" && STOPPED_ANY=true
-        pkill -f "langbot_output.py" 2>/dev/null && echo "  已停止残留的 LangBot Output Handler" && STOPPED_ANY=true
         pkill -f "agent_runner.py" 2>/dev/null && echo "  已停止残留的 Agent Runner" && STOPPED_ANY=true
         ;;
         
@@ -111,13 +108,7 @@ case $MODE in
             stop_process "Ecloud" "$ECLOUD_PID"
             rm -f "$ECLOUD_PID_FILE"
         fi
-        
-        if [ -f "$LANGBOT_PID_FILE" ]; then
-            LANGBOT_PID=$(cat "$LANGBOT_PID_FILE")
-            stop_process "LangBot" "$LANGBOT_PID"
-            rm -f "$LANGBOT_PID_FILE"
-        fi
-        
+
         # 清理主 PID 文件
         rm -f "$PID_FILE"
         ;;
@@ -128,8 +119,6 @@ case $MODE in
         pkill -f "agent_runner.py" 2>/dev/null && echo "  已停止 Agent Runner" && STOPPED_ANY=true
         pkill -f "gunicorn.*ecloud_input" 2>/dev/null && echo "  已停止 Ecloud Input" && STOPPED_ANY=true
         pkill -f "ecloud_output.py" 2>/dev/null && echo "  已停止 Ecloud Output" && STOPPED_ANY=true
-        pkill -f "gunicorn.*langbot_input" 2>/dev/null && echo "  已停止 LangBot Input" && STOPPED_ANY=true
-        pkill -f "langbot_output.py" 2>/dev/null && echo "  已停止 LangBot Output" && STOPPED_ANY=true
         ;;
 esac
 
