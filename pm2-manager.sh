@@ -30,12 +30,9 @@ show_help() {
     echo "  delete <name>   - 删除指定服务"
     echo ""
     echo "服务名称:"
-    echo "  langbot-core    - LangBot 核心服务"
     echo "  coke-agent      - Agent 服务"
     echo "  ecloud-input    - E云管家 webhook 接收"
     echo "  ecloud-output   - E云管家消息发送"
-    echo "  langbot-input   - LangBot webhook 接收"
-    echo "  langbot-output  - LangBot 消息发送"
     echo ""
     echo "示例:"
     echo "  $0 start                    # 启动所有服务"
@@ -49,7 +46,7 @@ check_service() {
     local service=$1
     if ! pm2 list | grep -q "$service"; then
         echo "错误: 服务 '$service' 不存在"
-        echo "可用服务: langbot-core, coke-agent, ecloud-input, ecloud-output, langbot-input, langbot-output"
+        echo "可用服务: coke-agent, ecloud-input, ecloud-output"
         return 1
     fi
     return 0
