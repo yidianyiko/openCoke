@@ -3,6 +3,10 @@
 > 日期：2026-01-30
 > 目的：识别差距，制定学习路线图
 
+> **DEPRECATED (2026-02-16):** LangBot integration has been removed. This document
+> is kept for historical reference only. Future platform integrations will use
+> alternative approaches.
+
 ---
 
 ## 一、整体架构对比

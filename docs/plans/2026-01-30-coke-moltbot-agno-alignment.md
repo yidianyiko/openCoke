@@ -3,6 +3,10 @@
 > 日期：2026-01-30
 > 目标：利用 Agno 框架能力，实现 Moltbot 的功能特性
 
+> **DEPRECATED (2026-02-16):** LangBot integration has been removed. This document
+> is kept for historical reference only. Future platform integrations will use
+> alternative approaches.
+
 ---
 
 ## 一、三方能力对比
