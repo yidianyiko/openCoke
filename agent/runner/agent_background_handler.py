@@ -246,7 +246,7 @@ def handle_proactive_message():
                     user = user_dao.get_user_by_id(relation["uid"])
                     character = user_dao.get_user_by_id(relation["cid"])
 
-                    # 动态获取用户的平台（支持 wechat, langbot_LarkAdapter 等）
+                    # 动态获取用户的平台（支持 wechat 等）
                     user_platform = None
                     for plat in user.get("platforms", {}).keys():
                         if plat in character.get("platforms", {}):
@@ -373,7 +373,7 @@ async def handle_pending_future_message():
             clear_invalid_future()
             return
 
-        # 使用平台字段动态构建查询（支持 wechat, langbot_LarkAdapter 等）
+        # 使用平台字段动态构建查询（支持 wechat 等）
         platform = conversation.get("platform", "wechat")
         users = user_dao.find_users(
             {f"platforms.{platform}.id": conversation["talkers"][0]["id"]}, 1

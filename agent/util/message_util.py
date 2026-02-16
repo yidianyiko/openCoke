@@ -225,7 +225,7 @@ def send_message_via_context(
     if metadata is None:
         metadata = {}
 
-    # 从 inputmessage 复制 metadata（用于 langbot 等需要回传信息的平台）
+    # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
     # 注意：主动消息（提醒等）不依赖这个 metadata，output 阶段会从用户配置获取路由信息
     input_messages = (
         context.get("conversation", {})
