@@ -21,7 +21,7 @@ class TestMessageDispatcherGate:
         ctx = MagicMock()
         ctx.context = {
             "user": {"_id": ObjectId()},
-            "platform": "langbot_telegram",
+            "platform": "wechat",
             "relation": {
                 "relationship": {"dislike": 0},
                 "character_info": {"status": "空闲"},
