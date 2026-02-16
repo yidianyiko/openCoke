@@ -24,8 +24,7 @@ class TestAccessGate:
         return {
             "enabled": True,
             "platforms": {
-                "wechat": False,
-                "langbot_telegram": True,
+                "wechat": True,
             },
             "deny_message": "[系统消息] 请发送有效订单编号开通服务",
             "expire_message": "[系统消息] 您的服务已过期",
@@ -58,7 +57,7 @@ class TestAccessGate:
             gate = AccessGate()
 
             result = gate.check(
-                platform="langbot_telegram",
+                platform="wechat",
                 user={"_id": ObjectId()},
                 message="hello",
                 admin_user_id="",
