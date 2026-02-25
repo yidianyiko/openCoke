@@ -229,6 +229,7 @@ CHECK_PLATFORM=false
 CHECK_WHATSAPP=false
 START_EVOLUTION=false
 STOP_EVOLUTION=false
+SHOW_QR=false
 NEW_WID=""
 FORCE_CLEAN=""
 CHARACTER="qiaoyun"
@@ -259,6 +260,11 @@ while [[ $# -gt 0 ]]; do
             SKIP_INSTALL=true
             shift
             ;;
+        --qr)
+            SHOW_QR=true
+            SKIP_INSTALL=true
+            shift
+            ;;
         -w|--wid)
             NEW_WID="$2"
             shift 2
@@ -285,6 +291,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --check-whatsapp      检查 WhatsApp Evolution API 配置状态"
             echo "  --start-evolution     启动 Evolution API (WhatsApp Gateway)"
             echo "  --stop-evolution      停止 Evolution API (WhatsApp Gateway)"
+            echo "  --qr                  在终端显示 WhatsApp 登录二维码"
             echo "  -w, --wid <wId>        更新 ecloud wId"
             echo "  -c, --character <name> 指定角色名称 (默认: qiaoyun)"
             echo "  --force-clean          强制清理所有锁"
@@ -747,6 +754,79 @@ start_evolution_api() {
     warn "Evolution API 启动超时，请检查: docker logs evolution_api"
 }
 
+# 在终端打印 WhatsApp QR 码
+show_whatsapp_qr() {
+    source_env
+    API_BASE="${WHATSAPP_EVOLUTION_API_BASE:-http://localhost:8082}"
+    API_KEY="${WHATSAPP_EVOLUTION_API_KEY:-429683C4C977415CAAFCCE10F7D57E11}"
+    INSTANCE="${WHATSAPP_EVOLUTION_INSTANCE:-coke}"
+
+    info "获取 WhatsApp QR 码 (实例: $INSTANCE)..."
+
+    # 检查 Evolution API 是否运行
+    if ! curl -s "$API_BASE" > /dev/null 2>&1; then
+        error "Evolution API 未运行，请先执行: ./start.sh --start-evolution"
+        exit 1
+    fi
+
+    # 获取实例 token（instance token 用于 connect 接口）
+    INSTANCE_TOKEN=$(curl -s "$API_BASE/instance/fetchInstances" -H "apikey: $API_KEY" \
+        | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+instances = d if isinstance(d, list) else []
+for i in instances:
+    if i.get('name') == '$INSTANCE':
+        print(i.get('token', ''))
+        break
+" 2>/dev/null)
+
+    if [ -z "$INSTANCE_TOKEN" ]; then
+        # 实例不存在，创建一个
+        warn "实例 '$INSTANCE' 不存在，正在创建..."
+        RESULT=$(curl -s -X POST "$API_BASE/instance/create" \
+            -H "apikey: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"instanceName\":\"$INSTANCE\",\"qrcode\":true,\"integration\":\"WHATSAPP-BAILEYS\"}")
+        INSTANCE_TOKEN=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hash',''))" 2>/dev/null)
+        sleep 2
+    fi
+
+    # 最多等待 30 秒让 QR 码生成
+    MAX_RETRIES=15
+    for i in $(seq 1 $MAX_RETRIES); do
+        RESPONSE=$(curl -s "$API_BASE/instance/connect/$INSTANCE" -H "apikey: $INSTANCE_TOKEN")
+        CODE=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('code',''))" 2>/dev/null)
+        COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('count',0))" 2>/dev/null)
+
+        if [ -n "$CODE" ] && [ "$COUNT" != "0" ]; then
+            echo ""
+            success "请用手机 WhatsApp 扫描以下二维码:"
+            echo ""
+            python3 -c "
+import sys
+try:
+    import qrcode
+    qr = qrcode.QRCode()
+    qr.add_data('$CODE')
+    qr.print_ascii(invert=True)
+except ImportError:
+    print('  (提示: pip install qrcode 可直接在终端显示二维码)')
+    print('  QR 原始内容:', '$CODE')
+"
+            echo ""
+            return 0
+        fi
+
+        echo -n "."
+        sleep 2
+    done
+
+    echo ""
+    error "QR 码获取超时。请检查网络连接（需要能访问 WhatsApp 服务器）"
+    echo "  查看日志: docker logs evolution_api -f"
+}
+
 # 检查 PM2 (仅 pm2 模式需要)
 check_pm2() {
     if [ "$MODE" != "pm2" ]; then
@@ -940,6 +1020,12 @@ fi
 # 单独停止 Evolution API
 if [ "$STOP_EVOLUTION" = true ]; then
     stop_evolution_api
+    exit 0
+fi
+
+# 在终端显示 WhatsApp QR 码
+if [ "$SHOW_QR" = true ]; then
+    show_whatsapp_qr
     exit 0
 fi
 
