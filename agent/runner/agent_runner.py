@@ -14,10 +14,15 @@ from util.log_util import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
+import time
+import traceback
+
 from agent.runner.agent_background_handler import background_handler
 from agent.runner.agent_handler import create_handler
 from agent.runner.message_processor import consume_stream_batch, get_queue_mode
 from dao.mongo import MongoDBBase
+from dao.user_dao import UserDAO
+from entity.message import save_outputmessage
 from util.redis_client import RedisClient
 
 try:
@@ -70,6 +75,64 @@ async def run_background_agent():
     while True:
         await asyncio.sleep(1)
         await background_handler()
+
+
+async def whatsapp_output_handler(adapter):
+    """轮询 outputmessages 并通过 Evolution API 发送 WhatsApp 消息"""
+    mongo = MongoDBBase()
+    user_dao = UserDAO()
+
+    while True:
+        await asyncio.sleep(1)
+        try:
+            now = int(time.time())
+            message = mongo.find_one(
+                "outputmessages",
+                {
+                    "platform": "whatsapp",
+                    "status": "pending",
+                    "expect_output_timestamp": {"$lte": now},
+                },
+            )
+            if message is None:
+                continue
+
+            logger.info(f"WhatsApp 发送消息: {message}")
+
+            # 查找收件人
+            user = user_dao.get_user_by_id(message["to_user"])
+            if user is None:
+                raise Exception(f"user not found: {message['to_user']}")
+
+            # 确定发送目标 JID
+            if message.get("chatroom_name"):
+                # 群聊：发送到群 JID
+                target_jid = message["chatroom_name"]
+            else:
+                # 私聊：从用户的 WhatsApp 平台信息获取 JID
+                whatsapp_info = user.get("platforms", {}).get("whatsapp", {})
+                target_jid = whatsapp_info.get("id")
+                if not target_jid:
+                    raise Exception(
+                        f"user {message['to_user']} missing whatsapp id"
+                    )
+
+            # 发送文本消息
+            success = await adapter.send_text(target_jid, message["message"])
+
+            # 更新状态
+            message["status"] = "handled" if success else "failed"
+            message["handled_timestamp"] = int(time.time())
+            save_outputmessage(message)
+
+        except Exception:
+            logger.error(traceback.format_exc())
+            try:
+                message["status"] = "failed"
+                message["handled_timestamp"] = int(time.time())
+                save_outputmessage(message)
+            except Exception:
+                pass
 
 
 async def run_webhook_server():
@@ -127,22 +190,49 @@ async def run_webhook_server():
         )
         logger.info("使用 WhatsApp Cloud API 方式集成 WhatsApp")
 
-    # 设置消息处理回调（保存到 MongoDB）
+    # 设置消息处理回调（保存到 MongoDB + 发布到 Redis Stream）
     async def save_whatsapp_message(message):
+        import time
+
+        from dao.mongo import MongoDBBase
         from dao.user_dao import UserDAO
-        from entity.message import save_inputmessage
+        from util.redis_client import RedisClient
+        from util.redis_stream import publish_input_event
         from util.time_util import get_current_timestamp
 
         user_dao = UserDAO()
+        mongo = MongoDBBase()
 
-        # 解析用户（从平台 ID 到 MongoDB ObjectId）
+        # 解析发送者（从平台 ID 查找或自动创建）
         from_user_id = message.from_user
-        user = user_dao.find_user_by_platform_id("whatsapp", from_user_id)
-        from_user_db_id = str(user["_id"]) if user else None
+        user = user_dao.get_user_by_platform("whatsapp", from_user_id)
+        if not user:
+            # 自动创建用户
+            push_name = message.metadata.get("raw_message", {}).get("pushName", from_user_id.split("@")[0])
+            new_user = {
+                "name": push_name,
+                "platforms": {
+                    "whatsapp": {
+                        "id": from_user_id,
+                        "account": from_user_id,
+                        "nickname": push_name,
+                    }
+                },
+                "status": "normal",
+            }
+            from_user_db_id = user_dao.upsert_user(
+                {"platforms.whatsapp.id": from_user_id}, new_user
+            )
+            logger.info(f"WhatsApp 自动创建用户: {push_name} -> {from_user_db_id}")
+        else:
+            from_user_db_id = str(user["_id"])
 
-        to_user_id = message.to_user
-        character = user_dao.find_character_by_platform_id("whatsapp", to_user_id)
-        to_user_db_id = str(character["_id"]) if character else None
+        # 解析目标角色
+        from conf.config import get_config
+        config = get_config()
+        character_alias = config.get("default_character_alias", "qiaoyun")
+        characters = user_dao.find_characters({"name": character_alias})
+        to_user_db_id = str(characters[0]["_id"]) if characters else None
 
         # 构建 inputmessages 文档
         doc = {
@@ -158,10 +248,30 @@ async def run_webhook_server():
             "metadata": message.metadata,
         }
 
-        # 保存到 MongoDB
-        save_inputmessage(doc)
+        # 插入到数据库
+        inserted_id = mongo.insert_one("inputmessages", doc)
+
+        # 发布到 Redis Stream，让 worker 消费
+        try:
+            redis_conf = RedisClient.from_config()
+            import redis as redis_lib
+
+            r = redis_lib.Redis(
+                host=redis_conf.host, port=redis_conf.port, db=redis_conf.db
+            )
+            publish_input_event(
+                r,
+                inserted_id,
+                "whatsapp",
+                int(doc.get("input_timestamp", time.time())),
+                stream_key=redis_conf.stream_key,
+            )
+        except Exception as e:
+            logger.error(f"发布 Redis Stream 事件失败: {e}")
+
         logger.info(
-            f"WhatsApp 消息已保存: from={from_user_id}, " f"message_id={doc.get('_id')}"
+            f"WhatsApp 消息已保存: from={from_user_id}, "
+            f"message_id={inserted_id}"
         )
 
     adapter.on_message(save_whatsapp_message)
@@ -173,11 +283,15 @@ async def run_webhook_server():
 
     logger.info("Webhook 服务器已启动，按 Ctrl+C 停止")
 
+    # 启动输出消息轮询
+    output_task = asyncio.create_task(whatsapp_output_handler(adapter))
+
     # 保持运行
     try:
         while server.is_running:
             await asyncio.sleep(1)
     except asyncio.CancelledError:
+        output_task.cancel()
         logger.info("Webhook 服务器正在停止...")
         await adapter.stop()
         await server.stop()

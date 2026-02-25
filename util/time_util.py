@@ -13,6 +13,11 @@ logger = get_logger(__name__)
 # ========== BUG-010 fix: Timestamp validation utilities ==========
 
 
+def get_current_timestamp():
+    """Return the current Unix timestamp as an integer."""
+    return int(time.time())
+
+
 def validate_timestamp(value, field_name="timestamp", default_to_now=True):
     """
     Validate and convert a value to a valid Unix timestamp (int).

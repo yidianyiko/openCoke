@@ -48,7 +48,6 @@ class EvolutionAdapter(WebhookAdapter):
     """
 
     DEFAULT_API_BASE = "http://localhost:8080"
-    API_VERSION = "v1"
 
     def __init__(
         self,
@@ -126,7 +125,7 @@ class EvolutionAdapter(WebhookAdapter):
         Returns:
             Dict: 实例信息 (包含 qrcode 用于扫码登录)
         """
-        url = self._get_endpoint(f"{self.API_VERSION}/instance/create")
+        url = self._get_endpoint(f"instance/create")
         data = {
             "instanceName": self._instance_name,
             "qrcode": True,
@@ -157,7 +156,7 @@ class EvolutionAdapter(WebhookAdapter):
             Dict: 连接状态和二维码 (如果需要重新扫码)
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/instance/connect/{self._instance_name}"
+            f"instance/connect/{self._instance_name}"
         )
 
         try:
@@ -177,13 +176,18 @@ class EvolutionAdapter(WebhookAdapter):
     async def get_instance_status(self) -> Dict[str, Any]:
         """获取实例状态"""
         url = self._get_endpoint(
-            f"{self.API_VERSION}/instance/connectionState/{self._instance_name}"
+            f"instance/connectionState/{self._instance_name}"
         )
 
         try:
             async with self._session.get(url, headers=self._headers) as resp:
                 if resp.status == 200:
-                    return await resp.json()
+                    result = await resp.json()
+                    # Evolution API v2 返回 {"instance": {"state": "open"}}
+                    instance = result.get("instance", {})
+                    if instance:
+                        return {"state": instance.get("state", "unknown")}
+                    return result
                 return {"state": "unknown"}
         except Exception as e:
             logger.error(f"获取实例状态异常: {e}")
@@ -199,24 +203,27 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否配置成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/webhook/set/{self._instance_name}"
+            f"webhook/set/{self._instance_name}"
         )
         data = {
-            "url": self._webhook_url,
-            "webhook_by_events": False,
-            "events": [
-                "MESSAGES_UPSERT",
-                "MESSAGES_UPDATE",
-                "SEND_MESSAGE",
-                "CONNECTION_UPDATE",
-            ],
+            "webhook": {
+                "url": self._webhook_url,
+                "enabled": True,
+                "webhookByEvents": False,
+                "events": [
+                    "MESSAGES_UPSERT",
+                    "MESSAGES_UPDATE",
+                    "SEND_MESSAGE",
+                    "CONNECTION_UPDATE",
+                ],
+            }
         }
 
         try:
             async with self._session.post(
                 url, headers=self._headers, json=data
             ) as resp:
-                if resp.status == 200:
+                if resp.status in (200, 201):
                     logger.info(f"Evolution API Webhook 配置成功: {self._webhook_url}")
                     return True
                 else:
@@ -538,7 +545,7 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否发送成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/message/sendText/{self._instance_name}"
+            f"message/sendText/{self._instance_name}"
         )
         data = {
             "number": to_user,
@@ -583,7 +590,7 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否发送成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/message/sendMedia/{self._instance_name}"
+            f"message/sendMedia/{self._instance_name}"
         )
         data = {
             "number": to_user,
@@ -625,7 +632,7 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否发送成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/message/sendAudio/{self._instance_name}"
+            f"message/sendAudio/{self._instance_name}"
         )
         data = {
             "number": to_user,
@@ -672,7 +679,7 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否发送成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/message/sendLocation/{self._instance_name}"
+            f"message/sendLocation/{self._instance_name}"
         )
         data = {
             "number": to_user,
@@ -712,7 +719,7 @@ class EvolutionAdapter(WebhookAdapter):
             bool: 是否发送成功
         """
         url = self._get_endpoint(
-            f"{self.API_VERSION}/message/sendContact/{self._instance_name}"
+            f"message/sendContact/{self._instance_name}"
         )
         data = {
             "number": to_user,

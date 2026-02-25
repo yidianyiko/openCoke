@@ -18,7 +18,7 @@ services:
       retries: 5
 
   evolution_api:
-    image: atendai/evolution-api:latest
+    image: evoapicloud/evolution-api:v2.3.7
     container_name: evolution_api
     restart: unless-stopped
     network_mode: host
@@ -35,8 +35,8 @@ services:
       - CACHE_REDIS_ENABLED=false
       - CACHE_REDIS_URI=
       - CACHE_LOCAL_ENABLED=true
-      - HTTP_PROXY=http://localhost:7897
-      - HTTPS_PROXY=http://localhost:7897
+      - HTTP_PROXY=http://127.0.0.1:7897
+      - HTTPS_PROXY=http://127.0.0.1:7897
       - NO_PROXY=localhost,127.0.0.1
     depends_on:
       evolution_db:
