@@ -1,0 +1,174 @@
+{
+  "description": "LLM 提醒功能 E2E 测试用例 - 真实 LLM 调用",
+  "version": "1.1",
+  "test_user_id": "692c14aaa538f0baad5561b3",
+  "character_id": "692c147e972f64f2b65da6ee",
+  "config": {
+    "response_timeout_seconds": 180,
+    "poll_interval_seconds": 1.0
+  },
+  "test_cases": [
+    {
+      "id": "reminder_basic_001",
+      "name": "基本提醒-分钟后",
+      "category": "reminder_create",
+      "tags": ["reminder", "relative_time", "single"],
+      "conversation": [
+        {"role": "user", "content": "5分钟后提醒我喝水"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "5分钟", "喝水", "记", "知道", "收到", "OK", "ok", "嗯"]}}
+      ]
+    },
+    {
+      "id": "reminder_basic_002",
+      "name": "基本提醒-小时后",
+      "category": "reminder_create",
+      "tags": ["reminder", "relative_time", "single"],
+      "conversation": [
+        {"role": "user", "content": "1小时后提醒我休息"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "1小时", "一小时", "休息", "记", "知道", "收到", "OK", "ok", "嗯"]}}
+      ]
+    },
+    {
+      "id": "reminder_basic_003",
+      "name": "基本提醒-具体时间",
+      "category": "reminder_create",
+      "tags": ["reminder", "absolute_time", "single"],
+      "conversation": [
+        {"role": "user", "content": "下午3点提醒我开会"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "3点", "三点", "15", "开会", "记", "知道", "收到", "OK", "ok", "嗯"]}}
+      ]
+    },
+    {
+      "id": "reminder_basic_004",
+      "name": "基本提醒-明天",
+      "category": "reminder_create",
+      "tags": ["reminder", "future_date", "single"],
+      "conversation": [
+        {"role": "user", "content": "明天早上8点提醒我起床"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "明天", "8点", "八点", "起床", "记", "知道", "收到", "OK", "ok", "嗯"]}}
+      ]
+    },
+    {
+      "id": "reminder_keyword_001",
+      "name": "关键词-提醒我",
+      "category": "reminder_keyword",
+      "tags": ["reminder", "keyword", "single"],
+      "conversation": [
+        {"role": "user", "content": "提醒我晚上吃药"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "吃药", "晚上", "记", "知道", "收到", "几点", "什么时候", "时间", "？"]}}
+      ]
+    },
+    {
+      "id": "reminder_keyword_002",
+      "name": "关键词-叫我",
+      "category": "reminder_keyword",
+      "tags": ["reminder", "keyword", "single"],
+      "conversation": [
+        {"role": "user", "content": "明天7点叫我起床"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "叫", "明天", "7点", "七点", "起床", "记", "知道", "收到", "OK", "ok", "嗯"]}}
+      ]
+    },
+    {
+      "id": "reminder_keyword_003",
+      "name": "关键词-别忘了",
+      "category": "reminder_keyword",
+      "tags": ["reminder", "keyword", "single"],
+      "conversation": [
+        {"role": "user", "content": "别忘了下午取快递"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "快递", "下午", "记", "知道", "收到", "忘", "几点", "什么时候", "？"]}}
+      ]
+    },
+    {
+      "id": "reminder_query_001",
+      "name": "查询提醒-我的提醒",
+      "category": "reminder_query",
+      "tags": ["reminder", "query", "single"],
+      "conversation": [
+        {"role": "user", "content": "我有什么提醒？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["提醒", "没有", "暂时", "目前", "还没", "有", "条", "个", "以下", "这些", "帮你", "查", "看"]}}
+      ]
+    },
+    {
+      "id": "reminder_query_002",
+      "name": "查询提醒-今天的提醒",
+      "category": "reminder_query",
+      "tags": ["reminder", "query", "single"],
+      "conversation": [
+        {"role": "user", "content": "今天有什么提醒吗？"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["提醒", "今天", "没有", "暂时", "目前", "还没", "有", "条", "个", "以下", "这些", "帮你", "查", "看"]}}
+      ]
+    },
+    {
+      "id": "reminder_cancel_001",
+      "name": "取消提醒",
+      "category": "reminder_cancel",
+      "tags": ["reminder", "cancel", "multi_turn"],
+      "conversation": [
+        {"role": "user", "content": "10分钟后提醒我测试"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "10分钟", "测试", "记", "知道", "收到"]}},
+        {"role": "user", "content": "取消刚才的提醒"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["取消", "好", "已", "删除", "没问题", "OK", "ok", "知道", "收到", "哪", "确认", "？"]}}
+      ]
+    },
+    {
+      "id": "reminder_vague_001",
+      "name": "模糊时间-过一会儿",
+      "category": "reminder_vague",
+      "tags": ["reminder", "vague_time", "single"],
+      "conversation": [
+        {"role": "user", "content": "过一会儿提醒我看书"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "看书", "几点", "什么时候", "多久", "具体", "时间", "？", "记", "知道"]}}
+      ]
+    },
+    {
+      "id": "reminder_vague_002",
+      "name": "模糊时间-晚点",
+      "category": "reminder_vague",
+      "tags": ["reminder", "vague_time", "single"],
+      "conversation": [
+        {"role": "user", "content": "晚点提醒我出门"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "出门", "几点", "什么时候", "多久", "具体", "时间", "？", "记", "知道"]}}
+      ]
+    },
+    {
+      "id": "reminder_recurrence_001",
+      "name": "周期提醒-每天",
+      "category": "reminder_recurrence",
+      "tags": ["reminder", "recurrence", "single"],
+      "conversation": [
+        {"role": "user", "content": "每天早上7点提醒我吃早餐"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "每天", "7点", "七点", "早餐", "记", "知道", "收到", "OK", "ok"]}}
+      ]
+    },
+    {
+      "id": "reminder_recurrence_002",
+      "name": "周期提醒-每周",
+      "category": "reminder_recurrence",
+      "tags": ["reminder", "recurrence", "single"],
+      "conversation": [
+        {"role": "user", "content": "每周一早上9点提醒我开周会"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "每周", "周一", "9点", "九点", "周会", "记", "知道", "收到", "OK", "ok"]}}
+      ]
+    },
+    {
+      "id": "reminder_edge_001",
+      "name": "边缘情况-无动作",
+      "category": "reminder_edge",
+      "tags": ["reminder", "edge_case", "single"],
+      "conversation": [
+        {"role": "user", "content": "5分钟后提醒我"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["好", "没问题", "放心", "已", "提醒", "5分钟", "什么", "干嘛", "做什么", "事", "？", "记", "知道"]}}
+      ]
+    },
+    {
+      "id": "reminder_edge_002",
+      "name": "边缘情况-过去时间",
+      "category": "reminder_edge",
+      "tags": ["reminder", "edge_case", "single"],
+      "conversation": [
+        {"role": "user", "content": "提醒我昨天开会"},
+        {"role": "assistant", "expect": {"not_empty": true, "contains_any": ["昨天", "过去", "已经", "没办法", "不能", "无法", "？", "什么时候", "重新", "改", "今天", "明天"]}}
+      ]
+    }
+  ]
+}

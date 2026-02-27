@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "python-analyzer": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-analyzer"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": true,
+      "autoApprove": []
+    },
+    "lsp": {
+      "url": "http://127.0.0.1:9527/mcp",
+      "disabled": false,
+      "autoApprove": []
+    },
+    "pytest": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-testing"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": true,
+      "autoApprove": [
+        "run_tests",
+        "list_tests",
+        "greet"
+      ]
+    }
+  }
+}

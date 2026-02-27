@@ -1,0 +1,297 @@
+# -*- coding: utf-8 -*-
+import sys
+import time
+
+sys.path.append(".")
+
+import xml.etree.ElementTree as ET
+
+from connector.ecloud.ecloud_api import Ecloud_API
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
+
+
+def is_group_message(data: dict) -> bool:
+    """判断是否为群消息
+
+    群消息类型以 '8' 开头：80001, 80002, 80004, 80014
+    私聊消息类型以 '6' 开头：60001, 60002, 60004, 60014
+    """
+    return data.get("messageType", "").startswith("8")
+
+
+def is_mention_bot(
+    content: str, bot_wxid: str, bot_nickname: str, atlist: list = None
+) -> bool:
+    """检测消息是否@了机器人
+
+    E云@消息格式: @昵称 消息内容
+    优先检查 atlist 字段（更可靠），其次检查消息内容
+
+    Args:
+        content: 消息内容
+        bot_wxid: 机器人的微信ID
+        bot_nickname: 机器人的昵称
+        atlist: E云提供的@列表，包含被@的wxid
+
+    Returns:
+        bool: 是否@了机器人
+    """
+    # 优先检查 atlist（E云提供的明确@列表）
+    if atlist and bot_wxid in atlist:
+        return True
+
+    # 备用方案：检查消息内容
+    if not content:
+        return False
+    # 检查是否包含 @昵称 格式
+    mention_pattern = f"@{bot_nickname}"
+    return mention_pattern in content
+
+
+def should_respond_to_group_message(
+    data: dict, config: dict, bot_wxid: str, bot_nickname: str
+) -> bool:
+    """判断是否应该响应群消息
+
+    Args:
+        data: E云消息数据
+        config: group_chat 配置
+        bot_wxid: 机器人的微信ID
+        bot_nickname: 机器人的昵称
+
+    Returns:
+        bool: 是否应该响应
+    """
+    if not config.get("enabled", False):
+        return False
+
+    group_id = data["data"].get("fromGroup")
+    if not group_id:
+        return False
+
+    whitelist = config.get("whitelist_groups", [])
+    reply_mode = config.get("reply_mode", {})
+
+    if group_id in whitelist:
+        # 白名单群：根据配置决定
+        return reply_mode.get("whitelist") == "all"
+    else:
+        # 其他群：只响应@
+        if reply_mode.get("others") == "mention_only":
+            content = data["data"].get("content", "")
+            atlist = data["data"].get("atlist", [])
+            return is_mention_bot(content, bot_wxid, bot_nickname, atlist)
+        return False
+
+
+# {
+#     "account": "13800000000",
+#     "data": {
+#         "content": "adfa",
+#         "fromUser": "wxid_example",
+#         "msgId": 1052001123,
+#         "newMsgId": 3166120021925175285,
+#         "sel": false,
+#         "timestamp": 1640594470,
+#         "toUser": "wxid_example",
+#         "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
+#     },
+#     "messageType": "60001",
+#     "wcId": "wxid_example"
+# }
+
+# {
+#     "_id": xxx,  # 内置id
+#     "input_timestamp": xxx,  # 输入时的时间戳秒级
+#     "handled_timestamp": xxx,  # 处理完毕时的时间戳秒级
+#     "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
+#     "from_user": "xxx",  # 来源uid
+#     "platform": "xxx",  # 来源平台
+#     "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
+#     "to_user": "xxx", # 目标用户；群聊时，值为None
+#     "message_type": "xxxx",  # 包括：
+#     "message": "xxx",  # 实际消息，格式另行约定
+#     "metadata": {
+#         "file_path": "xxx", # 所包含的文件路径
+#     }
+# }
+
+
+def ecloud_message_to_std(message):
+    """将 E云消息转换为标准格式
+
+    支持私聊消息类型：60001(文本), 60002(图片), 60004(语音), 60014(引用)
+    支持群聊消息类型：80001(文本), 80002(图片), 80004(语音), 80014(引用)
+    """
+    msg_type = message["messageType"]
+
+    # 判断是否群消息，提取群ID
+    is_group = is_group_message(message)
+    group_id = message["data"].get("fromGroup") if is_group else None
+
+    # 映射到对应的处理函数（私聊和群聊使用相同的处理逻辑）
+    type_mapping = {
+        "60001": ecloud_message_to_std_text_single,
+        "80001": ecloud_message_to_std_text_single,
+        "60002": ecloud_message_to_std_image_single,
+        "80002": ecloud_message_to_std_image_single,
+        "60004": ecloud_message_to_std_voice_single,
+        "80004": ecloud_message_to_std_voice_single,
+        "60014": ecloud_message_to_std_reference_single,
+        "80014": ecloud_message_to_std_reference_single,
+    }
+
+    handler = type_mapping.get(msg_type)
+    if handler:
+        std_msg = handler(message)
+        std_msg["chatroom_name"] = group_id
+        # 保存 newMsgId 用于消息去重
+        new_msg_id = message["data"].get("newMsgId")
+        if new_msg_id:
+            std_msg["metadata"]["new_msg_id"] = str(new_msg_id)
+        # 群消息时记录发送者wxid，用于回复时@
+        if is_group:
+            std_msg["metadata"]["original_sender_wxid"] = message["data"].get(
+                "fromUser"
+            )
+        return std_msg
+    return None
+
+
+def ecloud_message_to_std_text_single(message):
+    return {
+        "input_timestamp": message["data"]["timestamp"],  # 输入时的时间戳秒级
+        "handled_timestamp": None,  # 处理完毕时的时间戳秒级
+        "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
+        # "from_user": "xxx",  # 来源uid
+        "platform": "wechat",  # 来源平台
+        "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
+        # "to_user": "xxx", # 目标用户；群聊时，值为None
+        "message_type": "text",  #
+        "message": message["data"]["content"],  # 实际消息，格式另行约定
+        "metadata": {},
+    }
+
+
+def ecloud_message_to_std_reference_single(message):
+    # {'wcId': 'wxid_example', 'data': {'toUser': 'wxid_example', 'msgType': 49, 'wId': 'ca9518dd-bec6-4421-b0f0-cbf81ecdb2f8', 'fromUser': 'example_user', 'newMsgId': 6288973548168670026, 'msgId': 349799730, 'sel': False, 'title': '好的', 'content': '<?xml version="1.0"?>\n<msg>\n\t<appmsg appid="" sdkver="0">\n\t\t<title>好的</title>\n\t\t<des />\n\t\t<action />\n\t\t<type>57</type>\n\t\t<showtype>0</showtype>\n\t\t<soundtype>0</soundtype>\n\t\t<mediatagname />\n\t\t<messageext />\n\t\t<messageaction />\n\t\t<content />\n\t\t<contentattr>0</contentattr>\n\t\t<url />\n\t\t<lowurl />\n\t\t<dataurl />\n\t\t<lowdataurl />\n\t\t<songalbumurl />\n\t\t<songlyric />\n\t\t<appattach>\n\t\t\t<totallen>0</totallen>\n\t\t\t<attachid />\n\t\t\t<emoticonmd5 />\n\t\t\t<fileext />\n\t\t\t<aeskey />\n\t\t</appattach>\n\t\t<extinfo />\n\t\t<sourceusername />\n\t\t<sourcedisplayname />\n\t\t<thumburl />\n\t\t<md5 />\n\t\t<statextstr />\n\t\t<refermsg>\n\t\t\t<type>1</type>\n\t\t\t<svrid>5893226576708700098</svrid>\n\t\t\t<fromusr>wxid_example</fromusr>\n\t\t\t<chatusr>example_user</chatusr>\n\t\t\t<displayname>示例用户</displayname>\n\t\t\t<content>诶...我突然想到\n你说AI生成的完美图片不真实\n这其实跟心理咨询有点像呢\n来访者总想展现完美的自己\n但真正治愈的时刻往往发生在暴露脆弱的时候</content>\n\t\t\t<msgsource>&lt;msgsource&gt;\n\t&lt;bizflag&gt;0&lt;/bizflag&gt;\n\t&lt;pua&gt;1&lt;/pua&gt;\n\t&lt;signature&gt;N0_V1_43plNDgc|v1_uV3hKWDi&lt;/signature&gt;\n\t&lt;tmp_node&gt;\n\t\t&lt;publisher-id&gt;&lt;/publisher-id&gt;\n\t&lt;/tmp_node&gt;\n&lt;/msgsource&gt;\n</msgsource>\n\t\t\t<createtime>1748140474</createtime>\n\t\t</refermsg>\n\t</appmsg>\n\t<fromusername>example_user</fromusername>\n\t<scene>0</scene>\n\t<appinfo>\n\t\t<version>1</version>\n\t\t<appname></appname>\n\t</appinfo>\n\t<commenturl></commenturl>\n</msg>\n', 'timestamp': 1748141489}, 'messageType': '60014', 'account': '13800000000'}
+    metadata = {"reference": {"user": "未知", "text": ""}}  # 组织引用消息
+    content_xml = ET.fromstring(message["data"]["content"])
+
+    user_nodes = content_xml.findall(".//displayname")
+    for user_node in user_nodes:
+        if user_node.text is not None:
+            metadata["reference"]["user"] = user_node.text
+    text_nodes = content_xml.findall(".//content")
+    for text_node in text_nodes:
+        if text_node.text is not None:
+            metadata["reference"]["text"] = text_node.text
+
+    return {
+        "input_timestamp": message["data"]["timestamp"],  # 输入时的时间戳秒级
+        "handled_timestamp": None,  # 处理完毕时的时间戳秒级
+        "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
+        # "from_user": "xxx",  # 来源uid
+        "platform": "wechat",  # 来源平台
+        "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
+        # "to_user": "xxx", # 目标用户；群聊时，值为None
+        "message_type": "reference",  #
+        "message": message["data"]["title"],  # 实际消息，格式另行约定
+        "metadata": metadata,
+    }
+
+
+def ecloud_message_to_std_voice_single(message):
+    from agent.tool.image import download_image
+    from framework.tool.voice2text.aliyun_asr import voice_to_text
+
+    resp_json = Ecloud_API.getMsgVoice(
+        {
+            "wId": message["data"]["wId"],
+            "msgId": message["data"]["msgId"],
+            "fromUser": message["data"]["fromUser"],
+            "bufId": message["data"]["bufId"],
+            "length": message["data"]["length"],
+        }
+    )
+
+    voice_url = resp_json["data"]["url"]
+    download_file_name = str(int(time.time() * 1000)) + ".silk"
+    file_path = download_image(voice_url, "luoyun/temp/", download_file_name)
+
+    voice_text = voice_to_text(file_path)
+
+    return {
+        "input_timestamp": message["data"]["timestamp"],  # 输入时的时间戳秒级
+        "handled_timestamp": None,  # 处理完毕时的时间戳秒级
+        "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
+        # "from_user": "xxx",  # 来源uid
+        "platform": "wechat",  # 来源平台
+        "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
+        # "to_user": "xxx", # 目标用户；群聊时，值为None
+        "message_type": "voice",  #
+        "message": voice_text,  # 实际消息，格式另行约定
+        "metadata": {
+            "file_path": file_path,
+            "voice_length": message["data"]["voiceLength"],
+        },
+    }
+
+
+def ecloud_message_to_std_image_single(message):
+    from framework.tool.image2text.ark import ark_image2text
+
+    resp_json = Ecloud_API.getMsgImg(
+        {
+            "wId": message["data"]["wId"],
+            "msgId": message["data"]["msgId"],
+            "content": message["data"]["content"],
+        }
+    )
+    logger.info(resp_json)
+    image_url = resp_json["data"]["url"]
+    image_text = ark_image2text("请详细描述图中有什么？输出不要分段和换行.", image_url)
+    logger.info(image_text)
+
+    m = {
+        "input_timestamp": message["data"]["timestamp"],  # 输入时的时间戳秒级
+        "handled_timestamp": None,  # 处理完毕时的时间戳秒级
+        "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
+        # "from_user": "xxx",  # 来源uid
+        "platform": "wechat",  # 来源平台
+        "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
+        # "to_user": "xxx", # 目标用户；群聊时，值为None
+        "message_type": "image",  #
+        "message": image_text,  # 实际消息，格式另行约定
+        "metadata": {
+            "url": image_url,
+        },
+    }
+    logger.info(m)
+    return m
+
+
+def std_to_ecloud_message(message):
+    if message["message_type"] in ["text"]:
+        return std_to_ecloud_message_text(message)
+    if message["message_type"] in ["voice"]:
+        return std_to_ecloud_message_voice(message)
+    if message["message_type"] in ["image"]:
+        return std_to_ecloud_message_image(message)
+
+
+def std_to_ecloud_message_text(message):
+    return {"content": message["message"]}
+
+
+def std_to_ecloud_message_voice(message):
+    return {
+        "content": message["metadata"]["url"],
+        "length": message["metadata"]["voice_length"],
+    }
+
+
+def std_to_ecloud_message_image(message):
+    return {"content": message["metadata"]["url"]}
