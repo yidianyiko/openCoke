@@ -1,4 +1,4 @@
-dashscope==1.23.2
+dashscope==1.25.12
 flask==3.1.0
 ./alibabacloud-nls-python-sdk-dev
 openai==1.75.0
