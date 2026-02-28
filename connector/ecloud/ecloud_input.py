@@ -316,8 +316,6 @@ def handle_message():
         return jsonify({"status": "success", "message": "message handing..."}), 200
 
 
-
-
 @app.route("/webhook/stripe", methods=["POST"])
 def stripe_webhook():
     """Handle Stripe webhook events for subscription management."""
@@ -331,8 +329,6 @@ def stripe_webhook():
         event = stripe.Webhook.construct_event(
             payload, sig_header, STRIPE_WEBHOOK_SECRET
         )
-        if not isinstance(event, dict):
-            raise ValueError("Invalid event payload")
     except Exception:
         logger.warning("Stripe webhook: invalid signature")
         return jsonify({"error": "Invalid signature"}), 400

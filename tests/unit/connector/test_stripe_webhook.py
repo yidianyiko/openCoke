@@ -50,11 +50,7 @@ class TestStripeWebhook:
     @pytest.mark.unit
     def test_invalid_signature_returns_400(self, flask_client, mock_stripe):
         """Should reject requests with invalid signature"""
-        mock_stripe.Webhook.construct_event.side_effect = (
-            mock_stripe.error.SignatureVerificationError(
-                "bad sig", "sig_header"
-            )
-        )
+        mock_stripe.Webhook.construct_event.side_effect = ValueError("bad sig")
         resp = flask_client.post(
             "/webhook/stripe",
             data=b"{}",
