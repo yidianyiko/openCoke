@@ -55,7 +55,6 @@ class TestAccessGate:
             result = gate.check(
                 platform="wechat",
                 user={"_id": ObjectId()},
-                message="hello",
                 admin_user_id="",
             )
             assert result is None
@@ -67,7 +66,6 @@ class TestAccessGate:
         result = access_gate.check(
             platform="wechat",
             user={"_id": admin_id},
-            message="hello",
             admin_user_id=str(admin_id),
         )
         assert result is None
@@ -83,7 +81,6 @@ class TestAccessGate:
         result = access_gate.check(
             platform="wechat",
             user=user,
-            message="hello",
             admin_user_id="",
         )
         assert result is None
@@ -99,7 +96,6 @@ class TestAccessGate:
             result = access_gate.check(
                 platform="wechat",
                 user=user,
-                message="hello",
                 admin_user_id="",
             )
             assert result[0] == "gate_denied"
@@ -121,7 +117,6 @@ class TestAccessGate:
             result = access_gate.check(
                 platform="wechat",
                 user=user,
-                message="hello",
                 admin_user_id="",
             )
             assert result[0] == "gate_expired"
@@ -154,7 +149,6 @@ class TestAccessGate:
             access_gate.check(
                 platform="wechat",
                 user=user,
-                message="hello",
                 admin_user_id="",
             )
             call_kwargs = mock_stripe.checkout.Session.create.call_args[1]
