@@ -1,6 +1,10 @@
 import logging
+import os
 import sys
 import time
+from datetime import datetime
+
+import stripe
 
 import requests
 from flask import Flask, jsonify, request
@@ -9,6 +13,9 @@ sys.path.append(".")
 from dotenv import load_dotenv
 
 load_dotenv()
+
+stripe.api_key = os.getenv("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s-%(name)s-%(levelname)s-%(message)s"
@@ -308,6 +315,96 @@ def handle_message():
 
         return jsonify({"status": "success", "message": "message handing..."}), 200
 
+
+
+
+@app.route("/webhook/stripe", methods=["POST"])
+def stripe_webhook():
+    """Handle Stripe webhook events for subscription management."""
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature")
+
+    if not sig_header:
+        return jsonify({"error": "Missing signature"}), 400
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+        if not isinstance(event, dict):
+            raise ValueError("Invalid event payload")
+    except Exception:
+        logger.warning("Stripe webhook: invalid signature")
+        return jsonify({"error": "Invalid signature"}), 400
+
+    event_type = event["type"]
+    data_object = event["data"]["object"]
+
+    if event_type == "checkout.session.completed":
+        _handle_checkout_completed(data_object)
+    elif event_type == "invoice.paid":
+        _handle_invoice_paid(data_object)
+    elif event_type == "customer.subscription.deleted":
+        _handle_subscription_deleted(data_object)
+    else:
+        logger.info(f"Stripe webhook: unhandled event type {event_type}")
+
+    return jsonify({"status": "ok"}), 200
+
+
+def _handle_checkout_completed(session: dict):
+    """Grant access after initial checkout."""
+    user_id = session.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning("Stripe checkout.session.completed: missing user_id in metadata")
+        return
+
+    subscription_id = session.get("subscription")
+    customer_id = session.get("customer")
+
+    sub = stripe.Subscription.retrieve(subscription_id)
+    expire_time = datetime.fromtimestamp(sub.current_period_end)
+
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: granted access to user {user_id}, expires {expire_time}")
+
+
+def _handle_invoice_paid(invoice: dict):
+    """Extend access on subscription renewal."""
+    subscription_id = invoice.get("subscription")
+    if not subscription_id:
+        return
+
+    sub = stripe.Subscription.retrieve(subscription_id)
+    user_id = sub.metadata.get("user_id")
+    if not user_id:
+        logger.warning("Stripe invoice.paid: missing user_id in subscription metadata")
+        return
+
+    expire_time = datetime.fromtimestamp(sub.current_period_end)
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=invoice.get("customer"),
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: extended access for user {user_id}, expires {expire_time}")
+
+
+def _handle_subscription_deleted(subscription: dict):
+    """Revoke access when subscription is cancelled."""
+    user_id = subscription.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning("Stripe subscription.deleted: missing user_id in metadata")
+        return
+
+    user_dao.revoke_access(user_id)
+    logger.info(f"Stripe: revoked access for user {user_id}")
 
 if __name__ == "__main__":
     logger.info("Starting Flask forwarding service")
