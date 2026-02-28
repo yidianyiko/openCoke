@@ -738,22 +738,6 @@ def create_handler(worker_id: int = 0):
                 )
                 finalizer.finalize_blocked(msg_ctx)
 
-            elif dispatch_type == "gate_success":
-                # 门禁验证成功
-                expire_time = (
-                    dispatch_data.get("expire_time") if dispatch_data else None
-                )
-                send_message_via_context(
-                    msg_ctx.context,
-                    message=dispatcher.access_gate.get_message(
-                        "gate_success", expire_time
-                    ),
-                    message_type="text",
-                    expect_output_timestamp=int(time.time()),
-                )
-                # 用户的订单验证消息不需要 AI 响应处理，直接标记为已处理
-                finalizer.finalize_success(msg_ctx, [], store_messages_background)
-
             elif dispatch_type == "hold":
                 # 角色繁忙
                 finalizer.finalize_hold(msg_ctx)
