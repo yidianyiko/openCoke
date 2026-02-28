@@ -154,3 +154,4 @@ class TestAccessGate:
             call_kwargs = mock_stripe.checkout.Session.create.call_args[1]
             assert call_kwargs["metadata"]["user_id"] == str(user_id)
             assert call_kwargs["mode"] == "subscription"
+            assert call_kwargs["subscription_data"]["metadata"]["user_id"] == str(user_id)

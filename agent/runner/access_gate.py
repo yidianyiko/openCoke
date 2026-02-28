@@ -83,6 +83,7 @@ class AccessGate:
                     "cancel_url", "https://example.com/cancel"
                 ),
                 metadata={"user_id": str(user["_id"])},
+                subscription_data={"metadata": {"user_id": str(user["_id"])}},
             )
             return session.url
         except Exception as e:
