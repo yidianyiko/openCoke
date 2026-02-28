@@ -81,9 +81,14 @@
         "platforms": {
             "wechat": false
         },
-        "deny_message": "[系统消息] 请发送有效订单编号开通服务",
-        "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
-        "success_message": "[系统消息] 验证成功，服务有效期至 {expire_time}"
+        "stripe": {
+            "price_id": "${STRIPE_PRICE_ID}",
+            "success_url": "${STRIPE_SUCCESS_URL}",
+            "cancel_url": "${STRIPE_CANCEL_URL}"
+        },
+        "deny_message": "Hi! I'd love to chat with you. Subscribe here to get started:\n{checkout_url}",
+        "expire_message": "Your subscription has expired. Renew here to keep chatting:\n{checkout_url}",
+        "success_message": "[System] Subscription active until {expire_time}"
     },
     "features": {
         "usage_tracking": {
