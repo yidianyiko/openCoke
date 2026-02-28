@@ -715,20 +715,24 @@ def create_handler(worker_id: int = 0):
                 finalizer.finalize_hardfinish(msg_ctx)
 
             elif dispatch_type == "gate_denied":
-                # 门禁未通过
+                checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
                 send_message_via_context(
                     msg_ctx.context,
-                    message=dispatcher.access_gate.get_message("gate_denied"),
+                    message=dispatcher.access_gate.get_message(
+                        "gate_denied", checkout_url=checkout_url
+                    ),
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
                 )
                 finalizer.finalize_blocked(msg_ctx)
 
             elif dispatch_type == "gate_expired":
-                # 门禁已过期
+                checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
                 send_message_via_context(
                     msg_ctx.context,
-                    message=dispatcher.access_gate.get_message("gate_expired"),
+                    message=dispatcher.access_gate.get_message(
+                        "gate_expired", checkout_url=checkout_url
+                    ),
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
                 )

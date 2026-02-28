@@ -376,7 +376,6 @@ class MessageDispatcher:
         gate_result = self.access_gate.check(
             platform=context.get("platform", ""),
             user=context["user"],
-            message=str(input_messages[0].get("message", "")),
             admin_user_id=self.admin_user_id,
         )
         if gate_result:

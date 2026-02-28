@@ -37,7 +37,6 @@ class AccessGate:
         self,
         platform: str,
         user: Dict,
-        message: str,
         admin_user_id: str,
     ) -> Optional[Tuple[str, Optional[Dict]]]:
         """
