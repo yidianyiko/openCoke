@@ -429,6 +429,46 @@ class UserDAO:
 
         return update_result.modified_count > 0
 
+
+    def update_access_stripe(
+        self,
+        user_id: str,
+        stripe_customer_id: str,
+        stripe_subscription_id: str,
+        expire_time: datetime,
+    ) -> bool:
+        """Update user access with Stripe subscription info."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "access.stripe_customer_id": stripe_customer_id,
+                    "access.stripe_subscription_id": stripe_subscription_id,
+                    "access.expire_time": expire_time,
+                    "access.granted_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
+    def revoke_access(self, user_id: str) -> bool:
+        """Revoke user access by setting expire_time to now."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {"$set": {"access.expire_time": datetime.now()}},
+        )
+        return result.modified_count > 0
+
     def close(self):
         """关闭MongoDB连接"""
         self.client.close()
