@@ -14,7 +14,7 @@ from agent.util.message_util import messages_to_str
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
-from util.time_util import date2str, timestamp2str
+from util.time_util import date2str, get_user_timezone, timestamp2str
 
 
 def _convert_objectid_to_str(obj):
@@ -145,6 +145,13 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 def context_prepare(user, character, conversation):
     context = {"user": user, "character": character, "conversation": conversation}
 
+    # Infer user timezone from their platform ID (WhatsApp JID encodes country code)
+    user_platform_id = next(
+        (v.get("id", "") for v in user.get("platforms", {}).values() if v.get("id")),
+        "",
+    )
+    user_tz = get_user_timezone(user_platform_id)
+
     # BUG-006 Medium fix: Validate user and character IDs are not None
     if not user.get("_id") or not character.get("_id"):
         raise ValueError("Invalid user or character ID: _id cannot be None")
@@ -213,7 +220,7 @@ def context_prepare(user, character, conversation):
         relation["relationship"]["status"] = "空闲"
 
     context["conversation"]["conversation_info"]["time_str"] = timestamp2str(
-        int(time.time()), week=True
+        int(time.time()), week=True, tz=user_tz
     )
 
     # 获取聊天历史
@@ -251,7 +258,7 @@ def context_prepare(user, character, conversation):
         messages_to_str(context["conversation"]["conversation_info"]["input_messages"])
     )
 
-    date_str = date2str(int(time.time()))
+    date_str = date2str(int(time.time()), tz=user_tz)
     news = mongo.find_one("dailynews", {"date": date_str, "cid": str(character["_id"])})
     if news is None:
         context["news_str"] = ""
