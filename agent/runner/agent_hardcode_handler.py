@@ -43,5 +43,5 @@ def handle_hardcode(context, message):
     if str(message).startswith("重新生成"):
         target_user_id = CONF["characters"][target_user_alias]
 
-        date_str = date2str(int(time.time()) + 7200)
+        date_str = date2str(int(time.time()))
         mongo.delete_one("dailynews", {"cid": target_user_id, "date": date_str})
