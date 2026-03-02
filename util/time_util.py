@@ -4,6 +4,7 @@ sys.path.append(".")
 import re
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from util.log_util import get_logger
 
@@ -137,6 +138,61 @@ def get_message_timestamp(message, default_to_now=True):
 
 
 # ========== Original time utility functions ==========
+
+# Maps phone country code prefixes (longest match wins) to IANA timezone names.
+# Covers the most common countries; anything unrecognized falls back to Asia/Shanghai.
+_COUNTRY_CODE_TO_TZ: dict[str, str] = {
+    "966": "Asia/Riyadh",
+    "971": "Asia/Dubai",
+    "1":   "America/New_York",
+    "7":   "Europe/Moscow",
+    "20":  "Africa/Cairo",
+    "27":  "Africa/Johannesburg",
+    "44":  "Europe/London",
+    "49":  "Europe/Berlin",
+    "55":  "America/Sao_Paulo",
+    "60":  "Asia/Kuala_Lumpur",
+    "62":  "Asia/Jakarta",
+    "63":  "Asia/Manila",
+    "65":  "Asia/Singapore",
+    "66":  "Asia/Bangkok",
+    "81":  "Asia/Tokyo",
+    "82":  "Asia/Seoul",
+    "84":  "Asia/Ho_Chi_Minh",
+    "86":  "Asia/Shanghai",
+    "90":  "Europe/Istanbul",
+    "91":  "Asia/Kolkata",
+    "92":  "Asia/Karachi",
+}
+
+_DEFAULT_TZ = ZoneInfo("Asia/Shanghai")
+
+
+def get_user_timezone(user_id: str | None) -> ZoneInfo:
+    """
+    Infer a user's timezone from their WhatsApp JID or phone number.
+
+    Strips the @s.whatsapp.net suffix, then matches the leading digits against
+    country-code prefixes (longest match wins). Falls back to Asia/Shanghai.
+
+    Examples:
+        "8615012345678@s.whatsapp.net" → ZoneInfo("Asia/Shanghai")
+        "5511987654321@s.whatsapp.net" → ZoneInfo("America/Sao_Paulo")
+        None                           → ZoneInfo("Asia/Shanghai")
+    """
+    if not user_id:
+        return _DEFAULT_TZ
+
+    # Strip JID suffix and any leading "+"
+    digits = user_id.split("@")[0].lstrip("+")
+
+    # Longest-match: try 3-digit prefix, then 2-digit, then 1-digit
+    for length in (3, 2, 1):
+        prefix = digits[:length]
+        if prefix in _COUNTRY_CODE_TO_TZ:
+            return ZoneInfo(_COUNTRY_CODE_TO_TZ[prefix])
+
+    return _DEFAULT_TZ
 
 
 def timestamp2str(timestamp, week=False):
