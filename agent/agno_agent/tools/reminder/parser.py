@@ -9,6 +9,7 @@ Extracted from reminder_tools.py as part of the layered architecture refactor.
 import logging
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from util.time_util import (
     format_time_friendly,
@@ -97,7 +98,7 @@ class TimeParser:
         Returns:
             Formatted date and time string with weekday.
         """
-        dt = datetime.fromtimestamp(timestamp)
+        dt = datetime.fromtimestamp(timestamp, tz=ZoneInfo("Asia/Shanghai"))
 
         # Date part
         date_str = f"{dt.month}月{dt.day}日"
