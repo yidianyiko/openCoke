@@ -195,8 +195,8 @@ def get_user_timezone(user_id: str | None) -> ZoneInfo:
     return _DEFAULT_TZ
 
 
-def timestamp2str(timestamp, week=False):
-    dt_object = datetime.fromtimestamp(timestamp)
+def timestamp2str(timestamp, week=False, tz: ZoneInfo = None):
+    dt_object = datetime.fromtimestamp(timestamp, tz=tz or _DEFAULT_TZ)
     result = dt_object.strftime("%Y年%m月%d日%H时%M分")
 
     if week:
@@ -234,8 +234,8 @@ def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分"):
     return int(dt.timestamp())
 
 
-def date2str(timestamp, week=False):
-    dt_object = datetime.fromtimestamp(timestamp)
+def date2str(timestamp, week=False, tz: ZoneInfo = None):
+    dt_object = datetime.fromtimestamp(timestamp, tz=tz or _DEFAULT_TZ)
     result = dt_object.strftime("%Y年%m月%d日")
 
     if week:
@@ -275,7 +275,7 @@ def parse_relative_time(text, base_timestamp=None):
     if base_timestamp is None:
         base_timestamp = int(datetime.now().timestamp())
 
-    base_dt = datetime.fromtimestamp(base_timestamp)
+    base_dt = datetime.fromtimestamp(base_timestamp, tz=_DEFAULT_TZ)
 
     # 相对时间模式
     patterns = [
@@ -366,7 +366,7 @@ def is_time_in_past(timestamp):
     return timestamp < int(datetime.now().timestamp())
 
 
-def format_time_friendly(timestamp):
+def format_time_friendly(timestamp, tz: ZoneInfo = None):
     """
     将时间戳格式化为友好的文本
 
@@ -376,8 +376,9 @@ def format_time_friendly(timestamp):
     Returns:
         str: 友好的时间文本，如"明天上午9点"
     """
-    dt = datetime.fromtimestamp(timestamp)
-    now = datetime.now()
+    _tz = tz or _DEFAULT_TZ
+    dt = datetime.fromtimestamp(timestamp, tz=_tz)
+    now = datetime.now(tz=_tz)
 
     # 计算天数差
     days_diff = (dt.date() - now.date()).days
@@ -443,8 +444,8 @@ def is_within_time_period(
     Returns:
         bool: 是否在时间段内
     """
-    dt = datetime.fromtimestamp(timestamp)
-    # TODO: 使用timezone参数进行时区转换
+    _tz = ZoneInfo(timezone)
+    dt = datetime.fromtimestamp(timestamp, tz=_tz)
 
     # 检查星期几
     if active_days:
@@ -492,8 +493,8 @@ def calculate_next_period_trigger(
     """
     from datetime import time as dt_time
 
-    dt = datetime.fromtimestamp(current_time)
-    # TODO: 使用timezone参数进行时区转换
+    _tz = ZoneInfo(timezone)
+    dt = datetime.fromtimestamp(current_time, tz=_tz)
 
     start_h, start_m = map(int, start_time.split(":"))
     end_h, end_m = map(int, end_time.split(":"))
@@ -502,9 +503,9 @@ def calculate_next_period_trigger(
     for day_offset in range(8):
         check_date = dt.date() + timedelta(days=day_offset)
         check_dt = (
-            datetime.combine(check_date, dt.time())
+            datetime.combine(check_date, dt.replace(tzinfo=None).time(), tzinfo=_tz)
             if day_offset == 0
-            else datetime.combine(check_date, dt_time(start_h, start_m))
+            else datetime.combine(check_date, dt_time(start_h, start_m), tzinfo=_tz)
         )
         check_weekday = check_dt.isoweekday()
 
@@ -513,8 +514,8 @@ def calculate_next_period_trigger(
             continue
 
         # 计算该日期的时间段
-        period_start = datetime.combine(check_date, dt_time(start_h, start_m))
-        period_end = datetime.combine(check_date, dt_time(end_h, end_m))
+        period_start = datetime.combine(check_date, dt_time(start_h, start_m), tzinfo=_tz)
+        period_end = datetime.combine(check_date, dt_time(end_h, end_m), tzinfo=_tz)
 
         if day_offset == 0:
             # 今天：检查是否还在时间段内
