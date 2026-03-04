@@ -58,6 +58,7 @@ class ReminderService:
         base_timestamp: Optional[int] = None,
         session_state: Optional[dict] = None,
         dao: Optional["ReminderDAO"] = None,
+        user_tz=None,
     ) -> None:
         """
         Initialize the ReminderService with all necessary dependencies.
@@ -69,12 +70,13 @@ class ReminderService:
             base_timestamp: Base timestamp for relative time calculations
             session_state: Optional session state containing conversation context
             dao: Optional ReminderDAO instance (for testing/injection)
+            user_tz: Optional user timezone (ZoneInfo). Defaults to Asia/Shanghai.
         """
         from dao.reminder_dao import ReminderDAO
 
         self.dao = dao if dao is not None else ReminderDAO()
-        self.parser = TimeParser(base_timestamp=base_timestamp)
-        self.validator = ReminderValidator(dao=self.dao, user_id=user_id)
+        self.parser = TimeParser(base_timestamp=base_timestamp, tz=user_tz)
+        self.validator = ReminderValidator(dao=self.dao, user_id=user_id, tz=user_tz)
         self.formatter = ReminderFormatter(time_parser=self.parser)
 
         self.user_id = user_id

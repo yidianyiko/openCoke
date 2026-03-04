@@ -35,15 +35,17 @@ class TimeParser:
                       If None, uses current time when parsing relative times.
     """
 
-    def __init__(self, base_timestamp: Optional[int] = None) -> None:
+    def __init__(self, base_timestamp: Optional[int] = None, tz: ZoneInfo = None) -> None:
         """
-        Initialize TimeParser with optional base timestamp.
+        Initialize TimeParser with optional base timestamp and timezone.
 
         Args:
             base_timestamp: Base timestamp for relative time calculations.
                           If None, current time is used when parsing.
+            tz: Timezone for formatting. Defaults to Asia/Shanghai if None.
         """
         self.base_timestamp = base_timestamp
+        self.tz = tz or ZoneInfo("Asia/Shanghai")
 
     def parse(self, time_str: Optional[str]) -> Optional[int]:
         """
@@ -98,7 +100,7 @@ class TimeParser:
         Returns:
             Formatted date and time string with weekday.
         """
-        dt = datetime.fromtimestamp(timestamp, tz=ZoneInfo("Asia/Shanghai"))
+        dt = datetime.fromtimestamp(timestamp, tz=self.tz)
 
         # Date part
         date_str = f"{dt.month}月{dt.day}日"
