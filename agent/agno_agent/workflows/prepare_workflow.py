@@ -125,6 +125,8 @@ class PrepareWorkflow:
         timezone_value = orchestrator.get("timezone_value", "")
         if need_timezone_update and timezone_value:
             self._run_timezone_update(session_state, timezone_value)
+        elif need_timezone_update:
+            logger.warning("时区更新被请求但 timezone_value 为空，跳过")
         else:
             logger.info("跳过时区更新 (need_timezone_update=False)")
 
@@ -470,6 +472,10 @@ class PrepareWorkflow:
                 "character_knowledge_keywords": "",
             },
             "need_reminder_detect": False,
+            "need_web_search": False,
+            "web_search_query": "",
+            "need_timezone_update": False,
+            "timezone_value": "",
         }
 
     def _get_default_query_rewrite(self) -> Dict[str, str]:

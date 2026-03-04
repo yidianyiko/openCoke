@@ -311,8 +311,11 @@ INSTRUCTIONS_ORCHESTRATOR = """理解用户消息意图，做出调度决策。
 - 「马斯克最近在干什么」→「马斯克 最新动态」
 
 ### need_timezone_update
-设为 true：用户提到自己所在的城市/国家/地区（如我在纽约、我搬到东京了、切换到新加坡时间）
-设为 false：其他情况
+设为 true：用户明确表达自己当前所在地（如"我在纽约"、"我搬到东京了"、"切换到新加坡时间"、"我现在在上海"）
+设为 false：
+1. 仅提及某城市但未表示自己在那里（如"东京很好玩"、"纽约的天气怎么样"）
+2. 询问某地时间而非表示自己所在地（如"现在东京几点"）
+3. 其他所有情况
 
 ### timezone_value
 当 need_timezone_update=true 时填写对应的 IANA 时区名称，如 "America/New_York"、"Asia/Tokyo"
