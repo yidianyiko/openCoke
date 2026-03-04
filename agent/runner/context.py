@@ -2,6 +2,7 @@ import sys
 
 sys.path.append(".")
 import time
+from zoneinfo import ZoneInfo
 
 from util.log_util import get_logger
 
@@ -13,6 +14,7 @@ from agent.prompt.character import get_character_prompt
 from agent.util.message_util import messages_to_str
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
+from dao.user_dao import UserDAO
 from dao.mongo import MongoDBBase
 from util.time_util import date2str, get_user_timezone, timestamp2str
 
@@ -145,12 +147,18 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 def context_prepare(user, character, conversation):
     context = {"user": user, "character": character, "conversation": conversation}
 
-    # Infer user timezone from their platform ID (WhatsApp JID encodes country code)
+    # Resolve user timezone: stored setting takes priority, otherwise infer from
+    # platform ID and backfill once (lazy migration for legacy users).
     user_platform_id = next(
         (v.get("id", "") for v in user.get("platforms", {}).values() if v.get("id")),
         "",
     )
-    user_tz = get_user_timezone(user_platform_id)
+    stored_tz_str = user.get("timezone")
+    if stored_tz_str:
+        user_tz = ZoneInfo(stored_tz_str)
+    else:
+        user_tz = get_user_timezone(user_platform_id)
+        UserDAO().update_timezone(str(user["_id"]), user_tz.key)
 
     # BUG-006 Medium fix: Validate user and character IDs are not None
     if not user.get("_id") or not character.get("_id"):
