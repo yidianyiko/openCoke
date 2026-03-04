@@ -27,6 +27,7 @@ from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
+from agent.agno_agent.tools.timezone_tools import set_user_timezone
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_历史对话_精简,
@@ -118,6 +119,14 @@ class PrepareWorkflow:
             self._run_web_search(session_state, orchestrator)
         else:
             logger.info("跳过联网搜索 (need_web_search=False)")
+
+        # Step 2.7: 时区更新 (按需调用，0次 LLM)
+        need_timezone_update = orchestrator.get("need_timezone_update", False)
+        timezone_value = orchestrator.get("timezone_value", "")
+        if need_timezone_update and timezone_value:
+            self._run_timezone_update(session_state, timezone_value)
+        else:
+            logger.info("跳过时区更新 (need_timezone_update=False)")
 
         # Step 2.6: 链接内容提取 (检测消息中的 URL 并获取内容)
         self._run_url_extraction(input_message, session_state)
@@ -255,6 +264,23 @@ class PrepareWorkflow:
         except Exception as e:
             logger.error(f"联网搜索执行异常: {e}")
             session_state["web_search_result"] = {"ok": False, "error": str(e)}
+
+    def _run_timezone_update(
+        self, session_state: Dict[str, Any], timezone_value: str
+    ) -> None:
+        """更新用户时区 (直接调用，0次 LLM)"""
+        try:
+            result = set_user_timezone(
+                timezone=timezone_value,
+                session_state=session_state,
+            )
+            if result.get("ok"):
+                logger.info(f"[PrepareWorkflow] 时区更新成功: {timezone_value}")
+                session_state["timezone_update_message"] = result.get("message", "")
+            else:
+                logger.warning(f"[PrepareWorkflow] 时区更新失败: {result.get('message')}")
+        except Exception as e:
+            logger.error(f"[PrepareWorkflow] 时区更新异常: {e}")
 
     def _run_url_extraction(
         self, input_message: str, session_state: Dict[str, Any]

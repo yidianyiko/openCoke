@@ -310,6 +310,13 @@ INSTRUCTIONS_ORCHESTRATOR = """理解用户消息意图，做出调度决策。
 - 「帮我搜一下杭州明天会不会下雨」→「杭州明天天气」
 - 「马斯克最近在干什么」→「马斯克 最新动态」
 
+### need_timezone_update
+设为 true：用户提到自己所在的城市/国家/地区（如我在纽约、我搬到东京了、切换到新加坡时间）
+设为 false：其他情况
+
+### timezone_value
+当 need_timezone_update=true 时填写对应的 IANA 时区名称，如 "America/New_York"、"Asia/Tokyo"
+
 ### context_retrieve_params
 根据用户消息内容生成检索参数，参考 Schema 中的格式说明。
 
