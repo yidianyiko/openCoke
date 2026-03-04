@@ -155,7 +155,11 @@ def context_prepare(user, character, conversation):
     )
     stored_tz_str = user.get("timezone")
     if stored_tz_str:
-        user_tz = ZoneInfo(stored_tz_str)
+        try:
+            user_tz = ZoneInfo(stored_tz_str)
+        except (KeyError, Exception):
+            logger.warning(f"Invalid stored timezone '{stored_tz_str}', falling back to inferred")
+            user_tz = get_user_timezone(user_platform_id)
     else:
         user_tz = get_user_timezone(user_platform_id)
         UserDAO().update_timezone(str(user["_id"]), user_tz.key)
