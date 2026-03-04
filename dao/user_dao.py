@@ -372,6 +372,28 @@ class UserDAO:
         )
         return result.modified_count > 0
 
+    def update_timezone(self, user_id: str, timezone: str) -> bool:
+        """
+        Update user's timezone.
+
+        Args:
+            user_id: User ID
+            timezone: IANA timezone string (e.g. "America/New_York")
+
+        Returns:
+            bool: True if updated successfully
+        """
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError, InvalidId):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id}, {"$set": {"timezone": timezone}}
+        )
+        return result.modified_count > 0
+
+
     def add_platform_to_user(
         self, user_id: str, platform: str, platform_data: Dict
     ) -> bool:
