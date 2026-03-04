@@ -296,6 +296,28 @@ def reminder_tool(
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
     message_timestamp = current_session_state.get("input_timestamp")
 
+    # Resolve user timezone from session_state
+    from zoneinfo import ZoneInfo as _ZoneInfo
+    from util.time_util import get_user_timezone as _get_user_timezone
+    _tz_str = current_session_state.get("user", {}).get("timezone")
+    if _tz_str:
+        try:
+            _user_tz = _ZoneInfo(_tz_str)
+        except Exception:
+            _user_tz = _get_user_timezone(
+                next(
+                    (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
+                    "",
+                )
+            )
+    else:
+        _user_tz = _get_user_timezone(
+            next(
+                (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
+                "",
+            )
+        )
+
     if not user_id and action in (
         "create",
         "batch",
@@ -315,6 +337,7 @@ def reminder_tool(
         conversation_id=conversation_id,
         base_timestamp=message_timestamp,
         session_state=current_session_state,
+        user_tz=_user_tz,
     )
 
     try:
