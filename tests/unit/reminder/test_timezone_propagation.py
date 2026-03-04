@@ -45,11 +45,16 @@ def _load(dotted: str, rel_path: str):
     return mod
 
 
-# Register all parent packages so relative imports work
-_ensure_pkg("agent")
-_ensure_pkg("agent.agno_agent")
-_ensure_pkg("agent.agno_agent.tools")
-_ensure_pkg("agent.agno_agent.tools.reminder", _REMINDER_PKG)
+# Register parent packages for relative imports.
+# We do NOT register "agent" as a stub — other test files may need the real
+# agent.runner package, and a hollow stub here would shadow it.
+# agent.agno_agent is only registered if not already present (same guard).
+for _pkg, _path in [
+    ("agent.agno_agent", None),
+    ("agent.agno_agent.tools", None),
+    ("agent.agno_agent.tools.reminder", _REMINDER_PKG),
+]:
+    _ensure_pkg(_pkg, _path)
 
 # Pre-load the reminder submodules in dependency order (parser first, formatter depends on it)
 _parser = _load(
