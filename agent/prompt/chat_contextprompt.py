@@ -399,3 +399,42 @@ def get_url_context(session_state: dict) -> str:
 - 可以提及链接标题或来源
 - 如果链接内容不足以回答问题，可以如实告知
 - 结合角色人设自然地表达"""
+
+
+# ========== 通用工具执行结果 ==========
+
+
+def get_tool_results_context(session_state: dict) -> str:
+    """渲染所有工具执行结果为统一的 ### 系统操作结果 prompt 块.
+
+    每个工具调用 append_tool_result() 写入 session_state["tool_results"].
+    本函数在 ChatWorkflow 渲染 prompt 时调用，将结果注入给 ChatResponseAgent.
+
+    Returns:
+        格式化的 prompt 块，无结果时返回空字符串.
+    """
+    results: list[dict] = session_state.get("tool_results") or []
+    if not results:
+        return ""
+
+    lines = ["### 系统操作结果\n"]
+    for entry in results:
+        status = "成功" if entry.get("ok") else "失败"
+        lines.append(f"[{entry['tool_name']}]")
+        lines.append(f"状态：{status}")
+        lines.append(f"结果：{entry['result_summary']}")
+        extra = entry.get("extra_notes", "")
+        if extra:
+            lines.append(f"附加说明：{extra}")
+        lines.append("")  # blank line between entries
+
+    lines += [
+        '【说明】以上是系统自动执行的操作结果。请根据结果用自然的方式回复用户：',
+        '- 状态为"成功"：确认操作已完成，按执行结果向用户说明。',
+        '- 状态为"失败"：解释原因，必要时引导用户补充信息或重试。',
+        '- 有"附加说明"时：按附加说明的内容进行回复。',
+        "",
+        '【重要】只有看到此"系统操作结果"块，才能确认操作已执行。未看到时不要假设操作成功。',
+    ]
+    return "\n".join(lines)
+
