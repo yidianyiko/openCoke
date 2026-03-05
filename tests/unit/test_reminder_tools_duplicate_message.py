@@ -38,7 +38,8 @@ def test_create_duplicate_is_reported_as_success(sample_context, monkeypatch):
 
     assert result["ok"] is True
     assert result["status"] == "duplicate"
-    assert "创建提醒成功" in sample_context.get("【提醒设置工具消息】", "")
-    tool_context = sample_context.get("tool_execution_context", {})
-    assert tool_context.get("intent_fulfilled") is True
-    assert "创建提醒成功" in tool_context.get("result_summary", "")
+    tool_results = sample_context.get("tool_results", [])
+    assert tool_results, "tool_results should be populated"
+    last = tool_results[-1]
+    assert last["ok"] is True
+    assert "创建提醒成功" in last["result_summary"]

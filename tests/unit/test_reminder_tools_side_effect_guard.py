@@ -63,8 +63,9 @@ def test_complete_blocks_without_intent_or_keyword_in_user_text(
     assert result["ok"] is False
     assert result.get("needs_confirmation") is True
     assert result.get("candidates")
-    assert "【提醒设置工具消息】" in sample_context
-    assert "提醒完成未执行" in sample_context["【提醒设置工具消息】"]
+    tool_results = sample_context.get("tool_results", [])
+    assert tool_results, "tool_results should be populated"
+    assert "提醒完成未执行" in tool_results[-1]["result_summary"]
 
 
 @pytest.mark.unit

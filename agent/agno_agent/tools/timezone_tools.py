@@ -90,12 +90,14 @@ def set_user_timezone(
 
     # Write confirmation into session_state so ChatResponseAgent can use it
     if session_state is not None:
-        session_state["tool_execution_context"] = {
-            "user_intent": "更新时区",
-            "action_executed": "set_user_timezone",
-            "intent_fulfilled": True,
-            "result_summary": message,
-        }
+        from agent.agno_agent.tools.tool_result import append_tool_result
+
+        append_tool_result(
+            session_state,
+            tool_name="时区更新",
+            ok=True,
+            result_summary=message,
+        )
 
     logger.info(f"set_user_timezone: user {user_id} → {timezone}")
     return {"ok": True, "message": message}

@@ -109,31 +109,33 @@ def _save_reminder_result_to_session(
     if session_state is None:
         session_state = _get_current_session_state()
 
-    # Backward compatibility
-    session_state["【提醒设置工具消息】"] = message
+    from agent.agno_agent.tools.tool_result import append_tool_result
 
-    # Structured context
-    if user_intent is None:
-        user_intent = "提醒操作"
-    if action_executed is None:
-        action_executed = "unknown"
-
-    tool_execution_context = {
-        "user_intent": user_intent,
-        "action_executed": action_executed,
-        "intent_fulfilled": intent_fulfilled,
-        "result_summary": message,
-    }
-    if details:
-        tool_execution_context["details"] = details
-
-    session_state["tool_execution_context"] = tool_execution_context
+    _extra = ""
+    if details and details.get("error") == "frequency_too_high":
+        _extra = (
+            '分钟级别（< 60分钟）的无限重复提醒不支持，'
+            '可改用时间段提醒（如"上午9点到下午6点每30分钟"）。'
+            '小时级别以上的重复提醒（每小时、每天等）支持。'
+        )
+    append_tool_result(
+        session_state,
+        tool_name="提醒操作",
+        ok=intent_fulfilled,
+        result_summary=message,
+        extra_notes=_extra,
+    )
 
     # Sync ref if exists
     session_state_ref = _context_session_state_ref.get()
     if session_state_ref is not None and session_state_ref is not session_state:
-        session_state_ref["【提醒设置工具消息】"] = message
-        session_state_ref["tool_execution_context"] = tool_execution_context
+        append_tool_result(
+            session_state_ref,
+            tool_name="提醒操作",
+            ok=intent_fulfilled,
+            result_summary=message,
+            extra_notes=_extra,
+        )
 
     logger.info(f"提醒结果已写入 session_state: {message}")
 
