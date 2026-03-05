@@ -311,6 +311,7 @@ class TestCreateFrequencyLimitViolation:
             conversation_id="conv789",
             base_timestamp=1738289400,
             session_state=None,
+            dao=mock_dao,
         )
 
         result = service.create(
@@ -359,6 +360,7 @@ class TestCreateFrequencyLimitViolation:
             conversation_id="conv789",
             base_timestamp=1738289400,
             session_state=None,
+            dao=mock_dao,
         )
 
         result = service.create(

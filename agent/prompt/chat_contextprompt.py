@@ -220,19 +220,6 @@ CONTEXTPROMPT_主动消息触发 = """### 主动消息触发
 【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是 {user[platforms][wechat][nickname]} 发来的消息.
 """
 
-# V2.7 新增：提醒工具结果上下文
-CONTEXTPROMPT_提醒工具结果 = """### 提醒设置工具消息
-{【提醒设置工具消息】}
-
-【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
-例如：
-- 如果提醒创建成功，可以说"好的，我帮你设好了"
-- 如果信息不足，请自然地询问用户补充缺少的信息
-- 如果是重复提醒，可以说"这个提醒已经设置过了哦"
-
-【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功.
-"""
-
 # V2.8 新增：提醒意图检测但工具未执行的提示
 # 当 OrchestratorAgent 判断 need_reminder_detect=True 但 ReminderDetectAgent 未调用工具时使用
 CONTEXTPROMPT_提醒未执行 = """### 系统提示：提醒设置待确认
@@ -251,84 +238,6 @@ CONTEXTPROMPT_提醒未执行 = """### 系统提示：提醒设置待确认
 - "具体几点提醒你呀？"
 - "好的，你想让我什么时候提醒你[内容]呢？"
 """
-
-
-# V2.9 新增：结构化工具执行上下文模板
-# 提供更详细的工具执行信息，帮助 ChatResponseAgent 理解用户意图与实际执行的差距
-CONTEXTPROMPT_提醒工具结果_结构化 = """### 提醒操作执行结果
-用户意图：{tool_execution_context[user_intent]}
-实际执行：{tool_execution_context[action_executed]}
-意图满足：{tool_execution_context[intent_fulfilled]}
-执行结果：{tool_execution_context[result_summary]}
-
-【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
-- 如果"意图满足"为 True，说明用户的需求已被满足，可以确认操作成功
-- 如果"意图满足"为 False，说明用户的需求未被完全满足，需要引导用户补充信息或说明原因
-
-【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功.
-"""
-
-
-def get_reminder_result_context(session_state: dict) -> str:
-    """
-    获取提醒工具结果上下文，优先使用结构化格式
-
-    Args:
-        session_state: 会话状态字典
-
-    Returns:
-        格式化的提醒工具结果上下文，如果没有结果则返回空字符串
-    """
-    # 频率限制规则说明（当遇到频率限制错误时追加）
-    FREQUENCY_LIMIT_RULES = """
-### 重复提醒频率限制规则（向用户解释时参考）
-- 分钟级别（< 60分钟）的无限重复提醒：不支持，频率过高会导致服务被限制，用户可以使用时间段提醒（如"上午9点到下午6点每30分钟"），小时级别以上的重复提醒（每小时、每天等）：支持，默认最多提醒10次"""
-
-    # 检查是否有结构化工具执行上下文
-    tool_context = session_state.get("tool_execution_context")
-    if tool_context:
-        # 检查是否是频率限制错误
-        details = tool_context.get("details", {})
-        is_frequency_error = details.get("error") == "frequency_too_high"
-        frequency_rules = FREQUENCY_LIMIT_RULES if is_frequency_error else ""
-
-        user_intent = tool_context.get("user_intent", "未识别")
-        action_executed = tool_context.get("action_executed", "unknown")
-        intent_fulfilled = "是" if tool_context.get("intent_fulfilled", False) else "否"
-        result_summary = tool_context.get("result_summary", "")
-
-        return f"""### 提醒操作执行结果
-用户意图：{user_intent}
-实际执行：{action_executed}
-意图满足：{intent_fulfilled}
-执行结果：{result_summary}
-
-【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
-- 如果"意图满足"为"是"，说明用户的需求已被满足，可以确认操作成功，你**必须**在回复中按照执行结果展示出来。
-- 如果"意图满足"为"否"，说明用户的需求未被完全满足，需要根据"执行结果"中的原因向用户解释：
-    -如果是频率过高被拒绝，向用户解释限制原因并建议替代方案
-    -如果是信息不足，引导用户补充缺少的信息
-    -如果是其他错误，说明具体原因
-
-【重要】只有当你看到这个"提醒操作执行结果"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未处理，不要假设提醒已设置成功.
-{frequency_rules}"""
-
-    # 回退到旧的语义化消息格式
-    reminder_message = session_state.get("【提醒设置工具消息】", "")
-    if reminder_message:
-        return f"""### 提醒设置工具消息
-{reminder_message}
-
-【说明】以上是系统自动处理提醒的结果.请根据这个结果，用自然的方式回复用户.
-例如：
-- 如果提醒创建成功，可以说"好的，我帮你设好了"
-- 如果信息不足，请自然地询问用户补充缺少的信息
-- 如果是重复提醒，可以说"这个提醒已经设置过了哦"
-
-【重要】只有当你看到这个"提醒设置工具消息"时，才能确认提醒操作已执行.如果没有看到这个消息，说明提醒还未创建，不要假设提醒已设置成功.
-"""
-
-    return ""
 
 
 # ========== 联网搜索相关 ==========

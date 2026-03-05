@@ -372,15 +372,14 @@ class PrepareWorkflow:
 
         logger.info("ReminderDetectAgent 执行完成")
 
-        if "【提醒设置工具消息】" in session_state:
-            logger.info(
-                f"ReminderDetectAgent 结果: {session_state['【提醒设置工具消息】']}"
-            )
-
-            tool_context = session_state.get("tool_execution_context", {})
-            if tool_context and not tool_context.get("intent_fulfilled", True):
+        tool_results = session_state.get("tool_results", [])
+        reminder_results = [r for r in tool_results if r.get("tool_name") == "提醒操作"]
+        if reminder_results:
+            last = reminder_results[-1]
+            logger.info(f"ReminderDetectAgent 结果: {last.get('result_summary', '')}")
+            if not last.get("ok", True):
                 logger.warning(
-                    f"[PrepareWorkflow] 用户意图未被满足: action={tool_context.get('action_executed')}"
+                    f"[PrepareWorkflow] 用户意图未被满足: result={last.get('result_summary')}"
                 )
         else:
             logger.warning(
