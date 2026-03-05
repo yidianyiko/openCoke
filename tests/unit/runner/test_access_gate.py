@@ -66,14 +66,30 @@ class TestAccessGate:
             assert result is None
 
     @pytest.mark.unit
-    def test_check_returns_none_for_disabled_platform(self, access_gate):
+    def test_check_returns_none_for_disabled_platform(self, mock_order_dao, mock_user_dao):
         """Should return None when platform has gate disabled"""
-        result = access_gate.check(
-            platform="wechat",
-            user={"_id": ObjectId()},
-            message="hello",
-            admin_user_id="",
-        )
+        config = {
+            "enabled": True,
+            "platforms": {"wechat": False},
+            "deny_message": "denied",
+            "expire_message": "expired",
+            "success_message": "ok",
+        }
+        with patch(
+            "agent.runner.access_gate.CONF",
+            {"access_control": config, "admin_user_id": ""},
+        ):
+            from agent.runner.access_gate import AccessGate
+
+            gate = AccessGate()
+            gate.order_dao = mock_order_dao
+            gate.user_dao = mock_user_dao
+            result = gate.check(
+                platform="wechat",
+                user={"_id": ObjectId()},
+                message="hello",
+                admin_user_id="",
+            )
 
         assert result is None
 

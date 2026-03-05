@@ -129,7 +129,7 @@ def test_set_user_timezone_tool_success(mock_dao_class):
     mock_dao_class.return_value = dao_instance
 
     session_state = make_session_state()
-    result = set_user_timezone(
+    result = set_user_timezone.entrypoint(
         timezone="America/New_York",
         session_state=session_state,
     )
@@ -146,7 +146,7 @@ def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
     session_state = make_session_state()
-    result = set_user_timezone(
+    result = set_user_timezone.entrypoint(
         timezone="Not/AValid",
         session_state=session_state,
     )
@@ -159,7 +159,7 @@ def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
 def test_set_user_timezone_tool_missing_user(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
-    result = set_user_timezone(
+    result = set_user_timezone.entrypoint(
         timezone="Asia/Tokyo",
         session_state={},
     )
