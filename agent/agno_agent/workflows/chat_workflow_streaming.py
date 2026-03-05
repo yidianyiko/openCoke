@@ -45,6 +45,7 @@ from agent.prompt.chat_contextprompt import (
     get_relevant_history_context,
     get_reminder_result_context,
     get_reminders_context,
+    get_tool_results_context,
     get_url_context,
     get_web_search_context,
 )
@@ -210,6 +211,11 @@ class StreamingChatWorkflow:
                 "[ChatWorkflow] OrchestratorAgent 判断 need_reminder_detect=True，但未找到提醒工具结果.添加提醒未执行提示"
             )
 
+        # Generic tool results context (timezone, reminder, future tools)
+        tool_results_context = get_tool_results_context(session_state)
+        if tool_results_context:
+            logger.info("[ChatWorkflow] 添加系统操作结果上下文")
+
         # V2.7 优化：按需加载待办提醒和相关历史对话
         context_retrieve = session_state.get("context_retrieve", {})
         user_nickname = (
@@ -299,6 +305,8 @@ class StreamingChatWorkflow:
             # V2.13：提醒结果上下文放在输出格式前
             if reminder_result_context:
                 rendered_userp = rendered_userp + "\n" + reminder_result_context
+            if tool_results_context:
+                rendered_userp = rendered_userp + "\n" + tool_results_context
             # 输出格式要求放最后
             rendered_userp = (
                 rendered_userp
