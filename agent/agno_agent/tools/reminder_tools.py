@@ -109,27 +109,6 @@ def _save_reminder_result_to_session(
     if session_state is None:
         session_state = _get_current_session_state()
 
-    # Backward compatibility
-    session_state["【提醒设置工具消息】"] = message
-
-    # Structured context
-    if user_intent is None:
-        user_intent = "提醒操作"
-    if action_executed is None:
-        action_executed = "unknown"
-
-    tool_execution_context = {
-        "user_intent": user_intent,
-        "action_executed": action_executed,
-        "intent_fulfilled": intent_fulfilled,
-        "result_summary": message,
-    }
-    if details:
-        tool_execution_context["details"] = details
-
-    session_state["tool_execution_context"] = tool_execution_context
-
-    # Generic tool result (new path)
     from agent.agno_agent.tools.tool_result import append_tool_result
 
     _extra = ""
@@ -150,8 +129,6 @@ def _save_reminder_result_to_session(
     # Sync ref if exists
     session_state_ref = _context_session_state_ref.get()
     if session_state_ref is not None and session_state_ref is not session_state:
-        session_state_ref["【提醒设置工具消息】"] = message
-        session_state_ref["tool_execution_context"] = tool_execution_context
         append_tool_result(
             session_state_ref,
             tool_name="提醒操作",
