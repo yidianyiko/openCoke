@@ -60,6 +60,20 @@ def _ensure_agno_stubs() -> None:
     agno.tools = agno_tools
 
 
+def _load_module_by_path(module_name: str, rel_path: str) -> None:
+    """Load a module by file path and register it in sys.modules."""
+    if module_name not in sys.modules:
+        path = _PROJECT_ROOT / rel_path
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
+        spec.loader.exec_module(mod)
+        # Wire into parent package so attribute access works
+        parent_name, _, attr = module_name.rpartition(".")
+        if parent_name in sys.modules:
+            setattr(sys.modules[parent_name], attr, mod)
+
+
 def _ensure_timezone_tools_loaded() -> None:
     """
     Load agent.agno_agent.tools.timezone_tools by file path, registering
@@ -75,15 +89,15 @@ def _ensure_timezone_tools_loaded() -> None:
             mod.__spec__ = None
             sys.modules[pkg] = mod
 
-    module_name = "agent.agno_agent.tools.timezone_tools"
-    if module_name not in sys.modules:
-        path = _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "timezone_tools.py"
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = mod
-        spec.loader.exec_module(mod)
-        # Wire into parent package so attribute access works
-        sys.modules["agent.agno_agent.tools"].timezone_tools = mod
+    # Load tool_result first (timezone_tools imports it at call time)
+    _load_module_by_path(
+        "agent.agno_agent.tools.tool_result",
+        "agent/agno_agent/tools/tool_result.py",
+    )
+    _load_module_by_path(
+        "agent.agno_agent.tools.timezone_tools",
+        "agent/agno_agent/tools/timezone_tools.py",
+    )
 
 
 _ensure_agno_stubs()
