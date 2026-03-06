@@ -49,7 +49,7 @@ class TestMessageDispatcherGate:
     ):
         mock_access_gate.check.return_value = (
             "gate_denied",
-            {"checkout_url": "https://checkout.stripe.com/test"},
+            {"checkout_url": "https://checkout.creem.io/test"},
         )
         with patch(
             "agent.runner.message_processor.AccessGate",
