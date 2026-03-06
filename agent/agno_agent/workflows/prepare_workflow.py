@@ -272,7 +272,7 @@ class PrepareWorkflow:
     ) -> None:
         """更新用户时区 (直接调用，0次 LLM)"""
         try:
-            result = set_user_timezone(
+            result = set_user_timezone.entrypoint(
                 timezone=timezone_value,
                 session_state=session_state,
             )
