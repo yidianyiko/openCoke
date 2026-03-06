@@ -1,32 +1,32 @@
 # -*- coding: utf-8 -*-
 
-# ========== 消息来源说明（根据 message_source 自动注入） ==========
-# 代码层面直接注入，LLM 不需要判断消息来源
+# ========== Message source annotation (auto-injected based on message_source) ==========
+# Injected at the code level — the LLM does not need to determine the message source
 
-CONTEXTPROMPT_消息来源_用户消息 = """### 消息来源说明
-这是 {user[platforms][wechat][nickname]} 通过微信发送给你的真实消息."""
+CONTEXTPROMPT_消息来源_用户消息 = """### Message Source
+This is a real message sent to you by {user[platforms][wechat][nickname]} via the platform."""  # PLATFORM_REF: platform name injected per connector
 
-CONTEXTPROMPT_消息来源_提醒触发 = """### 消息来源说明
-这是系统触发的定时提醒，不是 {user[platforms][wechat][nickname]} 发来的消息.
-你需要根据提醒内容，主动向 {user[platforms][wechat][nickname]} 发送提醒消息.
-【注意】不要把提醒内容当成用户说的话来回复."""
+CONTEXTPROMPT_消息来源_提醒触发 = """### Message Source
+This is a system-triggered scheduled reminder — not a message sent by {user[platforms][wechat][nickname]}.
+You need to proactively send a reminder message to {user[platforms][wechat][nickname]} based on the reminder content.
+[NOTE] Do not treat the reminder content as something the user said and reply to it."""
 
-CONTEXTPROMPT_消息来源_主动消息 = """### 消息来源说明
-这是你主动发起对话的场景，不是 {user[platforms][wechat][nickname]} 发来的消息.
-你需要根据规划行动，主动向 {user[platforms][wechat][nickname]} 发送消息.
-【注意】你是消息的发起方，不是在回复用户."""
+CONTEXTPROMPT_消息来源_主动消息 = """### Message Source
+This is a scenario where you are initiating the conversation — not a message sent by {user[platforms][wechat][nickname]}.
+You need to proactively send a message to {user[platforms][wechat][nickname]} based on the planned action.
+[NOTE] You are the initiator of this message, not replying to the user."""
 
 
 def get_message_source_context(message_source: str, context: dict) -> str:
     """
-    根据消息来源返回对应的说明上下文
+    Return the appropriate source annotation context based on message source.
 
     Args:
-        message_source: 消息来源-"user"/"reminder"/"future"
-        context: 完整上下文，用于渲染模板
+        message_source: Message source — "user" / "reminder" / "future"
+        context: Full context dict used to render templates
 
     Returns:
-        格式化的消息来源说明
+        Formatted message source annotation
     """
     if message_source == "reminder":
         template = CONTEXTPROMPT_消息来源_提醒触发
@@ -38,100 +38,100 @@ def get_message_source_context(message_source: str, context: dict) -> str:
     try:
         return template.format(**context)
     except KeyError:
-        # 回退：直接使用用户昵称
+        # Fallback: use user nickname directly
         _user_nickname = (
             context.get("user", {})
             .get("platforms", {})
             .get("wechat", {})
-            .get("nickname", "用户")
-        )  # 保留以备将来使用
+            .get("nickname", "user")
+        )  # kept for potential future use
         if message_source == "reminder":
-            return """### 消息来源说明
-这是系统触发的定时提醒，不是 {user_nickname} 发来的消息.
-你需要根据提醒内容，主动向 {user_nickname} 发送提醒消息.
-【注意】不要把提醒内容当成用户说的话来回复."""
+            return """### Message Source
+This is a system-triggered scheduled reminder — not a message sent by {user_nickname}.
+You need to proactively send a reminder message to {user_nickname} based on the reminder content.
+[NOTE] Do not treat the reminder content as something the user said and reply to it."""
         elif message_source == "future":
-            return """### 消息来源说明
-这是你主动发起对话的场景，不是 {user_nickname} 发来的消息.
-你需要根据规划行动，主动向 {user_nickname} 发送消息.
-【注意】你是消息的发起方，不是在回复用户."""
+            return """### Message Source
+This is a scenario where you are initiating the conversation — not a message sent by {user_nickname}.
+You need to proactively send a message to {user_nickname} based on the planned action.
+[NOTE] You are the initiator of this message, not replying to the user."""
         else:
-            return """### 消息来源说明
-这是 {user_nickname} 通过微信发送给你的真实消息，请正常回复."""
+            return """### Message Source
+This is a real message sent to you by {user_nickname} via the platform. Please reply normally."""  # PLATFORM_REF: platform name injected per connector
 
 
-CONTEXTPROMPT_时间 = """### 系统当前时间
-（24小时制）{conversation[conversation_info][time_str]}"""
+CONTEXTPROMPT_时间 = """### Current System Time
+(24-hour format) {conversation[conversation_info][time_str]}"""
 
 CONTEXTPROMPT_新闻 = """
 {news_str}
 """
 
-CONTEXTPROMPT_人物信息 = """### {character[platforms][wechat][nickname]}的人物信息
+CONTEXTPROMPT_人物信息 = """### {character[platforms][wechat][nickname]}'s Character Info
 {character[user_info][description]}"""
 
 
-CONTEXTPROMPT_人物资料 = """### {character[platforms][wechat][nickname]}的人物资料
+CONTEXTPROMPT_人物资料 = """### {character[platforms][wechat][nickname]}'s Character Profile
 {context_retrieve[character_global]}
 {context_retrieve[character_private]}"""
 
-CONTEXTPROMPT_用户资料 = """###  {user[platforms][wechat][nickname]} 的人物资料
+CONTEXTPROMPT_用户资料 = """### {user[platforms][wechat][nickname]}'s Profile
 {context_retrieve[user]}"""
 
-# 待办提醒-仅在有待办时使用
-# 使用时需要先检查 context_retrieve[confirmed_reminders] 是否为空
-CONTEXTPROMPT_待办提醒 = """###  {user[platforms][wechat][nickname]} 的待办提醒
+# Pending reminders — only used when there are pending reminders
+# Check context_retrieve[confirmed_reminders] for emptiness before using
+CONTEXTPROMPT_待办提醒 = """### {user[platforms][wechat][nickname]}'s Pending Reminders
 {context_retrieve[confirmed_reminders]}"""
 
 
 def get_reminders_context(context_retrieve: dict, user_nickname: str) -> str:
     """
-    获取待办提醒上下文，仅在有待办时返回
+    Get pending reminder context — only returns content when reminders exist.
 
     Args:
-        context_retrieve: 上下文检索结果字典
-        user_nickname: 用户昵称
+        context_retrieve: Context retrieval result dictionary
+        user_nickname: User nickname
 
     Returns:
-        如果有待办提醒则返回格式化的上下文，否则返回空字符串
+        Formatted context if there are pending reminders, otherwise empty string
     """
     reminders = context_retrieve.get("confirmed_reminders", "")
     if reminders and reminders.strip():
-        return f"""###  {user_nickname} 的待办提醒
+        return f"""### {user_nickname}'s Pending Reminders
 {reminders}"""
     return ""
 
 
-CONTEXTPROMPT_人物知识和技能 = """### {character[platforms][wechat][nickname]}的人物知识和技能
+CONTEXTPROMPT_人物知识和技能 = """### {character[platforms][wechat][nickname]}'s Knowledge and Skills
 {context_retrieve[character_knowledge]}"""
 
-CONTEXTPROMPT_人物状态 = """### {character[platforms][wechat][nickname]}的人物状态
-所在地点：{character[user_info][status][place]}
-行动：{character[user_info][status][action]}
-当前状态：{relation[relationship][status]}"""
+CONTEXTPROMPT_人物状态 = """### {character[platforms][wechat][nickname]}'s Current Status
+Location: {character[user_info][status][place]}
+Action: {character[user_info][status][action]}
+Current state: {relation[relationship][status]}"""
 
-CONTEXTPROMPT_当前目标 = """### {character[platforms][wechat][nickname]}的当前目标
-长期目标：{relation[character_info][longterm_purpose]}
-短期目标：{relation[character_info][shortterm_purpose]}
-对 {user[platforms][wechat][nickname]} 的态度：{relation[character_info][attitude]}"""
+CONTEXTPROMPT_当前目标 = """### {character[platforms][wechat][nickname]}'s Current Goals
+Long-term goal: {relation[character_info][longterm_purpose]}
+Short-term goal: {relation[character_info][shortterm_purpose]}
+Attitude toward {user[platforms][wechat][nickname]}: {relation[character_info][attitude]}"""
 
-CONTEXTPROMPT_当前的人物关系 = """### {character[platforms][wechat][nickname]}与 {user[platforms][wechat][nickname]} 当前的人物关系
-关系描述：{relation[relationship][description]}
-亲密度：{relation[relationship][closeness]}
-信任度：{relation[relationship][trustness]}
-反感度：{relation[relationship][dislike]}
-已知 {user[platforms][wechat][nickname]} 的真名：{relation[user_info][realname]}
-{character[platforms][wechat][nickname]}对 {user[platforms][wechat][nickname]} 的亲密昵称：{relation[user_info][hobbyname]}
-{character[platforms][wechat][nickname]}对 {user[platforms][wechat][nickname]} 的印象描述：{relation[user_info][description]}
+CONTEXTPROMPT_当前的人物关系 = """### Current Relationship Between {character[platforms][wechat][nickname]} and {user[platforms][wechat][nickname]}
+Relationship description: {relation[relationship][description]}
+Closeness: {relation[relationship][closeness]}
+Trust: {relation[relationship][trustness]}
+Dislike: {relation[relationship][dislike]}
+Known real name of {user[platforms][wechat][nickname]}: {relation[user_info][realname]}
+{character[platforms][wechat][nickname]}'s nickname for {user[platforms][wechat][nickname]}: {relation[user_info][hobbyname]}
+{character[platforms][wechat][nickname]}'s impression of {user[platforms][wechat][nickname]}: {relation[user_info][description]}
 """
 
-CONTEXTPROMPT_最近的历史对话 = """### 历史对话（最近十五条）
+CONTEXTPROMPT_最近的历史对话 = """### Conversation History (last 15 messages)
 {conversation[conversation_info][chat_history_str]}"""
 
-# 语义检索的相关历史对话-仅在有检索结果时使用
-# 使用时需要先检查 context_retrieve[relevant_history] 是否为空
-CONTEXTPROMPT_历史最相关的十条对话 = """### 相关历史对话（语义检索）
-以下是与当前话题语义相关的过往对话：
+# Semantically retrieved relevant history — only used when there are results
+# Check context_retrieve[relevant_history] for emptiness before using
+CONTEXTPROMPT_历史最相关的十条对话 = """### Relevant Conversation History (semantic retrieval)
+The following are past conversations semantically related to the current topic:
 {context_retrieve[relevant_history]}"""
 
 
@@ -139,30 +139,30 @@ def get_relevant_history_context(
     context_retrieve: dict, recent_history_str: str = ""
 ) -> str:
     """
-    获取相关历史对话上下文，仅在有检索结果时返回
+    Get relevant conversation history context — only returns content when there are results.
 
-    V2.13 优化：过滤掉已经在最近历史对话中出现的消息，避免重复
+    V2.13: Filters out messages already present in recent history to avoid duplication.
 
     Args:
-        context_retrieve: 上下文检索结果字典
-        recent_history_str: 最近历史对话字符串，用于过滤重复内容
+        context_retrieve: Context retrieval result dictionary
+        recent_history_str: Recent conversation history string used to filter duplicates
 
     Returns:
-        如果有相关历史则返回格式化的上下文，否则返回空字符串
+        Formatted context if relevant history exists, otherwise empty string
     """
     relevant_history = context_retrieve.get("relevant_history", "")
     if not relevant_history or not relevant_history.strip():
         return ""
 
-    # V2.13: 过滤掉已经在最近历史中出现的消息
+    # V2.13: Filter out messages already present in recent history
     if recent_history_str:
         filtered_lines = []
         for line in relevant_history.strip().split("\n"):
             line = line.strip()
             if not line:
                 continue
-            # 检查这条消息是否已经在最近历史中存在
-            # 移除 "- " 前缀后进行比较
+            # Check if this message already exists in recent history
+            # Remove "- " prefix before comparing
             clean_line = line.lstrip("- ").strip()
             if clean_line and clean_line not in recent_history_str:
                 filtered_lines.append(line)
@@ -171,131 +171,131 @@ def get_relevant_history_context(
             return ""
         relevant_history = "\n".join(filtered_lines)
 
-    return f"""### 相关历史对话（语义检索）
-以下是与当前话题语义相关的过往对话：
+    return f"""### Relevant Conversation History (semantic retrieval)
+The following are past conversations semantically related to the current topic:
 {relevant_history}"""
 
 
-# 精简版历史对话，用于主动消息场景（只包含最近几条消息）
-CONTEXTPROMPT_历史对话_精简 = """### 最近对话（最近3轮）
+# Condensed conversation history for proactive message scenarios (only the last few messages)
+CONTEXTPROMPT_历史对话_精简 = """### Recent Conversation (last 3 rounds)
 {recent_chat_history}"""
 
-CONTEXTPROMPT_最新聊天消息 = """###  {user[platforms][wechat][nickname]} 的最新聊天消息
+CONTEXTPROMPT_最新聊天消息 = """### {user[platforms][wechat][nickname]}'s Latest Chat Message
 {conversation[conversation_info][input_messages_str]}"""
 
-# V2.15 新增：防止 AI 重复回复的提示（用于所有消息场景）
+# V2.15: Anti-duplicate-reply prompt (used for all message scenarios)
 CONTEXTPROMPT_防重复回复 = """{proactive_forbidden_messages}
 
-【严格禁止-必须遵守】上面列出的"你最近发送过的消息"是你绝对不能重复的内容，你必须：
-- 不能重复相同的问题或话题
-- 不能使用相似的句式或表达
-- 不能表达相同或相近的意思
-- 换一个完全不同的角度或话题来回应
+[STRICTLY FORBIDDEN — MUST COMPLY] The "messages you recently sent" listed above are content you must absolutely not repeat. You must:
+- Not repeat the same question or topic
+- Not use similar phrasing or expressions
+- Not convey the same or similar meaning
+- Respond from a completely different angle or topic
 """
 
-CONTEXTPROMPT_初步回复 = """### {character[platforms][wechat][nickname]}的初步回复
+CONTEXTPROMPT_初步回复 = """### {character[platforms][wechat][nickname]}'s Initial Reply
 {MultiModalResponses}"""
 
-CONTEXTPROMPT_最新聊天消息_双方 = """###  {user[platforms][wechat][nickname]} 的最新聊天消息
+CONTEXTPROMPT_最新聊天消息_双方 = """### {user[platforms][wechat][nickname]}'s Latest Chat Message
 {conversation[conversation_info][input_messages_str]}
 
-### {character[platforms][wechat][nickname]}的最新回复
+### {character[platforms][wechat][nickname]}'s Latest Reply
 {MultiModalResponses}"""
 
-CONTEXTPROMPT_规划行动 = """### {character[platforms][wechat][nickname]}的规划行动
-{character[platforms][wechat][nickname]}计划主动向 {user[platforms][wechat][nickname]} 发送消息，行动内容：{conversation[conversation_info][future][action]}
-【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是 {user[platforms][wechat][nickname]} 发来的消息."""
+CONTEXTPROMPT_规划行动 = """### {character[platforms][wechat][nickname]}'s Planned Action
+{character[platforms][wechat][nickname]} plans to proactively send a message to {user[platforms][wechat][nickname]}. Action content: {conversation[conversation_info][future][action]}
+[IMPORTANT] This is a message that {character[platforms][wechat][nickname]} is initiating — not a message from {user[platforms][wechat][nickname]}."""
 
-CONTEXTPROMPT_系统提醒触发 = """### 系统提醒触发
-以下是到期的提醒，{character[platforms][wechat][nickname]}需要主动提醒 {user[platforms][wechat][nickname]} ：
-提醒内容：{system_message_metadata[title]}
-【重要】这是{character[platforms][wechat][nickname]}要发给 {user[platforms][wechat][nickname]} 的提醒内容，不是 {user[platforms][wechat][nickname]} 发来的消息.{character[platforms][wechat][nickname]}应该基于这个提醒内容，用自然的方式提醒用户."""
+CONTEXTPROMPT_系统提醒触发 = """### System Reminder Triggered
+The following reminder has come due. {character[platforms][wechat][nickname]} needs to proactively remind {user[platforms][wechat][nickname]}:
+Reminder content: {system_message_metadata[title]}
+[IMPORTANT] This is reminder content that {character[platforms][wechat][nickname]} should send to {user[platforms][wechat][nickname]} — not a message from {user[platforms][wechat][nickname]}. {character[platforms][wechat][nickname]} should remind the user in a natural way based on this content."""
 
-# V2.15 精简：移除重复的【严格禁止】部分，统一由 CONTEXTPROMPT_防重复回复 提供
-CONTEXTPROMPT_主动消息触发 = """### 主动消息触发
-{character[platforms][wechat][nickname]}计划主动向 {user[platforms][wechat][nickname]} 发送消息.
-行动内容：{conversation[conversation_info][future][action]}
-本轮已主动催促次数：{proactive_times}
+# V2.15 simplified: removed duplicate [STRICTLY FORBIDDEN] section — now uniformly provided by CONTEXTPROMPT_防重复回复
+CONTEXTPROMPT_主动消息触发 = """### Proactive Message Triggered
+{character[platforms][wechat][nickname]} plans to proactively send a message to {user[platforms][wechat][nickname]}.
+Action content: {conversation[conversation_info][future][action]}
+Proactive prompts sent this round: {proactive_times}
 
-【重要】这是{character[platforms][wechat][nickname]}要主动发起的消息，不是 {user[platforms][wechat][nickname]} 发来的消息.
+[IMPORTANT] This is a message that {character[platforms][wechat][nickname]} is initiating — not a message from {user[platforms][wechat][nickname]}.
 """
 
-# V2.8 新增：提醒意图检测但工具未执行的提示
-# 当 OrchestratorAgent 判断 need_reminder_detect=True 但 ReminderDetectAgent 未调用工具时使用
-CONTEXTPROMPT_提醒未执行 = """### 系统提示：提醒设置待确认
-用户的消息似乎包含设置提醒的意图，但系统尚未成功创建提醒.
-可能的原因：
-- 时间表达不够明确（如"晚一点"、"过一会"等模糊时间）
-- 缺少必要的信息（如具体时间或提醒内容）
+# V2.8: Reminder intent detected but tool not executed prompt
+# Used when OrchestratorAgent sets need_reminder_detect=True but ReminderDetectAgent did not call a tool
+CONTEXTPROMPT_提醒未执行 = """### System Notice: Reminder Setup Pending
+The user's message appears to contain reminder-setting intent, but the system has not successfully created a reminder yet.
+Possible reasons:
+- Time expression was not specific enough (e.g. "a bit later", "in a while" — vague time)
+- Missing required information (e.g. specific time or reminder content)
 
-【重要】请不要假设提醒已经设置成功！你应该：
-1. 询问用户具体的提醒时间（如果时间不明确）
-2. 确认提醒的具体内容（如果内容不清楚）
-3. 用自然的方式引导用户提供完整信息
+[IMPORTANT] Do not assume the reminder has been set successfully! You should:
+1. Ask the user for a specific reminder time (if the time is unclear)
+2. Confirm the specific reminder content (if the content is unclear)
+3. Naturally guide the user to provide complete information
 
-示例回复：
-- "你想什么时候提醒你呢？"
-- "具体几点提醒你呀？"
-- "好的，你想让我什么时候提醒你[内容]呢？"
+Example replies:
+- "When would you like me to remind you?"
+- "What time exactly?"
+- "Sure, when would you like me to remind you about [content]?"
 """
 
 
-# ========== 联网搜索相关 ==========
+# ========== Web Search ==========
 
-CONTEXTPROMPT_联网搜索结果 = """### 联网搜索结果
+CONTEXTPROMPT_联网搜索结果 = """### Web Search Results
 {web_search_result}
 
-【说明】以上是联网搜索获取的实时信息。请根据搜索结果回答用户问题：
-- 引用信息时可以提及来源
-- 如果搜索结果不足以回答问题，可以如实告知
-- 结合角色人设自然地表达"""
+[Note] The above is real-time information retrieved via web search. Please answer the user's question based on the search results:
+- You may mention the source when citing information
+- If the search results are insufficient to answer the question, say so honestly
+- Express naturally in keeping with the character persona"""
 
 
 def get_web_search_context(session_state: dict) -> str:
     """
-    获取联网搜索结果上下文
+    Get web search result context.
 
     Args:
-        session_state: 会话状态字典
+        session_state: Session state dictionary
 
     Returns:
-        格式化的搜索结果上下文，如果没有结果则返回空字符串
+        Formatted search result context, or empty string if no results
     """
     web_search_result = session_state.get("web_search_result", {})
 
     if not web_search_result:
         return ""
 
-    # 检查是否成功
+    # Check if successful
     if not web_search_result.get("ok", False):
-        error = web_search_result.get("error", "搜索失败")
-        return f"""### 联网搜索提示
-搜索未能成功：{error}
-请根据已有知识回答用户问题，或告知用户搜索暂时不可用。"""
+        error = web_search_result.get("error", "Search failed")
+        return f"""### Web Search Notice
+Search was unsuccessful: {error}
+Please answer the user's question based on existing knowledge, or inform the user that search is temporarily unavailable."""
 
-    # 获取格式化结果
+    # Get formatted result
     formatted = web_search_result.get("formatted", "")
     if not formatted:
         return ""
 
-    return f"""### 联网搜索结果
+    return f"""### Web Search Results
 {formatted}
 
-【说明】以上是联网搜索获取的实时信息。请根据搜索结果回答用户问题：
-- 引用信息时可以提及来源
-- 如果搜索结果不足以回答问题，可以如实告知
-- 结合角色人设自然地表达"""
+[Note] The above is real-time information retrieved via web search. Please answer the user's question based on the search results:
+- You may mention the source when citing information
+- If the search results are insufficient to answer the question, say so honestly
+- Express naturally in keeping with the character persona"""
 
 
 def get_url_context(session_state: dict) -> str:
     """
-    获取链接内容上下文
+    Get URL content context.
 
     Args:
-        session_state: 会话状态字典
+        session_state: Session state dictionary
 
     Returns:
-        格式化的链接内容上下文，如果没有则返回空字符串
+        Formatted URL content context, or empty string if none
     """
     url_context_str = session_state.get("url_context_str", "")
 
@@ -304,46 +304,46 @@ def get_url_context(session_state: dict) -> str:
 
     return f"""{url_context_str}
 
-【说明】以上是用户消息中链接的内容摘要。请根据链接内容回答用户问题：
-- 可以提及链接标题或来源
-- 如果链接内容不足以回答问题，可以如实告知
-- 结合角色人设自然地表达"""
+[Note] The above is a summary of the content from a link in the user's message. Please answer the user's question based on the link content:
+- You may mention the link title or source
+- If the link content is insufficient to answer the question, say so honestly
+- Express naturally in keeping with the character persona"""
 
 
-# ========== 通用工具执行结果 ==========
+# ========== Generic Tool Result ==========
 
 
 def get_tool_results_context(session_state: dict) -> str:
-    """渲染所有工具执行结果为统一的 ### 系统操作结果 prompt 块.
+    """Render all tool execution results into a unified ### System Operation Results prompt block.
 
-    每个工具调用 append_tool_result() 写入 session_state["tool_results"].
-    本函数在 ChatWorkflow 渲染 prompt 时调用，将结果注入给 ChatResponseAgent.
+    Each tool call writes to session_state["tool_results"] via append_tool_result().
+    This function is called when ChatWorkflow renders the prompt, injecting results for ChatResponseAgent.
 
     Returns:
-        格式化的 prompt 块，无结果时返回空字符串.
+        Formatted prompt block, or empty string if no results.
     """
     results: list[dict] = session_state.get("tool_results") or []
     if not results:
         return ""
 
-    lines = ["### 系统操作结果\n"]
+    lines = ["### System Operation Results\n"]
     for entry in results:
-        status = "成功" if entry.get("ok") else "失败"
+        status = "Success" if entry.get("ok") else "Failed"
         lines.append(f"[{entry['tool_name']}]")
-        lines.append(f"状态：{status}")
-        lines.append(f"结果：{entry['result_summary']}")
+        lines.append(f"Status: {status}")
+        lines.append(f"Result: {entry['result_summary']}")
         extra = entry.get("extra_notes", "")
         if extra:
-            lines.append(f"附加说明：{extra}")
-        lines.append("")  # blank line between entries
+            lines.append(f"Additional notes: {extra}")
+        lines.append("")
 
     lines += [
-        '【说明】以上是系统自动执行的操作结果。请根据结果用自然的方式回复用户：',
-        '- 状态为"成功"：确认操作已完成，按执行结果向用户说明。',
-        '- 状态为"失败"：解释原因，必要时引导用户补充信息或重试。',
-        '- 有"附加说明"时：按附加说明的内容进行回复。',
+        '[Note] The above are the results of operations automatically executed by the system. Please reply to the user naturally based on the results:',
+        '- Status "Success": Confirm the operation is complete and explain the result to the user.',
+        '- Status "Failed": Explain the reason, and if necessary guide the user to provide more information or retry.',
+        '- If there are "Additional notes": Reply according to the content of those notes.',
         "",
-        '【重要】只有看到此"系统操作结果"块，才能确认操作已执行。未看到时不要假设操作成功。',
+        '[IMPORTANT] Only confirm an operation has been executed when you see this "System Operation Results" block. Do not assume success when this block is absent.',
     ]
     return "\n".join(lines)
 
