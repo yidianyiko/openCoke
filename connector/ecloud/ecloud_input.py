@@ -1,10 +1,10 @@
+import hashlib
+import hmac
 import logging
 import os
 import sys
 import time
 from datetime import datetime
-
-import stripe
 
 import requests
 from flask import Flask, jsonify, request
@@ -14,8 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-stripe.api_key = os.getenv("STRIPE_API_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+CREEM_WEBHOOK_SECRET = os.getenv("CREEM_WEBHOOK_SECRET", "")
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s-%(name)s-%(levelname)s-%(message)s"
@@ -316,91 +315,100 @@ def handle_message():
         return jsonify({"status": "success", "message": "message handing..."}), 200
 
 
-@app.route("/webhook/stripe", methods=["POST"])
-def stripe_webhook():
-    """Handle Stripe webhook events for subscription management."""
-    payload = request.get_data()
-    sig_header = request.headers.get("Stripe-Signature")
+@app.route("/webhook/creem", methods=["POST"])
+def creem_webhook():
+    """Handle Creem webhook events for subscription management."""
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get("creem-signature")
 
     if not sig_header:
         return jsonify({"error": "Missing signature"}), 400
 
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except Exception:
-        logger.warning("Stripe webhook: invalid signature")
+    # Verify HMAC-SHA256 signature
+    computed = hmac.new(
+        CREEM_WEBHOOK_SECRET.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(computed, sig_header):
+        logger.warning("Creem webhook: invalid signature")
         return jsonify({"error": "Invalid signature"}), 400
 
-    event_type = event["type"]
-    data_object = event["data"]["object"]
+    event = request.get_json(force=True)
+    event_type = event.get("eventType", "")
+    obj = event.get("object", {})
 
-    if event_type == "checkout.session.completed":
-        _handle_checkout_completed(data_object)
-    elif event_type == "invoice.paid":
-        _handle_invoice_paid(data_object)
-    elif event_type == "customer.subscription.deleted":
-        _handle_subscription_deleted(data_object)
+    if event_type == "checkout.completed":
+        _handle_creem_checkout_completed(obj)
+    elif event_type == "subscription.paid":
+        _handle_creem_subscription_paid(obj)
+    elif event_type in ("subscription.canceled", "subscription.expired"):
+        _handle_creem_subscription_revoked(obj)
     else:
-        logger.info(f"Stripe webhook: unhandled event type {event_type}")
+        logger.info(f"Creem webhook: unhandled event type {event_type}")
 
     return jsonify({"status": "ok"}), 200
 
 
-def _handle_checkout_completed(session: dict):
+def _handle_creem_checkout_completed(obj: dict):
     """Grant access after initial checkout."""
-    user_id = session.get("metadata", {}).get("user_id")
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning("Stripe checkout.session.completed: missing user_id in metadata")
+        logger.warning("Creem checkout.completed: missing user_id in metadata")
         return
 
-    subscription_id = session.get("subscription")
-    customer_id = session.get("customer")
+    customer_id = obj.get("customer", {}).get("id")
+    subscription = obj.get("subscription", {})
+    subscription_id = subscription.get("id")
+    expire_time = _parse_creem_datetime(subscription.get("current_period_end"))
 
-    sub = stripe.Subscription.retrieve(subscription_id)
-    expire_time = datetime.fromtimestamp(sub.current_period_end)
-
-    user_dao.update_access_stripe(
+    user_dao.update_access_creem(
         user_id=user_id,
-        stripe_customer_id=customer_id,
-        stripe_subscription_id=subscription_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
         expire_time=expire_time,
     )
-    logger.info(f"Stripe: granted access to user {user_id}, expires {expire_time}")
+    logger.info(f"Creem: granted access to user {user_id}, expires {expire_time}")
 
 
-def _handle_invoice_paid(invoice: dict):
+def _handle_creem_subscription_paid(obj: dict):
     """Extend access on subscription renewal."""
-    subscription_id = invoice.get("subscription")
-    if not subscription_id:
-        return
-
-    sub = stripe.Subscription.retrieve(subscription_id)
-    user_id = sub.metadata.get("user_id")
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning("Stripe invoice.paid: missing user_id in subscription metadata")
+        logger.warning("Creem subscription.paid: missing user_id in metadata")
         return
 
-    expire_time = datetime.fromtimestamp(sub.current_period_end)
-    user_dao.update_access_stripe(
+    customer_id = obj.get("customer", {}).get("id")
+    subscription_id = obj.get("id")
+    expire_time = _parse_creem_datetime(obj.get("current_period_end"))
+
+    user_dao.update_access_creem(
         user_id=user_id,
-        stripe_customer_id=invoice.get("customer"),
-        stripe_subscription_id=subscription_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
         expire_time=expire_time,
     )
-    logger.info(f"Stripe: extended access for user {user_id}, expires {expire_time}")
+    logger.info(f"Creem: extended access for user {user_id}, expires {expire_time}")
 
 
-def _handle_subscription_deleted(subscription: dict):
-    """Revoke access when subscription is cancelled."""
-    user_id = subscription.get("metadata", {}).get("user_id")
+def _handle_creem_subscription_revoked(obj: dict):
+    """Revoke access when subscription is cancelled or expired."""
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning("Stripe subscription.deleted: missing user_id in metadata")
+        logger.warning("Creem subscription revoked: missing user_id in metadata")
         return
 
     user_dao.revoke_access(user_id)
-    logger.info(f"Stripe: revoked access for user {user_id}")
+    logger.info(f"Creem: revoked access for user {user_id}")
+
+
+def _parse_creem_datetime(dt_str: str) -> datetime:
+    """Parse ISO 8601 datetime string from Creem API."""
+    if not dt_str:
+        return datetime.now()
+    try:
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        logger.warning(f"Creem: could not parse datetime {dt_str!r}, using now")
+        return datetime.now()
 
 if __name__ == "__main__":
     logger.info("Starting Flask forwarding service")
