@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Access Gate - Stripe subscription-based access control.
+Access Gate - Creem subscription-based access control.
 
-New users get a Stripe Checkout link. Webhook grants access on payment.
+New users get a Creem Checkout link. Webhook grants access on payment.
 """
 
 import os
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
-import stripe
+import requests
 
 from conf.config import CONF
 from dao.user_dao import UserDAO
@@ -17,16 +17,17 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-stripe.api_key = os.getenv("STRIPE_API_KEY", "")
+CREEM_API_BASE = "https://api.creem.io"
+CREEM_API_KEY = os.getenv("CREEM_API_KEY", "")
 
 
 class AccessGate:
-    """Subscription-based access gate using Stripe Checkout."""
+    """Subscription-based access gate using Creem Checkout."""
 
     def __init__(self):
         self.config = CONF.get("access_control", {})
         self.user_dao = UserDAO()
-        self.stripe_config = self.config.get("stripe", {})
+        self.creem_config = self.config.get("creem", {})
 
     def is_enabled(self, platform: str) -> bool:
         if not self.config.get("enabled", False):
@@ -69,25 +70,30 @@ class AccessGate:
             return ("gate_denied", {"checkout_url": checkout_url})
 
     def _create_checkout_url(self, user: Dict) -> str:
-        """Create a Stripe Checkout Session and return its URL."""
+        """Create a Creem Checkout Session via REST API and return its URL."""
         try:
-            session = stripe.checkout.Session.create(
-                mode="subscription",
-                line_items=[
-                    {"price": self.stripe_config["price_id"], "quantity": 1}
-                ],
-                success_url=self.stripe_config.get(
-                    "success_url", "https://example.com/success"
-                ),
-                cancel_url=self.stripe_config.get(
-                    "cancel_url", "https://example.com/cancel"
-                ),
-                metadata={"user_id": str(user["_id"])},
-                subscription_data={"metadata": {"user_id": str(user["_id"])}},
+            response = requests.post(
+                f"{CREEM_API_BASE}/v1/checkouts",
+                headers={
+                    "Authorization": f"Bearer {CREEM_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "product_id": self.creem_config["product_id"],
+                    "success_url": self.creem_config.get(
+                        "success_url", "https://example.com/success"
+                    ),
+                    "metadata": {"user_id": str(user["_id"])},
+                },
             )
-            return session.url
+            if response.status_code == 201:
+                return response.json().get("checkout_url", "")
+            logger.error(
+                f"Creem checkout API error: {response.status_code} {response.text}"
+            )
+            return ""
         except Exception as e:
-            logger.error(f"Failed to create Stripe checkout session: {e}")
+            logger.error(f"Failed to create Creem checkout session: {e}")
             return ""
 
     def get_message(

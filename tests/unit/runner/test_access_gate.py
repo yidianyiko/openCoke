@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for AccessGate with Stripe integration"""
+"""Unit tests for AccessGate with Creem integration"""
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -8,13 +8,12 @@ import pytest
 from bson import ObjectId
 
 
-STRIPE_CONFIG = {
+CREEM_CONFIG = {
     "enabled": True,
     "platforms": {"wechat": True},
-    "stripe": {
-        "price_id": "price_test123",
+    "creem": {
+        "product_id": "prod_test123",
         "success_url": "https://example.com/success",
-        "cancel_url": "https://example.com/cancel",
     },
     "deny_message": "Subscribe here:\n{checkout_url}",
     "expire_message": "Expired. Renew:\n{checkout_url}",
@@ -23,7 +22,7 @@ STRIPE_CONFIG = {
 
 
 class TestAccessGate:
-    """Tests for AccessGate with Stripe"""
+    """Tests for AccessGate with Creem"""
 
     @pytest.fixture
     def mock_user_dao(self):
@@ -33,7 +32,7 @@ class TestAccessGate:
     def access_gate(self, mock_user_dao):
         with patch(
             "agent.runner.access_gate.CONF",
-            {"access_control": STRIPE_CONFIG, "admin_user_id": "admin123"},
+            {"access_control": CREEM_CONFIG, "admin_user_id": "admin123"},
         ):
             from agent.runner.access_gate import AccessGate
 
@@ -44,7 +43,7 @@ class TestAccessGate:
     @pytest.mark.unit
     def test_check_returns_none_when_disabled(self):
         """Should return None when access control is disabled"""
-        config = {**STRIPE_CONFIG, "enabled": False}
+        config = {**CREEM_CONFIG, "enabled": False}
         with patch(
             "agent.runner.access_gate.CONF",
             {"access_control": config, "admin_user_id": ""},
@@ -89,18 +88,16 @@ class TestAccessGate:
     def test_check_returns_denied_with_checkout_url(self, access_gate):
         """Should return gate_denied with checkout_url for new user"""
         user = {"_id": ObjectId()}
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/test"
-            )
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/test"
+        ):
             result = access_gate.check(
                 platform="wechat",
                 user=user,
                 admin_user_id="",
             )
             assert result[0] == "gate_denied"
-            assert result[1]["checkout_url"] == "https://checkout.stripe.com/test"
-            mock_stripe.checkout.Session.create.assert_called_once()
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/test"
 
     @pytest.mark.unit
     def test_check_returns_expired_with_checkout_url(self, access_gate):
@@ -110,25 +107,24 @@ class TestAccessGate:
             "_id": ObjectId(),
             "access": {"expire_time": past_time},
         }
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/renew"
-            )
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/renew"
+        ):
             result = access_gate.check(
                 platform="wechat",
                 user=user,
                 admin_user_id="",
             )
             assert result[0] == "gate_expired"
-            assert result[1]["checkout_url"] == "https://checkout.stripe.com/renew"
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/renew"
 
     @pytest.mark.unit
     def test_get_message_includes_checkout_url(self, access_gate):
         """Should format message with checkout_url"""
         msg = access_gate.get_message(
-            "gate_denied", checkout_url="https://checkout.stripe.com/test"
+            "gate_denied", checkout_url="https://checkout.creem.io/test"
         )
-        assert "https://checkout.stripe.com/test" in msg
+        assert "https://checkout.creem.io/test" in msg
 
     @pytest.mark.unit
     def test_get_message_success_includes_expire_time(self, access_gate):
@@ -138,20 +134,18 @@ class TestAccessGate:
         assert "2025-12-31" in msg
 
     @pytest.mark.unit
-    def test_checkout_session_includes_user_metadata(self, access_gate):
+    def test_create_checkout_url_calls_creem_api(self, access_gate):
         """Checkout session should include user_id in metadata"""
         user_id = ObjectId()
         user = {"_id": user_id}
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/test"
-            )
-            access_gate.check(
-                platform="wechat",
-                user=user,
-                admin_user_id="",
-            )
-            call_kwargs = mock_stripe.checkout.Session.create.call_args[1]
-            assert call_kwargs["metadata"]["user_id"] == str(user_id)
-            assert call_kwargs["mode"] == "subscription"
-            assert call_kwargs["subscription_data"]["metadata"]["user_id"] == str(user_id)
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"checkout_url": "https://checkout.creem.io/test"}
+
+        with patch("agent.runner.access_gate.requests.post", return_value=mock_response) as mock_post:
+            url = access_gate._create_checkout_url(user)
+            assert url == "https://checkout.creem.io/test"
+            call_kwargs = mock_post.call_args
+            payload = call_kwargs[1]["json"]
+            assert payload["metadata"]["user_id"] == str(user_id)
+            assert payload["product_id"] == "prod_test123"
