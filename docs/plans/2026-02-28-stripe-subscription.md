@@ -1,12 +1,12 @@
-# Stripe Subscription Integration Plan
+# Creem Subscription Integration Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace the manual order-number gate system with Stripe Checkout subscriptions so new users pay via a Stripe-hosted page and access is granted automatically via webhook.
+**Goal:** Replace the manual order-number gate system with Creem Checkout subscriptions so new users pay via a Creem-hosted page and access is granted automatically via webhook.
 
-**Architecture:** The current `AccessGate` checks user access, and if denied, sends a static message asking for an order number. We replace that static message with a Stripe Checkout link. A new `/webhook/stripe` route on the existing Flask app receives Stripe events (`checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted`) and creates/extends/revokes access automatically. The `OrderDAO` and manual order-binding logic are removed entirely — Stripe is the single source of truth for payment.
+**Architecture:** The current `AccessGate` checks user access, and if denied, sends a static message asking for an order number. We replace that static message with a Creem Checkout link. A new `/webhook/creem` route on the existing Flask app receives Creem events (`checkout.completed`, `subscription.paid`, `subscription.canceled`, `subscription.expired`) and creates/extends/revokes access automatically. The `OrderDAO` and manual order-binding logic are removed entirely — Creem is the single source of truth for payment.
 
-**Tech Stack:** `stripe` Python SDK, Flask (existing), MongoDB (existing)
+**Tech Stack:** `requests` (stdlib, for Creem REST API calls), `hmac`/`hashlib` (stdlib, for webhook signature verification), Flask (existing), MongoDB (existing)
 
 ---
 
@@ -14,20 +14,24 @@
 
 1. **No migration.** Old `orders` collection is left as-is (we just stop writing to it). `AccessGate` no longer reads from it.
 
-2. **Stripe is the billing system, MongoDB tracks access state.** We store `user.access.stripe_customer_id`, `user.access.stripe_subscription_id`, `user.access.expire_time` on the user doc. The webhook updates these fields.
+2. **Creem is the billing system, MongoDB tracks access state.** We store `user.access.creem_customer_id`, `user.access.creem_subscription_id`, `user.access.expire_time` on the user doc. The webhook updates these fields.
 
-3. **One Price, one Product.** Created in Stripe Dashboard (not in code). The Price ID goes in config.
+3. **One Product.** Created in Creem Dashboard (not in code). The Product ID goes in config.
 
-4. **User identification flow:** When a new/expired user messages the bot, `AccessGate` creates a Stripe Checkout Session with `metadata.user_id = str(user["_id"])`. The webhook reads this metadata to find the user.
+4. **User identification flow:** When a new/expired user messages the bot, `AccessGate` creates a Creem Checkout Session via REST API with `metadata.user_id = str(user["_id"])`. The webhook reads this metadata (`object.metadata.user_id`) to find the user.
 
 5. **Subscription lifecycle:**
-   - `checkout.session.completed` → create access (set `expire_time` from subscription `current_period_end`)
-   - `invoice.paid` → extend access (renewal)
-   - `customer.subscription.deleted` → revoke access (set `expire_time` to now)
+   - `checkout.completed` → create access (set `expire_time` from subscription period end)
+   - `subscription.paid` → extend access (renewal)
+   - `subscription.canceled` / `subscription.expired` → revoke access (set `expire_time` to now)
 
-6. **Gate messages change:**
+6. **Webhook signature verification:** Creem signs requests with HMAC-SHA256 using the raw payload and `CREEM_WEBHOOK_SECRET`. Header is `creem-signature`. Verified in Python with `hmac.compare_digest`.
+
+7. **Gate messages change:**
    - `gate_denied` → Brief intro + checkout link
    - `gate_expired` → Renewal message + checkout link
+
+8. **No Creem Python SDK.** Creem has no official Python SDK; we call the REST API directly with `requests`.
 
 ---
 
@@ -40,10 +44,9 @@
     "platforms": {
         "wechat": true
     },
-    "stripe": {
-        "price_id": "${STRIPE_PRICE_ID}",
-        "success_url": "https://example.com/success",
-        "cancel_url": "https://example.com/cancel"
+    "creem": {
+        "product_id": "${CREEM_PRODUCT_ID}",
+        "success_url": "https://example.com/success"
     },
     "deny_message": "Hi! I'm Qiaoyun. To start chatting with me, please subscribe:\n{checkout_url}",
     "expire_message": "Your subscription has expired. Renew here:\n{checkout_url}",
@@ -53,40 +56,14 @@
 
 **New .env variables:**
 ```
-STRIPE_API_KEY=sk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PRICE_ID=price_...
+CREEM_API_KEY=creem_...
+CREEM_WEBHOOK_SECRET=whsec_...
+CREEM_PRODUCT_ID=prod_...
 ```
 
 ---
 
-## Task 1: Add `stripe` dependency
-
-**Files:**
-- Modify: `requirements.txt`
-
-**Step 1: Add stripe to requirements.txt**
-
-Add this line to `requirements.txt` (after the `redis` line):
-
-```
-stripe>=8.0.0
-```
-
-**Step 2: Install**
-
-Run: `pip install stripe>=8.0.0`
-
-**Step 3: Commit**
-
-```bash
-git add requirements.txt
-git commit -m "feat(stripe): add stripe python SDK dependency"
-```
-
----
-
-## Task 2: Add Stripe config to `config.json` and `.env`
+## Task 1: Add Creem config to `config.json` and `.env`
 
 **Files:**
 - Modify: `conf/config.json`
@@ -101,10 +78,9 @@ Replace the `access_control` section:
     "platforms": {
         "wechat": false
     },
-    "stripe": {
-        "price_id": "${STRIPE_PRICE_ID}",
-        "success_url": "${STRIPE_SUCCESS_URL}",
-        "cancel_url": "${STRIPE_CANCEL_URL}"
+    "creem": {
+        "product_id": "${CREEM_PRODUCT_ID}",
+        "success_url": "${CREEM_SUCCESS_URL}"
     },
     "deny_message": "Hi! I'd love to chat with you. Subscribe here to get started:\n{checkout_url}",
     "expire_message": "Your subscription has expired. Renew here to keep chatting:\n{checkout_url}",
@@ -116,14 +92,14 @@ Replace the `access_control` section:
 
 ```bash
 git add conf/config.json
-git commit -m "feat(stripe): add stripe config to access_control"
+git commit -m "feat(creem): add creem config to access_control"
 ```
 
 ---
 
-## Task 3: Rewrite `AccessGate` to create Stripe Checkout Sessions
+## Task 2: Rewrite `AccessGate` to create Creem Checkout Sessions
 
-This is the core change. The gate no longer looks for order numbers in messages. Instead, when a user is denied or expired, it creates a Stripe Checkout Session and returns the URL in the message.
+This is the core change. The gate no longer looks for order numbers in messages. Instead, when a user is denied or expired, it calls the Creem REST API to create a Checkout Session and returns the URL in the message.
 
 **Files:**
 - Modify: `agent/runner/access_gate.py`
@@ -135,7 +111,7 @@ Replace `tests/unit/runner/test_access_gate.py` entirely:
 
 ```python
 # -*- coding: utf-8 -*-
-"""Unit tests for AccessGate with Stripe integration"""
+"""Unit tests for AccessGate with Creem integration"""
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -144,13 +120,12 @@ import pytest
 from bson import ObjectId
 
 
-STRIPE_CONFIG = {
+CREEM_CONFIG = {
     "enabled": True,
     "platforms": {"wechat": True},
-    "stripe": {
-        "price_id": "price_test123",
+    "creem": {
+        "product_id": "prod_test123",
         "success_url": "https://example.com/success",
-        "cancel_url": "https://example.com/cancel",
     },
     "deny_message": "Subscribe here:\n{checkout_url}",
     "expire_message": "Expired. Renew:\n{checkout_url}",
@@ -159,7 +134,7 @@ STRIPE_CONFIG = {
 
 
 class TestAccessGate:
-    """Tests for AccessGate with Stripe"""
+    """Tests for AccessGate with Creem"""
 
     @pytest.fixture
     def mock_user_dao(self):
@@ -169,7 +144,7 @@ class TestAccessGate:
     def access_gate(self, mock_user_dao):
         with patch(
             "agent.runner.access_gate.CONF",
-            {"access_control": STRIPE_CONFIG, "admin_user_id": "admin123"},
+            {"access_control": CREEM_CONFIG, "admin_user_id": "admin123"},
         ):
             from agent.runner.access_gate import AccessGate
 
@@ -180,7 +155,7 @@ class TestAccessGate:
     @pytest.mark.unit
     def test_check_returns_none_when_disabled(self):
         """Should return None when access control is disabled"""
-        config = {**STRIPE_CONFIG, "enabled": False}
+        config = {**CREEM_CONFIG, "enabled": False}
         with patch(
             "agent.runner.access_gate.CONF",
             {"access_control": config, "admin_user_id": ""},
@@ -228,10 +203,9 @@ class TestAccessGate:
     def test_check_returns_denied_with_checkout_url(self, access_gate):
         """Should return gate_denied with checkout_url for new user"""
         user = {"_id": ObjectId()}
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/test"
-            )
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/test"
+        ):
             result = access_gate.check(
                 platform="wechat",
                 user=user,
@@ -239,8 +213,7 @@ class TestAccessGate:
                 admin_user_id="",
             )
             assert result[0] == "gate_denied"
-            assert result[1]["checkout_url"] == "https://checkout.stripe.com/test"
-            mock_stripe.checkout.Session.create.assert_called_once()
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/test"
 
     @pytest.mark.unit
     def test_check_returns_expired_with_checkout_url(self, access_gate):
@@ -250,10 +223,9 @@ class TestAccessGate:
             "_id": ObjectId(),
             "access": {"expire_time": past_time},
         }
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/renew"
-            )
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/renew"
+        ):
             result = access_gate.check(
                 platform="wechat",
                 user=user,
@@ -261,15 +233,15 @@ class TestAccessGate:
                 admin_user_id="",
             )
             assert result[0] == "gate_expired"
-            assert result[1]["checkout_url"] == "https://checkout.stripe.com/renew"
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/renew"
 
     @pytest.mark.unit
     def test_get_message_includes_checkout_url(self, access_gate):
         """Should format message with checkout_url"""
         msg = access_gate.get_message(
-            "gate_denied", checkout_url="https://checkout.stripe.com/test"
+            "gate_denied", checkout_url="https://checkout.creem.io/test"
         )
-        assert "https://checkout.stripe.com/test" in msg
+        assert "https://checkout.creem.io/test" in msg
 
     @pytest.mark.unit
     def test_get_message_success_includes_expire_time(self, access_gate):
@@ -279,29 +251,27 @@ class TestAccessGate:
         assert "2025-12-31" in msg
 
     @pytest.mark.unit
-    def test_checkout_session_includes_user_metadata(self, access_gate):
+    def test_create_checkout_url_calls_creem_api(self, access_gate):
         """Checkout session should include user_id in metadata"""
         user_id = ObjectId()
         user = {"_id": user_id}
-        with patch("agent.runner.access_gate.stripe") as mock_stripe:
-            mock_stripe.checkout.Session.create.return_value = MagicMock(
-                url="https://checkout.stripe.com/test"
-            )
-            access_gate.check(
-                platform="wechat",
-                user=user,
-                message="hello",
-                admin_user_id="",
-            )
-            call_kwargs = mock_stripe.checkout.Session.create.call_args[1]
-            assert call_kwargs["metadata"]["user_id"] == str(user_id)
-            assert call_kwargs["mode"] == "subscription"
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"checkout_url": "https://checkout.creem.io/test"}
+
+        with patch("agent.runner.access_gate.requests.post", return_value=mock_response) as mock_post:
+            url = access_gate._create_checkout_url(user)
+            assert url == "https://checkout.creem.io/test"
+            call_kwargs = mock_post.call_args
+            payload = call_kwargs[1]["json"]
+            assert payload["metadata"]["user_id"] == str(user_id)
+            assert payload["product_id"] == "prod_test123"
 ```
 
 **Step 2: Run tests to verify they fail**
 
 Run: `pytest tests/unit/runner/test_access_gate.py -v`
-Expected: FAIL (import errors, missing stripe mock, etc.)
+Expected: FAIL (import errors, missing creem integration, etc.)
 
 **Step 3: Rewrite `access_gate.py`**
 
@@ -310,16 +280,17 @@ Replace `agent/runner/access_gate.py` entirely:
 ```python
 # -*- coding: utf-8 -*-
 """
-Access Gate - Stripe subscription-based access control.
+Access Gate - Creem subscription-based access control.
 
-New users get a Stripe Checkout link. Webhook grants access on payment.
+New users get a Creem Checkout link. Webhook grants access on payment.
 """
 
+import hmac
 import os
 from datetime import datetime
 from typing import Dict, Optional, Tuple
 
-import stripe
+import requests
 
 from conf.config import CONF
 from dao.user_dao import UserDAO
@@ -327,16 +298,17 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-stripe.api_key = os.getenv("STRIPE_API_KEY", "")
+CREEM_API_BASE = "https://api.creem.io"
+CREEM_API_KEY = os.getenv("CREEM_API_KEY", "")
 
 
 class AccessGate:
-    """Subscription-based access gate using Stripe Checkout."""
+    """Subscription-based access gate using Creem Checkout."""
 
     def __init__(self):
         self.config = CONF.get("access_control", {})
         self.user_dao = UserDAO()
-        self.stripe_config = self.config.get("stripe", {})
+        self.creem_config = self.config.get("creem", {})
 
     def is_enabled(self, platform: str) -> bool:
         if not self.config.get("enabled", False):
@@ -380,24 +352,30 @@ class AccessGate:
             return ("gate_denied", {"checkout_url": checkout_url})
 
     def _create_checkout_url(self, user: Dict) -> str:
-        """Create a Stripe Checkout Session and return its URL."""
+        """Create a Creem Checkout Session via REST API and return its URL."""
         try:
-            session = stripe.checkout.Session.create(
-                mode="subscription",
-                line_items=[
-                    {"price": self.stripe_config["price_id"], "quantity": 1}
-                ],
-                success_url=self.stripe_config.get(
-                    "success_url", "https://example.com/success"
-                ),
-                cancel_url=self.stripe_config.get(
-                    "cancel_url", "https://example.com/cancel"
-                ),
-                metadata={"user_id": str(user["_id"])},
+            response = requests.post(
+                f"{CREEM_API_BASE}/v1/checkouts",
+                headers={
+                    "Authorization": f"Bearer {CREEM_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "product_id": self.creem_config["product_id"],
+                    "success_url": self.creem_config.get(
+                        "success_url", "https://example.com/success"
+                    ),
+                    "metadata": {"user_id": str(user["_id"])},
+                },
             )
-            return session.url
+            if response.status_code == 201:
+                return response.json().get("checkout_url", "")
+            logger.error(
+                f"Creem checkout API error: {response.status_code} {response.text}"
+            )
+            return ""
         except Exception as e:
-            logger.error(f"Failed to create Stripe checkout session: {e}")
+            logger.error(f"Failed to create Creem checkout session: {e}")
             return ""
 
     def get_message(
@@ -444,12 +422,12 @@ Expected: All PASS
 
 ```bash
 git add agent/runner/access_gate.py tests/unit/runner/test_access_gate.py
-git commit -m "feat(stripe): rewrite AccessGate to use Stripe Checkout Sessions"
+git commit -m "feat(creem): rewrite AccessGate to use Creem Checkout Sessions"
 ```
 
 ---
 
-## Task 4: Update `agent_handler.py` gate dispatch to pass `checkout_url`
+## Task 3: Update `agent_handler.py` gate dispatch to pass `checkout_url`
 
 The handler currently calls `get_message("gate_denied")` without a checkout URL. We need to pass the checkout URL from the dispatch result.
 
@@ -507,27 +485,39 @@ Expected: All PASS
 
 ```bash
 git add agent/runner/agent_handler.py
-git commit -m "feat(stripe): pass checkout_url through gate dispatch to messages"
+git commit -m "feat(creem): pass checkout_url through gate dispatch to messages"
 ```
 
 ---
 
-## Task 5: Add Stripe webhook route to Flask app
+## Task 4: Add Creem webhook route to Flask app
 
-This is where Stripe tells us about payments. We add a `/webhook/stripe` POST route to `ecloud_input.py`.
+This is where Creem tells us about payments. We add a `/webhook/creem` POST route to `ecloud_input.py`.
+
+Creem webhook signature: `creem-signature` header, verified via HMAC-SHA256 of raw body with `CREEM_WEBHOOK_SECRET`.
+
+Event structure:
+```json
+{
+  "eventType": "checkout.completed",
+  "object": { ... }
+}
+```
 
 **Files:**
 - Modify: `connector/ecloud/ecloud_input.py`
-- Create: `tests/unit/connector/test_stripe_webhook.py`
+- Create: `tests/unit/connector/test_creem_webhook.py`
 
 **Step 1: Write the failing tests**
 
-Create `tests/unit/connector/test_stripe_webhook.py`:
+Create `tests/unit/connector/test_creem_webhook.py`:
 
 ```python
 # -*- coding: utf-8 -*-
-"""Unit tests for Stripe webhook handler"""
+"""Unit tests for Creem webhook handler"""
 
+import hashlib
+import hmac
 import json
 from datetime import datetime
 from unittest.mock import MagicMock, patch
@@ -536,10 +526,13 @@ import pytest
 from bson import ObjectId
 
 
-@pytest.fixture
-def mock_stripe():
-    with patch("connector.ecloud.ecloud_input.stripe") as m:
-        yield m
+def make_signature(payload: str, secret: str) -> str:
+    return hmac.new(
+        secret.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
+
+
+WEBHOOK_SECRET = "whsec_test"
 
 
 @pytest.fixture
@@ -552,9 +545,8 @@ def mock_user_dao():
 def flask_client():
     with patch.dict(
         "os.environ",
-        {"STRIPE_WEBHOOK_SECRET": "whsec_test", "STRIPE_API_KEY": "sk_test"},
+        {"CREEM_WEBHOOK_SECRET": WEBHOOK_SECRET, "CREEM_API_KEY": "creem_test"},
     ):
-        # Must import after env is patched
         from connector.ecloud.ecloud_input import app
 
         app.config["TESTING"] = True
@@ -562,119 +554,125 @@ def flask_client():
             yield client
 
 
-class TestStripeWebhook:
-    """Tests for /webhook/stripe endpoint"""
+class TestCreemWebhook:
+    """Tests for /webhook/creem endpoint"""
 
     @pytest.mark.unit
     def test_missing_signature_returns_400(self, flask_client):
-        """Should reject requests without Stripe signature"""
+        """Should reject requests without Creem signature"""
         resp = flask_client.post(
-            "/webhook/stripe",
+            "/webhook/creem",
             data=b"{}",
             content_type="application/json",
         )
         assert resp.status_code == 400
 
     @pytest.mark.unit
-    def test_invalid_signature_returns_400(self, flask_client, mock_stripe):
+    def test_invalid_signature_returns_400(self, flask_client):
         """Should reject requests with invalid signature"""
-        mock_stripe.Webhook.construct_event.side_effect = (
-            mock_stripe.error.SignatureVerificationError(
-                "bad sig", "sig_header"
-            )
-        )
         resp = flask_client.post(
-            "/webhook/stripe",
+            "/webhook/creem",
             data=b"{}",
             content_type="application/json",
-            headers={"Stripe-Signature": "bad"},
+            headers={"creem-signature": "badsig"},
         )
         assert resp.status_code == 400
 
     @pytest.mark.unit
-    def test_checkout_completed_grants_access(
-        self, flask_client, mock_stripe, mock_user_dao
-    ):
-        """checkout.session.completed should grant user access"""
+    def test_checkout_completed_grants_access(self, flask_client, mock_user_dao):
+        """checkout.completed should grant user access"""
         user_id = str(ObjectId())
         event = {
-            "type": "checkout.session.completed",
-            "data": {
-                "object": {
-                    "metadata": {"user_id": user_id},
-                    "customer": "cus_test123",
-                    "subscription": "sub_test123",
-                }
+            "eventType": "checkout.completed",
+            "object": {
+                "metadata": {"user_id": user_id},
+                "customer": {"id": "cust_test123"},
+                "subscription": {"id": "sub_test123", "current_period_end": "2026-01-01T00:00:00Z"},
             },
         }
-        mock_stripe.Webhook.construct_event.return_value = event
-        mock_stripe.Subscription.retrieve.return_value = MagicMock(
-            current_period_end=1735689600  # 2025-01-01
-        )
-        mock_user_dao.update_access_stripe.return_value = True
+        payload = json.dumps(event)
+        sig = make_signature(payload, WEBHOOK_SECRET)
+        mock_user_dao.update_access_creem.return_value = True
 
         resp = flask_client.post(
-            "/webhook/stripe",
-            data=json.dumps(event),
+            "/webhook/creem",
+            data=payload,
             content_type="application/json",
-            headers={"Stripe-Signature": "valid"},
+            headers={"creem-signature": sig},
         )
         assert resp.status_code == 200
-        mock_user_dao.update_access_stripe.assert_called_once()
+        mock_user_dao.update_access_creem.assert_called_once()
 
     @pytest.mark.unit
-    def test_invoice_paid_extends_access(
-        self, flask_client, mock_stripe, mock_user_dao
-    ):
-        """invoice.paid should extend user access on renewal"""
+    def test_subscription_paid_extends_access(self, flask_client, mock_user_dao):
+        """subscription.paid should extend user access on renewal"""
         user_id = str(ObjectId())
         event = {
-            "type": "invoice.paid",
-            "data": {
-                "object": {
-                    "subscription": "sub_test123",
-                    "customer": "cus_test123",
-                }
+            "eventType": "subscription.paid",
+            "object": {
+                "metadata": {"user_id": user_id},
+                "customer": {"id": "cust_test123"},
+                "id": "sub_test123",
+                "current_period_end": "2026-02-01T00:00:00Z",
             },
         }
-        mock_stripe.Webhook.construct_event.return_value = event
-        mock_stripe.Subscription.retrieve.return_value = MagicMock(
-            current_period_end=1735689600,
-            metadata={"user_id": user_id},
-        )
-        mock_user_dao.update_access_stripe.return_value = True
+        payload = json.dumps(event)
+        sig = make_signature(payload, WEBHOOK_SECRET)
+        mock_user_dao.update_access_creem.return_value = True
 
         resp = flask_client.post(
-            "/webhook/stripe",
-            data=json.dumps(event),
+            "/webhook/creem",
+            data=payload,
             content_type="application/json",
-            headers={"Stripe-Signature": "valid"},
+            headers={"creem-signature": sig},
         )
         assert resp.status_code == 200
+        mock_user_dao.update_access_creem.assert_called_once()
 
     @pytest.mark.unit
-    def test_subscription_deleted_revokes_access(
-        self, flask_client, mock_stripe, mock_user_dao
-    ):
-        """customer.subscription.deleted should revoke access"""
+    def test_subscription_canceled_revokes_access(self, flask_client, mock_user_dao):
+        """subscription.canceled should revoke access"""
         user_id = str(ObjectId())
         event = {
-            "type": "customer.subscription.deleted",
-            "data": {
-                "object": {
-                    "metadata": {"user_id": user_id},
-                    "id": "sub_test123",
-                }
+            "eventType": "subscription.canceled",
+            "object": {
+                "metadata": {"user_id": user_id},
+                "id": "sub_test123",
             },
         }
-        mock_stripe.Webhook.construct_event.return_value = event
+        payload = json.dumps(event)
+        sig = make_signature(payload, WEBHOOK_SECRET)
         mock_user_dao.revoke_access.return_value = True
 
         resp = flask_client.post(
-            "/webhook/stripe",
-            data=json.dumps(event),
+            "/webhook/creem",
+            data=payload,
             content_type="application/json",
-            headers={"Stripe-Signature": "valid"},
+            headers={"creem-signature": sig},
+        )
+        assert resp.status_code == 200
+        mock_user_dao.revoke_access.assert_called_once_with(user_id)
+
+    @pytest.mark.unit
+    def test_subscription_expired_revokes_access(self, flask_client, mock_user_dao):
+        """subscription.expired should revoke access"""
+        user_id = str(ObjectId())
+        event = {
+            "eventType": "subscription.expired",
+            "object": {
+                "metadata": {"user_id": user_id},
+                "id": "sub_test123",
+            },
+        }
+        payload = json.dumps(event)
+        sig = make_signature(payload, WEBHOOK_SECRET)
+        mock_user_dao.revoke_access.return_value = True
+
+        resp = flask_client.post(
+            "/webhook/creem",
+            data=payload,
+            content_type="application/json",
+            headers={"creem-signature": sig},
         )
         assert resp.status_code == 200
         mock_user_dao.revoke_access.assert_called_once_with(user_id)
@@ -682,7 +680,7 @@ class TestStripeWebhook:
 
 **Step 2: Run tests to verify they fail**
 
-Run: `pytest tests/unit/connector/test_stripe_webhook.py -v`
+Run: `pytest tests/unit/connector/test_creem_webhook.py -v`
 Expected: FAIL
 
 **Step 3: Add the webhook route to `ecloud_input.py`**
@@ -690,140 +688,143 @@ Expected: FAIL
 Add these imports at the top of `ecloud_input.py` (after the existing imports):
 
 ```python
+import hashlib
+import hmac
 import os
-import stripe
 
-stripe.api_key = os.getenv("STRIPE_API_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+CREEM_WEBHOOK_SECRET = os.getenv("CREEM_WEBHOOK_SECRET", "")
 ```
 
 Add this route before `if __name__ == "__main__":`:
 
 ```python
-@app.route("/webhook/stripe", methods=["POST"])
-def stripe_webhook():
-    """Handle Stripe webhook events for subscription management."""
-    payload = request.get_data()
-    sig_header = request.headers.get("Stripe-Signature")
+@app.route("/webhook/creem", methods=["POST"])
+def creem_webhook():
+    """Handle Creem webhook events for subscription management."""
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get("creem-signature")
 
     if not sig_header:
         return jsonify({"error": "Missing signature"}), 400
 
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except stripe.error.SignatureVerificationError:
-        logger.warning("Stripe webhook: invalid signature")
+    # Verify HMAC-SHA256 signature
+    computed = hmac.new(
+        CREEM_WEBHOOK_SECRET.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(computed, sig_header):
+        logger.warning("Creem webhook: invalid signature")
         return jsonify({"error": "Invalid signature"}), 400
 
-    event_type = event["type"]
-    data_object = event["data"]["object"]
+    event = request.get_json(force=True)
+    event_type = event.get("eventType", "")
+    obj = event.get("object", {})
 
-    if event_type == "checkout.session.completed":
-        _handle_checkout_completed(data_object)
-    elif event_type == "invoice.paid":
-        _handle_invoice_paid(data_object)
-    elif event_type == "customer.subscription.deleted":
-        _handle_subscription_deleted(data_object)
+    if event_type == "checkout.completed":
+        _handle_creem_checkout_completed(obj)
+    elif event_type == "subscription.paid":
+        _handle_creem_subscription_paid(obj)
+    elif event_type in ("subscription.canceled", "subscription.expired"):
+        _handle_creem_subscription_revoked(obj)
     else:
-        logger.info(f"Stripe webhook: unhandled event type {event_type}")
+        logger.info(f"Creem webhook: unhandled event type {event_type}")
 
     return jsonify({"status": "ok"}), 200
 
 
-def _handle_checkout_completed(session: dict):
+def _handle_creem_checkout_completed(obj: dict):
     """Grant access after initial checkout."""
-    user_id = session.get("metadata", {}).get("user_id")
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning("Stripe checkout.session.completed: missing user_id in metadata")
+        logger.warning("Creem checkout.completed: missing user_id in metadata")
         return
 
-    subscription_id = session.get("subscription")
-    customer_id = session.get("customer")
+    customer_id = obj.get("customer", {}).get("id")
+    subscription = obj.get("subscription", {})
+    subscription_id = subscription.get("id")
+    period_end_str = subscription.get("current_period_end")
+    expire_time = _parse_creem_datetime(period_end_str)
 
-    sub = stripe.Subscription.retrieve(subscription_id)
-    expire_time = datetime.fromtimestamp(sub.current_period_end)
-
-    user_dao.update_access_stripe(
+    user_dao.update_access_creem(
         user_id=user_id,
-        stripe_customer_id=customer_id,
-        stripe_subscription_id=subscription_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
         expire_time=expire_time,
     )
-    logger.info(
-        f"Stripe: granted access to user {user_id}, expires {expire_time}"
-    )
+    logger.info(f"Creem: granted access to user {user_id}, expires {expire_time}")
 
 
-def _handle_invoice_paid(invoice: dict):
+def _handle_creem_subscription_paid(obj: dict):
     """Extend access on subscription renewal."""
-    subscription_id = invoice.get("subscription")
-    if not subscription_id:
-        return
-
-    sub = stripe.Subscription.retrieve(subscription_id)
-    user_id = sub.metadata.get("user_id")
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning("Stripe invoice.paid: missing user_id in subscription metadata")
+        logger.warning("Creem subscription.paid: missing user_id in metadata")
         return
 
-    expire_time = datetime.fromtimestamp(sub.current_period_end)
-    user_dao.update_access_stripe(
+    customer_id = obj.get("customer", {}).get("id")
+    subscription_id = obj.get("id")
+    period_end_str = obj.get("current_period_end")
+    expire_time = _parse_creem_datetime(period_end_str)
+
+    user_dao.update_access_creem(
         user_id=user_id,
-        stripe_customer_id=invoice.get("customer"),
-        stripe_subscription_id=subscription_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
         expire_time=expire_time,
     )
-    logger.info(
-        f"Stripe: extended access for user {user_id}, expires {expire_time}"
-    )
+    logger.info(f"Creem: extended access for user {user_id}, expires {expire_time}")
 
 
-def _handle_subscription_deleted(subscription: dict):
-    """Revoke access when subscription is cancelled."""
-    user_id = subscription.get("metadata", {}).get("user_id")
+def _handle_creem_subscription_revoked(obj: dict):
+    """Revoke access when subscription is cancelled or expired."""
+    user_id = obj.get("metadata", {}).get("user_id")
     if not user_id:
-        logger.warning(
-            "Stripe subscription.deleted: missing user_id in metadata"
-        )
+        logger.warning("Creem subscription revoked: missing user_id in metadata")
         return
 
     user_dao.revoke_access(user_id)
-    logger.info(f"Stripe: revoked access for user {user_id}")
-```
+    logger.info(f"Creem: revoked access for user {user_id}")
 
-Also add `from datetime import datetime` to the imports at the top if not already present.
+
+def _parse_creem_datetime(dt_str: str) -> datetime:
+    """Parse ISO 8601 datetime string from Creem API."""
+    if not dt_str:
+        return datetime.now()
+    try:
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        logger.warning(f"Creem: could not parse datetime {dt_str!r}, using now")
+        return datetime.now()
+```
 
 **Step 4: Run tests to verify they pass**
 
-Run: `pytest tests/unit/connector/test_stripe_webhook.py -v`
+Run: `pytest tests/unit/connector/test_creem_webhook.py -v`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-git add connector/ecloud/ecloud_input.py tests/unit/connector/test_stripe_webhook.py
-git commit -m "feat(stripe): add /webhook/stripe route for subscription events"
+git add connector/ecloud/ecloud_input.py tests/unit/connector/test_creem_webhook.py
+git commit -m "feat(creem): add /webhook/creem route for subscription events"
 ```
 
 ---
 
-## Task 6: Add `update_access_stripe` and `revoke_access` to `UserDAO`
+## Task 5: Add `update_access_creem` and `revoke_access` to `UserDAO`
 
 The webhook needs two new methods on `UserDAO`.
 
 **Files:**
 - Modify: `dao/user_dao.py`
-- Create: `tests/unit/dao/test_user_dao_stripe.py`
+- Create: `tests/unit/dao/test_user_dao_creem.py`
 
 **Step 1: Write the failing tests**
 
-Create `tests/unit/dao/test_user_dao_stripe.py`:
+Create `tests/unit/dao/test_user_dao_creem.py`:
 
 ```python
 # -*- coding: utf-8 -*-
-"""Unit tests for UserDAO Stripe access methods"""
+"""Unit tests for UserDAO Creem access methods"""
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -832,8 +833,8 @@ import pytest
 from bson import ObjectId
 
 
-class TestUserDAOStripe:
-    """Tests for Stripe-related UserDAO methods"""
+class TestUserDAOCreem:
+    """Tests for Creem-related UserDAO methods"""
 
     @pytest.fixture
     def user_dao(self):
@@ -847,24 +848,24 @@ class TestUserDAOStripe:
             return dao
 
     @pytest.mark.unit
-    def test_update_access_stripe(self, user_dao):
-        """Should update user access with Stripe fields"""
+    def test_update_access_creem(self, user_dao):
+        """Should update user access with Creem fields"""
         user_dao.collection.update_one.return_value = MagicMock(modified_count=1)
         user_id = str(ObjectId())
         expire = datetime.now() + timedelta(days=30)
 
-        result = user_dao.update_access_stripe(
+        result = user_dao.update_access_creem(
             user_id=user_id,
-            stripe_customer_id="cus_123",
-            stripe_subscription_id="sub_456",
+            creem_customer_id="cust_123",
+            creem_subscription_id="sub_456",
             expire_time=expire,
         )
 
         assert result is True
         call_args = user_dao.collection.update_one.call_args
         update_set = call_args[0][1]["$set"]
-        assert update_set["access.stripe_customer_id"] == "cus_123"
-        assert update_set["access.stripe_subscription_id"] == "sub_456"
+        assert update_set["access.creem_customer_id"] == "cust_123"
+        assert update_set["access.creem_subscription_id"] == "sub_456"
         assert update_set["access.expire_time"] == expire
 
     @pytest.mark.unit
@@ -878,13 +879,12 @@ class TestUserDAOStripe:
         assert result is True
         call_args = user_dao.collection.update_one.call_args
         update_set = call_args[0][1]["$set"]
-        # expire_time should be approximately now
         assert "access.expire_time" in update_set
 ```
 
 **Step 2: Run tests to verify they fail**
 
-Run: `pytest tests/unit/dao/test_user_dao_stripe.py -v`
+Run: `pytest tests/unit/dao/test_user_dao_creem.py -v`
 Expected: FAIL (methods don't exist)
 
 **Step 3: Add methods to `UserDAO`**
@@ -892,14 +892,14 @@ Expected: FAIL (methods don't exist)
 Add these methods to `dao/user_dao.py` (before the `close` method):
 
 ```python
-    def update_access_stripe(
+    def update_access_creem(
         self,
         user_id: str,
-        stripe_customer_id: str,
-        stripe_subscription_id: str,
+        creem_customer_id: str,
+        creem_subscription_id: str,
         expire_time: datetime,
     ) -> bool:
-        """Update user access with Stripe subscription info."""
+        """Update user access with Creem subscription info."""
         try:
             object_id = ObjectId(user_id)
         except (TypeError, ValueError):
@@ -909,8 +909,8 @@ Add these methods to `dao/user_dao.py` (before the `close` method):
             {"_id": object_id},
             {
                 "$set": {
-                    "access.stripe_customer_id": stripe_customer_id,
-                    "access.stripe_subscription_id": stripe_subscription_id,
+                    "access.creem_customer_id": creem_customer_id,
+                    "access.creem_subscription_id": creem_subscription_id,
                     "access.expire_time": expire_time,
                     "access.granted_at": datetime.now(),
                 }
@@ -934,21 +934,21 @@ Add these methods to `dao/user_dao.py` (before the `close` method):
 
 **Step 4: Run tests to verify they pass**
 
-Run: `pytest tests/unit/dao/test_user_dao_stripe.py -v`
+Run: `pytest tests/unit/dao/test_user_dao_creem.py -v`
 Expected: All PASS
 
 **Step 5: Commit**
 
 ```bash
-git add dao/user_dao.py tests/unit/dao/test_user_dao_stripe.py
-git commit -m "feat(stripe): add update_access_stripe and revoke_access to UserDAO"
+git add dao/user_dao.py tests/unit/dao/test_user_dao_creem.py
+git commit -m "feat(creem): add update_access_creem and revoke_access to UserDAO"
 ```
 
 ---
 
-## Task 7: Update dispatcher gate tests
+## Task 6: Update dispatcher gate tests
 
-The dispatcher tests need to reflect the new return shape (checkout_url instead of None in data).
+The dispatcher tests need to reflect the new return shape (checkout_url in data).
 
 **Files:**
 - Modify: `tests/unit/runner/test_message_dispatcher_gate.py`
@@ -1010,7 +1010,7 @@ class TestMessageDispatcherGate:
     ):
         mock_access_gate.check.return_value = (
             "gate_denied",
-            {"checkout_url": "https://checkout.stripe.com/test"},
+            {"checkout_url": "https://checkout.creem.io/test"},
         )
         with patch(
             "agent.runner.message_processor.AccessGate",
@@ -1050,14 +1050,14 @@ Expected: All PASS
 
 ```bash
 git add tests/unit/runner/test_message_dispatcher_gate.py
-git commit -m "test(stripe): update dispatcher gate tests for checkout_url"
+git commit -m "test(creem): update dispatcher gate tests for checkout_url shape"
 ```
 
 ---
 
-## Task 8: Remove dead `OrderDAO` usage from `AccessGate`
+## Task 7: Remove dead `OrderDAO` usage from `AccessGate`
 
-The `AccessGate` no longer uses `OrderDAO`. Verify no other code imports `OrderDAO` for gate purposes. The `OrderDAO` class itself can stay (it's not hurting anyone), but the import in `access_gate.py` is already gone from Task 3.
+The `AccessGate` no longer uses `OrderDAO`. Verify no other code imports `OrderDAO` for gate purposes.
 
 **Files:**
 - Verify: `agent/runner/access_gate.py` (should have no OrderDAO import)
@@ -1065,7 +1065,7 @@ The `AccessGate` no longer uses `OrderDAO`. Verify no other code imports `OrderD
 **Step 1: Verify**
 
 Run: `grep -r "OrderDAO" agent/runner/`
-Expected: No results (OrderDAO is no longer used in the runner layer)
+Expected: No results
 
 Run: `grep -r "order_dao" agent/runner/`
 Expected: No results
@@ -1078,12 +1078,12 @@ Expected: All PASS
 **Step 3: Commit (if any cleanup needed)**
 
 ```bash
-git commit -m "chore(stripe): verify OrderDAO removed from access gate"
+git commit -m "chore(creem): verify OrderDAO removed from access gate"
 ```
 
 ---
 
-## Task 9: Full integration verification
+## Task 8: Full integration verification
 
 **Step 1: Run all non-integration tests**
 
@@ -1093,13 +1093,13 @@ Expected: All PASS
 **Step 2: Verify config loads correctly**
 
 Run: `python -c "from conf.config import CONF; print(CONF['access_control'])"`
-Expected: Should show the updated access_control config with stripe section
+Expected: Should show the updated access_control config with creem section
 
 **Step 3: Final commit**
 
 ```bash
 git add -A
-git commit -m "feat(stripe): complete Stripe subscription integration for access gate"
+git commit -m "feat(creem): complete Creem subscription integration for access gate"
 ```
 
 ---
@@ -1108,16 +1108,25 @@ git commit -m "feat(stripe): complete Stripe subscription integration for access
 
 | File | Change |
 |------|--------|
-| `requirements.txt` | Add `stripe>=8.0.0` |
-| `conf/config.json` | Add `stripe` section to `access_control` |
-| `agent/runner/access_gate.py` | Rewrite: remove OrderDAO, add Stripe Checkout Session creation |
+| `conf/config.json` | Replace `stripe` section with `creem` section in `access_control` |
+| `agent/runner/access_gate.py` | Rewrite: remove Stripe SDK, call Creem REST API for checkout sessions |
 | `agent/runner/agent_handler.py` | Pass `checkout_url` from dispatch_data to `get_message()` |
-| `connector/ecloud/ecloud_input.py` | Add `/webhook/stripe` route with 3 event handlers |
-| `dao/user_dao.py` | Add `update_access_stripe()` and `revoke_access()` methods |
-| `tests/unit/runner/test_access_gate.py` | Rewrite for Stripe |
+| `connector/ecloud/ecloud_input.py` | Add `/webhook/creem` route with 4 event handlers, HMAC-SHA256 verification |
+| `dao/user_dao.py` | Add `update_access_creem()` and `revoke_access()` methods |
+| `tests/unit/runner/test_access_gate.py` | Rewrite for Creem |
 | `tests/unit/runner/test_message_dispatcher_gate.py` | Update for checkout_url |
-| `tests/unit/connector/test_stripe_webhook.py` | New: webhook handler tests |
-| `tests/unit/dao/test_user_dao_stripe.py` | New: UserDAO Stripe method tests |
+| `tests/unit/connector/test_creem_webhook.py` | New: webhook handler tests (replaces test_stripe_webhook.py) |
+| `tests/unit/dao/test_user_dao_creem.py` | New: UserDAO Creem method tests (replaces test_user_dao_stripe.py) |
+
+**Key differences from Stripe plan:**
+- No Python SDK needed — Creem uses plain REST API calls via `requests`
+- No `stripe` dependency in `requirements.txt`
+- Webhook signature: `creem-signature` header, HMAC-SHA256 with raw body (stdlib `hmac`/`hashlib`)
+- Event names: `checkout.completed`, `subscription.paid`, `subscription.canceled`, `subscription.expired` (vs Stripe's `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted`)
+- Event payload structure: `{ "eventType": "...", "object": { ... } }` (vs Stripe's `{ "type": "...", "data": { "object": { ... } } }`)
+- User metadata key: `metadata.user_id` (same concept, same field name)
+- MongoDB fields: `creem_customer_id`, `creem_subscription_id` (vs `stripe_customer_id`, `stripe_subscription_id`)
+- Webhook route: `/webhook/creem` (vs `/webhook/stripe`)
 
 **What stays untouched:**
 - `OrderDAO` class (left as-is, just unused by gate)
