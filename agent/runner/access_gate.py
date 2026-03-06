@@ -75,7 +75,7 @@ class AccessGate:
             response = requests.post(
                 f"{CREEM_API_BASE}/v1/checkouts",
                 headers={
-                    "Authorization": f"Bearer {CREEM_API_KEY}",
+                    "x-api-key": CREEM_API_KEY,
                     "Content-Type": "application/json",
                 },
                 json={
