@@ -456,6 +456,32 @@ class UserDAO:
         )
         return result.modified_count > 0
 
+    def update_access_creem(
+        self,
+        user_id: str,
+        creem_customer_id: str,
+        creem_subscription_id: str,
+        expire_time: datetime,
+    ) -> bool:
+        """Update user access with Creem subscription info."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError, InvalidId):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "access.creem_customer_id": creem_customer_id,
+                    "access.creem_subscription_id": creem_subscription_id,
+                    "access.expire_time": expire_time,
+                    "access.granted_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
     def revoke_access(self, user_id: str) -> bool:
         """Revoke user access by setting expire_time to now."""
         try:
