@@ -440,7 +440,7 @@ class UserDAO:
         """Update user access with Stripe subscription info."""
         try:
             object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidId):
             return False
 
         result = self.collection.update_one(

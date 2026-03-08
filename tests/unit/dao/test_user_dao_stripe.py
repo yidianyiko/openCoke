@@ -44,6 +44,29 @@ class TestUserDAOStripe:
         assert update_set["access.expire_time"] == expire
 
     @pytest.mark.unit
+    def test_update_access_stripe_returns_false_for_invalid_id(self, user_dao):
+        result = user_dao.update_access_stripe(
+            user_id="not-an-objectid",
+            stripe_customer_id="cus_test",
+            stripe_subscription_id="sub_test",
+            expire_time=datetime.now(),
+        )
+        assert result is False
+        user_dao.collection.update_one.assert_not_called()
+
+    @pytest.mark.unit
+    def test_update_access_stripe_returns_false_when_not_found(self, user_dao):
+        user_id = str(ObjectId())
+        user_dao.collection.update_one.return_value = MagicMock(modified_count=0)
+        result = user_dao.update_access_stripe(
+            user_id=user_id,
+            stripe_customer_id="cus_test",
+            stripe_subscription_id="sub_test",
+            expire_time=datetime.now(),
+        )
+        assert result is False
+
+    @pytest.mark.unit
     def test_revoke_access(self, user_dao):
         """Should set expire_time to now to revoke access"""
         user_dao.collection.update_one.return_value = MagicMock(modified_count=1)
