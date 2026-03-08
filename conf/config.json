@@ -50,7 +50,7 @@
     },
     "admin_user_id": "${ADMIN_USER_ID}",
     "whatsapp": {
-        "enabled": false,
+        "enabled": true,
         "api_type": "evolution",
         "evolution": {
             "api_base": "${WHATSAPP_EVOLUTION_API_BASE}",
@@ -78,12 +78,17 @@
     },
     "access_control": {
         "enabled": false,
+        "provider": "creem",
         "platforms": {
             "wechat": false
         },
         "creem": {
             "product_id": "${CREEM_PRODUCT_ID}",
             "success_url": "${CREEM_SUCCESS_URL}"
+        },
+        "stripe": {
+            "price_id": "${STRIPE_PRICE_ID}",
+            "success_url": "${STRIPE_SUCCESS_URL}"
         },
         "deny_message": "Hi! I'd love to chat with you. Subscribe here to get started:\n{checkout_url}",
         "expire_message": "Your subscription has expired. Renew here to keep chatting:\n{checkout_url}",
