@@ -526,7 +526,11 @@ def _get_stripe_subscription_expire(subscription_id: str) -> datetime:
     """Fetch subscription period end from Stripe and convert to datetime."""
     try:
         sub = stripe.Subscription.retrieve(subscription_id)
-        ts = sub.current_period_end if hasattr(sub, "current_period_end") else sub["current_period_end"]
+        # current_period_end moved to items in newer Stripe API versions
+        if hasattr(sub, "current_period_end") and sub.current_period_end:
+            ts = sub.current_period_end
+        else:
+            ts = sub["items"]["data"][0]["current_period_end"]
         return datetime.utcfromtimestamp(ts)
     except Exception as e:
         logger.warning(f"Stripe: could not fetch subscription {subscription_id}: {e}")
