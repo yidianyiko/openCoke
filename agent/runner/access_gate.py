@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Access Gate - Creem subscription-based access control.
+Access Gate - subscription-based access control.
 
-New users get a Creem Checkout link. Webhook grants access on payment.
+Supports multiple payment providers (creem, stripe) via config.
 """
 
-import os
 from datetime import datetime
 from typing import Dict, Optional, Tuple
-
-import requests
 
 from conf.config import CONF
 from dao.user_dao import UserDAO
@@ -17,17 +14,23 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-CREEM_API_BASE = "https://api.creem.io"
-CREEM_API_KEY = os.getenv("CREEM_API_KEY", "")
-
 
 class AccessGate:
-    """Subscription-based access gate using Creem Checkout."""
+    """Subscription-based access gate. Provider selected from config."""
 
     def __init__(self):
         self.config = CONF.get("access_control", {})
         self.user_dao = UserDAO()
-        self.creem_config = self.config.get("creem", {})
+        self.provider = self._init_provider()
+
+    def _init_provider(self):
+        provider_name = self.config.get("provider", "creem")
+        if provider_name == "stripe":
+            from agent.runner.payment.stripe_provider import StripeProvider
+            return StripeProvider(self.config.get("stripe", {}))
+        else:
+            from agent.runner.payment.creem_provider import CreemProvider
+            return CreemProvider(self.config.get("creem", {}))
 
     def is_enabled(self, platform: str) -> bool:
         if not self.config.get("enabled", False):
@@ -70,31 +73,8 @@ class AccessGate:
             return ("gate_denied", {"checkout_url": checkout_url})
 
     def _create_checkout_url(self, user: Dict) -> str:
-        """Create a Creem Checkout Session via REST API and return its URL."""
-        try:
-            response = requests.post(
-                f"{CREEM_API_BASE}/v1/checkouts",
-                headers={
-                    "x-api-key": CREEM_API_KEY,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "product_id": self.creem_config["product_id"],
-                    "success_url": self.creem_config.get(
-                        "success_url", "https://example.com/success"
-                    ),
-                    "metadata": {"user_id": str(user["_id"])},
-                },
-            )
-            if response.status_code == 201:
-                return response.json().get("checkout_url", "")
-            logger.error(
-                f"Creem checkout API error: {response.status_code} {response.text}"
-            )
-            return ""
-        except Exception as e:
-            logger.error(f"Failed to create Creem checkout session: {e}")
-            return ""
+        """Delegate to the configured payment provider."""
+        return self.provider.create_checkout_url(user)
 
     def get_message(
         self,

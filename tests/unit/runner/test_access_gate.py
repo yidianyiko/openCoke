@@ -142,10 +142,68 @@ class TestAccessGate:
         mock_response.status_code = 201
         mock_response.json.return_value = {"checkout_url": "https://checkout.creem.io/test"}
 
-        with patch("agent.runner.access_gate.requests.post", return_value=mock_response) as mock_post:
+        with patch("agent.runner.payment.creem_provider.requests.post", return_value=mock_response) as mock_post:
             url = access_gate._create_checkout_url(user)
             assert url == "https://checkout.creem.io/test"
             call_kwargs = mock_post.call_args
             payload = call_kwargs[1]["json"]
             assert payload["metadata"]["user_id"] == str(user_id)
             assert payload["product_id"] == "prod_test123"
+
+
+STRIPE_CONFIG = {
+    "enabled": True,
+    "provider": "stripe",
+    "platforms": {"wechat": True},
+    "stripe": {
+        "price_id": "price_test123",
+        "success_url": "https://example.com/success",
+    },
+    "deny_message": "Subscribe here:\n{checkout_url}",
+    "expire_message": "Expired. Renew:\n{checkout_url}",
+    "success_message": "Active until {expire_time}",
+}
+
+
+class TestAccessGateProviderSelection:
+    """Tests for provider selection based on config."""
+
+    @pytest.mark.unit
+    def test_uses_creem_provider_when_configured(self):
+        config = {**CREEM_CONFIG, "provider": "creem"}
+        with patch("agent.runner.access_gate.CONF", {"access_control": config}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.creem_provider import CreemProvider
+            assert isinstance(gate.provider, CreemProvider)
+
+    @pytest.mark.unit
+    def test_uses_stripe_provider_when_configured(self):
+        with patch("agent.runner.access_gate.CONF", {"access_control": STRIPE_CONFIG}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.stripe_provider import StripeProvider
+            assert isinstance(gate.provider, StripeProvider)
+
+    @pytest.mark.unit
+    def test_defaults_to_creem_when_provider_not_set(self):
+        config = {k: v for k, v in CREEM_CONFIG.items() if k != "provider"}
+        with patch("agent.runner.access_gate.CONF", {"access_control": config}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.creem_provider import CreemProvider
+            assert isinstance(gate.provider, CreemProvider)
+
+    @pytest.mark.unit
+    def test_check_delegates_checkout_url_to_provider(self):
+        with patch("agent.runner.access_gate.CONF", {"access_control": CREEM_CONFIG}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            gate.provider = MagicMock()
+            gate.provider.create_checkout_url.return_value = "https://checkout.creem.io/test"
+
+            user = {"_id": ObjectId()}
+            result = gate.check(platform="wechat", user=user, admin_user_id="")
+
+            gate.provider.create_checkout_url.assert_called_once_with(user)
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/test"
