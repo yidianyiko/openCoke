@@ -15,6 +15,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 CREEM_WEBHOOK_SECRET = os.getenv("CREEM_WEBHOOK_SECRET", "")
+
+import stripe
+
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s-%(name)s-%(levelname)s-%(message)s"
@@ -409,6 +415,123 @@ def _parse_creem_datetime(dt_str: str) -> datetime:
     except ValueError:
         logger.warning(f"Creem: could not parse datetime {dt_str!r}, using now")
         return datetime.now()
+
+
+@app.route("/webhook/stripe", methods=["POST"])
+def stripe_webhook():
+    """Handle Stripe webhook events for subscription management."""
+    payload = request.get_data(as_text=False)
+    sig_header = request.headers.get("Stripe-Signature")
+
+    if not sig_header:
+        return jsonify({"error": "Missing signature"}), 400
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception:
+        logger.warning("Stripe webhook: invalid signature")
+        return jsonify({"error": "Invalid signature"}), 400
+
+    event_type = event["type"] if isinstance(event, dict) else event.type
+
+    if event_type == "checkout.session.completed":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_checkout_completed(obj)
+    elif event_type == "invoice.paid":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_invoice_paid(obj)
+    elif event_type == "customer.subscription.deleted":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_subscription_deleted(obj)
+    else:
+        logger.info(f"Stripe webhook: unhandled event type {event_type}")
+
+    return jsonify({"status": "ok"}), 200
+
+
+def _handle_stripe_checkout_completed(session):
+    """Grant access after initial Stripe checkout."""
+    if isinstance(session, dict):
+        user_id = session.get("metadata", {}).get("user_id")
+        customer_id = session.get("customer")
+        subscription_id = session.get("subscription")
+    else:
+        user_id = (session.metadata or {}).get("user_id")
+        customer_id = session.customer
+        subscription_id = session.subscription
+
+    if not user_id:
+        logger.warning("Stripe checkout.session.completed: missing user_id in metadata")
+        return
+
+    expire_time = _get_stripe_subscription_expire(subscription_id)
+
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: granted access to user {user_id}, expires {expire_time}")
+
+
+def _handle_stripe_invoice_paid(invoice):
+    """Extend access on Stripe subscription renewal."""
+    if isinstance(invoice, dict):
+        subscription_id = invoice.get("subscription")
+        customer_id = invoice.get("customer")
+    else:
+        subscription_id = invoice.subscription
+        customer_id = invoice.customer
+
+    if not subscription_id:
+        return
+
+    sub = stripe.Subscription.retrieve(subscription_id)
+    metadata = sub.metadata if hasattr(sub, "metadata") else sub.get("metadata", {})
+    user_id = metadata.get("user_id") if metadata else None
+
+    if not user_id:
+        logger.warning("Stripe invoice.paid: missing user_id in subscription metadata")
+        return
+
+    expire_time = _get_stripe_subscription_expire(subscription_id)
+
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: extended access for user {user_id}, expires {expire_time}")
+
+
+def _handle_stripe_subscription_deleted(subscription):
+    """Revoke access when Stripe subscription is cancelled."""
+    if isinstance(subscription, dict):
+        user_id = subscription.get("metadata", {}).get("user_id")
+    else:
+        metadata = subscription.metadata if hasattr(subscription, "metadata") else {}
+        user_id = metadata.get("user_id")
+
+    if not user_id:
+        logger.warning("Stripe subscription.deleted: missing user_id in metadata")
+        return
+
+    user_dao.revoke_access(user_id)
+    logger.info(f"Stripe: revoked access for user {user_id}")
+
+
+def _get_stripe_subscription_expire(subscription_id: str) -> datetime:
+    """Fetch subscription period end from Stripe and convert to datetime."""
+    try:
+        sub = stripe.Subscription.retrieve(subscription_id)
+        ts = sub.current_period_end if hasattr(sub, "current_period_end") else sub["current_period_end"]
+        return datetime.utcfromtimestamp(ts)
+    except Exception as e:
+        logger.warning(f"Stripe: could not fetch subscription {subscription_id}: {e}")
+        return datetime.now()
+
 
 if __name__ == "__main__":
     logger.info("Starting Flask forwarding service")
