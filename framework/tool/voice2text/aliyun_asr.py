@@ -194,7 +194,7 @@ def voice_to_text(file_path):
 
 
 if __name__ == "__main__":
-    r = voice_to_text("luoyun/temp/1748503671911.silk")
+    r = voice_to_text("coke/temp/1748503671911.silk")
     print("result:" + str(r))
 # print("result:" + str(r))
 # r = voice_to_text("yanhua_core/tool/multimodal/temp/message-4985866711614652198-audio.sil")
