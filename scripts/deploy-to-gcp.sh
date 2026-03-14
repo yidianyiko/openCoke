@@ -72,7 +72,6 @@ else
         --exclude='logs/' \
         --exclude='data/' \
         --exclude='.git/' \
-        --exclude='.beads/' \
         --exclude='tests/' \
         --exclude='docs/' \
         --exclude='*.db' \

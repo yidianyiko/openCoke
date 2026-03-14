@@ -3,7 +3,7 @@ mongodb/data/
 
 # Local python env
 .venv/
-luoyun/temp/
+coke/temp/
 agent/temp/
 
 # PID files
