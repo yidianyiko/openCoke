@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Coke Project is a WeChat Bot virtual person solution built on the Agno framework (>=2.0.0). It implements an AI virtual character with memory, emotional understanding, and multi-modal capabilities (text, image, voice).
 
-**Tech Stack:** Python 3.12+, Agno 2.x, DeepSeek LLM, MongoDB, Flask, Aliyun NLS (ASR), MiniMax (TTS), DashScope embeddings
+**Tech Stack:** Python 3.12+, Agno 2.x, DeepSeek LLM, MongoDB, Redis, Flask, Aliyun NLS (ASR), MiniMax (TTS), DashScope embeddings
 
 ## Build & Development Commands
 
@@ -18,15 +18,16 @@ python -m venv .venv && source .venv/bin/activate && pip install -r requirements
 bash agent/runner/agent_start.sh [--force-clean]  # Main service (cleans stale locks with --force-clean)
 
 # Testing
-pytest -m "not integration"              # Quick suite (unit + pbt + e2e, no external deps)
-pytest -m unit                           # Unit tests only
-pytest -m integration                    # Integration tests (requires MongoDB)
-pytest tests/unit/test_util_str.py::TestRemoveChinese  # Single test
-pytest --cov --cov-report=html           # Coverage report (70% threshold)
+pytest tests/unit/                               # Unit tests (no markers needed)
+pytest tests/e2e/ -m e2e                         # E2E tests (requires LLM API access)
+pytest tests/unit/test_context_timezone.py       # Single test file
+pytest --cov --cov-report=html                   # Coverage report (70% threshold)
 
 # Code formatting
-black . && isort .                       # Format (88-char lines, Black profile)
+black . && isort .                               # Format (88-char lines, Black profile)
 ```
+
+Test markers (defined in `pyproject.toml`): `e2e`, `slow`. Unit tests in `tests/unit/` use no markers.
 
 ## Architecture
 
@@ -55,94 +56,92 @@ Phase 3: PostAnalyzeWorkflow (2-5s)
 - **PostAnalyzeAgent**: Post-conversation analysis and memory updates
 - **ReminderDetectAgent**: Reminder intent detection and creation
 
+Production agents in `agent/agno_agent/agents/__init__.py`: `orchestrator_agent`, `reminder_detect_agent`, `post_analyze_agent`, plus `future_message_*` agents for scheduled messages.
+
 ### Core Directories
 
 - `agent/agno_agent/`: Agno agents (`agents/`), workflows (`workflows/`), tools (`tools/`), schemas (`schemas/`)
-- `agent/runner/`: Message processing layer - `agent_handler.py` (main), `agent_background_handler.py` (background tasks)
-- `agent/prompt/`: Prompt templates organized by type:
-  - `agent_instructions_prompt.py`: All agent instruction prompts
-  - `chat_taskprompt.py`: Task-specific prompts
-  - `chat_contextprompt.py`: Context prompts (15+ types)
-  - `chat_noticeprompt.py`: Attention/constraint prompts
+- `agent/runner/`: Message processing layer - `agent_handler.py` (main), `agent_background_handler.py` (background tasks), `access_gate.py` (access control), `payment/` (Stripe/Creem providers)
+- `agent/prompt/`: Prompt templates - `agent_instructions_prompt.py` (all agent instructions), `chat_taskprompt.py`, `chat_contextprompt.py` (15+ context types), `chat_noticeprompt.py`
 - `dao/`: MongoDB data access layer with distributed lock management
-- `connector/`: Platform connectors (ecloud for E云管家, terminal for testing)
+- `connector/`: Platform connectors — see Connector Architecture below
+- `framework/tool/`: Multimodal processing tools (`image2text/`, `text2image/`, `text2voice/`, `voice2text/`, `search/`)
+- `entity/message.py`: Shared message schemas
+- `util/`: Cross-cutting helpers (log, time, redis, embedding, OSS)
+
+### Connector Architecture
+
+Multi-layer platform integration:
+
+```
+connector/
+  channel/          # Abstract base classes (ChannelAdapter, StandardMessage, DeliveryMode)
+  adapters/         # Platform-specific implementations
+    ecloud/         # E云管家 WeChat adapter
+    telegram/       # Telegram adapter
+    discord/        # Discord adapter
+    whatsapp/       # WhatsApp via Evolution API (webhook + polling modes)
+  ecloud/           # Legacy direct ecloud connector (Flask app with /message, /webhook/stripe, /webhook/creem)
+  gateway/          # GatewayServer: manages Gateway-mode adapters, routes messages to MongoDB inputmessages
+  terminal/         # Terminal connector for local testing
+```
+
+**Adapter delivery modes** (defined in `connector/channel/types.py`): `POLLING`, `GATEWAY`, `HYBRID`
+
+**Flask app** (`connector/ecloud/ecloud_input.py`): Hosts `/message` (ecloud webhook), `/webhook/creem`, `/webhook/stripe` routes.
+
+### Message Queue
+
+`agent_runner.py` supports two modes (auto-detected from config):
+- **Redis stream mode**: Messages arrive via Redis stream (`coke:input`, consumer group `coke-workers`)
+- **Polling mode**: Polls MongoDB `inputmessages` collection directly
 
 ### MongoDB Collections
 
-`inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`, `orders`
-
-**GTD Support (P0):**
-- `reminders` collection now supports GTD-style task collection
-- `list_id` field: defaults to "inbox", supports task organization
-- `trigger_time` field: can be `None` for tasks without specific time
+`inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`, `orders`, `usage`
 
 ### Access Control (Gate System)
 
-Platform-agnostic access control where users must provide valid order numbers to use the service.
+Platform-agnostic. Configuration in `conf/config.json`:
 
-**Configuration (conf/config.json):**
 ```json
 "access_control": {
     "enabled": false,
-    "platforms": {
-        "wechat": false
-    },
-    "deny_message": "[系统消息] 请发送有效订单编号开通服务",
-    "expire_message": "[系统消息] 您的服务已过期，请发送新的订单编号续期",
-    "success_message": "[系统消息] 验证成功，服务有效期至 {expire_time}"
+    "provider": "creem",          // "creem" or "stripe"
+    "platforms": { "wechat": false },
+    "creem": { "product_id": "...", "success_url": "..." },
+    "stripe": { "price_id": "...", "success_url": "..." },
+    "deny_message": "..{checkout_url}..",
+    "expire_message": "..{checkout_url}..",
+    "success_message": "..[System] Subscription active until {expire_time}"
 }
 ```
 
-**How it works:**
-- Platform-agnostic: each platform can independently enable/disable gate
-- Users must send valid order number to gain access
-- Orders stored in `orders` collection, bound 1:1 to users
-- User access state stored in `users.access` field
-- Admin user (configured via `admin_user_id`) is exempt
-
-**MongoDB Collections:**
-- `orders`: Order data with `order_no`, `expire_time`, `bound_user_id`
-- `users.access`: User authorization with `order_no`, `granted_at`, `expire_time`
+- Orders stored in `orders` collection, bound 1:1 to users via `users.access`
+- Admin user (configured via `admin_user_id` in config) is exempt
+- Payment providers in `agent/runner/payment/`: `stripe_provider.py`, `creem_provider.py`
 
 ### Ecloud Group Chat Support
 
-**Configuration (conf/config.json):**
 ```json
 "ecloud": {
   "group_chat": {
     "enabled": false,
     "context_message_count": 10,
     "whitelist_groups": ["xxx@chatroom"],
-    "reply_mode": {
-      "whitelist": "all",
-      "others": "mention_only"
-    }
+    "reply_mode": { "whitelist": "all", "others": "mention_only" }
   }
 }
 ```
 
-**Reply Modes:**
-- `whitelist: "all"` - Respond to all messages in whitelist groups
-- `others: "mention_only"` - Only respond when @mentioned in non-whitelist groups
-
-**Message Types Supported:**
-- 80001: Group text
-- 80002: Group image
-- 80004: Group voice
-- 80014: Group reference/quote
+Message types: 80001 (text), 80002 (image), 80004 (voice), 80014 (reference/quote)
 
 ### GTD Task System
 
-**P0 Features (Completed):**
-- Quick capture: Create tasks without trigger_time
-- Inbox collection: Tasks default to `list_id="inbox"`
-- Query differentiation: Displays scheduled vs inbox tasks separately
-
-**P1 Roadmap:**
-- Agent prompt adjustments for conversational task creation
-- Daily inbox digest (8:30 AM summary)
-- Custom list support beyond "inbox"
-- Priority and tags
+`reminders` collection supports GTD-style tasks:
+- `list_id`: defaults to `"inbox"`, supports task organization
+- `trigger_time`: can be `None` for tasks without a specific time
+- Scheduled vs inbox tasks displayed separately
 
 ### Async/Concurrency Patterns
 
@@ -154,18 +153,20 @@ Platform-agnostic access control where users must provide valid order numbers to
 ## Coding Standards
 
 - Black/Isort formatting (88 chars, 4-space indent)
-- snake_case for modules/functions, PascalCase for classes
+- snake_case for modules/functions, PascalCase for classes, UPPER_SNAKE for constants
 - Type hints on public functions
 - Conventional commits: `type(scope): summary`
-- Mark MongoDB-dependent tests with `@pytest.mark.integration`
 
 ## Configuration
 
-- Secrets in `.env` file (DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, BOCHA_API_KEY, etc.)
-- Runtime config in `conf/config.json`
-- Test markers defined in `pyproject.toml`: unit, integration, slow, pbt, e2e
+- Secrets in `.env` file (DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, BOCHA_API_KEY, STRIPE_*, CREEM_*, etc.)
+- Runtime config in `conf/config.json` — values support `${ENV_VAR}` substitution
+- `DISABLE_DAILY_AGENTS`, `DISABLE_BACKGROUND_AGENTS` env vars toggle background agent tasks
+- `AGENT_WORKERS` env var controls worker count (default 3)
 
 ## Key Documentation
 
-- `doc/architecture/detailed_architecture_analysis.md`: Comprehensive architecture document (v2.7)
-- `doc/architecture/agent-prompt.md`: Agent prompt specification and standards
+- `docs/architecture.md`: Architecture reference — layers, key design patterns, config
+- `docs/schema.md`: MongoDB collection schemas
+- `docs/deploy.md`: Deployment guide
+- `docs/agent-prompt.md`: Agent prompt specification and standards
