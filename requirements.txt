@@ -1,4 +1,4 @@
-agno>=2.0.0
+agno==2.5.9
 dashscope==1.23.2
 flask==3.1.0
 gunicorn==23.0.0
