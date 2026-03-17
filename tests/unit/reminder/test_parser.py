@@ -35,6 +35,15 @@ class TestTimeParserParse:
         expected = base_ts + 2 * 3600  # 2 hours later
         assert result == expected
 
+    def test_parse_relative_time_normalizes_millisecond_base_timestamp(self):
+        """Test millisecond base timestamps are normalized before relative parsing."""
+        base_ts = int(datetime(2024, 12, 25, 9, 0, 0).timestamp())
+        parser = TimeParser(base_timestamp=base_ts * 1000)
+
+        result = parser.parse("30分钟后")
+
+        assert result == base_ts + 30 * 60
+
     def test_parse_absolute_time(self):
         """Test parsing absolute time."""
         parser = TimeParser()
@@ -156,4 +165,10 @@ class TestTimeParserInit:
         """Test initialization with base timestamp."""
         base_ts = int(datetime(2024, 12, 25, 9, 0, 0).timestamp())
         parser = TimeParser(base_timestamp=base_ts)
+        assert parser.base_timestamp == base_ts
+
+    def test_init_normalizes_millisecond_base_timestamp(self):
+        """Test initialization normalizes millisecond timestamps to seconds."""
+        base_ts = int(datetime(2024, 12, 25, 9, 0, 0).timestamp())
+        parser = TimeParser(base_timestamp=base_ts * 1000)
         assert parser.base_timestamp == base_ts
