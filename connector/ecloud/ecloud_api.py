@@ -99,11 +99,11 @@ class Ecloud_API:
 
 
 if __name__ == "__main__":
-    target_user_alias = "luoyun"
+    target_user_alias = CONF.get("default_character_alias", "coke")
     data = {
         "wId": CONF["ecloud"]["wId"][target_user_alias],
         "wcId": "LeanInWind",
-        # "content": "/home/ecs-user/luoyun/framework/tool/text2voice/test.silk",
+        # "content": "/home/ecs-user/coke/framework/tool/text2voice/test.silk",
         "content": "https://banyou-live.oss-cn-beijing.aliyuncs.com/test.silk?x-oss-date=20250519T171906Z&x-oss-expires=300&x-oss-signature-version=OSS4-HMAC-SHA256&x-oss-credential=LTAI5t5uQzkR9g7FCU5YLAwR%2F20250519%2Fcn-beijing%2Foss%2Faliyun_v4_request&x-oss-signature=02b3f518c2d588f61f2c8d2a0a9107628793ab254f5c503270cc2d3cc23ac6e7",
         "length": 24,
     }

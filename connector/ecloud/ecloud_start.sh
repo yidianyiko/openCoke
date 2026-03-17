@@ -25,7 +25,7 @@ if [ -d ".venv" ]; then
 fi
 
 # 确保临时目录存在
-mkdir -p luoyun/temp
+mkdir -p coke/temp
 mkdir -p connector/ecloud
 
 # 停止已有进程

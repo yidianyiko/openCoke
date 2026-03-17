@@ -14,9 +14,9 @@ def test_single_success_result():
         ]
     }
     output = get_tool_results_context(state)
-    assert "### 系统操作结果" in output
+    assert "### System Operation Results" in output
     assert "[时区更新]" in output
-    assert "状态：成功" in output
+    assert "Status: Success" in output
     assert "已更新为纽约时间" in output
 
 
@@ -29,7 +29,7 @@ def test_single_failure_result():
         ]
     }
     output = get_tool_results_context(state)
-    assert "状态：失败" in output
+    assert "Status: Failed" in output
     assert "时间格式不正确" in output
 
 
@@ -63,4 +63,4 @@ def test_multiple_results_all_rendered():
     assert "[时区更新]" in output
     assert "[提醒创建]" in output
     # Both appear in single block
-    assert output.count("### 系统操作结果") == 1
+    assert output.count("### System Operation Results") == 1
