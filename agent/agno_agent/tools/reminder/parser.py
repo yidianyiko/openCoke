@@ -15,6 +15,7 @@ from util.time_util import (
     format_time_friendly,
     parse_relative_time,
     str2timestamp,
+    validate_timestamp,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +45,9 @@ class TimeParser:
                           If None, current time is used when parsing.
             tz: Timezone for formatting. Defaults to Asia/Shanghai if None.
         """
-        self.base_timestamp = base_timestamp
+        self.base_timestamp = validate_timestamp(
+            base_timestamp, "base_timestamp", default_to_now=False
+        )
         self.tz = tz or ZoneInfo("Asia/Shanghai")
 
     def parse(self, time_str: Optional[str]) -> Optional[int]:

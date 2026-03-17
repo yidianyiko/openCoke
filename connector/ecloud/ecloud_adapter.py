@@ -219,7 +219,7 @@ def ecloud_message_to_std_voice_single(message):
 
     voice_url = resp_json["data"]["url"]
     download_file_name = str(int(time.time() * 1000)) + ".silk"
-    file_path = download_image(voice_url, "luoyun/temp/", download_file_name)
+    file_path = download_image(voice_url, "coke/temp/", download_file_name)
 
     voice_text = voice_to_text(file_path)
 

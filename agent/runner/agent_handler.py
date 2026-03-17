@@ -469,6 +469,7 @@ async def handle_message(
             multimodal_responses_index = 0
             all_multimodal_responses = []
             is_lock_lost = False  # 新增：锁丢失标志
+            stream_error = None
 
             async for event in streaming_chat_workflow.run_stream(
                 input_message=input_message_str, session_state=context
@@ -530,11 +531,16 @@ async def handle_message(
                     is_content_blocked = True
                     break
                 elif event["type"] == "error":
-                    logger.error(f"{worker_tag} 流式错误: {event['data'].get('error')}")
+                    stream_error = event["data"].get("error")
+                    logger.error(f"{worker_tag} 流式错误: {stream_error}")
+                    is_rollback = True
+                    break
 
             # ========== 新增：锁丢失时标记为 rollback ==========
             if is_lock_lost:
                 is_rollback = True
+            if stream_error:
+                context["stream_error"] = stream_error
 
             context["MultiModalResponses"] = all_multimodal_responses
             logger.info(f"{worker_tag} Phase 2: ChatWorkflow 完成")
@@ -715,40 +721,28 @@ def create_handler(worker_id: int = 0):
                 finalizer.finalize_hardfinish(msg_ctx)
 
             elif dispatch_type == "gate_denied":
-                # 门禁未通过
+                checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
                 send_message_via_context(
                     msg_ctx.context,
-                    message=dispatcher.access_gate.get_message("gate_denied"),
+                    message=dispatcher.access_gate.get_message(
+                        "gate_denied", checkout_url=checkout_url
+                    ),
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
                 )
                 finalizer.finalize_blocked(msg_ctx)
 
             elif dispatch_type == "gate_expired":
-                # 门禁已过期
-                send_message_via_context(
-                    msg_ctx.context,
-                    message=dispatcher.access_gate.get_message("gate_expired"),
-                    message_type="text",
-                    expect_output_timestamp=int(time.time()),
-                )
-                finalizer.finalize_blocked(msg_ctx)
-
-            elif dispatch_type == "gate_success":
-                # 门禁验证成功
-                expire_time = (
-                    dispatch_data.get("expire_time") if dispatch_data else None
-                )
+                checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
                 send_message_via_context(
                     msg_ctx.context,
                     message=dispatcher.access_gate.get_message(
-                        "gate_success", expire_time
+                        "gate_expired", checkout_url=checkout_url
                     ),
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
                 )
-                # 用户的订单验证消息不需要 AI 响应处理，直接标记为已处理
-                finalizer.finalize_success(msg_ctx, [], store_messages_background)
+                finalizer.finalize_blocked(msg_ctx)
 
             elif dispatch_type == "hold":
                 # 角色繁忙

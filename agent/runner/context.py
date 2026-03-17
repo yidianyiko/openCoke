@@ -145,7 +145,7 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 
 
 def context_prepare(user, character, conversation):
-    context = {"user": user, "character": character, "conversation": conversation}
+    context = {"user": user, "character": character, "conversation": conversation, "platform": conversation.get("platform", "")}
 
     # Resolve user timezone: stored setting takes priority, otherwise infer from
     # platform ID and backfill once (lazy migration for legacy users).
