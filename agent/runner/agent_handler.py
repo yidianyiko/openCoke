@@ -469,6 +469,7 @@ async def handle_message(
             multimodal_responses_index = 0
             all_multimodal_responses = []
             is_lock_lost = False  # 新增：锁丢失标志
+            stream_error = None
 
             async for event in streaming_chat_workflow.run_stream(
                 input_message=input_message_str, session_state=context
@@ -530,11 +531,16 @@ async def handle_message(
                     is_content_blocked = True
                     break
                 elif event["type"] == "error":
-                    logger.error(f"{worker_tag} 流式错误: {event['data'].get('error')}")
+                    stream_error = event["data"].get("error")
+                    logger.error(f"{worker_tag} 流式错误: {stream_error}")
+                    is_rollback = True
+                    break
 
             # ========== 新增：锁丢失时标记为 rollback ==========
             if is_lock_lost:
                 is_rollback = True
+            if stream_error:
+                context["stream_error"] = stream_error
 
             context["MultiModalResponses"] = all_multimodal_responses
             logger.info(f"{worker_tag} Phase 2: ChatWorkflow 完成")

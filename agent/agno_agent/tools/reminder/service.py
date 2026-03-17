@@ -13,6 +13,7 @@ import uuid
 from typing import TYPE_CHECKING, Optional
 
 from util.log_util import get_logger
+from util.time_util import validate_timestamp
 
 from .formatter import ReminderFormatter
 from .parser import TimeParser
@@ -75,14 +76,17 @@ class ReminderService:
         from dao.reminder_dao import ReminderDAO
 
         self.dao = dao if dao is not None else ReminderDAO()
-        self.parser = TimeParser(base_timestamp=base_timestamp, tz=user_tz)
+        normalized_base_timestamp = validate_timestamp(
+            base_timestamp, "base_timestamp", default_to_now=False
+        )
+        self.parser = TimeParser(base_timestamp=normalized_base_timestamp, tz=user_tz)
         self.validator = ReminderValidator(dao=self.dao, user_id=user_id, tz=user_tz)
         self.formatter = ReminderFormatter(time_parser=self.parser)
 
         self.user_id = user_id
         self.character_id = character_id
         self.conversation_id = conversation_id
-        self.base_timestamp = base_timestamp
+        self.base_timestamp = normalized_base_timestamp
         self.session_state = session_state
 
     def create(
