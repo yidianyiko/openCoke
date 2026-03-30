@@ -5,7 +5,7 @@ fastapi>=0.116.0
 gunicorn==23.0.0
 hypothesis>=6.0.0
 ./alibabacloud-nls-python-sdk-dev
-openai==1.75.0
+openai==2.30.0
 pilk==0.2.4
 pip-chill==1.0.3
 pydantic>=2.0.0

@@ -2,7 +2,7 @@ dashscope==1.23.2
 fastapi>=0.116.0
 flask==3.1.0
 ./alibabacloud-nls-python-sdk-dev
-openai==1.75.0
+openai==2.30.0
 pilk==0.2.4
 pip==23.0.1
 pip-chill==1.0.3
