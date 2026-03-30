@@ -13,7 +13,7 @@ python-dotenv>=1.0.0
 pydub==0.25.1
 pymongo==4.12.0
 redis==5.0.4
-silk-python==0.2.6
+silk-python==0.2.8
 stripe>=8.0.0
 uvicorn[standard]>=0.35.0
 volcengine-python-sdk==1.1.5
