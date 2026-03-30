@@ -32,10 +32,11 @@ def test_prepare_character_builds_coke_character():
     assert characters[0]["platforms"]["wechat"]["nickname"].strip() == "coke"
 
 
-def test_agent_runner_uses_coke_as_fallback_alias():
+def test_agent_runner_uses_openclaw_runtime():
     source = Path("agent/runner/agent_runner.py").read_text(encoding="utf-8")
 
-    assert 'config.get("default_character_alias", "coke")' in source
+    assert "OpenClawClient" in source
+    assert "run_http_server" in source
 
 
 def test_start_script_defaults_to_coke_character():

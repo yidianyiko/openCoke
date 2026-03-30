@@ -21,6 +21,22 @@
             }
         }
     },
+    "gateway": {
+        "enabled": false,
+        "openclaw_url": "${OPENCLAW_URL}",
+        "openclaw_token": "${OPENCLAW_TOKEN}",
+        "shared_secret": "${GATEWAY_SHARED_SECRET}",
+        "group_chat": {
+            "enabled": true,
+            "context_message_count": 20,
+            "whitelist_groups": [],
+            "reply_mode": {
+                "whitelist": "all",
+                "others": "mention_only"
+            }
+        },
+        "account_mapping": {}
+    },
     "mongodb": {
         "mongodb_ip": "127.0.0.1",
         "mongodb_port": "27017",

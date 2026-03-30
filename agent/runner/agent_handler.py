@@ -42,7 +42,9 @@ from agent.runner.agent_hardcode_handler import handle_hardcode, supported_hardc
 from agent.runner.context import context_prepare
 from agent.tool.image import upload_image
 from agent.tool.voice import character_voice
-from agent.util.message_util import send_message_via_context
+from agent.util.message_util import send_message_via_context, send_message_via_delivery
+from api.delivery import DeliveryService
+from api.openclaw_client import OpenClawClient
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
@@ -95,6 +97,21 @@ mongo = MongoDBBase()
 
 # Thread pool for background embedding storage
 _embedding_executor = ThreadPoolExecutor(max_workers=4)
+_delivery_service = None
+
+
+def _get_delivery_service() -> DeliveryService:
+    global _delivery_service
+    if _delivery_service is None:
+        gateway_conf = CONF.get("gateway", {})
+        _delivery_service = DeliveryService(
+            mongo=mongo,
+            openclaw_client=OpenClawClient(
+                gateway_conf.get("openclaw_url", ""),
+                gateway_conf.get("openclaw_token", ""),
+            ),
+        )
+    return _delivery_service
 
 
 def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
@@ -288,13 +305,17 @@ def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
     return True
 
 
-def _send_single_message(
-    context, multimodal_response, expect_output_timestamp, is_first=False
+async def _send_single_message(
+    context,
+    multimodal_response,
+    expect_output_timestamp,
+    is_first=False,
 ):
     """发送单条多模态消息"""
     outputmessage = None
     msg_type = multimodal_response.get("type", "text")
     content = multimodal_response.get("content", "")
+    delivery_service = _get_delivery_service()
 
     # ========== 去重检查：跳过 rollback 恢复场景中已发送的内容 ==========
     turn_sent = (
@@ -315,8 +336,9 @@ def _send_single_message(
                 expect_output_timestamp += int(voice_length / 1000) + random.randint(
                     2, 5
                 )
-            outputmessage = send_message_via_context(
+            outputmessage = await send_message_via_delivery(
                 context,
+                delivery_service=delivery_service,
                 message=content,
                 message_type="voice",
                 expect_output_timestamp=expect_output_timestamp,
@@ -337,8 +359,9 @@ def _send_single_message(
                 ]["conversation_info"]["photo_history"][-12:]
             if not is_first:
                 expect_output_timestamp += random.randint(2, 8)
-            outputmessage = send_message_via_context(
+            outputmessage = await send_message_via_delivery(
                 context,
+                delivery_service=delivery_service,
                 message=content,
                 message_type="image",
                 expect_output_timestamp=expect_output_timestamp,
@@ -348,8 +371,9 @@ def _send_single_message(
         text_message = str(content).replace("<换行>", "\n")
         if not is_first:
             expect_output_timestamp += int(len(text_message) / typing_speed)
-        outputmessage = send_message_via_context(
+        outputmessage = await send_message_via_delivery(
             context,
+            delivery_service=delivery_service,
             message=text_message,
             message_type="text",
             expect_output_timestamp=expect_output_timestamp,
@@ -448,8 +472,14 @@ async def handle_message(
         if check_new_message and message_source == "user":
             user = context.get("user", {})
             character = context.get("character", {})
+            conversation = context.get("conversation", {})
             if is_new_message_coming_in(
-                str(user["_id"]), str(character["_id"]), platform, current_message_ids
+                str(user["_id"]),
+                str(character["_id"]),
+                platform,
+                current_message_ids,
+                chatroom_name=conversation.get("chatroom_name"),
+                account_id=_get_gateway_account_id_from_context(context),
             ):
                 is_rollback = True
                 logger.info(f"{worker_tag} rollback: new message before chat")
@@ -486,7 +516,7 @@ async def handle_message(
                             is_lock_lost = True
                             break
 
-                    outputmessage, expect_output_timestamp = _send_single_message(
+                    outputmessage, expect_output_timestamp = await _send_single_message(
                         context=context,
                         multimodal_response=multimodal_response,
                         expect_output_timestamp=expect_output_timestamp,
@@ -508,11 +538,14 @@ async def handle_message(
                     if check_new_message and message_source == "user":
                         user = context.get("user", {})
                         character = context.get("character", {})
+                        conversation = context.get("conversation", {})
                         if is_new_message_coming_in(
                             str(user["_id"]),
                             str(character["_id"]),
                             platform,
                             current_message_ids,
+                            chatroom_name=conversation.get("chatroom_name"),
+                            account_id=_get_gateway_account_id_from_context(context),
                         ):
                             is_rollback = True
                             logger.info(
@@ -599,7 +632,25 @@ async def handle_message(
     return resp_messages, context, is_rollback, is_content_blocked
 
 
-def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = None):
+def _get_gateway_account_id_from_context(context: dict) -> Optional[str]:
+    input_messages = (
+        context.get("conversation", {}).get("conversation_info", {}).get("input_messages", [])
+    )
+    if not input_messages:
+        return None
+    return ((input_messages[0].get("metadata") or {}).get("gateway") or {}).get(
+        "account_id"
+    )
+
+
+def is_new_message_coming_in(
+    u_id,
+    c_id,
+    platform,
+    current_message_ids: list = None,
+    chatroom_name: Optional[str] = None,
+    account_id: Optional[str] = None,
+):
     """
     检测是否有新消息到达（排除当前正在处理的消息）
 
@@ -608,11 +659,20 @@ def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = N
         c_id: 角色ID
         platform: 平台
         current_message_ids: 当前正在处理的消息ID列表（字符串格式）
+        chatroom_name: 群聊名称；私聊时为 None
+        account_id: 网关账号 ID；非网关消息时为 None
 
     Returns:
         bool: 是否有新消息
     """
-    input_messages = read_all_inputmessages(u_id, c_id, platform, "pending")
+    input_messages = read_all_inputmessages(
+        u_id,
+        c_id,
+        platform,
+        "pending",
+        chatroom_name=chatroom_name,
+        account_id=account_id,
+    )
 
     # 排除当前正在处理的消息
     if current_message_ids:
@@ -701,8 +761,9 @@ def create_handler(worker_id: int = 0):
 
             if dispatch_type == "blocked":
                 # 用户被拉黑
-                send_message_via_context(
+                await send_message_via_delivery(
                     msg_ctx.context,
+                    delivery_service=_get_delivery_service(),
                     message="[系统消息]已拉黑，如需恢复请联系作者YDYK",
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
@@ -712,8 +773,9 @@ def create_handler(worker_id: int = 0):
             elif dispatch_type == "hardcode":
                 # 硬指令
                 handle_hardcode(msg_ctx.context, dispatch_data["command"])
-                send_message_via_context(
+                await send_message_via_delivery(
                     msg_ctx.context,
+                    delivery_service=_get_delivery_service(),
                     message="ok",
                     message_type="text",
                     expect_output_timestamp=int(time.time()),
@@ -722,8 +784,9 @@ def create_handler(worker_id: int = 0):
 
             elif dispatch_type == "gate_denied":
                 checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
-                send_message_via_context(
+                await send_message_via_delivery(
                     msg_ctx.context,
+                    delivery_service=_get_delivery_service(),
                     message=dispatcher.access_gate.get_message(
                         "gate_denied", checkout_url=checkout_url
                     ),
@@ -734,8 +797,9 @@ def create_handler(worker_id: int = 0):
 
             elif dispatch_type == "gate_expired":
                 checkout_url = dispatch_data.get("checkout_url", "") if dispatch_data else ""
-                send_message_via_context(
+                await send_message_via_delivery(
                     msg_ctx.context,
+                    delivery_service=_get_delivery_service(),
                     message=dispatcher.access_gate.get_message(
                         "gate_expired", checkout_url=checkout_url
                     ),

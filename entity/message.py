@@ -78,7 +78,14 @@ def save_outputmessage(outputmessage):
     )
 
 
-def read_all_inputmessages(from_user, to_user, platform, status=None):
+def read_all_inputmessages(
+    from_user,
+    to_user,
+    platform,
+    status=None,
+    chatroom_name=None,
+    account_id=None,
+):
     query = {
         "platform": platform,
         "from_user": from_user,
@@ -86,6 +93,10 @@ def read_all_inputmessages(from_user, to_user, platform, status=None):
     }
     if status:
         query["status"] = status
+    if chatroom_name is not None:
+        query["chatroom_name"] = chatroom_name
+    if account_id is not None:
+        query["metadata.gateway.account_id"] = account_id
     return _mongo.find_many("inputmessages", query)
 
 

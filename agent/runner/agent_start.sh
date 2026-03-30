@@ -43,8 +43,10 @@ fi
 echo "Using Python: $PYTHON_BIN"
 
 # 检查依赖
-"$PYTHON_BIN" - <<'PYCHECK' >/dev/null 2>&1 || "$PYTHON_BIN" -m pip install -r agent/requirements.txt
+"$PYTHON_BIN" - <<'PYCHECK' >/dev/null 2>&1 || "$PYTHON_BIN" -m pip install -r requirements.txt
+import fastapi
 import pymongo
+import websockets
 PYCHECK
 
 # 确保日志目录存在

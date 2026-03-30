@@ -105,13 +105,6 @@ class MessageAcquirer:
         self.conversation_dao = ConversationDAO()
         self.lock_manager = MongoDBLockManager()
 
-        # 获取目标角色配置
-        self.target_user_alias = CONF.get("default_character_alias", "coke")
-        _characters_conf = (
-            CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
-        )
-        self.target_wechat_id = _characters_conf.get(self.target_user_alias)
-
     def acquire(self) -> Optional[MessageContext]:
         """
         获取一个可处理的消息上下文
@@ -119,23 +112,9 @@ class MessageAcquirer:
         Returns:
             MessageContext 或 None（无可处理消息）
         """
-        # 获取目标角色 - 优先按名称查找，支持多平台
-        characters = self.user_dao.find_characters({"name": self.target_user_alias})
-        # 如果按名称找不到，尝试按 wechat ID 查找（向后兼容）
-        if len(characters) == 0 and self.target_wechat_id:
-            characters = self.user_dao.find_characters(
-                {"platforms.wechat.id": self.target_wechat_id}
-            )
-
-        if len(characters) == 0:
-            logger.debug(f"{self.worker_tag} 未找到目标角色: {self.target_user_alias}")
-            return None
-
-        target_user_id = str(characters[0]["_id"])
-
         # 获取待处理消息
         top_messages = read_top_inputmessages(
-            to_user=target_user_id,
+            to_user=None,
             status="pending",
             platform=None,  # None 表示处理所有平台
             limit=16,
@@ -143,11 +122,6 @@ class MessageAcquirer:
         )
         if len(top_messages) == 0:
             return None
-
-        # 只在有消息时才输出日志
-        # logger.info(
-        #     f"{self.worker_tag} 找到 {len(top_messages)} 条待处理消息 (角色: {self.target_user_alias})"
-        # )
 
         # 获取已锁定的会话列表
         locked_conversation_ids = get_locked_conversation_ids()
@@ -207,11 +181,13 @@ class MessageAcquirer:
 
         # 获取/创建会话（群聊或私聊）
         chatroom_name = top_message.get("chatroom_name")
+        gateway_meta = (top_message.get("metadata") or {}).get("gateway", {})
         if chatroom_name:
             # 群聊消息：使用群聊会话
             conversation_id, _ = self.conversation_dao.get_or_create_group_conversation(
                 platform=platform,
                 chatroom_name=chatroom_name,
+                character_platform_id=character["platforms"][platform]["id"],
                 initial_talkers=[
                     {
                         "id": user["platforms"][platform]["id"],
@@ -256,7 +232,12 @@ class MessageAcquirer:
 
         # 读取该会话所有待处理消息
         input_messages = read_all_inputmessages(
-            str(user["_id"]), str(character["_id"]), platform, "pending"
+            str(user["_id"]),
+            str(character["_id"]),
+            platform,
+            "pending",
+            chatroom_name=chatroom_name,
+            account_id=gateway_meta.get("account_id"),
         )
 
         if should_log_message_content():

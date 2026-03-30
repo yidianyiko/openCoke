@@ -1,11 +1,10 @@
 from unittest.mock import MagicMock
 
 
-def test_ecloud_input_publishes_stream_event(monkeypatch):
-    from connector.ecloud import ecloud_input
+def test_publish_input_event_writes_stream_entry():
+    from util.redis_stream import publish_input_event
 
     mock_redis = MagicMock()
-    monkeypatch.setattr(ecloud_input, "redis_client", mock_redis)
 
-    ecloud_input._publish_stream_event("abc123", "wechat", 123)
+    publish_input_event(mock_redis, "abc123", "wechat", 123)
     mock_redis.xadd.assert_called_once()

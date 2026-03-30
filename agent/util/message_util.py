@@ -251,6 +251,36 @@ def send_message_via_context(
     )
 
 
+async def send_message_via_delivery(
+    context,
+    delivery_service,
+    message,
+    message_type="text",
+    expect_output_timestamp=None,
+    metadata=None,
+):
+    outputmessage = send_message_via_context(
+        context,
+        message=message,
+        message_type=message_type,
+        expect_output_timestamp=expect_output_timestamp,
+        metadata=metadata,
+    )
+
+    if outputmessage and outputmessage.get("chatroom_name") is None:
+        gateway_metadata = outputmessage.setdefault("metadata", {}).setdefault(
+            "gateway", {}
+        )
+        platform = context["conversation"]["platform"]
+        gateway_metadata.setdefault(
+            "to_platform_id",
+            context["user"]["platforms"][platform]["id"],
+        )
+
+    await delivery_service.deliver(outputmessage)
+    return outputmessage
+
+
 def send_message(
     platform,
     from_user,

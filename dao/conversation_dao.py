@@ -208,7 +208,10 @@ class ConversationDAO:
         return conversation
 
     def get_group_conversation(
-        self, platform: str, chatroom_name: str
+        self,
+        platform: str,
+        chatroom_name: str,
+        character_platform_id: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         获取群聊会话
@@ -216,6 +219,7 @@ class ConversationDAO:
         Args:
             platform: 平台名称
             chatroom_name: 群聊名称
+            character_platform_id: 群聊中角色的路由 ID
 
         Returns:
             Optional[Dict]: 会话数据或None
@@ -223,12 +227,20 @@ class ConversationDAO:
         if not platform or not chatroom_name:
             return None
 
-        query = {"platform": platform, "chatroom_name": chatroom_name}
+        query = self._build_group_query(platform, chatroom_name, character_platform_id)
 
         conversation = self.collection.find_one(query)
         if conversation:
             conversation = self.ensure_conversation_info_structure(conversation)
         return conversation
+
+    def _build_group_query(
+        self, platform: str, chatroom_name: str, character_platform_id: Optional[str]
+    ) -> Dict:
+        query = {"platform": platform, "chatroom_name": chatroom_name}
+        if character_platform_id:
+            query["talkers.id"] = {"$in": [character_platform_id]}
+        return query
 
     def update_conversation(self, conversation_id: str, update_data: Dict) -> bool:
         """
@@ -496,7 +508,11 @@ class ConversationDAO:
         return conversation_id, True
 
     def get_or_create_group_conversation(
-        self, platform: str, chatroom_name: str, initial_talkers: List[Dict] = None
+        self,
+        platform: str,
+        chatroom_name: str,
+        character_platform_id: str,
+        initial_talkers: List[Dict] = None,
     ) -> Tuple[str, bool]:
         """
         获取或创建群聊会话
@@ -504,13 +520,16 @@ class ConversationDAO:
         Args:
             platform: 平台
             chatroom_name: 群聊名称
+            character_platform_id: 群聊中角色的路由 ID
             initial_talkers: 初始参与者列表 [{"id": "xxx", "nickname": "xxx"}, ...]
 
         Returns:
             Tuple[str, bool]: 会话ID和是否新创建的标志
         """
         # 先尝试查找现有群聊
-        existing = self.get_group_conversation(platform, chatroom_name)
+        existing = self.get_group_conversation(
+            platform, chatroom_name, character_platform_id
+        )
 
         if existing:
             return str(existing["_id"]), False

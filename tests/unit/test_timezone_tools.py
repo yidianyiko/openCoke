@@ -79,28 +79,25 @@ def _ensure_timezone_tools_loaded() -> None:
     Load agent.agno_agent.tools.timezone_tools by file path, registering
     hollow parent packages only if they are not already real packages.
     """
-    module_name = "agent.agno_agent.tools.timezone_tools"
-    package_paths = {
-        "agent.agno_agent": _PROJECT_ROOT / "agent" / "agno_agent",
-        "agent.agno_agent.tools": _PROJECT_ROOT / "agent" / "agno_agent" / "tools",
-    }
-
     # Only register hollow stubs for the parent packages if they don't
     # already exist as real importable packages.
-    for pkg, pkg_path in package_paths.items():
+    for pkg in ("agent.agno_agent", "agent.agno_agent.tools"):
         if pkg not in sys.modules:
             mod = types.ModuleType(pkg)
-            mod.__path__ = [str(pkg_path)]
+            mod.__path__ = []
             mod.__package__ = pkg
             mod.__spec__ = None
             sys.modules[pkg] = mod
 
     # Load tool_result first (timezone_tools imports it at call time)
     _load_module_by_path(
-        module_name.rsplit(".", 1)[0] + ".tool_result",
+        "agent.agno_agent.tools.tool_result",
         "agent/agno_agent/tools/tool_result.py",
     )
-    _load_module_by_path(module_name, "agent/agno_agent/tools/timezone_tools.py")
+    _load_module_by_path(
+        "agent.agno_agent.tools.timezone_tools",
+        "agent/agno_agent/tools/timezone_tools.py",
+    )
 
 
 _ensure_agno_stubs()
