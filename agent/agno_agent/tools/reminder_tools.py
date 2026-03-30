@@ -27,6 +27,7 @@ import logging
 from typing import Optional
 
 from agno.tools import tool
+from util.time_util import validate_timestamp
 
 from .reminder import ReminderService
 
@@ -97,6 +98,68 @@ def _check_operation_allowed(action: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _infer_action_from_payload(
+    title: Optional[str],
+    trigger_time: Optional[str],
+    keyword: Optional[str],
+    new_title: Optional[str],
+    new_trigger_time: Optional[str],
+    recurrence_type: str,
+    period_start: Optional[str],
+    period_end: Optional[str],
+    period_days: Optional[str],
+    operations: Optional[str],
+    status: Optional[str],
+    reminder_type: Optional[str],
+    trigger_after: Optional[str],
+    trigger_before: Optional[str],
+    include_all: bool,
+) -> Optional[str]:
+    """Infer a missing action only when the payload shape is unambiguous."""
+    has_batch_payload = bool(operations)
+    has_create_payload = any(
+        [
+            title is not None,
+            trigger_time is not None,
+            period_start is not None,
+            period_end is not None,
+            period_days is not None,
+            recurrence_type not in (None, "none"),
+        ]
+    )
+    has_update_payload = bool(keyword) and any(
+        [
+            new_title is not None,
+            new_trigger_time is not None,
+            recurrence_type not in (None, "none"),
+        ]
+    )
+    has_filter_payload = any(
+        [
+            status is not None,
+            reminder_type is not None,
+            trigger_after is not None,
+            trigger_before is not None,
+            include_all,
+        ]
+    )
+
+    matched_actions = []
+    if has_batch_payload:
+        matched_actions.append("batch")
+    if has_create_payload:
+        matched_actions.append("create")
+    if has_update_payload:
+        matched_actions.append("update")
+    if has_filter_payload:
+        matched_actions.append("filter")
+
+    if len(matched_actions) == 1:
+        return matched_actions[0]
+
+    return None
+
+
 def _save_reminder_result_to_session(
     message: str,
     session_state: Optional[dict] = None,
@@ -109,31 +172,33 @@ def _save_reminder_result_to_session(
     if session_state is None:
         session_state = _get_current_session_state()
 
-    # Backward compatibility
-    session_state["【提醒设置工具消息】"] = message
+    from agent.agno_agent.tools.tool_result import append_tool_result
 
-    # Structured context
-    if user_intent is None:
-        user_intent = "提醒操作"
-    if action_executed is None:
-        action_executed = "unknown"
-
-    tool_execution_context = {
-        "user_intent": user_intent,
-        "action_executed": action_executed,
-        "intent_fulfilled": intent_fulfilled,
-        "result_summary": message,
-    }
-    if details:
-        tool_execution_context["details"] = details
-
-    session_state["tool_execution_context"] = tool_execution_context
+    _extra = ""
+    if details and details.get("error") == "frequency_too_high":
+        _extra = (
+            '分钟级别（< 60分钟）的无限重复提醒不支持，'
+            '可改用时间段提醒（如"上午9点到下午6点每30分钟"）。'
+            '小时级别以上的重复提醒（每小时、每天等）支持。'
+        )
+    append_tool_result(
+        session_state,
+        tool_name="提醒操作",
+        ok=intent_fulfilled,
+        result_summary=message,
+        extra_notes=_extra,
+    )
 
     # Sync ref if exists
     session_state_ref = _context_session_state_ref.get()
     if session_state_ref is not None and session_state_ref is not session_state:
-        session_state_ref["【提醒设置工具消息】"] = message
-        session_state_ref["tool_execution_context"] = tool_execution_context
+        append_tool_result(
+            session_state_ref,
+            tool_name="提醒操作",
+            ok=intent_fulfilled,
+            result_summary=message,
+            extra_notes=_extra,
+        )
 
     logger.info(f"提醒结果已写入 session_state: {message}")
 
@@ -252,6 +317,26 @@ def reminder_tool(
         action = action["action"]
 
     # Handle missing action
+    inferred_action = None
+    if action is None:
+        inferred_action = _infer_action_from_payload(
+            title=title,
+            trigger_time=trigger_time,
+            keyword=keyword,
+            new_title=new_title,
+            new_trigger_time=new_trigger_time,
+            recurrence_type=recurrence_type,
+            period_start=period_start,
+            period_end=period_end,
+            period_days=period_days,
+            operations=operations,
+            status=status,
+            reminder_type=reminder_type,
+            trigger_after=trigger_after,
+            trigger_before=trigger_before,
+            include_all=include_all,
+        )
+        action = inferred_action
     if action is None:
         error_message = "操作类型缺失，请指定 action 参数（create/batch/update/delete/filter/complete）"
         logger.error("reminder_tool: action 参数缺失，LLM 未正确传递")
@@ -266,6 +351,8 @@ def reminder_tool(
             "ok": False,
             "error": error_message,
         }
+    if inferred_action is not None:
+        logger.warning(f"reminder_tool: action 缺失，已根据载荷推断为 {action}")
 
     # Validate action
     valid_actions = (
@@ -294,7 +381,33 @@ def reminder_tool(
     user_id = str(current_session_state.get("user", {}).get("_id", ""))
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
-    message_timestamp = current_session_state.get("input_timestamp")
+    message_timestamp = validate_timestamp(
+        current_session_state.get("input_timestamp"),
+        "input_timestamp",
+        default_to_now=False,
+    )
+
+    # Resolve user timezone from session_state
+    from zoneinfo import ZoneInfo as _ZoneInfo
+    from util.time_util import get_user_timezone as _get_user_timezone
+    _tz_str = current_session_state.get("user", {}).get("timezone")
+    if _tz_str:
+        try:
+            _user_tz = _ZoneInfo(_tz_str)
+        except Exception:
+            _user_tz = _get_user_timezone(
+                next(
+                    (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
+                    "",
+                )
+            )
+    else:
+        _user_tz = _get_user_timezone(
+            next(
+                (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
+                "",
+            )
+        )
 
     if not user_id and action in (
         "create",
@@ -315,6 +428,7 @@ def reminder_tool(
         conversation_id=conversation_id,
         base_timestamp=message_timestamp,
         session_state=current_session_state,
+        user_tz=_user_tz,
     )
 
     try:

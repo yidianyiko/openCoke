@@ -311,6 +311,7 @@ class TestCreateFrequencyLimitViolation:
             conversation_id="conv789",
             base_timestamp=1738289400,
             session_state=None,
+            dao=mock_dao,
         )
 
         result = service.create(
@@ -359,6 +360,7 @@ class TestCreateFrequencyLimitViolation:
             conversation_id="conv789",
             base_timestamp=1738289400,
             session_state=None,
+            dao=mock_dao,
         )
 
         result = service.create(
@@ -641,6 +643,18 @@ class TestInit:
             character_id="char456",
             conversation_id="conv789",
             base_timestamp=1738289400,
+            session_state=None,
+        )
+
+        assert service.parser.base_timestamp == 1738289400
+
+    def test_init_parser_normalizes_millisecond_base_timestamp(self):
+        """Test parser receives normalized second-level base_timestamp."""
+        service = ReminderService(
+            user_id="user123",
+            character_id="char456",
+            conversation_id="conv789",
+            base_timestamp=1738289400000,
             session_state=None,
         )
 

@@ -1,25 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-角色系统提示词模块
+Character System Prompt Module
 
-每个角色有一个独立的 prompt 文件，包含其系统提示词。
-这样可以：
-- 使用 Git 进行版本控制
-- 方便进行 prompt 微调和迭代
-- 与其他 prompt 文件保持一致的管理方式
+Each character has its own prompt file containing its system prompt.
+This allows:
+- Git version control
+- Easy prompt fine-tuning and iteration
+- Consistent management with other prompt files
 """
 
 from agent.prompt.character.coke_prompt import COKE_STATUS, COKE_SYSTEM_PROMPT
 
-# 角色配置注册表
-# key: 角色名称（与数据库中的 name 字段对应）
-# value: (系统提示词, 状态配置)
+# Character configuration registry
+# key: character name (matches the `name` field in the database)
+# value: (system prompt, status config)
 CHARACTER_PROMPTS = {
-    "qiaoyun": {
+    "coke": {
         "system_prompt": COKE_SYSTEM_PROMPT,
         "status": COKE_STATUS,
     },
-    # 未来添加新角色时，在这里注册
+    # To add new characters in the future, register them here:
     # "new_character": {
     #     "system_prompt": NEW_CHARACTER_SYSTEM_PROMPT,
     #     "status": NEW_CHARACTER_STATUS,
@@ -29,13 +29,13 @@ CHARACTER_PROMPTS = {
 
 def get_character_prompt(character_name: str) -> str | None:
     """
-    获取角色的系统提示词
+    Get the system prompt for a character.
 
     Args:
-        character_name: 角色名称
+        character_name: Character name
 
     Returns:
-        系统提示词字符串，如果角色不存在则返回 None
+        System prompt string, or None if the character does not exist
     """
     config = CHARACTER_PROMPTS.get(character_name.lower())
     if config:
@@ -45,13 +45,13 @@ def get_character_prompt(character_name: str) -> str | None:
 
 def get_character_status(character_name: str) -> dict | None:
     """
-    获取角色的状态配置
+    Get the status configuration for a character.
 
     Args:
-        character_name: 角色名称
+        character_name: Character name
 
     Returns:
-        状态配置字典，如果角色不存在则返回 None
+        Status configuration dictionary, or None if the character does not exist
     """
     config = CHARACTER_PROMPTS.get(character_name.lower())
     if config:

@@ -13,16 +13,17 @@ from bson import ObjectId
 from dao.user_dao import UserDAO
 from util.embedding_util import upsert_one
 
-if __name__ == "__main__":
-    characters = [
+
+def build_characters():
+    return [
         {
             "is_character": True,  # 是否是角色
-            "name": "qiaoyun",  # 统一注册名
+            "name": "coke",  # 统一注册名
             "platforms": {
                 "wechat": {
                     "id": "wxid_58bfckbpioh822",  # 微信统一id
                     "account": "wxid_58bfckbpioh822",  # 微信号
-                    "nickname": " qiaoyun ",  # 微信昵称
+                    "nickname": " coke ",  # 微信昵称
                 },
             },
             "status": "normal",  # normal | stopped
@@ -134,6 +135,10 @@ if __name__ == "__main__":
             },
         }
     ]
+
+
+if __name__ == "__main__":
+    characters = build_characters()
 
     user_dao = UserDAO()
 

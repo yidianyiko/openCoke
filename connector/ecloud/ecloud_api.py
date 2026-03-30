@@ -99,11 +99,11 @@ class Ecloud_API:
 
 
 if __name__ == "__main__":
-    target_user_alias = "luoyun"
+    target_user_alias = CONF.get("default_character_alias", "coke")
     data = {
         "wId": CONF["ecloud"]["wId"][target_user_alias],
         "wcId": "example_user",
-        # "content": "/path/to/test.silk",
+        # "content": "/home/ecs-user/coke/framework/tool/text2voice/test.silk",
         "content": "https://example.com/test.silk?signature=REDACTED",
         "length": 24,
     }

@@ -2,7 +2,6 @@
   "description": "提醒功能 E2E 测试用例 - 完整 CRUD + 交互追问",
   "version": "1.0",
   "test_user_id": "692c14aaa538f0baad5561b3",
-  "character_id": "692c147e972f64f2b65da6ee",
   "config": {
     "time_tolerance_minutes": 1,
     "response_timeout_seconds": 180,

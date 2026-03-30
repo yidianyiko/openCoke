@@ -2,7 +2,7 @@ Project Coke
 
 - Overview
   - Production chat flow uses Orchestrator → Context Retrieve Tool → ReminderDetect (on demand) → Streaming Chat → PostAnalyze (background).
-  - Agents, prompts, schemas follow the three‑layer pattern defined in `doc/architecture/agent-prompt.md`.
+  - Agents, prompts, schemas follow the three‑layer pattern defined in `docs/agent-prompt.md`.
 
 - Quick Start
   ```bash

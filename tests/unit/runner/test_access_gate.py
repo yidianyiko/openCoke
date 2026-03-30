@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for AccessGate"""
+"""Unit tests for AccessGate with Creem integration"""
 
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
@@ -8,87 +8,65 @@ import pytest
 from bson import ObjectId
 
 
-class TestAccessGate:
-    """Tests for AccessGate class"""
+CREEM_CONFIG = {
+    "enabled": True,
+    "platforms": {"wechat": True},
+    "creem": {
+        "product_id": "prod_test123",
+        "success_url": "https://example.com/success",
+    },
+    "deny_message": "Subscribe here:\n{checkout_url}",
+    "expire_message": "Expired. Renew:\n{checkout_url}",
+    "success_message": "Active until {expire_time}",
+}
 
-    @pytest.fixture
-    def mock_order_dao(self):
-        return MagicMock()
+
+class TestAccessGate:
+    """Tests for AccessGate with Creem"""
 
     @pytest.fixture
     def mock_user_dao(self):
         return MagicMock()
 
     @pytest.fixture
-    def access_config(self):
-        return {
-            "enabled": True,
-            "platforms": {
-                "wechat": True,
-            },
-            "deny_message": "[系统消息] 请发送有效订单编号开通服务",
-            "expire_message": "[系统消息] 您的服务已过期",
-            "success_message": "[系统消息] 验证成功，有效期至 {expire_time}",
-        }
-
-    @pytest.fixture
-    def access_gate(self, mock_order_dao, mock_user_dao, access_config):
+    def access_gate(self, mock_user_dao):
         with patch(
             "agent.runner.access_gate.CONF",
-            {"access_control": access_config, "admin_user_id": "admin123"},
+            {"access_control": CREEM_CONFIG, "admin_user_id": "admin123"},
         ):
             from agent.runner.access_gate import AccessGate
 
             gate = AccessGate()
-            gate.order_dao = mock_order_dao
             gate.user_dao = mock_user_dao
             return gate
 
     @pytest.mark.unit
-    def test_check_returns_none_when_disabled(self, access_config):
+    def test_check_returns_none_when_disabled(self):
         """Should return None when access control is disabled"""
-        access_config["enabled"] = False
+        config = {**CREEM_CONFIG, "enabled": False}
         with patch(
             "agent.runner.access_gate.CONF",
-            {"access_control": access_config, "admin_user_id": ""},
+            {"access_control": config, "admin_user_id": ""},
         ):
             from agent.runner.access_gate import AccessGate
 
             gate = AccessGate()
-
             result = gate.check(
                 platform="wechat",
                 user={"_id": ObjectId()},
-                message="hello",
                 admin_user_id="",
             )
-
             assert result is None
-
-    @pytest.mark.unit
-    def test_check_returns_none_for_disabled_platform(self, access_gate):
-        """Should return None when platform has gate disabled"""
-        result = access_gate.check(
-            platform="wechat",
-            user={"_id": ObjectId()},
-            message="hello",
-            admin_user_id="",
-        )
-
-        assert result is None
 
     @pytest.mark.unit
     def test_check_returns_none_for_admin(self, access_gate):
         """Should return None for admin user (exempt)"""
         admin_id = ObjectId()
-
         result = access_gate.check(
             platform="wechat",
             user={"_id": admin_id},
-            message="hello",
             admin_user_id=str(admin_id),
         )
-
         assert result is None
 
     @pytest.mark.unit
@@ -97,94 +75,135 @@ class TestAccessGate:
         future_time = datetime.now() + timedelta(days=30)
         user = {
             "_id": ObjectId(),
-            "access": {"order_no": "ORD123", "expire_time": future_time},
+            "access": {"expire_time": future_time},
         }
-
         result = access_gate.check(
             platform="wechat",
             user=user,
-            message="hello",
             admin_user_id="",
         )
-
         assert result is None
 
     @pytest.mark.unit
-    def test_check_returns_denied_for_new_user(self, access_gate, mock_order_dao):
-        """Should return gate_denied for user without access"""
-        mock_order_dao.find_available_order.return_value = None
+    def test_check_returns_denied_with_checkout_url(self, access_gate):
+        """Should return gate_denied with checkout_url for new user"""
         user = {"_id": ObjectId()}
-
-        result = access_gate.check(
-            platform="wechat",
-            user=user,
-            message="hello",
-            admin_user_id="",
-        )
-
-        assert result == ("gate_denied", None)
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/test"
+        ):
+            result = access_gate.check(
+                platform="wechat",
+                user=user,
+                admin_user_id="",
+            )
+            assert result[0] == "gate_denied"
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/test"
 
     @pytest.mark.unit
-    def test_check_returns_expired_for_expired_access(
-        self, access_gate, mock_order_dao
-    ):
-        """Should return gate_expired when access has expired"""
-        mock_order_dao.find_available_order.return_value = None
+    def test_check_returns_expired_with_checkout_url(self, access_gate):
+        """Should return gate_expired with checkout_url for expired user"""
         past_time = datetime.now() - timedelta(days=1)
         user = {
             "_id": ObjectId(),
-            "access": {"order_no": "ORD123", "expire_time": past_time},
+            "access": {"expire_time": past_time},
         }
-
-        result = access_gate.check(
-            platform="wechat",
-            user=user,
-            message="hello",
-            admin_user_id="",
-        )
-
-        assert result == ("gate_expired", None)
+        with patch.object(
+            access_gate, "_create_checkout_url", return_value="https://checkout.creem.io/renew"
+        ):
+            result = access_gate.check(
+                platform="wechat",
+                user=user,
+                admin_user_id="",
+            )
+            assert result[0] == "gate_expired"
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/renew"
 
     @pytest.mark.unit
-    def test_check_binds_order_on_valid_order_message(
-        self, access_gate, mock_order_dao, mock_user_dao
-    ):
-        """Should bind order and return success when message matches valid order"""
-        future_time = datetime.now() + timedelta(days=30)
-        order = {
-            "_id": ObjectId(),
-            "order_no": "ORD123456",
-            "expire_time": future_time,
-            "bound_user_id": None,
-        }
-        mock_order_dao.find_available_order.return_value = order
-        mock_order_dao.bind_to_user.return_value = True
-        mock_user_dao.update_access.return_value = True
+    def test_get_message_includes_checkout_url(self, access_gate):
+        """Should format message with checkout_url"""
+        msg = access_gate.get_message(
+            "gate_denied", checkout_url="https://checkout.creem.io/test"
+        )
+        assert "https://checkout.creem.io/test" in msg
 
+    @pytest.mark.unit
+    def test_get_message_success_includes_expire_time(self, access_gate):
+        """Should format success message with expire_time"""
+        expire = datetime(2025, 12, 31, 23, 59)
+        msg = access_gate.get_message("gate_success", expire_time=expire)
+        assert "2025-12-31" in msg
+
+    @pytest.mark.unit
+    def test_create_checkout_url_calls_creem_api(self, access_gate):
+        """Checkout session should include user_id in metadata"""
         user_id = ObjectId()
         user = {"_id": user_id}
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"checkout_url": "https://checkout.creem.io/test"}
 
-        result = access_gate.check(
-            platform="wechat",
-            user=user,
-            message="ORD123456",
-            admin_user_id="",
-        )
+        with patch("agent.runner.payment.creem_provider.requests.post", return_value=mock_response) as mock_post:
+            url = access_gate._create_checkout_url(user)
+            assert url == "https://checkout.creem.io/test"
+            call_kwargs = mock_post.call_args
+            payload = call_kwargs[1]["json"]
+            assert payload["metadata"]["user_id"] == str(user_id)
+            assert payload["product_id"] == "prod_test123"
 
-        assert result[0] == "gate_success"
-        assert result[1]["expire_time"] == future_time
-        mock_order_dao.bind_to_user.assert_called_once_with("ORD123456", user_id)
-        mock_user_dao.update_access.assert_called_once()
+
+STRIPE_CONFIG = {
+    "enabled": True,
+    "provider": "stripe",
+    "platforms": {"wechat": True},
+    "stripe": {
+        "price_id": "price_test123",
+        "success_url": "https://example.com/success",
+    },
+    "deny_message": "Subscribe here:\n{checkout_url}",
+    "expire_message": "Expired. Renew:\n{checkout_url}",
+    "success_message": "Active until {expire_time}",
+}
+
+
+class TestAccessGateProviderSelection:
+    """Tests for provider selection based on config."""
 
     @pytest.mark.unit
-    def test_get_message_returns_correct_messages(self, access_gate):
-        """Should return correct message for each gate type"""
-        deny_msg = access_gate.get_message("gate_denied")
-        assert "订单编号" in deny_msg
+    def test_uses_creem_provider_when_configured(self):
+        config = {**CREEM_CONFIG, "provider": "creem"}
+        with patch("agent.runner.access_gate.CONF", {"access_control": config}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.creem_provider import CreemProvider
+            assert isinstance(gate.provider, CreemProvider)
 
-        expire_msg = access_gate.get_message("gate_expired")
-        assert "过期" in expire_msg
+    @pytest.mark.unit
+    def test_uses_stripe_provider_when_configured(self):
+        with patch("agent.runner.access_gate.CONF", {"access_control": STRIPE_CONFIG}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.stripe_provider import StripeProvider
+            assert isinstance(gate.provider, StripeProvider)
 
-        future_time = datetime(2024, 12, 31, 23, 59)
-        success_msg = access_gate.get_message("gate_success", future_time)
-        assert "2024-12-31" in success_msg
+    @pytest.mark.unit
+    def test_defaults_to_creem_when_provider_not_set(self):
+        config = {k: v for k, v in CREEM_CONFIG.items() if k != "provider"}
+        with patch("agent.runner.access_gate.CONF", {"access_control": config}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            from agent.runner.payment.creem_provider import CreemProvider
+            assert isinstance(gate.provider, CreemProvider)
+
+    @pytest.mark.unit
+    def test_check_delegates_checkout_url_to_provider(self):
+        with patch("agent.runner.access_gate.CONF", {"access_control": CREEM_CONFIG}):
+            from agent.runner.access_gate import AccessGate
+            gate = AccessGate()
+            gate.provider = MagicMock()
+            gate.provider.create_checkout_url.return_value = "https://checkout.creem.io/test"
+
+            user = {"_id": ObjectId()}
+            result = gate.check(platform="wechat", user=user, admin_user_id="")
+
+            gate.provider.create_checkout_url.assert_called_once_with(user)
+            assert result[1]["checkout_url"] == "https://checkout.creem.io/test"

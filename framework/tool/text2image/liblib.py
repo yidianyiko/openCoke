@@ -85,7 +85,7 @@ def getstatus(generateUuid):
 # 启动脚本
 if __name__ == "__main__":
 
-    def generate_one_luoyun(
+    def generate_one_coke(
         prompt,
         imgCount=1,
         mode=0,
@@ -176,7 +176,7 @@ if __name__ == "__main__":
 (full body shot, side shot, side face),
 (Porcelain-dewy skin, almond-shaped double eyelids, large eyes with slightly upturned outer corners, silky raven-black hair, short nose, short face, little round jaw, round chin),no logo, no tatoo, """
 
-    task_id = generate_one_luoyun(prompt, 2)
+    task_id = generate_one_coke(prompt, 2)
     print(task_id)
 
     # task_id = "70655e501358462d871adb4c4e771d8"

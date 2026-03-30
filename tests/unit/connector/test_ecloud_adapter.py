@@ -3,6 +3,9 @@
 Unit tests for Ecloud Adapter (migrated)
 """
 
+import sys
+import types
+
 import pytest
 
 from connector.adapters.ecloud.ecloud_adapter import EcloudAdapter
@@ -121,6 +124,58 @@ class TestEcloudAdapter:
 
         assert std_msg.message_type == MessageType.REFERENCE
         assert std_msg.content == "好的"
+
+    def test_to_standard_voice_uses_coke_temp_path(self, monkeypatch):
+        """Test voice messages download to the neutral coke temp path."""
+        from connector.ecloud import ecloud_adapter as legacy_adapter
+
+        ecloud_message = {
+            "data": {
+                "fromUser": "wxid_user789",
+                "msgId": 349799731,
+                "bufId": "buf123",
+                "length": 12,
+                "voiceLength": 12,
+                "timestamp": 1748141489,
+                "wId": "ca9518dd-bec6-4421-b0f0-cbf81ecdb2f8",
+            },
+            "messageType": "60004",
+        }
+
+        def fake_get_msg_voice(payload):
+            assert payload["fromUser"] == "wxid_user789"
+            return {"data": {"url": "https://example.com/test.silk"}}
+
+        def fake_download_image(url, save_path, filename):
+            assert url == "https://example.com/test.silk"
+            assert save_path == "coke/temp/"
+            assert filename.endswith(".silk")
+            return save_path + filename
+
+        def fake_voice_to_text(file_path):
+            assert file_path.startswith("coke/temp/")
+            return "decoded voice text"
+
+        monkeypatch.setattr(
+            legacy_adapter.Ecloud_API, "getMsgVoice", staticmethod(fake_get_msg_voice)
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "agent.tool.image",
+            types.SimpleNamespace(download_image=fake_download_image),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "framework.tool.voice2text.aliyun_asr",
+            types.SimpleNamespace(voice_to_text=fake_voice_to_text),
+        )
+
+        std_msg = legacy_adapter.ecloud_message_to_std_voice_single(ecloud_message)
+
+        assert std_msg["message_type"] == "voice"
+        assert std_msg["message"] == "decoded voice text"
+        assert std_msg["metadata"]["file_path"].startswith("coke/temp/")
+        assert std_msg["metadata"]["voice_length"] == 12
 
     def test_is_mentioned_with_nickname(self):
         """Test mention detection with nickname."""

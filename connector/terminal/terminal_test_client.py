@@ -20,8 +20,9 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from agent.runner.context import get_default_relation
 from dao.mongo import MongoDBBase
-from entity.message import save_outputmessage
+from dao.user_dao import UserDAO
 
 
 class TerminalTestClient:
@@ -50,6 +51,7 @@ class TerminalTestClient:
         self.character_id = character_id
         self.platform = platform
         self.mongo = MongoDBBase()
+        self.user_dao = UserDAO()
         self._last_send_time = 0
 
     def send(self, text: str, message_type: str = "text") -> str:
@@ -230,9 +232,59 @@ class TerminalTestClient:
         self.clear_pending_input()
         self.clear_pending_output()
 
+    def clear_test_state(self):
+        """清理 E2E 测试用户的持久化状态，避免跨用例污染"""
+        self.clear_all_pending()
+
+        deleted_input = self.mongo.delete_many(
+            "inputmessages",
+            {"from_user": self.user_id},
+        )
+        deleted_output = self.mongo.delete_many(
+            "outputmessages",
+            {"to_user": self.user_id},
+        )
+        deleted_relations = self.mongo.delete_many(
+            "relations",
+            {"uid": self.user_id},
+        )
+        deleted_reminders = self.mongo.delete_many(
+            "reminders",
+            {"user_id": self.user_id},
+        )
+        deleted_conversations = self.mongo.delete_many(
+            "conversations",
+            {
+                "$or": [
+                    {"conversation_info.chat_history.from_user": self.user_id},
+                    {"conversation_info.chat_history.to_user": self.user_id},
+                    {"conversation_info.chat_history.from_user": self.character_id},
+                    {"conversation_info.chat_history.to_user": self.character_id},
+                ]
+            },
+        )
+        deleted_embeddings = self.mongo.delete_many(
+            "embeddings",
+            {"metadata.uid": self.user_id},
+        )
+
+        user = self.user_dao.get_user_by_id(self.user_id)
+        character = self.user_dao.get_user_by_id(self.character_id)
+        if user and character:
+            relation = get_default_relation(user, character, self.platform)
+            self.mongo.insert_one("relations", relation)
+
+        logger.info(
+            "[TerminalTestClient] 清理测试状态: "
+            f"input={deleted_input}, output={deleted_output}, "
+            f"relations={deleted_relations}, reminders={deleted_reminders}, "
+            f"conversations={deleted_conversations}, embeddings={deleted_embeddings}"
+        )
+
     def close(self):
         """关闭连接"""
         self.mongo.close()
+        self.user_dao.close()
 
     def __enter__(self):
         return self

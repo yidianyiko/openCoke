@@ -16,6 +16,7 @@ Classes:
 
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
+from zoneinfo import ZoneInfo
 
 from util.log_util import get_logger
 
@@ -49,16 +50,18 @@ class ReminderValidator:
     TIME_TOLERANCE = 60
     DELETE_ALL_WORDS = ["全部", "所有", "清空", "都删", "全删"]
 
-    def __init__(self, dao: "ReminderDAO", user_id: str):
+    def __init__(self, dao: "ReminderDAO", user_id: str, tz: "ZoneInfo" = None):
         """
         Initialize the validator.
 
         Args:
             dao: ReminderDAO instance for data access
             user_id: User ID for context-specific validation
+            tz: Timezone for formatting. Defaults to Asia/Shanghai if None.
         """
         self.dao = dao
         self.user_id = user_id
+        self.tz = tz or ZoneInfo("Asia/Shanghai")
 
     def check_required_fields(
         self, title: Optional[str], trigger_time: Optional[str]
@@ -200,7 +203,7 @@ class ReminderValidator:
             if existing_time:
                 from datetime import datetime
 
-                time_str = datetime.fromtimestamp(existing_time).strftime(
+                time_str = datetime.fromtimestamp(existing_time, tz=self.tz).strftime(
                     "%Y年%m月%d日%H时%M分"
                 )
                 message = f"创建提醒成功：已为用户设置「{title}」提醒，时间为{time_str}"
@@ -503,7 +506,7 @@ class ReminderValidator:
             ts = r.get("next_trigger_time")
             time_str = ""
             if isinstance(ts, (int, float)) and ts > 0:
-                time_str = datetime.fromtimestamp(int(ts)).strftime("%m月%d日%H:%M")
+                time_str = datetime.fromtimestamp(int(ts), tz=self.tz).strftime("%m月%d日%H:%M")
             if title:
                 candidates.append(
                     {

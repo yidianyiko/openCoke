@@ -9,11 +9,13 @@ Extracted from reminder_tools.py as part of the layered architecture refactor.
 import logging
 from datetime import datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from util.time_util import (
     format_time_friendly,
     parse_relative_time,
     str2timestamp,
+    validate_timestamp,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,15 +36,19 @@ class TimeParser:
                       If None, uses current time when parsing relative times.
     """
 
-    def __init__(self, base_timestamp: Optional[int] = None) -> None:
+    def __init__(self, base_timestamp: Optional[int] = None, tz: ZoneInfo = None) -> None:
         """
-        Initialize TimeParser with optional base timestamp.
+        Initialize TimeParser with optional base timestamp and timezone.
 
         Args:
             base_timestamp: Base timestamp for relative time calculations.
                           If None, current time is used when parsing.
+            tz: Timezone for formatting. Defaults to Asia/Shanghai if None.
         """
-        self.base_timestamp = base_timestamp
+        self.base_timestamp = validate_timestamp(
+            base_timestamp, "base_timestamp", default_to_now=False
+        )
+        self.tz = tz or ZoneInfo("Asia/Shanghai")
 
     def parse(self, time_str: Optional[str]) -> Optional[int]:
         """
@@ -97,7 +103,7 @@ class TimeParser:
         Returns:
             Formatted date and time string with weekday.
         """
-        dt = datetime.fromtimestamp(timestamp)
+        dt = datetime.fromtimestamp(timestamp, tz=self.tz)
 
         # Date part
         date_str = f"{dt.month}月{dt.day}日"

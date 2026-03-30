@@ -87,19 +87,19 @@ def should_respond_to_group_message(
 
 
 # {
-#     "account": "13800000000",
+#     "account": "17200000000",
 #     "data": {
 #         "content": "adfa",
-#         "fromUser": "wxid_example",
+#         "fromUser": "wxid_1dfgh4fs8vz22",
 #         "msgId": 1052001123,
 #         "newMsgId": 3166120021925175285,
 #         "sel": false,
 #         "timestamp": 1640594470,
-#         "toUser": "wxid_example",
+#         "toUser": "wxid_phyyedw9xap22",
 #         "wId": "12491ae9-62aa-4f7a-83e6-9db4e9f28e3c"
 #     },
 #     "messageType": "60001",
-#     "wcId": "wxid_example"
+#     "wcId": "wxid_phyyedw9xap22"
 # }
 
 # {
@@ -176,7 +176,7 @@ def ecloud_message_to_std_text_single(message):
 
 
 def ecloud_message_to_std_reference_single(message):
-    # {'wcId': 'wxid_example', 'data': {'toUser': 'wxid_example', 'msgType': 49, 'wId': 'ca9518dd-bec6-4421-b0f0-cbf81ecdb2f8', 'fromUser': 'example_user', 'newMsgId': 6288973548168670026, 'msgId': 349799730, 'sel': False, 'title': '好的', 'content': '<?xml version="1.0"?>\n<msg>\n\t<appmsg appid="" sdkver="0">\n\t\t<title>好的</title>\n\t\t<des />\n\t\t<action />\n\t\t<type>57</type>\n\t\t<showtype>0</showtype>\n\t\t<soundtype>0</soundtype>\n\t\t<mediatagname />\n\t\t<messageext />\n\t\t<messageaction />\n\t\t<content />\n\t\t<contentattr>0</contentattr>\n\t\t<url />\n\t\t<lowurl />\n\t\t<dataurl />\n\t\t<lowdataurl />\n\t\t<songalbumurl />\n\t\t<songlyric />\n\t\t<appattach>\n\t\t\t<totallen>0</totallen>\n\t\t\t<attachid />\n\t\t\t<emoticonmd5 />\n\t\t\t<fileext />\n\t\t\t<aeskey />\n\t\t</appattach>\n\t\t<extinfo />\n\t\t<sourceusername />\n\t\t<sourcedisplayname />\n\t\t<thumburl />\n\t\t<md5 />\n\t\t<statextstr />\n\t\t<refermsg>\n\t\t\t<type>1</type>\n\t\t\t<svrid>5893226576708700098</svrid>\n\t\t\t<fromusr>wxid_example</fromusr>\n\t\t\t<chatusr>example_user</chatusr>\n\t\t\t<displayname>示例用户</displayname>\n\t\t\t<content>诶...我突然想到\n你说AI生成的完美图片不真实\n这其实跟心理咨询有点像呢\n来访者总想展现完美的自己\n但真正治愈的时刻往往发生在暴露脆弱的时候</content>\n\t\t\t<msgsource>&lt;msgsource&gt;\n\t&lt;bizflag&gt;0&lt;/bizflag&gt;\n\t&lt;pua&gt;1&lt;/pua&gt;\n\t&lt;signature&gt;N0_V1_43plNDgc|v1_uV3hKWDi&lt;/signature&gt;\n\t&lt;tmp_node&gt;\n\t\t&lt;publisher-id&gt;&lt;/publisher-id&gt;\n\t&lt;/tmp_node&gt;\n&lt;/msgsource&gt;\n</msgsource>\n\t\t\t<createtime>1748140474</createtime>\n\t\t</refermsg>\n\t</appmsg>\n\t<fromusername>example_user</fromusername>\n\t<scene>0</scene>\n\t<appinfo>\n\t\t<version>1</version>\n\t\t<appname></appname>\n\t</appinfo>\n\t<commenturl></commenturl>\n</msg>\n', 'timestamp': 1748141489}, 'messageType': '60014', 'account': '13800000000'}
+    # {'wcId': 'wxid_7mww7784dgse22', 'data': {'toUser': 'wxid_7mww7784dgse22', 'msgType': 49, 'wId': 'ca9518dd-bec6-4421-b0f0-cbf81ecdb2f8', 'fromUser': 'LeanInWind', 'newMsgId': 6288973548168670026, 'msgId': 349799730, 'sel': False, 'title': '好的', 'content': '<?xml version="1.0"?>\n<msg>\n\t<appmsg appid="" sdkver="0">\n\t\t<title>好的</title>\n\t\t<des />\n\t\t<action />\n\t\t<type>57</type>\n\t\t<showtype>0</showtype>\n\t\t<soundtype>0</soundtype>\n\t\t<mediatagname />\n\t\t<messageext />\n\t\t<messageaction />\n\t\t<content />\n\t\t<contentattr>0</contentattr>\n\t\t<url />\n\t\t<lowurl />\n\t\t<dataurl />\n\t\t<lowdataurl />\n\t\t<songalbumurl />\n\t\t<songlyric />\n\t\t<appattach>\n\t\t\t<totallen>0</totallen>\n\t\t\t<attachid />\n\t\t\t<emoticonmd5 />\n\t\t\t<fileext />\n\t\t\t<aeskey />\n\t\t</appattach>\n\t\t<extinfo />\n\t\t<sourceusername />\n\t\t<sourcedisplayname />\n\t\t<thumburl />\n\t\t<md5 />\n\t\t<statextstr />\n\t\t<refermsg>\n\t\t\t<type>1</type>\n\t\t\t<svrid>5893226576708700098</svrid>\n\t\t\t<fromusr>wxid_7mww7784dgse22</fromusr>\n\t\t\t<chatusr>LeanInWind</chatusr>\n\t\t\t<displayname>李洛云</displayname>\n\t\t\t<content>诶...我突然想到\n你说AI生成的完美图片不真实\n这其实跟心理咨询有点像呢\n来访者总想展现完美的自己\n但真正治愈的时刻往往发生在暴露脆弱的时候</content>\n\t\t\t<msgsource>&lt;msgsource&gt;\n\t&lt;bizflag&gt;0&lt;/bizflag&gt;\n\t&lt;pua&gt;1&lt;/pua&gt;\n\t&lt;signature&gt;N0_V1_43plNDgc|v1_uV3hKWDi&lt;/signature&gt;\n\t&lt;tmp_node&gt;\n\t\t&lt;publisher-id&gt;&lt;/publisher-id&gt;\n\t&lt;/tmp_node&gt;\n&lt;/msgsource&gt;\n</msgsource>\n\t\t\t<createtime>1748140474</createtime>\n\t\t</refermsg>\n\t</appmsg>\n\t<fromusername>LeanInWind</fromusername>\n\t<scene>0</scene>\n\t<appinfo>\n\t\t<version>1</version>\n\t\t<appname></appname>\n\t</appinfo>\n\t<commenturl></commenturl>\n</msg>\n', 'timestamp': 1748141489}, 'messageType': '60014', 'account': '15618861103'}
     metadata = {"reference": {"user": "未知", "text": ""}}  # 组织引用消息
     content_xml = ET.fromstring(message["data"]["content"])
 
@@ -219,7 +219,7 @@ def ecloud_message_to_std_voice_single(message):
 
     voice_url = resp_json["data"]["url"]
     download_file_name = str(int(time.time() * 1000)) + ".silk"
-    file_path = download_image(voice_url, "luoyun/temp/", download_file_name)
+    file_path = download_image(voice_url, "coke/temp/", download_file_name)
 
     voice_text = voice_to_text(file_path)
 

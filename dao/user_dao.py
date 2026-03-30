@@ -372,6 +372,28 @@ class UserDAO:
         )
         return result.modified_count > 0
 
+    def update_timezone(self, user_id: str, timezone: str) -> bool:
+        """
+        Update user's timezone.
+
+        Args:
+            user_id: User ID
+            timezone: IANA timezone string (e.g. "America/New_York")
+
+        Returns:
+            bool: True if updated successfully
+        """
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError, InvalidId):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id}, {"$set": {"timezone": timezone}}
+        )
+        return result.modified_count > 0
+
+
     def add_platform_to_user(
         self, user_id: str, platform: str, platform_data: Dict
     ) -> bool:
@@ -428,6 +450,72 @@ class UserDAO:
         )
 
         return update_result.modified_count > 0
+
+
+    def update_access_stripe(
+        self,
+        user_id: str,
+        stripe_customer_id: str,
+        stripe_subscription_id: str,
+        expire_time: datetime,
+    ) -> bool:
+        """Update user access with Stripe subscription info."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError, InvalidId):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "access.stripe_customer_id": stripe_customer_id,
+                    "access.stripe_subscription_id": stripe_subscription_id,
+                    "access.expire_time": expire_time,
+                    "access.granted_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
+    def update_access_creem(
+        self,
+        user_id: str,
+        creem_customer_id: str,
+        creem_subscription_id: str,
+        expire_time: datetime,
+    ) -> bool:
+        """Update user access with Creem subscription info."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError, InvalidId):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {
+                "$set": {
+                    "access.creem_customer_id": creem_customer_id,
+                    "access.creem_subscription_id": creem_subscription_id,
+                    "access.expire_time": expire_time,
+                    "access.granted_at": datetime.now(),
+                }
+            },
+        )
+        return result.modified_count > 0
+
+    def revoke_access(self, user_id: str) -> bool:
+        """Revoke user access by setting expire_time to now."""
+        try:
+            object_id = ObjectId(user_id)
+        except (TypeError, ValueError):
+            return False
+
+        result = self.collection.update_one(
+            {"_id": object_id},
+            {"$set": {"access.expire_time": datetime.now()}},
+        )
+        return result.modified_count > 0
 
     def close(self):
         """关闭MongoDB连接"""

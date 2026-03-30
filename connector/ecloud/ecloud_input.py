@@ -1,6 +1,10 @@
+import hashlib
+import hmac
 import logging
+import os
 import sys
 import time
+from datetime import datetime
 
 import requests
 from flask import Flask, jsonify, request
@@ -9,6 +13,14 @@ sys.path.append(".")
 from dotenv import load_dotenv
 
 load_dotenv()
+
+CREEM_WEBHOOK_SECRET = os.getenv("CREEM_WEBHOOK_SECRET", "")
+
+import stripe
+
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s-%(name)s-%(levelname)s-%(message)s"
@@ -54,6 +66,14 @@ def _publish_stream_event(message_id: str, platform: str, ts: int) -> None:
         ts,
         stream_key=redis_conf.stream_key,
     )
+
+
+def _get_creem_webhook_secret() -> str:
+    return os.getenv("CREEM_WEBHOOK_SECRET", CREEM_WEBHOOK_SECRET)
+
+
+def _get_stripe_webhook_secret() -> str:
+    return os.getenv("STRIPE_WEBHOOK_SECRET", STRIPE_WEBHOOK_SECRET)
 
 
 # Whitelist dictionary-wcId as key, forwarding URL as value
@@ -307,6 +327,224 @@ def handle_message():
         )
 
         return jsonify({"status": "success", "message": "message handing..."}), 200
+
+
+@app.route("/webhook/creem", methods=["POST"])
+def creem_webhook():
+    """Handle Creem webhook events for subscription management."""
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get("creem-signature")
+    webhook_secret = _get_creem_webhook_secret()
+
+    if not sig_header:
+        return jsonify({"error": "Missing signature"}), 400
+
+    # Verify HMAC-SHA256 signature
+    computed = hmac.new(
+        webhook_secret.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(computed, sig_header):
+        logger.warning("Creem webhook: invalid signature")
+        return jsonify({"error": "Invalid signature"}), 400
+
+    event = request.get_json(force=True)
+    event_type = event.get("eventType", "")
+    obj = event.get("object", {})
+
+    if event_type == "checkout.completed":
+        _handle_creem_checkout_completed(obj)
+    elif event_type == "subscription.paid":
+        _handle_creem_subscription_paid(obj)
+    elif event_type in ("subscription.canceled", "subscription.expired"):
+        _handle_creem_subscription_revoked(obj)
+    else:
+        logger.info(f"Creem webhook: unhandled event type {event_type}")
+
+    return jsonify({"status": "ok"}), 200
+
+
+def _handle_creem_checkout_completed(obj: dict):
+    """Grant access after initial checkout."""
+    user_id = obj.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning("Creem checkout.completed: missing user_id in metadata")
+        return
+
+    customer_id = obj.get("customer", {}).get("id")
+    subscription = obj.get("subscription", {})
+    subscription_id = subscription.get("id")
+    expire_time = _parse_creem_datetime(subscription.get("current_period_end"))
+
+    user_dao.update_access_creem(
+        user_id=user_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Creem: granted access to user {user_id}, expires {expire_time}")
+
+
+def _handle_creem_subscription_paid(obj: dict):
+    """Extend access on subscription renewal."""
+    user_id = obj.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning("Creem subscription.paid: missing user_id in metadata")
+        return
+
+    customer_id = obj.get("customer", {}).get("id")
+    subscription_id = obj.get("id")
+    expire_time = _parse_creem_datetime(obj.get("current_period_end"))
+
+    user_dao.update_access_creem(
+        user_id=user_id,
+        creem_customer_id=customer_id,
+        creem_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Creem: extended access for user {user_id}, expires {expire_time}")
+
+
+def _handle_creem_subscription_revoked(obj: dict):
+    """Revoke access when subscription is cancelled or expired."""
+    user_id = obj.get("metadata", {}).get("user_id")
+    if not user_id:
+        logger.warning("Creem subscription revoked: missing user_id in metadata")
+        return
+
+    user_dao.revoke_access(user_id)
+    logger.info(f"Creem: revoked access for user {user_id}")
+
+
+def _parse_creem_datetime(dt_str: str) -> datetime:
+    """Parse ISO 8601 datetime string from Creem API."""
+    if not dt_str:
+        return datetime.now()
+    try:
+        return datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        logger.warning(f"Creem: could not parse datetime {dt_str!r}, using now")
+        return datetime.now()
+
+
+@app.route("/webhook/stripe", methods=["POST"])
+def stripe_webhook():
+    """Handle Stripe webhook events for subscription management."""
+    payload = request.get_data(as_text=False)
+    sig_header = request.headers.get("Stripe-Signature")
+    webhook_secret = _get_stripe_webhook_secret()
+
+    if not sig_header:
+        return jsonify({"error": "Missing signature"}), 400
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except Exception:
+        logger.warning("Stripe webhook: invalid signature")
+        return jsonify({"error": "Invalid signature"}), 400
+
+    event_type = event["type"] if isinstance(event, dict) else event.type
+
+    if event_type == "checkout.session.completed":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_checkout_completed(obj)
+    elif event_type == "invoice.paid":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_invoice_paid(obj)
+    elif event_type == "customer.subscription.deleted":
+        obj = event["data"]["object"] if isinstance(event, dict) else event.data.object
+        _handle_stripe_subscription_deleted(obj)
+    else:
+        logger.info(f"Stripe webhook: unhandled event type {event_type}")
+
+    return jsonify({"status": "ok"}), 200
+
+
+def _handle_stripe_checkout_completed(session):
+    """Grant access after initial Stripe checkout."""
+    if isinstance(session, dict):
+        user_id = session.get("metadata", {}).get("user_id")
+        customer_id = session.get("customer")
+        subscription_id = session.get("subscription")
+    else:
+        user_id = (session.metadata or {}).get("user_id")
+        customer_id = session.customer
+        subscription_id = session.subscription
+
+    if not user_id:
+        logger.warning("Stripe checkout.session.completed: missing user_id in metadata")
+        return
+
+    expire_time = _get_stripe_subscription_expire(subscription_id)
+
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: granted access to user {user_id}, expires {expire_time}")
+
+
+def _handle_stripe_invoice_paid(invoice):
+    """Extend access on Stripe subscription renewal."""
+    if isinstance(invoice, dict):
+        subscription_id = invoice.get("subscription")
+        customer_id = invoice.get("customer")
+    else:
+        subscription_id = invoice.subscription
+        customer_id = invoice.customer
+
+    if not subscription_id:
+        return
+
+    sub = stripe.Subscription.retrieve(subscription_id)
+    metadata = sub.metadata if hasattr(sub, "metadata") else sub.get("metadata", {})
+    user_id = metadata.get("user_id") if metadata else None
+
+    if not user_id:
+        logger.warning("Stripe invoice.paid: missing user_id in subscription metadata")
+        return
+
+    expire_time = _get_stripe_subscription_expire(subscription_id)
+
+    user_dao.update_access_stripe(
+        user_id=user_id,
+        stripe_customer_id=customer_id,
+        stripe_subscription_id=subscription_id,
+        expire_time=expire_time,
+    )
+    logger.info(f"Stripe: extended access for user {user_id}, expires {expire_time}")
+
+
+def _handle_stripe_subscription_deleted(subscription):
+    """Revoke access when Stripe subscription is cancelled."""
+    if isinstance(subscription, dict):
+        user_id = subscription.get("metadata", {}).get("user_id")
+    else:
+        metadata = subscription.metadata if hasattr(subscription, "metadata") else {}
+        user_id = metadata.get("user_id")
+
+    if not user_id:
+        logger.warning("Stripe subscription.deleted: missing user_id in metadata")
+        return
+
+    user_dao.revoke_access(user_id)
+    logger.info(f"Stripe: revoked access for user {user_id}")
+
+
+def _get_stripe_subscription_expire(subscription_id: str) -> datetime:
+    """Fetch subscription period end from Stripe and convert to datetime."""
+    try:
+        sub = stripe.Subscription.retrieve(subscription_id)
+        # current_period_end moved to items in newer Stripe API versions
+        if hasattr(sub, "current_period_end") and sub.current_period_end:
+            ts = sub.current_period_end
+        else:
+            ts = sub["items"]["data"][0]["current_period_end"]
+        return datetime.utcfromtimestamp(ts)
+    except Exception as e:
+        logger.warning(f"Stripe: could not fetch subscription {subscription_id}: {e}")
+        return datetime.now()
 
 
 if __name__ == "__main__":

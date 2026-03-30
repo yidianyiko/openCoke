@@ -232,7 +232,7 @@ STOP_EVOLUTION=false
 SHOW_QR=false
 NEW_WID=""
 FORCE_CLEAN=""
-CHARACTER="qiaoyun"
+CHARACTER="coke"
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -293,7 +293,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --stop-evolution      停止 Evolution API (WhatsApp Gateway)"
             echo "  --qr                  在终端显示 WhatsApp 登录二维码"
             echo "  -w, --wid <wId>        更新 ecloud wId"
-            echo "  -c, --character <name> 指定角色名称 (默认: qiaoyun)"
+            echo "  -c, --character <name> 指定角色名称 (默认: coke)"
             echo "  --force-clean          强制清理所有锁"
             echo "  --skip-install         跳过环境检查和安装"
             echo "  --help, -h             显示此帮助信息"

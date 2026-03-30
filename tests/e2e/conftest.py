@@ -8,13 +8,15 @@ import os
 import sys
 
 import pytest
+from dao.user_dao import UserDAO
+from util.character_resolver import resolve_default_character_id
 
 sys.path.append(".")
 
 # ========== 测试账号配置 ==========
 # 使用现有测试账号
 TEST_USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
-TEST_CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun
+TEST_CHARACTER_ID = resolve_default_character_id(UserDAO())
 
 
 @pytest.fixture(scope="module")
@@ -31,24 +33,24 @@ def terminal_client():
         character_id=TEST_CHARACTER_ID,
     )
 
-    # 测试前清理残留消息
-    client.clear_all_pending()
+    # 测试前清理完整测试状态
+    client.clear_test_state()
 
     yield client
 
     # 测试后清理
-    client.clear_all_pending()
+    client.clear_test_state()
     client.close()
 
 
 @pytest.fixture(scope="function")
 def clean_terminal_client(terminal_client):
     """
-    每个测试函数前清理 pending 消息
+    每个测试函数前清理完整测试状态
 
     用于需要干净状态的测试
     """
-    terminal_client.clear_all_pending()
+    terminal_client.clear_test_state()
     yield terminal_client
 
 

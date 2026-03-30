@@ -54,6 +54,48 @@ def test_create_reminder_without_trigger_time_succeeds(sample_context, monkeypat
 
 
 @pytest.mark.unit
+def test_create_reminder_recovers_missing_action_for_create_payload(
+    sample_context, monkeypatch
+):
+    """测试缺失 action 时，单一创建载荷可以被安全恢复。"""
+    from agent.agno_agent.tools import reminder_tools
+
+    created_reminders = []
+
+    class FakeReminderDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def create_reminder(self, reminder_data):
+            created_reminders.append(reminder_data)
+            return "fake_object_id"
+
+        def find_similar_reminder(self, *args, **kwargs):
+            return None
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr("dao.reminder_dao.ReminderDAO", FakeReminderDAO)
+
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {"message": "帮我记一下要买牛奶", "input_timestamp": 1737532800}
+    ]
+    reminder_tools.set_reminder_session_state(sample_context)
+
+    result = reminder_tools.reminder_tool.entrypoint(
+        action=None,
+        title="买牛奶",
+        session_state=sample_context,
+    )
+
+    assert result["ok"] is True
+    assert result["status"] == "created"
+    assert len(created_reminders) == 1
+    assert created_reminders[0]["title"] == "买牛奶"
+
+
+@pytest.mark.unit
 def test_create_reminder_with_trigger_time_still_works(sample_context, monkeypatch):
     """测试创建有时间提醒仍然正常工作"""
     import time

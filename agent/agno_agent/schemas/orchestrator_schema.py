@@ -148,3 +148,21 @@ class OrchestratorResponse(BaseModel):
             "示例：'杭州今天天气'、'特斯拉最新股价'、'2024世界杯'"
         ),
     )
+
+    need_timezone_update: bool = Field(
+        default=False,
+        description=(
+            "是否需要更新用户时区。"
+            "默认：false。"
+            "何时设为 true：用户提到自己所在城市/国家/地区，或明确要求切换时区"
+        ),
+    )
+
+    timezone_value: str = Field(
+        default="",
+        description=(
+            "用户所在地对应的 IANA 时区名称。"
+            "当 need_timezone_update=true 时填写。"
+            "示例：'America/New_York'、'Asia/Tokyo'、'Europe/London'"
+        ),
+    )

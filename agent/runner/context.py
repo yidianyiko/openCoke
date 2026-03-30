@@ -2,6 +2,7 @@ import sys
 
 sys.path.append(".")
 import time
+from zoneinfo import ZoneInfo
 
 from util.log_util import get_logger
 
@@ -13,8 +14,9 @@ from agent.prompt.character import get_character_prompt
 from agent.util.message_util import messages_to_str
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
+from dao.user_dao import UserDAO
 from dao.mongo import MongoDBBase
-from util.time_util import date2str, timestamp2str
+from util.time_util import date2str, get_user_timezone, timestamp2str
 
 
 def _convert_objectid_to_str(obj):
@@ -143,7 +145,24 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 
 
 def context_prepare(user, character, conversation):
-    context = {"user": user, "character": character, "conversation": conversation}
+    context = {"user": user, "character": character, "conversation": conversation, "platform": conversation.get("platform", "")}
+
+    # Resolve user timezone: stored setting takes priority, otherwise infer from
+    # platform ID and backfill once (lazy migration for legacy users).
+    user_platform_id = next(
+        (v.get("id", "") for v in user.get("platforms", {}).values() if v.get("id")),
+        "",
+    )
+    stored_tz_str = user.get("timezone")
+    if stored_tz_str:
+        try:
+            user_tz = ZoneInfo(stored_tz_str)
+        except (KeyError, Exception):
+            logger.warning(f"Invalid stored timezone '{stored_tz_str}', falling back to inferred")
+            user_tz = get_user_timezone(user_platform_id)
+    else:
+        user_tz = get_user_timezone(user_platform_id)
+        UserDAO().update_timezone(str(user["_id"]), user_tz.key)
 
     # BUG-006 Medium fix: Validate user and character IDs are not None
     if not user.get("_id") or not character.get("_id"):
@@ -213,7 +232,7 @@ def context_prepare(user, character, conversation):
         relation["relationship"]["status"] = "空闲"
 
     context["conversation"]["conversation_info"]["time_str"] = timestamp2str(
-        int(time.time()), week=True
+        int(time.time()), week=True, tz=user_tz
     )
 
     # 获取聊天历史
@@ -251,7 +270,7 @@ def context_prepare(user, character, conversation):
         messages_to_str(context["conversation"]["conversation_info"]["input_messages"])
     )
 
-    date_str = date2str(int(time.time()))
+    date_str = date2str(int(time.time()), tz=user_tz)
     news = mongo.find_one("dailynews", {"date": date_str, "cid": str(character["_id"])})
     if news is None:
         context["news_str"] = ""

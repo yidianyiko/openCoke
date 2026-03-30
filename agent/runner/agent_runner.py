@@ -34,6 +34,11 @@ except ImportError:  # pragma: no cover - optional dependency until redis is ins
 NUM_WORKERS = int(os.environ.get("AGENT_WORKERS", 3))
 
 
+def background_agents_enabled() -> bool:
+    """Whether background agents should run in this process."""
+    return os.environ.get("DISABLE_BACKGROUND_AGENTS", "false").lower() != "true"
+
+
 async def run_main_agent(worker_id: int):
     """单个 worker 的消息处理循环"""
     handler = create_handler(worker_id)
@@ -230,7 +235,7 @@ async def run_webhook_server():
         # 解析目标角色
         from conf.config import get_config
         config = get_config()
-        character_alias = config.get("default_character_alias", "qiaoyun")
+        character_alias = config.get("default_character_alias", "coke")
         characters = user_dao.find_characters({"name": character_alias})
         to_user_db_id = str(characters[0]["_id"]) if characters else None
 
@@ -299,11 +304,13 @@ async def run_webhook_server():
 
 async def main():
     workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
-    workers.append(run_background_agent())
+    if background_agents_enabled():
+        workers.append(run_background_agent())
     workers.append(run_webhook_server())
 
     logger.info(f"🚀 启动 {NUM_WORKERS} 个消息处理 worker")
     await asyncio.gather(*workers)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -19,6 +19,7 @@ from datetime import datetime
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from entity.message import save_outputmessage
+from util.character_resolver import resolve_default_character_id
 from util.redis_client import RedisClient
 from util.redis_stream import publish_input_event
 
@@ -30,12 +31,11 @@ except ImportError:  # pragma: no cover - optional dependency until redis is ins
 # ========== 配置 ==========
 # 用户 ID（发送消息的人）
 USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
-# 角色 ID（AI 角色）
-CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun (与 config.json 中 default_character_alias 一致)
 
 # ========== 初始化 ==========
 mongo = MongoDBBase()
 user_dao = UserDAO()
+CHARACTER_ID = resolve_default_character_id(user_dao)
 redis_conf = RedisClient.from_config()
 redis_client = (
     redis.Redis(host=redis_conf.host, port=redis_conf.port, db=redis_conf.db)
