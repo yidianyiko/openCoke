@@ -6,15 +6,66 @@ E2E 测试 Fixtures
 """
 import os
 import sys
+from pathlib import Path
 
 import pytest
+from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 sys.path.append(".")
+
+from conf.config import CONF
 
 # ========== 测试账号配置 ==========
 # 使用现有测试账号
 TEST_USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
 TEST_CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun
+
+
+def _mongo_is_available() -> bool:
+    mongo_uri = (
+        "mongodb://"
+        + CONF["mongodb"]["mongodb_ip"]
+        + ":"
+        + CONF["mongodb"]["mongodb_port"]
+        + "/"
+    )
+    try:
+        client = MongoClient(
+            mongo_uri,
+            serverSelectionTimeoutMS=1000,
+            connectTimeoutMS=1000,
+            socketTimeoutMS=1000,
+        )
+        client.admin.command("ping")
+        client.close()
+        return True
+    except PyMongoError:
+        return False
+
+
+def _agent_runner_is_available() -> bool:
+    for pid_file in (Path(".agent.pid"), Path(".start.pid")):
+        if not pid_file.exists():
+            continue
+        try:
+            pid = int(pid_file.read_text(encoding="utf-8").strip())
+        except (TypeError, ValueError):
+            continue
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            continue
+    return False
+
+
+@pytest.fixture(scope="session", autouse=True)
+def require_e2e_prerequisites():
+    if not _mongo_is_available():
+        pytest.skip("E2E prerequisites unavailable: MongoDB is not reachable")
+    if not _agent_runner_is_available():
+        pytest.skip("E2E prerequisites unavailable: agent runner is not running")
 
 
 @pytest.fixture(scope="module")

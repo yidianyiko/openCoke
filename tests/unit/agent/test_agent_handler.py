@@ -48,6 +48,19 @@ async def test_handle_message_marks_stream_provider_error_for_rollback(
             )
         ),
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.message_processor",
+        types.SimpleNamespace(
+            MessageAcquirer=lambda *args, **kwargs: types.SimpleNamespace(
+                acquire=lambda: None,
+                renew_lock=lambda *a, **k: None,
+                release_lock=lambda *a, **k: None,
+            ),
+            MessageDispatcher=lambda *args, **kwargs: object(),
+            MessageFinalizer=lambda *args, **kwargs: object(),
+        ),
+    )
 
     from agent.runner import agent_handler
 

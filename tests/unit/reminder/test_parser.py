@@ -7,6 +7,7 @@ for reminder functionality.
 """
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -68,10 +69,12 @@ class TestTimeParserParse:
 class TestTimeParserFormat:
     """Test time formatting functionality."""
 
+    _TZ = ZoneInfo("Asia/Shanghai")
+
     def test_format_friendly_time(self):
         """Test formatting time in friendly format."""
         # Create a timestamp for tomorrow at 9am
-        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow = datetime.now(tz=self._TZ) + timedelta(days=1)
         tomorrow = tomorrow.replace(hour=9, minute=0, second=0, microsecond=0)
         ts = int(tomorrow.timestamp())
 
@@ -84,7 +87,7 @@ class TestTimeParserFormat:
     def test_format_with_date(self):
         """Test formatting with full date and weekday."""
         # Fixed date: 2024-12-25 (Wednesday) at 16:45
-        dt = datetime(2024, 12, 25, 16, 45, 0)
+        dt = datetime(2024, 12, 25, 16, 45, 0, tzinfo=self._TZ)
         ts = int(dt.timestamp())
 
         parser = TimeParser()
