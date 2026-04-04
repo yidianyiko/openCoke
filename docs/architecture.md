@@ -19,6 +19,74 @@ The system currently runs as a small set of cooperating processes:
 
 The default startup path in [`start.sh`](/data/projects/coke/start.sh) launches both the runner side and the Ecloud side. [`agent/runner/agent_start.sh`](/data/projects/coke/agent/runner/agent_start.sh) starts `agent_runner.py`; [`connector/ecloud/ecloud_start.sh`](/data/projects/coke/connector/ecloud/ecloud_start.sh) starts the Ecloud input/output processes.
 
+### Component Diagram
+
+```mermaid
+flowchart LR
+    subgraph Platforms
+        WC[WeChat via Ecloud]
+        WA[WhatsApp]
+        TERM[Terminal / Test Tools]
+    end
+
+    subgraph Ingress
+        EI[connector/ecloud/ecloud_input.py]
+        WEBHOOK[WebhookServer in agent_runner.py]
+        TTOOLS[terminal_chat.py / terminal_test_client.py]
+    end
+
+    subgraph Storage
+        IM[(MongoDB inputmessages)]
+        OM[(MongoDB outputmessages)]
+        CONV[(MongoDB conversations)]
+        REL[(MongoDB relations)]
+        REM[(MongoDB reminders)]
+        LOCKS[(MongoDB locks)]
+        REDIS[(Redis coke:input)]
+    end
+
+    subgraph Runtime
+        RUNNER[agent/runner/agent_runner.py]
+        HANDLER[create_handler() / handle_message()]
+        BG[agent_background_handler.py]
+        PREP[PrepareWorkflow]
+        CHAT[StreamingChatWorkflow]
+        POST[PostAnalyzeWorkflow]
+    end
+
+    subgraph Outbound
+        EO[connector/ecloud/ecloud_output.py]
+        WAOUT[whatsapp_output_handler()]
+    end
+
+    WC --> EI
+    WA --> WEBHOOK
+    TERM --> TTOOLS
+
+    EI --> IM
+    WEBHOOK --> IM
+    TTOOLS --> IM
+
+    EI -. optional trigger .-> REDIS
+    WEBHOOK -. optional trigger .-> REDIS
+
+    RUNNER --> HANDLER
+    RUNNER --> BG
+    REDIS -. wake-up / ack .-> RUNNER
+    IM --> HANDLER
+    HANDLER --> LOCKS
+    HANDLER --> PREP --> CHAT --> OM
+    HANDLER -. background .-> POST
+    POST --> CONV
+    POST --> REL
+    BG --> REM
+    BG --> CONV
+    BG --> HANDLER
+
+    OM --> EO --> WC
+    OM --> WAOUT --> WA
+```
+
 ## 2. Active Inbound Paths
 
 All active inbound paths converge on MongoDB `inputmessages`. Redis is optional and acts as a wake-up/trigger mechanism, not the source of truth for message contents.
@@ -145,6 +213,43 @@ The core turn path lives in [`agent/runner/agent_handler.py`](/data/projects/cok
 - proactive/future system messages
 
 `handle_message()` is the shared entrypoint.
+
+### User Turn Sequence
+
+```mermaid
+sequenceDiagram
+    participant Platform as Platform Ingress
+    participant Input as inputmessages
+    participant Worker as agent_runner worker
+    participant Lock as conversation lock
+    participant Prepare as PrepareWorkflow
+    participant Chat as StreamingChatWorkflow
+    participant Output as outputmessages
+    participant Post as PostAnalyzeWorkflow
+    participant Conv as conversations
+    participant Rel as relations
+    participant Outbound as Channel Sender
+
+    Platform->>Input: store inbound message
+    Platform-->>Worker: optional Redis trigger
+    Worker->>Input: query pending messages
+    Worker->>Lock: acquire conversation lock
+    Worker->>Prepare: run phase 1
+    Prepare-->>Worker: session_state updates
+    Worker->>Chat: stream phase 2
+    loop each generated response
+        Chat-->>Worker: text / voice / photo chunk
+        Worker->>Output: insert pending outbound message
+        Worker->>Lock: renew lock
+    end
+    Worker-->>Post: start background post-analysis
+    Worker->>Input: mark handled
+    Worker->>Lock: release
+    Outbound->>Output: poll pending output
+    Outbound-->>Platform: send reply
+    Post->>Conv: update future state
+    Post->>Rel: update relationship state
+```
 
 ### Phase 0: Context Preparation
 
