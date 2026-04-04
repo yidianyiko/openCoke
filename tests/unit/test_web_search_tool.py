@@ -8,6 +8,7 @@ and do not interfere with other unit tests that import real modules.
 """
 
 import importlib.util
+import importlib.machinery
 import sys
 import types
 from pathlib import Path
@@ -23,7 +24,7 @@ _PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 def _ensure_agno_stubs() -> None:
     """Install minimal agno stubs if agno is not installed."""
-    if "agno" in sys.modules:
+    if "agno" in sys.modules or importlib.util.find_spec("agno") is not None:
         return
 
     def _make_package(name: str) -> types.ModuleType:
@@ -68,12 +69,19 @@ def _ensure_web_search_tool_loaded() -> None:
     hollow parent packages only if they are not already real packages.
     Also register a minimal tools package stub so the last test passes.
     """
-    for pkg in ("agent.agno_agent", "agent.agno_agent.tools"):
+    package_paths = {
+        "agent.agno_agent": _PROJECT_ROOT / "agent" / "agno_agent",
+        "agent.agno_agent.tools": _PROJECT_ROOT / "agent" / "agno_agent" / "tools",
+    }
+    for pkg, path in package_paths.items():
         if pkg not in sys.modules:
             mod = types.ModuleType(pkg)
-            mod.__path__ = []
+            mod.__path__ = [str(path)]
             mod.__package__ = pkg
-            mod.__spec__ = None
+            mod.__spec__ = importlib.machinery.ModuleSpec(
+                pkg, loader=None, is_package=True
+            )
+            mod.__spec__.submodule_search_locations = mod.__path__
             sys.modules[pkg] = mod
 
     module_name = "agent.agno_agent.tools.web_search_tool"
@@ -217,3 +225,11 @@ class TestWebSearchTool:
 
         assert hasattr(tools, "web_search_tool")
         assert "web_search_tool" in tools.__all__
+
+    def test_web_search_stubs_do_not_hide_workflows_package(self):
+        """测试 web_search stubs 不会让 workflows 包变得不可发现"""
+        spec = importlib.machinery.PathFinder.find_spec(
+            "workflows", sys.modules["agent.agno_agent"].__path__
+        )
+
+        assert spec is not None
