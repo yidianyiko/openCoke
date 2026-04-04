@@ -1,60 +1,86 @@
-# 部署与启动（Coke）
+# 部署与启动
 
-本指南覆盖最少可用部署：MongoDB、Python 依赖、后台服务与微信连接器（E云管家）。
+本仓库当前保留两类常用启动方式：
+
+1. `./start.sh`
+2. `bash agent/runner/agent_start.sh`
+
+前者适合本地或单机整体启动，后者适合只拉起 Python worker。
 
 ## 1. 环境准备
-- 系统：Linux（Debian/Ubuntu 推荐）
-- Python：3.12+
-- MongoDB：5.x+
 
-安装与虚拟环境：
-```
-sudo apt-get update
-sudo apt-get install -y python3.12 python3.12-venv
-python3 -m venv .venv
+```bash
+python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+基础依赖：
+
+- Python 3.12+
+- MongoDB
+- Redis（启用 stream 模式时需要）
+
 ## 2. 配置
-编辑 `conf/config.json`：
-- `default_character_alias`：角色别名（与 ecloud.wId 下键一致）
-- `ecloud.Authorization`：E云管家 API 授权
-- `ecloud.wId.<alias>`：E云登录态 wId
 
-可选：在 `.env` 中放置敏感变量（脚本会自动加载）。
+- 敏感信息放在 `.env`
+- 运行时配置放在 `conf/config.json`
+- `conf/config.json` 支持 `${ENV_VAR}` 占位
 
-## 3. 启动后台服务
+常见配置项：
+
+- `default_character_alias`
+- `characters`
+- `ecloud`
+- `mongodb`
+- `redis`
+- `whatsapp`
+- `access_control`
+- `features`
+
+## 3. 启动
+
+### 方式 A: 顶层启动脚本
+
+```bash
+./start.sh
 ```
+
+可用参数参考：
+
+```bash
+./start.sh --help
+./start.sh --mode prod --check
+```
+
+### 方式 B: 仅启动 Python worker
+
+```bash
 bash agent/runner/agent_start.sh
 ```
-- 启动 Agno 后台服务与消息处理 workers
-- 后台日志：`agent/runner/agent.log`
-- 变量：
-  - `AGENT_WORKERS`（默认 5）
-  - `DISABLE_BACKGROUND_AGENTS`（默认启用背景任务）
 
-## 4. 启动 E云连接器
-E云用于收发微信消息：
+清理残留锁后启动：
+
+```bash
+bash agent/runner/agent_start.sh --force-clean
 ```
-bash connector/ecloud/ecloud_start.sh
-```
-- 读取 `conf/config.json` 的 `ecloud` 配置
-- 发送日志：`connector/ecloud/ecloud.log`
 
-回调地址配置（E云管家后台）：
-- 将消息回调地址指向部署的输入服务（见 `connector/ecloud/ecloud_input.py` 暴露的 HTTP 服务）
+## 4. 日志与排障
 
-## 5. 运行与验证
-- 后台任务包括：提醒触发、主动消息（Future）、关系衰减、Hold 恢复等
-- 主动消息通过统一入口触发：
-  - `agent/runner/agent_background_handler.py` → `handle_pending_future_message()` → `handle_message(..., message_source='future')`
-  - 没有独立的 FutureMessageWorkflow/触发服务类
+- 主日志：`agent/runner/agent.log`
+- ecloud 连接器日志：`connector/ecloud/ecloud.log`
 
-## 6. 常用维护
-- 清理锁（启动脚本自动）：`agent/runner/agent_start.sh --force-clean`
-- 查看提醒：`dao/reminder_dao.py` 提供简单方法；也可用 mongo shell 查询
-- 日志：
-  - 核心：`agent/runner/agent.log`
-  - 连接器：`connector/ecloud/ecloud.log`
+常见排查项：
 
+- `.env` 是否已加载
+- `conf/config.json` 中的 MongoDB / Redis / connector 配置是否正确
+- 锁是否残留，必要时使用 `--force-clean`
+- Redis stream 模式不可用时，worker 是否回退到 Mongo polling
+
+## 5. 连接器说明
+
+- 微信 ecloud 入口保留在 `connector/ecloud/`
+- WhatsApp 相关适配器位于 `connector/adapters/whatsapp/`
+- 终端测试工具位于 `connector/terminal/`
+
+如果只需要核验 Python 主流程，优先使用 `agent_start.sh`。

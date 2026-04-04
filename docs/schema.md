@@ -1,169 +1,175 @@
-# Entity
+# MongoDB Schema Reference
+
+本文档只保留当前系统常用集合的简明说明。字段会随功能演进扩展，这里列的是主干字段而不是完整 schema。
+
 ## users
-```
+
+```json
 {
-    "_id": "xxx", # 内置id
-    "is_character": True,  # 是否是角色
-    "name": "xxx",  # 统一注册名
-    "platforms": {
-        "wechat": {
-            "id": "xxx",  # 微信统一id
-            "account": "xxx",  # 微信号
-            "nickname": "xxx", # 微信昵称
-        },
-        ...
-    },
-    "status": "xxx",  # normal | stopped
-    "user_info": {
-        "description": "xxx",
-        "status": {
-            "place": "xxx",
-            "action": "xxx",
-            "status": "xxx",
-        }
-    },
+  "_id": "ObjectId",
+  "is_character": true,
+  "name": "qiaoyun",
+  "platforms": {
+    "wechat": {
+      "id": "platform-user-id",
+      "account": "wechat-account",
+      "nickname": "昵称"
+    }
+  },
+  "status": "normal",
+  "user_info": {}
 }
 ```
 
 ## conversations
-```
+
+```json
 {
-    "_id": "xxx", # 内置id
-    "chatroom_name": None,  # 一般为None，在群聊时展示为频道名
-    "talkers": [  # 聊天人群，一般只需要关注第0和第1号位置；如果是群聊消息，则会有多人
-        {
-            "id": "xxx",
-            "nickname": "xxx", # 频道中的昵称，可能与统一昵称不同
-        },
-        ...
-    ],
-    "platform": "xxx",  # 所属平台
-    "conversation_info": {
-        "time_str": "xxx",
-        "chat_history": [],
-        "chat_history_str": "xxx",
-        "input_messages": [],
-        "input_messages_str": "",
-        "photo_history": [],
-        "future": { # 在该对话上规划的未来行动
-            "timestamp": "xxx",
-            "action": "xxx",
-            "proactive_times": 0, # 主动对话次数，用来防止过度骚扰用户
-        }
-    }
+  "_id": "ObjectId",
+  "platform": "wechat",
+  "chatroom_name": null,
+  "talkers": [],
+  "conversation_info": {
+    "chat_history": [],
+    "chat_history_str": "",
+    "input_messages": [],
+    "input_messages_str": "",
+    "photo_history": [],
+    "future": {}
+  }
 }
 ```
 
-## relations
-```
+## reminders
+
+```json
 {
-    "_id": "xxx",
-    "uid": "xxx",
-    "cid": "xxx",
-    "user_info": {
-        "realname": "xxx",
-        "hobbyname": "xxx",
-        "description": "xxx",
-    },
-    "character_info": {
-        "longterm_purpose": "xxx",
-        "shortterm_purpose": "xxx",
-        "attitude": "xxx",
-        "status": "xxx", # 繁忙，空闲，睡觉
-    },
-    "relationship": {
-        "description": "xxx",
-        "closeness": xx,
-        "trustness": xx,
-        "dislike": xx,
-    },
+  "_id": "ObjectId",
+  "user_id": "ObjectId",
+  "conversation_id": "ObjectId",
+  "title": "买牛奶",
+  "status": "active",
+  "next_trigger_time": 1738289400,
+  "list_id": "default",
+  "created_at": "datetime"
 }
 ```
 
-# Daily
-## dailynews
-```
-{
-    "_id": "xxx",
-    "cid": "xxx",
-    "news": "xxx",
-    "date": "xxx",
-}
-## dailyscripts
-{
-    "_id": "xxx",
-    "cid": "xxx",
-    "date": "xxx",
-    "start_timestamp": xxx,
-    "end_timestamp": xxx,
-    "place": "xxx",
-    "action": "xxx",
-    "status": "xxx"
-}
+说明：
 
-# Messages
+- `list_id="inbox"` 通常表示没有具体触发时间的待办
+- `next_trigger_time=null` 表示尚未安排具体触发时间
+
 ## inputmessages
+
+```json
 {
-    "_id": xxx,  # 内置id
-    "input_timestamp": xxx,  # 输入时的时间戳秒级
-    "handled_timestamp": xxx,  # 处理完毕时的时间戳秒级
-    "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
-    "from_user": "xxx",  # 来源uid
-    "platform": "xxx",  # 来源平台
-    "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
-    "to_user": "xxx", # 目标用户；群聊时，值为None
-    "message_type": "xxxx",  # 包括：
-    "message": "xxx",  # 实际消息，格式另行约定
-    "metadata": {
-        "file_path": "xxx", # 所包含的文件路径
-    }
+  "_id": "ObjectId",
+  "input_timestamp": 1738289400,
+  "handled_timestamp": null,
+  "status": "pending",
+  "from_user": "ObjectId",
+  "to_user": "ObjectId",
+  "platform": "wechat",
+  "chatroom_name": null,
+  "message_type": "text",
+  "message": "你好",
+  "metadata": {}
 }
 ```
+
+常见状态：
+
+- `pending`
+- `handled`
+- `failed`
+- `hold`
+
+附加控制字段可能包括 `retry_count`、`rollback_count`、`hold_started_at`、`last_error`。
 
 ## outputmessages
-```
+
+```json
 {
-    "_id": xxx,  # 内置id
-    "expect_output_timestamp": xxx,  # 预期输出的时间戳秒级
-    "handled_timestamp": xxx,  # 处理完毕时的时间戳秒级
-    "status": "pending",  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
-    "from_user": "xxx",  # 来源uid
-    "platform": "xxx",  # 来源平台
-    "chatroom_name": None,  # 如果有值，则来自群聊；否则是私聊
-    "to_user": "xxx", # 目标用户uid；群聊时，值为None
-    "message_type": "xxxx",  # 包括：
-    "message": "xxx",  # 实际消息，格式另行约定
-    "metadata": {
-        "file_path": "xxx", # 所包含的文件路径
-    }
+  "_id": "ObjectId",
+  "expect_output_timestamp": 1738289400,
+  "handled_timestamp": null,
+  "status": "pending",
+  "from_user": "ObjectId",
+  "to_user": "ObjectId",
+  "platform": "wechat",
+  "chatroom_name": null,
+  "message_type": "text",
+  "message": "收到",
+  "metadata": {}
 }
 ```
-# Embeddgins
+
+常见状态：
+
+- `pending`
+- `handled`
+- `failed`
+
 ## embeddings
-```
+
+```json
 {
-    "key": "xxx",
-    "key_embedding": "xxx",
-    "value": "xxx",
-    "value_embedding": "xxx",
-    "metadata": {
-        "type": "xxx", 
-        # 类型包括：
-        # character_global 角色全局设定
-        # character_private 角色私有设定
-        # user 用户私有设定
-        # character_knowledge 角色全局知识（学习，搜索等）
-        # character_photo 角色全局手机相册
-        # chat_history 聊天历史（语义检索用）
-        "uid": "xxx",
-        "cid": "xxx",
-        "url": "xxx", # 地址
-        "file": "xxxx", # 文件的base64
-        # chat_history 类型特有字段：
-        "from_user": "xxx",  # 发送者ID
-        "to_user": "xxx",    # 接收者ID
-        "timestamp": xxx,    # 消息时间戳
-        "message_type": "xxx", # 消息类型：text/voice/image
-    }
+  "_id": "ObjectId",
+  "key": "角色设定-作息",
+  "key_embedding": [],
+  "value": "晚上容易熬夜",
+  "value_embedding": [],
+  "metadata": {
+    "type": "character_global",
+    "uid": "ObjectId",
+    "cid": "ObjectId",
+    "url": "",
+    "from_user": "ObjectId",
+    "to_user": "ObjectId",
+    "timestamp": 1738289400,
+    "message_type": "text"
+  }
+}
+```
+
+## locks
+
+```json
+{
+  "_id": "ObjectId",
+  "resource_type": "conversation",
+  "resource_id": "conversation:...",
+  "holder": "worker-1",
+  "expires_at": "datetime"
+}
+```
+
+## orders
+
+```json
+{
+  "_id": "ObjectId",
+  "order_no": "ORDER-001",
+  "expire_time": "datetime",
+  "bound_user_id": null,
+  "bound_at": null,
+  "created_at": "datetime",
+  "metadata": {}
+}
+```
+
+## usage_records
+
+```json
+{
+  "_id": "ObjectId",
+  "timestamp": "datetime",
+  "user_id": "ObjectId",
+  "agent_name": "OrchestratorAgent",
+  "input_tokens": 100,
+  "output_tokens": 200,
+  "total_tokens": 300,
+  "duration": 1.2
 }
 ```

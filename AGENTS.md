@@ -1,16 +1,16 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `agent/`: core logic for agents, workflows, prompts, tools, and runtime `runner/` (entrypoint scripts and background handlers).
-- `dao/`: Mongo-backed data access (locks, reminders, users, conversations); `entity/`: shared schemas and value objects.
-- `connector/`: external connectors (e.g., terminal, ecloud) built on `base_connector.py`.
-- `conf/`: runtime configuration (`config.json`, `config.py`); `util/`: cross-cutting helpers.
-- `scripts/`: maintenance and analysis utilities for reminders, content safety, and usage metrics.
-- `tests/`: pytest E2E 测试套件，位于 `tests/e2e/`。
+- `agent/`: agents, workflows, prompts, tools, and runtime handlers under `agent/runner/`.
+- `dao/`: Mongo-backed data access for locks, reminders, users, conversations, orders, and usage records.
+- `connector/`: channel abstractions, platform adapters, legacy ecloud entrypoints, gateway helpers, and terminal tooling.
+- `conf/`: runtime configuration in `config.json` and loader logic in `config.py`.
+- `util/`: shared helpers for logging, time, redis, files, embeddings, and OSS.
+- `tests/`: unit tests in `tests/unit/` and E2E tests in `tests/e2e/`.
 
 ## Setup, Build, and Development Commands
 - Python 3.12+. Create a venv and install deps: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (runner scripts auto-install `agent/requirements.txt` when missing).
-- Run the background service: `bash agent/runner/agent_start.sh [--force-clean]` (loads `.env` if present, manages locks, tails `agent/runner/agent.log`).
+- Start the full local stack with `./start.sh`; start only the Python workers with `bash agent/runner/agent_start.sh [--force-clean]`.
 - Quick formatting pass: `black . && isort .` (88-char lines, Black profile).
 
 ## Coding Style & Naming Conventions
@@ -19,22 +19,15 @@
 - Keep prompts/workflows in `agent/prompt` and `agent/agno_agent/workflows` cohesive; co-locate tests alongside module area in `tests/<scope>/test_*.py`.
 
 ## Testing Guidelines
+- 运行单元测试: `pytest tests/unit/ -v`
 - 运行 E2E 测试: `pytest tests/e2e/ -v` 或 `pytest -m e2e -v`
 - Coverage: `pytest --cov --cov-report=html` 输出到 `htmlcov/`
 
 ## Commit & Pull Request Guidelines
 - Use conventional commits observed in history: `type(scope): summary` (e.g., `fix(reminder): remove time window and add limit`).
 - PRs should include: concise summary, linked issue/requirement, testing notes (commands run), and any config or data migration steps; add logs or screenshots when behavior changes.
-- Keep changes small and scoped; update relevant docs (`doc/` or `tests/README.md`) when altering workflows, prompts, or reminder logic.
+- Keep changes small and scoped; update relevant docs in `docs/` when altering workflows, prompts, or reminder logic.
 
 ## Configuration & Operational Notes
 - Secrets and endpoints should live in `.env`; `agent_start.sh` exports `env=aliyun` by default and supports toggling background agents via `DISABLE_DAILY_AGENTS` and `DISABLE_BACKGROUND_AGENTS`.
 - Logs default to `agent/runner/agent.log`; clean stale locks via `agent_start.sh --force-clean` if the runner was interrupted.
-
-## Deprecations / Removed Agents
-- Removed pre-created `query_rewrite_agent` and non‑streaming `chat_response_agent` from `agent/agno_agent/agents/__init__.py`.
-  - Rationale: Production path uses `OrchestratorAgent` for intent/params and `StreamingChatWorkflow` for chat; these pre-created agents were not used at runtime.
-  - Impact: No effect on production workflows. Tests that referenced these agents were removed or adjusted.
-  - Current production agents:
-    - `orchestrator_agent`, `reminder_detect_agent`, `post_analyze_agent`
-    - Future message: `future_message_query_rewrite_agent`, `future_message_context_retrieve_agent`, `future_message_chat_agent`

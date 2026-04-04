@@ -1,107 +1,85 @@
 # Architecture Reference
 
-## Layers
+## Runtime Flow
 
-```
-External Platforms (WeChat/Telegram/WhatsApp/Discord)
-         ↕
-Connector Layer  (connector/)
-  - ecloud/      Flask app: /message, /webhook/stripe, /webhook/creem
-  - adapters/    ChannelAdapter implementations per platform
-  - gateway/     GatewayServer: manages GATEWAY-mode adapters, writes to MongoDB
-  - terminal/    Local testing connector
-         ↕
-Message Queue
-  - Redis stream mode: coke:input stream, consumer group coke-workers
-  - Polling mode:      polls MongoDB inputmessages directly (auto-detected)
-         ↕
-Runner Layer  (agent/runner/)
-  - agent_runner.py          Entry point, NUM_WORKERS workers
-  - agent_handler.py         Main message handler: builds context, runs 3 phases
-  - agent_background_handler.py  Background tasks (reminders, future messages, decay)
-  - access_gate.py           Checks subscription before handling message
-  - payment/                 StripeProvider, CreemProvider
-         ↕
-Workflow Layer  (agent/agno_agent/workflows/)
-  Phase 1: PrepareWorkflow       OrchestratorAgent + tools
-  Phase 2: StreamingChatWorkflow ChatResponseAgent (streaming)
-  Phase 3: PostAnalyzeWorkflow   PostAnalyzeAgent (memory updates)
-         ↕
-Agent/Tool Layer  (agent/agno_agent/)
-  agents/    Pre-created Agent instances (module-level singletons)
-  tools/     context_retrieve_tool, reminder_tools, image/voice/url tools
-  schemas/   Pydantic output schemas for structured agent responses
-  workflows/ Workflow classes
+```text
+External Platforms
+  -> connector layer
+  -> queue/input persistence
+  -> agent runner
+  -> three-phase workflow
+  -> outputmessages / platform delivery
 ```
 
-## Key Design Patterns
+The main message path is:
 
-### Three-Phase Execution with Interruption Detection
-Runner calls the three workflows sequentially. Between each phase it checks if a newer message arrived for the same conversation. If so, the current processing is abandoned to avoid stale responses.
+1. Connectors normalize inbound messages.
+2. Messages are stored in `inputmessages` and optionally pushed to Redis stream `coke:input`.
+3. `agent/runner/agent_runner.py` consumes work through Redis stream mode or Mongo polling mode.
+4. `agent/runner/agent_handler.py` runs:
+   - `PrepareWorkflow`
+   - `StreamingChatWorkflow`
+   - `PostAnalyzeWorkflow`
+5. Replies are emitted as `outputmessages` or sent back through the active connector.
 
-```python
-# agent_handler.py (simplified)
-prepare_response = await prepare_workflow.run(session_state=context)
-if await _is_interrupted(context):
-    return
-streaming_response = await chat_workflow.run_stream(...)
-if await _is_interrupted(context):
-    return
-await post_analyze_workflow.run(session_state=context)
-```
+## Main Components
 
-### Session State as Context Bus
-All three phases share a single `session_state: dict`. It carries user, character, conversation, tool_results, input_timestamp, platform, etc. Tools receive it via Agno's automatic injection (declare `session_state: Optional[dict] = None` in tool signature).
+### Connector Layer
 
-### Distributed Locking (MongoDB-backed)
-One lock per conversation. Lock acquired before processing, released after. Key safety rules:
-- `release_lock_safe()` — only releases if lock still belongs to current holder
-- Lock renewed before Phase 2 and after each message sent
-- `agent_start.sh --force-clean` clears stale locks on restart
+- `connector/channel/`: shared adapter interfaces and message types
+- `connector/adapters/`: platform-specific adapters
+- `connector/ecloud/`: direct ecloud webhook/input/output flow
+- `connector/gateway/`: gateway-side adapter management helpers
+- `connector/terminal/`: local terminal test tooling
 
-### Message Status Flow
-```
-inputmessages:   pending → handled | failed | hold
-outputmessages:  pending → handled | failed
-```
-`hold` status means processing was interrupted; will retry. Optimistic locking via `update_message_status_safe()` prevents concurrent updates.
+### Runner Layer
 
-### Streaming Output Parsing
-ChatResponseAgent does not use `output_schema`. It outputs a custom tag format:
-```
-[TEXT]message[/TEXT]
-[VOICE emotion=高兴]content[/VOICE]
-[PHOTO]photo_id[/PHOTO]
-```
-`StreamingChatWorkflow` reads chunks from `agent.arun(..., stream=True)` and yields complete messages as soon as a closing tag is detected.
+- `agent/runner/agent_runner.py`: worker entrypoint and background loops
+- `agent/runner/agent_handler.py`: main turn handling
+- `agent/runner/agent_background_handler.py`: reminders, hold recovery, background tasks
+- `agent/runner/access_gate.py`: subscription/access checks
 
-### Context Retrieval (Hybrid RAG)
-`context_retrieve_tool` is called directly as a function (not via Agent tool call) by PrepareWorkflow. It combines vector similarity search (DashScope embeddings) and keyword search against the `embeddings` collection. Results injected into `session_state["tool_results"]`.
+### Workflow Layer
 
-### Access Control Gate
-Before any message handling, `access_gate.py` checks `users.access` expiry. If expired or absent, returns a checkout URL generated by the configured payment provider (Stripe or Creem). Admin user (`admin_user_id` in config) is always exempt.
+- `PrepareWorkflow`: orchestration, retrieval, reminders, optional web search
+- `StreamingChatWorkflow`: chat generation with streaming tag parsing
+- `PostAnalyzeWorkflow`: post-turn analysis and memory updates
 
-## Agent Prompt Conventions
+### Agent Layer
 
-See `docs/agent-prompt.md` for the full spec. Summary:
-- `DESCRIPTION_XXX` — who the agent is (one sentence)
-- `INSTRUCTIONS_XXX` — decision rules
-- Schema `Field(description=...)` — output format + examples
+Pre-created agents in `agent/agno_agent/agents/__init__.py`:
 
-All constants live in `agent/prompt/agent_instructions_prompt.py`. No magic strings in agent instantiation.
+- `orchestrator_agent`
+- `reminder_detect_agent`
+- `post_analyze_agent`
 
-## Configuration Reference
+The chat agent used for streaming replies is created inside `chat_workflow_streaming.py`.
 
-`conf/config.json` supports `${ENV_VAR}` substitution. Key sections:
+## Queue Modes
 
-| Section | Purpose |
-|---------|---------|
-| `ecloud` | WeChat connector auth + group chat settings |
-| `redis` | Stream name (`coke:input`), consumer group |
-| `mongodb` | Connection details |
-| `access_control` | Gate on/off, provider (creem/stripe), per-platform overrides |
-| `whatsapp` | Evolution API credentials + webhook config |
-| `features` | usage_tracking, context_compression, link_understanding |
-| `admin_user_id` | Bypasses access gate |
+- Redis stream mode: uses `coke:input` and consumer group `coke-workers`
+- Polling mode: reads pending work directly from MongoDB `inputmessages`
 
-Secrets go in `.env` (auto-loaded by start scripts).
+## Message State
+
+### `inputmessages.status`
+
+- `pending`: waiting to be processed
+- `handled`: finished successfully
+- `failed`: processing failed
+- `hold`: temporarily paused because the conversation is busy or interrupted
+
+Some tooling may still write `canceled`, but the main runtime path centers on the four states above.
+
+### `outputmessages.status`
+
+- `pending`
+- `handled`
+- `failed`
+
+## Current Design Notes
+
+- Locks are stored in MongoDB and used per conversation.
+- `session_state` is the shared context bus across all three workflow phases.
+- Reminder handling is split between preparation-time detection and background triggering.
+- Web search and URL understanding are optional features controlled by workflow decisions and config flags.

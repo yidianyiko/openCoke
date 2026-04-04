@@ -1,37 +1,39 @@
-Project Coke
+# Project Coke
 
-- Overview
-  - Production chat flow uses Orchestrator → Context Retrieve Tool → ReminderDetect (on demand) → Streaming Chat → PostAnalyze (background).
-  - Agents, prompts, schemas follow the three‑layer pattern defined in `docs/agent-prompt.md`.
+Coke is a multi-channel chat agent system built around a three-phase workflow:
 
-- Quick Start
-  ```bash
-  # Development mode (default)
-  ./start.sh
-  
-  # Production mode (single server deployment)
-  ./start.sh --mode prod --check
-  
-  # Check status
-  ./status.sh
-  
-  # Stop services
-  ./stop.sh
-  ```
+1. `PrepareWorkflow` parses intent, retrieves context, and runs reminder detection when needed.
+2. `StreamingChatWorkflow` generates the user-facing reply.
+3. `PostAnalyzeWorkflow` performs memory and relationship updates in the background.
 
-- Deployment Modes
-  - `dev`: Development mode - Agent + Ecloud connectors
-  - `prod`: Production mode - Full deployment (MongoDB + Coke)
+## Quick Start
 
-  See `./start.sh --help` for all options.
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-- Deprecated / Removed
-  - Removed pre-created `query_rewrite_agent` and non‑streaming `chat_response_agent` from `agent/agno_agent/agents/__init__.py`.
-    - Reason: Not used in production runs. Orchestrator covers query rewrite; chat uses the streaming agent inside `StreamingChatWorkflow`.
-    - Impact: No production impact. Tests that referenced them were removed/updated.
-  - Still in production:
-    - `orchestrator_agent`, `reminder_detect_agent`, `post_analyze_agent`
-    - Future message pipeline: `future_message_query_rewrite_agent`, `future_message_context_retrieve_agent`, `future_message_chat_agent`
+# Main startup entrypoint
+./start.sh
+```
 
-For development and testing guidance, see AGENTS.md and `tests/README.md`.
+Useful commands:
 
+```bash
+# Directly start only the Python workers
+bash agent/runner/agent_start.sh
+
+# Run unit tests
+pytest tests/unit/ -v
+
+# Run E2E tests
+pytest tests/e2e/ -v
+```
+
+## Documentation
+
+- `AGENTS.md`: repository workflow and coding rules
+- `docs/architecture.md`: current runtime architecture
+- `docs/schema.md`: MongoDB collection reference
+- `docs/deploy.md`: deployment and startup notes
+- `docs/agent-prompt.md`: prompt organization conventions
