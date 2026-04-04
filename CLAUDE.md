@@ -75,7 +75,5 @@ The streaming chat agent is instantiated inside `StreamingChatWorkflow`.
 ## Current Docs
 
 - `docs/architecture.md`
-- `docs/schema.md`
 - `docs/deploy.md`
-- `docs/agent-prompt.md`
 - `AGENTS.md`

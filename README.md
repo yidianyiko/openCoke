@@ -34,6 +34,4 @@ pytest tests/e2e/ -v
 
 - `AGENTS.md`: repository workflow and coding rules
 - `docs/architecture.md`: current runtime architecture
-- `docs/schema.md`: MongoDB collection reference
 - `docs/deploy.md`: deployment and startup notes
-- `docs/agent-prompt.md`: prompt organization conventions
