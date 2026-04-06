@@ -12,8 +12,9 @@ def test_create_or_reuse_session_returns_sanitized_pending_payload():
         "session_id": "bs_1",
         "account_id": "user_1",
         "bind_token": "ctx_123",
+        "bind_code": "COKE-123456",
         "status": "pending",
-        "connect_url": "https://wx.example.com/entry?bind_token=ctx_123",
+        "connect_url": "https://bridge.coke.local/user/wechat-bind/entry/ctx_123",
         "expires_at": 1775472600,
     }
     external_identity_dao = MagicMock()
@@ -22,16 +23,18 @@ def test_create_or_reuse_session_returns_sanitized_pending_payload():
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
     result = service.create_or_reuse_session(account_id="user_1", now_ts=1775472000)
 
     assert result["status"] == "pending"
-    assert result["connect_url"].startswith("https://wx.example.com/entry")
+    assert result["connect_url"] == "https://bridge.coke.local/user/wechat-bind/entry/ctx_123"
     assert "bind_token" not in result
     assert "account_id" not in result
+    assert "bind_code" not in result
 
 
 def test_create_or_reuse_session_returns_bound_when_account_already_linked():
@@ -49,7 +52,8 @@ def test_create_or_reuse_session_returns_bound_when_account_already_linked():
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
@@ -76,7 +80,8 @@ def test_get_status_returns_expired_when_latest_session_elapsed():
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
@@ -110,7 +115,8 @@ def test_consume_matching_session_creates_external_identity_and_marks_session_bo
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
@@ -164,7 +170,8 @@ def test_consume_matching_session_creates_current_tuple_when_account_has_same_se
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
@@ -215,7 +222,8 @@ def test_consume_matching_session_returns_none_for_different_active_identity():
     service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template="https://wx.example.com/entry?bind_token={bind_token}",
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
         ttl_seconds=600,
     )
 
@@ -232,3 +240,82 @@ def test_consume_matching_session_returns_none_for_different_active_identity():
     assert identity is None
     external_identity_dao.activate_identity.assert_not_called()
     bind_session_dao.mark_bound.assert_not_called()
+
+
+def test_get_entry_page_context_omits_placeholder_public_entry():
+    from connector.clawscale_bridge.wechat_bind_session_service import (
+        WechatBindSessionService,
+    )
+
+    bind_session_dao = MagicMock()
+    bind_session_dao.find_active_session_by_bind_token.return_value = {
+        "session_id": "bs_1",
+        "account_id": "user_1",
+        "bind_token": "ctx_bind_123",
+        "bind_code": "COKE-184263",
+        "status": "pending",
+        "connect_url": "https://bridge.coke.local/user/wechat-bind/entry/ctx_bind_123",
+        "expires_at": 1775472600,
+    }
+    external_identity_dao = MagicMock()
+
+    service = WechatBindSessionService(
+        bind_session_dao=bind_session_dao,
+        external_identity_dao=external_identity_dao,
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
+        ttl_seconds=600,
+    )
+
+    context = service.get_entry_page_context("ctx_bind_123", now_ts=1775472000)
+
+    assert context["status"] == "pending"
+    assert context["bind_code"] == "COKE-184263"
+    assert context["public_connect_url"] is None
+
+
+def test_consume_matching_session_from_text_binds_with_one_time_code():
+    from connector.clawscale_bridge.wechat_bind_session_service import (
+        WechatBindSessionService,
+    )
+
+    bind_session_dao = MagicMock()
+    bind_session_dao.find_active_session_by_bind_code.return_value = {
+        "session_id": "bs_1",
+        "account_id": "user_1",
+        "bind_token": "ctx_bind_123",
+        "bind_code": "COKE-184263",
+        "status": "pending",
+        "expires_at": 1775472600,
+    }
+    external_identity_dao = MagicMock()
+    external_identity_dao.find_active_identity.return_value = None
+    external_identity_dao.find_active_identity_for_account.return_value = None
+    external_identity_dao.activate_identity.return_value = {
+        "account_id": "user_1",
+        "external_end_user_id": "wxid_123",
+        "status": "active",
+    }
+
+    service = WechatBindSessionService(
+        bind_session_dao=bind_session_dao,
+        external_identity_dao=external_identity_dao,
+        bind_base_url="https://bridge.coke.local",
+        public_connect_url_template="https://placeholder.invalid/?bind_token={bind_token}",
+        ttl_seconds=600,
+    )
+
+    identity = service.consume_matching_session_from_text(
+        text="COKE-184263",
+        source="clawscale",
+        tenant_id="ten_1",
+        channel_id="ch_1",
+        platform="wechat_personal",
+        external_end_user_id="wxid_123",
+        now_ts=1775472000,
+    )
+
+    assert identity["account_id"] == "user_1"
+    bind_session_dao.find_active_session_by_bind_code.assert_called_once_with(
+        "COKE-184263", 1775472000
+    )

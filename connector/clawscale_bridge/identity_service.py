@@ -75,6 +75,18 @@ class IdentityService:
                     external_end_user_id=metadata["externalId"],
                     now_ts=now_ts,
                 )
+            if not external_identity:
+                external_identity = (
+                    self.bind_session_service.consume_matching_session_from_text(
+                        text=inbound_payload["messages"][-1]["content"],
+                        source="clawscale",
+                        tenant_id=metadata["tenantId"],
+                        channel_id=metadata["channelId"],
+                        platform=metadata["platform"],
+                        external_end_user_id=metadata["externalId"],
+                        now_ts=now_ts,
+                    )
+                )
 
         if not external_identity:
             try:

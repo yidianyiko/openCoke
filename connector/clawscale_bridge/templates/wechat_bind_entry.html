@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coke 微信绑定</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f7f7f5;
+        color: #111827;
+        margin: 0;
+        padding: 24px;
+      }
+      main {
+        max-width: 560px;
+        margin: 0 auto;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 12px;
+      }
+      p, li {
+        line-height: 1.6;
+      }
+      ol {
+        padding-left: 20px;
+      }
+      code {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: #0f172a;
+        color: white;
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+      a.button {
+        display: inline-block;
+        margin-top: 16px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        background: #111827;
+        color: white;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 14px;
+      }
+      .warn {
+        background: #fef3c7;
+        border: 1px solid #f59e0b;
+        border-radius: 14px;
+        padding: 12px 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      {% if context.status == "pending" %}
+      <h1>继续绑定你的微信</h1>
+      <p>这个页面已经和当前 Coke 网站登录会话关联。接下来在微信里完成一次确认消息即可。</p>
+      <ol>
+        <li>打开 Coke 的微信聊天入口。</li>
+        <li>发送下面这串一次性绑定码。</li>
+        <li>发送成功后，回到 Coke 网站等待状态刷新。</li>
+      </ol>
+      <p><code>{{ context.bind_code }}</code></p>
+      {% if context.public_connect_url %}
+      <a class="button" href="{{ context.public_connect_url }}">打开 Coke 微信聊天入口</a>
+      {% else %}
+      <div class="warn">
+        <p><strong>当前没有可直接跳转的微信深链。</strong></p>
+        <p>请先手动打开已经接入的 Coke 微信入口，再发送上面的绑定码。</p>
+      </div>
+      {% endif %}
+      <p class="muted">绑定码在会话有效期内只能使用一次。</p>
+      {% else %}
+      <h1>绑定页面已过期</h1>
+      <p>这个微信绑定会话已经失效。请回到 Coke 网站重新生成二维码。</p>
+      {% endif %}
+    </main>
+  </body>
+</html>

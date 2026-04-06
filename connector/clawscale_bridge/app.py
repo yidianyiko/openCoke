@@ -1,4 +1,5 @@
 import time
+from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import BadRequest
@@ -55,7 +56,8 @@ def _build_default_bridge_gateway():
     bind_session_service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
-        connect_url_template=bridge_conf["wechat_public_connect_url_template"],
+        bind_base_url=bridge_conf["bind_base_url"],
+        public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
         ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
     )
 
@@ -77,7 +79,8 @@ def _build_user_bind_service():
     return WechatBindSessionService(
         bind_session_dao=WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name),
         external_identity_dao=ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name),
-        connect_url_template=bridge_conf["wechat_public_connect_url_template"],
+        bind_base_url=bridge_conf["bind_base_url"],
+        public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
         ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
     )
 
@@ -121,6 +124,25 @@ def _parse_required_json_fields(*required_fields):
     return payload, None
 
 
+def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str:
+    if not request_origin or request_origin == allowed_origin:
+        return allowed_origin
+
+    allowed = urlsplit(allowed_origin)
+    requested = urlsplit(request_origin)
+    loopback_hosts = {"localhost", "127.0.0.1"}
+
+    if (
+        allowed.scheme == requested.scheme
+        and allowed.port == requested.port
+        and allowed.hostname in loopback_hosts
+        and requested.hostname in loopback_hosts
+    ):
+        return request_origin
+
+    return allowed_origin
+
+
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
@@ -138,9 +160,10 @@ def create_app(testing: bool = False):
 
     @app.after_request
     def add_cors_headers(response):
-        response.headers["Access-Control-Allow-Origin"] = app.config[
-            "COKE_WEB_ALLOWED_ORIGIN"
-        ]
+        response.headers["Access-Control-Allow-Origin"] = _resolve_cors_origin(
+            app.config["COKE_WEB_ALLOWED_ORIGIN"],
+            request.headers.get("Origin"),
+        )
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
         return response
@@ -237,6 +260,18 @@ def create_app(testing: bool = False):
             now_ts=int(time.time()),
         )
         return jsonify({"ok": True, "data": result})
+
+    @app.get("/user/wechat-bind/entry/<bind_token>")
+    def user_wechat_bind_entry(bind_token: str):
+        context = app.config["USER_BIND_SERVICE"].get_entry_page_context(
+            bind_token=bind_token,
+            now_ts=int(time.time()),
+        )
+        status_code = 200 if context["status"] == "pending" else 410
+        return (
+            render_template("wechat_bind_entry.html", context=context),
+            status_code,
+        )
 
     return app
 

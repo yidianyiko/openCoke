@@ -10,6 +10,7 @@ class WechatBindSessionDAO:
     def create_indexes(self) -> None:
         self.collection.create_index([("session_id", 1)], unique=True)
         self.collection.create_index([("bind_token", 1)], unique=True)
+        self.collection.create_index([("bind_code", 1)], unique=True)
         self.collection.create_index([("account_id", 1), ("status", 1), ("expires_at", 1)])
 
     def find_active_session_for_account(self, account_id: str, now_ts: int):
@@ -32,6 +33,15 @@ class WechatBindSessionDAO:
         return self.collection.find_one(
             {
                 "bind_token": bind_token,
+                "status": "pending",
+                "expires_at": {"$gt": now_ts},
+            }
+        )
+
+    def find_active_session_by_bind_code(self, bind_code: str, now_ts: int):
+        return self.collection.find_one(
+            {
+                "bind_code": bind_code,
                 "status": "pending",
                 "expires_at": {"$gt": now_ts},
             }

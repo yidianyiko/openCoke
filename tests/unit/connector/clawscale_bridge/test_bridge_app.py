@@ -246,6 +246,62 @@ def test_user_bind_session_returns_pending_payload():
     assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
 
 
+def test_user_bind_entry_renders_pending_session_page():
+    app, client = _build_user_client()
+    app.config["USER_BIND_SERVICE"] = type(
+        "Bind",
+        (),
+        {
+            "get_entry_page_context": lambda self, bind_token, now_ts: {
+                "status": "pending",
+                "bind_code": "COKE-184263",
+                "public_connect_url": None,
+                "expires_at": 1775472600,
+            }
+        },
+    )()
+
+    response = client.get("/user/wechat-bind/entry/ctx_bind_123")
+
+    assert response.status_code == 200
+    assert "COKE-184263" in response.get_data(as_text=True)
+
+
+def test_user_bind_entry_returns_gone_when_session_missing():
+    app, client = _build_user_client()
+    app.config["USER_BIND_SERVICE"] = type(
+        "Bind",
+        (),
+        {
+            "get_entry_page_context": lambda self, bind_token, now_ts: {
+                "status": "expired",
+            }
+        },
+    )()
+
+    response = client.get("/user/wechat-bind/entry/ctx_missing")
+
+    assert response.status_code == 410
+    assert "已过期" in response.get_data(as_text=True)
+
+
+def test_user_register_accepts_localhost_loopback_alias_for_cors():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.options(
+        "/user/register",
+        headers={
+            "Origin": "http://localhost:4040",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:4040"
+
+
 def test_user_bind_status_requires_user_bearer_token():
     app, client = _build_user_client()
 
