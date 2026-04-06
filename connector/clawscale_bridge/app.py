@@ -57,10 +57,11 @@ def _build_default_bridge_gateway():
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
-    app.config.setdefault("COKE_BRIDGE_API_KEY", "test-bridge-key")
-    if not testing:
-        app.config.setdefault("COKE_BRIDGE_API_KEY", CONF["clawscale_bridge"]["api_key"])
-        app.config.setdefault("BRIDGE_GATEWAY", _build_default_bridge_gateway())
+    if testing:
+        app.config["COKE_BRIDGE_API_KEY"] = "test-bridge-key"
+    else:
+        app.config["COKE_BRIDGE_API_KEY"] = CONF["clawscale_bridge"]["api_key"]
+        app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
 
     @app.get("/bridge/healthz")
     def healthz():

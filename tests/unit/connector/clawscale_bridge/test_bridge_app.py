@@ -1,6 +1,21 @@
 from unittest.mock import MagicMock
 
 
+def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "api_key", "local-bridge-key"
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
+    )
+
+    app = bridge_app.create_app(testing=False)
+
+    assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
+
+
 def test_bridge_inbound_rejects_missing_bearer_token():
     from connector.clawscale_bridge.app import create_app
 
