@@ -71,6 +71,14 @@ class ExternalIdentityDAO:
         account_id: str,
         now_ts: int,
     ):
+        self.collection.update_many(
+            {
+                "account_id": account_id,
+                "source": source,
+                "is_primary_push_target": True,
+            },
+            {"$set": {"is_primary_push_target": False}},
+        )
         self.collection.update_one(
             {
                 "source": source,
