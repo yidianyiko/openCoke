@@ -99,6 +99,60 @@ def test_login_rejects_missing_password_hash():
     assert error == "invalid_credentials"
 
 
+def test_login_rejects_when_web_auth_disabled():
+    from werkzeug.security import generate_password_hash
+    from connector.clawscale_bridge.user_auth import UserAuthService
+
+    user_dao = MagicMock()
+    user_dao.get_user_by_email.return_value = {
+        "_id": "65f000000000000000000111",
+        "email": "alice@example.com",
+        "display_name": "Alice",
+        "password_hash": generate_password_hash("correct-password"),
+        "status": "normal",
+        "web_auth_enabled": False,
+        "is_character": False,
+    }
+
+    service = UserAuthService(
+        user_dao=user_dao,
+        secret_key="test-secret",
+        token_ttl_seconds=3600,
+    )
+
+    ok, error = service.login("alice@example.com", "correct-password")
+
+    assert ok is False
+    assert error == "account_unavailable"
+
+
+def test_login_rejects_when_user_is_character():
+    from werkzeug.security import generate_password_hash
+    from connector.clawscale_bridge.user_auth import UserAuthService
+
+    user_dao = MagicMock()
+    user_dao.get_user_by_email.return_value = {
+        "_id": "65f000000000000000000111",
+        "email": "alice@example.com",
+        "display_name": "Alice",
+        "password_hash": generate_password_hash("correct-password"),
+        "status": "normal",
+        "web_auth_enabled": True,
+        "is_character": True,
+    }
+
+    service = UserAuthService(
+        user_dao=user_dao,
+        secret_key="test-secret",
+        token_ttl_seconds=3600,
+    )
+
+    ok, error = service.login("alice@example.com", "correct-password")
+
+    assert ok is False
+    assert error == "account_unavailable"
+
+
 def test_verify_token_returns_none_when_signed_payload_has_no_user_id():
     from connector.clawscale_bridge.user_auth import UserAuthService
 

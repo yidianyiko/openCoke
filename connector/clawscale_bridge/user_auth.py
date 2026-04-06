@@ -72,7 +72,7 @@ class UserAuthService:
             password_hash, password
         ):
             return False, "invalid_credentials"
-        if user.get("status") not in (None, "normal"):
+        if not self._is_user_eligible_for_web_auth(user):
             return False, "account_unavailable"
         return True, {
             "token": self._issue_token(str(user["_id"])),

@@ -102,6 +102,14 @@ def _parse_required_json_fields(*required_fields):
             400,
         )
 
+    invalid_fields = [
+        field
+        for field in required_fields
+        if not isinstance(payload.get(field), str) or not payload[field].strip()
+    ]
+    if invalid_fields:
+        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
+
     return payload, None
 
 

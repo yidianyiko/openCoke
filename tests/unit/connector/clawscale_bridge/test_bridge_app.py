@@ -127,6 +127,40 @@ def test_user_register_rejects_missing_required_fields():
     assert response.get_json() == {"ok": False, "error": "missing_required_fields"}
 
 
+def test_user_register_rejects_null_required_field_values():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/register",
+        json={
+            "display_name": "Alice",
+            "email": None,
+            "password": "correct horse battery staple",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
+def test_user_register_rejects_empty_string_required_field_values():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/register",
+        json={
+            "display_name": "Alice",
+            "email": "alice@example.com",
+            "password": "",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
 def test_user_login_rejects_malformed_json_body():
     app, client = _build_user_client()
     app.config["USER_AUTH_SERVICE"] = MagicMock()
@@ -152,6 +186,32 @@ def test_user_login_rejects_missing_required_fields():
 
     assert response.status_code == 400
     assert response.get_json() == {"ok": False, "error": "missing_required_fields"}
+
+
+def test_user_login_rejects_null_required_field_values():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/login",
+        json={"email": None, "password": "correct-password"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
+def test_user_login_rejects_empty_string_required_field_values():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/login",
+        json={"email": "alice@example.com", "password": ""},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
 
 
 def test_user_bind_session_returns_pending_payload():
