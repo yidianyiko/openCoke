@@ -237,6 +237,11 @@ def send_message_via_context(
         input_metadata = first_input.get("metadata", {})
         # 将 inputmessage 的 metadata 合并到输出消息
         metadata = {**input_metadata, **metadata}
+    elif context.get("user", {}).get("_id"):
+        metadata = {
+            **build_clawscale_push_metadata(str(context["user"]["_id"])),
+            **metadata,
+        }
 
     return send_message(
         platform=context["conversation"]["platform"],
@@ -249,6 +254,23 @@ def send_message_via_context(
         expect_output_timestamp=expect_output_timestamp,
         metadata=metadata,
     )
+
+
+def build_clawscale_push_metadata(user_id: str, now_ts: int | None = None):
+    from conf.config import CONF
+    from connector.clawscale_bridge.output_route_resolver import OutputRouteResolver
+    from dao.external_identity_dao import ExternalIdentityDAO
+
+    dao = ExternalIdentityDAO(
+        mongo_uri="mongodb://"
+        + CONF["mongodb"]["mongodb_ip"]
+        + ":"
+        + CONF["mongodb"]["mongodb_port"]
+        + "/",
+        db_name=CONF["mongodb"]["mongodb_name"],
+    )
+    resolver = OutputRouteResolver(dao)
+    return resolver.build_push_metadata(user_id, now_ts or int(time.time()))
 
 
 def send_message(

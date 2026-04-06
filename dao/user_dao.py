@@ -45,6 +45,7 @@ class UserDAO:
         """创建必要的索引"""
         # 为平台ID创建索引
         self.collection.create_index([("platforms.wechat.id", 1)])
+        self.collection.create_index([("phone_number", 1)], sparse=True)
 
         # 可以为其他平台创建类似的索引
         # self.collection.create_index([
@@ -109,6 +110,11 @@ class UserDAO:
 
         query = {f"platforms.{platform}.id": platform_id}
         return self.collection.find_one(query)
+
+    def get_user_by_phone_number(self, phone_number: str) -> Optional[Dict]:
+        if not phone_number:
+            return None
+        return self.collection.find_one({"phone_number": phone_number})
 
     def update_user(self, user_id: str, update_data: Dict) -> bool:
         """
