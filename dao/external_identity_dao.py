@@ -51,3 +51,12 @@ class ExternalIdentityDAO:
                 "is_primary_push_target": True,
             }
         )
+
+    def find_active_identity_for_account(self, account_id: str):
+        return self.collection.find_one(
+            {
+                "account_id": account_id,
+                "source": "clawscale",
+                "status": "active",
+            }
+        )

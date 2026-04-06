@@ -1,13 +1,20 @@
+import time
+
 from flask import Flask, jsonify, render_template, request
 
 from conf.config import CONF
 from connector.clawscale_bridge.identity_service import IdentityService
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
+from connector.clawscale_bridge.user_auth import UserAuthService
+from connector.clawscale_bridge.wechat_bind_session_service import (
+    WechatBindSessionService,
+)
 from dao.binding_ticket_dao import BindingTicketDAO
 from dao.external_identity_dao import ExternalIdentityDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
+from dao.wechat_bind_session_dao import WechatBindSessionDAO
 
 
 def _mongo_uri() -> str:
@@ -54,13 +61,53 @@ def _build_default_bridge_gateway():
     )
 
 
+def _build_user_bind_service():
+    mongo_uri = _mongo_uri()
+    db_name = CONF["mongodb"]["mongodb_name"]
+    bridge_conf = CONF["clawscale_bridge"]
+    return WechatBindSessionService(
+        bind_session_dao=WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name),
+        external_identity_dao=ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name),
+        connect_url_template=bridge_conf["wechat_public_connect_url_template"],
+        ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
+    )
+
+
+def _build_user_auth_service():
+    bridge_conf = CONF["clawscale_bridge"]
+    return UserAuthService(
+        user_dao=UserDAO(
+            mongo_uri=_mongo_uri(),
+            db_name=CONF["mongodb"]["mongodb_name"],
+        ),
+        secret_key=bridge_conf["user_auth_secret"],
+        token_ttl_seconds=bridge_conf["user_auth_token_ttl_seconds"],
+    )
+
+
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
-    app.config.setdefault("COKE_BRIDGE_API_KEY", "test-bridge-key")
-    if not testing:
-        app.config.setdefault("COKE_BRIDGE_API_KEY", CONF["clawscale_bridge"]["api_key"])
-        app.config.setdefault("BRIDGE_GATEWAY", _build_default_bridge_gateway())
+    if testing:
+        app.config["COKE_BRIDGE_API_KEY"] = "test-bridge-key"
+        app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
+    else:
+        app.config["COKE_BRIDGE_API_KEY"] = CONF["clawscale_bridge"]["api_key"]
+        app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
+        app.config["COKE_WEB_ALLOWED_ORIGIN"] = CONF["clawscale_bridge"][
+            "web_allowed_origin"
+        ]
+        app.config["USER_AUTH_SERVICE"] = _build_user_auth_service()
+        app.config["USER_BIND_SERVICE"] = _build_user_bind_service()
+
+    @app.after_request
+    def add_cors_headers(response):
+        response.headers["Access-Control-Allow-Origin"] = app.config[
+            "COKE_WEB_ALLOWED_ORIGIN"
+        ]
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        return response
 
     @app.get("/bridge/healthz")
     def healthz():
@@ -96,6 +143,58 @@ def create_app(testing: bool = False):
     @app.post("/bind/<ticket_id>/submit")
     def submit_bind(ticket_id: str):
         return jsonify({"ok": True, "ticket_id": ticket_id})
+
+    @app.post("/user/register")
+    def user_register():
+        payload = request.get_json(force=True)
+        service = app.config["USER_AUTH_SERVICE"]
+        try:
+            result = service.register(
+                display_name=payload["display_name"],
+                email=payload["email"],
+                password=payload["password"],
+            )
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 409
+        return jsonify({"ok": True, "data": result}), 201
+
+    @app.post("/user/login")
+    def user_login():
+        payload = request.get_json(force=True)
+        service = app.config["USER_AUTH_SERVICE"]
+        ok, result = service.login(payload["email"], payload["password"])
+        if not ok:
+            return jsonify({"ok": False, "error": result}), 401
+        return jsonify({"ok": True, "data": result})
+
+    def require_user_auth():
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return None
+        token = header.split(" ", 1)[1]
+        return app.config["USER_AUTH_SERVICE"].verify_token(token)
+
+    @app.post("/user/wechat-bind/session")
+    def create_wechat_bind_session():
+        user = require_user_auth()
+        if not user:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+        result = app.config["USER_BIND_SERVICE"].create_or_reuse_session(
+            account_id=str(user["_id"]),
+            now_ts=int(time.time()),
+        )
+        return jsonify({"ok": True, "data": result})
+
+    @app.get("/user/wechat-bind/status")
+    def get_wechat_bind_status():
+        user = require_user_auth()
+        if not user:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+        result = app.config["USER_BIND_SERVICE"].get_status(
+            account_id=str(user["_id"]),
+            now_ts=int(time.time()),
+        )
+        return jsonify({"ok": True, "data": result})
 
     return app
 

@@ -1,6 +1,21 @@
 from unittest.mock import MagicMock
 
 
+def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "api_key", "local-bridge-key"
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
+    )
+
+    app = bridge_app.create_app(testing=False)
+
+    assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
+
+
 def test_bridge_inbound_rejects_missing_bearer_token():
     from connector.clawscale_bridge.app import create_app
 
@@ -66,3 +81,53 @@ def test_bound_inbound_request_returns_coke_reply(monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json() == {"ok": True, "reply": "你好，我在"}
+
+
+def test_user_bind_session_requires_user_bearer_token():
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    client = app.test_client()
+
+    response = client.post("/user/wechat-bind/session")
+
+    assert response.status_code == 401
+    assert response.get_json()["ok"] is False
+
+
+def test_user_bind_session_returns_pending_payload(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    client = app.test_client()
+    app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
+    app.config["USER_AUTH_SERVICE"] = type(
+        "Auth",
+        (),
+        {
+            "verify_token": lambda self, token: {
+                "_id": "user_1",
+                "email": "alice@example.com",
+            }
+        },
+    )()
+    app.config["USER_BIND_SERVICE"] = type(
+        "Bind",
+        (),
+        {
+            "create_or_reuse_session": lambda self, account_id, now_ts: {
+                "status": "pending",
+                "connect_url": "https://wx.example.com/entry?bind_token=ctx_123",
+                "expires_at": 1775472600,
+            }
+        },
+    )()
+
+    response = client.post(
+        "/user/wechat-bind/session",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["status"] == "pending"
+    assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
