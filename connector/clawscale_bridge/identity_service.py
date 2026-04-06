@@ -6,6 +6,7 @@ class IdentityService:
         self,
         external_identity_dao,
         binding_ticket_dao,
+        bind_session_service,
         message_gateway,
         reply_waiter,
         bind_base_url: str,
@@ -13,6 +14,7 @@ class IdentityService:
     ):
         self.external_identity_dao = external_identity_dao
         self.binding_ticket_dao = binding_ticket_dao
+        self.bind_session_service = bind_session_service
         self.message_gateway = message_gateway
         self.reply_waiter = reply_waiter
         self.bind_base_url = bind_base_url
@@ -53,6 +55,7 @@ class IdentityService:
 
     def handle_inbound(self, inbound_payload: dict):
         metadata = inbound_payload["metadata"]
+        now_ts = int(time.time())
         external_identity = self.external_identity_dao.find_active_identity(
             source="clawscale",
             tenant_id=metadata["tenantId"],
@@ -61,10 +64,21 @@ class IdentityService:
             external_end_user_id=metadata["externalId"],
         )
         if not external_identity:
-            try:
-                ticket = self.issue_or_reuse_binding_ticket(
-                    metadata, now_ts=int(time.time())
+            bind_token = metadata.get("contextToken")
+            if bind_token:
+                external_identity = self.bind_session_service.consume_matching_session(
+                    bind_token=bind_token,
+                    source="clawscale",
+                    tenant_id=metadata["tenantId"],
+                    channel_id=metadata["channelId"],
+                    platform=metadata["platform"],
+                    external_end_user_id=metadata["externalId"],
+                    now_ts=now_ts,
                 )
+
+        if not external_identity:
+            try:
+                ticket = self.issue_or_reuse_binding_ticket(metadata, now_ts=now_ts)
             except ValueError:
                 return {
                     "status": "bind_required",
@@ -88,7 +102,7 @@ class IdentityService:
                 "end_user_id": metadata["endUserId"],
                 "external_id": metadata["externalId"],
                 "external_message_id": metadata["conversationId"],
-                "timestamp": int(time.time()),
+                "timestamp": now_ts,
             },
         )
         reply = self.reply_waiter.wait_for_reply(bridge_request_id)

@@ -82,3 +82,53 @@ class WechatBindSessionService:
         if session["expires_at"] <= now_ts:
             return {"status": "expired"}
         return self._serialize_state(session)
+
+    def consume_matching_session(
+        self,
+        bind_token: str,
+        source: str,
+        tenant_id: str,
+        channel_id: str,
+        platform: str,
+        external_end_user_id: str,
+        now_ts: int,
+    ):
+        if not bind_token:
+            return None
+
+        session = self.bind_session_dao.find_active_session_by_bind_token(
+            bind_token, now_ts
+        )
+        if not session:
+            return None
+
+        active_identity = self.external_identity_dao.find_active_identity_for_account(
+            session["account_id"]
+        )
+        if active_identity:
+            return active_identity
+
+        identity = self.external_identity_dao.activate_identity(
+            source=source,
+            tenant_id=tenant_id,
+            channel_id=channel_id,
+            platform=platform,
+            external_end_user_id=external_end_user_id,
+            account_id=session["account_id"],
+            now_ts=now_ts,
+        )
+        if not isinstance(identity, dict):
+            identity = self.external_identity_dao.find_active_identity(
+                source=source,
+                tenant_id=tenant_id,
+                channel_id=channel_id,
+                platform=platform,
+                external_end_user_id=external_end_user_id,
+            )
+        self.bind_session_dao.mark_bound(
+            session_id=session["session_id"],
+            masked_identity=self._mask_identity(external_end_user_id),
+            external_end_user_id=external_end_user_id,
+            now_ts=now_ts,
+        )
+        return identity

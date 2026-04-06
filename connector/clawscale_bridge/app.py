@@ -44,6 +44,7 @@ def _build_default_bridge_gateway():
     user_dao = UserDAO(mongo_uri=mongo_uri, db_name=db_name)
     external_identity_dao = ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name)
     binding_ticket_dao = BindingTicketDAO(mongo_uri=mongo_uri, db_name=db_name)
+    bind_session_dao = WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name)
     mongo = MongoDBBase(connection_string=mongo_uri, db_name=db_name)
     message_gateway = CokeMessageGateway(mongo=mongo, user_dao=user_dao)
     reply_waiter = ReplyWaiter(
@@ -51,10 +52,17 @@ def _build_default_bridge_gateway():
         poll_interval_seconds=bridge_conf["poll_interval_seconds"],
         timeout_seconds=bridge_conf["reply_timeout_seconds"],
     )
+    bind_session_service = WechatBindSessionService(
+        bind_session_dao=bind_session_dao,
+        external_identity_dao=external_identity_dao,
+        connect_url_template=bridge_conf["wechat_public_connect_url_template"],
+        ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
+    )
 
     return IdentityService(
         external_identity_dao=external_identity_dao,
         binding_ticket_dao=binding_ticket_dao,
+        bind_session_service=bind_session_service,
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
         bind_base_url=bridge_conf["bind_base_url"],
