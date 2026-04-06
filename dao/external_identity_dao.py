@@ -51,3 +51,58 @@ class ExternalIdentityDAO:
                 "is_primary_push_target": True,
             }
         )
+
+    def find_active_identity_for_account(self, account_id: str):
+        return self.collection.find_one(
+            {
+                "account_id": account_id,
+                "source": "clawscale",
+                "status": "active",
+            }
+        )
+
+    def activate_identity(
+        self,
+        source: str,
+        tenant_id: str,
+        channel_id: str,
+        platform: str,
+        external_end_user_id: str,
+        account_id: str,
+        now_ts: int,
+    ):
+        self.collection.update_many(
+            {
+                "account_id": account_id,
+                "source": source,
+                "is_primary_push_target": True,
+            },
+            {"$set": {"is_primary_push_target": False}},
+        )
+        self.collection.update_one(
+            {
+                "source": source,
+                "tenant_id": tenant_id,
+                "channel_id": channel_id,
+                "platform": platform,
+                "external_end_user_id": external_end_user_id,
+            },
+            {
+                "$set": {
+                    "account_id": account_id,
+                    "status": "active",
+                    "updated_at": now_ts,
+                    "last_seen_at": now_ts,
+                    "is_primary_push_target": True,
+                },
+                "$setOnInsert": {"created_at": now_ts},
+            },
+            upsert=True,
+        )
+        return self.find_active_identity(
+            source=source,
+            tenant_id=tenant_id,
+            channel_id=channel_id,
+            platform=platform,
+            external_end_user_id=external_end_user_id,
+        )
