@@ -102,19 +102,30 @@ class WechatBindSessionService:
         if not session:
             return None
 
-        active_identity = self.external_identity_dao.find_active_identity_for_account(
-            session["account_id"]
+        current_identity = self.external_identity_dao.find_active_identity(
+            source=source,
+            tenant_id=tenant_id,
+            channel_id=channel_id,
+            platform=platform,
+            external_end_user_id=external_end_user_id,
         )
-        if active_identity:
-            if active_identity["external_end_user_id"] != external_end_user_id:
-                return None
+        if current_identity:
             self.bind_session_dao.mark_bound(
                 session_id=session["session_id"],
                 masked_identity=self._mask_identity(external_end_user_id),
                 external_end_user_id=external_end_user_id,
                 now_ts=now_ts,
             )
-            return active_identity
+            return current_identity
+
+        active_identity = self.external_identity_dao.find_active_identity_for_account(
+            session["account_id"]
+        )
+        if (
+            active_identity
+            and active_identity["external_end_user_id"] != external_end_user_id
+        ):
+            return None
 
         identity = self.external_identity_dao.activate_identity(
             source=source,
