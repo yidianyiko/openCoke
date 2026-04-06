@@ -14,6 +14,17 @@ class UserAuthService:
     def _issue_token(self, user_id: str) -> str:
         return self.serializer.dumps({"user_id": user_id})
 
+    def _is_user_eligible_for_web_auth(self, user) -> bool:
+        if not user:
+            return False
+        if user.get("status") not in (None, "normal"):
+            return False
+        if not user.get("web_auth_enabled"):
+            return False
+        if user.get("is_character") is True:
+            return False
+        return True
+
     def verify_token(self, token: str):
         try:
             payload = self.serializer.loads(token, max_age=self.token_ttl_seconds)
@@ -22,7 +33,10 @@ class UserAuthService:
         user_id = payload.get("user_id")
         if not user_id:
             return None
-        return self.user_dao.get_user_by_id(user_id)
+        user = self.user_dao.get_user_by_id(user_id)
+        if not self._is_user_eligible_for_web_auth(user):
+            return None
+        return user
 
     def register(self, display_name: str, email: str, password: str) -> dict:
         normalized_email = email.lower().strip()

@@ -1,6 +1,14 @@
 from unittest.mock import MagicMock
 
 
+def _build_user_client():
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
+    return app, app.test_client()
+
+
 def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 
@@ -84,10 +92,7 @@ def test_bound_inbound_request_returns_coke_reply(monkeypatch):
 
 
 def test_user_bind_session_requires_user_bearer_token():
-    from connector.clawscale_bridge.app import create_app
-
-    app = create_app(testing=True)
-    client = app.test_client()
+    app, client = _build_user_client()
 
     response = client.post("/user/wechat-bind/session")
 
@@ -95,12 +100,62 @@ def test_user_bind_session_requires_user_bearer_token():
     assert response.get_json()["ok"] is False
 
 
-def test_user_bind_session_returns_pending_payload(monkeypatch):
-    from connector.clawscale_bridge.app import create_app
+def test_user_register_rejects_malformed_json_body():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
 
-    app = create_app(testing=True)
-    client = app.test_client()
-    app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
+    response = client.post(
+        "/user/register",
+        data="{",
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
+def test_user_register_rejects_missing_required_fields():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/register",
+        json={"display_name": "Alice", "email": "alice@example.com"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "missing_required_fields"}
+
+
+def test_user_login_rejects_malformed_json_body():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/login",
+        data="{",
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
+def test_user_login_rejects_missing_required_fields():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/login",
+        json={"email": "alice@example.com"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "missing_required_fields"}
+
+
+def test_user_bind_session_returns_pending_payload():
+    app, client = _build_user_client()
     app.config["USER_AUTH_SERVICE"] = type(
         "Auth",
         (),
@@ -131,3 +186,47 @@ def test_user_bind_session_returns_pending_payload(monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["data"]["status"] == "pending"
     assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
+
+
+def test_user_bind_status_requires_user_bearer_token():
+    app, client = _build_user_client()
+
+    response = client.get("/user/wechat-bind/status")
+
+    assert response.status_code == 401
+    assert response.get_json()["ok"] is False
+
+
+def test_user_bind_status_returns_bound_payload():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = type(
+        "Auth",
+        (),
+        {
+            "verify_token": lambda self, token: {
+                "_id": "user_1",
+                "email": "alice@example.com",
+            }
+        },
+    )()
+    app.config["USER_BIND_SERVICE"] = type(
+        "Bind",
+        (),
+        {
+            "get_status": lambda self, account_id, now_ts: {
+                "status": "bound",
+                "masked_identity": "wxid_***8e0a",
+            }
+        },
+    )()
+
+    response = client.get(
+        "/user/wechat-bind/status",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == {
+        "status": "bound",
+        "masked_identity": "wxid_***8e0a",
+    }

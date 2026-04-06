@@ -113,3 +113,66 @@ def test_verify_token_returns_none_when_signed_payload_has_no_user_id():
 
     assert service.verify_token(token) is None
     user_dao.get_user_by_id.assert_not_called()
+
+
+def test_verify_token_returns_none_when_account_status_is_not_normal():
+    from connector.clawscale_bridge.user_auth import UserAuthService
+
+    user_dao = MagicMock()
+    user_dao.get_user_by_id.return_value = {
+        "_id": "65f000000000000000000111",
+        "status": "disabled",
+        "web_auth_enabled": True,
+        "is_character": False,
+    }
+    service = UserAuthService(
+        user_dao=user_dao,
+        secret_key="test-secret",
+        token_ttl_seconds=3600,
+    )
+
+    token = service.serializer.dumps({"user_id": "65f000000000000000000111"})
+
+    assert service.verify_token(token) is None
+
+
+def test_verify_token_returns_none_when_web_auth_disabled():
+    from connector.clawscale_bridge.user_auth import UserAuthService
+
+    user_dao = MagicMock()
+    user_dao.get_user_by_id.return_value = {
+        "_id": "65f000000000000000000111",
+        "status": "normal",
+        "web_auth_enabled": False,
+        "is_character": False,
+    }
+    service = UserAuthService(
+        user_dao=user_dao,
+        secret_key="test-secret",
+        token_ttl_seconds=3600,
+    )
+
+    token = service.serializer.dumps({"user_id": "65f000000000000000000111"})
+
+    assert service.verify_token(token) is None
+
+
+def test_verify_token_returns_none_when_user_is_character():
+    from connector.clawscale_bridge.user_auth import UserAuthService
+
+    user_dao = MagicMock()
+    user_dao.get_user_by_id.return_value = {
+        "_id": "65f000000000000000000111",
+        "status": "normal",
+        "web_auth_enabled": True,
+        "is_character": True,
+    }
+    service = UserAuthService(
+        user_dao=user_dao,
+        secret_key="test-secret",
+        token_ttl_seconds=3600,
+    )
+
+    token = service.serializer.dumps({"user_id": "65f000000000000000000111"})
+
+    assert service.verify_token(token) is None

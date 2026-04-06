@@ -1,6 +1,7 @@
 import time
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
 from connector.clawscale_bridge.identity_service import IdentityService
@@ -85,6 +86,25 @@ def _build_user_auth_service():
     )
 
 
+def _parse_required_json_fields(*required_fields):
+    try:
+        payload = request.get_json(force=True)
+    except BadRequest:
+        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
+
+    if not isinstance(payload, dict):
+        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
+
+    missing_fields = [field for field in required_fields if field not in payload]
+    if missing_fields:
+        return None, (
+            jsonify({"ok": False, "error": "missing_required_fields"}),
+            400,
+        )
+
+    return payload, None
+
+
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
@@ -146,7 +166,11 @@ def create_app(testing: bool = False):
 
     @app.post("/user/register")
     def user_register():
-        payload = request.get_json(force=True)
+        payload, error_response = _parse_required_json_fields(
+            "display_name", "email", "password"
+        )
+        if error_response:
+            return error_response
         service = app.config["USER_AUTH_SERVICE"]
         try:
             result = service.register(
@@ -160,7 +184,9 @@ def create_app(testing: bool = False):
 
     @app.post("/user/login")
     def user_login():
-        payload = request.get_json(force=True)
+        payload, error_response = _parse_required_json_fields("email", "password")
+        if error_response:
+            return error_response
         service = app.config["USER_AUTH_SERVICE"]
         ok, result = service.login(payload["email"], payload["password"])
         if not ok:
