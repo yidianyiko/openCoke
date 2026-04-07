@@ -1,4 +1,10 @@
+from __future__ import annotations
+
 import requests
+
+
+class GatewayIdentityClientError(RuntimeError):
+    pass
 
 
 class GatewayIdentityClient:
@@ -14,29 +20,37 @@ class GatewayIdentityClient:
         external_id: str,
         coke_account_id: str,
     ):
-        response = requests.post(
-            url=self.api_url,
-            json={
-                "tenant_id": tenant_id,
-                "channel_id": channel_id,
-                "external_id": external_id,
-                "coke_account_id": coke_account_id,
-            },
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-        payload = response.json()
+        try:
+            response = requests.post(
+                url=self.api_url,
+                json={
+                    "tenant_id": tenant_id,
+                    "channel_id": channel_id,
+                    "external_id": external_id,
+                    "coke_account_id": coke_account_id,
+                },
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except requests.RequestException as exc:
+            raise GatewayIdentityClientError("gateway_identity_request_failed") from exc
+        except ValueError as exc:
+            raise GatewayIdentityClientError("invalid_gateway_identity_response") from exc
+
         if not isinstance(payload, dict):
-            raise ValueError("invalid_gateway_identity_response")
+            raise GatewayIdentityClientError("invalid_gateway_identity_response")
         if not payload.get("ok"):
-            raise ValueError(payload.get("error", "gateway_identity_bind_failed"))
+            raise GatewayIdentityClientError(
+                payload.get("error", "gateway_identity_bind_failed")
+            )
         data = payload.get("data")
         if not isinstance(data, dict):
-            raise ValueError("invalid_gateway_identity_response")
+            raise GatewayIdentityClientError("invalid_gateway_identity_response")
         return data
 
     def bind(

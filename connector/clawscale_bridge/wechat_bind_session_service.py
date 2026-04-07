@@ -1,6 +1,13 @@
+import logging
 import re
 import secrets
 from urllib.parse import urlsplit
+
+from connector.clawscale_bridge.gateway_identity_client import (
+    GatewayIdentityClientError,
+)
+
+logger = logging.getLogger(__name__)
 
 
 class WechatBindSessionService:
@@ -92,7 +99,6 @@ class WechatBindSessionService:
             )
             return current_identity
 
-        gateway_identity = None
         try:
             gateway_identity = self.gateway_identity_client.bind_identity(
                 tenant_id=tenant_id,
@@ -100,7 +106,8 @@ class WechatBindSessionService:
                 external_id=external_end_user_id,
                 coke_account_id=session["account_id"],
             )
-        except Exception:
+        except GatewayIdentityClientError as exc:
+            logger.warning("gateway identity sync failed: %s", exc)
             gateway_identity = None
         clawscale_user_id = None
         if isinstance(gateway_identity, dict):

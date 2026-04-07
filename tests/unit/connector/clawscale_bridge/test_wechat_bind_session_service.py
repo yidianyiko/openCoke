@@ -282,6 +282,10 @@ def test_consume_matching_session_allows_second_identity_for_same_account_and_sy
 
 
 def test_consume_matching_session_continues_local_activation_when_gateway_sync_fails():
+    from connector.clawscale_bridge.gateway_identity_client import (
+        GatewayIdentityClientError,
+    )
+
     bind_session_dao = MagicMock()
     bind_session_dao.find_active_session_by_bind_token.return_value = {
         "session_id": "bs_1",
@@ -306,7 +310,9 @@ def test_consume_matching_session_continues_local_activation_when_gateway_sync_f
         "status": "active",
     }
     gateway_identity_client = MagicMock()
-    gateway_identity_client.bind_identity.side_effect = RuntimeError("timeout")
+    gateway_identity_client.bind_identity.side_effect = GatewayIdentityClientError(
+        "gateway_identity_request_failed"
+    )
 
     service = _build_service(
         bind_session_dao=bind_session_dao,
