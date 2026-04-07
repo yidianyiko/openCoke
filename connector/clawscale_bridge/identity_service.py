@@ -56,6 +56,26 @@ class IdentityService:
     def handle_inbound(self, inbound_payload: dict):
         metadata = inbound_payload["metadata"]
         now_ts = int(time.time())
+        coke_account_id = metadata.get("cokeAccountId")
+        if coke_account_id:
+            bridge_request_id = self.message_gateway.enqueue(
+                account_id=coke_account_id,
+                character_id=self.target_character_id,
+                text=inbound_payload["messages"][-1]["content"],
+                inbound={
+                    "tenant_id": metadata["tenantId"],
+                    "channel_id": metadata["channelId"],
+                    "conversation_id": metadata["conversationId"],
+                    "platform": metadata["platform"],
+                    "end_user_id": metadata["endUserId"],
+                    "external_id": metadata["externalId"],
+                    "external_message_id": metadata["conversationId"],
+                    "timestamp": now_ts,
+                },
+            )
+            reply = self.reply_waiter.wait_for_reply(bridge_request_id)
+            return {"status": "ok", "reply": reply}
+
         external_identity = self.external_identity_dao.find_active_identity(
             source="clawscale",
             tenant_id=metadata["tenantId"],

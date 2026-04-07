@@ -6,6 +6,7 @@ from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
 from connector.clawscale_bridge.identity_service import IdentityService
+from connector.clawscale_bridge.gateway_identity_client import GatewayIdentityClient
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.user_auth import UserAuthService
@@ -37,6 +38,14 @@ def _resolve_target_character_id(user_dao: UserDAO) -> str:
     return str(characters[0]["_id"])
 
 
+def _build_gateway_identity_client():
+    bridge_conf = CONF["clawscale_bridge"]
+    return GatewayIdentityClient(
+        api_url=bridge_conf["identity_api_url"],
+        api_key=bridge_conf["identity_api_key"],
+    )
+
+
 def _build_default_bridge_gateway():
     bridge_conf = CONF["clawscale_bridge"]
     mongo_uri = _mongo_uri()
@@ -53,9 +62,11 @@ def _build_default_bridge_gateway():
         poll_interval_seconds=bridge_conf["poll_interval_seconds"],
         timeout_seconds=bridge_conf["reply_timeout_seconds"],
     )
+    gateway_identity_client = _build_gateway_identity_client()
     bind_session_service = WechatBindSessionService(
         bind_session_dao=bind_session_dao,
         external_identity_dao=external_identity_dao,
+        gateway_identity_client=gateway_identity_client,
         bind_base_url=bridge_conf["bind_base_url"],
         public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
         ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
@@ -76,9 +87,11 @@ def _build_user_bind_service():
     mongo_uri = _mongo_uri()
     db_name = CONF["mongodb"]["mongodb_name"]
     bridge_conf = CONF["clawscale_bridge"]
+    gateway_identity_client = _build_gateway_identity_client()
     return WechatBindSessionService(
         bind_session_dao=WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name),
         external_identity_dao=ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name),
+        gateway_identity_client=gateway_identity_client,
         bind_base_url=bridge_conf["bind_base_url"],
         public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
         ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
