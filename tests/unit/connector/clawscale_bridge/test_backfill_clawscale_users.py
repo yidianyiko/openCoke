@@ -258,3 +258,69 @@ def test_backfill_active_identities_continues_after_invalid_bind_response():
         external_end_user_id="wxid_valid",
         clawscale_user_id="csu_2",
     )
+
+
+def test_main_exits_non_zero_when_backfill_has_failures(monkeypatch, capsys):
+    from connector.clawscale_bridge import backfill_clawscale_users
+
+    monkeypatch.setattr(
+        backfill_clawscale_users,
+        "_mongo_uri",
+        lambda: "mongodb://example",
+    )
+
+    class DummyExternalIdentityDAO:
+        def __init__(self, mongo_uri, db_name):
+            self.mongo_uri = mongo_uri
+            self.db_name = db_name
+
+    class DummyGatewayIdentityClient:
+        def __init__(self, api_url, api_key):
+            self.api_url = api_url
+            self.api_key = api_key
+
+    monkeypatch.setattr(
+        backfill_clawscale_users,
+        "ExternalIdentityDAO",
+        DummyExternalIdentityDAO,
+    )
+    monkeypatch.setattr(
+        backfill_clawscale_users,
+        "GatewayIdentityClient",
+        DummyGatewayIdentityClient,
+    )
+    monkeypatch.setattr(
+        backfill_clawscale_users,
+        "backfill_active_identities",
+        lambda external_identity_dao, gateway_identity_client, now_ts: {
+            "scanned": 2,
+            "updated": 1,
+            "skipped": 0,
+            "failed": 1,
+        },
+    )
+    monkeypatch.setattr(
+        backfill_clawscale_users,
+        "CONF",
+        {
+            "mongodb": {
+                "mongodb_ip": "127.0.0.1",
+                "mongodb_port": "27017",
+                "mongodb_name": "coke",
+            },
+            "clawscale_bridge": {
+                "identity_api_url": "https://gateway.example/api",
+                "identity_api_key": "secret",
+            },
+        },
+    )
+
+    try:
+        backfill_clawscale_users.main()
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("expected SystemExit")
+
+    output = capsys.readouterr().out.strip()
+    assert output == '{"scanned": 2, "updated": 1, "skipped": 0, "failed": 1}'

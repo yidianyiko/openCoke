@@ -132,6 +132,8 @@ def main():
         now_ts=int(time.time()),
     )
     print(json.dumps(summary, ensure_ascii=False))
+    if summary.get("failed", 0) > 0:
+        raise SystemExit(1)
     return summary
 
 

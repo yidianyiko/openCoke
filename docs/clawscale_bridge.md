@@ -32,6 +32,7 @@ https://wx.example.com/coke-entry?bind_token={bind_token}
 6. Keep the bridge running and monitor for any bind sync failures before proceeding with traffic cutover.
 
 If the backfill stops partway through, fix the underlying issue and rerun the command. It is safe to rerun because identities that already have `clawscale_user_id` are skipped.
+Partial failures also exit with a non-zero status so automation can detect them.
 
 ## Start Coke bridge
 
