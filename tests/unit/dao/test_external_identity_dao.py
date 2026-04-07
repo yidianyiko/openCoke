@@ -19,6 +19,49 @@ def test_external_identity_indexes_include_unique_gateway_identity():
         ],
         unique=True,
     )
+    dao.collection.create_index.assert_any_call([("clawscale_user_id", 1)])
+
+
+def test_set_clawscale_user_id_updates_matching_identity_record():
+    from dao.external_identity_dao import ExternalIdentityDAO
+
+    dao = ExternalIdentityDAO(mongo_uri="mongodb://example", db_name="test")
+    dao.collection = MagicMock()
+
+    dao.set_clawscale_user_id(
+        source="clawscale",
+        tenant_id="ten_1",
+        channel_id="ch_1",
+        platform="wechat_personal",
+        external_end_user_id="wxid_123",
+        clawscale_user_id="csu_1",
+    )
+
+    dao.collection.update_one.assert_called_once_with(
+        {
+            "source": "clawscale",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_123",
+        },
+        {"$set": {"clawscale_user_id": "csu_1"}},
+    )
+
+
+def test_iter_active_clawscale_identities_returns_active_records_only():
+    from dao.external_identity_dao import ExternalIdentityDAO
+
+    dao = ExternalIdentityDAO(mongo_uri="mongodb://example", db_name="test")
+    dao.collection = MagicMock()
+    dao.collection.find.return_value = [{"external_end_user_id": "wxid_123"}]
+
+    result = list(dao.iter_active_clawscale_identities())
+
+    dao.collection.find.assert_called_once_with(
+        {"source": "clawscale", "status": "active"}
+    )
+    assert result == [{"external_end_user_id": "wxid_123"}]
 
 
 def test_activate_identity_clears_existing_primary_push_target_for_account_source():

@@ -21,6 +21,7 @@ class ExternalIdentityDAO:
         self.collection.create_index(
             [("account_id", 1), ("tenant_id", 1), ("is_primary_push_target", 1)]
         )
+        self.collection.create_index([("clawscale_user_id", 1)])
         self.collection.create_index([("status", 1)])
 
     def find_active_identity(
@@ -52,6 +53,9 @@ class ExternalIdentityDAO:
             }
         )
 
+    def iter_active_clawscale_identities(self):
+        return self.collection.find({"source": "clawscale", "status": "active"})
+
     def find_active_identity_for_account(self, account_id: str):
         return self.collection.find_one(
             {
@@ -59,6 +63,33 @@ class ExternalIdentityDAO:
                 "source": "clawscale",
                 "status": "active",
             }
+        )
+
+    def set_clawscale_user_id(
+        self,
+        source: str,
+        tenant_id: str,
+        channel_id: str,
+        platform: str,
+        external_end_user_id: str,
+        clawscale_user_id: str,
+    ):
+        self.collection.update_one(
+            {
+                "source": source,
+                "tenant_id": tenant_id,
+                "channel_id": channel_id,
+                "platform": platform,
+                "external_end_user_id": external_end_user_id,
+            },
+            {"$set": {"clawscale_user_id": clawscale_user_id}},
+        )
+        return self.find_active_identity(
+            source=source,
+            tenant_id=tenant_id,
+            channel_id=channel_id,
+            platform=platform,
+            external_end_user_id=external_end_user_id,
         )
 
     def activate_identity(

@@ -7,6 +7,8 @@ def _build_user_client():
     app = create_app(testing=True)
     app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
     return app, app.test_client()
+
+
 def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 
@@ -20,6 +22,36 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     app = bridge_app.create_app(testing=False)
 
     assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
+
+
+def test_build_user_bind_service_wires_gateway_identity_client(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    gateway_identity_client = MagicMock()
+    captured = {}
+
+    monkeypatch.setattr(
+        bridge_app,
+        "_build_gateway_identity_client",
+        lambda: gateway_identity_client,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        bridge_app, "WechatBindSessionDAO", lambda **kwargs: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "ExternalIdentityDAO", lambda **kwargs: MagicMock()
+    )
+
+    class FakeBindSessionService:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr(bridge_app, "WechatBindSessionService", FakeBindSessionService)
+
+    bridge_app._build_user_bind_service()
+
+    assert captured["gateway_identity_client"] is gateway_identity_client
 
 
 def test_bridge_inbound_rejects_missing_bearer_token():

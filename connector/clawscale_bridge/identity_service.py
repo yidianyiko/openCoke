@@ -20,6 +20,32 @@ class IdentityService:
         self.bind_base_url = bind_base_url
         self.target_character_id = target_character_id
 
+    def _trusted_coke_account_id(self, metadata: dict) -> str | None:
+        required_fields = [
+            "tenantId",
+            "channelId",
+            "platform",
+            "externalId",
+            "endUserId",
+            "conversationId",
+            "cokeAccountId",
+        ]
+        if any(
+            not isinstance(metadata.get(field), str) or not metadata[field].strip()
+            for field in required_fields
+        ):
+            return None
+
+        coke_account_id = metadata["cokeAccountId"]
+        local_identity = self.external_identity_dao.find_active_identity_for_account(
+            coke_account_id
+        )
+        if not local_identity:
+            return None
+        if local_identity.get("tenant_id") != metadata["tenantId"]:
+            return None
+        return coke_account_id
+
     def issue_or_reuse_binding_ticket(self, metadata: dict, now_ts: int):
         reusable = self.binding_ticket_dao.find_reusable_ticket(
             source="clawscale",
@@ -56,6 +82,26 @@ class IdentityService:
     def handle_inbound(self, inbound_payload: dict):
         metadata = inbound_payload["metadata"]
         now_ts = int(time.time())
+        coke_account_id = self._trusted_coke_account_id(metadata)
+        if coke_account_id:
+            bridge_request_id = self.message_gateway.enqueue(
+                account_id=coke_account_id,
+                character_id=self.target_character_id,
+                text=inbound_payload["messages"][-1]["content"],
+                inbound={
+                    "tenant_id": metadata["tenantId"],
+                    "channel_id": metadata["channelId"],
+                    "conversation_id": metadata["conversationId"],
+                    "platform": metadata["platform"],
+                    "end_user_id": metadata["endUserId"],
+                    "external_id": metadata["externalId"],
+                    "external_message_id": metadata["conversationId"],
+                    "timestamp": now_ts,
+                },
+            )
+            reply = self.reply_waiter.wait_for_reply(bridge_request_id)
+            return {"status": "ok", "reply": reply}
+
         external_identity = self.external_identity_dao.find_active_identity(
             source="clawscale",
             tenant_id=metadata["tenantId"],
