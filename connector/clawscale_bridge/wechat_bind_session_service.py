@@ -3,10 +3,6 @@ import re
 import secrets
 from urllib.parse import urlsplit
 
-from connector.clawscale_bridge.gateway_identity_client import (
-    GatewayIdentityClientError,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -91,65 +87,9 @@ class WechatBindSessionService:
             external_end_user_id=external_end_user_id,
         )
         if current_identity:
-            self.bind_session_dao.mark_bound(
-                session_id=session["session_id"],
-                masked_identity=self._mask_identity(external_end_user_id),
-                external_end_user_id=external_end_user_id,
-                now_ts=now_ts,
-            )
             return current_identity
 
-        try:
-            gateway_identity = self.gateway_identity_client.bind_identity(
-                tenant_id=tenant_id,
-                channel_id=channel_id,
-                external_id=external_end_user_id,
-                coke_account_id=session["account_id"],
-            )
-        except GatewayIdentityClientError as exc:
-            logger.warning("gateway identity sync failed: %s", exc)
-            gateway_identity = None
-        clawscale_user_id = None
-        if isinstance(gateway_identity, dict):
-            clawscale_user_id = gateway_identity.get("clawscale_user_id")
-
-        identity = self.external_identity_dao.activate_identity(
-            source=source,
-            tenant_id=tenant_id,
-            channel_id=channel_id,
-            platform=platform,
-            external_end_user_id=external_end_user_id,
-            account_id=session["account_id"],
-            now_ts=now_ts,
-        )
-        if not isinstance(identity, dict):
-            identity = self.external_identity_dao.find_active_identity(
-                source=source,
-                tenant_id=tenant_id,
-                channel_id=channel_id,
-                platform=platform,
-                external_end_user_id=external_end_user_id,
-            )
-        if clawscale_user_id:
-            persisted_identity = self.external_identity_dao.set_clawscale_user_id(
-                source=source,
-                tenant_id=tenant_id,
-                channel_id=channel_id,
-                platform=platform,
-                external_end_user_id=external_end_user_id,
-                clawscale_user_id=clawscale_user_id,
-            )
-            if isinstance(persisted_identity, dict):
-                identity = persisted_identity
-            elif isinstance(identity, dict):
-                identity["clawscale_user_id"] = clawscale_user_id
-        self.bind_session_dao.mark_bound(
-            session_id=session["session_id"],
-            masked_identity=self._mask_identity(external_end_user_id),
-            external_end_user_id=external_end_user_id,
-            now_ts=now_ts,
-        )
-        return identity
+        return None
 
     def create_or_reuse_session(self, account_id: str, now_ts: int):
         active_identity = self.external_identity_dao.find_active_identity_for_account(

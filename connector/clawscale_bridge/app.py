@@ -7,8 +7,15 @@ from werkzeug.exceptions import BadRequest
 from conf.config import CONF
 from connector.clawscale_bridge.identity_service import IdentityService
 from connector.clawscale_bridge.gateway_identity_client import GatewayIdentityClient
+from connector.clawscale_bridge.gateway_personal_channel_client import (
+    GatewayPersonalChannelClient,
+    GatewayPersonalChannelClientError,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
+from connector.clawscale_bridge.personal_wechat_channel_service import (
+    PersonalWechatChannelService,
+)
 from connector.clawscale_bridge.user_auth import UserAuthService
 from connector.clawscale_bridge.wechat_bind_session_service import (
     WechatBindSessionService,
@@ -98,6 +105,19 @@ def _build_user_bind_service():
     )
 
 
+def _build_gateway_personal_channel_client():
+    bridge_conf = CONF["clawscale_bridge"]
+    return GatewayPersonalChannelClient(
+        api_base_url=bridge_conf["wechat_channel_api_url"],
+        api_key=bridge_conf["wechat_channel_api_key"],
+    )
+
+
+def _build_personal_wechat_channel_service():
+    client = _build_gateway_personal_channel_client()
+    return PersonalWechatChannelService(gateway_client=client)
+
+
 def _build_user_auth_service():
     bridge_conf = CONF["clawscale_bridge"]
     return UserAuthService(
@@ -170,6 +190,9 @@ def create_app(testing: bool = False):
         ]
         app.config["USER_AUTH_SERVICE"] = _build_user_auth_service()
         app.config["USER_BIND_SERVICE"] = _build_user_bind_service()
+        app.config["USER_PERSONAL_CHANNEL_SERVICE"] = (
+            _build_personal_wechat_channel_service()
+        )
 
     @app.after_request
     def add_cors_headers(response):
@@ -178,7 +201,7 @@ def create_app(testing: bool = False):
             request.headers.get("Origin"),
         )
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
         return response
 
     @app.get("/bridge/healthz")
@@ -252,6 +275,22 @@ def create_app(testing: bool = False):
         token = header.split(" ", 1)[1]
         return app.config["USER_AUTH_SERVICE"].verify_token(token)
 
+    def _personal_channel_response(method_name: str):
+        user = require_user_auth()
+        if not user:
+            return jsonify({"ok": False, "error": "unauthorized"}), 401
+
+        service = app.config.get("USER_PERSONAL_CHANNEL_SERVICE")
+        if service is None:
+            return jsonify({"ok": False, "error": "bridge service not wired"}), 500
+
+        try:
+            result = getattr(service, method_name)(account_id=str(user["_id"]))
+        except GatewayPersonalChannelClientError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 502
+
+        return jsonify({"ok": True, "data": result})
+
     @app.post("/user/wechat-bind/session")
     def create_wechat_bind_session():
         user = require_user_auth()
@@ -273,6 +312,26 @@ def create_app(testing: bool = False):
             now_ts=int(time.time()),
         )
         return jsonify({"ok": True, "data": result})
+
+    @app.post("/user/wechat-channel")
+    def create_wechat_channel():
+        return _personal_channel_response("create_or_reuse_channel")
+
+    @app.post("/user/wechat-channel/connect")
+    def connect_wechat_channel():
+        return _personal_channel_response("start_connect")
+
+    @app.get("/user/wechat-channel/status")
+    def get_wechat_channel_status():
+        return _personal_channel_response("get_status")
+
+    @app.post("/user/wechat-channel/disconnect")
+    def disconnect_wechat_channel():
+        return _personal_channel_response("disconnect_channel")
+
+    @app.delete("/user/wechat-channel")
+    def archive_wechat_channel():
+        return _personal_channel_response("archive_channel")
 
     @app.get("/user/wechat-bind/entry/<bind_token>")
     def user_wechat_bind_entry(bind_token: str):

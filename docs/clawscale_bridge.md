@@ -1,50 +1,98 @@
+## Coke user channel model
+
+The Coke user frontend now uses a personal WeChat channel lifecycle instead of the old
+tenant-shared bind flow.
+
+Primary user journey:
+
+1. A Coke user signs in or registers.
+2. The user opens `/coke/bind-wechat`.
+3. The page fetches `GET /user/wechat-channel/status` to show the current lifecycle state.
+4. The user clicks `Create my WeChat channel` to create that user’s personal `wechat_personal`
+   channel through `POST /user/wechat-channel`.
+5. The user starts or refreshes the QR login session through `POST /user/wechat-channel/connect`.
+6. A successful create or connect response may already return `pending` with QR/connect info, so
+   the page can render the login step immediately without waiting for a later status poll.
+7. The page continues polling `GET /user/wechat-channel/status` while the session is pending.
+8. The user can disconnect the channel with `POST /user/wechat-channel/disconnect`.
+9. The user can archive the channel with `DELETE /user/wechat-channel` and later create a fresh one.
+
+Lifecycle states surfaced to the UI:
+
+- `missing`
+- `disconnected`
+- `pending`
+- `connected`
+- `error`
+- `archived`
+
+The user page should treat the channel record as the source of truth for ownership and state.
+It should not depend on a shared bind record or a tenant-level shared WeChat connection for the
+primary onboarding path.
+
 ## Environment
 
+The Coke user frontend talks to the bridge directly. Set:
+
+- `NEXT_PUBLIC_COKE_API_URL=http://127.0.0.1:8090`
+
+If `NEXT_PUBLIC_COKE_API_URL` is unset, the web app falls back to `NEXT_PUBLIC_API_URL`.
+
+Bridge/runtime environment:
+
 - `COKE_BRIDGE_API_KEY`
-- `COKE_BIND_BASE_URL`
 - `COKE_USER_AUTH_SECRET`
-- `COKE_WECHAT_PUBLIC_CONNECT_URL_TEMPLATE`
 - `COKE_WEB_ALLOWED_ORIGIN`
 - `CLAWSCALE_OUTBOUND_API_URL`
 - `CLAWSCALE_OUTBOUND_API_KEY`
 - `CLAWSCALE_IDENTITY_API_URL`
 - `CLAWSCALE_IDENTITY_API_KEY`
 
-`COKE_WECHAT_PUBLIC_CONNECT_URL_TEMPLATE` must contain a `{bind_token}` placeholder and the
-WeChat entry flow must round-trip that token into inbound WeChat `metadata.contextToken`.
+Legacy compatibility notes:
 
-Example:
-
-```text
-https://wx.example.com/coke-entry?bind_token={bind_token}
-```
+- `COKE_BIND_BASE_URL` and `{bind_token}` were used by the older shared bind-entry flow.
+- `metadata.contextToken` was part of the legacy bind-token round trip.
+- These legacy settings should be treated as compatibility-only, not the primary user journey.
+- Shared `wechat_personal` onboarding is frozen for new Coke users.
+- Any destructive reset of legacy shared WeChat bindings must be explicitly approved by an operator before it runs.
+- The reset entrypoint requires `ALLOW_WECHAT_PERSONAL_RESET=yes`; without that confirmation it aborts before touching data.
+- After the reset is committed, there is no rollback to the legacy shared-binding path. Recovery requires a forward migration or a full restore, not a toggle back.
 
 ## Rollout
 
-1. Set `CLAWSCALE_IDENTITY_API_URL` and `CLAWSCALE_IDENTITY_API_KEY` in the bridge environment.
-2. Apply the gateway database migration from the gateway workspace:
-   `pnpm -C gateway db:migrate`
-3. Regenerate Prisma client types in the gateway workspace:
-   `pnpm -C gateway --filter @clawscale/api db:generate`
-4. Deploy or restart the Coke bridge so it picks up the new identity API settings.
-5. Run the one-off backfill for active identities missing `clawscale_user_id`:
-   `python -m connector.clawscale_bridge.backfill_clawscale_users`
-6. Keep the bridge running and monitor for any bind sync failures before proceeding with traffic cutover.
-
-If the backfill stops partway through, fix the underlying issue and rerun the command. It is safe to rerun because identities that already have `clawscale_user_id` are skipped.
-Partial failures also exit with a non-zero status so automation can detect them.
+1. Ensure the bridge environment has `CLAWSCALE_IDENTITY_API_URL` and `CLAWSCALE_IDENTITY_API_KEY`.
+2. Confirm the gateway and web app are deployed with the personal-channel UI and `/user/wechat-channel` endpoints.
+3. Set `NEXT_PUBLIC_COKE_API_URL=http://127.0.0.1:8090` for local web testing or the equivalent bridge URL in deployment.
+4. Restart the Coke bridge so it picks up the current identity API settings.
+5. Verify a test Coke user can create, connect, disconnect, and archive their own WeChat channel from `/coke/bind-wechat`.
+6. Verify that a successful create or connect response can land the page directly in `pending` with QR/connect info and that the page keeps polling while the session remains active.
+7. If you still need to support an older shared bind path temporarily, keep it isolated as a compatibility path only.
+8. Before running any legacy shared-WeChat reset/backfill job, export `ALLOW_WECHAT_PERSONAL_RESET=yes` and confirm the operator approval in the change record.
+9. Treat the reset as irreversible from the product point of view. If you need the legacy shared-bind behavior back, restore from backup or implement a new forward migration instead of re-enabling the old path.
 
 ## Start Coke bridge
 
-Run `python -m connector.clawscale_bridge.app`
+Run:
+
+```bash
+python -m connector.clawscale_bridge.app
+```
 
 ## Start proactive dispatcher
 
-Run `python -m connector.clawscale_bridge.output_dispatcher`
+Run:
+
+```bash
+python -m connector.clawscale_bridge.output_dispatcher
+```
 
 ## Start Coke workers in poll mode
 
-Run `QUEUE_MODE=poll bash agent/runner/agent_start.sh`
+Run:
+
+```bash
+QUEUE_MODE=poll bash agent/runner/agent_start.sh
+```
 
 ## ClawScale custom backend config
 
@@ -57,26 +105,25 @@ Run `QUEUE_MODE=poll bash agent/runner/agent_start.sh`
 
 - User login: `http://<web-host>:4040/coke/login`
 - User registration: `http://<web-host>:4040/coke/register`
-- User bind page: `http://<web-host>:4040/coke/bind-wechat`
-
-The Coke user frontend calls the Python bridge directly. Set:
-
-- `NEXT_PUBLIC_COKE_API_URL=http://127.0.0.1:8090`
-
-If `NEXT_PUBLIC_COKE_API_URL` is unset, the web app falls back to `NEXT_PUBLIC_API_URL`.
+- Personal WeChat channel page: `http://<web-host>:4040/coke/bind-wechat`
 
 ## Manual Smoke Test
 
-1. Confirm the gateway `clawscale_user_id` field has been generated for the target binding records and that the bridge rollout is complete.
-2. Confirm Mongo `external_identities.clawscale_user_id` is populated for the same active identities after the backfill runs.
-3. Start the ClawScale WeChat channel and confirm the official Coke WeChat entrypoint is already connected.
-4. Start the Coke bridge: `python -m connector.clawscale_bridge.app`
-5. Start the web app:
+1. Start the Coke bridge:
+   `python -m connector.clawscale_bridge.app`
+2. Start the web app:
    `NEXT_PUBLIC_COKE_API_URL=http://127.0.0.1:8090 pnpm -C gateway --filter @clawscale/web dev`
-6. Open `http://127.0.0.1:4040/coke/register`, create a test user, and confirm the browser lands on `/coke/bind-wechat`.
-7. Confirm the QR code renders on desktop.
-8. Scan the QR code with an unbound personal WeChat account.
-9. Send any message from that WeChat account to Coke.
-10. Confirm the follow-up message routes through the bound account path after the bind completes, and that the response behavior matches the bound-identity flow.
-11. Confirm `http://127.0.0.1:4040/coke/bind-wechat` refreshes to the bound state and shows the masked WeChat identity.
-12. Confirm `external_identities` contains one active mapping for the bound `coke_user_id`.
+3. Open `http://127.0.0.1:4040/coke/register` and create a test user.
+4. Confirm the browser lands on `/coke/bind-wechat`.
+5. Confirm the page first loads channel status and shows `Create my WeChat channel` for a user with no channel row.
+6. Click `Create my WeChat channel` and confirm the page can transition directly to `pending` with QR/connect info.
+7. Start or refresh the QR login session as needed and confirm the QR code renders for that user’s personal channel.
+8. Scan the QR code with the WeChat account that should own the channel.
+9. Confirm the page transitions to the connected state and shows the masked WeChat identity.
+10. Click disconnect and confirm the page returns to `disconnected`.
+11. Click archive and confirm the page shows the archived state with a create-again action.
+
+## Legacy shared-bind compatibility
+
+If an older deployment still exposes the shared bind-token flow, keep it as a compatibility path
+only. It should not be presented as the primary Coke user onboarding route.

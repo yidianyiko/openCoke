@@ -20,7 +20,34 @@ class IdentityService:
         self.bind_base_url = bind_base_url
         self.target_character_id = target_character_id
 
+    def _trusted_personal_coke_account_id(self, metadata: dict) -> str | None:
+        if metadata.get("channelScope") != "personal":
+            return None
+
+        required_fields = [
+            "tenantId",
+            "channelId",
+            "platform",
+            "externalId",
+            "endUserId",
+            "conversationId",
+            "channelScope",
+            "clawscaleUserId",
+            "cokeAccountId",
+        ]
+        if any(
+            not isinstance(metadata.get(field), str) or not metadata[field].strip()
+            for field in required_fields
+        ):
+            return None
+
+        return metadata["cokeAccountId"]
+
     def _trusted_coke_account_id(self, metadata: dict) -> str | None:
+        personal_coke_account_id = self._trusted_personal_coke_account_id(metadata)
+        if personal_coke_account_id:
+            return personal_coke_account_id
+
         required_fields = [
             "tenantId",
             "channelId",
@@ -37,12 +64,10 @@ class IdentityService:
             return None
 
         coke_account_id = metadata["cokeAccountId"]
-        local_identity = self.external_identity_dao.find_active_identity_for_account(
-            coke_account_id
+        local_identity = self.external_identity_dao.find_active_identity_for_account_in_tenant(
+            coke_account_id, metadata["tenantId"]
         )
         if not local_identity:
-            return None
-        if local_identity.get("tenant_id") != metadata["tenantId"]:
             return None
         return coke_account_id
 

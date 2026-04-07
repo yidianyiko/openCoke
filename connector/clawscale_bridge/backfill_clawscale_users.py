@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 
 from conf.config import CONF
@@ -17,6 +18,13 @@ REQUIRED_IDENTITY_FIELDS = (
     "external_end_user_id",
     "account_id",
 )
+RESET_CONFIRMATION_ENV_VAR = "ALLOW_WECHAT_PERSONAL_RESET"
+RESET_CONFIRMATION_ENV_VALUE = "yes"
+
+
+def require_personal_wechat_reset_confirmation() -> None:
+    if os.getenv(RESET_CONFIRMATION_ENV_VAR) != RESET_CONFIRMATION_ENV_VALUE:
+        raise RuntimeError("personal_wechat_reset_confirmation_required")
 
 
 def _mongo_uri() -> str:
@@ -37,6 +45,10 @@ def _is_valid_active_identity(identity) -> bool:
         if not isinstance(value, str) or not value.strip():
             return False
     return True
+
+
+def _is_legacy_wechat_personal_identity(identity) -> bool:
+    return isinstance(identity, dict) and identity.get("platform") == "wechat_personal"
 
 
 def _touch_identity_timestamp(external_identity_dao, identity, now_ts: int) -> None:
@@ -65,11 +77,32 @@ def _touch_identity_timestamp(external_identity_dao, identity, now_ts: int) -> N
         )
 
 
+def _persist_clawscale_user_id(external_identity_dao, identity, clawscale_user_id: str) -> None:
+    collection = getattr(external_identity_dao, "collection", None)
+    if collection is None:
+        raise AttributeError("external_identity_collection_unavailable")
+
+    collection.update_one(
+        {
+            "source": "clawscale",
+            "tenant_id": identity["tenant_id"],
+            "channel_id": identity["channel_id"],
+            "platform": identity["platform"],
+            "external_end_user_id": identity["external_end_user_id"],
+        },
+        {"$set": {"clawscale_user_id": clawscale_user_id}},
+    )
+
+
 def backfill_active_identities(external_identity_dao, gateway_identity_client, now_ts):
     summary = {"scanned": 0, "updated": 0, "skipped": 0, "failed": 0}
 
     for identity in external_identity_dao.iter_active_clawscale_identities():
         summary["scanned"] += 1
+
+        if not _is_legacy_wechat_personal_identity(identity):
+            summary["skipped"] += 1
+            continue
 
         if not _is_valid_active_identity(identity):
             summary["skipped"] += 1
@@ -91,13 +124,10 @@ def backfill_active_identities(external_identity_dao, gateway_identity_client, n
             if not isinstance(clawscale_user_id, str) or not clawscale_user_id.strip():
                 raise ValueError("gateway_identity_missing_clawscale_user_id")
 
-            external_identity_dao.set_clawscale_user_id(
-                source="clawscale",
-                tenant_id=identity["tenant_id"],
-                channel_id=identity["channel_id"],
-                platform=identity["platform"],
-                external_end_user_id=identity["external_end_user_id"],
-                clawscale_user_id=clawscale_user_id,
+            _persist_clawscale_user_id(
+                external_identity_dao,
+                identity,
+                clawscale_user_id,
             )
             _touch_identity_timestamp(external_identity_dao, identity, now_ts)
             summary["updated"] += 1
@@ -116,6 +146,8 @@ def backfill_active_identities(external_identity_dao, gateway_identity_client, n
 
 
 def main():
+    require_personal_wechat_reset_confirmation()
+
     bridge_conf = CONF["clawscale_bridge"]
     mongo_uri = _mongo_uri()
     external_identity_dao = ExternalIdentityDAO(

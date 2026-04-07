@@ -130,6 +130,24 @@ def test_user_bind_session_requires_user_bearer_token():
     assert response.get_json()["ok"] is False
 
 
+def test_user_wechat_channel_disconnect_requires_user_bearer_token():
+    app, client = _build_user_client()
+
+    response = client.post("/user/wechat-channel/disconnect")
+
+    assert response.status_code == 401
+    assert response.get_json()["ok"] is False
+
+
+def test_user_wechat_channel_archive_requires_user_bearer_token():
+    app, client = _build_user_client()
+
+    response = client.delete("/user/wechat-channel")
+
+    assert response.status_code == 401
+    assert response.get_json()["ok"] is False
+
+
 def test_user_register_rejects_malformed_json_body():
     app, client = _build_user_client()
     app.config["USER_AUTH_SERVICE"] = MagicMock()
@@ -276,6 +294,108 @@ def test_user_bind_session_returns_pending_payload():
     assert response.status_code == 200
     assert response.get_json()["data"]["status"] == "pending"
     assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
+
+
+def test_user_wechat_channel_connect_returns_pending_payload_with_connect_url():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = type(
+        "Auth",
+        (),
+        {
+            "verify_token": lambda self, token: {
+                "_id": "user_1",
+                "email": "alice@example.com",
+            }
+        },
+    )()
+    app.config["USER_PERSONAL_CHANNEL_SERVICE"] = type(
+        "Channel",
+        (),
+        {
+            "start_connect": lambda self, account_id: {
+                "channel_id": "ch_1",
+                "status": "pending",
+                "qr": "data:image/png;base64,abc",
+                "qr_url": "https://liteapp.weixin.qq.com/q/demo",
+                "connect_url": "https://liteapp.weixin.qq.com/q/demo",
+            }
+        },
+    )()
+
+    response = client.post(
+        "/user/wechat-channel/connect",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()["data"]
+    assert data["status"] == "pending"
+    assert data["connect_url"] == "https://liteapp.weixin.qq.com/q/demo"
+    assert data["qr_url"] == "https://liteapp.weixin.qq.com/q/demo"
+
+
+def test_user_wechat_channel_disconnect_returns_disconnected_payload():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = type(
+        "Auth",
+        (),
+        {
+            "verify_token": lambda self, token: {
+                "_id": "user_1",
+                "email": "alice@example.com",
+            }
+        },
+    )()
+    channel_service = MagicMock()
+    channel_service.disconnect_channel.return_value = {
+        "channel_id": "ch_1",
+        "status": "disconnected",
+    }
+    app.config["USER_PERSONAL_CHANNEL_SERVICE"] = channel_service
+
+    response = client.post(
+        "/user/wechat-channel/disconnect",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == {
+        "channel_id": "ch_1",
+        "status": "disconnected",
+    }
+    channel_service.disconnect_channel.assert_called_once_with(account_id="user_1")
+
+
+def test_user_wechat_channel_archive_returns_archived_payload():
+    app, client = _build_user_client()
+    app.config["USER_AUTH_SERVICE"] = type(
+        "Auth",
+        (),
+        {
+            "verify_token": lambda self, token: {
+                "_id": "user_1",
+                "email": "alice@example.com",
+            }
+        },
+    )()
+    channel_service = MagicMock()
+    channel_service.archive_channel.return_value = {
+        "channel_id": "ch_1",
+        "status": "archived",
+    }
+    app.config["USER_PERSONAL_CHANNEL_SERVICE"] = channel_service
+
+    response = client.delete(
+        "/user/wechat-channel",
+        headers={"Authorization": "Bearer user-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == {
+        "channel_id": "ch_1",
+        "status": "archived",
+    }
+    channel_service.archive_channel.assert_called_once_with(account_id="user_1")
 
 
 def test_user_bind_entry_renders_pending_session_page():

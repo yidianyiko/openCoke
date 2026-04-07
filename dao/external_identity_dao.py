@@ -65,75 +65,14 @@ class ExternalIdentityDAO:
             }
         )
 
-    def set_clawscale_user_id(
-        self,
-        source: str,
-        tenant_id: str,
-        channel_id: str,
-        platform: str,
-        external_end_user_id: str,
-        clawscale_user_id: str,
+    def find_active_identity_for_account_in_tenant(
+        self, account_id: str, tenant_id: str
     ):
-        self.collection.update_one(
-            {
-                "source": source,
-                "tenant_id": tenant_id,
-                "channel_id": channel_id,
-                "platform": platform,
-                "external_end_user_id": external_end_user_id,
-            },
-            {"$set": {"clawscale_user_id": clawscale_user_id}},
-        )
-        return self.find_active_identity(
-            source=source,
-            tenant_id=tenant_id,
-            channel_id=channel_id,
-            platform=platform,
-            external_end_user_id=external_end_user_id,
-        )
-
-    def activate_identity(
-        self,
-        source: str,
-        tenant_id: str,
-        channel_id: str,
-        platform: str,
-        external_end_user_id: str,
-        account_id: str,
-        now_ts: int,
-    ):
-        self.collection.update_many(
+        return self.collection.find_one(
             {
                 "account_id": account_id,
-                "source": source,
-                "is_primary_push_target": True,
-            },
-            {"$set": {"is_primary_push_target": False}},
-        )
-        self.collection.update_one(
-            {
-                "source": source,
                 "tenant_id": tenant_id,
-                "channel_id": channel_id,
-                "platform": platform,
-                "external_end_user_id": external_end_user_id,
-            },
-            {
-                "$set": {
-                    "account_id": account_id,
-                    "status": "active",
-                    "updated_at": now_ts,
-                    "last_seen_at": now_ts,
-                    "is_primary_push_target": True,
-                },
-                "$setOnInsert": {"created_at": now_ts},
-            },
-            upsert=True,
-        )
-        return self.find_active_identity(
-            source=source,
-            tenant_id=tenant_id,
-            channel_id=channel_id,
-            platform=platform,
-            external_end_user_id=external_end_user_id,
+                "source": "clawscale",
+                "status": "active",
+            }
         )
