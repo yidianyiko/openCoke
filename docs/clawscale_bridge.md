@@ -31,6 +31,8 @@ https://wx.example.com/coke-entry?bind_token={bind_token}
    `python -m connector.clawscale_bridge.backfill_clawscale_users`
 6. Keep the bridge running and monitor for any bind sync failures before proceeding with traffic cutover.
 
+If the backfill stops partway through, fix the underlying issue and rerun the command. It is safe to rerun because identities that already have `clawscale_user_id` are skipped.
+
 ## Start Coke bridge
 
 Run `python -m connector.clawscale_bridge.app`
