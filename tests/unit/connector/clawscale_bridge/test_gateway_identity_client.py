@@ -49,4 +49,36 @@ def test_gateway_identity_client_posts_expected_payload_and_returns_binding_data
             "Authorization": "Bearer secret",
             "Content-Type": "application/json",
         },
+        timeout=10.0,
     )
+
+
+def test_gateway_identity_client_raises_on_non_ok_response_payload():
+    from connector.clawscale_bridge.gateway_identity_client import (
+        GatewayIdentityClient,
+    )
+
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {"ok": False, "error": "end_user_already_bound"}
+
+    with patch(
+        "connector.clawscale_bridge.gateway_identity_client.requests.post",
+        return_value=response,
+    ):
+        client = GatewayIdentityClient(
+            api_url="https://gateway.coke.local/api/internal/coke-bindings",
+            api_key="secret",
+        )
+
+        try:
+            client.bind_identity(
+                tenant_id="ten_1",
+                channel_id="ch_1",
+                external_id="ext_1",
+                coke_account_id="acct_1",
+            )
+        except ValueError as exc:
+            assert str(exc) == "end_user_already_bound"
+        else:
+            raise AssertionError("expected ValueError")

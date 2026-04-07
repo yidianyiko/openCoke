@@ -92,12 +92,16 @@ class WechatBindSessionService:
             )
             return current_identity
 
-        gateway_identity = self.gateway_identity_client.bind_identity(
-            tenant_id=tenant_id,
-            channel_id=channel_id,
-            external_id=external_end_user_id,
-            coke_account_id=session["account_id"],
-        )
+        gateway_identity = None
+        try:
+            gateway_identity = self.gateway_identity_client.bind_identity(
+                tenant_id=tenant_id,
+                channel_id=channel_id,
+                external_id=external_end_user_id,
+                coke_account_id=session["account_id"],
+            )
+        except Exception:
+            gateway_identity = None
         clawscale_user_id = None
         if isinstance(gateway_identity, dict):
             clawscale_user_id = gateway_identity.get("clawscale_user_id")

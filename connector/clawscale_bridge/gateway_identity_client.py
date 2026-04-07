@@ -2,9 +2,10 @@ import requests
 
 
 class GatewayIdentityClient:
-    def __init__(self, api_url: str, api_key: str):
+    def __init__(self, api_url: str, api_key: str, timeout_seconds: float = 10.0):
         self.api_url = api_url.rstrip("/")
         self.api_key = api_key
+        self.timeout_seconds = timeout_seconds
 
     def bind_identity(
         self,
@@ -25,6 +26,7 @@ class GatewayIdentityClient:
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             },
+            timeout=self.timeout_seconds,
         )
         response.raise_for_status()
         payload = response.json()
