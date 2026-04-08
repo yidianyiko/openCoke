@@ -209,6 +209,76 @@ def test_user_register_rejects_empty_string_required_field_values():
     assert response.get_json() == {"ok": False, "error": "invalid_request"}
 
 
+def test_user_register_provisions_gateway_user_after_auth_record_creation():
+    app, client = _build_user_client()
+    user_auth_service = MagicMock()
+    user_auth_service.register.return_value = {
+        "token": "token",
+        "user": {
+            "id": "user_1",
+            "email": "alice@example.com",
+            "display_name": "Alice",
+        },
+    }
+    app.config["USER_AUTH_SERVICE"] = user_auth_service
+    app.config["USER_PROVISION_SERVICE"] = MagicMock()
+
+    response = client.post(
+        "/user/register",
+        json={
+            "display_name": "Alice",
+            "email": "alice@example.com",
+            "password": "correct-password",
+        },
+    )
+
+    assert response.status_code == 201
+    app.config["USER_PROVISION_SERVICE"].ensure_user.assert_called_once_with(
+        account_id="user_1",
+        display_name="Alice",
+    )
+
+
+def test_user_register_rolls_back_created_user_when_gateway_provision_fails():
+    from connector.clawscale_bridge.gateway_user_provision_client import (
+        GatewayUserProvisionClientError,
+    )
+
+    app, client = _build_user_client()
+    user_auth_service = MagicMock()
+    user_auth_service.register.return_value = {
+        "token": "token",
+        "user": {
+            "id": "user_1",
+            "email": "alice@example.com",
+            "display_name": "Alice",
+        },
+    }
+    user_auth_service.user_dao.delete_user.return_value = True
+    provision_service = MagicMock()
+    provision_service.ensure_user.side_effect = GatewayUserProvisionClientError(
+        "gateway_user_provision_request_failed"
+    )
+    app.config["USER_AUTH_SERVICE"] = user_auth_service
+    app.config["USER_PROVISION_SERVICE"] = provision_service
+
+    response = client.post(
+        "/user/register",
+        json={
+            "display_name": "Alice",
+            "email": "alice@example.com",
+            "password": "correct-password",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "ok": False,
+        "error": "gateway_user_provision_request_failed",
+    }
+    user_auth_service.user_dao.delete_user.assert_called_once_with("user_1")
+
+
 def test_user_login_rejects_malformed_json_body():
     app, client = _build_user_client()
     app.config["USER_AUTH_SERVICE"] = MagicMock()
@@ -260,6 +330,36 @@ def test_user_login_rejects_empty_string_required_field_values():
 
     assert response.status_code == 400
     assert response.get_json() == {"ok": False, "error": "invalid_request"}
+
+
+def test_user_login_provisions_gateway_user_before_returning_token():
+    app, client = _build_user_client()
+    auth_service = MagicMock()
+    auth_service.login.return_value = (
+        True,
+        {
+            "token": "token",
+            "user": {
+                "id": "user_1",
+                "email": "alice@example.com",
+                "display_name": "Alice",
+            },
+        },
+    )
+    provision_service = MagicMock()
+    app.config["USER_AUTH_SERVICE"] = auth_service
+    app.config["USER_PROVISION_SERVICE"] = provision_service
+
+    response = client.post(
+        "/user/login",
+        json={"email": "alice@example.com", "password": "correct-password"},
+    )
+
+    assert response.status_code == 200
+    provision_service.ensure_user.assert_called_once_with(
+        account_id="user_1",
+        display_name="Alice",
+    )
 
 
 def test_user_bind_session_returns_pending_payload():

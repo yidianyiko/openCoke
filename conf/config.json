@@ -92,6 +92,7 @@
         "poll_interval_seconds": 1,
         "identity_api_url": "${CLAWSCALE_IDENTITY_API_URL}",
         "identity_api_key": "${CLAWSCALE_IDENTITY_API_KEY}",
+        "user_provision_api_url": "${CLAWSCALE_USER_PROVISION_API_URL}",
         "outbound_api_url": "${CLAWSCALE_OUTBOUND_API_URL}",
         "outbound_api_key": "${CLAWSCALE_OUTBOUND_API_KEY}"
     },

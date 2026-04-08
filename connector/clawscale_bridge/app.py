@@ -11,6 +11,10 @@ from connector.clawscale_bridge.gateway_personal_channel_client import (
     GatewayPersonalChannelClient,
     GatewayPersonalChannelClientError,
 )
+from connector.clawscale_bridge.gateway_user_provision_client import (
+    GatewayUserProvisionClient,
+    GatewayUserProvisionClientError,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.personal_wechat_channel_service import (
@@ -113,6 +117,14 @@ def _build_gateway_personal_channel_client():
     )
 
 
+def _build_gateway_user_provision_client():
+    bridge_conf = CONF["clawscale_bridge"]
+    return GatewayUserProvisionClient(
+        api_url=bridge_conf["user_provision_api_url"],
+        api_key=bridge_conf["identity_api_key"],
+    )
+
+
 def _build_personal_wechat_channel_service():
     client = _build_gateway_personal_channel_client()
     return PersonalWechatChannelService(gateway_client=client)
@@ -193,6 +205,7 @@ def create_app(testing: bool = False):
         app.config["USER_PERSONAL_CHANNEL_SERVICE"] = (
             _build_personal_wechat_channel_service()
         )
+        app.config["USER_PROVISION_SERVICE"] = _build_gateway_user_provision_client()
 
     @app.after_request
     def add_cors_headers(response):
@@ -255,6 +268,16 @@ def create_app(testing: bool = False):
             )
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 409
+        provision_service = app.config.get("USER_PROVISION_SERVICE")
+        if provision_service is not None:
+            try:
+                provision_service.ensure_user(
+                    account_id=result["user"]["id"],
+                    display_name=result["user"].get("display_name"),
+                )
+            except GatewayUserProvisionClientError as exc:
+                service.user_dao.delete_user(result["user"]["id"])
+                return jsonify({"ok": False, "error": str(exc)}), 502
         return jsonify({"ok": True, "data": result}), 201
 
     @app.post("/user/login")
@@ -266,6 +289,15 @@ def create_app(testing: bool = False):
         ok, result = service.login(payload["email"], payload["password"])
         if not ok:
             return jsonify({"ok": False, "error": result}), 401
+        provision_service = app.config.get("USER_PROVISION_SERVICE")
+        if provision_service is not None:
+            try:
+                provision_service.ensure_user(
+                    account_id=result["user"]["id"],
+                    display_name=result["user"].get("display_name"),
+                )
+            except GatewayUserProvisionClientError as exc:
+                return jsonify({"ok": False, "error": str(exc)}), 502
         return jsonify({"ok": True, "data": result})
 
     def require_user_auth():

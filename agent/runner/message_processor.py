@@ -202,8 +202,12 @@ class MessageAcquirer:
             return None
 
         # 验证 platform 字段
-        if not self._validate_platform(user, character, top_message, platform):
+        platform_profiles = self._resolve_platform_profiles(
+            user, character, top_message, platform
+        )
+        if not platform_profiles:
             return None
+        user_platform_profile, character_platform_profile = platform_profiles
 
         # 获取/创建会话（群聊或私聊）
         chatroom_name = top_message.get("chatroom_name")
@@ -214,12 +218,12 @@ class MessageAcquirer:
                 chatroom_name=chatroom_name,
                 initial_talkers=[
                     {
-                        "id": user["platforms"][platform]["id"],
-                        "nickname": user["platforms"][platform]["nickname"],
+                        "id": user_platform_profile["id"],
+                        "nickname": user_platform_profile["nickname"],
                     },
                     {
-                        "id": character["platforms"][platform]["id"],
-                        "nickname": character["platforms"][platform]["nickname"],
+                        "id": character_platform_profile["id"],
+                        "nickname": character_platform_profile["nickname"],
                     },
                 ],
             )
@@ -228,10 +232,10 @@ class MessageAcquirer:
             conversation_id, _ = (
                 self.conversation_dao.get_or_create_private_conversation(
                     platform=platform,
-                    user_id1=user["platforms"][platform]["id"],
-                    nickname1=user["platforms"][platform]["nickname"],
-                    user_id2=character["platforms"][platform]["id"],
-                    nickname2=character["platforms"][platform]["nickname"],
+                    user_id1=user_platform_profile["id"],
+                    nickname1=user_platform_profile["nickname"],
+                    user_id2=character_platform_profile["id"],
+                    nickname2=character_platform_profile["nickname"],
                 )
             )
 
@@ -275,16 +279,20 @@ class MessageAcquirer:
             input_messages=input_messages,
         )
 
-    def _validate_platform(
+    def _resolve_platform_profiles(
         self, user: Dict, character: Dict, top_message: Dict, platform: str
-    ) -> bool:
-        """验证 platform 字段"""
-        # 验证用户和角色是否支持该平台
+    ) -> Optional[Tuple[Dict, Dict]]:
+        """解析用户和角色的平台身份信息。"""
         user_platforms = user.get("platforms", {})
         character_platforms = character.get("platforms", {})
 
-        # 检查用户是否有对应的平台字段
-        if platform not in user_platforms:
+        user_platform_profile = user_platforms.get(platform)
+        if not user_platform_profile:
+            user_platform_profile = self._build_clawscale_virtual_user_platform(
+                user, top_message, platform
+            )
+
+        if not user_platform_profile:
             logger.error(
                 f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: "
                 f"user_id={user.get('_id')}, user_name={user.get('name')}, "
@@ -293,10 +301,17 @@ class MessageAcquirer:
             top_message["status"] = "failed"
             top_message["error"] = f"user_missing_platform:{platform}"
             save_inputmessage(top_message)
-            return False
+            return None
 
-        # 检查角色是否有对应的平台字段
-        if platform not in character_platforms:
+        character_platform_profile = character_platforms.get(platform)
+        if not character_platform_profile:
+            character_platform_profile = (
+                self._build_clawscale_virtual_character_platform(
+                    character, top_message, platform
+                )
+            )
+
+        if not character_platform_profile:
             logger.error(
                 f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: "
                 f"character_id={character.get('_id')}, character_name={character.get('name')}. "
@@ -305,9 +320,75 @@ class MessageAcquirer:
             top_message["status"] = "failed"
             top_message["error"] = f"character_missing_platform:{platform}"
             save_inputmessage(top_message)
-            return False
+            return None
 
-        return True
+        return user_platform_profile, character_platform_profile
+
+    def _build_clawscale_virtual_user_platform(
+        self, user: Dict, top_message: Dict, platform: str
+    ) -> Optional[Dict]:
+        metadata = top_message.get("metadata") or {}
+        if (
+            metadata.get("source") != "clawscale"
+            or metadata.get("delivery_mode") != "request_response"
+            or platform != "wechat"
+        ):
+            return None
+
+        clawscale_meta = metadata.get("clawscale")
+        if not isinstance(clawscale_meta, dict):
+            return None
+
+        conversation_id = clawscale_meta.get("conversation_id")
+        external_id = clawscale_meta.get("external_id")
+        stable_id = conversation_id or external_id or str(user.get("_id") or "")
+        if not stable_id:
+            return None
+
+        nickname = (
+            user.get("display_name")
+            or user.get("name")
+            or user.get("email")
+            or f"user-{str(user.get('_id') or '')[-6:]}"
+        )
+
+        logger.info(
+            f"{self.worker_tag} 使用 Clawscale 虚拟 wechat 会话身份: user_id={user.get('_id')}, conversation_key={stable_id}"
+        )
+        return {
+            "id": f"clawscale:{stable_id}",
+            "nickname": nickname,
+        }
+
+    def _build_clawscale_virtual_character_platform(
+        self, character: Dict, top_message: Dict, platform: str
+    ) -> Optional[Dict]:
+        metadata = top_message.get("metadata") or {}
+        if (
+            metadata.get("source") != "clawscale"
+            or metadata.get("delivery_mode") != "request_response"
+            or platform != "wechat"
+        ):
+            return None
+
+        character_id = str(character.get("_id") or "")
+        if not character_id:
+            return None
+
+        nickname = (
+            character.get("display_name")
+            or character.get("name")
+            or self.target_user_alias
+            or "Coke"
+        )
+
+        logger.info(
+            f"{self.worker_tag} 使用 Clawscale 虚拟角色 wechat 身份: character_id={character_id}"
+        )
+        return {
+            "id": f"clawscale-character:{character_id}",
+            "nickname": nickname,
+        }
 
     def release_lock(self, msg_ctx: MessageContext, reason: str = ""):
         """释放锁"""
