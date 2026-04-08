@@ -64,6 +64,16 @@ class ClawScaleOutputDispatcher:
         except Exception:
             logger.exception("failed to finalize clawscale output message")
 
+    def _release_message_for_retry(self, message_id):
+        try:
+            self.mongo.update_one(
+                "outputmessages",
+                {"_id": message_id, "status": "dispatching"},
+                {"$set": {"status": "pending"}, "$unset": {"dispatching_timestamp": ""}},
+            )
+        except Exception:
+            logger.exception("failed to release clawscale output message for retry")
+
     def _build_payload(self, message):
         metadata = message["metadata"]
         return {
@@ -94,11 +104,29 @@ class ClawScaleOutputDispatcher:
                 headers={"Authorization": f"Bearer {self.outbound_api_key}"},
                 timeout=15,
             )
-            new_status = "handled" if response.status_code in (200, 409) else "failed"
         except Exception:
             logger.exception("clawscale output request failed")
             self._mark_failed_best_effort(message["_id"], now)
             return False
+
+        if response.status_code == 200:
+            new_status = "handled"
+        elif response.status_code == 409:
+            error = None
+            try:
+                error = response.json().get("error")
+            except Exception:
+                logger.exception("clawscale output duplicate response parsing failed")
+
+            if error == "duplicate_request":
+                new_status = "handled"
+            elif error == "idempotency_key_conflict":
+                new_status = "failed"
+            else:
+                self._release_message_for_retry(message["_id"])
+                return False
+        else:
+            new_status = "failed"
 
         self._finalize_message(message["_id"], new_status, now)
         return new_status == "handled"

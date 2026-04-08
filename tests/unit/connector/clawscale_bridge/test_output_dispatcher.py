@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 
 def test_output_dispatcher_claims_pending_message_before_sending(monkeypatch):
@@ -205,6 +205,135 @@ def test_output_dispatcher_marks_malformed_claimed_message_failed(monkeypatch):
         "outputmessages",
         {"_id": "out_1", "status": "dispatching"},
         {"$set": {"status": "failed", "handled_timestamp": now}},
+    )
+
+
+def test_output_dispatcher_treats_duplicate_request_409_as_handled():
+    from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
+
+    mongo = MagicMock()
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = {
+        "_id": "out_1",
+        "platform": "wechat",
+        "status": "dispatching",
+        "message": "记得开会",
+        "metadata": {
+            "route_via": "clawscale",
+            "delivery_mode": "push",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_123",
+            "push_idempotency_key": "push_1",
+        },
+    }
+    mongo.get_collection.return_value = collection
+
+    session = MagicMock()
+    session.post.return_value.status_code = 409
+    session.post.return_value.json.return_value = {"error": "duplicate_request"}
+
+    dispatcher = ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_1", "status": "dispatching"},
+        {"$set": {"status": "handled", "handled_timestamp": ANY}},
+    )
+
+
+def test_output_dispatcher_releases_in_progress_duplicate_for_retry():
+    from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
+
+    mongo = MagicMock()
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = {
+        "_id": "out_1",
+        "platform": "wechat",
+        "status": "dispatching",
+        "message": "记得开会",
+        "metadata": {
+            "route_via": "clawscale",
+            "delivery_mode": "push",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_123",
+            "push_idempotency_key": "push_1",
+        },
+    }
+    mongo.get_collection.return_value = collection
+
+    session = MagicMock()
+    session.post.return_value.status_code = 409
+    session.post.return_value.json.return_value = {"error": "duplicate_request_in_progress"}
+
+    dispatcher = ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is False
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_1", "status": "dispatching"},
+        {"$set": {"status": "pending"}, "$unset": {"dispatching_timestamp": ""}},
+    )
+
+
+def test_output_dispatcher_marks_conflicting_duplicate_failed():
+    from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
+
+    mongo = MagicMock()
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = {
+        "_id": "out_1",
+        "platform": "wechat",
+        "status": "dispatching",
+        "message": "记得开会",
+        "metadata": {
+            "route_via": "clawscale",
+            "delivery_mode": "push",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_123",
+            "push_idempotency_key": "push_1",
+        },
+    }
+    mongo.get_collection.return_value = collection
+
+    session = MagicMock()
+    session.post.return_value.status_code = 409
+    session.post.return_value.json.return_value = {"error": "idempotency_key_conflict"}
+
+    dispatcher = ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is False
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_1", "status": "dispatching"},
+        {"$set": {"status": "failed", "handled_timestamp": ANY}},
     )
 
 
