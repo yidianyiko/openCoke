@@ -63,10 +63,15 @@ def test_handle_inbound_uses_personal_channel_ownership_metadata_without_legacy_
 
     external_identity_dao = MagicMock()
     binding_ticket_dao = MagicMock()
+    push_route_dao = MagicMock()
     message_gateway = MagicMock()
     message_gateway.enqueue.return_value = "req_1"
     reply_waiter = MagicMock()
-    reply_waiter.wait_for_reply.return_value = "personal ownership reply"
+    reply_waiter.wait_for_reply.side_effect = lambda *_args, **_kwargs: (
+        "personal ownership reply"
+        if push_route_dao.upsert_route.called
+        else AssertionError("push route must be persisted before waiting for reply")
+    )
     bind_session_service = MagicMock()
 
     service = IdentityService(
@@ -78,6 +83,7 @@ def test_handle_inbound_uses_personal_channel_ownership_metadata_without_legacy_
         bind_base_url="https://coke.local",
         target_character_id="char_1",
     )
+    service.push_route_dao = push_route_dao
 
     result = service.handle_inbound(
         {
@@ -101,6 +107,16 @@ def test_handle_inbound_uses_personal_channel_ownership_metadata_without_legacy_
     external_identity_dao.find_active_identity_for_account.assert_not_called()
     bind_session_service.consume_matching_session.assert_not_called()
     bind_session_service.consume_matching_session_from_text.assert_not_called()
+    push_route_dao.upsert_route.assert_called_once_with(
+        account_id="acct_1",
+        tenant_id="ten_1",
+        channel_id="ch_1",
+        platform="wechat_personal",
+        external_end_user_id="wxid_123",
+        conversation_id="conv_1",
+        now_ts=ANY,
+        clawscale_user_id="csu_1",
+    )
     message_gateway.enqueue.assert_called_once_with(
         account_id="acct_1",
         character_id="char_1",
@@ -268,6 +284,7 @@ def test_handle_inbound_falls_back_to_legacy_lookup_when_gateway_trust_check_fai
         "status": "active",
     }
     binding_ticket_dao = MagicMock()
+    push_route_dao = MagicMock()
     message_gateway = MagicMock()
     message_gateway.enqueue.return_value = "req_legacy"
     reply_waiter = MagicMock()
@@ -283,6 +300,7 @@ def test_handle_inbound_falls_back_to_legacy_lookup_when_gateway_trust_check_fai
         bind_base_url="https://coke.local",
         target_character_id="char_1",
     )
+    service.push_route_dao = push_route_dao
 
     result = service.handle_inbound(
         {
@@ -313,6 +331,7 @@ def test_handle_inbound_falls_back_to_legacy_lookup_when_gateway_trust_check_fai
     )
     bind_session_service.consume_matching_session.assert_not_called()
     bind_session_service.consume_matching_session_from_text.assert_not_called()
+    push_route_dao.upsert_route.assert_not_called()
     message_gateway.enqueue.assert_called_once_with(
         account_id="user_legacy",
         character_id="char_1",

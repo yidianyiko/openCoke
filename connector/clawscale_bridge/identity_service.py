@@ -11,6 +11,7 @@ class IdentityService:
         reply_waiter,
         bind_base_url: str,
         target_character_id: str,
+        push_route_dao=None,
     ):
         self.external_identity_dao = external_identity_dao
         self.binding_ticket_dao = binding_ticket_dao
@@ -19,6 +20,7 @@ class IdentityService:
         self.reply_waiter = reply_waiter
         self.bind_base_url = bind_base_url
         self.target_character_id = target_character_id
+        self.push_route_dao = push_route_dao
 
     def _trusted_personal_coke_account_id(self, metadata: dict) -> str | None:
         if metadata.get("channelScope") != "personal":
@@ -109,6 +111,19 @@ class IdentityService:
         now_ts = int(time.time())
         coke_account_id = self._trusted_coke_account_id(metadata)
         if coke_account_id:
+            if self.push_route_dao:
+                push_route_kwargs = {
+                    "account_id": coke_account_id,
+                    "tenant_id": metadata["tenantId"],
+                    "channel_id": metadata["channelId"],
+                    "platform": metadata["platform"],
+                    "external_end_user_id": metadata["externalId"],
+                    "conversation_id": metadata["conversationId"],
+                    "now_ts": now_ts,
+                }
+                if "clawscaleUserId" in metadata:
+                    push_route_kwargs["clawscale_user_id"] = metadata["clawscaleUserId"]
+                self.push_route_dao.upsert_route(**push_route_kwargs)
             bridge_request_id = self.message_gateway.enqueue(
                 account_id=coke_account_id,
                 character_id=self.target_character_id,
