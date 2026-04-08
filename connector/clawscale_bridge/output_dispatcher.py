@@ -69,7 +69,7 @@ class ClawScaleOutputDispatcher:
         return {
             "tenant_id": metadata["tenant_id"],
             "channel_id": metadata["channel_id"],
-            "end_user_id": metadata["external_end_user_id"],
+            "external_end_user_id": metadata["external_end_user_id"],
             "text": message["message"],
             "idempotency_key": metadata["push_idempotency_key"],
         }

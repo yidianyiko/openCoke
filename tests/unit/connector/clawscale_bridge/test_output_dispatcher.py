@@ -108,7 +108,7 @@ def test_output_dispatcher_posts_to_configured_outbound_url_with_api_key():
         json={
             "tenant_id": "ten_1",
             "channel_id": "ch_1",
-            "end_user_id": "wxid_123",
+            "external_end_user_id": "wxid_123",
             "text": "记得开会",
             "idempotency_key": "push_1",
         },
