@@ -82,8 +82,8 @@ def test_handle_inbound_uses_personal_channel_ownership_metadata_without_legacy_
         reply_waiter=reply_waiter,
         bind_base_url="https://coke.local",
         target_character_id="char_1",
+        push_route_dao=push_route_dao,
     )
-    service.push_route_dao = push_route_dao
 
     result = service.handle_inbound(
         {
@@ -299,8 +299,8 @@ def test_handle_inbound_falls_back_to_legacy_lookup_when_gateway_trust_check_fai
         reply_waiter=reply_waiter,
         bind_base_url="https://coke.local",
         target_character_id="char_1",
+        push_route_dao=push_route_dao,
     )
-    service.push_route_dao = push_route_dao
 
     result = service.handle_inbound(
         {

@@ -54,6 +54,75 @@ def test_build_user_bind_service_wires_gateway_identity_client(monkeypatch):
     assert captured["gateway_identity_client"] is gateway_identity_client
 
 
+def test_build_default_bridge_gateway_wires_push_route_dao_and_indexes(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    push_route_dao = MagicMock()
+    identity_service_captured = {}
+
+    monkeypatch.setattr(
+        bridge_app, "_mongo_uri", lambda: "mongodb://example", raising=False
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["mongodb"], "mongodb_name", "test_db"
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "bind_base_url", "https://coke.local"
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "wechat_public_connect_url_template", "tpl"
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "wechat_bind_session_ttl_seconds", 3600
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_gateway_identity_client", lambda: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "UserDAO", lambda **kwargs: MagicMock())
+    monkeypatch.setattr(
+        bridge_app, "ExternalIdentityDAO", lambda **kwargs: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "BindingTicketDAO", lambda **kwargs: MagicMock())
+    monkeypatch.setattr(
+        bridge_app, "WechatBindSessionDAO", lambda **kwargs: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "MongoDBBase", lambda **kwargs: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "CokeMessageGateway", lambda **kwargs: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "ReplyWaiter", lambda **kwargs: MagicMock())
+
+    class FakePushRouteDAO:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        def create_indexes(self):
+            push_route_dao.create_indexes()
+
+    class FakeIdentityService:
+        def __init__(self, **kwargs):
+            identity_service_captured.update(kwargs)
+
+    monkeypatch.setattr(bridge_app, "ClawscalePushRouteDAO", FakePushRouteDAO)
+    monkeypatch.setattr(bridge_app, "IdentityService", FakeIdentityService)
+    monkeypatch.setattr(
+        bridge_app,
+        "_resolve_target_character_id",
+        lambda user_dao: "char_1",
+        raising=False,
+    )
+
+    bridge_app._build_default_bridge_gateway()
+
+    assert push_route_dao.create_indexes.called
+    assert identity_service_captured["push_route_dao"].kwargs == {
+        "mongo_uri": "mongodb://example",
+        "db_name": "test_db",
+    }
+
+
 def test_bridge_inbound_rejects_missing_bearer_token():
     from connector.clawscale_bridge.app import create_app
 

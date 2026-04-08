@@ -25,6 +25,7 @@ from connector.clawscale_bridge.wechat_bind_session_service import (
     WechatBindSessionService,
 )
 from dao.binding_ticket_dao import BindingTicketDAO
+from dao.clawscale_push_route_dao import ClawscalePushRouteDAO
 from dao.external_identity_dao import ExternalIdentityDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
@@ -65,6 +66,8 @@ def _build_default_bridge_gateway():
     user_dao = UserDAO(mongo_uri=mongo_uri, db_name=db_name)
     external_identity_dao = ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name)
     binding_ticket_dao = BindingTicketDAO(mongo_uri=mongo_uri, db_name=db_name)
+    push_route_dao = ClawscalePushRouteDAO(mongo_uri=mongo_uri, db_name=db_name)
+    push_route_dao.create_indexes()
     bind_session_dao = WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name)
     mongo = MongoDBBase(connection_string=mongo_uri, db_name=db_name)
     message_gateway = CokeMessageGateway(mongo=mongo, user_dao=user_dao)
@@ -91,6 +94,7 @@ def _build_default_bridge_gateway():
         reply_waiter=reply_waiter,
         bind_base_url=bridge_conf["bind_base_url"],
         target_character_id=_resolve_target_character_id(user_dao),
+        push_route_dao=push_route_dao,
     )
 
 
