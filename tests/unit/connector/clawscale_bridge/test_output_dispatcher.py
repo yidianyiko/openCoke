@@ -40,10 +40,24 @@ def test_output_dispatcher_claims_pending_message_before_sending(monkeypatch):
     collection.find_one_and_update.assert_called_once_with(
         {
             "platform": "wechat",
-            "status": "pending",
             "expect_output_timestamp": {"$lte": now},
             "metadata.route_via": "clawscale",
             "metadata.delivery_mode": "push",
+            "$or": [
+                {"status": "pending"},
+                {
+                    "status": "dispatching",
+                    "$or": [
+                        {
+                            "dispatching_timestamp": {
+                                "$lte": now
+                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                            }
+                        },
+                        {"dispatching_timestamp": {"$exists": False}},
+                    ],
+                },
+            ],
         },
         {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
         return_document=output_dispatcher.ReturnDocument.AFTER,
@@ -147,4 +161,119 @@ def test_output_dispatcher_marks_claimed_message_failed_when_post_raises(
         "outputmessages",
         {"_id": "out_1", "status": "dispatching"},
         {"$set": {"status": "failed", "handled_timestamp": now}},
+    )
+
+
+def test_output_dispatcher_marks_malformed_claimed_message_failed(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = {
+        "_id": "out_1",
+        "platform": "wechat",
+        "status": "dispatching",
+        "message": "记得开会",
+        "metadata": {
+            "route_via": "clawscale",
+            "delivery_mode": "push",
+            "tenant_id": "ten_1",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_123",
+            "push_idempotency_key": "push_1",
+        },
+    }
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    session = MagicMock()
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is False
+    session.post.assert_not_called()
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_1", "status": "dispatching"},
+        {"$set": {"status": "failed", "handled_timestamp": now}},
+    )
+
+
+def test_output_dispatcher_reclaims_stale_dispatching_message(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = {
+        "_id": "out_2",
+        "platform": "wechat",
+        "status": "dispatching",
+        "dispatching_timestamp": now,
+        "message": "稍后联系",
+        "metadata": {
+            "route_via": "clawscale",
+            "delivery_mode": "push",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_2",
+            "platform": "wechat_personal",
+            "external_end_user_id": "wxid_456",
+            "push_idempotency_key": "push_2",
+        },
+    }
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    session = MagicMock()
+    session.post.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    collection.find_one_and_update.assert_called_once_with(
+        {
+            "platform": "wechat",
+            "expect_output_timestamp": {"$lte": now},
+            "metadata.route_via": "clawscale",
+            "metadata.delivery_mode": "push",
+            "$or": [
+                {"status": "pending"},
+                {
+                    "status": "dispatching",
+                    "$or": [
+                        {
+                            "dispatching_timestamp": {
+                                "$lte": now
+                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                            }
+                        },
+                        {"dispatching_timestamp": {"$exists": False}},
+                    ],
+                },
+            ],
+        },
+        {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
+        return_document=output_dispatcher.ReturnDocument.AFTER,
+    )
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_2", "status": "dispatching"},
+        {"$set": {"status": "handled", "handled_timestamp": now}},
     )
