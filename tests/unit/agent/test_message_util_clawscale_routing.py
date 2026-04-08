@@ -137,6 +137,7 @@ def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_outpu
     monkeypatch,
 ):
     from agent.util import message_util
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
     from connector.clawscale_bridge.identity_service import IdentityService
     from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
 
@@ -191,7 +192,32 @@ def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_outpu
         def __init__(self, message):
             self.message = message
 
-        def find_one_and_update(self, *args, **kwargs):
+        def find_one_and_update(self, query, update, return_document=None):
+            assert query == {
+                "platform": "wechat",
+                "expect_output_timestamp": {"$lte": now_ts},
+                "metadata.route_via": "clawscale",
+                "metadata.delivery_mode": "push",
+                "$or": [
+                    {"status": "pending"},
+                    {
+                        "status": "dispatching",
+                        "$or": [
+                            {
+                                "dispatching_timestamp": {
+                                    "$lte": now_ts
+                                    - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                                }
+                            },
+                            {"dispatching_timestamp": {"$exists": False}},
+                        ],
+                    },
+                ],
+            }
+            assert update == {
+                "$set": {"status": "dispatching", "dispatching_timestamp": now_ts}
+            }
+            assert return_document == output_dispatcher.ReturnDocument.AFTER
             return self.message
 
     class FakeMongo:
@@ -203,8 +229,13 @@ def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_outpu
             assert name == "outputmessages"
             return self.collection
 
-        def update_one(self, *args, **kwargs):
-            self.updated.append((args, kwargs))
+        def update_one(self, collection_name, filter_query, update):
+            assert collection_name == "outputmessages"
+            assert filter_query == {"_id": "out_1", "status": "dispatching"}
+            assert update == {
+                "$set": {"status": "handled", "handled_timestamp": now_ts}
+            }
+            self.updated.append((collection_name, filter_query, update))
 
     monkeypatch.setattr(
         "dao.clawscale_push_route_dao.ClawscalePushRouteDAO",
@@ -342,6 +373,13 @@ def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_outpu
     handled = dispatcher.dispatch_once()
 
     assert handled is True
+    assert mongo.updated == [
+        (
+            "outputmessages",
+            {"_id": "out_1", "status": "dispatching"},
+            {"$set": {"status": "handled", "handled_timestamp": now_ts}},
+        )
+    ]
     assert session.post_calls == [
         (
             ("https://gateway.local/api/outbound",),

@@ -94,6 +94,7 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
     assert dispatcher_captured["outbound_api_url"] == "https://gateway.local/api/outbound"
     assert dispatcher_captured["outbound_api_key"] == "outbound-secret"
     assert thread_captured["daemon"] is True
+    assert thread_captured["target"] is bridge_app._run_output_dispatcher_loop
     assert thread_captured["started"] is True
     assert thread_captured["args"][0] is not None
     assert thread_captured["args"][1] == 7
