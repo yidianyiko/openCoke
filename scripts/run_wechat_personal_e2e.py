@@ -42,10 +42,16 @@ def wait_until(description: str, predicate, timeout_seconds: float, interval_sec
     deadline = time.time() + timeout_seconds
     last_value = None
     while time.time() < deadline:
-      last_value = predicate()
-      if last_value:
-          return last_value
-      time.sleep(interval_seconds)
+        try:
+            result = predicate()
+        except Exception as exc:
+            last_value = f"{type(exc).__name__}:{exc}"
+            time.sleep(interval_seconds)
+            continue
+        last_value = result
+        if result:
+            return result
+        time.sleep(interval_seconds)
     raise RuntimeError(f"timeout_waiting_for_{description}: last_value={last_value}")
 
 
