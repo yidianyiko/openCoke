@@ -3,6 +3,9 @@ from typing import Any
 from pymongo import MongoClient
 
 
+_UNSET = object()
+
+
 class ClawscalePushRouteDAO:
     def __init__(self, mongo_uri: str, db_name: str):
         self.client = MongoClient(mongo_uri)
@@ -24,6 +27,7 @@ class ClawscalePushRouteDAO:
                 ("source", 1),
                 ("account_id", 1),
                 ("platform", 1),
+                ("conversation_id", 1),
                 ("status", 1),
                 ("last_seen_at", 1),
             ]
@@ -39,7 +43,7 @@ class ClawscalePushRouteDAO:
         external_end_user_id: str,
         conversation_id: str | None,
         now_ts: int,
-        clawscale_user_id: str | None = None,
+        clawscale_user_id: Any = _UNSET,
     ) -> Any:
         route_filter = {
             "source": "clawscale",
@@ -64,7 +68,9 @@ class ClawscalePushRouteDAO:
                 "created_at": now_ts,
             },
         }
-        if clawscale_user_id is not None:
+        if clawscale_user_id is None:
+            route_update["$unset"] = {"clawscale_user_id": ""}
+        elif clawscale_user_id is not _UNSET:
             route_update["$set"]["clawscale_user_id"] = clawscale_user_id
         return self.collection.update_one(route_filter, route_update, upsert=True)
 
