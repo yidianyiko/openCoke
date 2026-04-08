@@ -225,6 +225,7 @@ def send_message_via_context(
     if metadata is None:
         metadata = {}
 
+    status = "pending"
     is_proactive_message = context.get("message_source") in {"future", "reminder"}
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
@@ -239,10 +240,27 @@ def send_message_via_context(
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
     elif context.get("user", {}).get("_id"):
-        metadata = {
-            **build_clawscale_push_metadata(str(context["user"]["_id"]), context=context),
-            **metadata,
-        }
+        clawscale_metadata = build_clawscale_push_metadata(
+            str(context["user"]["_id"]), context=context
+        )
+        if clawscale_metadata:
+            metadata = {**clawscale_metadata, **metadata}
+        else:
+            status = "failed"
+            metadata = {
+                **metadata,
+                "route_via": "clawscale",
+                "delivery_mode": "push",
+                "failure_reason": "missing_clawscale_push_route",
+            }
+            logger.warning(
+                "missing_clawscale_push_route: failed to resolve clawscale push route "
+                "for proactive message user_id=%s conversation_id=%s platform=%s",
+                str(context["user"]["_id"]),
+                context.get("conversation_id")
+                or context.get("conversation", {}).get("_id"),
+                context.get("conversation", {}).get("platform") or context.get("platform"),
+            )
 
     return send_message(
         platform=context["conversation"]["platform"],
@@ -251,7 +269,7 @@ def send_message_via_context(
         chatroom_name=context["conversation"]["chatroom_name"],
         message=message,
         message_type=message_type,
-        status="pending",
+        status=status,
         expect_output_timestamp=expect_output_timestamp,
         metadata=metadata,
     )

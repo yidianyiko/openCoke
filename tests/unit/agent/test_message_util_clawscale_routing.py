@@ -44,6 +44,52 @@ def test_message_util_uses_clawscale_route_metadata_for_proactive_output_without
     assert "legacy_inbound" not in message["metadata"]
 
 
+def test_message_util_marks_proactive_output_failed_when_clawscale_route_missing(
+    monkeypatch, sample_context
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "future"
+    sample_context["conversation_id"] = "conv_missing_route"
+    sample_context["conversation"]["platform"] = "wechat"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["conversation_info"]["input_messages"] = []
+
+    logged_messages = []
+
+    def fake_warning(msg, *args, **kwargs):
+        logged_messages.append(msg % args if args else msg)
+
+    monkeypatch.setattr(
+        message_util, "build_clawscale_push_metadata", lambda *args, **kwargs: {}
+    )
+    monkeypatch.setattr(message_util.logger, "warning", fake_warning)
+    monkeypatch.setattr(
+        message_util,
+        "send_message",
+        lambda platform, from_user, to_user, chatroom_name, message, **kwargs: {
+            "platform": platform,
+            "from_user": from_user,
+            "to_user": to_user,
+            "chatroom_name": chatroom_name,
+            "message": message,
+            "status": kwargs["status"],
+            "metadata": kwargs["metadata"],
+        },
+    )
+
+    message = message_util.send_message_via_context(sample_context, "提醒你喝水")
+
+    assert message["status"] == "failed"
+    assert message["metadata"]["failure_reason"] == "missing_clawscale_push_route"
+    assert message["metadata"]["route_via"] == "clawscale"
+    assert message["metadata"]["delivery_mode"] == "push"
+    assert any(
+        "missing_clawscale_push_route" in log_message
+        for log_message in logged_messages
+    )
+
+
 def test_message_util_does_not_auto_inject_route_metadata_for_non_proactive_empty_input_messages(
     monkeypatch, sample_context
 ):
