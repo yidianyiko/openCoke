@@ -238,13 +238,6 @@ def send_message_via_context(
             input_metadata = first_input.get("metadata", {})
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
-        elif context.get("user", {}).get("_id"):
-            metadata = {
-                **build_clawscale_push_metadata(
-                    str(context["user"]["_id"]), context=context
-                ),
-                **metadata,
-            }
     elif context.get("user", {}).get("_id"):
         metadata = {
             **build_clawscale_push_metadata(str(context["user"]["_id"]), context=context),
@@ -297,8 +290,8 @@ def build_clawscale_push_metadata(
             conversation_id = context.get("conversation", {}).get("_id")
         if conversation_id is not None:
             conversation_id = str(conversation_id)
-        platform = context.get("conversation", {}).get("platform") or context.get(
-            "platform"
+        platform = _normalize_clawscale_platform(
+            context.get("conversation", {}).get("platform") or context.get("platform")
         )
     return resolver.build_push_metadata(
         str(user_id),
@@ -306,6 +299,12 @@ def build_clawscale_push_metadata(
         conversation_id=conversation_id,
         platform=platform,
     )
+
+
+def _normalize_clawscale_platform(platform: str | None) -> str | None:
+    if platform == "wechat":
+        return "wechat_personal"
+    return platform
 
 
 def send_message(
