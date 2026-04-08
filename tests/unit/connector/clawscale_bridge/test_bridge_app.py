@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock
 
 
@@ -96,6 +97,33 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
     assert thread_captured["started"] is True
     assert thread_captured["args"][0] is not None
     assert thread_captured["args"][1] == 7
+
+
+def test_output_dispatcher_loop_logs_exception_and_continues(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    dispatcher = MagicMock()
+    dispatcher.dispatch_once.side_effect = [RuntimeError("temporary"), False]
+    logger = MagicMock()
+    sleep_calls = []
+
+    class LoopExit(Exception):
+        pass
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+        if len(sleep_calls) == 2:
+            raise LoopExit()
+
+    monkeypatch.setattr(bridge_app, "logger", logger, raising=False)
+    monkeypatch.setattr(bridge_app.time, "sleep", fake_sleep)
+
+    with pytest.raises(LoopExit):
+        bridge_app._run_output_dispatcher_loop(dispatcher, 3)
+
+    assert dispatcher.dispatch_once.call_count == 2
+    logger.exception.assert_called_once()
+    assert sleep_calls == [3, 3]
 
 
 def test_build_user_bind_service_wires_gateway_identity_client(monkeypatch):

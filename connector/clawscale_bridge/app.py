@@ -1,3 +1,4 @@
+import logging
 import time
 import threading
 from urllib.parse import urlsplit
@@ -32,6 +33,8 @@ from dao.external_identity_dao import ExternalIdentityDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from dao.wechat_bind_session_dao import WechatBindSessionDAO
+
+logger = logging.getLogger(__name__)
 
 
 def _mongo_uri() -> str:
@@ -150,7 +153,10 @@ def _build_output_dispatcher():
 
 def _run_output_dispatcher_loop(dispatcher, poll_interval_seconds: int):
     while True:
-        dispatcher.dispatch_once()
+        try:
+            dispatcher.dispatch_once()
+        except Exception:
+            logger.exception("clawscale output dispatcher iteration failed")
         time.sleep(poll_interval_seconds)
 
 

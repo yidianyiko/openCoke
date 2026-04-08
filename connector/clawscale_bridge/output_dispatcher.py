@@ -1,6 +1,7 @@
 import time
 
 import requests
+from pymongo import ReturnDocument
 
 
 class ClawScaleOutputDispatcher:
@@ -16,10 +17,8 @@ class ClawScaleOutputDispatcher:
         self.outbound_api_url = outbound_api_url
         self.outbound_api_key = outbound_api_key
 
-    def dispatch_once(self) -> bool:
-        now = int(time.time())
-        message = self.mongo.find_one(
-            "outputmessages",
+    def _claim_pending_message(self, now: int):
+        return self.mongo.get_collection("outputmessages").find_one_and_update(
             {
                 "platform": "wechat",
                 "status": "pending",
@@ -27,7 +26,20 @@ class ClawScaleOutputDispatcher:
                 "metadata.route_via": "clawscale",
                 "metadata.delivery_mode": "push",
             },
+            {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
+            return_document=ReturnDocument.AFTER,
         )
+
+    def _finalize_message(self, message_id, status: str, now: int):
+        self.mongo.update_one(
+            "outputmessages",
+            {"_id": message_id, "status": "dispatching"},
+            {"$set": {"status": status, "handled_timestamp": now}},
+        )
+
+    def dispatch_once(self) -> bool:
+        now = int(time.time())
+        message = self._claim_pending_message(now)
         if not message:
             return False
 
@@ -38,16 +50,17 @@ class ClawScaleOutputDispatcher:
             "text": message["message"],
             "idempotency_key": message["metadata"]["push_idempotency_key"],
         }
-        response = self.session.post(
-            self.outbound_api_url,
-            json=payload,
-            headers={"Authorization": f"Bearer {self.outbound_api_key}"},
-            timeout=15,
-        )
-        new_status = "handled" if response.status_code in (200, 409) else "failed"
-        self.mongo.update_one(
-            "outputmessages",
-            {"_id": message["_id"]},
-            {"$set": {"status": new_status, "handled_timestamp": now}},
-        )
+        try:
+            response = self.session.post(
+                self.outbound_api_url,
+                json=payload,
+                headers={"Authorization": f"Bearer {self.outbound_api_key}"},
+                timeout=15,
+            )
+            new_status = "handled" if response.status_code in (200, 409) else "failed"
+        except Exception:
+            self._finalize_message(message["_id"], "failed", now)
+            return False
+
+        self._finalize_message(message["_id"], new_status, now)
         return new_status == "handled"
