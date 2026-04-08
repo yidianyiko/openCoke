@@ -49,6 +49,7 @@ def test_message_util_marks_proactive_output_failed_when_clawscale_route_missing
 ):
     from agent.util import message_util
 
+    now_ts = 1710000000
     sample_context["message_source"] = "future"
     sample_context["conversation_id"] = "conv_missing_route"
     sample_context["conversation"]["platform"] = "wechat"
@@ -63,6 +64,7 @@ def test_message_util_marks_proactive_output_failed_when_clawscale_route_missing
     monkeypatch.setattr(
         message_util, "build_clawscale_push_metadata", lambda *args, **kwargs: {}
     )
+    monkeypatch.setattr(message_util.time, "time", lambda: now_ts)
     monkeypatch.setattr(message_util.logger, "warning", fake_warning)
     monkeypatch.setattr(
         message_util,
@@ -74,13 +76,19 @@ def test_message_util_marks_proactive_output_failed_when_clawscale_route_missing
             "chatroom_name": chatroom_name,
             "message": message,
             "status": kwargs["status"],
+            "handled_timestamp": kwargs["handled_timestamp"],
             "metadata": kwargs["metadata"],
         },
     )
 
-    message = message_util.send_message_via_context(sample_context, "提醒你喝水")
+    message = message_util.send_message_via_context(
+        sample_context,
+        "提醒你喝水",
+        expect_output_timestamp=now_ts + 3600,
+    )
 
     assert message["status"] == "failed"
+    assert message["handled_timestamp"] == now_ts
     assert message["metadata"]["failure_reason"] == "missing_clawscale_push_route"
     assert message["metadata"]["route_via"] == "clawscale"
     assert message["metadata"]["delivery_mode"] == "push"
@@ -88,6 +96,7 @@ def test_message_util_marks_proactive_output_failed_when_clawscale_route_missing
         "missing_clawscale_push_route" in log_message
         for log_message in logged_messages
     )
+    assert any("wechat_personal" in log_message for log_message in logged_messages)
 
 
 def test_message_util_does_not_auto_inject_route_metadata_for_non_proactive_empty_input_messages(

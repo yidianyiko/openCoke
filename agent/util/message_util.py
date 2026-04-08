@@ -226,6 +226,7 @@ def send_message_via_context(
         metadata = {}
 
     status = "pending"
+    handled_timestamp = expect_output_timestamp
     is_proactive_message = context.get("message_source") in {"future", "reminder"}
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
@@ -240,6 +241,9 @@ def send_message_via_context(
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
     elif context.get("user", {}).get("_id"):
+        clawscale_platform = _normalize_clawscale_platform(
+            context.get("conversation", {}).get("platform") or context.get("platform")
+        )
         clawscale_metadata = build_clawscale_push_metadata(
             str(context["user"]["_id"]), context=context
         )
@@ -247,6 +251,7 @@ def send_message_via_context(
             metadata = {**clawscale_metadata, **metadata}
         else:
             status = "failed"
+            handled_timestamp = int(time.time())
             metadata = {
                 **metadata,
                 "route_via": "clawscale",
@@ -259,7 +264,7 @@ def send_message_via_context(
                 str(context["user"]["_id"]),
                 context.get("conversation_id")
                 or context.get("conversation", {}).get("_id"),
-                context.get("conversation", {}).get("platform") or context.get("platform"),
+                clawscale_platform,
             )
 
     return send_message(
@@ -271,6 +276,7 @@ def send_message_via_context(
         message_type=message_type,
         status=status,
         expect_output_timestamp=expect_output_timestamp,
+        handled_timestamp=handled_timestamp,
         metadata=metadata,
     )
 
@@ -334,16 +340,19 @@ def send_message(
     message_type="text",
     status="pending",
     expect_output_timestamp=None,
+    handled_timestamp=None,
     metadata={},
 ):
     mongo = MongoDBBase()
     now = int(time.time())
     if expect_output_timestamp is None:
         expect_output_timestamp = now
+    if handled_timestamp is None:
+        handled_timestamp = expect_output_timestamp
 
     outputmessage = {
         "expect_output_timestamp": expect_output_timestamp,  # 预期输出的时间戳秒级
-        "handled_timestamp": expect_output_timestamp,  # 处理完毕时的时间戳秒级
+        "handled_timestamp": handled_timestamp,  # 处理完毕时的时间戳秒级
         "status": status,  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
         "from_user": from_user,  # 来源uid
         "platform": platform,  # 来源平台
