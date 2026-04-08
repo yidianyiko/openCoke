@@ -131,3 +131,232 @@ def test_build_clawscale_push_metadata_normalizes_wechat_platform(
 
     assert metadata["platform"] == "wechat_personal"
     assert captured["platform"] == "wechat_personal"
+
+
+def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_output(
+    monkeypatch,
+):
+    from agent.util import message_util
+    from connector.clawscale_bridge.identity_service import IdentityService
+    from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
+
+    now_ts = 1710000000
+    route_store = {}
+
+    class FakePushRouteDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def upsert_route(self, **kwargs):
+            route_store.clear()
+            route_store.update(kwargs)
+
+        def find_route_for_conversation(self, account_id, conversation_id, platform):
+            if (
+                route_store.get("account_id") == account_id
+                and route_store.get("conversation_id") == conversation_id
+                and route_store.get("platform") == platform
+            ):
+                return {
+                    "tenant_id": route_store["tenant_id"],
+                    "channel_id": route_store["channel_id"],
+                    "platform": route_store["platform"],
+                    "external_end_user_id": route_store["external_end_user_id"],
+                }
+            return None
+
+        def find_latest_route_for_account(self, account_id, platform):
+            if (
+                route_store.get("account_id") == account_id
+                and route_store.get("platform") == platform
+            ):
+                return {
+                    "tenant_id": route_store["tenant_id"],
+                    "channel_id": route_store["channel_id"],
+                    "platform": route_store["platform"],
+                    "external_end_user_id": route_store["external_end_user_id"],
+                }
+            return None
+
+    class FakeExternalIdentityDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def find_primary_push_target(self, account_id, source):
+            raise AssertionError(
+                f"expected clawscale push route lookup for {account_id=} {source=}"
+            )
+
+    class FakeMongoCollection:
+        def __init__(self, message):
+            self.message = message
+
+        def find_one_and_update(self, *args, **kwargs):
+            return self.message
+
+    class FakeMongo:
+        def __init__(self, message):
+            self.collection = FakeMongoCollection(message)
+            self.updated = []
+
+        def get_collection(self, name):
+            assert name == "outputmessages"
+            return self.collection
+
+        def update_one(self, *args, **kwargs):
+            self.updated.append((args, kwargs))
+
+    monkeypatch.setattr(
+        "dao.clawscale_push_route_dao.ClawscalePushRouteDAO",
+        FakePushRouteDAO,
+    )
+    monkeypatch.setattr(
+        "dao.external_identity_dao.ExternalIdentityDAO",
+        FakeExternalIdentityDAO,
+    )
+    monkeypatch.setattr("connector.clawscale_bridge.identity_service.time.time", lambda: now_ts)
+    monkeypatch.setattr("agent.util.message_util.time.time", lambda: now_ts)
+    monkeypatch.setattr(
+        "connector.clawscale_bridge.output_dispatcher.time.time",
+        lambda: now_ts,
+    )
+
+    identity_service = IdentityService(
+        external_identity_dao=FakeExternalIdentityDAO(),
+        binding_ticket_dao=object(),
+        bind_session_service=object(),
+        message_gateway=type(
+            "FakeGateway",
+            (),
+            {
+                "enqueue": lambda self, **kwargs: "req_1",
+            },
+        )(),
+        reply_waiter=type(
+            "FakeReplyWaiter",
+            (),
+            {
+                "wait_for_reply": lambda self, request_id: "personal ownership reply",
+            },
+        )(),
+        bind_base_url="https://coke.local",
+        target_character_id="char_1",
+        push_route_dao=FakePushRouteDAO(),
+    )
+
+    inbound_result = identity_service.handle_inbound(
+        {
+            "messages": [{"role": "user", "content": "你好"}],
+            "metadata": {
+                "tenantId": "ten_1",
+                "channelId": "ch_1",
+                "platform": "wechat_personal",
+                "externalId": "wxid_123",
+                "endUserId": "eu_1",
+                "conversationId": "conv_1",
+                "channelScope": "personal",
+                "clawscaleUserId": "csu_1",
+                "cokeAccountId": "acct_1",
+            },
+        }
+    )
+
+    assert inbound_result == {"status": "ok", "reply": "personal ownership reply"}
+    assert route_store == {
+        "account_id": "acct_1",
+        "tenant_id": "ten_1",
+        "channel_id": "ch_1",
+        "platform": "wechat_personal",
+        "external_end_user_id": "wxid_123",
+        "conversation_id": "conv_1",
+        "now_ts": now_ts,
+        "clawscale_user_id": "csu_1",
+    }
+
+    sent_messages = []
+
+    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+        output_message = {
+            "_id": "out_1",
+            "platform": platform,
+            "status": kwargs.get("status", "pending"),
+            "expect_output_timestamp": kwargs.get("expect_output_timestamp")
+            or now_ts,
+            "handled_timestamp": kwargs.get("expect_output_timestamp") or now_ts,
+            "from_user": from_user,
+            "to_user": to_user,
+            "chatroom_name": chatroom_name,
+            "message_type": kwargs.get("message_type", "text"),
+            "message": message,
+            "metadata": kwargs["metadata"],
+        }
+        sent_messages.append(output_message)
+        return output_message
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    proactive_context = {
+        "message_source": "future",
+        "user": {"_id": "acct_1"},
+        "character": {"_id": "char_1"},
+        "conversation_id": "conv_1",
+        "conversation": {
+            "_id": "conv_1",
+            "platform": "wechat",
+            "chatroom_name": None,
+            "conversation_info": {"input_messages": []},
+        },
+    }
+
+    proactive_message = message_util.send_message_via_context(
+        proactive_context,
+        "记得喝水",
+    )
+
+    assert proactive_message["metadata"]["route_via"] == "clawscale"
+    assert proactive_message["metadata"]["delivery_mode"] == "push"
+    assert proactive_message["metadata"]["tenant_id"] == "ten_1"
+    assert proactive_message["metadata"]["channel_id"] == "ch_1"
+    assert proactive_message["metadata"]["platform"] == "wechat_personal"
+    assert proactive_message["metadata"]["external_end_user_id"] == "wxid_123"
+    assert sent_messages[0]["metadata"]["push_idempotency_key"]
+
+    mongo = FakeMongo(proactive_message)
+    session = type(
+        "FakeSession",
+        (),
+        {
+            "post_calls": [],
+            "post": lambda self, *args, **kwargs: self.post_calls.append((args, kwargs))
+            or type("FakeResponse", (), {"status_code": 200})(),
+        },
+    )()
+
+    dispatcher = ClawScaleOutputDispatcher(
+        mongo=mongo,
+        session=session,
+        outbound_api_url="https://gateway.local/api/outbound",
+        outbound_api_key="outbound-secret",
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    assert session.post_calls == [
+        (
+            ("https://gateway.local/api/outbound",),
+            {
+                "json": {
+                    "tenant_id": "ten_1",
+                    "channel_id": "ch_1",
+                    "end_user_id": "wxid_123",
+                    "text": "记得喝水",
+                    "idempotency_key": proactive_message["metadata"][
+                        "push_idempotency_key"
+                    ],
+                },
+                "headers": {"Authorization": "Bearer outbound-secret"},
+                "timeout": 15,
+            },
+        )
+    ]
