@@ -169,14 +169,14 @@ def test_find_route_for_conversation_returns_none_when_missing():
     assert result is None
 
 
-def test_find_latest_route_for_account_returns_latest_account_level_fallback():
+def test_find_latest_route_for_account_returns_latest_active_route_for_platform():
     from dao.clawscale_push_route_dao import ClawscalePushRouteDAO
 
     dao = ClawscalePushRouteDAO(mongo_uri="mongodb://example", db_name="test")
     dao.collection = MagicMock()
     dao.collection.find_one.return_value = {
         "account_id": "acct_1",
-        "conversation_id": None,
+        "conversation_id": "conv_recent",
         "status": "active",
         "last_seen_at": 1775623000,
     }
@@ -191,12 +191,11 @@ def test_find_latest_route_for_account_returns_latest_account_level_fallback():
             "source": "clawscale",
             "account_id": "acct_1",
             "platform": "wechat_personal",
-            "conversation_id": None,
             "status": "active",
         },
         sort=[("last_seen_at", -1), ("updated_at", -1)],
     )
-    assert result["conversation_id"] is None
+    assert result["conversation_id"] == "conv_recent"
 
 
 def test_find_latest_route_for_account_returns_none_when_missing():

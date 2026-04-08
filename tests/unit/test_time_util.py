@@ -5,6 +5,7 @@ from util.time_util import (
     format_time_friendly,
     is_within_time_period,
     get_user_timezone,
+    str2timestamp,
 )
 
 
@@ -65,3 +66,8 @@ def test_is_within_time_period_utc_would_fail():
     import datetime as _dt
     dt_utc = _dt.datetime.fromtimestamp(MIDNIGHT_UTC, tz=ZoneInfo("UTC"))
     assert dt_utc.hour == 0  # confirms UTC hour is 0, not 8
+
+
+def test_str2timestamp_uses_explicit_tz():
+    ts = str2timestamp("2024年01月15日03时00分", tz=ZoneInfo("America/New_York"))
+    assert ts == 1705305600

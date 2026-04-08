@@ -222,7 +222,7 @@ def timestamp2str(timestamp, week=False, tz: ZoneInfo = None):
     return result
 
 
-def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分"):
+def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分", tz: ZoneInfo = None):
     try:
         # 尝试将字符串转换为datetime对象
         dt = datetime.strptime(time_str, format)
@@ -231,7 +231,8 @@ def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分"):
     except Exception:
         return None
 
-    return int(dt.timestamp())
+    resolved_tz = tz or _DEFAULT_TZ
+    return int(dt.replace(tzinfo=resolved_tz).timestamp())
 
 
 def date2str(timestamp, week=False, tz: ZoneInfo = None):
@@ -261,7 +262,7 @@ def date2str(timestamp, week=False, tz: ZoneInfo = None):
     return result
 
 
-def parse_relative_time(text, base_timestamp=None):
+def parse_relative_time(text, base_timestamp=None, tz: ZoneInfo = None):
     """
     解析相对时间表达
 
@@ -275,7 +276,8 @@ def parse_relative_time(text, base_timestamp=None):
     if base_timestamp is None:
         base_timestamp = int(datetime.now().timestamp())
 
-    base_dt = datetime.fromtimestamp(base_timestamp, tz=_DEFAULT_TZ)
+    resolved_tz = tz or _DEFAULT_TZ
+    base_dt = datetime.fromtimestamp(base_timestamp, tz=resolved_tz)
 
     # 相对时间模式
     patterns = [

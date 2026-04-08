@@ -50,7 +50,35 @@ class TestTimeParserParse:
         parser = TimeParser()
 
         result = parser.parse("2024年12月25日09时00分")
-        expected = int(datetime(2024, 12, 25, 9, 0, 0).timestamp())
+        expected = int(
+            datetime(2024, 12, 25, 9, 0, 0, tzinfo=ZoneInfo("Asia/Shanghai")).timestamp()
+        )
+        assert result == expected
+
+    def test_parse_absolute_time_uses_injected_tz(self):
+        """Absolute time parsing must use parser.tz, not server local timezone."""
+        parser = TimeParser(tz=ZoneInfo("America/New_York"))
+
+        result = parser.parse("2024年01月15日03时00分")
+
+        expected = int(
+            datetime(2024, 1, 15, 3, 0, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+        )
+        assert result == expected
+
+    def test_parse_relative_named_day_uses_injected_tz(self):
+        """Named relative dates like 明天 should resolve in parser.tz."""
+        base_dt = datetime(2024, 1, 15, 23, 30, 0, tzinfo=ZoneInfo("America/New_York"))
+        parser = TimeParser(
+            base_timestamp=int(base_dt.timestamp()),
+            tz=ZoneInfo("America/New_York"),
+        )
+
+        result = parser.parse("明天")
+
+        expected = int(
+            datetime(2024, 1, 16, 9, 0, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
+        )
         assert result == expected
 
     def test_parse_none_returns_none(self):

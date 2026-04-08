@@ -94,7 +94,6 @@ class ClawscalePushRouteDAO:
                 "source": "clawscale",
                 "account_id": account_id,
                 "platform": platform,
-                "conversation_id": None,
                 "status": "active",
             },
             sort=[("last_seen_at", -1), ("updated_at", -1)],

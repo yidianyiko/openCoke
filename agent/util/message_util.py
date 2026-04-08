@@ -244,6 +244,9 @@ def send_message_via_context(
         clawscale_platform = _normalize_clawscale_platform(
             context.get("conversation", {}).get("platform") or context.get("platform")
         )
+        clawscale_conversation_id = _extract_clawscale_conversation_id_from_context(
+            context
+        )
         clawscale_metadata = build_clawscale_push_metadata(
             str(context["user"]["_id"]), context=context
         )
@@ -262,8 +265,7 @@ def send_message_via_context(
                 "missing_clawscale_push_route: failed to resolve clawscale push route "
                 "for proactive message user_id=%s conversation_id=%s platform=%s",
                 str(context["user"]["_id"]),
-                context.get("conversation_id")
-                or context.get("conversation", {}).get("_id"),
+                clawscale_conversation_id,
                 clawscale_platform,
             )
 
@@ -306,14 +308,9 @@ def build_clawscale_push_metadata(
         db_name=CONF["mongodb"]["mongodb_name"],
     )
     resolver = OutputRouteResolver(dao, clawscale_push_route_dao=clawscale_push_route_dao)
-    conversation_id = None
+    conversation_id = _extract_clawscale_conversation_id_from_context(context)
     platform = None
     if context:
-        conversation_id = context.get("conversation_id")
-        if conversation_id is None:
-            conversation_id = context.get("conversation", {}).get("_id")
-        if conversation_id is not None:
-            conversation_id = str(conversation_id)
         platform = _normalize_clawscale_platform(
             context.get("conversation", {}).get("platform") or context.get("platform")
         )
@@ -323,6 +320,49 @@ def build_clawscale_push_metadata(
         conversation_id=conversation_id,
         platform=platform,
     )
+
+
+def _extract_clawscale_conversation_id_from_context(
+    context: dict | None,
+) -> str | None:
+    if not isinstance(context, dict):
+        return None
+
+    conversation = context.get("conversation", {})
+    conversation_info = conversation.get("conversation_info", {})
+
+    for message_list_key in ("input_messages", "chat_history"):
+        conversation_id = _extract_clawscale_conversation_id_from_messages(
+            conversation_info.get(message_list_key)
+        )
+        if conversation_id is not None:
+            return conversation_id
+
+    conversation_id = context.get("conversation_id")
+    if conversation_id is None:
+        conversation_id = conversation.get("_id")
+    if conversation_id is None:
+        return None
+    return str(conversation_id)
+
+
+def _extract_clawscale_conversation_id_from_messages(messages) -> str | None:
+    if not isinstance(messages, list):
+        return None
+
+    for message in reversed(messages):
+        if not isinstance(message, dict):
+            continue
+        metadata = message.get("metadata", {})
+        if not isinstance(metadata, dict):
+            continue
+        clawscale_metadata = metadata.get("clawscale", {})
+        if not isinstance(clawscale_metadata, dict):
+            continue
+        conversation_id = clawscale_metadata.get("conversation_id")
+        if conversation_id is not None:
+            return str(conversation_id)
+    return None
 
 
 def _normalize_clawscale_platform(platform: str | None) -> str | None:

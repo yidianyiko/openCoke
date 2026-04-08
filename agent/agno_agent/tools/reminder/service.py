@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _tz_name(tz) -> str:
+    return getattr(tz, "key", "Asia/Shanghai")
+
+
 class ReminderService:
     """
     Service layer for reminder management operations.
@@ -242,7 +246,7 @@ class ReminderService:
             "title": title,
             "next_trigger_time": trigger_time,
             "time_original": None,  # Will be set if needed
-            "timezone": "Asia/Shanghai",
+            "timezone": _tz_name(self.parser.tz),
             "recurrence": recurrence,
             "time_period": period_config or {"enabled": False},
             "list_id": list_id,

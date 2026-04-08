@@ -21,6 +21,10 @@ from util.time_util import (
 logger = logging.getLogger(__name__)
 
 
+def _tz_name(tz: ZoneInfo) -> str:
+    return getattr(tz, "key", "Asia/Shanghai")
+
+
 class TimeParser:
     """
     Time parsing and formatting utility for reminders.
@@ -69,12 +73,12 @@ class TimeParser:
 
         # Try relative time parsing first
         base = self.base_timestamp
-        result = parse_relative_time(time_str, base_timestamp=base)
+        result = parse_relative_time(time_str, base_timestamp=base, tz=self.tz)
         if result is not None:
             return result
 
         # Try absolute time parsing
-        result = str2timestamp(time_str)
+        result = str2timestamp(time_str, tz=self.tz)
         return result
 
     def format_friendly(self, timestamp: int) -> str:
@@ -89,7 +93,7 @@ class TimeParser:
         Returns:
             Friendly time string.
         """
-        return format_time_friendly(timestamp)
+        return format_time_friendly(timestamp, tz=self.tz)
 
     def format_with_date(self, timestamp: int) -> str:
         """
@@ -185,7 +189,7 @@ class TimeParser:
             "start_time": period_start,
             "end_time": period_end,
             "active_days": active_days,
-            "timezone": "Asia/Shanghai",
+            "timezone": _tz_name(self.tz),
         }
         logger.info(f"Time period config: {config}")
         return config

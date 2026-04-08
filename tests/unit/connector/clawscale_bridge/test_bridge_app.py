@@ -25,6 +25,19 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
 
 
+def test_create_app_rejects_unresolved_required_bridge_settings(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "api_key", "${COKE_BRIDGE_API_KEY}"
+    )
+
+    with pytest.raises(RuntimeError) as exc:
+        bridge_app.create_app(testing=False)
+
+    assert str(exc.value) == "missing_required_clawscale_bridge_setting:api_key"
+
+
 def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 

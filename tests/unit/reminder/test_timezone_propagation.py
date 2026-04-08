@@ -123,3 +123,26 @@ def test_service_passes_tz_to_parser_and_validator():
     )
     assert service.parser.tz == tz
     assert service.validator.tz == tz
+
+
+def test_service_build_reminder_doc_uses_injected_timezone():
+    """Reminder documents should persist the parser timezone, not a hardcoded default."""
+    tz = ZoneInfo("America/New_York")
+    service = ReminderService(
+        user_id="u1",
+        character_id="c1",
+        conversation_id="cv1",
+        base_timestamp=int(time.time()),
+        user_tz=tz,
+        dao=MagicMock(),
+    )
+
+    doc = service._build_reminder_doc(
+        title="test",
+        trigger_time=1705305600,
+        recurrence_type=None,
+        recurrence_interval=None,
+        period_config=None,
+    )
+
+    assert doc["timezone"] == "America/New_York"

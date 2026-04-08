@@ -188,6 +188,69 @@ def test_build_clawscale_push_metadata_normalizes_wechat_platform(
     assert captured["platform"] == "wechat_personal"
 
 
+def test_build_clawscale_push_metadata_prefers_external_clawscale_conversation_id_from_history(
+    monkeypatch, sample_context
+):
+    from agent.util import message_util
+
+    captured = {}
+
+    class FakeResolver:
+        def __init__(self, external_identity_dao, clawscale_push_route_dao=None):
+            pass
+
+        def build_push_metadata(
+            self,
+            account_id,
+            now_ts,
+            conversation_id=None,
+            platform=None,
+        ):
+            captured["account_id"] = account_id
+            captured["now_ts"] = now_ts
+            captured["conversation_id"] = conversation_id
+            captured["platform"] = platform
+            return {"route_via": "clawscale", "platform": platform}
+
+    class FakeExternalIdentityDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class FakeClawscalePushRouteDAO:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr(
+        "connector.clawscale_bridge.output_route_resolver.OutputRouteResolver",
+        FakeResolver,
+    )
+    monkeypatch.setattr(
+        "dao.external_identity_dao.ExternalIdentityDAO", FakeExternalIdentityDAO
+    )
+    monkeypatch.setattr(
+        "dao.clawscale_push_route_dao.ClawscalePushRouteDAO",
+        FakeClawscalePushRouteDAO,
+    )
+    sample_context["conversation_id"] = "69d624cdf6d26a7d3f636753"
+    sample_context["conversation"]["_id"] = "69d624cdf6d26a7d3f636753"
+    sample_context["conversation"]["platform"] = "wechat"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["conversation_info"]["input_messages"] = []
+    sample_context["conversation"]["conversation_info"]["chat_history"] = [
+        {"metadata": {"clawscale": {"conversation_id": "conv_1"}}}
+    ]
+
+    metadata = message_util.build_clawscale_push_metadata(
+        str(sample_context["user"]["_id"]),
+        now_ts=1710000000,
+        context=sample_context,
+    )
+
+    assert metadata["platform"] == "wechat_personal"
+    assert captured["platform"] == "wechat_personal"
+    assert captured["conversation_id"] == "conv_1"
+
+
 def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_output(
     monkeypatch,
 ):

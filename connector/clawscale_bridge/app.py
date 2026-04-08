@@ -37,6 +37,38 @@ from dao.wechat_bind_session_dao import WechatBindSessionDAO
 logger = logging.getLogger(__name__)
 
 
+def _is_unresolved_bridge_setting(value) -> bool:
+    return (
+        not isinstance(value, str)
+        or not value.strip()
+        or (value.startswith("${") and value.endswith("}"))
+    )
+
+
+def _require_bridge_setting(name: str) -> str:
+    value = CONF["clawscale_bridge"].get(name)
+    if _is_unresolved_bridge_setting(value):
+        raise RuntimeError(f"missing_required_clawscale_bridge_setting:{name}")
+    return value
+
+
+def _validate_runtime_bridge_settings() -> None:
+    required_names = (
+        "api_key",
+        "user_auth_secret",
+        "web_allowed_origin",
+        "wechat_channel_api_url",
+        "wechat_channel_api_key",
+        "identity_api_url",
+        "identity_api_key",
+        "user_provision_api_url",
+        "outbound_api_url",
+        "outbound_api_key",
+    )
+    for name in required_names:
+        _require_bridge_setting(name)
+
+
 def _mongo_uri() -> str:
     return (
         "mongodb://"
@@ -240,11 +272,12 @@ def create_app(testing: bool = False):
         app.config["COKE_BRIDGE_API_KEY"] = "test-bridge-key"
         app.config["COKE_WEB_ALLOWED_ORIGIN"] = "http://127.0.0.1:4040"
     else:
-        app.config["COKE_BRIDGE_API_KEY"] = CONF["clawscale_bridge"]["api_key"]
+        _validate_runtime_bridge_settings()
+        app.config["COKE_BRIDGE_API_KEY"] = _require_bridge_setting("api_key")
         app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
-        app.config["COKE_WEB_ALLOWED_ORIGIN"] = CONF["clawscale_bridge"][
+        app.config["COKE_WEB_ALLOWED_ORIGIN"] = _require_bridge_setting(
             "web_allowed_origin"
-        ]
+        )
         app.config["USER_AUTH_SERVICE"] = _build_user_auth_service()
         app.config["USER_BIND_SERVICE"] = _build_user_bind_service()
         app.config["USER_PERSONAL_CHANNEL_SERVICE"] = (
