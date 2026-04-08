@@ -225,21 +225,29 @@ def send_message_via_context(
     if metadata is None:
         metadata = {}
 
-    # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
-    # 注意：主动消息（提醒等）不依赖这个 metadata，output 阶段会从用户配置获取路由信息
-    input_messages = (
-        context.get("conversation", {})
-        .get("conversation_info", {})
-        .get("input_messages", [])
-    )
-    if input_messages and len(input_messages) > 0:
-        first_input = input_messages[0]
-        input_metadata = first_input.get("metadata", {})
-        # 将 inputmessage 的 metadata 合并到输出消息
-        metadata = {**input_metadata, **metadata}
+    is_proactive_message = context.get("message_source") in {"future", "reminder"}
+    if not is_proactive_message:
+        # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
+        input_messages = (
+            context.get("conversation", {})
+            .get("conversation_info", {})
+            .get("input_messages", [])
+        )
+        if input_messages and len(input_messages) > 0:
+            first_input = input_messages[0]
+            input_metadata = first_input.get("metadata", {})
+            # 将 inputmessage 的 metadata 合并到输出消息
+            metadata = {**input_metadata, **metadata}
+        elif context.get("user", {}).get("_id"):
+            metadata = {
+                **build_clawscale_push_metadata(
+                    str(context["user"]["_id"]), context=context
+                ),
+                **metadata,
+            }
     elif context.get("user", {}).get("_id"):
         metadata = {
-            **build_clawscale_push_metadata(str(context["user"]["_id"])),
+            **build_clawscale_push_metadata(str(context["user"]["_id"]), context=context),
             **metadata,
         }
 
@@ -256,9 +264,12 @@ def send_message_via_context(
     )
 
 
-def build_clawscale_push_metadata(user_id: str, now_ts: int | None = None):
+def build_clawscale_push_metadata(
+    user_id: str, now_ts: int | None = None, context: dict | None = None
+):
     from conf.config import CONF
     from connector.clawscale_bridge.output_route_resolver import OutputRouteResolver
+    from dao.clawscale_push_route_dao import ClawscalePushRouteDAO
     from dao.external_identity_dao import ExternalIdentityDAO
 
     dao = ExternalIdentityDAO(
@@ -269,8 +280,32 @@ def build_clawscale_push_metadata(user_id: str, now_ts: int | None = None):
         + "/",
         db_name=CONF["mongodb"]["mongodb_name"],
     )
-    resolver = OutputRouteResolver(dao)
-    return resolver.build_push_metadata(user_id, now_ts or int(time.time()))
+    clawscale_push_route_dao = ClawscalePushRouteDAO(
+        mongo_uri="mongodb://"
+        + CONF["mongodb"]["mongodb_ip"]
+        + ":"
+        + CONF["mongodb"]["mongodb_port"]
+        + "/",
+        db_name=CONF["mongodb"]["mongodb_name"],
+    )
+    resolver = OutputRouteResolver(dao, clawscale_push_route_dao=clawscale_push_route_dao)
+    conversation_id = None
+    platform = None
+    if context:
+        conversation_id = context.get("conversation_id")
+        if conversation_id is None:
+            conversation_id = context.get("conversation", {}).get("_id")
+        if conversation_id is not None:
+            conversation_id = str(conversation_id)
+        platform = context.get("conversation", {}).get("platform") or context.get(
+            "platform"
+        )
+    return resolver.build_push_metadata(
+        str(user_id),
+        now_ts or int(time.time()),
+        conversation_id=conversation_id,
+        platform=platform,
+    )
 
 
 def send_message(
