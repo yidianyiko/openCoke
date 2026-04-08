@@ -387,7 +387,7 @@ def test_clawscale_personal_inbound_creates_route_and_dispatches_proactive_outpu
                 "json": {
                     "tenant_id": "ten_1",
                     "channel_id": "ch_1",
-                    "end_user_id": "wxid_123",
+                    "external_end_user_id": "wxid_123",
                     "text": "记得喝水",
                     "idempotency_key": proactive_message["metadata"][
                         "push_idempotency_key"
