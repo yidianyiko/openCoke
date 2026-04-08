@@ -90,6 +90,7 @@
         "web_allowed_origin": "${COKE_WEB_ALLOWED_ORIGIN}",
         "reply_timeout_seconds": 25,
         "poll_interval_seconds": 1,
+        "output_dispatcher_poll_interval_seconds": 1,
         "identity_api_url": "${CLAWSCALE_IDENTITY_API_URL}",
         "identity_api_key": "${CLAWSCALE_IDENTITY_API_KEY}",
         "user_provision_api_url": "${CLAWSCALE_USER_PROVISION_API_URL}",

@@ -24,6 +24,80 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
 
 
+def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"], "api_key", "local-bridge-key"
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"],
+        "outbound_api_url",
+        "https://gateway.local/api/outbound",
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"],
+        "outbound_api_key",
+        "outbound-secret",
+    )
+    monkeypatch.setitem(
+        bridge_app.CONF["clawscale_bridge"],
+        "output_dispatcher_poll_interval_seconds",
+        7,
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "_build_user_auth_service", lambda: MagicMock())
+    monkeypatch.setattr(bridge_app, "_build_user_bind_service", lambda: MagicMock())
+    monkeypatch.setattr(
+        bridge_app, "_build_personal_wechat_channel_service", lambda: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_gateway_user_provision_client", lambda: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "MongoDBBase", lambda **kwargs: MagicMock())
+
+    dispatcher_captured = {}
+
+    class FakeDispatcher:
+        def __init__(self, **kwargs):
+            dispatcher_captured.update(kwargs)
+
+        def dispatch_once(self):
+            return False
+
+    thread_captured = {}
+
+    class FakeThread:
+        def __init__(self, target=None, args=(), daemon=None):
+            thread_captured.update(
+                {"target": target, "args": args, "daemon": daemon, "started": False}
+            )
+
+        def start(self):
+            thread_captured["started"] = True
+
+    monkeypatch.setattr(
+        bridge_app, "ClawScaleOutputDispatcher", FakeDispatcher, raising=False
+    )
+    monkeypatch.setattr(
+        bridge_app,
+        "threading",
+        type("ThreadingModule", (), {"Thread": FakeThread})(),
+        raising=False,
+    )
+
+    bridge_app.create_app(testing=False)
+
+    assert dispatcher_captured["outbound_api_url"] == "https://gateway.local/api/outbound"
+    assert dispatcher_captured["outbound_api_key"] == "outbound-secret"
+    assert thread_captured["daemon"] is True
+    assert thread_captured["started"] is True
+    assert thread_captured["args"][0] is not None
+    assert thread_captured["args"][1] == 7
+
+
 def test_build_user_bind_service_wires_gateway_identity_client(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 

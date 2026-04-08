@@ -1,4 +1,5 @@
 import time
+import threading
 from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, render_template, request
@@ -17,6 +18,7 @@ from connector.clawscale_bridge.gateway_user_provision_client import (
 )
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
+from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
 from connector.clawscale_bridge.personal_wechat_channel_service import (
     PersonalWechatChannelService,
 )
@@ -134,6 +136,39 @@ def _build_personal_wechat_channel_service():
     return PersonalWechatChannelService(gateway_client=client)
 
 
+def _build_output_dispatcher():
+    bridge_conf = CONF["clawscale_bridge"]
+    mongo_uri = _mongo_uri()
+    db_name = CONF["mongodb"]["mongodb_name"]
+    return ClawScaleOutputDispatcher(
+        mongo=MongoDBBase(connection_string=mongo_uri, db_name=db_name),
+        session=None,
+        outbound_api_url=bridge_conf["outbound_api_url"],
+        outbound_api_key=bridge_conf["outbound_api_key"],
+    )
+
+
+def _run_output_dispatcher_loop(dispatcher, poll_interval_seconds: int):
+    while True:
+        dispatcher.dispatch_once()
+        time.sleep(poll_interval_seconds)
+
+
+def _start_output_dispatcher(dispatcher):
+    bridge_conf = CONF["clawscale_bridge"]
+    poll_interval_seconds = bridge_conf.get(
+        "output_dispatcher_poll_interval_seconds",
+        bridge_conf["poll_interval_seconds"],
+    )
+    thread = threading.Thread(
+        target=_run_output_dispatcher_loop,
+        args=(dispatcher, poll_interval_seconds),
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
 def _build_user_auth_service():
     bridge_conf = CONF["clawscale_bridge"]
     return UserAuthService(
@@ -210,6 +245,10 @@ def create_app(testing: bool = False):
             _build_personal_wechat_channel_service()
         )
         app.config["USER_PROVISION_SERVICE"] = _build_gateway_user_provision_client()
+        app.config["OUTPUT_DISPATCHER"] = _build_output_dispatcher()
+        app.config["OUTPUT_DISPATCHER_THREAD"] = _start_output_dispatcher(
+            app.config["OUTPUT_DISPATCHER"]
+        )
 
     @app.after_request
     def add_cors_headers(response):
