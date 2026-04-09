@@ -1,13 +1,12 @@
 # tests/unit/test_context_timezone.py
 import pytest
 from unittest.mock import MagicMock, patch
-from zoneinfo import ZoneInfo
 
 
-def make_minimal_user(timezone=None, platform_id="8615012345678"):
+def make_minimal_user(timezone=None):
     user = {
         "_id": "507f1f77bcf86cd799439011",
-        "platforms": {"wechat": {"id": platform_id, "nickname": "Test"}},
+        "display_name": "Test User",
     }
     if timezone is not None:
         user["timezone"] = timezone
@@ -45,10 +44,10 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
 @patch("agent.runner.context.UserDAO")
 @patch("agent.runner.context.MongoDBBase")
 def test_context_prepare_backfills_timezone_for_legacy_user(mock_mongo, mock_dao):
-    """User without timezone field gets it inferred and written back to DB."""
+    """User without timezone falls back to product default without lazy backfill."""
     from agent.runner.context import context_prepare
 
-    user = make_minimal_user(timezone=None, platform_id="8615012345678")
+    user = make_minimal_user(timezone=None)
     mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
     dao_instance = MagicMock()
     dao_instance.update_timezone.return_value = True
@@ -66,6 +65,4 @@ def test_context_prepare_backfills_timezone_for_legacy_user(mock_mongo, mock_dao
                 },
             )
 
-    dao_instance.update_timezone.assert_called_once_with(
-        "507f1f77bcf86cd799439011", "Asia/Shanghai"
-    )
+    dao_instance.update_timezone.assert_not_called()

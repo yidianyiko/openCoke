@@ -131,6 +131,7 @@ class ConversationDAO:
 
         # 为talkers.id创建索引，支持按参与者查询
         self.collection.create_index([("talkers.id", 1)])
+        self.collection.create_index([("talkers.db_user_id", 1)])
 
         # 创建组合索引，优化单聊查询
         self.collection.create_index(
@@ -199,6 +200,24 @@ class ConversationDAO:
             "chatroom_name": None,
             "talkers.id": {"$all": [user_id1, user_id2]},
             # 确保只有这两个用户（即talkers数组长度为2）
+            "$where": "this.talkers.length === 2",
+        }
+
+        conversation = self.collection.find_one(query)
+        if conversation:
+            conversation = self.ensure_conversation_info_structure(conversation)
+        return conversation
+
+    def get_private_conversation_by_db_user_ids(
+        self, platform: str, db_user_id1: str, db_user_id2: str
+    ) -> Optional[Dict]:
+        if not platform or not db_user_id1 or not db_user_id2:
+            return None
+
+        query = {
+            "platform": platform,
+            "chatroom_name": None,
+            "talkers.db_user_id": {"$all": [db_user_id1, db_user_id2]},
             "$where": "this.talkers.length === 2",
         }
 
@@ -448,6 +467,8 @@ class ConversationDAO:
         nickname1: str,
         user_id2: str,
         nickname2: str,
+        db_user_id1: str | None = None,
+        db_user_id2: str | None = None,
     ) -> Tuple[str, bool]:
         """
         获取或创建单聊会话
@@ -469,12 +490,18 @@ class ConversationDAO:
             return str(existing["_id"]), False
 
         # 创建新会话，初始化完整的 conversation_info 结构
+        talkers = [
+            {"id": user_id1, "nickname": nickname1},
+            {"id": user_id2, "nickname": nickname2},
+        ]
+        if db_user_id1:
+            talkers[0]["db_user_id"] = db_user_id1
+        if db_user_id2:
+            talkers[1]["db_user_id"] = db_user_id2
+
         new_conversation = {
             "chatroom_name": None,
-            "talkers": [
-                {"id": user_id1, "nickname": nickname1},
-                {"id": user_id2, "nickname": nickname2},
-            ],
+            "talkers": talkers,
             "platform": platform,
             "conversation_info": {
                 "chat_history": [],

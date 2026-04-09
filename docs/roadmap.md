@@ -137,17 +137,40 @@ product can evolve.
 - the repository contains a working Coke bridge, Coke user auth, gateway-side
   unified user model, and a personal WeChat channel lifecycle exposed through
   `/user/wechat-channel` and `/coke/bind-wechat`
-- legacy Ecloud WeChat and some runner-owned channel paths remain active
-- the newer channel abstraction and ClawScale path exist, but they are not yet
-  the only runtime entrypoint
+- legacy Ecloud/Evolution and Coke-owned direct channel runtimes have been
+  removed from the repository
+- ClawScale is now the only supported production channel entrypoint for Coke
 
 ### Platform priorities now
 
 - stabilize personal `wechat_personal` async push in end-to-end environments
 - keep the new personal-channel path as the default Phase 1 onboarding flow
-- preserve legacy/shared compatibility only where needed for rollout safety
+- continue removing Coke-side legacy compatibility code and obsolete product concepts
 - continue moving toward clearer ownership boundaries between Coke business
   state, bridge translation logic, and gateway/channel state
+
+## TODO
+
+### Phase 1 用户调研（优先级：最高）
+
+背景：截至 2026-04-09，Coke 有约 10 名核心日常活跃用户（近 7 天活跃≥2 天），
+24 名近 7 天内发过消息的用户。MAU 从 2025-12 的 195 持续下降至当前约 60。
+所有 269 名注册用户均为真实付费用户（一次性 10-50 元），无测试账号。
+
+任务：以创始人身份（非 Coke 身份）与核心用户沟通，用 Mom Test 方式提问：
+
+1. 你上一次用 Coke 是什么时候？当时在干嘛？
+2. 在用 Coke 之前，你怎么管这件事的？
+3. 有没有哪次 Coke 提醒你了但你觉得烦？那次是什么情况？
+
+目的：在推进 Phase 2 之前，确认 Phase 1 的留存衰减是产品问题还是运营缺位，
+并从留下来的用户身上提取真正的产品价值点。
+
+### 创始人 Dogfooding（优先级：最高，与迭代并行）
+
+从 2026-04-09 起，创始人开始日常使用 Coke。不阻塞产品迭代进度。
+目的：建立第一手产品体感，尤其关注作为"不爱聊天"的用户时哪些环节
+让人不舒服。这些不适点可能正是 83% 用户流失的线索。
 
 ## Phase Mapping
 

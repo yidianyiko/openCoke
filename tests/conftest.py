@@ -19,10 +19,14 @@ def sample_context():
     return {
         "user": {
             "_id": ObjectId(),
+            "display_name": "测试用户",
+            "nickname": "测试用户",
             "platforms": {"wechat": {"id": "wxid_test_user", "nickname": "测试用户"}},
         },
         "character": {
             "_id": ObjectId(),
+            "name": "测试角色",
+            "nickname": "测试角色",
             "platforms": {"wechat": {"id": "wxid_test_char", "nickname": "测试角色"}},
             "user_info": {
                 "description": "测试角色描述",
@@ -128,4 +132,3 @@ def pytest_collection_modifyitems(config, items):
         # pbt (property-based testing) 测试标记为 slow
         if "pbt" in item.nodeid:
             item.add_marker(pytest.mark.slow)
-

@@ -77,12 +77,6 @@ LOCK_TIMEOUT = 180  # 锁超时时间（秒）- 增加到 180 秒以覆盖完整
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 
 target_user_alias = CONF.get("default_character_alias", "coke")
-_characters_conf = (
-    CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
-)
-target_wechat_id = _characters_conf.get(target_user_alias)
-
-platform = CONF.get("default_platform", "wechat")
 typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
@@ -448,8 +442,16 @@ async def handle_message(
         if check_new_message and message_source == "user":
             user = context.get("user", {})
             character = context.get("character", {})
+            current_platform = (
+                context.get("platform")
+                or context.get("conversation", {}).get("platform")
+                or "business"
+            )
             if is_new_message_coming_in(
-                str(user["_id"]), str(character["_id"]), platform, current_message_ids
+                str(user["_id"]),
+                str(character["_id"]),
+                current_platform,
+                current_message_ids,
             ):
                 is_rollback = True
                 logger.info(f"{worker_tag} rollback: new message before chat")
@@ -508,10 +510,15 @@ async def handle_message(
                     if check_new_message and message_source == "user":
                         user = context.get("user", {})
                         character = context.get("character", {})
+                        current_platform = (
+                            context.get("platform")
+                            or context.get("conversation", {}).get("platform")
+                            or "business"
+                        )
                         if is_new_message_coming_in(
                             str(user["_id"]),
                             str(character["_id"]),
-                            platform,
+                            current_platform,
                             current_message_ids,
                         ):
                             is_rollback = True

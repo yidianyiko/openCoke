@@ -59,6 +59,27 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      coke-bootstrap:
+        condition: service_completed_successfully
+
+  coke-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      env: aliyun
+      AGNO_TELEMETRY: "false"
+    command: ["python", "-m", "agent.role.bootstrap"]
+    volumes:
+      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
+      - coke_data:/app/data
+      - coke_temp:/app/agent/temp
+    depends_on:
+      mongo:
+        condition: service_healthy
 
   coke-bridge:
     build:
@@ -70,7 +91,19 @@ services:
     environment:
       env: aliyun
       AGNO_TELEMETRY: "false"
-    command: ["python", "-m", "connector.clawscale_bridge.app"]
+    command:
+      [
+        "gunicorn",
+        "--bind",
+        "0.0.0.0:8090",
+        "--workers",
+        "1",
+        "--threads",
+        "8",
+        "--timeout",
+        "120",
+        "connector.clawscale_bridge.wsgi:app",
+      ]
     volumes:
       - ./deploy/config/coke.config.json:/app/conf/config.json:ro
       - coke_data:/app/data
@@ -80,6 +113,8 @@ services:
         condition: service_healthy
       gateway:
         condition: service_healthy
+      coke-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/bridge/healthz"]
       interval: 15s

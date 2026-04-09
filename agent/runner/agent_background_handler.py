@@ -30,12 +30,6 @@ from util.time_util import date2str
 
 # ========== 配置 ==========
 target_user_alias = CONF.get("default_character_alias", "coke")
-_characters_conf = (
-    CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
-)
-target_user_id = _characters_conf.get(target_user_alias, "default_id")  # WeChat ID
-
-platform = CONF.get("default_platform", "wechat")
 typing_speed = 2.2
 max_conversation_round = 50
 descrease_frequency = 30240  # 多少秒降低一次关系数值
@@ -56,6 +50,31 @@ HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 # 记录 {conversation_id: last_failed_time} 用于避免频繁重试
 _lock_cooldown_cache: dict[str, float] = {}
 LOCK_COOLDOWN_SECONDS = 5  # 锁获取失败后的冷却时间（秒），缩短以提高提醒及时性
+
+
+def _resolve_target_character():
+    characters = user_dao.find_characters({"name": target_user_alias}, limit=1)
+    if not characters:
+        logger.warning(f"Cannot get character by name={target_user_alias}")
+        return None
+    return characters[0]
+
+
+def _resolve_conversation_participants(conversation):
+    talkers = conversation.get("talkers") or []
+    if len(talkers) < 2:
+        return None, None
+
+    resolved = []
+    for talker in talkers[:2]:
+        db_user_id = str(talker.get("db_user_id") or "").strip()
+        if not db_user_id:
+            return None, None
+        participant = user_dao.get_user_by_id(db_user_id)
+        if participant is None:
+            return None, None
+        resolved.append(participant)
+    return resolved[0], resolved[1]
 
 
 def _cleanup_cooldown_cache():
@@ -165,18 +184,9 @@ async def check_hold_messages():
 def decrease_all():
     """降低所有用户的关系数值"""
     logger.info("decrease all relationships...")
-    # relations.cid 存储的是 MongoDB ObjectId 字符串，不是 WeChat ID
-    # 使用名称查找角色，支持多平台（不再依赖 wechat 平台配置）
-    characters = user_dao.find_characters({"name": target_user_alias})
-    if not characters:
-        # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
-        characters = user_dao.find_characters({"platforms.wechat.id": target_user_id})
-    if not characters:
-        logger.warning(
-            f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip decrease_all"
-        )
+    character = _resolve_target_character()
+    if not character:
         return
-    character = characters[0]
     character_oid = str(character["_id"])
     relations = mongo.find_many("relations", query={"cid": character_oid}, limit=10000)
     for relation in relations:
@@ -202,26 +212,16 @@ def handle_proactive_message():
         logger.info("start character proactive agent...")
         now = int(time.time())
         date_str = date2str(now)
-        # 使用名称查找角色，支持多平台
-        characters = user_dao.find_characters({"name": target_user_alias})
-        if not characters:
-            # 向后兼容：如果按名称找不到，尝试按 wechat ID 查找
-            characters = user_dao.find_characters(
-                {"platforms.wechat.id": target_user_id}
-            )
-        if not characters:
-            logger.warning(
-                f"Cannot get character by name={target_user_alias} or wechat_id={target_user_id}, skip handle_proactive_message"
-            )
+        character = _resolve_target_character()
+        if not character:
             return
-        character = characters[0]
         character_oid = str(character["_id"])
 
         current_script = mongo.find_one(
             "dailyscripts",
             {
                 "date": date_str,
-                "cid": target_user_id,
+                "cid": character_oid,
                 "start_timestamp": {"$lt": now},
                 "end_timestamp": {"$gt": now},
             },
@@ -245,24 +245,13 @@ def handle_proactive_message():
 
                     user = user_dao.get_user_by_id(relation["uid"])
                     character = user_dao.get_user_by_id(relation["cid"])
-
-                    # 动态获取用户的平台（支持 wechat 等）
-                    user_platform = None
-                    for plat in user.get("platforms", {}).keys():
-                        if plat in character.get("platforms", {}):
-                            user_platform = plat
-                            break
-
-                    if not user_platform:
-                        logger.debug(
-                            f"用户和角色没有共同平台，跳过: user={user.get('name')}"
-                        )
+                    if user is None or character is None:
                         continue
 
-                    conversation = conversation_dao.get_private_conversation(
-                        user_platform,
-                        user["platforms"][user_platform]["id"],
-                        character["platforms"][user_platform]["id"],
+                    conversation = conversation_dao.get_private_conversation_by_db_user_ids(
+                        "business",
+                        str(user.get("_id") or ""),
+                        str(character.get("_id") or ""),
                     )
 
                     if conversation is None:
@@ -373,29 +362,13 @@ async def handle_pending_future_message():
             clear_invalid_future()
             return
 
-        # 使用平台字段动态构建查询（支持 wechat 等）
-        platform = conversation.get("platform", "wechat")
-        users = user_dao.find_users(
-            {f"platforms.{platform}.id": conversation["talkers"][0]["id"]}, 1
-        )
-        if not users:
+        user, character = _resolve_conversation_participants(conversation)
+        if user is None or character is None:
             logger.warning(
-                f"找不到用户: {conversation['talkers'][0]['id']} (platform={platform})，清除 future"
+                f"conversation 缺少可解析的 db_user_id talkers，清除 future: {conversation.get('_id')}"
             )
             clear_invalid_future()
             return
-        user = users[0]
-
-        characters = user_dao.find_users(
-            {f"platforms.{platform}.id": conversation["talkers"][1]["id"]}, 1
-        )
-        if not characters:
-            logger.warning(
-                f"找不到角色: {conversation['talkers'][1]['id']}，清除 future"
-            )
-            clear_invalid_future()
-            return
-        character = characters[0]
 
         logger.info(f"准备获取锁: conversation_id={conversation_id}")
 

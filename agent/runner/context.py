@@ -16,7 +16,8 @@ from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.user_dao import UserDAO
 from dao.mongo import MongoDBBase
-from util.time_util import date2str, get_user_timezone, timestamp2str
+from util.profile_util import resolve_profile_label
+from util.time_util import date2str, get_default_timezone, timestamp2str
 
 
 def _convert_objectid_to_str(obj):
@@ -147,22 +148,20 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 def context_prepare(user, character, conversation):
     context = {"user": user, "character": character, "conversation": conversation, "platform": conversation.get("platform", "")}
 
-    # Resolve user timezone: stored setting takes priority, otherwise infer from
-    # platform ID and backfill once (lazy migration for legacy users).
-    user_platform_id = next(
-        (v.get("id", "") for v in user.get("platforms", {}).values() if v.get("id")),
-        "",
-    )
+    context["user"].setdefault("nickname", resolve_profile_label(user, "用户"))
+    context["character"].setdefault("nickname", resolve_profile_label(character, "角色"))
+
+    # Resolve user timezone: stored setting takes priority, otherwise use the
+    # product default. Channel identifiers should not leak into business state.
     stored_tz_str = user.get("timezone")
     if stored_tz_str:
         try:
             user_tz = ZoneInfo(stored_tz_str)
         except (KeyError, Exception):
-            logger.warning(f"Invalid stored timezone '{stored_tz_str}', falling back to inferred")
-            user_tz = get_user_timezone(user_platform_id)
+            logger.warning(f"Invalid stored timezone '{stored_tz_str}', falling back to default")
+            user_tz = get_default_timezone()
     else:
-        user_tz = get_user_timezone(user_platform_id)
-        UserDAO().update_timezone(str(user["_id"]), user_tz.key)
+        user_tz = get_default_timezone()
 
     # BUG-006 Medium fix: Validate user and character IDs are not None
     if not user.get("_id") or not character.get("_id"):
@@ -361,15 +360,7 @@ def context_prepare(user, character, conversation):
         },
     )
 
-    # user 字段默认值
-    context["user"].setdefault("platforms", {})
-    context["user"]["platforms"].setdefault("wechat", {"id": "", "nickname": "用户"})
-
-    # character 字段默认值
-    context["character"].setdefault("platforms", {})
-    context["character"]["platforms"].setdefault(
-        "wechat", {"id": "", "nickname": "角色"}
-    )
+    # user/character 字段默认值
     context["character"].setdefault(
         "user_info", {"description": "", "status": {"place": "未知", "action": "未知"}}
     )
@@ -411,7 +402,7 @@ def get_default_relation(user, character, platform):
         "user_info": {
             "realname": "",
             "hobbyname": "",
-            "description": "在微信上认识的朋友",
+            "description": "在聊天里认识的朋友",
         },
         "character_info": {
             "longterm_purpose": "帮用户实现他们想实现的生活目标（比如日程管理，定期提醒等），在用户需要完成目标时督促他，关心并用户的生活（吃饭，喝水等），也在用户低落时给予鼓励.",
@@ -420,7 +411,7 @@ def get_default_relation(user, character, platform):
             "status": "空闲",
         },
         "relationship": {
-            "description": "在微信上认识的朋友",
+            "description": "在聊天里认识的朋友",
             "closeness": 20,
             "trustness": 20,
             "dislike": 0,

@@ -3,6 +3,7 @@
     "dev": {
         "disable_daily_tasks": true
     },
+    "default_timezone": "Asia/Shanghai",
     "default_character_alias": "qiaoyun",
     "characters": {
         "coke": "${CHARACTER_WXID_COKE}",
@@ -44,21 +45,12 @@
         "APPKEY": "${ALIYUN_ASR_APPKEY}"
     },
     "admin_user_id": "${ADMIN_USER_ID}",
-    "channels": {
-        "enabled": [],
-        "registry": {
-            "enabled_channels": ["wechat"]
-        }
-    },
     "clawscale_bridge": {
         "host": "0.0.0.0",
         "port": 8090,
         "api_key": "${COKE_BRIDGE_API_KEY}",
         "user_auth_secret": "${COKE_USER_AUTH_SECRET}",
         "user_auth_token_ttl_seconds": 604800,
-        "bind_base_url": "${COKE_BIND_BASE_URL}",
-        "wechat_public_connect_url_template": "${COKE_WECHAT_PUBLIC_CONNECT_URL_TEMPLATE}",
-        "wechat_bind_session_ttl_seconds": 600,
         "wechat_channel_api_url": "http://gateway:4041/api/internal/user/wechat-channel",
         "wechat_channel_api_key": "${CLAWSCALE_WECHAT_CHANNEL_API_KEY}",
         "web_allowed_origin": "${COKE_WEB_ALLOWED_ORIGIN}",

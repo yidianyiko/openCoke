@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `agent/`: agents, workflows, prompts, tools, and runtime handlers under `agent/runner/`.
 - `dao/`: Mongo-backed data access for locks, reminders, users, conversations, orders, and usage records.
-- `connector/`: channel abstractions, ClawScale bridge code, gateway helpers, and terminal tooling.
+- `connector/`: ClawScale bridge code, migration/backfill helpers, and terminal tooling.
 - `conf/`: runtime configuration in `config.json` and loader logic in `config.py`.
 - `util/`: shared helpers for logging, time, redis, files, embeddings, and OSS.
 - `tests/`: unit tests in `tests/unit/` and E2E tests in `tests/e2e/`.
@@ -31,3 +31,6 @@
 ## Configuration & Operational Notes
 - Secrets and endpoints should live in `.env`; `agent_start.sh` exports `env=aliyun` by default and supports toggling background agents via `DISABLE_DAILY_AGENTS` and `DISABLE_BACKGROUND_AGENTS`.
 - Logs default to `agent/runner/agent.log`; clean stale locks via `agent_start.sh --force-clean` if the runner was interrupted.
+- Fresh DB deploys rely on the one-shot `coke-bootstrap` service in `docker-compose.prod.yml`; do not bypass it when bringing up the Compose stack.
+- `default_character_alias` must stay registered under `agent/prompt/character/`, or bootstrap will fail fast before `coke-agent` and `coke-bridge` start.
+- Production `coke-bridge` runs behind Gunicorn from `connector/clawscale_bridge/wsgi.py`; keep it single-worker unless output-dispatcher ownership is redesigned.

@@ -34,6 +34,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_时间,
     CONTEXTPROMPT_最新聊天消息,
 )
+from agent.prompt.rendering import render_prompt_template
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_语义理解,
 )
@@ -429,7 +430,7 @@ class PrepareWorkflow:
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """渲染模板字符串"""
         try:
-            return template.format(**context)
+            return render_prompt_template(template, context)
         except KeyError as e:
             logger.warning(f"模板渲染缺少字段: {e}")
             return template

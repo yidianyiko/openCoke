@@ -3,17 +3,20 @@
 # ========== Message source annotation (auto-injected based on message_source) ==========
 # Injected at the code level — the LLM does not need to determine the message source
 
+from agent.prompt.rendering import render_prompt_template
+from util.profile_util import resolve_profile_label
+
 CONTEXTPROMPT_消息来源_用户消息 = """### Message Source
-This is a real message sent to you by {user[platforms][wechat][nickname]} via the platform."""  # PLATFORM_REF: platform name injected per connector
+This is a real message sent to you by {user_label} via this chat channel."""
 
 CONTEXTPROMPT_消息来源_提醒触发 = """### Message Source
-This is a system-triggered scheduled reminder — not a message sent by {user[platforms][wechat][nickname]}.
-You need to proactively send a reminder message to {user[platforms][wechat][nickname]} based on the reminder content.
+This is a system-triggered scheduled reminder — not a message sent by {user_label}.
+You need to proactively send a reminder message to {user_label} based on the reminder content.
 [NOTE] Do not treat the reminder content as something the user said and reply to it."""
 
 CONTEXTPROMPT_消息来源_主动消息 = """### Message Source
-This is a scenario where you are initiating the conversation — not a message sent by {user[platforms][wechat][nickname]}.
-You need to proactively send a message to {user[platforms][wechat][nickname]} based on the planned action.
+This is a scenario where you are initiating the conversation — not a message sent by {user_label}.
+You need to proactively send a message to {user_label} based on the planned action.
 [NOTE] You are the initiator of this message, not replying to the user."""
 
 
@@ -36,28 +39,22 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         template = CONTEXTPROMPT_消息来源_用户消息
 
     try:
-        return template.format(**context)
+        return render_prompt_template(template, context)
     except KeyError:
-        # Fallback: use user nickname directly
-        _user_nickname = (
-            context.get("user", {})
-            .get("platforms", {})
-            .get("wechat", {})
-            .get("nickname", "user")
-        )  # kept for potential future use
+        _user_nickname = resolve_profile_label(context.get("user"), "user")
         if message_source == "reminder":
-            return """### Message Source
-This is a system-triggered scheduled reminder — not a message sent by {user_nickname}.
-You need to proactively send a reminder message to {user_nickname} based on the reminder content.
+            return f"""### Message Source
+This is a system-triggered scheduled reminder — not a message sent by {_user_nickname}.
+You need to proactively send a reminder message to {_user_nickname} based on the reminder content.
 [NOTE] Do not treat the reminder content as something the user said and reply to it."""
         elif message_source == "future":
-            return """### Message Source
-This is a scenario where you are initiating the conversation — not a message sent by {user_nickname}.
-You need to proactively send a message to {user_nickname} based on the planned action.
+            return f"""### Message Source
+This is a scenario where you are initiating the conversation — not a message sent by {_user_nickname}.
+You need to proactively send a message to {_user_nickname} based on the planned action.
 [NOTE] You are the initiator of this message, not replying to the user."""
         else:
-            return """### Message Source
-This is a real message sent to you by {user_nickname} via the platform. Please reply normally."""  # PLATFORM_REF: platform name injected per connector
+            return f"""### Message Source
+This is a real message sent to you by {_user_nickname} via this chat channel. Please reply normally."""
 
 
 CONTEXTPROMPT_时间 = """### Current System Time
@@ -67,20 +64,20 @@ CONTEXTPROMPT_新闻 = """
 {news_str}
 """
 
-CONTEXTPROMPT_人物信息 = """### {character[platforms][wechat][nickname]}'s Character Info
+CONTEXTPROMPT_人物信息 = """### {character_label}'s Character Info
 {character[user_info][description]}"""
 
 
-CONTEXTPROMPT_人物资料 = """### {character[platforms][wechat][nickname]}'s Character Profile
+CONTEXTPROMPT_人物资料 = """### {character_label}'s Character Profile
 {context_retrieve[character_global]}
 {context_retrieve[character_private]}"""
 
-CONTEXTPROMPT_用户资料 = """### {user[platforms][wechat][nickname]}'s Profile
+CONTEXTPROMPT_用户资料 = """### {user_label}'s Profile
 {context_retrieve[user]}"""
 
 # Pending reminders — only used when there are pending reminders
 # Check context_retrieve[confirmed_reminders] for emptiness before using
-CONTEXTPROMPT_待办提醒 = """### {user[platforms][wechat][nickname]}'s Pending Reminders
+CONTEXTPROMPT_待办提醒 = """### {user_label}'s Pending Reminders
 {context_retrieve[confirmed_reminders]}"""
 
 
@@ -102,27 +99,27 @@ def get_reminders_context(context_retrieve: dict, user_nickname: str) -> str:
     return ""
 
 
-CONTEXTPROMPT_人物知识和技能 = """### {character[platforms][wechat][nickname]}'s Knowledge and Skills
+CONTEXTPROMPT_人物知识和技能 = """### {character_label}'s Knowledge and Skills
 {context_retrieve[character_knowledge]}"""
 
-CONTEXTPROMPT_人物状态 = """### {character[platforms][wechat][nickname]}'s Current Status
+CONTEXTPROMPT_人物状态 = """### {character_label}'s Current Status
 Location: {character[user_info][status][place]}
 Action: {character[user_info][status][action]}
 Current state: {relation[relationship][status]}"""
 
-CONTEXTPROMPT_当前目标 = """### {character[platforms][wechat][nickname]}'s Current Goals
+CONTEXTPROMPT_当前目标 = """### {character_label}'s Current Goals
 Long-term goal: {relation[character_info][longterm_purpose]}
 Short-term goal: {relation[character_info][shortterm_purpose]}
-Attitude toward {user[platforms][wechat][nickname]}: {relation[character_info][attitude]}"""
+Attitude toward {user_label}: {relation[character_info][attitude]}"""
 
-CONTEXTPROMPT_当前的人物关系 = """### Current Relationship Between {character[platforms][wechat][nickname]} and {user[platforms][wechat][nickname]}
+CONTEXTPROMPT_当前的人物关系 = """### Current Relationship Between {character_label} and {user_label}
 Relationship description: {relation[relationship][description]}
 Closeness: {relation[relationship][closeness]}
 Trust: {relation[relationship][trustness]}
 Dislike: {relation[relationship][dislike]}
-Known real name of {user[platforms][wechat][nickname]}: {relation[user_info][realname]}
-{character[platforms][wechat][nickname]}'s nickname for {user[platforms][wechat][nickname]}: {relation[user_info][hobbyname]}
-{character[platforms][wechat][nickname]}'s impression of {user[platforms][wechat][nickname]}: {relation[user_info][description]}
+Known real name of {user_label}: {relation[user_info][realname]}
+{character_label}'s nickname for {user_label}: {relation[user_info][hobbyname]}
+{character_label}'s impression of {user_label}: {relation[user_info][description]}
 """
 
 CONTEXTPROMPT_最近的历史对话 = """### Conversation History (last 15 messages)
@@ -180,7 +177,7 @@ The following are past conversations semantically related to the current topic:
 CONTEXTPROMPT_历史对话_精简 = """### Recent Conversation (last 3 rounds)
 {recent_chat_history}"""
 
-CONTEXTPROMPT_最新聊天消息 = """### {user[platforms][wechat][nickname]}'s Latest Chat Message
+CONTEXTPROMPT_最新聊天消息 = """### {user_label}'s Latest Chat Message
 {conversation[conversation_info][input_messages_str]}"""
 
 # V2.15: Anti-duplicate-reply prompt (used for all message scenarios)
@@ -193,31 +190,31 @@ CONTEXTPROMPT_防重复回复 = """{proactive_forbidden_messages}
 - Respond from a completely different angle or topic
 """
 
-CONTEXTPROMPT_初步回复 = """### {character[platforms][wechat][nickname]}'s Initial Reply
+CONTEXTPROMPT_初步回复 = """### {character_label}'s Initial Reply
 {MultiModalResponses}"""
 
-CONTEXTPROMPT_最新聊天消息_双方 = """### {user[platforms][wechat][nickname]}'s Latest Chat Message
+CONTEXTPROMPT_最新聊天消息_双方 = """### {user_label}'s Latest Chat Message
 {conversation[conversation_info][input_messages_str]}
 
-### {character[platforms][wechat][nickname]}'s Latest Reply
+### {character_label}'s Latest Reply
 {MultiModalResponses}"""
 
-CONTEXTPROMPT_规划行动 = """### {character[platforms][wechat][nickname]}'s Planned Action
-{character[platforms][wechat][nickname]} plans to proactively send a message to {user[platforms][wechat][nickname]}. Action content: {conversation[conversation_info][future][action]}
-[IMPORTANT] This is a message that {character[platforms][wechat][nickname]} is initiating — not a message from {user[platforms][wechat][nickname]}."""
+CONTEXTPROMPT_规划行动 = """### {character_label}'s Planned Action
+{character_label} plans to proactively send a message to {user_label}. Action content: {conversation[conversation_info][future][action]}
+[IMPORTANT] This is a message that {character_label} is initiating — not a message from {user_label}."""
 
 CONTEXTPROMPT_系统提醒触发 = """### System Reminder Triggered
-The following reminder has come due. {character[platforms][wechat][nickname]} needs to proactively remind {user[platforms][wechat][nickname]}:
+The following reminder has come due. {character_label} needs to proactively remind {user_label}:
 Reminder content: {system_message_metadata[title]}
-[IMPORTANT] This is reminder content that {character[platforms][wechat][nickname]} should send to {user[platforms][wechat][nickname]} — not a message from {user[platforms][wechat][nickname]}. {character[platforms][wechat][nickname]} should remind the user in a natural way based on this content."""
+[IMPORTANT] This is reminder content that {character_label} should send to {user_label} — not a message from {user_label}. {character_label} should remind the user in a natural way based on this content."""
 
 # V2.15 simplified: removed duplicate [STRICTLY FORBIDDEN] section — now uniformly provided by CONTEXTPROMPT_防重复回复
 CONTEXTPROMPT_主动消息触发 = """### Proactive Message Triggered
-{character[platforms][wechat][nickname]} plans to proactively send a message to {user[platforms][wechat][nickname]}.
+{character_label} plans to proactively send a message to {user_label}.
 Action content: {conversation[conversation_info][future][action]}
 Proactive prompts sent this round: {proactive_times}
 
-[IMPORTANT] This is a message that {character[platforms][wechat][nickname]} is initiating — not a message from {user[platforms][wechat][nickname]}.
+[IMPORTANT] This is a message that {character_label} is initiating — not a message from {user_label}.
 """
 
 # V2.8: Reminder intent detected but tool not executed prompt
@@ -346,4 +343,3 @@ def get_tool_results_context(session_state: dict) -> str:
         '[IMPORTANT] Only confirm an operation has been executed when you see this "System Operation Results" block. Do not assume success when this block is absent.',
     ]
     return "\n".join(lines)
-

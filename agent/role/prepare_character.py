@@ -18,13 +18,7 @@ if __name__ == "__main__":
         {
             "is_character": True,  # 是否是角色
             "name": "qiaoyun",  # 统一注册名
-            "platforms": {
-                "wechat": {
-                    "id": "wxid_58bfckbpioh822",  # 微信统一id
-                    "account": "wxid_58bfckbpioh822",  # 微信号
-                    "nickname": " qiaoyun ",  # 微信昵称
-                },
-            },
+            "nickname": "qiaoyun",
             "status": "normal",  # normal | stopped
             "user_info": {
                 "description": """

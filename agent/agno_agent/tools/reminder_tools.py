@@ -389,25 +389,15 @@ def reminder_tool(
 
     # Resolve user timezone from session_state
     from zoneinfo import ZoneInfo as _ZoneInfo
-    from util.time_util import get_user_timezone as _get_user_timezone
+    from util.time_util import get_default_timezone as _get_default_timezone
     _tz_str = current_session_state.get("user", {}).get("timezone")
     if _tz_str:
         try:
             _user_tz = _ZoneInfo(_tz_str)
         except Exception:
-            _user_tz = _get_user_timezone(
-                next(
-                    (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
-                    "",
-                )
-            )
+            _user_tz = _get_default_timezone()
     else:
-        _user_tz = _get_user_timezone(
-            next(
-                (v.get("id", "") for v in current_session_state.get("user", {}).get("platforms", {}).values() if v.get("id")),
-                "",
-            )
-        )
+        _user_tz = _get_default_timezone()
 
     if not user_id and action in (
         "create",

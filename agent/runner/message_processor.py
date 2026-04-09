@@ -40,6 +40,7 @@ from util.message_log_util import (
     format_std_messages_for_log,
     should_log_message_content,
 )
+from util.profile_util import resolve_profile_label
 
 logger = get_logger(__name__)
 
@@ -107,10 +108,6 @@ class MessageAcquirer:
 
         # 获取目标角色配置
         self.target_user_alias = CONF.get("default_character_alias", "coke")
-        _characters_conf = (
-            CONF.get("characters") or (CONF.get("aliyun") or {}).get("characters") or {}
-        )
-        self.target_wechat_id = _characters_conf.get(self.target_user_alias)
 
     def acquire(self) -> Optional[MessageContext]:
         """
@@ -121,11 +118,6 @@ class MessageAcquirer:
         """
         # 获取目标角色 - 优先按名称查找，支持多平台
         characters = self.user_dao.find_characters({"name": self.target_user_alias})
-        # 如果按名称找不到，尝试按 wechat ID 查找（向后兼容）
-        if len(characters) == 0 and self.target_wechat_id:
-            characters = self.user_dao.find_characters(
-                {"platforms.wechat.id": self.target_wechat_id}
-            )
 
         if len(characters) == 0:
             logger.debug(f"{self.worker_tag} 未找到目标角色: {self.target_user_alias}")
@@ -220,10 +212,12 @@ class MessageAcquirer:
                     {
                         "id": user_platform_profile["id"],
                         "nickname": user_platform_profile["nickname"],
+                        "db_user_id": str(user.get("_id") or ""),
                     },
                     {
                         "id": character_platform_profile["id"],
                         "nickname": character_platform_profile["nickname"],
+                        "db_user_id": str(character.get("_id") or ""),
                     },
                 ],
             )
@@ -236,6 +230,8 @@ class MessageAcquirer:
                     nickname1=user_platform_profile["nickname"],
                     user_id2=character_platform_profile["id"],
                     nickname2=character_platform_profile["nickname"],
+                    db_user_id1=str(user.get("_id") or ""),
+                    db_user_id2=str(character.get("_id") or ""),
                 )
             )
 
@@ -326,45 +322,24 @@ class MessageAcquirer:
     def _resolve_platform_profiles(
         self, user: Dict, character: Dict, top_message: Dict, platform: str
     ) -> Optional[Tuple[Dict, Dict]]:
-        """解析用户和角色的平台身份信息。"""
-        user_platforms = user.get("platforms", {})
-        character_platforms = character.get("platforms", {})
+        """解析用于会话建模的参与者资料，不依赖持久化平台档案。"""
+        user_platform_profile = self._build_clawscale_virtual_user_platform(
+            user, top_message, platform
+        ) or {
+            "id": f"{platform}-user:{str(user.get('_id') or '').strip()}",
+            "nickname": resolve_profile_label(
+                user, f"user-{str(user.get('_id') or '')[-6:]}"
+            ),
+        }
 
-        user_platform_profile = user_platforms.get(platform)
-        if not user_platform_profile:
-            user_platform_profile = self._build_clawscale_virtual_user_platform(
-                user, top_message, platform
-            )
-
-        if not user_platform_profile:
-            logger.error(
-                f"{self.worker_tag} 用户缺少 platforms.{platform} 字段: "
-                f"user_id={user.get('_id')}, user_name={user.get('name')}, "
-                f"available_platforms={list(user_platforms.keys())}"
-            )
-            top_message["status"] = "failed"
-            top_message["error"] = f"user_missing_platform:{platform}"
-            save_inputmessage(top_message)
-            return None
-
-        character_platform_profile = character_platforms.get(platform)
-        if not character_platform_profile:
-            character_platform_profile = (
-                self._build_clawscale_virtual_character_platform(
-                    character, top_message, platform
-                )
-            )
-
-        if not character_platform_profile:
-            logger.error(
-                f"{self.worker_tag} 角色缺少 platforms.{platform} 字段: "
-                f"character_id={character.get('_id')}, character_name={character.get('name')}. "
-                f"请运行相关脚本或手动添加角色的 {platform} 平台配置"
-            )
-            top_message["status"] = "failed"
-            top_message["error"] = f"character_missing_platform:{platform}"
-            save_inputmessage(top_message)
-            return None
+        character_platform_profile = self._build_clawscale_virtual_character_platform(
+            character, top_message, platform
+        ) or {
+            "id": f"{platform}-character:{str(character.get('_id') or '').strip()}",
+            "nickname": resolve_profile_label(
+                character, self.target_user_alias or "character"
+            ),
+        }
 
         return user_platform_profile, character_platform_profile
 
@@ -404,15 +379,12 @@ class MessageAcquirer:
         if not stable_id:
             return None
 
-        nickname = (
-            user.get("display_name")
-            or user.get("name")
-            or user.get("email")
-            or f"user-{str(user.get('_id') or '')[-6:]}"
+        nickname = resolve_profile_label(
+            user, f"user-{str(user.get('_id') or '')[-6:]}"
         )
 
         logger.info(
-            f"{self.worker_tag} 使用 Clawscale 虚拟 wechat 会话身份: user_id={user.get('_id')}, conversation_key={stable_id}"
+            f"{self.worker_tag} 使用 Clawscale 虚拟业务会话身份: user_id={user.get('_id')}, conversation_key={stable_id}"
         )
         return {
             "id": f"clawscale:{stable_id}",
@@ -439,15 +411,12 @@ class MessageAcquirer:
         if not character_id:
             return None
 
-        nickname = (
-            character.get("display_name")
-            or character.get("name")
-            or self.target_user_alias
-            or "Coke"
+        nickname = resolve_profile_label(
+            character, self.target_user_alias or "character"
         )
 
         logger.info(
-            f"{self.worker_tag} 使用 Clawscale 虚拟角色 wechat 身份: character_id={character_id}"
+            f"{self.worker_tag} 使用 Clawscale 虚拟角色身份: character_id={character_id}"
         )
         return {
             "id": f"clawscale-character:{character_id}",

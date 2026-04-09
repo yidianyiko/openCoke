@@ -18,12 +18,8 @@ def test_message_acquirer_uses_virtual_wechat_identity_for_clawscale_request_res
             else {
                 "_id": "65f000000000000000000002",
                 "name": "coke",
-                "platforms": {
-                    "wechat": {
-                        "id": "wxid_character",
-                        "nickname": "Coke",
-                    }
-                },
+                "nickname": "Coke",
+                "platforms": {},
             }
         ),
         find_characters=lambda query: [],
@@ -83,8 +79,11 @@ def test_message_acquirer_uses_virtual_wechat_identity_for_clawscale_request_res
     assert ctx is not None
     assert captured["platform"] == "wechat"
     assert captured["user_id1"] == "clawscale:conv_CcVG9pPu-QPtsKmaYgTPu"
+    assert captured["db_user_id1"] == "69d3db920cb4b1810d8e5fca"
     assert captured["nickname1"] == "ydyk"
-    assert captured["user_id2"] == "wxid_character"
+    assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
+    assert captured["db_user_id2"] == "65f000000000000000000002"
+    assert captured["nickname2"] == "Coke"
     assert top_message.get("status") == "pending"
 
 
@@ -165,8 +164,10 @@ def test_message_acquirer_uses_virtual_character_identity_when_character_has_no_
     assert ctx is not None
     assert captured["platform"] == "wechat"
     assert captured["user_id1"] == "clawscale:conv_CcVG9pPu-QPtsKmaYgTPu"
+    assert captured["db_user_id1"] == "69d3db920cb4b1810d8e5fca"
     assert captured["nickname1"] == "ydyk"
     assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
+    assert captured["db_user_id2"] == "65f000000000000000000002"
     assert captured["nickname2"] == "qiaoyun"
     assert top_message.get("status") == "pending"
 

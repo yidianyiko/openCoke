@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from conf.config import CONF
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -139,64 +140,22 @@ def get_message_timestamp(message, default_to_now=True):
 
 # ========== Original time utility functions ==========
 
-# Maps phone country code prefixes (longest match wins) to IANA timezone names.
-# Covers the most common countries; anything unrecognized falls back to Asia/Shanghai.
-_COUNTRY_CODE_TO_TZ: dict[str, str] = {
-    "966": "Asia/Riyadh",
-    "971": "Asia/Dubai",
-    "1":   "America/New_York",
-    "7":   "Europe/Moscow",
-    "20":  "Africa/Cairo",
-    "27":  "Africa/Johannesburg",
-    "44":  "Europe/London",
-    "49":  "Europe/Berlin",
-    "55":  "America/Sao_Paulo",
-    "60":  "Asia/Kuala_Lumpur",
-    "62":  "Asia/Jakarta",
-    "63":  "Asia/Manila",
-    "65":  "Asia/Singapore",
-    "66":  "Asia/Bangkok",
-    "81":  "Asia/Tokyo",
-    "82":  "Asia/Seoul",
-    "84":  "Asia/Ho_Chi_Minh",
-    "86":  "Asia/Shanghai",
-    "90":  "Europe/Istanbul",
-    "91":  "Asia/Kolkata",
-    "92":  "Asia/Karachi",
-}
-
-_DEFAULT_TZ = ZoneInfo("Asia/Shanghai")
+_FALLBACK_TIMEZONE_NAME = "Asia/Shanghai"
 
 
-def get_user_timezone(user_id: str | None) -> ZoneInfo:
-    """
-    Infer a user's timezone from their WhatsApp JID or phone number.
-
-    Strips the @s.whatsapp.net suffix, then matches the leading digits against
-    country-code prefixes (longest match wins). Falls back to Asia/Shanghai.
-
-    Examples:
-        "8615012345678@s.whatsapp.net" → ZoneInfo("Asia/Shanghai")
-        "5511987654321@s.whatsapp.net" → ZoneInfo("America/Sao_Paulo")
-        None                           → ZoneInfo("Asia/Shanghai")
-    """
-    if not user_id:
-        return _DEFAULT_TZ
-
-    # Strip JID suffix and any leading "+"
-    digits = user_id.split("@")[0].lstrip("+")
-
-    # Longest-match: try 3-digit prefix, then 2-digit, then 1-digit
-    for length in (3, 2, 1):
-        prefix = digits[:length]
-        if prefix in _COUNTRY_CODE_TO_TZ:
-            return ZoneInfo(_COUNTRY_CODE_TO_TZ[prefix])
-
-    return _DEFAULT_TZ
+def get_default_timezone() -> ZoneInfo:
+    configured_name = CONF.get("default_timezone", _FALLBACK_TIMEZONE_NAME)
+    try:
+        return ZoneInfo(configured_name)
+    except Exception:
+        logger.warning(
+            f"Invalid default timezone '{configured_name}', falling back to {_FALLBACK_TIMEZONE_NAME}"
+        )
+        return ZoneInfo(_FALLBACK_TIMEZONE_NAME)
 
 
 def timestamp2str(timestamp, week=False, tz: ZoneInfo = None):
-    dt_object = datetime.fromtimestamp(timestamp, tz=tz or _DEFAULT_TZ)
+    dt_object = datetime.fromtimestamp(timestamp, tz=tz or get_default_timezone())
     result = dt_object.strftime("%Y年%m月%d日%H时%M分")
 
     if week:
@@ -231,12 +190,12 @@ def str2timestamp(time_str, format="%Y年%m月%d日%H时%M分", tz: ZoneInfo = N
     except Exception:
         return None
 
-    resolved_tz = tz or _DEFAULT_TZ
+    resolved_tz = tz or get_default_timezone()
     return int(dt.replace(tzinfo=resolved_tz).timestamp())
 
 
 def date2str(timestamp, week=False, tz: ZoneInfo = None):
-    dt_object = datetime.fromtimestamp(timestamp, tz=tz or _DEFAULT_TZ)
+    dt_object = datetime.fromtimestamp(timestamp, tz=tz or get_default_timezone())
     result = dt_object.strftime("%Y年%m月%d日")
 
     if week:
@@ -276,7 +235,7 @@ def parse_relative_time(text, base_timestamp=None, tz: ZoneInfo = None):
     if base_timestamp is None:
         base_timestamp = int(datetime.now().timestamp())
 
-    resolved_tz = tz or _DEFAULT_TZ
+    resolved_tz = tz or get_default_timezone()
     base_dt = datetime.fromtimestamp(base_timestamp, tz=resolved_tz)
 
     # 相对时间模式
@@ -378,7 +337,7 @@ def format_time_friendly(timestamp, tz: ZoneInfo = None):
     Returns:
         str: 友好的时间文本，如"明天上午9点"
     """
-    _tz = tz or _DEFAULT_TZ
+    _tz = tz or get_default_timezone()
     dt = datetime.fromtimestamp(timestamp, tz=_tz)
     now = datetime.now(tz=_tz)
 

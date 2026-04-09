@@ -98,6 +98,19 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --build --remove-orphans'
 ```
 
+`docker-compose.prod.yml` 里包含一个一次性 `coke-bootstrap` 服务：
+
+- 它会在空 MongoDB 上幂等写入 `default_character_alias`
+- `coke-agent` 和 `coke-bridge` 都依赖它成功完成后再启动
+- 日常重复执行 `docker compose up -d` 是安全的
+- `coke-bridge` 生产环境通过 Gunicorn 启动，不再使用 Flask development server
+
+如果只需要手动重跑 bootstrap：
+
+```bash
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml run --rm coke-bootstrap'
+```
+
 ### 4.4 安装 Nginx 配置
 
 ```bash
@@ -118,6 +131,7 @@ ssh gcp-coke "sudo systemctl enable coke-compose.service"
 
 ```bash
 ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml ps'
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml logs --tail=20 coke-bootstrap'
 ssh gcp-coke 'curl -sS http://127.0.0.1:4041/health'
 ssh gcp-coke 'curl -sS http://127.0.0.1:8090/bridge/healthz'
 curl -k https://coke.keep4oforever.com/health

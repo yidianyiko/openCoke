@@ -13,6 +13,7 @@ from bson import ObjectId
 
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
+from util.profile_util import resolve_profile_label
 from util.message_log_util import format_std_message_for_log, should_log_message_content
 from util.time_util import get_message_timestamp, safe_timestamp_compare, timestamp2str
 
@@ -49,17 +50,15 @@ def _resolve_talker_name(talker, message):
     default_name = message.get("from_user") or "未知用户"
     if not isinstance(talker, dict) or talker is None:
         return default_name
-    platforms = talker.get("platforms")
-    if isinstance(platforms, dict):
-        pinfo = platforms.get(platform)
-        if isinstance(pinfo, dict):
-            nickname = pinfo.get("nickname")
-            if nickname:
-                return nickname
-    nickname = talker.get("nickname")
-    if nickname:
-        return nickname
-    return default_name
+    if platform:
+        conversation_profiles = talker.get("conversation_profiles")
+        if isinstance(conversation_profiles, dict):
+            profile = conversation_profiles.get(platform)
+            if isinstance(profile, dict):
+                nickname = profile.get("nickname")
+                if nickname:
+                    return nickname
+    return resolve_profile_label(talker, default_name)
 
 
 def normal_message_to_str(message, language="cn"):

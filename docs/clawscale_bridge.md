@@ -48,16 +48,6 @@ Bridge/runtime environment:
 - `CLAWSCALE_IDENTITY_API_URL`
 - `CLAWSCALE_IDENTITY_API_KEY`
 
-Legacy compatibility notes:
-
-- `COKE_BIND_BASE_URL` and `{bind_token}` were used by the older shared bind-entry flow.
-- `metadata.contextToken` was part of the legacy bind-token round trip.
-- These legacy settings should be treated as compatibility-only, not the primary user journey.
-- Shared `wechat_personal` onboarding is frozen for new Coke users.
-- Any destructive reset of legacy shared WeChat bindings must be explicitly approved by an operator before it runs.
-- The reset entrypoint requires `ALLOW_WECHAT_PERSONAL_RESET=yes`; without that confirmation it aborts before touching data.
-- After the reset is committed, there is no rollback to the legacy shared-binding path. Recovery requires a forward migration or a full restore, not a toggle back.
-
 ## Rollout
 
 1. Ensure the bridge environment has `CLAWSCALE_IDENTITY_API_URL` and `CLAWSCALE_IDENTITY_API_KEY`.
@@ -66,9 +56,6 @@ Legacy compatibility notes:
 4. Restart the Coke bridge so it picks up the current identity API settings.
 5. Verify a test Coke user can create, connect, disconnect, and archive their own WeChat channel from `/coke/bind-wechat`.
 6. Verify that a successful create or connect response can land the page directly in `pending` with QR/connect info and that the page keeps polling while the session remains active.
-7. If you still need to support an older shared bind path temporarily, keep it isolated as a compatibility path only.
-8. Before running any legacy shared-WeChat reset/backfill job, export `ALLOW_WECHAT_PERSONAL_RESET=yes` and confirm the operator approval in the change record.
-9. Treat the reset as irreversible from the product point of view. If you need the legacy shared-bind behavior back, restore from backup or implement a new forward migration instead of re-enabling the old path.
 
 ## Start Coke bridge
 
@@ -122,8 +109,3 @@ QUEUE_MODE=poll bash agent/runner/agent_start.sh
 9. Confirm the page transitions to the connected state and shows the masked WeChat identity.
 10. Click disconnect and confirm the page returns to `disconnected`.
 11. Click archive and confirm the page shows the archived state with a create-again action.
-
-## Legacy shared-bind compatibility
-
-If an older deployment still exposes the shared bind-token flow, keep it as a compatibility path
-only. It should not be presented as the primary Coke user onboarding route.

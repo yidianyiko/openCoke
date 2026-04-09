@@ -43,15 +43,8 @@ class UserDAO:
 
     def create_indexes(self):
         """创建必要的索引"""
-        # 为平台ID创建索引
-        self.collection.create_index([("platforms.wechat.id", 1)])
         self.collection.create_index([("phone_number", 1)], sparse=True)
         self.collection.create_index([("email", 1)], unique=True, sparse=True)
-
-        # 可以为其他平台创建类似的索引
-        # self.collection.create_index([
-        #     ("platforms.other_platform.id", 1)
-        # ])
 
         # 为status字段创建索引
         self.collection.create_index([("status", 1)])
@@ -95,23 +88,6 @@ class UserDAO:
 
         return self.collection.find_one({"_id": object_id})
 
-    def get_user_by_platform(self, platform: str, platform_id: str) -> Optional[Dict]:
-        """
-        通过平台和平台ID获取用户
-
-        Args:
-            platform: 平台名称 (例如 "wechat")
-            platform_id: 平台用户ID
-
-        Returns:
-            Optional[Dict]: 用户数据或None
-        """
-        if not platform or not platform_id:
-            return None
-
-        query = {f"platforms.{platform}.id": platform_id}
-        return self.collection.find_one(query)
-
     def get_user_by_phone_number(self, phone_number: str) -> Optional[Dict]:
         if not phone_number:
             return None
@@ -142,31 +118,6 @@ class UserDAO:
 
         # 创建一个只包含要更新字段的字典
         update_fields = {"$set": update_data}
-
-        result = self.collection.update_one({"_id": object_id}, update_fields)
-
-        return result.modified_count > 0
-
-    def update_platform_info(
-        self, user_id: str, platform: str, platform_data: Dict
-    ) -> bool:
-        """
-        更新用户平台信息
-
-        Args:
-            user_id: 用户ID
-            platform: 平台名称
-            platform_data: 平台数据
-
-        Returns:
-            bool: 更新是否成功
-        """
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
-            return False
-
-        update_fields = {"$set": {f"platforms.{platform}": platform_data}}
 
         result = self.collection.update_one({"_id": object_id}, update_fields)
 
@@ -257,50 +208,6 @@ class UserDAO:
             query = {}
 
         return self.collection.count_documents(query)
-
-    def find_users_by_platform(
-        self, platform: str, query: Dict = None, limit: int = 0
-    ) -> List[Dict]:
-        """
-        通过平台查找用户
-
-        Args:
-            platform: 平台名称
-            query: 平台相关的查询条件
-            limit: 最大返回数量
-
-        Returns:
-            List[Dict]: 用户列表
-        """
-        if query is None:
-            query = {}
-
-        # 构建平台查询
-        platform_query = {}
-        for key, value in query.items():
-            platform_query[f"platforms.{platform}.{key}"] = value
-
-        cursor = (
-            self.collection.find(platform_query).limit(limit)
-            if limit > 0
-            else self.collection.find(platform_query)
-        )
-        return list(cursor)
-
-    def find_by_platform(self, platform_key: str, platform_id: str) -> Optional[Dict]:
-        """
-        通过平台 ID 查找单个用户
-
-        Args:
-            platform_key: 平台键名 (e.g., "wechat")
-            platform_id: 平台用户 ID (如 wxid, open_id 等)
-
-        Returns:
-            Optional[Dict]: 用户文档，如果不存在返回 None
-        """
-        # 使用 id 字段查询，与历史 webhook 写入路径保持一致
-        user = self.collection.find_one({f"platforms.{platform_key}.id": platform_id})
-        return user
 
     def find_characters(self, query: Dict = None, limit: int = 0) -> List[Dict]:
         """
@@ -408,64 +315,6 @@ class UserDAO:
         return result.modified_count > 0
 
 
-    def add_platform_to_user(
-        self, user_id: str, platform: str, platform_data: Dict
-    ) -> bool:
-        """
-        为用户添加平台信息
-
-        Args:
-            user_id: 用户ID
-            platform: 平台名称
-            platform_data: 平台数据
-
-        Returns:
-            bool: 添加是否成功
-        """
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
-            return False
-
-        # 检查用户是否存在
-        user = self.collection.find_one({"_id": object_id})
-        if not user:
-            return False
-
-        # 初始化platforms字段(如果不存在)
-        if "platforms" not in user:
-            self.collection.update_one({"_id": object_id}, {"$set": {"platforms": {}}})
-
-        # 添加平台信息
-        update_result = self.collection.update_one(
-            {"_id": object_id}, {"$set": {f"platforms.{platform}": platform_data}}
-        )
-
-        return update_result.modified_count > 0
-
-    def remove_platform_from_user(self, user_id: str, platform: str) -> bool:
-        """
-        从用户删除平台信息
-
-        Args:
-            user_id: 用户ID
-            platform: 平台名称
-
-        Returns:
-            bool: 删除是否成功
-        """
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
-            return False
-
-        update_result = self.collection.update_one(
-            {"_id": object_id}, {"$unset": {f"platforms.{platform}": ""}}
-        )
-
-        return update_result.modified_count > 0
-
-
     def update_access_stripe(
         self,
         user_id: str,
@@ -545,13 +394,7 @@ if __name__ == "__main__":
     # new_user = {
     #     "is_character": False,
     #     "name": "test_user",
-    #     "platforms": {
-    #         "wechat": {
-    #             "id": "wx123456",
-    #             "account": "testaccount",
-    #             "nickname": "Test User"
-    #         }
-    #     },
+    #     "display_name": "Test User",
     #     "status": "normal",
     #     "user_info": {
     #         "tags": ["new", "test"]
@@ -564,10 +407,6 @@ if __name__ == "__main__":
     # # 通过ID获取用户
     # user = user_model.get_user_by_id(user_id)
     # print(f"Found user: {user['name']}")
-
-    # # 通过平台ID获取用户
-    # platform_user = user_model.get_user_by_platform("wechat", "wx123456")
-    # print(f"Found user by platform: {platform_user['name']}")
 
     results = user_model.find_users(query={}, limit=10)
 

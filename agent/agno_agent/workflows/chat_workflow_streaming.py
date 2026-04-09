@@ -48,6 +48,7 @@ from agent.prompt.chat_contextprompt import (
     get_web_search_context,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
+from agent.prompt.rendering import render_prompt_template
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_微信对话,
     TASKPROMPT_微信对话_推理要求_纯文本,
@@ -205,11 +206,12 @@ class StreamingChatWorkflow:
 
         # V2.7 优化：按需加载待办提醒和相关历史对话
         context_retrieve = session_state.get("context_retrieve", {})
+        user_state = session_state.get("user", {})
         user_nickname = (
-            session_state.get("user", {})
-            .get("platforms", {})
-            .get("wechat", {})
-            .get("nickname", "用户")
+            user_state.get("display_name")
+            or user_state.get("name")
+            or user_state.get("nickname")
+            or "用户"
         )
 
         # 按需生成待办提醒上下文
@@ -412,7 +414,7 @@ class StreamingChatWorkflow:
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """渲染模板字符串"""
         try:
-            return template.format(**context)
+            return render_prompt_template(template, context)
         except KeyError as e:
             logger.warning(f"模板渲染缺少字段: {e}")
             return template
