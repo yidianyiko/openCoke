@@ -13,11 +13,10 @@ Tools:
 - image2text_tool: 图片识别
 - image_send_tool: 图片发送
 - image_generate_tool: 文生图
-- moments_tool: 朋友圈发布
 - photo_delete_tool: 照片删除
 """
 
-from agent.agno_agent.tools.album_tools import moments_tool, photo_delete_tool
+from agent.agno_agent.tools.album_tools import photo_delete_tool
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.image_tools import (
     image2text_tool,
@@ -41,6 +40,5 @@ __all__ = [
     "image_send_tool",
     "image_generate_tool",
     # 相册 Tool
-    "moments_tool",
     "photo_delete_tool",
 ]

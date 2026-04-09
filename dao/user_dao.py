@@ -298,7 +298,7 @@ class UserDAO:
         Returns:
             Optional[Dict]: 用户文档，如果不存在返回 None
         """
-        # 使用 id 字段查询，与 ecloud_input.py 的 find_users 保持一致
+        # 使用 id 字段查询，与历史 webhook 写入路径保持一致
         user = self.collection.find_one({f"platforms.{platform_key}.id": platform_id})
         return user
 

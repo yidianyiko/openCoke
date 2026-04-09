@@ -5,8 +5,6 @@ import requests
 sys.path.append(".")
 import os
 
-from conf.config import CONF
-from connector.ecloud.ecloud_api import Ecloud_API
 from util.file_util import pcm_to_silk
 from util.oss import bucket, upload_file
 
@@ -81,14 +79,3 @@ if __name__ == "__main__":
 
     url = bucket.sign_url("GET", "test.silk", 5 * 60)
     print(url)
-
-    resp_json = Ecloud_API.sendVoice(
-        data={
-            "wId": CONF["ecloud"]["wId"][target_user_alias],
-            "wcId": "LeanInWind",
-            "content": url,
-            "length": 24 * 1000,
-        }
-    )
-
-    print(resp_json)

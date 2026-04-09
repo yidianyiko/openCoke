@@ -73,12 +73,3 @@ def character_voice(text, emotion=None):
 
 def split_string(text, chunk_size=420):
     return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
-
-    # resp_json = Ecloud_API.sendVoice(data={
-    #     "wId": CONF["ecloud"]["wId"][target_user_alias],
-    #     "wcId": "YDYK",
-    #     "content": url,
-    #     "length": voice_length
-    # })
-
-    # print(resp_json)

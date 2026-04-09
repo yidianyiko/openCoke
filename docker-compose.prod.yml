@@ -1,0 +1,135 @@
+services:
+  mongo:
+    image: mongo:7.0
+    restart: unless-stopped
+    command: ["--bind_ip_all"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: clawscale
+      POSTGRES_PASSWORD: clawscale
+      POSTGRES_DB: clawscale
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clawscale -d clawscale"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  coke-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      env: aliyun
+      AGNO_TELEMETRY: "false"
+      AGENT_WORKERS: ${AGENT_WORKERS:-10}
+    command: ["python", "agent/runner/agent_runner.py"]
+    volumes:
+      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
+      - coke_data:/app/data
+      - coke_temp:/app/agent/temp
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  coke-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      env: aliyun
+      AGNO_TELEMETRY: "false"
+    command: ["python", "-m", "connector.clawscale_bridge.app"]
+    volumes:
+      - ./deploy/config/coke.config.json:/app/conf/config.json:ro
+      - coke_data:/app/data
+      - coke_temp:/app/agent/temp
+    depends_on:
+      mongo:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8090/bridge/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:8090:8090"
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://coke.keep4oforever.com}
+        NEXT_PUBLIC_COKE_API_URL: ${NEXT_PUBLIC_COKE_API_URL:-https://coke.keep4oforever.com}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://clawscale:clawscale@postgres:5432/clawscale
+      JWT_SECRET: ${JWT_SECRET}
+      HOST: 0.0.0.0
+      PORT: 4041
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://coke.keep4oforever.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://coke.keep4oforever.com}
+      NEXT_PUBLIC_COKE_API_URL: ${NEXT_PUBLIC_COKE_API_URL:-https://coke.keep4oforever.com}
+      COKE_BRIDGE_INBOUND_URL: http://coke-bridge:8090/bridge/inbound
+      COKE_BRIDGE_API_KEY: ${COKE_BRIDGE_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4041/health').then((response)=>{if(!response.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:4040:4040"
+      - "127.0.0.1:4041:4041"
+
+volumes:
+  mongo_data:
+  redis_data:
+  postgres_data:
+  coke_data:
+  coke_temp:

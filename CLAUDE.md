@@ -58,8 +58,8 @@ The streaming chat agent is instantiated inside `StreamingChatWorkflow`.
 - `agent/prompt/`: prompt templates and personality/context/task prompts
 - `agent/runner/`: message handling, background tasks, access gate, payment providers
 - `connector/channel/`: channel base abstractions
-- `connector/adapters/`: Telegram, Discord, WhatsApp, terminal, and ecloud adapters
-- `connector/ecloud/`: legacy direct ecloud HTTP entrypoints
+- `connector/adapters/`: Telegram, Discord, and terminal adapters kept in this repository
+- `connector/clawscale_bridge/`: Coke-specific ClawScale bridge runtime
 - `connector/gateway/`: gateway helper server and config
 - `dao/`: MongoDB DAOs
 - `entity/`: shared message/entity structures

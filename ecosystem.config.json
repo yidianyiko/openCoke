@@ -22,45 +22,6 @@
       "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
       "merge_logs": true,
       "kill_timeout": 5000
-    },
-    {
-      "name": "ecloud-input",
-      "script": ".venv/bin/python3",
-      "args": "-m gunicorn -w 2 -b 0.0.0.0:8080 --log-level info connector.ecloud.ecloud_input:app",
-      "interpreter": "none",
-      "cwd": ".",
-      "exec_mode": "fork",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "500M",
-      "env": {
-        "env": "aliyun"
-      },
-      "error_file": "./logs/ecloud-input-error.log",
-      "out_file": "./logs/ecloud-input-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "merge_logs": true,
-      "kill_timeout": 5000
-    },
-    {
-      "name": "ecloud-output",
-      "script": "connector/ecloud/ecloud_output.py",
-      "interpreter": ".venv/bin/python3",
-      "cwd": ".",
-      "exec_mode": "fork",
-      "instances": 1,
-      "autorestart": true,
-      "watch": false,
-      "max_memory_restart": "500M",
-      "env": {
-        "env": "aliyun"
-      },
-      "error_file": "./logs/ecloud-output-error.log",
-      "out_file": "./logs/ecloud-output-out.log",
-      "log_date_format": "YYYY-MM-DD HH:mm:ss Z",
-      "merge_logs": true,
-      "kill_timeout": 5000
     }
   ]
 }

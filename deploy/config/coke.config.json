@@ -1,4 +1,5 @@
 {
+    "queue_mode": "poll",
     "dev": {
         "disable_daily_tasks": true
     },
@@ -17,12 +18,12 @@
         }
     },
     "mongodb": {
-        "mongodb_ip": "127.0.0.1",
+        "mongodb_ip": "mongo",
         "mongodb_port": "27017",
         "mongodb_name": "mymongo"
     },
     "redis": {
-        "host": "127.0.0.1",
+        "host": "redis",
         "port": 6379,
         "db": 0,
         "stream": "coke:input",
@@ -58,16 +59,16 @@
         "bind_base_url": "${COKE_BIND_BASE_URL}",
         "wechat_public_connect_url_template": "${COKE_WECHAT_PUBLIC_CONNECT_URL_TEMPLATE}",
         "wechat_bind_session_ttl_seconds": 600,
-        "wechat_channel_api_url": "${CLAWSCALE_WECHAT_CHANNEL_API_URL}",
+        "wechat_channel_api_url": "http://gateway:4041/api/internal/user/wechat-channel",
         "wechat_channel_api_key": "${CLAWSCALE_WECHAT_CHANNEL_API_KEY}",
         "web_allowed_origin": "${COKE_WEB_ALLOWED_ORIGIN}",
         "reply_timeout_seconds": 25,
         "poll_interval_seconds": 1,
         "output_dispatcher_poll_interval_seconds": 1,
-        "identity_api_url": "${CLAWSCALE_IDENTITY_API_URL}",
+        "identity_api_url": "http://gateway:4041/api/internal/coke-bindings",
         "identity_api_key": "${CLAWSCALE_IDENTITY_API_KEY}",
-        "user_provision_api_url": "${CLAWSCALE_USER_PROVISION_API_URL}",
-        "outbound_api_url": "${CLAWSCALE_OUTBOUND_API_URL}",
+        "user_provision_api_url": "http://gateway:4041/api/internal/coke-users/provision",
+        "outbound_api_url": "http://gateway:4041/api/outbound",
         "outbound_api_key": "${CLAWSCALE_OUTBOUND_API_KEY}"
     },
     "access_control": {

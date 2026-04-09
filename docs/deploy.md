@@ -1,13 +1,13 @@
 # 部署与启动
 
-本仓库当前保留两类常用启动方式：
+当前仓库推荐分为两类运行方式：
 
-1. `./start.sh`
-2. `bash agent/runner/agent_start.sh`
+1. 本地开发：`./start.sh` 或 `bash agent/runner/agent_start.sh`
+2. 生产部署：`docker-compose.prod.yml` + 主机 Nginx + systemd
 
-前者适合本地或单机整体启动，后者适合只拉起 Python worker。
+生产环境不再使用 PM2 作为正式运行面。
 
-## 1. 环境准备
+## 1. 本地开发环境准备
 
 ```bash
 python -m venv .venv
@@ -19,9 +19,9 @@ pip install -r requirements.txt
 
 - Python 3.12+
 - MongoDB
-- Redis（启用 stream 模式时需要）
+- Redis
 
-## 2. 配置
+## 2. 本地开发配置
 
 - 敏感信息放在 `.env`
 - 运行时配置放在 `conf/config.json`
@@ -31,56 +31,121 @@ pip install -r requirements.txt
 
 - `default_character_alias`
 - `characters`
-- `ecloud`
+- `group_chat`
 - `mongodb`
 - `redis`
-- `whatsapp`
+- `clawscale_bridge`
 - `access_control`
 - `features`
 
-## 3. 启动
+## 3. 本地开发启动
 
 ### 方式 A: 顶层启动脚本
 
 ```bash
 ./start.sh
-```
-
-可用参数参考：
-
-```bash
-./start.sh --help
-./start.sh --mode prod --check
+./start.sh --mode pm2
 ```
 
 ### 方式 B: 仅启动 Python worker
 
 ```bash
 bash agent/runner/agent_start.sh
-```
-
-清理残留锁后启动：
-
-```bash
 bash agent/runner/agent_start.sh --force-clean
 ```
 
-## 4. 日志与排障
+## 4. 生产部署
+
+### 4.1 生产部署文件
+
+- `docker-compose.prod.yml`
+- `deploy/config/coke.config.json`
+- `deploy/env/coke.env.example`
+- `deploy/nginx/coke.conf`
+- `deploy/systemd/coke-compose.service`
+
+### 4.2 服务器准备
+
+保留主机上的：
+
+- Docker / Docker Compose
+- Nginx
+- TLS 证书
+
+清理旧 Coke 运行态：
+
+```bash
+./scripts/reset-gcp-coke.sh
+```
+
+同步生产部署文件：
+
+```bash
+./scripts/deploy-compose-to-gcp.sh
+```
+
+在服务器上准备 `.env`：
+
+```bash
+ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
+```
+
+然后按实际密钥编辑 `~/coke/.env`。
+
+### 4.3 启动 Compose 栈
+
+```bash
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --build --remove-orphans'
+```
+
+### 4.4 安装 Nginx 配置
+
+```bash
+ssh gcp-coke "sudo cp ~/coke/deploy/nginx/coke.conf /etc/nginx/sites-available/coke"
+ssh gcp-coke "sudo ln -sf /etc/nginx/sites-available/coke /etc/nginx/sites-enabled/coke"
+ssh gcp-coke "sudo nginx -t && sudo systemctl reload nginx"
+```
+
+### 4.5 安装 systemd 单元
+
+```bash
+ssh gcp-coke "sudo cp ~/coke/deploy/systemd/coke-compose.service /etc/systemd/system/coke-compose.service"
+ssh gcp-coke "sudo systemctl daemon-reload"
+ssh gcp-coke "sudo systemctl enable coke-compose.service"
+```
+
+### 4.6 核验
+
+```bash
+ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml ps'
+ssh gcp-coke 'curl -sS http://127.0.0.1:4041/health'
+ssh gcp-coke 'curl -sS http://127.0.0.1:8090/bridge/healthz'
+curl -k https://coke.keep4oforever.com/health
+curl -k https://coke.keep4oforever.com/bridge/healthz
+```
+
+## 5. 日志与排障
 
 - 主日志：`agent/runner/agent.log`
-- ecloud 连接器日志：`connector/ecloud/ecloud.log`
+- Compose 服务状态：`docker compose -f docker-compose.prod.yml ps`
+- Compose 服务日志：`docker compose -f docker-compose.prod.yml logs <service>`
 
 常见排查项：
 
 - `.env` 是否已加载
-- `conf/config.json` 中的 MongoDB / Redis / connector 配置是否正确
+- `conf/config.json` 或 `deploy/config/coke.config.json` 中的 MongoDB / Redis / bridge 配置是否正确
 - 锁是否残留，必要时使用 `--force-clean`
 - Redis stream 模式不可用时，worker 是否回退到 Mongo polling
 
-## 5. 连接器说明
+## 6. 运行面说明
 
-- 微信 ecloud 入口保留在 `connector/ecloud/`
-- WhatsApp 相关适配器位于 `connector/adapters/whatsapp/`
-- 终端测试工具位于 `connector/terminal/`
+当前正式部署只保留：
+
+- `mongo`
+- `redis`
+- `postgres`
+- `coke-agent`
+- `coke-bridge`
+- `gateway`
 
 如果只需要核验 Python 主流程，优先使用 `agent_start.sh`。

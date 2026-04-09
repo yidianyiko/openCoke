@@ -242,7 +242,7 @@ def context_prepare(user, character, conversation):
     chatroom_name = context["conversation"].get("chatroom_name")
     if chatroom_name:
         # 从配置中读取群聊上下文消息数量
-        group_config = CONF.get("ecloud", {}).get("group_chat", {})
+        group_config = CONF.get("group_chat", {})
         context_message_count = group_config.get("context_message_count", 10)
 
         # 获取群聊最近消息（包含用户消息和机器人回复）

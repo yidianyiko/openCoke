@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `agent/`: agents, workflows, prompts, tools, and runtime handlers under `agent/runner/`.
 - `dao/`: Mongo-backed data access for locks, reminders, users, conversations, orders, and usage records.
-- `connector/`: channel abstractions, platform adapters, legacy ecloud entrypoints, gateway helpers, and terminal tooling.
+- `connector/`: channel abstractions, ClawScale bridge code, gateway helpers, and terminal tooling.
 - `conf/`: runtime configuration in `config.json` and loader logic in `config.py`.
 - `util/`: shared helpers for logging, time, redis, files, embeddings, and OSS.
 - `tests/`: unit tests in `tests/unit/` and E2E tests in `tests/e2e/`.

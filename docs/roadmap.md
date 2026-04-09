@@ -46,7 +46,7 @@ Near-term focus for Phase 1:
 - finish rollout validation for personal `wechat_personal`
 - keep reminder and proactive delivery stable across bridge, worker, and
   gateway restarts
-- continue shrinking legacy Ecloud/shared-bind usage to compatibility-only paths
+- keep the pure ClawScale deployment path stable and repeatable
 
 ### Phase 2: TOB Supervision Solution
 
