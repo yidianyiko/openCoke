@@ -29,4 +29,3 @@ def test_message_gateway_builds_wechat_compatible_input_message():
     assert doc["metadata"]["bridge_request_id"] == "br_1"
     assert doc["metadata"]["delivery_mode"] == "request_response"
     assert doc["metadata"]["clawscale"]["channel_id"] == "ch_1"
-

@@ -3,6 +3,7 @@ import sys
 sys.path.append(".")
 import time
 import traceback
+import uuid
 
 from util.log_util import get_logger
 
@@ -228,6 +229,7 @@ def send_message_via_context(
     status = "pending"
     handled_timestamp = expect_output_timestamp
     is_proactive_message = context.get("message_source") in {"future", "reminder"}
+    account_id = None
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
         input_messages = (
@@ -241,14 +243,9 @@ def send_message_via_context(
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
     elif context.get("user", {}).get("_id"):
-        clawscale_platform = _normalize_clawscale_platform(
-            context.get("conversation", {}).get("platform") or context.get("platform")
-        )
-        clawscale_conversation_id = _extract_clawscale_conversation_id_from_context(
-            context
-        )
+        account_id = str(context["user"]["_id"])
         clawscale_metadata = build_clawscale_push_metadata(
-            str(context["user"]["_id"]), context=context
+            account_id, context=context
         )
         if clawscale_metadata:
             metadata = {**clawscale_metadata, **metadata}
@@ -257,28 +254,27 @@ def send_message_via_context(
             handled_timestamp = int(time.time())
             metadata = {
                 **metadata,
-                "route_via": "clawscale",
                 "delivery_mode": "push",
-                "failure_reason": "missing_clawscale_push_route",
+                "failure_reason": "missing_clawscale_business_conversation_key",
             }
             logger.warning(
-                "missing_clawscale_push_route: failed to resolve clawscale push route "
-                "for proactive message user_id=%s conversation_id=%s platform=%s",
-                str(context["user"]["_id"]),
-                clawscale_conversation_id,
-                clawscale_platform,
+                "missing_clawscale_business_conversation_key: failed to build "
+                "clawscale proactive output for account_id=%s conversation_id=%s",
+                account_id,
+                _extract_clawscale_conversation_id_from_context(context),
             )
 
     return send_message(
-        platform=context["conversation"]["platform"],
-        from_user=str(context["character"]["_id"]),
-        to_user=str(context["user"]["_id"]),
-        chatroom_name=context["conversation"]["chatroom_name"],
+        platform=None if is_proactive_message else context["conversation"]["platform"],
+        from_user=None if is_proactive_message else str(context["character"]["_id"]),
+        to_user=None if is_proactive_message else str(context["user"]["_id"]),
+        chatroom_name=None if is_proactive_message else context["conversation"]["chatroom_name"],
         message=message,
         message_type=message_type,
         status=status,
         expect_output_timestamp=expect_output_timestamp,
         handled_timestamp=handled_timestamp,
+        account_id=account_id,
         metadata=metadata,
     )
 
@@ -286,40 +282,21 @@ def send_message_via_context(
 def build_clawscale_push_metadata(
     user_id: str, now_ts: int | None = None, context: dict | None = None
 ):
-    from conf.config import CONF
-    from connector.clawscale_bridge.output_route_resolver import OutputRouteResolver
-    from dao.clawscale_push_route_dao import ClawscalePushRouteDAO
-    from dao.external_identity_dao import ExternalIdentityDAO
+    business_conversation_key = _extract_clawscale_conversation_id_from_context(context)
+    if business_conversation_key is None:
+        return {}
 
-    dao = ExternalIdentityDAO(
-        mongo_uri="mongodb://"
-        + CONF["mongodb"]["mongodb_ip"]
-        + ":"
-        + CONF["mongodb"]["mongodb_port"]
-        + "/",
-        db_name=CONF["mongodb"]["mongodb_name"],
-    )
-    clawscale_push_route_dao = ClawscalePushRouteDAO(
-        mongo_uri="mongodb://"
-        + CONF["mongodb"]["mongodb_ip"]
-        + ":"
-        + CONF["mongodb"]["mongodb_port"]
-        + "/",
-        db_name=CONF["mongodb"]["mongodb_name"],
-    )
-    resolver = OutputRouteResolver(dao, clawscale_push_route_dao=clawscale_push_route_dao)
-    conversation_id = _extract_clawscale_conversation_id_from_context(context)
-    platform = None
-    if context:
-        platform = _normalize_clawscale_platform(
-            context.get("conversation", {}).get("platform") or context.get("platform")
-        )
-    return resolver.build_push_metadata(
-        str(user_id),
-        now_ts or int(time.time()),
-        conversation_id=conversation_id,
-        platform=platform,
-    )
+    metadata = {
+        "business_conversation_key": business_conversation_key,
+        "output_id": uuid.uuid4().hex,
+        "delivery_mode": "push",
+        "idempotency_key": uuid.uuid4().hex,
+        "trace_id": uuid.uuid4().hex,
+    }
+    causal_inbound_event_id = _extract_causal_inbound_event_id_from_context(context)
+    if causal_inbound_event_id is not None:
+        metadata["causal_inbound_event_id"] = causal_inbound_event_id
+    return metadata
 
 
 def _extract_clawscale_conversation_id_from_context(
@@ -330,6 +307,12 @@ def _extract_clawscale_conversation_id_from_context(
 
     conversation = context.get("conversation", {})
     conversation_info = conversation.get("conversation_info", {})
+
+    business_conversation_key = conversation.get("business_conversation_key")
+    if business_conversation_key is None:
+        business_conversation_key = conversation_info.get("business_conversation_key")
+    if business_conversation_key is not None:
+        return str(business_conversation_key)
 
     for message_list_key in ("input_messages", "chat_history"):
         conversation_id = _extract_clawscale_conversation_id_from_messages(
@@ -356,12 +339,53 @@ def _extract_clawscale_conversation_id_from_messages(messages) -> str | None:
         metadata = message.get("metadata", {})
         if not isinstance(metadata, dict):
             continue
+        business_conversation_key = metadata.get("business_conversation_key")
+        if business_conversation_key is not None:
+            return str(business_conversation_key)
         clawscale_metadata = metadata.get("clawscale", {})
         if not isinstance(clawscale_metadata, dict):
             continue
+        business_conversation_key = clawscale_metadata.get("business_conversation_key")
+        if business_conversation_key is not None:
+            return str(business_conversation_key)
         conversation_id = clawscale_metadata.get("conversation_id")
         if conversation_id is not None:
             return str(conversation_id)
+    return None
+
+
+def _extract_causal_inbound_event_id_from_context(context: dict | None) -> str | None:
+    if not isinstance(context, dict):
+        return None
+
+    causal_inbound_event_id = context.get("causal_inbound_event_id")
+    if causal_inbound_event_id is not None:
+        return str(causal_inbound_event_id)
+
+    conversation = context.get("conversation", {})
+    conversation_info = conversation.get("conversation_info", {})
+
+    for message_list_key in ("input_messages", "chat_history"):
+        messages = conversation_info.get(message_list_key)
+        if not isinstance(messages, list):
+            continue
+        for message in reversed(messages):
+            if not isinstance(message, dict):
+                continue
+            metadata = message.get("metadata", {})
+            if not isinstance(metadata, dict):
+                continue
+            causal_inbound_event_id = metadata.get("causal_inbound_event_id")
+            if causal_inbound_event_id is not None:
+                return str(causal_inbound_event_id)
+            clawscale_metadata = metadata.get("clawscale", {})
+            if not isinstance(clawscale_metadata, dict):
+                continue
+            causal_inbound_event_id = clawscale_metadata.get(
+                "causal_inbound_event_id"
+            )
+            if causal_inbound_event_id is not None:
+                return str(causal_inbound_event_id)
     return None
 
 
@@ -381,6 +405,7 @@ def send_message(
     status="pending",
     expect_output_timestamp=None,
     handled_timestamp=None,
+    account_id=None,
     metadata={},
 ):
     mongo = MongoDBBase()
@@ -394,14 +419,20 @@ def send_message(
         "expect_output_timestamp": expect_output_timestamp,  # 预期输出的时间戳秒级
         "handled_timestamp": handled_timestamp,  # 处理完毕时的时间戳秒级
         "status": status,  # 标记处理状态：pending待处理，handled处理完毕，canceled不处理，failed处理失败
-        "from_user": from_user,  # 来源uid
-        "platform": platform,  # 来源平台
-        "chatroom_name": chatroom_name,  # 如果有值，则来自群聊；否则是私聊
-        "to_user": to_user,  # 目标用户uid；群聊时，值为None
         "message_type": message_type,  # 包括：
         "message": message,  # 实际消息，格式另行约定
         "metadata": metadata,
     }
+    if account_id is not None:
+        outputmessage["account_id"] = account_id
+    if from_user is not None:
+        outputmessage["from_user"] = from_user
+    if platform is not None:
+        outputmessage["platform"] = platform
+    if chatroom_name is not None:
+        outputmessage["chatroom_name"] = chatroom_name
+    if to_user is not None:
+        outputmessage["to_user"] = to_user
 
     mid = mongo.insert_one("outputmessages", outputmessage)
 

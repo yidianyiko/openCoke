@@ -33,5 +33,6 @@ pytest tests/e2e/ -v
 ## Documentation
 
 - `AGENTS.md`: repository workflow and coding rules
+- `docs/roadmap.md`: high-level status, migration direction, and next milestones
 - `docs/architecture.md`: current runtime architecture
 - `docs/deploy.md`: deployment and startup notes

@@ -1,8 +1,9 @@
 import logging
 import time
 
-import requests
 from pymongo import ReturnDocument
+
+from connector.clawscale_bridge.gateway_outbound_client import GatewayOutboundClient
 
 logger = logging.getLogger(__name__)
 
@@ -13,21 +14,27 @@ class ClawScaleOutputDispatcher:
     def __init__(
         self,
         mongo,
-        session,
-        outbound_api_url: str,
+        session=None,
+        outbound_api_url: str | None = None,
         outbound_api_key: str = "test-outbound-key",
+        gateway_client: GatewayOutboundClient | None = None,
+        timeout_seconds: int = 15,
     ):
         self.mongo = mongo
-        self.session = session or requests.Session()
-        self.outbound_api_url = outbound_api_url
-        self.outbound_api_key = outbound_api_key
+        self.gateway_client = gateway_client or GatewayOutboundClient(
+            api_url=outbound_api_url,
+            api_key=outbound_api_key,
+            session=session,
+            timeout_seconds=timeout_seconds,
+        )
 
     def _claimable_query(self, now: int):
         return {
-            "platform": "wechat",
+            "account_id": {"$exists": True},
             "expect_output_timestamp": {"$lte": now},
-            "metadata.route_via": "clawscale",
+            "metadata.business_conversation_key": {"$exists": True},
             "metadata.delivery_mode": "push",
+            "metadata.output_id": {"$exists": True},
             "$or": [
                 {"status": "pending"},
                 {
@@ -74,14 +81,18 @@ class ClawScaleOutputDispatcher:
         except Exception:
             logger.exception("failed to release clawscale output message for retry")
 
-    def _build_payload(self, message):
+    def _build_gateway_args(self, message):
         metadata = message["metadata"]
         return {
-            "tenant_id": metadata["tenant_id"],
-            "channel_id": metadata["channel_id"],
-            "external_end_user_id": metadata["external_end_user_id"],
+            "output_id": metadata["output_id"],
+            "account_id": message["account_id"],
+            "business_conversation_key": metadata["business_conversation_key"],
             "text": message["message"],
-            "idempotency_key": metadata["push_idempotency_key"],
+            "message_type": message.get("message_type", "text"),
+            "delivery_mode": metadata["delivery_mode"],
+            "idempotency_key": metadata["idempotency_key"],
+            "trace_id": metadata["trace_id"],
+            "causal_inbound_event_id": metadata.get("causal_inbound_event_id"),
         }
 
     def dispatch_once(self) -> bool:
@@ -91,19 +102,14 @@ class ClawScaleOutputDispatcher:
             return False
 
         try:
-            payload = self._build_payload(message)
+            payload = self._build_gateway_args(message)
         except Exception:
             logger.exception("clawscale output payload construction failed")
             self._mark_failed_best_effort(message["_id"], now)
             return False
 
         try:
-            response = self.session.post(
-                self.outbound_api_url,
-                json=payload,
-                headers={"Authorization": f"Bearer {self.outbound_api_key}"},
-                timeout=15,
-            )
+            response = self.gateway_client.post_output(**payload)
         except Exception:
             logger.exception("clawscale output request failed")
             self._mark_failed_best_effort(message["_id"], now)
