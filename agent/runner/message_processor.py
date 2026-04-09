@@ -257,6 +257,11 @@ class MessageAcquirer:
 
         # 获取会话详情
         conversation = self.conversation_dao.get_conversation_by_id(conversation_id)
+        conversation = self._ensure_business_conversation_key(
+            conversation_id=conversation_id,
+            conversation=conversation,
+            top_message=top_message,
+        )
 
         # 读取该会话所有待处理消息
         input_messages = read_all_inputmessages(
@@ -278,6 +283,45 @@ class MessageAcquirer:
             lock_id=lock_id,
             input_messages=input_messages,
         )
+
+    def _ensure_business_conversation_key(
+        self, *, conversation_id: str, conversation: Dict | None, top_message: Dict
+    ) -> Dict:
+        if not isinstance(conversation, dict):
+            return conversation
+
+        metadata = top_message.get("metadata") or {}
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+
+        if (
+            top_message.get("platform") != "business"
+            or metadata.get("source") != "clawscale"
+            or business_protocol.get("delivery_mode") != "request_response"
+        ):
+            return conversation
+
+        existing_key = conversation.get("business_conversation_key")
+        if isinstance(existing_key, str) and existing_key.strip():
+            conversation.setdefault("conversation_info", {})
+            conversation["conversation_info"].setdefault(
+                "business_conversation_key", existing_key
+            )
+            return conversation
+
+        minted_key = f"bc_{conversation_id}"
+        self.conversation_dao.update_conversation(
+            conversation_id,
+            {
+                "business_conversation_key": minted_key,
+                "conversation_info.business_conversation_key": minted_key,
+            },
+        )
+        conversation["business_conversation_key"] = minted_key
+        conversation.setdefault("conversation_info", {})
+        conversation["conversation_info"]["business_conversation_key"] = minted_key
+        return conversation
 
     def _resolve_platform_profiles(
         self, user: Dict, character: Dict, top_message: Dict, platform: str
@@ -328,20 +372,35 @@ class MessageAcquirer:
         self, user: Dict, top_message: Dict, platform: str
     ) -> Optional[Dict]:
         metadata = top_message.get("metadata") or {}
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+        delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+            "delivery_mode"
+        )
         if (
             metadata.get("source") != "clawscale"
-            or metadata.get("delivery_mode") != "request_response"
-            or platform != "wechat"
+            or delivery_mode != "request_response"
         ):
             return None
 
-        clawscale_meta = metadata.get("clawscale")
-        if not isinstance(clawscale_meta, dict):
-            return None
-
-        conversation_id = clawscale_meta.get("conversation_id")
-        external_id = clawscale_meta.get("external_id")
-        stable_id = conversation_id or external_id or str(user.get("_id") or "")
+        # Keep the virtual user identity stable across request_response turns.
+        # The gateway conversation id is present on the first turn and on follow-ups,
+        # while business_conversation_key may only appear after the first sync reply
+        # has been processed and persisted.
+        stable_id = (
+            business_protocol.get("gateway_conversation_id")
+            or business_protocol.get("business_conversation_key")
+            or business_protocol.get("causal_inbound_event_id")
+        )
+        if not stable_id:
+            clawscale_meta = metadata.get("clawscale")
+            if isinstance(clawscale_meta, dict):
+                stable_id = clawscale_meta.get("conversation_id") or clawscale_meta.get(
+                    "external_id"
+                )
+        if not stable_id:
+            stable_id = str(user.get("_id") or "")
         if not stable_id:
             return None
 
@@ -364,10 +423,15 @@ class MessageAcquirer:
         self, character: Dict, top_message: Dict, platform: str
     ) -> Optional[Dict]:
         metadata = top_message.get("metadata") or {}
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+        delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+            "delivery_mode"
+        )
         if (
             metadata.get("source") != "clawscale"
-            or metadata.get("delivery_mode") != "request_response"
-            or platform != "wechat"
+            or delivery_mode != "request_response"
         ):
             return None
 

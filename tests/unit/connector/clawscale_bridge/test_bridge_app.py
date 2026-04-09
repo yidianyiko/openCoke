@@ -63,7 +63,6 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
         bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
     )
     monkeypatch.setattr(bridge_app, "_build_user_auth_service", lambda: MagicMock())
-    monkeypatch.setattr(bridge_app, "_build_user_bind_service", lambda: MagicMock())
     monkeypatch.setattr(
         bridge_app, "_build_personal_wechat_channel_service", lambda: MagicMock()
     )
@@ -140,41 +139,10 @@ def test_output_dispatcher_loop_logs_exception_and_continues(monkeypatch):
     assert sleep_calls == [3, 3]
 
 
-def test_build_user_bind_service_wires_gateway_identity_client(monkeypatch):
+def test_build_default_bridge_gateway_wires_business_only_protocol_services(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 
-    gateway_identity_client = MagicMock()
-    captured = {}
-
-    monkeypatch.setattr(
-        bridge_app,
-        "_build_gateway_identity_client",
-        lambda: gateway_identity_client,
-        raising=False,
-    )
-    monkeypatch.setattr(
-        bridge_app, "WechatBindSessionDAO", lambda **kwargs: MagicMock()
-    )
-    monkeypatch.setattr(
-        bridge_app, "ExternalIdentityDAO", lambda **kwargs: MagicMock()
-    )
-
-    class FakeBindSessionService:
-        def __init__(self, **kwargs):
-            captured.update(kwargs)
-
-    monkeypatch.setattr(bridge_app, "WechatBindSessionService", FakeBindSessionService)
-
-    bridge_app._build_user_bind_service()
-
-    assert captured["gateway_identity_client"] is gateway_identity_client
-
-
-def test_build_default_bridge_gateway_wires_push_route_dao_and_indexes(monkeypatch):
-    import connector.clawscale_bridge.app as bridge_app
-
-    push_route_dao = MagicMock()
-    identity_service_captured = {}
+    gateway_captured = {}
 
     monkeypatch.setattr(
         bridge_app, "_mongo_uri", lambda: "mongodb://example", raising=False
@@ -182,47 +150,19 @@ def test_build_default_bridge_gateway_wires_push_route_dao_and_indexes(monkeypat
     monkeypatch.setitem(
         bridge_app.CONF["mongodb"], "mongodb_name", "test_db"
     )
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"], "bind_base_url", "https://coke.local"
-    )
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"], "wechat_public_connect_url_template", "tpl"
-    )
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"], "wechat_bind_session_ttl_seconds", 3600
-    )
-    monkeypatch.setattr(
-        bridge_app, "_build_gateway_identity_client", lambda: MagicMock()
-    )
-    monkeypatch.setattr(bridge_app, "UserDAO", lambda **kwargs: MagicMock())
-    monkeypatch.setattr(
-        bridge_app, "ExternalIdentityDAO", lambda **kwargs: MagicMock()
-    )
-    monkeypatch.setattr(bridge_app, "BindingTicketDAO", lambda **kwargs: MagicMock())
-    monkeypatch.setattr(
-        bridge_app, "WechatBindSessionDAO", lambda **kwargs: MagicMock()
-    )
-    monkeypatch.setattr(
-        bridge_app, "MongoDBBase", lambda **kwargs: MagicMock()
-    )
-    monkeypatch.setattr(
-        bridge_app, "CokeMessageGateway", lambda **kwargs: MagicMock()
-    )
-    monkeypatch.setattr(bridge_app, "ReplyWaiter", lambda **kwargs: MagicMock())
+    user_dao = MagicMock()
+    message_gateway = MagicMock()
+    reply_waiter = MagicMock()
+    monkeypatch.setattr(bridge_app, "UserDAO", lambda **kwargs: user_dao)
+    monkeypatch.setattr(bridge_app, "MongoDBBase", lambda **kwargs: MagicMock())
+    monkeypatch.setattr(bridge_app, "CokeMessageGateway", lambda **kwargs: message_gateway)
+    monkeypatch.setattr(bridge_app, "ReplyWaiter", lambda **kwargs: reply_waiter)
 
-    class FakePushRouteDAO:
+    class FakeBridgeGateway:
         def __init__(self, **kwargs):
-            self.kwargs = kwargs
+            gateway_captured.update(kwargs)
 
-        def create_indexes(self):
-            push_route_dao.create_indexes()
-
-    class FakeIdentityService:
-        def __init__(self, **kwargs):
-            identity_service_captured.update(kwargs)
-
-    monkeypatch.setattr(bridge_app, "ClawscalePushRouteDAO", FakePushRouteDAO)
-    monkeypatch.setattr(bridge_app, "IdentityService", FakeIdentityService)
+    monkeypatch.setattr(bridge_app, "BusinessOnlyBridgeGateway", FakeBridgeGateway)
     monkeypatch.setattr(
         bridge_app,
         "_resolve_target_character_id",
@@ -232,11 +172,9 @@ def test_build_default_bridge_gateway_wires_push_route_dao_and_indexes(monkeypat
 
     bridge_app._build_default_bridge_gateway()
 
-    assert push_route_dao.create_indexes.called
-    assert identity_service_captured["push_route_dao"].kwargs == {
-        "mongo_uri": "mongodb://example",
-        "db_name": "test_db",
-    }
+    assert gateway_captured["message_gateway"] is message_gateway
+    assert gateway_captured["reply_waiter"] is reply_waiter
+    assert gateway_captured["target_character_id"] == "char_1"
 
 
 def test_bridge_inbound_rejects_missing_bearer_token():
@@ -250,17 +188,116 @@ def test_bridge_inbound_rejects_missing_bearer_token():
     assert response.status_code == 401
 
 
-def test_unbound_inbound_returns_bind_instruction(monkeypatch):
+def test_bridge_inbound_rejects_untrusted_payload_without_bind_flow(monkeypatch):
     from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
 
     app = create_app(testing=True)
-    gateway = MagicMock()
-    gateway.handle_inbound.return_value = {
-        "status": "bind_required",
-        "reply": "请先绑定账号: https://coke.local/bind/bt_1",
-        "bind_url": "https://coke.local/bind/bt_1",
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=MagicMock(),
+        reply_waiter=MagicMock(),
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    client = app.test_client()
+    response = client.post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_id": "wxid_123",
+            "end_user_id": "eu_1",
+            "input": "你好",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "missing_coke_account_id",
     }
-    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", gateway)
+
+
+def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
+    monkeypatch,
+):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_1001"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.return_value = {
+        "reply": "你好，我在",
+        "business_conversation_key": "bc_1001",
+        "output_id": "out_1001",
+        "causal_inbound_event_id": "in_evt_1001",
+    }
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    client = app.test_client()
+    payload = {
+        "tenant_id": "ten_1",
+        "channel_id": "ch_1",
+        "end_user_id": "eu_1",
+        "external_id": "wxid_123",
+        "platform": "wechat_personal",
+        "input": "在吗",
+        "inbound_event_id": "in_evt_1001",
+        "sync_reply_token": "sync_tok_1",
+        "channel_scope": "personal",
+        "clawscale_user_id": "csu_1",
+        "coke_account_id": "acct_1",
+    }
+    response = client.post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "reply": "你好，我在",
+        "business_conversation_key": "bc_1001",
+        "output_id": "out_1001",
+        "causal_inbound_event_id": "in_evt_1001",
+    }
+    message_gateway.enqueue.assert_called_once()
+    reply_waiter.wait_for_reply.assert_called_once_with(
+        "in_evt_1001", sync_reply_token="sync_tok_1"
+    )
+
+
+def test_bridge_inbound_accepts_live_messages_and_metadata_shape(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_live_1"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.return_value = {
+        "reply": "live ok",
+        "business_conversation_key": "bc_live_1",
+        "output_id": "out_live_1",
+        "causal_inbound_event_id": "in_evt_live_1",
+    }
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
 
     client = app.test_client()
     response = client.post(
@@ -268,51 +305,41 @@ def test_unbound_inbound_returns_bind_instruction(monkeypatch):
         headers={"Authorization": "Bearer test-bridge-key"},
         json={
             "messages": [{"role": "user", "content": "你好"}],
-            "metadata": {"tenantId": "ten_1"},
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.get_json()["reply"].startswith("请先绑定账号")
-
-
-def test_bound_inbound_request_returns_coke_reply(monkeypatch):
-    from connector.clawscale_bridge.app import create_app
-
-    app = create_app(testing=True)
-    gateway = MagicMock()
-    gateway.handle_inbound.return_value = {"reply": "你好，我在", "status": "ok"}
-    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", gateway)
-
-    client = app.test_client()
-    response = client.post(
-        "/bridge/inbound",
-        headers={"Authorization": "Bearer test-bridge-key"},
-        json={
-            "messages": [{"role": "user", "content": "在吗"}],
             "metadata": {
                 "tenantId": "ten_1",
                 "channelId": "ch_1",
                 "endUserId": "eu_1",
                 "conversationId": "conv_1",
+                "gatewayConversationId": "gw_conv_1",
+                "inboundEventId": "in_evt_live_1",
                 "externalId": "wxid_123",
-                "sender": "Alice",
+                "businessConversationKey": "bc_live_1",
                 "platform": "wechat_personal",
+                "channelScope": "personal",
+                "clawscaleUserId": "csu_1",
+                "cokeAccountId": "acct_1",
             },
         },
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True, "reply": "你好，我在"}
+    assert response.get_json() == {
+        "ok": True,
+        "reply": "live ok",
+        "business_conversation_key": "bc_live_1",
+        "output_id": "out_live_1",
+        "causal_inbound_event_id": "in_evt_live_1",
+    }
+    message_gateway.enqueue.assert_called_once()
+    reply_waiter.wait_for_reply.assert_called_once_with("in_evt_live_1")
 
 
-def test_user_bind_session_requires_user_bearer_token():
+def test_user_bind_routes_are_removed():
     app, client = _build_user_client()
 
-    response = client.post("/user/wechat-bind/session")
-
-    assert response.status_code == 401
-    assert response.get_json()["ok"] is False
+    assert client.post("/user/wechat-bind/session").status_code == 404
+    assert client.get("/user/wechat-bind/status").status_code == 404
+    assert client.get("/user/wechat-bind/entry/ctx_bind_123").status_code == 404
 
 
 def test_user_wechat_channel_disconnect_requires_user_bearer_token():
@@ -406,7 +433,13 @@ def test_user_register_provisions_gateway_user_after_auth_record_creation():
         },
     }
     app.config["USER_AUTH_SERVICE"] = user_auth_service
-    app.config["USER_PROVISION_SERVICE"] = MagicMock()
+    provision_service = MagicMock()
+    provision_service.ensure_user.return_value = {
+        "tenant_id": "ten_1",
+        "clawscale_user_id": "csu_1",
+        "ready": True,
+    }
+    app.config["USER_PROVISION_SERVICE"] = provision_service
 
     response = client.post(
         "/user/register",
@@ -418,7 +451,7 @@ def test_user_register_provisions_gateway_user_after_auth_record_creation():
     )
 
     assert response.status_code == 201
-    app.config["USER_PROVISION_SERVICE"].ensure_user.assert_called_once_with(
+    provision_service.ensure_user.assert_called_once_with(
         account_id="user_1",
         display_name="Alice",
     )
@@ -532,6 +565,11 @@ def test_user_login_provisions_gateway_user_before_returning_token():
         },
     )
     provision_service = MagicMock()
+    provision_service.ensure_user.return_value = {
+        "tenant_id": "ten_1",
+        "clawscale_user_id": "csu_1",
+        "ready": True,
+    }
     app.config["USER_AUTH_SERVICE"] = auth_service
     app.config["USER_PROVISION_SERVICE"] = provision_service
 
@@ -547,38 +585,77 @@ def test_user_login_provisions_gateway_user_before_returning_token():
     )
 
 
-def test_user_bind_session_returns_pending_payload():
+def test_user_register_rolls_back_created_user_when_gateway_provision_not_ready():
     app, client = _build_user_client()
-    app.config["USER_AUTH_SERVICE"] = type(
-        "Auth",
-        (),
-        {
-            "verify_token": lambda self, token: {
-                "_id": "user_1",
-                "email": "alice@example.com",
-            }
+    user_auth_service = MagicMock()
+    user_auth_service.register.return_value = {
+        "token": "token",
+        "user": {
+            "id": "user_1",
+            "email": "alice@example.com",
+            "display_name": "Alice",
         },
-    )()
-    app.config["USER_BIND_SERVICE"] = type(
-        "Bind",
-        (),
-        {
-            "create_or_reuse_session": lambda self, account_id, now_ts: {
-                "status": "pending",
-                "connect_url": "https://wx.example.com/entry?bind_token=ctx_123",
-                "expires_at": 1775472600,
-            }
-        },
-    )()
+    }
+    user_auth_service.user_dao.delete_user.return_value = True
+    provision_service = MagicMock()
+    provision_service.ensure_user.return_value = {
+        "tenant_id": "ten_1",
+        "clawscale_user_id": "csu_1",
+        "ready": False,
+    }
+    app.config["USER_AUTH_SERVICE"] = user_auth_service
+    app.config["USER_PROVISION_SERVICE"] = provision_service
 
     response = client.post(
-        "/user/wechat-bind/session",
-        headers={"Authorization": "Bearer user-token"},
+        "/user/register",
+        json={
+            "display_name": "Alice",
+            "email": "alice@example.com",
+            "password": "correct-password",
+        },
     )
 
-    assert response.status_code == 200
-    assert response.get_json()["data"]["status"] == "pending"
-    assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "ok": False,
+        "error": "gateway_user_provision_not_ready",
+    }
+    user_auth_service.user_dao.delete_user.assert_called_once_with("user_1")
+
+
+def test_user_login_rejects_when_gateway_provision_is_not_ready():
+    app, client = _build_user_client()
+    auth_service = MagicMock()
+    auth_service.login.return_value = (
+        True,
+        {
+            "token": "token",
+            "user": {
+                "id": "user_1",
+                "email": "alice@example.com",
+                "display_name": "Alice",
+            },
+        },
+    )
+    provision_service = MagicMock()
+    provision_service.ensure_user.return_value = {
+        "tenant_id": "ten_1",
+        "clawscale_user_id": "csu_1",
+        "ready": False,
+    }
+    app.config["USER_AUTH_SERVICE"] = auth_service
+    app.config["USER_PROVISION_SERVICE"] = provision_service
+
+    response = client.post(
+        "/user/login",
+        json={"email": "alice@example.com", "password": "correct-password"},
+    )
+
+    assert response.status_code == 502
+    assert response.get_json() == {
+        "ok": False,
+        "error": "gateway_user_provision_not_ready",
+    }
 
 
 def test_user_wechat_channel_connect_returns_pending_payload_with_connect_url():
@@ -683,45 +760,6 @@ def test_user_wechat_channel_archive_returns_archived_payload():
     channel_service.archive_channel.assert_called_once_with(account_id="user_1")
 
 
-def test_user_bind_entry_renders_pending_session_page():
-    app, client = _build_user_client()
-    app.config["USER_BIND_SERVICE"] = type(
-        "Bind",
-        (),
-        {
-            "get_entry_page_context": lambda self, bind_token, now_ts: {
-                "status": "pending",
-                "bind_code": "COKE-184263",
-                "public_connect_url": None,
-                "expires_at": 1775472600,
-            }
-        },
-    )()
-
-    response = client.get("/user/wechat-bind/entry/ctx_bind_123")
-
-    assert response.status_code == 200
-    assert "COKE-184263" in response.get_data(as_text=True)
-
-
-def test_user_bind_entry_returns_gone_when_session_missing():
-    app, client = _build_user_client()
-    app.config["USER_BIND_SERVICE"] = type(
-        "Bind",
-        (),
-        {
-            "get_entry_page_context": lambda self, bind_token, now_ts: {
-                "status": "expired",
-            }
-        },
-    )()
-
-    response = client.get("/user/wechat-bind/entry/ctx_missing")
-
-    assert response.status_code == 410
-    assert "已过期" in response.get_data(as_text=True)
-
-
 def test_user_register_accepts_localhost_loopback_alias_for_cors():
     app, client = _build_user_client()
     app.config["USER_AUTH_SERVICE"] = MagicMock()
@@ -737,47 +775,3 @@ def test_user_register_accepts_localhost_loopback_alias_for_cors():
 
     assert response.status_code == 200
     assert response.headers["Access-Control-Allow-Origin"] == "http://localhost:4040"
-
-
-def test_user_bind_status_requires_user_bearer_token():
-    app, client = _build_user_client()
-
-    response = client.get("/user/wechat-bind/status")
-
-    assert response.status_code == 401
-    assert response.get_json()["ok"] is False
-
-
-def test_user_bind_status_returns_bound_payload():
-    app, client = _build_user_client()
-    app.config["USER_AUTH_SERVICE"] = type(
-        "Auth",
-        (),
-        {
-            "verify_token": lambda self, token: {
-                "_id": "user_1",
-                "email": "alice@example.com",
-            }
-        },
-    )()
-    app.config["USER_BIND_SERVICE"] = type(
-        "Bind",
-        (),
-        {
-            "get_status": lambda self, account_id, now_ts: {
-                "status": "bound",
-                "masked_identity": "wxid_***8e0a",
-            }
-        },
-    )()
-
-    response = client.get(
-        "/user/wechat-bind/status",
-        headers={"Authorization": "Bearer user-token"},
-    )
-
-    assert response.status_code == 200
-    assert response.get_json()["data"] == {
-        "status": "bound",
-        "masked_identity": "wxid_***8e0a",
-    }
