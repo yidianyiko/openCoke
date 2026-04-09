@@ -80,6 +80,7 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
         text="记得开会",
         message_type="text",
         delivery_mode="push",
+        expect_output_timestamp=1710000000,
         idempotency_key="idem_1",
         trace_id="trace_1",
         causal_inbound_event_id=None,

@@ -242,6 +242,18 @@ def send_message_via_context(
             input_metadata = first_input.get("metadata", {})
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
+        metadata = _inject_business_key_into_clawscale_reply_metadata(
+            context=context,
+            metadata=metadata,
+        )
+        status, handled_timestamp, metadata = (
+            _enforce_single_clawscale_sync_reply_per_turn(
+                context=context,
+                status=status,
+                handled_timestamp=handled_timestamp,
+                metadata=metadata,
+            )
+        )
     elif context.get("user", {}).get("_id"):
         account_id = str(context["user"]["_id"])
         clawscale_metadata = build_clawscale_push_metadata(
@@ -277,6 +289,77 @@ def send_message_via_context(
         account_id=account_id,
         metadata=metadata,
     )
+
+
+def _enforce_single_clawscale_sync_reply_per_turn(
+    *, context: dict | None, status: str, handled_timestamp: int | None, metadata: dict | None
+) -> tuple[str, int | None, dict]:
+    if not isinstance(metadata, dict):
+        return status, handled_timestamp, {} if metadata is None else metadata
+    if not isinstance(context, dict):
+        return status, handled_timestamp, metadata
+    if metadata.get("source") != "clawscale":
+        return status, handled_timestamp, metadata
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        business_protocol = {}
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "request_response":
+        return status, handled_timestamp, metadata
+
+    if not context.get("_clawscale_sync_reply_emitted"):
+        context["_clawscale_sync_reply_emitted"] = True
+        return status, handled_timestamp, metadata
+
+    failure_metadata = {
+        **metadata,
+        "failure_reason": "unexpected_extra_request_response_output",
+    }
+    logger.warning(
+        "unexpected_extra_request_response_output: dropped extra sync reply for "
+        "business_conversation_key=%s causal_inbound_event_id=%s",
+        business_protocol.get("business_conversation_key"),
+        business_protocol.get("causal_inbound_event_id"),
+    )
+    return "failed", int(time.time()), failure_metadata
+
+
+def _inject_business_key_into_clawscale_reply_metadata(
+    *, context: dict | None, metadata: dict | None
+) -> dict:
+    if not isinstance(metadata, dict):
+        return {} if metadata is None else metadata
+    if metadata.get("source") != "clawscale":
+        return metadata
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        business_protocol = {}
+
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "request_response":
+        return metadata
+
+    if business_protocol.get("business_conversation_key"):
+        return metadata
+
+    business_conversation_key = _extract_clawscale_conversation_id_from_context(context)
+    if business_conversation_key is None:
+        return metadata
+
+    return {
+        **metadata,
+        "business_protocol": {
+            **business_protocol,
+            "delivery_mode": "request_response",
+            "business_conversation_key": business_conversation_key,
+        },
+    }
 
 
 def build_clawscale_push_metadata(
@@ -320,13 +403,7 @@ def _extract_clawscale_conversation_id_from_context(
         )
         if conversation_id is not None:
             return conversation_id
-
-    conversation_id = context.get("conversation_id")
-    if conversation_id is None:
-        conversation_id = conversation.get("_id")
-    if conversation_id is None:
-        return None
-    return str(conversation_id)
+    return None
 
 
 def _extract_clawscale_conversation_id_from_messages(messages) -> str | None:
@@ -342,15 +419,6 @@ def _extract_clawscale_conversation_id_from_messages(messages) -> str | None:
         business_conversation_key = metadata.get("business_conversation_key")
         if business_conversation_key is not None:
             return str(business_conversation_key)
-        clawscale_metadata = metadata.get("clawscale", {})
-        if not isinstance(clawscale_metadata, dict):
-            continue
-        business_conversation_key = clawscale_metadata.get("business_conversation_key")
-        if business_conversation_key is not None:
-            return str(business_conversation_key)
-        conversation_id = clawscale_metadata.get("conversation_id")
-        if conversation_id is not None:
-            return str(conversation_id)
     return None
 
 
@@ -361,31 +429,6 @@ def _extract_causal_inbound_event_id_from_context(context: dict | None) -> str |
     causal_inbound_event_id = context.get("causal_inbound_event_id")
     if causal_inbound_event_id is not None:
         return str(causal_inbound_event_id)
-
-    conversation = context.get("conversation", {})
-    conversation_info = conversation.get("conversation_info", {})
-
-    for message_list_key in ("input_messages", "chat_history"):
-        messages = conversation_info.get(message_list_key)
-        if not isinstance(messages, list):
-            continue
-        for message in reversed(messages):
-            if not isinstance(message, dict):
-                continue
-            metadata = message.get("metadata", {})
-            if not isinstance(metadata, dict):
-                continue
-            causal_inbound_event_id = metadata.get("causal_inbound_event_id")
-            if causal_inbound_event_id is not None:
-                return str(causal_inbound_event_id)
-            clawscale_metadata = metadata.get("clawscale", {})
-            if not isinstance(clawscale_metadata, dict):
-                continue
-            causal_inbound_event_id = clawscale_metadata.get(
-                "causal_inbound_event_id"
-            )
-            if causal_inbound_event_id is not None:
-                return str(causal_inbound_event_id)
     return None
 
 

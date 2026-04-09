@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 import argparse
 import itertools
+import secrets
 import threading
 
 from flask import Flask, jsonify, request
 
 
-def create_app(public_base_url: str) -> Flask:
+def create_app(public_base_url: str, *, instance_nonce: str | None = None) -> Flask:
     app = Flask(__name__)
     lock = threading.Lock()
     qr_counter = itertools.count(1)
     bot_counter = itertools.count(1)
     update_counter = itertools.count(1)
     sent_counter = itertools.count(1)
+    nonce = instance_nonce or secrets.token_hex(6)
     state: dict[str, object] = {
         "last_qrcode": None,
         "qrcodes": {},
@@ -47,8 +49,8 @@ def create_app(public_base_url: str) -> Flask:
     @app.get("/ilink/bot/get_bot_qrcode")
     def get_bot_qrcode():
         with lock:
-            qrcode = f"qr_{next(qr_counter)}"
-            bot_token = f"bot_{next(bot_counter)}"
+            qrcode = f"qr_{nonce}_{next(qr_counter)}"
+            bot_token = f"bot_{nonce}_{next(bot_counter)}"
             bot_id = f"ilink_bot_{bot_token}"
             qrcodes = state["qrcodes"]
             bots = state["bots"]

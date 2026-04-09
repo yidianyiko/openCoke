@@ -3,12 +3,10 @@ import time
 import threading
 from urllib.parse import urlsplit
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, request
 from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
-from connector.clawscale_bridge.identity_service import IdentityService
-from connector.clawscale_bridge.gateway_identity_client import GatewayIdentityClient
 from connector.clawscale_bridge.gateway_personal_channel_client import (
     GatewayPersonalChannelClient,
     GatewayPersonalChannelClientError,
@@ -24,15 +22,8 @@ from connector.clawscale_bridge.personal_wechat_channel_service import (
     PersonalWechatChannelService,
 )
 from connector.clawscale_bridge.user_auth import UserAuthService
-from connector.clawscale_bridge.wechat_bind_session_service import (
-    WechatBindSessionService,
-)
-from dao.binding_ticket_dao import BindingTicketDAO
-from dao.clawscale_push_route_dao import ClawscalePushRouteDAO
-from dao.external_identity_dao import ExternalIdentityDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
-from dao.wechat_bind_session_dao import WechatBindSessionDAO
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +78,118 @@ def _resolve_target_character_id(user_dao: UserDAO) -> str:
     return str(characters[0]["_id"])
 
 
-def _build_gateway_identity_client():
-    bridge_conf = CONF["clawscale_bridge"]
-    return GatewayIdentityClient(
-        api_url=bridge_conf["identity_api_url"],
-        api_key=bridge_conf["identity_api_key"],
-    )
+class BusinessOnlyBridgeGateway:
+    def __init__(self, *, message_gateway, reply_waiter, target_character_id: str):
+        self.message_gateway = message_gateway
+        self.reply_waiter = reply_waiter
+        self.target_character_id = target_character_id
+
+    def _normalize_inbound(self, inbound_payload: dict) -> dict:
+        metadata = inbound_payload.get("metadata") or {}
+        messages = inbound_payload.get("messages") or []
+        last_message = messages[-1] if messages else {}
+
+        normalized = {
+            "tenant_id": inbound_payload.get("tenant_id") or metadata.get("tenantId"),
+            "channel_id": inbound_payload.get("channel_id") or metadata.get("channelId"),
+            "platform": inbound_payload.get("platform") or metadata.get("platform"),
+            "external_id": inbound_payload.get("external_id") or metadata.get("externalId"),
+            "end_user_id": inbound_payload.get("end_user_id") or metadata.get("endUserId"),
+            "gateway_conversation_id": inbound_payload.get("gateway_conversation_id")
+            or metadata.get("gatewayConversationId")
+            or inbound_payload.get("conversation_id")
+            or metadata.get("conversationId"),
+            "business_conversation_key": inbound_payload.get("business_conversation_key")
+            or metadata.get("businessConversationKey"),
+            "inbound_event_id": inbound_payload.get("inbound_event_id")
+            or metadata.get("inboundEventId"),
+            "sync_reply_token": inbound_payload.get("sync_reply_token")
+            or metadata.get("syncReplyToken"),
+            "input": inbound_payload.get("input")
+            or last_message.get("content")
+            or "",
+            "channel_scope": inbound_payload.get("channel_scope")
+            or metadata.get("channelScope"),
+            "clawscale_user_id": inbound_payload.get("clawscale_user_id")
+            or metadata.get("clawscaleUserId"),
+            "coke_account_id": inbound_payload.get("coke_account_id")
+            or metadata.get("cokeAccountId"),
+        }
+        return normalized
+
+    def _trusted_coke_account_id(self, inbound: dict) -> str | None:
+        required_fields = [
+            "tenant_id",
+            "channel_id",
+            "platform",
+            "external_id",
+            "end_user_id",
+            "channel_scope",
+            "clawscale_user_id",
+            "coke_account_id",
+        ]
+        if inbound.get("channel_scope") != "personal":
+            return None
+        if any(
+            not isinstance(inbound.get(field), str) or not inbound[field].strip()
+            for field in required_fields
+        ):
+            return None
+        return inbound["coke_account_id"]
+
+    def _enqueue_and_wait(self, account_id: str, inbound: dict, now_ts: int) -> dict:
+        enqueue_payload = {
+            "tenant_id": inbound["tenant_id"],
+            "channel_id": inbound["channel_id"],
+            "platform": inbound["platform"],
+            "end_user_id": inbound["end_user_id"],
+            "external_id": inbound["external_id"],
+            "timestamp": now_ts,
+        }
+        if inbound.get("business_conversation_key"):
+            enqueue_payload["business_conversation_key"] = inbound[
+                "business_conversation_key"
+            ]
+        if inbound.get("gateway_conversation_id"):
+            enqueue_payload["gateway_conversation_id"] = inbound[
+                "gateway_conversation_id"
+            ]
+        if inbound.get("sync_reply_token"):
+            enqueue_payload["sync_reply_token"] = inbound["sync_reply_token"]
+        if inbound.get("inbound_event_id"):
+            enqueue_payload["inbound_event_id"] = inbound["inbound_event_id"]
+
+        causal_inbound_event_id = self.message_gateway.enqueue(
+            account_id=account_id,
+            character_id=self.target_character_id,
+            text=inbound["input"],
+            inbound=enqueue_payload,
+        )
+        sync_reply_token = inbound.get("sync_reply_token")
+        if sync_reply_token:
+            reply = self.reply_waiter.wait_for_reply(
+                causal_inbound_event_id,
+                sync_reply_token=sync_reply_token,
+            )
+        else:
+            reply = self.reply_waiter.wait_for_reply(causal_inbound_event_id)
+        if isinstance(reply, dict):
+            return {"status": "ok", **reply}
+        return {"status": "ok", "reply": reply}
+
+    def handle_inbound(self, inbound_payload: dict):
+        inbound = self._normalize_inbound(inbound_payload)
+        coke_account_id = self._trusted_coke_account_id(inbound)
+        if not coke_account_id:
+            return {
+                "status": "error",
+                "error": "missing_coke_account_id",
+            }
+        return self._enqueue_and_wait(
+            account_id=coke_account_id,
+            inbound=inbound,
+            now_ts=int(time.time()),
+        )
 
 
 def _build_default_bridge_gateway():
@@ -101,11 +198,6 @@ def _build_default_bridge_gateway():
     db_name = CONF["mongodb"]["mongodb_name"]
 
     user_dao = UserDAO(mongo_uri=mongo_uri, db_name=db_name)
-    external_identity_dao = ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name)
-    binding_ticket_dao = BindingTicketDAO(mongo_uri=mongo_uri, db_name=db_name)
-    push_route_dao = ClawscalePushRouteDAO(mongo_uri=mongo_uri, db_name=db_name)
-    push_route_dao.create_indexes()
-    bind_session_dao = WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name)
     mongo = MongoDBBase(connection_string=mongo_uri, db_name=db_name)
     message_gateway = CokeMessageGateway(mongo=mongo, user_dao=user_dao)
     reply_waiter = ReplyWaiter(
@@ -113,40 +205,10 @@ def _build_default_bridge_gateway():
         poll_interval_seconds=bridge_conf["poll_interval_seconds"],
         timeout_seconds=bridge_conf["reply_timeout_seconds"],
     )
-    gateway_identity_client = _build_gateway_identity_client()
-    bind_session_service = WechatBindSessionService(
-        bind_session_dao=bind_session_dao,
-        external_identity_dao=external_identity_dao,
-        gateway_identity_client=gateway_identity_client,
-        bind_base_url=bridge_conf["bind_base_url"],
-        public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
-        ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
-    )
-
-    return IdentityService(
-        external_identity_dao=external_identity_dao,
-        binding_ticket_dao=binding_ticket_dao,
-        bind_session_service=bind_session_service,
+    return BusinessOnlyBridgeGateway(
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
-        bind_base_url=bridge_conf["bind_base_url"],
         target_character_id=_resolve_target_character_id(user_dao),
-        push_route_dao=push_route_dao,
-    )
-
-
-def _build_user_bind_service():
-    mongo_uri = _mongo_uri()
-    db_name = CONF["mongodb"]["mongodb_name"]
-    bridge_conf = CONF["clawscale_bridge"]
-    gateway_identity_client = _build_gateway_identity_client()
-    return WechatBindSessionService(
-        bind_session_dao=WechatBindSessionDAO(mongo_uri=mongo_uri, db_name=db_name),
-        external_identity_dao=ExternalIdentityDAO(mongo_uri=mongo_uri, db_name=db_name),
-        gateway_identity_client=gateway_identity_client,
-        bind_base_url=bridge_conf["bind_base_url"],
-        public_connect_url_template=bridge_conf["wechat_public_connect_url_template"],
-        ttl_seconds=bridge_conf["wechat_bind_session_ttl_seconds"],
     )
 
 
@@ -265,6 +327,29 @@ def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str
     return allowed_origin
 
 
+def _require_durable_provision_readiness(provision_result):
+    if not isinstance(provision_result, dict):
+        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
+
+    if provision_result.get("ready") is False:
+        raise GatewayUserProvisionClientError("gateway_user_provision_not_ready")
+
+    tenant_id = provision_result.get("tenant_id") or provision_result.get("tenantId")
+    clawscale_user_id = provision_result.get("clawscale_user_id") or provision_result.get(
+        "clawscaleUserId"
+    )
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
+    if not isinstance(clawscale_user_id, str) or not clawscale_user_id.strip():
+        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
+
+    return {
+        "tenant_id": tenant_id,
+        "clawscale_user_id": clawscale_user_id,
+        "ready": True,
+    }
+
+
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
@@ -279,7 +364,6 @@ def create_app(testing: bool = False):
             "web_allowed_origin"
         )
         app.config["USER_AUTH_SERVICE"] = _build_user_auth_service()
-        app.config["USER_BIND_SERVICE"] = _build_user_bind_service()
         app.config["USER_PERSONAL_CHANNEL_SERVICE"] = (
             _build_personal_wechat_channel_service()
         )
@@ -318,21 +402,18 @@ def create_app(testing: bool = False):
             return jsonify({"ok": False, "error": "bridge service not wired"}), 500
 
         result = gateway.handle_inbound(payload)
-        if result["status"] == "bind_required":
-            response = {"ok": True, "reply": result["reply"]}
-            if "bind_url" in result:
-                response["bind_url"] = result["bind_url"]
-            return jsonify(response)
+        if result.get("status") != "ok":
+            return jsonify({"ok": False, "error": result.get("error", "invalid_request")}), 400
 
-        return jsonify({"ok": True, "reply": result["reply"]})
-
-    @app.get("/bind/<ticket_id>")
-    def bind_page(ticket_id: str):
-        return render_template("bind.html", ticket_id=ticket_id)
-
-    @app.post("/bind/<ticket_id>/submit")
-    def submit_bind(ticket_id: str):
-        return jsonify({"ok": True, "ticket_id": ticket_id})
+        response = {"ok": True, "reply": result["reply"]}
+        for key in (
+            "business_conversation_key",
+            "output_id",
+            "causal_inbound_event_id",
+        ):
+            if key in result and result[key]:
+                response[key] = result[key]
+        return jsonify(response)
 
     @app.post("/user/register")
     def user_register():
@@ -353,9 +434,11 @@ def create_app(testing: bool = False):
         provision_service = app.config.get("USER_PROVISION_SERVICE")
         if provision_service is not None:
             try:
-                provision_service.ensure_user(
-                    account_id=result["user"]["id"],
-                    display_name=result["user"].get("display_name"),
+                _require_durable_provision_readiness(
+                    provision_service.ensure_user(
+                        account_id=result["user"]["id"],
+                        display_name=result["user"].get("display_name"),
+                    )
                 )
             except GatewayUserProvisionClientError as exc:
                 service.user_dao.delete_user(result["user"]["id"])
@@ -374,9 +457,11 @@ def create_app(testing: bool = False):
         provision_service = app.config.get("USER_PROVISION_SERVICE")
         if provision_service is not None:
             try:
-                provision_service.ensure_user(
-                    account_id=result["user"]["id"],
-                    display_name=result["user"].get("display_name"),
+                _require_durable_provision_readiness(
+                    provision_service.ensure_user(
+                        account_id=result["user"]["id"],
+                        display_name=result["user"].get("display_name"),
+                    )
                 )
             except GatewayUserProvisionClientError as exc:
                 return jsonify({"ok": False, "error": str(exc)}), 502
@@ -405,28 +490,6 @@ def create_app(testing: bool = False):
 
         return jsonify({"ok": True, "data": result})
 
-    @app.post("/user/wechat-bind/session")
-    def create_wechat_bind_session():
-        user = require_user_auth()
-        if not user:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-        result = app.config["USER_BIND_SERVICE"].create_or_reuse_session(
-            account_id=str(user["_id"]),
-            now_ts=int(time.time()),
-        )
-        return jsonify({"ok": True, "data": result})
-
-    @app.get("/user/wechat-bind/status")
-    def get_wechat_bind_status():
-        user = require_user_auth()
-        if not user:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-        result = app.config["USER_BIND_SERVICE"].get_status(
-            account_id=str(user["_id"]),
-            now_ts=int(time.time()),
-        )
-        return jsonify({"ok": True, "data": result})
-
     @app.post("/user/wechat-channel")
     def create_wechat_channel():
         return _personal_channel_response("create_or_reuse_channel")
@@ -446,18 +509,6 @@ def create_app(testing: bool = False):
     @app.delete("/user/wechat-channel")
     def archive_wechat_channel():
         return _personal_channel_response("archive_channel")
-
-    @app.get("/user/wechat-bind/entry/<bind_token>")
-    def user_wechat_bind_entry(bind_token: str):
-        context = app.config["USER_BIND_SERVICE"].get_entry_page_context(
-            bind_token=bind_token,
-            now_ts=int(time.time()),
-        )
-        status_code = 200 if context["status"] == "pending" else 410
-        return (
-            render_template("wechat_bind_entry.html", context=context),
-            status_code,
-        )
 
     return app
 

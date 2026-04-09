@@ -90,6 +90,7 @@ class ClawScaleOutputDispatcher:
             "text": message["message"],
             "message_type": message.get("message_type", "text"),
             "delivery_mode": metadata["delivery_mode"],
+            "expect_output_timestamp": message["expect_output_timestamp"],
             "idempotency_key": metadata["idempotency_key"],
             "trace_id": metadata["trace_id"],
             "causal_inbound_event_id": metadata.get("causal_inbound_event_id"),

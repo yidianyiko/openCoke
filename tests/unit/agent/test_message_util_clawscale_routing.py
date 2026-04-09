@@ -149,6 +149,107 @@ def test_message_util_does_not_auto_inject_clawscale_metadata_for_non_proactive_
     assert "account_id" not in message
 
 
+def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["business_conversation_key"] = "bc_1"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "metadata": {
+                "source": "clawscale",
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "causal_inbound_event_id": "in_evt_1",
+                    "sync_reply_token": "sync_tok_1",
+                    "gateway_conversation_id": "gw_conv_1",
+                },
+            }
+        }
+    ]
+
+    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+        return {
+            "message": message,
+            "metadata": kwargs["metadata"],
+        }
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    message = message_util.send_message_via_context(sample_context, "普通回复")
+
+    assert message["metadata"] == {
+        "source": "clawscale",
+        "business_protocol": {
+            "delivery_mode": "request_response",
+            "causal_inbound_event_id": "in_evt_1",
+            "sync_reply_token": "sync_tok_1",
+            "gateway_conversation_id": "gw_conv_1",
+            "business_conversation_key": "bc_1",
+        },
+    }
+
+
+def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
+    sample_context, monkeypatch, caplog
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["business_conversation_key"] = "bc_1"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "metadata": {
+                "source": "clawscale",
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "causal_inbound_event_id": "in_evt_1",
+                    "gateway_conversation_id": "gw_conv_1",
+                },
+            }
+        }
+    ]
+
+    captured = []
+
+    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+        payload = {
+            "message": message,
+            "status": kwargs["status"],
+            "handled_timestamp": kwargs["handled_timestamp"],
+            "metadata": kwargs["metadata"],
+        }
+        captured.append(payload)
+        return payload
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    first = message_util.send_message_via_context(sample_context, "第一条同步回复")
+    second = message_util.send_message_via_context(sample_context, "第二条同步回复")
+
+    assert first["status"] == "pending"
+    assert second["status"] == "failed"
+    assert second["handled_timestamp"] is not None
+    assert second["metadata"]["failure_reason"] == "unexpected_extra_request_response_output"
+    assert second["metadata"]["business_protocol"] == {
+        "delivery_mode": "request_response",
+        "causal_inbound_event_id": "in_evt_1",
+        "gateway_conversation_id": "gw_conv_1",
+        "business_conversation_key": "bc_1",
+    }
+    assert any(
+        "unexpected_extra_request_response_output" in record.getMessage()
+        for record in caplog.records
+    )
+    assert len(captured) == 2
+
+
 def test_build_clawscale_push_metadata_returns_business_only_fields(
     sample_context, monkeypatch
 ):
@@ -163,10 +264,11 @@ def test_build_clawscale_push_metadata_returns_business_only_fields(
     )
     monkeypatch.setattr(message_util.uuid, "uuid4", lambda: next(uuids))
     sample_context["conversation"]["business_conversation_key"] = "bc_1"
+    sample_context["causal_inbound_event_id"] = "in_1"
     sample_context["conversation"]["conversation_info"]["chat_history"] = [
         {
             "metadata": {
-                "causal_inbound_event_id": "in_1",
+                "causal_inbound_event_id": "legacy_in_1",
                 "clawscale": {"conversation_id": "legacy_route_should_not_surface"},
             }
         }
@@ -185,4 +287,66 @@ def test_build_clawscale_push_metadata_returns_business_only_fields(
         "idempotency_key": "idem_1",
         "trace_id": "trace_1",
         "causal_inbound_event_id": "in_1",
+    }
+
+
+def test_build_clawscale_push_metadata_does_not_fallback_to_legacy_route_ids(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["conversation"].pop("business_conversation_key", None)
+    sample_context["conversation"]["_id"] = "legacy_conv_1"
+    sample_context["conversation_id"] = "legacy_ctx_conv_1"
+    sample_context["conversation"]["conversation_info"]["chat_history"] = [
+        {"metadata": {"clawscale": {"conversation_id": "legacy_route_1"}}}
+    ]
+
+    uuid_calls = []
+    monkeypatch.setattr(
+        message_util.uuid,
+        "uuid4",
+        lambda: uuid_calls.append("called") or SimpleNamespace(hex="unused"),
+    )
+
+    metadata = message_util.build_clawscale_push_metadata(
+        str(sample_context["user"]["_id"]),
+        now_ts=1710000000,
+        context=sample_context,
+    )
+
+    assert metadata == {}
+    assert uuid_calls == []
+
+
+def test_build_clawscale_push_metadata_does_not_inherit_historical_causal_event_id(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    uuids = iter(
+        [
+            SimpleNamespace(hex="out_1"),
+            SimpleNamespace(hex="idem_1"),
+            SimpleNamespace(hex="trace_1"),
+        ]
+    )
+    monkeypatch.setattr(message_util.uuid, "uuid4", lambda: next(uuids))
+    sample_context["conversation"]["business_conversation_key"] = "bc_1"
+    sample_context["conversation"]["conversation_info"]["chat_history"] = [
+        {"metadata": {"causal_inbound_event_id": "legacy_in_1"}}
+    ]
+
+    metadata = message_util.build_clawscale_push_metadata(
+        str(sample_context["user"]["_id"]),
+        now_ts=1710000000,
+        context=sample_context,
+    )
+
+    assert metadata == {
+        "business_conversation_key": "bc_1",
+        "output_id": "out_1",
+        "delivery_mode": "push",
+        "idempotency_key": "idem_1",
+        "trace_id": "trace_1",
     }

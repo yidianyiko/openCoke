@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import requests
 
 
@@ -25,10 +27,20 @@ class GatewayOutboundClient:
         text: str,
         message_type: str,
         delivery_mode: str,
+        expect_output_timestamp,
         idempotency_key: str,
         trace_id: str,
         causal_inbound_event_id: str | None = None,
     ):
+        if isinstance(expect_output_timestamp, str):
+            normalized_expect_output_timestamp = expect_output_timestamp
+        else:
+            normalized_expect_output_timestamp = (
+                datetime.fromtimestamp(expect_output_timestamp, tz=timezone.utc)
+                .replace(microsecond=0)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
         payload = {
             "output_id": output_id,
             "account_id": account_id,
@@ -36,6 +48,7 @@ class GatewayOutboundClient:
             "text": text,
             "message_type": message_type,
             "delivery_mode": delivery_mode,
+            "expect_output_timestamp": normalized_expect_output_timestamp,
             "idempotency_key": idempotency_key,
             "trace_id": trace_id,
         }

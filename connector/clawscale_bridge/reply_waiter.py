@@ -7,19 +7,24 @@ class ReplyWaiter:
         self.poll_interval_seconds = poll_interval_seconds
         self.timeout_seconds = timeout_seconds
 
-    def wait_for_reply(self, bridge_request_id: str) -> str:
+    def wait_for_reply(
+        self, causal_inbound_event_id: str, sync_reply_token: str | None = None
+    ) -> dict:
         deadline = time.time() + self.timeout_seconds
         while time.time() < deadline:
+            query = {
+                "status": "pending",
+                "message_type": "text",
+                "metadata.source": "clawscale",
+                "metadata.business_protocol.delivery_mode": "request_response",
+                "metadata.business_protocol.causal_inbound_event_id": causal_inbound_event_id,
+            }
+            if sync_reply_token:
+                query["metadata.business_protocol.sync_reply_token"] = sync_reply_token
+
             message = self.mongo.find_one(
                 "outputmessages",
-                {
-                    "platform": "wechat",
-                    "status": "pending",
-                    "message_type": "text",
-                    "metadata.source": "clawscale",
-                    "metadata.bridge_request_id": bridge_request_id,
-                    "metadata.delivery_mode": "request_response",
-                },
+                query,
             )
             if message:
                 self.mongo.update_one(
@@ -27,8 +32,20 @@ class ReplyWaiter:
                     {"_id": message["_id"], "status": "pending"},
                     {"$set": {"status": "handled", "handled_timestamp": int(time.time())}},
                 )
-                return message["message"]
+                protocol_meta = message.get("metadata", {}).get("business_protocol", {})
+                response = {
+                    "reply": message["message"],
+                    "output_id": str(message["_id"]),
+                    "causal_inbound_event_id": protocol_meta.get(
+                        "causal_inbound_event_id", causal_inbound_event_id
+                    ),
+                }
+                business_conversation_key = protocol_meta.get("business_conversation_key")
+                if business_conversation_key:
+                    response["business_conversation_key"] = business_conversation_key
+                return response
             time.sleep(self.poll_interval_seconds)
         raise TimeoutError(
-            f"Timed out waiting for bridge_request_id={bridge_request_id}"
+            "Timed out waiting for "
+            f"causal_inbound_event_id={causal_inbound_event_id}"
         )
