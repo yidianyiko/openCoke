@@ -252,15 +252,23 @@ def handle_proactive_message():
                     ]:
                         continue
 
-                    user = user_dao.get_user_by_id(relation["uid"])
-                    character = user_dao.get_user_by_id(relation["cid"])
+                    relation_user_id = str(relation.get("uid") or "").strip()
+                    relation_character_id = str(relation.get("cid") or "").strip()
+                    user = user_dao.get_user_by_id(relation_user_id)
+                    character = user_dao.get_user_by_id(relation_character_id)
+                    if user is None and is_synthetic_coke_account_id(relation_user_id):
+                        logger.info(
+                            "skip proactive synthetic CokeAccount relation "
+                            f"uid={relation_user_id}"
+                        )
+                        continue
                     if user is None or character is None:
                         continue
 
                     conversation = conversation_dao.get_private_conversation_by_db_user_ids(
                         "business",
-                        str(user.get("_id") or ""),
-                        str(character.get("_id") or ""),
+                        str(user.get("_id") or relation_user_id),
+                        str(character.get("_id") or relation_character_id),
                     )
 
                     if conversation is None:
@@ -939,14 +947,16 @@ async def _get_reminder_context(conversation_id: str, reminder: dict):
         )
         return None, None, None
 
-    if not is_mongo_object_id(str(reminder.get("user_id") or "")):
+    reminder_user_id = str(reminder.get("user_id") or "").strip()
+    reminder_character_id = str(reminder.get("character_id") or "").strip()
+    user = user_dao.get_user_by_id(reminder_user_id)
+    character = user_dao.get_user_by_id(reminder_character_id)
+    if user is None and is_synthetic_coke_account_id(reminder_user_id):
         logger.info(
-            f"[REMINDER] Skip synthetic CokeAccount reminder context: user_id={reminder.get('user_id')}"
+            "[REMINDER] Skip synthetic CokeAccount reminder context: "
+            f"user_id={reminder_user_id}"
         )
         return None, None, None
-
-    user = user_dao.get_user_by_id(reminder["user_id"])
-    character = user_dao.get_user_by_id(reminder["character_id"])
     if not user or not character:
         logger.warning(
             f"[REMINDER] User or character not found, "

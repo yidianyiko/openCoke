@@ -44,3 +44,43 @@ def test_resolve_conversation_participants_prefers_db_user_ids(monkeypatch):
     assert user == fake_user
     assert character == fake_character
     assert lookups == [("get_user_by_id", "user_1"), ("get_user_by_id", "char_1")]
+
+
+def test_resolve_conversation_participants_skips_unresolved_synthetic_ids(
+    monkeypatch,
+):
+    stub_agent_handler = types.ModuleType("agent.runner.agent_handler")
+    stub_agent_handler.handle_message = lambda *args, **kwargs: None
+    monkeypatch.setitem(sys.modules, "agent.runner.agent_handler", stub_agent_handler)
+
+    from agent.runner import agent_background_handler as background_handler
+
+    class FakeUserDAO:
+        def get_user_by_id(self, user_id):
+            return None
+
+        def find_users(self, *args, **kwargs):
+            raise AssertionError("find_users should not be used for talkers with db_user_id")
+
+    monkeypatch.setattr(background_handler, "user_dao", FakeUserDAO())
+
+    user, character = background_handler._resolve_conversation_participants(
+        {
+            "platform": "business",
+            "talkers": [
+                {
+                    "id": "clawscale:conv_1",
+                    "nickname": "Alice",
+                    "db_user_id": "acct_123",
+                },
+                {
+                    "id": "clawscale-character:char_1",
+                    "nickname": "Coke",
+                    "db_user_id": "char_1",
+                },
+            ],
+        }
+    )
+
+    assert user is None
+    assert character is None
