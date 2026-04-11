@@ -20,6 +20,7 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from entity.message import save_outputmessage
 
@@ -50,6 +51,7 @@ class TerminalTestClient:
         self.character_id = character_id
         self.platform = platform
         self.mongo = MongoDBBase()
+        self.conversation_dao = ConversationDAO()
         self._last_send_time = 0
 
     def send(self, text: str, message_type: str = "text") -> str:
@@ -230,9 +232,20 @@ class TerminalTestClient:
         self.clear_pending_input()
         self.clear_pending_output()
 
+    def reset_test_state(self):
+        """重置 E2E 测试上下文，避免跨用例复用会话历史。"""
+        self.clear_all_pending()
+
+        conversation = self.conversation_dao.get_private_conversation(
+            self.platform, self.user_id, self.character_id
+        )
+        if conversation:
+            self.conversation_dao.delete_conversation(str(conversation["_id"]))
+
     def close(self):
         """关闭连接"""
         self.mongo.close()
+        self.conversation_dao.close()
 
     def __enter__(self):
         return self

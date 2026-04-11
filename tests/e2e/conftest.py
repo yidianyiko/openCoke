@@ -82,24 +82,24 @@ def terminal_client():
         character_id=TEST_CHARACTER_ID,
     )
 
-    # 测试前清理残留消息
-    client.clear_all_pending()
+    # 测试前重置残留消息和会话上下文
+    client.reset_test_state()
 
     yield client
 
-    # 测试后清理
-    client.clear_all_pending()
+    # 测试后重置，避免污染本地环境
+    client.reset_test_state()
     client.close()
 
 
 @pytest.fixture(scope="function")
 def clean_terminal_client(terminal_client):
     """
-    每个测试函数前清理 pending 消息
+    每个测试函数前重置消息和会话上下文
 
     用于需要干净状态的测试
     """
-    terminal_client.clear_all_pending()
+    terminal_client.reset_test_state()
     yield terminal_client
 
 
