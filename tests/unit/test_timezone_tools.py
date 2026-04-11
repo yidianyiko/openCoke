@@ -17,6 +17,8 @@ from unittest.mock import MagicMock, patch
 # This allows the test to run without the real agno package installed.
 # ---------------------------------------------------------------------------
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
+_AGNO_AGENT_ROOT = _PROJECT_ROOT / "agent" / "agno_agent"
+_AGNO_AGENT_TOOLS_ROOT = _PROJECT_ROOT / "agent" / "agno_agent" / "tools"
 
 
 def _ensure_agno_stubs() -> None:
@@ -34,9 +36,9 @@ def _ensure_agno_stubs() -> None:
 
     agno = _make_package("agno")
     agno_tools = _make_package("agno.tools")
-    _make_package("agno.agent")
+    agno_agent = _make_package("agno.agent")
     _make_package("agno.models")
-    _make_package("agno.models.deepseek")
+    agno_models_deepseek = _make_package("agno.models.deepseek")
     _make_package("agno.memory")
     _make_package("agno.storage")
     _make_package("agno.embedder")
@@ -58,6 +60,17 @@ def _ensure_agno_stubs() -> None:
 
     agno_tools.tool = _tool_passthrough
     agno.tools = agno_tools
+
+    class _Agent:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class _DeepSeek:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    agno_agent.Agent = _Agent
+    agno_models_deepseek.DeepSeek = _DeepSeek
 
 
 def _load_module_by_path(module_name: str, rel_path: str) -> None:
@@ -84,7 +97,12 @@ def _ensure_timezone_tools_loaded() -> None:
     for pkg in ("agent.agno_agent", "agent.agno_agent.tools"):
         if pkg not in sys.modules:
             mod = types.ModuleType(pkg)
-            mod.__path__ = []
+            if pkg == "agent.agno_agent":
+                mod.__path__ = [str(_AGNO_AGENT_ROOT)]
+            elif pkg == "agent.agno_agent.tools":
+                mod.__path__ = [str(_AGNO_AGENT_TOOLS_ROOT)]
+            else:
+                mod.__path__ = []
             mod.__package__ = pkg
             mod.__spec__ = None
             sys.modules[pkg] = mod
@@ -112,7 +130,7 @@ import pytest  # noqa: E402 (must come after stubs)
 
 def make_session_state(user_id="507f1f77bcf86cd799439011"):
     return {
-        "user": {"_id": user_id},
+        "user": {"id": user_id},
     }
 
 

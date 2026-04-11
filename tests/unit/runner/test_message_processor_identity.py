@@ -87,3 +87,47 @@ def test_message_acquirer_accepts_coke_account_sender_for_business_clawscale_mes
     }
     assert captured["read_all"] == ("acct_123", character_id, "business", "pending")
     assert captured["conversation_args"]["db_user_id1"] == "acct_123"
+
+
+def test_message_acquirer_marks_invalid_user_ids_distinct_from_missing_character(
+    monkeypatch,
+):
+    from agent.runner import message_processor as mp
+
+    saved_messages = []
+
+    class FakeUserDAO:
+        def find_characters(self, query):
+            return []
+
+        def get_user_by_id(self, user_id):
+            return {
+                "_id": user_id,
+                "name": "coke",
+                "nickname": "Coke",
+                "platforms": {},
+            }
+
+    monkeypatch.setattr(mp, "UserDAO", lambda *args, **kwargs: FakeUserDAO())
+    monkeypatch.setattr(mp, "ConversationDAO", lambda *args, **kwargs: None)
+    monkeypatch.setattr(mp, "MongoDBLockManager", lambda *args, **kwargs: None)
+    monkeypatch.setattr(mp, "resolve_agent_user_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(mp, "save_inputmessage", lambda message: saved_messages.append(dict(message)))
+
+    acquirer = mp.MessageAcquirer("[W1]")
+    top_message = {
+        "_id": "msg_top",
+        "from_user": "invalid-user",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "hello",
+        "metadata": {},
+    }
+
+    msg_ctx = acquirer._try_acquire_message(top_message, set())
+
+    assert msg_ctx is None
+    assert saved_messages[-1]["status"] == "failed"
+    assert saved_messages[-1]["error"] == "invalid_user_id"

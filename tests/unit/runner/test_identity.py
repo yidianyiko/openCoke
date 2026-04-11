@@ -56,3 +56,52 @@ def test_resolve_agent_user_context_builds_synthetic_coke_account_user():
         "is_coke_account": True,
     }
     assert get_agent_entity_id(user) == "acct_123"
+
+
+def test_resolve_agent_user_context_builds_synthetic_user_without_coke_account():
+    class FakeUserDAO:
+        def get_user_by_id(self, user_id):
+            raise AssertionError("DAO lookup should not happen for synthetic CokeAccount users")
+
+    user = resolve_agent_user_context(
+        user_id="acct_456789",
+        input_message={
+            "platform": "business",
+            "metadata": {
+                "source": "clawscale",
+                "sender": "Gateway Sender",
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert user == {
+        "id": "acct_456789",
+        "_id": "acct_456789",
+        "nickname": "Gateway Sender",
+        "is_coke_account": True,
+    }
+
+
+def test_resolve_agent_user_context_uses_default_nickname_fallback():
+    class FakeUserDAO:
+        def get_user_by_id(self, user_id):
+            raise AssertionError("DAO lookup should not happen for synthetic CokeAccount users")
+
+    user = resolve_agent_user_context(
+        user_id="acct_123456789",
+        input_message={
+            "platform": "business",
+            "metadata": {
+                "source": "clawscale",
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert user == {
+        "id": "acct_123456789",
+        "_id": "acct_123456789",
+        "nickname": "user-456789",
+        "is_coke_account": True,
+    }

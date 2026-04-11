@@ -160,7 +160,7 @@ class PostAnalyzeWorkflow:
                 usage_tracker.record_from_metrics(
                     agent_name="PostAnalyzeAgent",
                     metrics=response.metrics,
-                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    user_id=str(session_state.get("user", {}).get("id", "")),
                     session_id=session_state.get("conversation_id"),
                     workflow_name="PostAnalyzeWorkflow",
                 )

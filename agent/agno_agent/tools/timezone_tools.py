@@ -66,7 +66,7 @@ def set_user_timezone(
     if not session_state:
         session_state = {}
 
-    user_id = str(session_state.get("user", {}).get("_id", ""))
+    user_id = str(session_state.get("user", {}).get("id", ""))
     if not user_id:
         logger.warning("set_user_timezone: no user_id in session_state")
         return {"ok": False, "message": "无法获取用户信息，时区设置失败"}

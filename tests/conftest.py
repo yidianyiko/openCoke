@@ -18,6 +18,7 @@ def sample_context():
 
     return {
         "user": {
+            "id": "test_user_id",
             "_id": ObjectId(),
             "display_name": "测试用户",
             "nickname": "测试用户",

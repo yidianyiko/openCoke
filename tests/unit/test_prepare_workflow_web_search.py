@@ -59,7 +59,7 @@ class TestPrepareWorkflowWebSearch:
                     }
                 },
                 "character": {"_id": "char1"},
-                "user": {"_id": "user1"},
+                "user": {"id": "user1"},
             }
 
             result = await workflow.run("杭州今天天气怎么样", session_state)
@@ -113,7 +113,7 @@ class TestPrepareWorkflowWebSearch:
                     }
                 },
                 "character": {"_id": "char1"},
-                "user": {"_id": "user1"},
+                "user": {"id": "user1"},
             }
 
             await workflow.run("你好呀", session_state)

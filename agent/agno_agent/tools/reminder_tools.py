@@ -62,7 +62,7 @@ def set_reminder_session_state(session_state: dict):
     _context_session_state_ref.set(session_state or None)
     _context_session_operations.set([])
 
-    user_id = str(session_state.get("user", {}).get("_id", "")) if session_state else ""
+    user_id = str(session_state.get("user", {}).get("id", "")) if session_state else ""
     logger.debug(f"set_reminder_session_state: user_id={user_id}")
 
 
@@ -378,7 +378,7 @@ def reminder_tool(
         return {"ok": False, "error": error_msg}
 
     # Extract context from session_state
-    user_id = str(current_session_state.get("user", {}).get("_id", ""))
+    user_id = str(current_session_state.get("user", {}).get("id", ""))
     character_id = str(current_session_state.get("character", {}).get("_id", ""))
     conversation_id = str(current_session_state.get("conversation", {}).get("_id", ""))
     message_timestamp = validate_timestamp(

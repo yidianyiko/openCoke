@@ -9,6 +9,13 @@ def is_mongo_object_id(value: str) -> bool:
     return ObjectId.is_valid(value)
 
 
+def is_synthetic_coke_account_id(value: str) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip()
+    return normalized.startswith("acct_")
+
+
 def get_agent_entity_id(entity: dict | None) -> str:
     if not isinstance(entity, Mapping):
         return ""
@@ -56,7 +63,7 @@ def resolve_agent_user_context(user_id, input_message, user_dao):
 
     coke_account = metadata.get("coke_account")
     if not isinstance(coke_account, Mapping):
-        return None
+        coke_account = {}
 
     account_id = (
         coke_account.get("id")
@@ -70,13 +77,10 @@ def resolve_agent_user_context(user_id, input_message, user_dao):
     if not account_id:
         return None
 
-    display_name = (
-        coke_account.get("display_name")
-        or coke_account.get("nickname")
-        or coke_account.get("name")
-        or account_id
-    )
-    display_name = str(display_name).strip() or account_id
+    display_name = coke_account.get("display_name") or metadata.get("sender")
+    display_name = str(display_name).strip() if display_name is not None else ""
+    if not display_name:
+        display_name = f"user-{account_id[-6:]}"
 
     return {
         "id": account_id,

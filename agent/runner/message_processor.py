@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from agent.runner.access_gate import AccessGate
 from agent.runner.identity import get_agent_entity_id, resolve_agent_user_context
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
@@ -174,11 +173,20 @@ class MessageAcquirer:
         user = resolve_agent_user_context(
             top_message["from_user"], top_message, self.user_dao
         )
+        if user is None:
+            logger.warning(
+                f"{self.worker_tag} 用户ID无效，跳过: {top_message['from_user']}"
+            )
+            top_message["status"] = "failed"
+            top_message["error"] = "invalid_user_id"
+            save_inputmessage(top_message)
+            return None
+
         character = self.user_dao.get_user_by_id(top_message["to_user"])
         user_id = get_agent_entity_id(user)
         character_id = get_agent_entity_id(character)
 
-        if user is None or character is None or not user_id or not character_id:
+        if character is None or not user_id or not character_id:
             logger.warning(
                 f"{self.worker_tag} 用户或角色不存在，跳过: {top_message['from_user']}"
             )
@@ -465,7 +473,6 @@ class MessageDispatcher:
     def __init__(self, worker_tag: str):
         self.worker_tag = worker_tag
         self.admin_user_id = CONF.get("admin_user_id", "")
-        self.access_gate = AccessGate()
 
     def dispatch(self, msg_ctx: MessageContext) -> Tuple[str, Optional[Dict]]:
         """
@@ -474,9 +481,6 @@ class MessageDispatcher:
         Returns:
             (dispatch_type, extra_data)
            -("blocked", None): 用户被拉黑
-           -("gate_denied", None): 门禁未通过
-           -("gate_expired", None): 门禁已过期
-           -("gate_success", {"expire_time": ...}): 门禁验证成功
            -("hardcode", {"command": ...}): 硬指令
            -("hold", None): 角色繁忙
            -("normal", None): 正常消息
@@ -488,17 +492,8 @@ class MessageDispatcher:
         if context["relation"]["relationship"]["dislike"] >= 100:
             return ("blocked", None)
 
-        # 检查门禁
-        gate_result = self.access_gate.check(
-            platform=context.get("platform", ""),
-            user=context["user"],
-            admin_user_id=self.admin_user_id,
-        )
-        if gate_result:
-            return gate_result
-
         # 检查硬指令
-        if str(context["user"]["_id"]) == self.admin_user_id and str(
+        if str(context["user"].get("id") or context["user"].get("_id")) == self.admin_user_id and str(
             input_messages[0]["message"]
         ).startswith(self.SUPPORTED_HARDCODE):
             return ("hardcode", {"command": input_messages[0]["message"]})

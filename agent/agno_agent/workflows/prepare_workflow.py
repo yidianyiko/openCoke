@@ -168,7 +168,7 @@ class PrepareWorkflow:
                 usage_tracker.record_from_metrics(
                     agent_name="OrchestratorAgent",
                     metrics=orchestrator_response.metrics,
-                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    user_id=str(session_state.get("user", {}).get("id", "")),
                     session_id=session_state.get("conversation_id"),
                     workflow_name="PrepareWorkflow",
                 )
@@ -221,7 +221,7 @@ class PrepareWorkflow:
             orchestrator = session_state.get("orchestrator", {})
             params = orchestrator.get("context_retrieve_params", {})
             character_id = str(session_state.get("character", {}).get("_id", ""))
-            user_id = str(session_state.get("user", {}).get("_id", ""))
+            user_id = str(session_state.get("user", {}).get("id", ""))
 
             context_result = context_retrieve_tool(
                 character_setting_query=params.get("character_setting_query", ""),
@@ -331,7 +331,7 @@ class PrepareWorkflow:
                 usage_tracker.record_from_metrics(
                     agent_name="ReminderDetectAgent",
                     metrics=reminder_response.metrics,
-                    user_id=str(session_state.get("user", {}).get("_id", "")),
+                    user_id=str(session_state.get("user", {}).get("id", "")),
                     session_id=session_state.get("conversation_id"),
                     workflow_name="PrepareWorkflow",
                 )
