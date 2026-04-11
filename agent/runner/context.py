@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 from bson import ObjectId
 
 from agent.prompt.character import get_character_prompt
+from agent.runner.identity import get_agent_entity_id
 from agent.util.message_util import messages_to_str
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
@@ -146,7 +147,14 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
 
 
 def context_prepare(user, character, conversation):
+    user_id = get_agent_entity_id(user)
+    character_id = get_agent_entity_id(character)
+    if not user_id or not character_id:
+        raise ValueError("Invalid user or character ID: id/_id cannot be None")
+
     context = {"user": user, "character": character, "conversation": conversation, "platform": conversation.get("platform", "")}
+    context["user"].setdefault("id", user_id)
+    context["character"].setdefault("id", character_id)
 
     context["user"].setdefault("nickname", resolve_profile_label(user, "用户"))
     context["character"].setdefault("nickname", resolve_profile_label(character, "角色"))
@@ -163,10 +171,6 @@ def context_prepare(user, character, conversation):
     else:
         user_tz = get_default_timezone()
 
-    # BUG-006 Medium fix: Validate user and character IDs are not None
-    if not user.get("_id") or not character.get("_id"):
-        raise ValueError("Invalid user or character ID: _id cannot be None")
-
     # ========== 使用文件配置的角色提示词 ==========
     # 优先从 Python 文件读取，便于版本控制和快速迭代
     character_name = character.get("name", "")
@@ -180,9 +184,7 @@ def context_prepare(user, character, conversation):
         logger.debug(f"[CharacterPrompt] 使用文件配置的提示词: {character_name}")
 
     mongo = MongoDBBase()
-    relation = mongo.find_one(
-        "relations", {"uid": str(user["_id"]), "cid": str(character["_id"])}
-    )
+    relation = mongo.find_one("relations", {"uid": user_id, "cid": character_id})
 
     # 检测是否为新用户（relation 不存在时为首次对话）
     is_new_user = False
@@ -270,7 +272,7 @@ def context_prepare(user, character, conversation):
     )
 
     date_str = date2str(int(time.time()), tz=user_tz)
-    news = mongo.find_one("dailynews", {"date": date_str, "cid": str(character["_id"])})
+    news = mongo.find_one("dailynews", {"date": date_str, "cid": character_id})
     if news is None:
         context["news_str"] = ""
     else:
@@ -290,7 +292,7 @@ def context_prepare(user, character, conversation):
     )
     if is_repeated:
         # 获取角色最近的回复，明确告诉LLM不要重复这些内容
-        character_user_id = str(character["_id"])
+        character_user_id = character_id
         recent_responses = get_recent_character_responses(
             context["conversation"]["conversation_info"]["chat_history"],
             character_user_id,
@@ -326,7 +328,7 @@ def context_prepare(user, character, conversation):
     # V2.10 新增：主动消息防重复提示
     # V2.15 优化：扩展到所有消息场景，不只是主动消息
     # 在 context_prepare 阶段就生成，避免 AI 重复问相同问题
-    character_user_id = str(character["_id"])
+    character_user_id = character_id
     context["proactive_forbidden_messages"] = detect_repeated_proactive_output(
         context["conversation"]["conversation_info"]["chat_history"],
         character_user_id,
@@ -396,9 +398,11 @@ def context_prepare_charonly(character):
 
 
 def get_default_relation(user, character, platform):
+    user_id = get_agent_entity_id(user)
+    character_id = get_agent_entity_id(character)
     return {
-        "uid": str(user["_id"]),
-        "cid": str(character["_id"]),
+        "uid": user_id,
+        "cid": character_id,
         "user_info": {
             "realname": "",
             "hobbyname": "",

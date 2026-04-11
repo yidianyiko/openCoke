@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent.runner.access_gate import AccessGate
+from agent.runner.identity import get_agent_entity_id, resolve_agent_user_context
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
@@ -123,7 +124,7 @@ class MessageAcquirer:
             logger.debug(f"{self.worker_tag} 未找到目标角色: {self.target_user_alias}")
             return None
 
-        target_user_id = str(characters[0]["_id"])
+        target_user_id = get_agent_entity_id(characters[0])
 
         # 获取待处理消息
         top_messages = read_top_inputmessages(
@@ -170,10 +171,14 @@ class MessageAcquirer:
             return None
 
         # 获取用户和角色
-        user = self.user_dao.get_user_by_id(top_message["from_user"])
+        user = resolve_agent_user_context(
+            top_message["from_user"], top_message, self.user_dao
+        )
         character = self.user_dao.get_user_by_id(top_message["to_user"])
+        user_id = get_agent_entity_id(user)
+        character_id = get_agent_entity_id(character)
 
-        if user is None or character is None:
+        if user is None or character is None or not user_id or not character_id:
             logger.warning(
                 f"{self.worker_tag} 用户或角色不存在，跳过: {top_message['from_user']}"
             )
@@ -212,12 +217,12 @@ class MessageAcquirer:
                     {
                         "id": user_platform_profile["id"],
                         "nickname": user_platform_profile["nickname"],
-                        "db_user_id": str(user.get("_id") or ""),
+                        "db_user_id": user_id,
                     },
                     {
                         "id": character_platform_profile["id"],
                         "nickname": character_platform_profile["nickname"],
-                        "db_user_id": str(character.get("_id") or ""),
+                        "db_user_id": character_id,
                     },
                 ],
             )
@@ -230,8 +235,8 @@ class MessageAcquirer:
                     nickname1=user_platform_profile["nickname"],
                     user_id2=character_platform_profile["id"],
                     nickname2=character_platform_profile["nickname"],
-                    db_user_id1=str(user.get("_id") or ""),
-                    db_user_id2=str(character.get("_id") or ""),
+                    db_user_id1=user_id,
+                    db_user_id2=character_id,
                 )
             )
 
@@ -261,7 +266,7 @@ class MessageAcquirer:
 
         # 读取该会话所有待处理消息
         input_messages = read_all_inputmessages(
-            str(user["_id"]), str(character["_id"]), platform, "pending"
+            user_id, character_id, platform, "pending"
         )
 
         if should_log_message_content():
@@ -326,16 +331,14 @@ class MessageAcquirer:
         user_platform_profile = self._build_clawscale_virtual_user_platform(
             user, top_message, platform
         ) or {
-            "id": f"{platform}-user:{str(user.get('_id') or '').strip()}",
-            "nickname": resolve_profile_label(
-                user, f"user-{str(user.get('_id') or '')[-6:]}"
-            ),
+            "id": f"{platform}-user:{get_agent_entity_id(user)}",
+            "nickname": resolve_profile_label(user, f"user-{get_agent_entity_id(user)[-6:]}"),
         }
 
         character_platform_profile = self._build_clawscale_virtual_character_platform(
             character, top_message, platform
         ) or {
-            "id": f"{platform}-character:{str(character.get('_id') or '').strip()}",
+            "id": f"{platform}-character:{get_agent_entity_id(character)}",
             "nickname": resolve_profile_label(
                 character, self.target_user_alias or "character"
             ),
@@ -375,16 +378,15 @@ class MessageAcquirer:
                     "external_id"
                 )
         if not stable_id:
-            stable_id = str(user.get("_id") or "")
+            stable_id = get_agent_entity_id(user)
         if not stable_id:
             return None
 
-        nickname = resolve_profile_label(
-            user, f"user-{str(user.get('_id') or '')[-6:]}"
-        )
+        user_id = get_agent_entity_id(user)
+        nickname = resolve_profile_label(user, f"user-{user_id[-6:]}")
 
         logger.info(
-            f"{self.worker_tag} 使用 Clawscale 虚拟业务会话身份: user_id={user.get('_id')}, conversation_key={stable_id}"
+            f"{self.worker_tag} 使用 Clawscale 虚拟业务会话身份: user_id={user_id}, conversation_key={stable_id}"
         )
         return {
             "id": f"clawscale:{stable_id}",
@@ -407,7 +409,7 @@ class MessageAcquirer:
         ):
             return None
 
-        character_id = str(character.get("_id") or "")
+        character_id = get_agent_entity_id(character)
         if not character_id:
             return None
 

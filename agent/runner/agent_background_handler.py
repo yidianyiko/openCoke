@@ -21,6 +21,7 @@ from util.log_util import get_logger
 logger = get_logger(__name__)
 # ========== 核心处理函数导入 ==========
 from agent.runner.agent_handler import handle_message
+from agent.runner.identity import is_mongo_object_id
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
@@ -69,6 +70,11 @@ def _resolve_conversation_participants(conversation):
     for talker in talkers[:2]:
         db_user_id = str(talker.get("db_user_id") or "").strip()
         if not db_user_id:
+            return None, None
+        if not is_mongo_object_id(db_user_id):
+            logger.info(
+                f"skip background participant resolution for synthetic account db_user_id={db_user_id}"
+            )
             return None, None
         participant = user_dao.get_user_by_id(db_user_id)
         if participant is None:
@@ -927,6 +933,12 @@ async def _get_reminder_context(conversation_id: str, reminder: dict):
         logger.warning(
             f"[REMINDER] Conversation not found: {conversation_id}, "
             f"reminder_id={reminder.get('reminder_id')}, will mark as completed"
+        )
+        return None, None, None
+
+    if not is_mongo_object_id(str(reminder.get("user_id") or "")):
+        logger.info(
+            f"[REMINDER] Skip synthetic CokeAccount reminder context: user_id={reminder.get('user_id')}"
         )
         return None, None, None
 

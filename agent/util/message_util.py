@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 
 from bson import ObjectId
 
+from agent.runner.identity import get_agent_entity_id
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 from util.profile_util import resolve_profile_label
@@ -61,6 +62,26 @@ def _resolve_talker_name(talker, message):
     return resolve_profile_label(talker, default_name)
 
 
+def _resolve_business_coke_account_display_name(message):
+    if not isinstance(message, dict):
+        return None
+    if message.get("platform") != "business":
+        return None
+
+    metadata = message.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+
+    coke_account = metadata.get("coke_account")
+    if not isinstance(coke_account, dict):
+        return None
+
+    display_name = coke_account.get("display_name")
+    if isinstance(display_name, str) and display_name.strip():
+        return display_name.strip()
+    return None
+
+
 def normal_message_to_str(message, language="cn"):
     # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
@@ -78,8 +99,10 @@ def normal_message_to_str(message, language="cn"):
 
     user_dao = UserDAO()
     from_user = message.get("from_user")
-    talker = user_dao.get_user_by_id(from_user) if from_user else None
-    talker_name = _resolve_talker_name(talker, message)
+    talker_name = _resolve_business_coke_account_display_name(message)
+    if not talker_name:
+        talker = user_dao.get_user_by_id(from_user) if from_user else None
+        talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
     if language == "cn":
@@ -119,8 +142,10 @@ def reference_message_to_str(message, language="cn"):
 
     user_dao = UserDAO()
     from_user = message.get("from_user")
-    talker = user_dao.get_user_by_id(from_user) if from_user else None
-    talker_name = _resolve_talker_name(talker, message)
+    talker_name = _resolve_business_coke_account_display_name(message)
+    if not talker_name:
+        talker = user_dao.get_user_by_id(from_user) if from_user else None
+        talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
     message_content = message.get("message", "") or ""
@@ -161,8 +186,10 @@ def image_message_to_str(message, language="cn"):
 
     user_dao = UserDAO()
     from_user = message.get("from_user")
-    talker = user_dao.get_user_by_id(from_user) if from_user else None
-    talker_name = _resolve_talker_name(talker, message)
+    talker_name = _resolve_business_coke_account_display_name(message)
+    if not talker_name:
+        talker = user_dao.get_user_by_id(from_user) if from_user else None
+        talker_name = _resolve_talker_name(talker, message)
     time_str = timestamp2str(message_time)
 
     mongo = MongoDBBase()
@@ -253,8 +280,8 @@ def send_message_via_context(
                 metadata=metadata,
             )
         )
-    elif context.get("user", {}).get("_id"):
-        account_id = str(context["user"]["_id"])
+    elif get_agent_entity_id(context.get("user")):
+        account_id = get_agent_entity_id(context.get("user"))
         clawscale_metadata = build_clawscale_push_metadata(
             account_id, context=context
         )
@@ -277,8 +304,8 @@ def send_message_via_context(
 
     return send_message(
         platform=None if is_proactive_message else context["conversation"]["platform"],
-        from_user=None if is_proactive_message else str(context["character"]["_id"]),
-        to_user=None if is_proactive_message else str(context["user"]["_id"]),
+        from_user=None if is_proactive_message else get_agent_entity_id(context.get("character")),
+        to_user=None if is_proactive_message else get_agent_entity_id(context.get("user")),
         chatroom_name=None if is_proactive_message else context["conversation"]["chatroom_name"],
         message=message,
         message_type=message_type,

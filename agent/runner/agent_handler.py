@@ -40,6 +40,7 @@ from agent.agno_agent.workflows import PostAnalyzeWorkflow, PrepareWorkflow
 from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
 from agent.runner.agent_hardcode_handler import handle_hardcode, supported_hardcode
 from agent.runner.context import context_prepare
+from agent.runner.identity import get_agent_entity_id
 from agent.tool.image import upload_image
 from agent.tool.voice import character_voice
 from agent.util.message_util import send_message_via_context
@@ -97,8 +98,8 @@ def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
     """
     from util.embedding_util import store_chat_message
 
-    character_id = str(context.get("character", {}).get("_id", ""))
-    user_id = str(context.get("user", {}).get("_id", ""))
+    character_id = get_agent_entity_id(context.get("character"))
+    user_id = get_agent_entity_id(context.get("user"))
 
     try:
         # Store user's input messages
@@ -448,8 +449,8 @@ async def handle_message(
                 or "business"
             )
             if is_new_message_coming_in(
-                str(user["_id"]),
-                str(character["_id"]),
+                get_agent_entity_id(user),
+                get_agent_entity_id(character),
                 current_platform,
                 current_message_ids,
             ):
@@ -516,8 +517,8 @@ async def handle_message(
                             or "business"
                         )
                         if is_new_message_coming_in(
-                            str(user["_id"]),
-                            str(character["_id"]),
+                            get_agent_entity_id(user),
+                            get_agent_entity_id(character),
                             current_platform,
                             current_message_ids,
                         ):
