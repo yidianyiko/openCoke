@@ -4,24 +4,11 @@ import threading
 from urllib.parse import urlsplit
 
 from flask import Flask, jsonify, request
-from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
-from connector.clawscale_bridge.gateway_personal_channel_client import (
-    GatewayPersonalChannelClient,
-    GatewayPersonalChannelClientError,
-)
-from connector.clawscale_bridge.gateway_user_provision_client import (
-    GatewayUserProvisionClient,
-    GatewayUserProvisionClientError,
-)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
-from connector.clawscale_bridge.personal_wechat_channel_service import (
-    PersonalWechatChannelService,
-)
-from connector.clawscale_bridge.user_auth import UserAuthService
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 
@@ -46,13 +33,11 @@ def _require_bridge_setting(name: str) -> str:
 def _validate_runtime_bridge_settings() -> None:
     required_names = (
         "api_key",
-        "user_auth_secret",
         "web_allowed_origin",
         "wechat_channel_api_url",
         "wechat_channel_api_key",
         "identity_api_url",
         "identity_api_key",
-        "user_provision_api_url",
         "outbound_api_url",
         "outbound_api_key",
     )
@@ -278,27 +263,6 @@ def _build_default_bridge_gateway():
     )
 
 
-def _build_gateway_personal_channel_client():
-    bridge_conf = CONF["clawscale_bridge"]
-    return GatewayPersonalChannelClient(
-        api_base_url=bridge_conf["wechat_channel_api_url"],
-        api_key=bridge_conf["wechat_channel_api_key"],
-    )
-
-
-def _build_gateway_user_provision_client():
-    bridge_conf = CONF["clawscale_bridge"]
-    return GatewayUserProvisionClient(
-        api_url=bridge_conf["user_provision_api_url"],
-        api_key=bridge_conf["identity_api_key"],
-    )
-
-
-def _build_personal_wechat_channel_service():
-    client = _build_gateway_personal_channel_client()
-    return PersonalWechatChannelService(gateway_client=client)
-
-
 def _build_output_dispatcher():
     bridge_conf = CONF["clawscale_bridge"]
     mongo_uri = _mongo_uri()
@@ -335,45 +299,6 @@ def _start_output_dispatcher(dispatcher):
     return thread
 
 
-def _build_user_auth_service():
-    bridge_conf = CONF["clawscale_bridge"]
-    return UserAuthService(
-        user_dao=UserDAO(
-            mongo_uri=_mongo_uri(),
-            db_name=CONF["mongodb"]["mongodb_name"],
-        ),
-        secret_key=bridge_conf["user_auth_secret"],
-        token_ttl_seconds=bridge_conf["user_auth_token_ttl_seconds"],
-    )
-
-
-def _parse_required_json_fields(*required_fields):
-    try:
-        payload = request.get_json(force=True)
-    except BadRequest:
-        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
-
-    if not isinstance(payload, dict):
-        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
-
-    missing_fields = [field for field in required_fields if field not in payload]
-    if missing_fields:
-        return None, (
-            jsonify({"ok": False, "error": "missing_required_fields"}),
-            400,
-        )
-
-    invalid_fields = [
-        field
-        for field in required_fields
-        if not isinstance(payload.get(field), str) or not payload[field].strip()
-    ]
-    if invalid_fields:
-        return None, (jsonify({"ok": False, "error": "invalid_request"}), 400)
-
-    return payload, None
-
-
 def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str:
     if not request_origin or request_origin == allowed_origin:
         return allowed_origin
@@ -393,29 +318,6 @@ def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str
     return allowed_origin
 
 
-def _require_durable_provision_readiness(provision_result):
-    if not isinstance(provision_result, dict):
-        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
-
-    if provision_result.get("ready") is False:
-        raise GatewayUserProvisionClientError("gateway_user_provision_not_ready")
-
-    tenant_id = provision_result.get("tenant_id") or provision_result.get("tenantId")
-    clawscale_user_id = provision_result.get("clawscale_user_id") or provision_result.get(
-        "clawscaleUserId"
-    )
-    if not isinstance(tenant_id, str) or not tenant_id.strip():
-        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
-    if not isinstance(clawscale_user_id, str) or not clawscale_user_id.strip():
-        raise GatewayUserProvisionClientError("invalid_gateway_user_provision_response")
-
-    return {
-        "tenant_id": tenant_id,
-        "clawscale_user_id": clawscale_user_id,
-        "ready": True,
-    }
-
-
 def create_app(testing: bool = False):
     app = Flask(__name__, template_folder="templates")
     app.config["TESTING"] = testing
@@ -429,11 +331,6 @@ def create_app(testing: bool = False):
         app.config["COKE_WEB_ALLOWED_ORIGIN"] = _require_bridge_setting(
             "web_allowed_origin"
         )
-        app.config["USER_AUTH_SERVICE"] = _build_user_auth_service()
-        app.config["USER_PERSONAL_CHANNEL_SERVICE"] = (
-            _build_personal_wechat_channel_service()
-        )
-        app.config["USER_PROVISION_SERVICE"] = _build_gateway_user_provision_client()
         app.config["OUTPUT_DISPATCHER"] = _build_output_dispatcher()
         app.config["OUTPUT_DISPATCHER_THREAD"] = _start_output_dispatcher(
             app.config["OUTPUT_DISPATCHER"]
@@ -480,101 +377,6 @@ def create_app(testing: bool = False):
             if key in result and result[key]:
                 response[key] = result[key]
         return jsonify(response)
-
-    @app.post("/user/register")
-    def user_register():
-        payload, error_response = _parse_required_json_fields(
-            "display_name", "email", "password"
-        )
-        if error_response:
-            return error_response
-        service = app.config["USER_AUTH_SERVICE"]
-        try:
-            result = service.register(
-                display_name=payload["display_name"],
-                email=payload["email"],
-                password=payload["password"],
-            )
-        except ValueError as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 409
-        provision_service = app.config.get("USER_PROVISION_SERVICE")
-        if provision_service is not None:
-            try:
-                _require_durable_provision_readiness(
-                    provision_service.ensure_user(
-                        account_id=result["user"]["id"],
-                        display_name=result["user"].get("display_name"),
-                    )
-                )
-            except GatewayUserProvisionClientError as exc:
-                service.user_dao.delete_user(result["user"]["id"])
-                return jsonify({"ok": False, "error": str(exc)}), 502
-        return jsonify({"ok": True, "data": result}), 201
-
-    @app.post("/user/login")
-    def user_login():
-        payload, error_response = _parse_required_json_fields("email", "password")
-        if error_response:
-            return error_response
-        service = app.config["USER_AUTH_SERVICE"]
-        ok, result = service.login(payload["email"], payload["password"])
-        if not ok:
-            return jsonify({"ok": False, "error": result}), 401
-        provision_service = app.config.get("USER_PROVISION_SERVICE")
-        if provision_service is not None:
-            try:
-                _require_durable_provision_readiness(
-                    provision_service.ensure_user(
-                        account_id=result["user"]["id"],
-                        display_name=result["user"].get("display_name"),
-                    )
-                )
-            except GatewayUserProvisionClientError as exc:
-                return jsonify({"ok": False, "error": str(exc)}), 502
-        return jsonify({"ok": True, "data": result})
-
-    def require_user_auth():
-        header = request.headers.get("Authorization", "")
-        if not header.startswith("Bearer "):
-            return None
-        token = header.split(" ", 1)[1]
-        return app.config["USER_AUTH_SERVICE"].verify_token(token)
-
-    def _personal_channel_response(method_name: str):
-        user = require_user_auth()
-        if not user:
-            return jsonify({"ok": False, "error": "unauthorized"}), 401
-
-        service = app.config.get("USER_PERSONAL_CHANNEL_SERVICE")
-        if service is None:
-            return jsonify({"ok": False, "error": "bridge service not wired"}), 500
-
-        try:
-            result = getattr(service, method_name)(account_id=str(user["_id"]))
-        except GatewayPersonalChannelClientError as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 502
-
-        return jsonify({"ok": True, "data": result})
-
-    @app.post("/user/wechat-channel")
-    def create_wechat_channel():
-        return _personal_channel_response("create_or_reuse_channel")
-
-    @app.post("/user/wechat-channel/connect")
-    def connect_wechat_channel():
-        return _personal_channel_response("start_connect")
-
-    @app.get("/user/wechat-channel/status")
-    def get_wechat_channel_status():
-        return _personal_channel_response("get_status")
-
-    @app.post("/user/wechat-channel/disconnect")
-    def disconnect_wechat_channel():
-        return _personal_channel_response("disconnect_channel")
-
-    @app.delete("/user/wechat-channel")
-    def archive_wechat_channel():
-        return _personal_channel_response("archive_channel")
 
     return app
 
