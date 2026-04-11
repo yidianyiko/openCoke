@@ -221,6 +221,63 @@ def test_bridge_inbound_rejects_untrusted_payload_without_bind_flow(monkeypatch)
     }
 
 
+def test_bridge_inbound_returns_renewal_reply_when_subscription_is_required(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    reply_waiter = MagicMock()
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    client = app.test_client()
+    response = client.post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [{"role": "user", "content": "你好"}],
+            "metadata": {
+                "tenantId": "ten_1",
+                "channelId": "ch_1",
+                "endUserId": "eu_1",
+                "conversationId": "conv_1",
+                "gatewayConversationId": "gw_conv_1",
+                "inboundEventId": "in_evt_1002",
+                "externalId": "wxid_123",
+                "businessConversationKey": "bc_1002",
+                "platform": "wechat_personal",
+                "channelScope": "personal",
+                "clawscaleUserId": "csu_1",
+                "cokeAccountId": "acct_1",
+                "cokeAccountDisplayName": "Alice",
+                "accountStatus": "subscription_required",
+                "emailVerified": True,
+                "subscriptionActive": False,
+                "subscriptionExpiresAt": "2026-04-30T00:00:00Z",
+                "accountAccessAllowed": False,
+                "accountAccessDeniedReason": "subscription_required",
+                "renewalUrl": "https://renew.example/checkout",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "reply": (
+            "Your subscription is required. Renew here: "
+            "https://renew.example/checkout"
+        ),
+    }
+    message_gateway.enqueue.assert_not_called()
+    reply_waiter.wait_for_reply.assert_not_called()
+
+
 def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
     monkeypatch,
 ):

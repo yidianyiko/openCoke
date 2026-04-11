@@ -84,6 +84,14 @@ class BusinessOnlyBridgeGateway:
         self.reply_waiter = reply_waiter
         self.target_character_id = target_character_id
 
+    def _metadata_value(
+        self, inbound_payload: dict, metadata: dict, key: str, legacy_key: str
+    ):
+        value = metadata.get(key)
+        if value is not None:
+            return value
+        return inbound_payload.get(legacy_key)
+
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
         metadata = inbound_payload.get("metadata") or {}
         messages = inbound_payload.get("messages") or []
@@ -114,6 +122,42 @@ class BusinessOnlyBridgeGateway:
             or metadata.get("clawscaleUserId"),
             "coke_account_id": inbound_payload.get("coke_account_id")
             or metadata.get("cokeAccountId"),
+            "coke_account_display_name": self._metadata_value(
+                inbound_payload,
+                metadata,
+                "cokeAccountDisplayName",
+                "coke_account_display_name",
+            ),
+            "account_status": self._metadata_value(
+                inbound_payload, metadata, "accountStatus", "account_status"
+            ),
+            "email_verified": self._metadata_value(
+                inbound_payload, metadata, "emailVerified", "email_verified"
+            ),
+            "subscription_active": self._metadata_value(
+                inbound_payload, metadata, "subscriptionActive", "subscription_active"
+            ),
+            "subscription_expires_at": self._metadata_value(
+                inbound_payload,
+                metadata,
+                "subscriptionExpiresAt",
+                "subscription_expires_at",
+            ),
+            "account_access_allowed": self._metadata_value(
+                inbound_payload,
+                metadata,
+                "accountAccessAllowed",
+                "account_access_allowed",
+            ),
+            "account_access_denied_reason": self._metadata_value(
+                inbound_payload,
+                metadata,
+                "accountAccessDeniedReason",
+                "account_access_denied_reason",
+            ),
+            "renewal_url": self._metadata_value(
+                inbound_payload, metadata, "renewalUrl", "renewal_url"
+            ),
         }
         return normalized
 
@@ -177,6 +221,23 @@ class BusinessOnlyBridgeGateway:
             return {"status": "ok", **reply}
         return {"status": "ok", "reply": reply}
 
+    def _build_access_denied_reply(self, inbound: dict) -> str:
+        renewal_url = inbound.get("renewal_url")
+        denied_reason = inbound.get("account_access_denied_reason")
+
+        if denied_reason == "subscription_required":
+            message = "Your subscription is required."
+        elif denied_reason == "email_not_verified":
+            message = "Your email address is not verified."
+        elif denied_reason == "account_suspended":
+            message = "Your account is suspended."
+        else:
+            message = "This account is currently unavailable."
+
+        if renewal_url:
+            return f"{message} Renew here: {renewal_url}"
+        return message
+
     def handle_inbound(self, inbound_payload: dict):
         inbound = self._normalize_inbound(inbound_payload)
         coke_account_id = self._trusted_coke_account_id(inbound)
@@ -184,6 +245,11 @@ class BusinessOnlyBridgeGateway:
             return {
                 "status": "error",
                 "error": "missing_coke_account_id",
+            }
+        if inbound.get("account_access_allowed") is False:
+            return {
+                "status": "ok",
+                "reply": self._build_access_denied_reply(inbound),
             }
         return self._enqueue_and_wait(
             account_id=coke_account_id,

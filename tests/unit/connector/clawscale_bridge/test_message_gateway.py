@@ -17,6 +17,15 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
             "sync_reply_token": "sync_tok_1",
             "business_conversation_key": "conv_key_1",
             "gateway_conversation_id": "gw_conv_1",
+            "coke_account_id": "acct_1",
+            "coke_account_display_name": "Alice",
+            "account_status": "subscription_required",
+            "email_verified": True,
+            "subscription_active": False,
+            "subscription_expires_at": "2026-04-30T00:00:00Z",
+            "account_access_allowed": False,
+            "account_access_denied_reason": "subscription_required",
+            "renewal_url": "https://renew.example/checkout",
         },
     )
 
@@ -29,6 +38,17 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
         "sync_reply_token": "sync_tok_1",
         "business_conversation_key": "conv_key_1",
         "gateway_conversation_id": "gw_conv_1",
+    }
+    assert doc["metadata"]["coke_account"] == {
+        "id": "acct_1",
+        "display_name": "Alice",
+        "account_status": "subscription_required",
+        "email_verified": True,
+        "subscription_active": False,
+        "subscription_expires_at": "2026-04-30T00:00:00Z",
+        "account_access_allowed": False,
+        "account_access_denied_reason": "subscription_required",
+        "renewal_url": "https://renew.example/checkout",
     }
     assert "bridge_request_id" not in doc["metadata"]
     assert "clawscale" not in doc["metadata"]
