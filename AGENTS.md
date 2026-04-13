@@ -34,3 +34,8 @@
 - Fresh DB deploys rely on the one-shot `coke-bootstrap` service in `docker-compose.prod.yml`; do not bypass it when bringing up the Compose stack.
 - `default_character_alias` must stay registered under `agent/prompt/character/`, or bootstrap will fail fast before `coke-agent` and `coke-bridge` start.
 - Production `coke-bridge` runs behind Gunicorn from `connector/clawscale_bridge/wsgi.py`; keep it single-worker unless output-dispatcher ownership is redesigned.
+- Production deploys use `./scripts/deploy-compose-to-gcp.sh --restart`; do not use the removed PM2/legacy rsync flow.
+- Normal releases sync the repo to `gcp-coke` and rebuild services with Docker Compose; the server is not updated via remote `git pull`.
+- If `deploy/nginx/coke.conf` changes, copy it to `/etc/nginx/sites-available/coke`, then run `sudo nginx -t && sudo systemctl reload nginx`.
+- If `deploy/systemd/coke-compose.service` changes, copy it to `/etc/systemd/system/coke-compose.service`, then run `sudo systemctl daemon-reload` and re-enable/restart as needed.
+- Keep detailed operational steps, verification commands, and bootstrap instructions in `docs/deploy.md`; `AGENTS.md` should only carry the high-signal deployment rules.

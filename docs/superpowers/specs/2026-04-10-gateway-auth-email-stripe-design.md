@@ -27,9 +27,13 @@ translation layer that only receives inbound messages from the Gateway.
 - Email must be verified before the user can bind WeChat or use the
   product.
 - Payment model: one-time Stripe Checkout purchase unlocks 30 days of
-  access. Price is configured in Stripe Dashboard, not in code.
+  access. Price is created in Stripe Dashboard and selected at runtime via
+  `STRIPE_PRICE_ID`; amount and currency are not hard-coded.
 - When a subscription expires, the Bridge does not call the LLM. It
   returns a hard-coded renewal prompt instead.
+- Inbound message access is based on the combined account state:
+  `status === "normal"`, `emailVerified === true`, and active
+  subscription.
 - Email delivery uses Mailgun (primary) or SMTP (fallback), following
   the pattern established in the LibreChat project at
   `/data/projects/LibreChat`.
@@ -89,6 +93,7 @@ model Subscription {
   account CokeAccount @relation(fields: [cokeAccountId], references: [id], onDelete: Cascade)
 
   @@index([cokeAccountId])
+  @@index([cokeAccountId, expiresAt])
   @@map("subscriptions")
 }
 ```
@@ -190,6 +195,10 @@ All new endpoints live on the Gateway under `/api/coke/`.
 
 ### Access Gates
 
+All authenticated `/api/coke/*` endpoints load the CokeAccount from the
+JWT and require `status === "normal"`. If suspended, return
+`403 { error: "account_suspended" }`.
+
 WeChat channel endpoints require `emailVerified === true`. If not
 verified, return `403 { error: "email_not_verified" }`.
 
@@ -284,6 +293,9 @@ User -> POST /api/coke/checkout (Bearer JWT)
        Stripe account setup)
      - The price must be a one-time Price in Stripe Dashboard, not a
        recurring Price. mode: "payment" will reject recurring prices.
+     - line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }]
+     - `STRIPE_PRICE_ID` is required at startup. It must point to the
+       Dashboard-created one-time Price for the 30-day Coke access product.
      - success_url: {DOMAIN}/coke/payment-success
      - cancel_url: {DOMAIN}/coke/payment-cancel
      - metadata: { cokeAccountId: account.id }
@@ -299,42 +311,81 @@ Stripe -> POST /api/coke/stripe-webhook
      a. Extract cokeAccountId from metadata
      b. Extract amount_total, currency
      c. Verify payment_status === "paid"
-     d. Find the latest active Subscription for this account.
-        If one exists and expiresAt > now, stack the new window:
-        startsAt = existing expiresAt, expiresAt = existing expiresAt + 30 days.
-        Otherwise: startsAt = now, expiresAt = now + 30 days.
-     e. Create Subscription:
+     d. Process the session in a database transaction that serializes by
+        CokeAccount. The transaction must lock the account row before
+        reading subscriptions, e.g. Postgres `SELECT id FROM coke_accounts
+        WHERE id = $1 FOR UPDATE` via Prisma `$queryRaw` inside
+        `$transaction`.
+     e. Inside the lock, find the latest active Subscription for this
+        account. If one exists and expiresAt > now, stack the new window:
+        startsAt = existing expiresAt, expiresAt = existing expiresAt + 30
+        days. Otherwise: startsAt = now, expiresAt = now + 30 days.
+     f. Create Subscription:
         - stripeSessionId: session.id (unique, prevents duplicates)
         - startsAt / expiresAt as computed above
         - amountPaid: session.amount_total
         - currency: session.currency
+        If the unique `stripeSessionId` constraint is hit, treat it as an
+        already-processed webhook and return 200.
   3. Return 200
 ```
 
 ### Subscription Check at Bridge
 
-When the Bridge receives an inbound message via `/bridge/inbound`, it
-needs to know whether the user has an active subscription. Two options:
+When the Gateway routes a personal Coke inbound message to the Bridge, it
+must resolve the `CokeAccount` and compute access before calling the
+Bridge. The access lookup returns:
 
-**Option chosen:** The Gateway includes subscription status in the
-inbound payload it sends to the Bridge. The Gateway already resolves the
-`cokeAccountId` when routing messages. It queries the latest
-`Subscription` for that account and appends
-`{ subscriptionActive: true/false, expiresAt: ... }` to the payload.
+- `accountStatus`
+- `emailVerified`
+- `subscriptionActive`
+- `subscriptionExpiresAt`
+- `accountAccessAllowed`
+- `accountAccessDeniedReason`
+- `renewalUrl`
 
-The Bridge checks this field:
-- If `subscriptionActive === true`: proceed to LLM as normal.
-- If `subscriptionActive === false`: skip LLM, return a hard-coded
-  renewal message with the payment URL.
+`accountAccessAllowed` is true only when all of these are true:
+
+- `CokeAccount.status === "normal"`
+- `CokeAccount.emailVerified === true`
+- latest `Subscription.expiresAt > now()`
+
+The Bridge checks `accountAccessAllowed`, not only
+`subscriptionActive`:
+
+- If `accountAccessAllowed === true`: enqueue the message and let the
+  Agent/LLM run as normal.
+- If `accountAccessAllowed === false`: do not enqueue the message, do not
+  call the Agent/LLM, and return a hard-coded response based on
+  `accountAccessDeniedReason`.
+
+Supported denied reasons:
+
+- `email_not_verified`: ask the user to verify email in the Coke web app.
+- `subscription_required`: ask the user to renew at `renewalUrl`.
+- `account_suspended`: tell the user the account cannot currently use the
+  service.
+
+`renewalUrl` is a frontend URL, not a Stripe Checkout Session URL. It is
+computed by the Gateway as `COKE_RENEWAL_URL` when set, otherwise
+`{DOMAIN_CLIENT}/coke/renew`. The `/coke/renew` page requires login and
+then calls `POST /api/coke/checkout` with the user's JWT to create the
+Stripe Checkout Session.
 
 The Gateway always forwards the message to the Bridge regardless of
-subscription status. It is the Bridge's responsibility to check the
-`subscriptionActive` field and decide whether to invoke the LLM or
-return the hard-coded renewal message.
+access status. It is the Bridge's responsibility to check
+`accountAccessAllowed` and decide whether to enqueue work for the Agent.
 
 This keeps the subscription query in the Gateway (where Prisma lives)
 and avoids the Bridge needing to call back to Gateway or access Postgres
 directly.
+
+Gateway implementation detail: `gateway/packages/api/src/lib/route-message.ts`
+already resolves `resolvedCokeAccountId` before `runBackend(...)`. Before
+calling the Bridge-backed custom backend for a personal Coke channel, it
+must load `CokeAccount` and latest subscription, compute the fields above
+through `coke-account-access.ts`, and include them in the `metadata`
+object passed to `generateReply(...)`.
 
 ## JWT Design
 
@@ -369,13 +420,17 @@ A shared email utility in `gateway/packages/api/src/lib/email.ts`:
 - `gateway_user_provision_client.py` — deleted (provisioning now
   happens inside Gateway directly)
 - All `/user/*` routes in `app.py` — deleted
-- `agent/runner/access_gate.py` — deleted
-- `agent/runner/payment/` — deleted
+- `agent/runner/access_gate.py` — deleted after its call sites are
+  removed from the Agent dispatcher.
+- `agent/runner/payment/` — deleted after Stripe checkout creation is
+  moved to Gateway `/api/coke/checkout`.
+- `access_control` payment-provider config in `conf/config.json` is
+  removed or ignored; Agent startup must not import payment providers.
 
 ### Retained in Bridge
 
 - `POST /bridge/inbound` — receives messages from Gateway with
-  subscription status included in payload
+  account access fields included in payload metadata
 - `connector/clawscale_bridge/message_gateway.py` — business logic
 - `connector/clawscale_bridge/output_dispatcher.py` — sends replies
   back via Gateway
@@ -384,40 +439,122 @@ A shared email utility in `gateway/packages/api/src/lib/email.ts`:
 
 ### New Bridge behavior
 
-The inbound payload from Gateway gains a new field:
+Gateway calls the Bridge custom backend endpoint with access fields inside
+the `metadata` envelope. The Bridge normalizes these into snake_case
+internally before applying the gate:
 
 ```json
 {
-  "cokeAccountId": "clxxxxxxxxxx",
-  "subscriptionActive": true,
-  "subscriptionExpiresAt": "2026-05-10T00:00:00Z",
-  ...existing fields...
+  "messages": [{ "role": "user", "content": "hello" }],
+  "metadata": {
+    "cokeAccountId": "clxxxxxxxxxx",
+    "cokeAccountDisplayName": "Alice",
+    "accountStatus": "normal",
+    "emailVerified": true,
+    "subscriptionActive": true,
+    "subscriptionExpiresAt": "2026-05-10T00:00:00Z",
+    "accountAccessAllowed": true,
+    "accountAccessDeniedReason": null,
+    "renewalUrl": "https://coke.app/coke/renew"
+  }
 }
 ```
 
 Bridge logic at the top of inbound handling:
 
 ```python
-if not payload.get("subscriptionActive"):
+if not inbound.get("account_access_allowed"):
+    reason = inbound.get("account_access_denied_reason")
+    if reason == "subscription_required":
+        reply = f"Your subscription has expired. Please renew at {inbound.get('renewal_url')}"
+    elif reason == "email_not_verified":
+        reply = "Please verify your email in the Coke web app before chatting."
+    elif reason == "account_suspended":
+        reply = "This account cannot currently use Coke. Please contact support."
+    else:
+        reply = "Coke account access is not available right now."
     return {
         "status": "ok",
-        "reply": "Your subscription has expired. Please renew at {payment_url}",
+        "reply": reply,
         "skip_llm": True
     }
 ```
 
+This replaces the old Agent-side `AccessGate` dispatch path. The
+implementation must also remove:
+
+- `from agent.runner.access_gate import AccessGate` from
+  `agent/runner/message_processor.py`
+- `self.access_gate = AccessGate()` from `MessageDispatcher.__init__`
+- `self.access_gate.check(...)` and the `gate_denied` / `gate_expired`
+  dispatch returns from `MessageDispatcher.dispatch`
+- the `gate_denied` / `gate_expired` branches in
+  `agent/runner/agent_handler.py` that call
+  `dispatcher.access_gate.get_message(...)`
+
 ## Agent Changes
 
-### user_id Migration
+### User Context Migration
 
-The Agent currently reads `user_id` from
-`session_state["user"]["_id"]` (a MongoDB ObjectId string). After
-migration, this becomes `session_state["user"]["id"]` — a Prisma cuid
-string from `CokeAccount.id`.
+The migration is not only a session-state key replacement. Today the
+Agent resolves inbound messages through Mongo `users._id` before
+workflows run:
+
+- `connector/clawscale_bridge/message_gateway.py` writes
+  `inputmessages.from_user = cokeAccountId`.
+- `agent/runner/message_processor.py` calls
+  `UserDAO.get_user_by_id(top_message["from_user"])`.
+- `dao/user_dao.py` currently returns `None` for non-ObjectId strings.
+
+Without an Agent user-context adapter, Bridge-enqueued messages from
+Gateway will become `user_not_found` before the workflows can read
+`session_state["user"]["id"]`.
+
+Required Agent identity behavior:
+
+1. `inputmessages.from_user` remains the canonical `CokeAccount.id`
+   string for Gateway-originated Coke users.
+2. `inputmessages.to_user` remains the Mongo character ObjectId string
+   for the configured character. Character lookup continues to use
+   `UserDAO.get_user_by_id`.
+3. Add an Agent identity helper, for example
+   `agent/runner/identity.py`, with:
+   - `get_agent_entity_id(entity)`: returns `entity["id"]` when present,
+     otherwise `str(entity["_id"])`.
+   - `resolve_agent_user_context(user_id, input_message)`: for legacy
+     24-char Mongo ObjectId users, load Mongo `users`; for trusted
+     ClawScale/Gateway messages (`metadata.source === "clawscale"` and
+     platform `business`), synthesize a user context from payload
+     metadata:
+     `{ "id": cokeAccountId, "_id": cokeAccountId, "nickname":
+     cokeAccountDisplayName || sender || cokeAccountId[-6:],
+     "is_coke_account": true }`.
+   - If `user_id` is not a Mongo ObjectId and the message is not trusted
+     ClawScale/Gateway input, fail with `invalid_user_id` instead of
+     silently treating it as missing.
+4. Update `MessageAcquirer` to use this helper for `from_user`. It must
+   no longer call `UserDAO.get_user_by_id` for `CokeAccount.id`.
+5. Update all Agent code that reads IDs for message queries, relation
+   keys, reminders, usage tracking, and output messages to call
+   `get_agent_entity_id(...)` or read `session_state["user"]["id"]`.
+   Compatibility `_id` stays present in the synthesized user context only
+   so older code paths do not crash during the migration.
 
 Affected files:
-- `agent/runner/agent_handler.py`
-- `agent/runner/context.py`
+
+- `agent/runner/message_processor.py` — user resolution, conversation
+  talker `db_user_id`, `read_all_inputmessages`, and AccessGate removal.
+- `agent/runner/context.py` — relation key creation/lookup must use
+  canonical IDs, not raw `["_id"]`.
+- `agent/runner/agent_handler.py` — new-message checks and output sending
+  must use canonical IDs; remove gate branches.
+- `agent/util/message_util.py` — business-message display names must come
+  from message metadata or the synthesized user context because Mongo
+  `users` will not contain Coke accounts.
+- `agent/runner/agent_background_handler.py` — any relation/reminder path
+  that loads `relations.uid` through `UserDAO.get_user_by_id` must switch
+  to the identity helper or explicitly skip CokeAccount synthetic users
+  until Postgres-backed user lookup exists.
 - `agent/agno_agent/workflows/prepare_workflow.py`
 - `agent/agno_agent/workflows/post_analyze_workflow.py`
 - `agent/agno_agent/tools/reminder_tools.py`
@@ -427,14 +564,12 @@ Affected files:
 - `agent/agno_agent/tools/context_retrieve_tool.py`
 - `agent/agno_agent/utils/usage_tracker.py`
 
-The change is mechanical: replace `session_state.get("user", {}).get("_id", "")`
-with `session_state.get("user", {}).get("id", "")` throughout.
-
-MongoDB collections (`inputmessages`, `outputmessages`, `conversations`,
-`reminders`, `usage_records`, etc.) continue to use this ID as a string
-foreign key. The format changes from a 24-char hex ObjectId to a 25-char
-cuid, but since these fields are stored as plain strings, no schema
-migration is needed.
+Workflows and tools should read `session_state["user"]["id"]`. MongoDB
+collections (`inputmessages`, `outputmessages`, `conversations`,
+`relations`, `reminders`, `usage_records`, etc.) continue to use this ID
+as a string foreign key. The format changes from a 24-char hex ObjectId
+to a Prisma cuid, but these fields are stored as strings, so no Mongo
+schema migration is required.
 
 ## Frontend Changes
 
@@ -445,7 +580,8 @@ All pages under `gateway/packages/web/app/(coke-user)/coke/`:
   bind-wechat.
 - `login/page.tsx` — POST to `/api/coke/login` (was Bridge).
 - `bind-wechat/page.tsx` — calls `/api/coke/wechat-channel/*` (was
-  Bridge). Gate on `emailVerified` and `subscriptionActive`.
+  Bridge). Gate on the combined account access result: normal account,
+  verified email, and active subscription.
 - New page: `verify-email/page.tsx` — handles the verification link.
 - New page: `forgot-password/page.tsx` — request reset email.
 - New page: `reset-password/page.tsx` — set new password with token.
@@ -453,6 +589,10 @@ All pages under `gateway/packages/web/app/(coke-user)/coke/`:
   redirect.
 - New page: `payment-cancel/page.tsx` — handle Stripe checkout
   cancellation, offer retry.
+- New page: `renew/page.tsx` — destination for Bridge renewal prompts.
+  If no valid JWT is present, send the user to login and return here
+  after login. Once authenticated, call `POST /api/coke/checkout` and
+  redirect to the returned Stripe Checkout URL.
 - `lib/coke-user-api.ts` — change base URL from Bridge to Gateway.
 
 ## Environment Variables
@@ -478,7 +618,9 @@ EMAIL_FROM=
 
 # Stripe
 STRIPE_SECRET_KEY=        # From Stripe Dashboard
+STRIPE_PRICE_ID=          # One-time 30-day Price ID from Stripe Dashboard
 STRIPE_WEBHOOK_SECRET=    # From Stripe Webhooks configuration
+COKE_RENEWAL_URL=         # Optional; defaults to ${DOMAIN_CLIENT}/coke/renew
 ```
 
 ## File Structure
@@ -491,6 +633,7 @@ gateway/packages/api/src/
     email.ts                    # Email sending utility
     coke-auth.ts                # JWT signing, password hashing, token generation
     coke-subscription.ts        # Subscription check helpers
+    coke-account-access.ts      # Combined status/email/subscription access helpers
   routes/
     coke-auth-routes.ts         # register, login, verify-email, reset-password
     coke-payment-routes.ts      # checkout, webhook, subscription status
@@ -508,6 +651,10 @@ gateway/packages/api/src/
 - Stripe webhook signature verified before processing.
 - Stripe session ID unique index prevents duplicate subscription
   creation.
+- Stripe webhook stacking runs inside a transaction that locks the
+  `CokeAccount` row before reading and creating `Subscription` rows. This
+  prevents two distinct paid sessions for the same account from computing
+  overlapping access windows.
 - Password reset does NOT invalidate existing JWTs. With a 7-day
   expiry, existing tokens remain valid until they naturally expire.
   Accepted trade-off at current scale. If needed later, add a
