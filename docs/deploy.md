@@ -92,6 +92,20 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 
 然后按实际密钥编辑 `~/coke/.env`。
 
+生产环境至少要补齐这些变量，Coke 的邮箱链路才算真正可用：
+
+- `COKE_JWT_SECRET`：Coke 用户登录态签名密钥，和后台成员 `JWT_SECRET` 分开
+- `DOMAIN_CLIENT`：邮件里的前端链接根地址，例如 `https://coke.keep4oforever.com`
+- `NEXT_PUBLIC_COKE_API_URL`：前端调用 Coke API 的公开地址
+- `MAILGUN_API_KEY` + `MAILGUN_DOMAIN`，或 SMTP 变量：
+  `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_ENCRYPTION` /
+  `EMAIL_USERNAME` / `EMAIL_PASSWORD`
+- `EMAIL_FROM`：验证邮件和重置密码邮件的发件地址
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID`：续费链路必需
+
+如果只配置了账号注册而没有配置邮件发送，`/api/coke/register` 仍会创建账户，
+但用户只能在 `/coke/verify-email` 页面通过“Resend verification email”完成验证。
+
 ### 4.3 启动 Compose 栈
 
 ```bash
