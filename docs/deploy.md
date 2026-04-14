@@ -84,6 +84,26 @@ bash agent/runner/agent_start.sh --force-clean
 ./scripts/deploy-compose-to-gcp.sh
 ```
 
+部署脚本现在会在同步前校验本地 `gateway/` checkout 是否和根仓库记录的 submodule commit 完全一致。
+如果两者不一致，脚本会直接失败，避免把旧的 gateway/web 内容部署到线上。
+
+脚本也会把根仓库和 `gateway/` 分两次同步，确保远端 `~/coke/gateway` 会被完整刷新，而不是混入旧目录结构。
+
+如果当前公网域名不是远端 `.env` 里已有的值，部署时应显式传入：
+
+```bash
+PUBLIC_BASE_URL=https://coke.ydyk123.top ./scripts/deploy-compose-to-gcp.sh --restart
+```
+
+当 `PUBLIC_BASE_URL` 被设置时，脚本会在远端 `.env` 中同步更新这些字段：
+
+- `DOMAIN_CLIENT`
+- `CORS_ORIGIN`
+- `NEXT_PUBLIC_API_URL`
+- `NEXT_PUBLIC_COKE_API_URL`
+
+这样重建后的 gateway web bundle 会指向当前公网域名，而不是继续使用旧的前端/API 基础地址。
+
 在服务器上准备 `.env`：
 
 ```bash
@@ -111,6 +131,16 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 ```bash
 ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --build --remove-orphans'
 ```
+
+如果使用推荐部署脚本并带 `--restart`，它会在 `docker compose up -d --build --remove-orphans` 之后自动执行这些校验：
+
+- 远端 `gateway/packages/web` 新首页源文件存在
+- `http://127.0.0.1:4041/health`
+- `http://127.0.0.1:8090/bridge/healthz`
+- 公网首页包含新的 locale bootstrap 标记 `__COKE_LOCALE__`
+- 公网首页不再包含旧的双语 CTA 文案 `Sign in / 登录`
+- 公网 `/coke/login` 返回 `200`
+- 公网旧入口 `/login` 返回 `404`
 
 `docker-compose.prod.yml` 里包含一个一次性 `coke-bootstrap` 服务：
 
