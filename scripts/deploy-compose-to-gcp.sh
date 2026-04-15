@@ -160,7 +160,7 @@ verify_public_site() {
         login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/coke/login"))
         old_login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/login"))
         printf '%s' \"\$homepage\" | grep -q '__COKE_LOCALE__'
-        printf '%s' \"\$homepage\" | grep -q 'Coke AI | An AI Partner That Grows With You'
+        printf '%s' \"\$homepage\" | grep -q 'coke | An AI Partner That Grows With You'
         printf '%s' \"\$homepage\" | grep -q 'Sign in / 登录' && exit 1 || true
         printf '%s' \"\$login_page\" | grep -q '__COKE_LOCALE__'
         test \"\$login_status\" = '200'

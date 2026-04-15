@@ -410,7 +410,7 @@ A shared email utility in `gateway/packages/api/src/lib/email.ts`:
   - `MAILGUN_API_KEY`, `MAILGUN_DOMAIN` (optional, for Mailgun)
   - `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USERNAME`, `EMAIL_PASSWORD`
     (optional, for SMTP)
-  - `EMAIL_FROM` (sender address, e.g., `noreply@coke.app`)
+  - `EMAIL_FROM` (sender address, e.g., `noreply@keep4oforever.com`)
 
 ## Bridge Changes
 

@@ -100,7 +100,7 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
 fi
 
 cat <<'OUT'
-Coke AI | An AI Partner That Grows With You
+coke | An AI Partner That Grows With You
 __COKE_LOCALE__
 Preparing your workspace...
 OUT

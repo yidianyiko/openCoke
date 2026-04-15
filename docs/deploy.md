@@ -38,6 +38,13 @@ pip install -r requirements.txt
 - `access_control`
 - `features`
 
+生产部署还需要桥接与身份相关的运行时密钥：
+
+- `COKE_WEB_ALLOWED_ORIGIN`：Coke 用户前端允许的浏览器来源，通常与 `DOMAIN_CLIENT` 保持一致
+- `CLAWSCALE_IDENTITY_API_KEY`：ClawScale 身份服务调用密钥
+- `CLAWSCALE_OUTBOUND_API_KEY`：ClawScale 出站服务调用密钥
+- `CLAWSCALE_WECHAT_CHANNEL_API_KEY`：ClawScale 微信通道调用密钥
+
 ## 3. 本地开发启动
 
 ### 方式 A: 顶层启动脚本
@@ -103,6 +110,7 @@ PUBLIC_BASE_URL=https://coke.ydyk123.top ./scripts/deploy-compose-to-gcp.sh --re
 - `NEXT_PUBLIC_COKE_API_URL`
 
 这样重建后的 gateway web bundle 会指向当前公网域名，而不是继续使用旧的前端/API 基础地址。
+如果你改了域名或用了 `PUBLIC_BASE_URL` 自动更新，必须再核对 `COKE_WEB_ALLOWED_ORIGIN` 是否与同一个浏览器 origin 完全一致，否则 `coke-bridge` 的 CORS 会继续指向旧域名。
 
 在服务器上准备 `.env`：
 
@@ -116,12 +124,20 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 
 - `COKE_JWT_SECRET`：Coke 用户登录态签名密钥，和后台成员 `JWT_SECRET` 分开
 - `DOMAIN_CLIENT`：邮件里的前端链接根地址，例如 `https://coke.keep4oforever.com`
-- `NEXT_PUBLIC_COKE_API_URL`：前端调用 Coke API 的公开地址
-- `MAILGUN_API_KEY` + `MAILGUN_DOMAIN`，或 SMTP 变量：
-  `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_ENCRYPTION` /
-  `EMAIL_USERNAME` / `EMAIL_PASSWORD`
-- `EMAIL_FROM`：验证邮件和重置密码邮件的发件地址
+- `NEXT_PUBLIC_API_URL`：gateway web bundle 使用的公开 API 目标
+- `NEXT_PUBLIC_COKE_API_URL`：Coke 用户前端使用的公开 API 目标
+- `RESEND_API_KEY`：邮件发送所需的 Resend API 密钥
+- `EMAIL_FROM`：验证邮件和重置密码邮件的发件地址，建议使用已在 Resend 验证的域名，例如 `noreply@keep4oforever.com`
+- `EMAIL_FROM_NAME`：发件人显示名，建议保持 `Coke`
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `STRIPE_PRICE_ID`：续费链路必需
+
+桥接与身份相关的运行时密钥也必须存在，否则 `coke-bridge` 和相关身份/出站调用会被错误配置：
+
+- `COKE_WEB_ALLOWED_ORIGIN`：Coke 用户前端允许的浏览器来源
+- 这个值必须与实际 public browser origin 完全一致，域名变更或 `PUBLIC_BASE_URL` 自动更新后要立即复核
+- `CLAWSCALE_IDENTITY_API_KEY`
+- `CLAWSCALE_OUTBOUND_API_KEY`
+- `CLAWSCALE_WECHAT_CHANNEL_API_KEY`
 
 如果只配置了账号注册而没有配置邮件发送，`/api/coke/register` 仍会创建账户，
 但用户只能在 `/coke/verify-email` 页面通过“Resend verification email”完成验证。

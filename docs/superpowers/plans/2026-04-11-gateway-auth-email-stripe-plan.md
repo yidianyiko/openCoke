@@ -482,7 +482,7 @@ export async function sendCokeEmail(input: {
 }): Promise<void> {
   if (process.env['MAILGUN_API_KEY'] && process.env['MAILGUN_DOMAIN']) {
     const body = new URLSearchParams({
-      from: process.env['EMAIL_FROM'] ?? 'noreply@coke.app',
+      from: process.env['EMAIL_FROM'] ?? 'noreply@keep4oforever.com',
       to: input.to,
       subject: input.subject,
       html: input.html,
@@ -511,7 +511,7 @@ export async function sendCokeEmail(input: {
   });
 
   await transporter.sendMail({
-    from: process.env['EMAIL_FROM'] ?? 'noreply@coke.app',
+    from: process.env['EMAIL_FROM'] ?? 'noreply@keep4oforever.com',
     to: input.to,
     subject: input.subject,
     html: input.html,
