@@ -50,7 +50,7 @@ def test_message_util_emits_business_only_output_doc_for_clawscale_proactive_mes
 
     message = message_util.send_message_via_context(sample_context, "提醒你喝水")
 
-    assert message["account_id"] == str(sample_context["user"]["_id"])
+    assert message["account_id"] == sample_context["user"]["id"]
     assert "platform" not in message
     assert message["metadata"] == {
         "business_conversation_key": "bc_1",
