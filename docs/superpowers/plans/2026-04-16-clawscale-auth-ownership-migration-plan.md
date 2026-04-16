@@ -89,12 +89,12 @@ These files must accept both `customer_id` and `account_id` during the compatibi
 - Create: `gateway/packages/api/src/routes/customer-auth-routes.test.ts`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] Write failing helper and route tests for:
+- [x] Write failing helper and route tests for:
   - register -> `Identity` + `Customer` + `Membership`
   - login by `Identity.email`
   - `/me` returning `customerId`, membership role, and claim status
   - password reset and email verification against the platform-owned tables
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -102,7 +102,7 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/customer-auth-routes.test.ts
 ```
 
-- [ ] Implement the neutral auth helper with a response shape like:
+- [x] Implement the neutral auth helper with a response shape like:
 
 ```ts
 {
@@ -114,8 +114,8 @@ pnpm --dir gateway/packages/api test -- \
 }
 ```
 
-- [ ] Mount the new routes under `/api/auth/*`.
-- [ ] Re-run the focused auth suite.
+- [x] Mount the new routes under `/api/auth/*`.
+- [x] Re-run the focused auth suite.
 
 ## Task 2: Relocate email verification and password-reset delivery
 
