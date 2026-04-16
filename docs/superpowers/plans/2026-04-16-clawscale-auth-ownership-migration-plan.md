@@ -171,25 +171,27 @@ pnpm --dir gateway/packages/api test -- \
 - Modify: `gateway/packages/api/src/routes/user-wechat-channel.ts`
 - Create: `gateway/packages/api/src/scripts/audit-wire-identifier-compat.ts`
 
-- [ ] Add failing bridge / agent tests proving both payload forms work during the compatibility window:
+- [x] Add failing bridge / agent tests proving both payload forms work during the compatibility window:
 
 ```json
 { "customer_id": "ck_123" }
 { "account_id": "ck_123" }
 ```
 
-- [ ] Implement a shared rule:
+- [x] Implement a shared rule:
   - accept either key on inbound
   - normalize to `customer_id` internally
   - emit `customer_id` on outbound ClawScale-originated payloads
-- [ ] Add the audit CLI and run:
+- [x] Add the audit CLI and run:
 
 ```bash
-pnpm --dir gateway/packages/api tsx src/scripts/audit-wire-identifier-compat.ts
+pnpm --dir gateway/packages/api exec tsx src/scripts/audit-wire-identifier-compat.ts
 pytest tests/unit/ -k "identity or gateway"
 ```
 
-- [ ] Document the maintenance-window behavior: registration and reset endpoints return a temporary paused response during the final retirement in plan 3.
+- [x] Document the maintenance-window behavior: registration and reset endpoints return a temporary paused response during the final retirement in plan 3.
+  Plan 2 keeps `/api/auth/register`, `/verify-email`, `/forgot-password`, and `/reset-password` live.
+  The temporary paused response is deferred to plan 3 task 5, where the destructive auth-retirement cutover explicitly puts registration and reset endpoints into maintenance mode before dropping legacy auth storage.
 
 ## Task 5: Leave compatibility aliases in place and verify the whole backend
 

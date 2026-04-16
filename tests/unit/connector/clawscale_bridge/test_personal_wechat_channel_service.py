@@ -88,6 +88,30 @@ def test_archive_channel_preserves_archived_status():
     assert result == {"channel_id": "ch_1", "status": "archived"}
 
 
+def test_personal_channel_service_emits_customer_id_to_gateway_client():
+    from connector.clawscale_bridge.personal_wechat_channel_service import (
+        PersonalWechatChannelService,
+    )
+
+    gateway_client = MagicMock()
+    gateway_client.create_or_reuse_channel.return_value = {
+        "channel_id": "ch_1",
+        "status": "disconnected",
+    }
+
+    service = PersonalWechatChannelService(gateway_client=gateway_client)
+
+    result = service.create_or_reuse_channel(account_id="acct_1")
+
+    assert result == {
+        "channel_id": "ch_1",
+        "status": "disconnected",
+    }
+    gateway_client.create_or_reuse_channel.assert_called_once_with(
+        customer_id="acct_1"
+    )
+
+
 def test_normalize_state_preserves_flat_fields_and_adds_compatibility_aliases():
     from connector.clawscale_bridge.personal_wechat_channel_service import (
         PersonalWechatChannelService,

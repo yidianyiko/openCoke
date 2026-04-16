@@ -2,6 +2,8 @@ import uuid
 
 from pymongo.errors import DuplicateKeyError
 
+from connector.clawscale_bridge.customer_ids import resolve_customer_id
+
 
 class CokeMessageGateway:
     def __init__(self, mongo, user_dao, target_character_alias: str = "coke"):
@@ -52,8 +54,12 @@ class CokeMessageGateway:
         if gateway_conversation_id:
             business_protocol["gateway_conversation_id"] = gateway_conversation_id
 
-        coke_account = {
-            "id": inbound.get("coke_account_id"),
+        customer_id = resolve_customer_id(
+            customer_id=inbound.get("customer_id") or inbound.get("coke_account_id"),
+            account_id=account_id,
+        )
+        customer = {
+            "id": customer_id,
             "display_name": inbound.get("coke_account_display_name"),
             "account_status": inbound.get("account_status"),
             "email_verified": inbound.get("email_verified"),
@@ -79,7 +85,8 @@ class CokeMessageGateway:
             "metadata": {
                 "source": "clawscale",
                 "business_protocol": business_protocol,
-                "coke_account": coke_account,
+                "customer": customer,
+                "coke_account": customer,
             },
         }
 

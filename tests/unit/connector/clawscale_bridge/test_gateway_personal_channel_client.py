@@ -27,7 +27,7 @@ def test_gateway_personal_channel_client_posts_expected_disconnect_request():
     assert result == {"channel_id": "ch_1", "status": "disconnected"}
     mock_post.assert_called_once_with(
         url="https://gateway.coke.local/api/internal/user/wechat-channel/disconnect",
-        json={"account_id": "acct_1"},
+        json={"customer_id": "acct_1"},
         headers={
             "Authorization": "Bearer secret",
             "Content-Type": "application/json",
@@ -61,7 +61,7 @@ def test_gateway_personal_channel_client_deletes_expected_archive_request():
     assert result == {"channel_id": "ch_1", "status": "archived"}
     mock_delete.assert_called_once_with(
         url="https://gateway.coke.local/api/internal/user/wechat-channel",
-        json={"account_id": "acct_1"},
+        json={"customer_id": "acct_1"},
         headers={
             "Authorization": "Bearer secret",
             "Content-Type": "application/json",
@@ -91,3 +91,37 @@ def test_gateway_personal_channel_client_wraps_request_failures():
             assert str(exc) == "gateway_personal_channel_request_failed"
         else:
             raise AssertionError("expected GatewayPersonalChannelClientError")
+
+
+def test_gateway_personal_channel_client_sends_customer_id_query_for_status():
+    from connector.clawscale_bridge.gateway_personal_channel_client import (
+        GatewayPersonalChannelClient,
+    )
+
+    response = MagicMock()
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        "ok": True,
+        "data": {"channel_id": "ch_1", "status": "connected"},
+    }
+
+    with patch(
+        "connector.clawscale_bridge.gateway_personal_channel_client.requests.get",
+        return_value=response,
+    ) as mock_get:
+        client = GatewayPersonalChannelClient(
+            api_base_url="https://gateway.coke.local/api/internal/user/wechat-channel",
+            api_key="secret",
+        )
+        result = client.get_status(account_id="acct_1")
+
+    assert result == {"channel_id": "ch_1", "status": "connected"}
+    mock_get.assert_called_once_with(
+        url="https://gateway.coke.local/api/internal/user/wechat-channel/status",
+        params={"customer_id": "acct_1"},
+        headers={
+            "Authorization": "Bearer secret",
+            "Content-Type": "application/json",
+        },
+        timeout=10.0,
+    )

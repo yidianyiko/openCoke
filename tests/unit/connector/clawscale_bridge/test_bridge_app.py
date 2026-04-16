@@ -378,6 +378,14 @@ def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
         "channel_scope": "personal",
         "clawscale_user_id": "csu_1",
         "coke_account_id": "acct_1",
+        "coke_account_display_name": "Alice",
+        "account_status": "active",
+        "email_verified": True,
+        "subscription_active": True,
+        "subscription_expires_at": "2026-04-30T00:00:00Z",
+        "account_access_allowed": True,
+        "account_access_denied_reason": None,
+        "renewal_url": "https://renew.example/checkout",
     }
     response = client.post(
         "/bridge/inbound",
@@ -394,6 +402,28 @@ def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
         "causal_inbound_event_id": "in_evt_1001",
     }
     message_gateway.enqueue.assert_called_once()
+    enqueue_inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert isinstance(enqueue_inbound.get("timestamp"), int)
+    assert enqueue_inbound == {
+        "tenant_id": "ten_1",
+        "channel_id": "ch_1",
+        "platform": "wechat_personal",
+        "end_user_id": "eu_1",
+        "external_id": "wxid_123",
+        "timestamp": enqueue_inbound["timestamp"],
+        "sync_reply_token": "sync_tok_1",
+        "inbound_event_id": "in_evt_1001",
+        "customer_id": "acct_1",
+        "coke_account_id": "acct_1",
+        "coke_account_display_name": "Alice",
+        "account_status": "active",
+        "email_verified": True,
+        "subscription_active": True,
+        "subscription_expires_at": "2026-04-30T00:00:00Z",
+        "account_access_allowed": True,
+        "account_access_denied_reason": None,
+        "renewal_url": "https://renew.example/checkout",
+    }
     reply_waiter.wait_for_reply.assert_called_once_with(
         "in_evt_1001", sync_reply_token="sync_tok_1"
     )

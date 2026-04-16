@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import requests
 
+from connector.clawscale_bridge.customer_ids import resolve_customer_id
+
 
 class GatewayPersonalChannelClientError(RuntimeError):
     pass
@@ -58,42 +60,82 @@ class GatewayPersonalChannelClient:
             ) from exc
         return self._parse_response(response, failure_code)
 
-    def create_or_reuse_channel(self, account_id: str):
+    def create_or_reuse_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._request(
             requests.post,
             url=self.api_base_url,
-            json={"account_id": account_id},
+            json={"customer_id": normalized_customer_id},
             failure_code="create_failed",
         )
 
-    def connect_channel(self, account_id: str):
+    def connect_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._request(
             requests.post,
             url=f"{self.api_base_url}/connect",
-            json={"account_id": account_id},
+            json={"customer_id": normalized_customer_id},
             failure_code="connect_failed",
         )
 
-    def get_status(self, account_id: str):
+    def get_status(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._request(
             requests.get,
             url=f"{self.api_base_url}/status",
-            params={"account_id": account_id},
+            params={"customer_id": normalized_customer_id},
             failure_code="status_failed",
         )
 
-    def disconnect_channel(self, account_id: str):
+    def disconnect_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._request(
             requests.post,
             url=f"{self.api_base_url}/disconnect",
-            json={"account_id": account_id},
+            json={"customer_id": normalized_customer_id},
             failure_code="disconnect_failed",
         )
 
-    def archive_channel(self, account_id: str):
+    def archive_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._request(
             requests.delete,
             url=self.api_base_url,
-            json={"account_id": account_id},
+            json={"customer_id": normalized_customer_id},
             failure_code="archive_failed",
         )

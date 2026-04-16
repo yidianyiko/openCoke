@@ -49,7 +49,14 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
     assert handled is True
     collection.find_one_and_update.assert_called_once_with(
         {
-            "account_id": {"$exists": True},
+            "$and": [
+                {
+                    "$or": [
+                        {"customer_id": {"$exists": True}},
+                        {"account_id": {"$exists": True}},
+                    ]
+                }
+            ],
             "expect_output_timestamp": {"$lte": now},
             "metadata.business_conversation_key": {"$exists": True},
             "metadata.delivery_mode": "push",
@@ -75,7 +82,7 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
     )
     gateway_client.post_output.assert_called_once_with(
         output_id="out_1",
-        account_id="acc_1",
+        customer_id="acc_1",
         business_conversation_key="bc_1",
         text="记得开会",
         message_type="text",
@@ -271,3 +278,78 @@ def test_output_dispatcher_reclaims_stale_dispatching_message(monkeypatch):
 
     assert handled is True
     collection.find_one_and_update.assert_called_once()
+
+
+def test_output_dispatcher_claims_customer_id_messages_during_compatibility_window(
+    monkeypatch,
+):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        account_id=None,
+        customer_id="ck_123",
+        status="dispatching",
+    )
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    collection.find_one_and_update.assert_called_once_with(
+        {
+            "$and": [
+                {
+                    "$or": [
+                        {"customer_id": {"$exists": True}},
+                        {"account_id": {"$exists": True}},
+                    ]
+                }
+            ],
+            "expect_output_timestamp": {"$lte": now},
+            "metadata.business_conversation_key": {"$exists": True},
+            "metadata.delivery_mode": "push",
+            "metadata.output_id": {"$exists": True},
+            "$or": [
+                {"status": "pending"},
+                {
+                    "status": "dispatching",
+                    "$or": [
+                        {
+                            "dispatching_timestamp": {
+                                "$lte": now
+                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                            }
+                        },
+                        {"dispatching_timestamp": {"$exists": False}},
+                    ],
+                },
+            ],
+        },
+        {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
+        return_document=output_dispatcher.ReturnDocument.AFTER,
+    )
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_1",
+        customer_id="ck_123",
+        business_conversation_key="bc_1",
+        text="记得开会",
+        message_type="text",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        causal_inbound_event_id=None,
+    )

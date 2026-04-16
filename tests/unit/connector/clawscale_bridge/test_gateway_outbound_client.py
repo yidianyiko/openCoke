@@ -34,7 +34,7 @@ def test_gateway_outbound_client_posts_normalized_payload_with_auth_header():
         "https://gateway.local/api/outbound",
         json={
             "output_id": "out_1",
-            "account_id": "acc_1",
+            "customer_id": "acc_1",
             "business_conversation_key": "bc_1",
             "text": "time to eat",
             "message_type": "text",
@@ -79,7 +79,7 @@ def test_gateway_outbound_client_omits_optional_causal_event_id():
         "https://gateway.local/api/outbound",
         json={
             "output_id": "out_1",
-            "account_id": "acc_1",
+            "customer_id": "acc_1",
             "business_conversation_key": "bc_1",
             "text": "time to eat",
             "message_type": "text",

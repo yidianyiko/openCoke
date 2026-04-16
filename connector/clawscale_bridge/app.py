@@ -199,6 +199,21 @@ class BusinessOnlyBridgeGateway:
             enqueue_payload["sync_reply_token"] = inbound["sync_reply_token"]
         if inbound.get("inbound_event_id"):
             enqueue_payload["inbound_event_id"] = inbound["inbound_event_id"]
+        if inbound.get("coke_account_id"):
+            enqueue_payload["customer_id"] = inbound["coke_account_id"]
+            enqueue_payload["coke_account_id"] = inbound["coke_account_id"]
+        for key in (
+            "coke_account_display_name",
+            "account_status",
+            "email_verified",
+            "subscription_active",
+            "subscription_expires_at",
+            "account_access_allowed",
+            "account_access_denied_reason",
+            "renewal_url",
+        ):
+            if key in inbound:
+                enqueue_payload[key] = inbound[key]
 
         causal_inbound_event_id = self.message_gateway.enqueue(
             account_id=account_id,

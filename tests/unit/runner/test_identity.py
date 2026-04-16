@@ -1,5 +1,6 @@
 from agent.runner.identity import (
     get_agent_entity_id,
+    is_synthetic_coke_account_id,
     resolve_agent_user_context,
 )
 
@@ -105,3 +106,32 @@ def test_resolve_agent_user_context_uses_default_nickname_fallback():
         "nickname": "user-456789",
         "is_coke_account": True,
     }
+
+
+def test_resolve_agent_user_context_prefers_customer_metadata_for_ck_ids():
+    class FakeUserDAO:
+        def get_user_by_id(self, user_id):
+            raise AssertionError("DAO lookup should not happen for synthetic customer users")
+
+    user = resolve_agent_user_context(
+        user_id="ck_123",
+        input_message={
+            "platform": "business",
+            "metadata": {
+                "source": "clawscale",
+                "customer": {
+                    "id": "ck_123",
+                    "display_name": "Gateway Customer",
+                },
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert user == {
+        "id": "ck_123",
+        "_id": "ck_123",
+        "nickname": "Gateway Customer",
+        "is_coke_account": True,
+    }
+    assert is_synthetic_coke_account_id("ck_123") is True

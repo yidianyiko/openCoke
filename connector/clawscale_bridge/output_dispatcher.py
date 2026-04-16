@@ -3,6 +3,7 @@ import time
 
 from pymongo import ReturnDocument
 
+from connector.clawscale_bridge.customer_ids import resolve_customer_id
 from connector.clawscale_bridge.gateway_outbound_client import GatewayOutboundClient
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,14 @@ class ClawScaleOutputDispatcher:
 
     def _claimable_query(self, now: int):
         return {
-            "account_id": {"$exists": True},
+            "$and": [
+                {
+                    "$or": [
+                        {"customer_id": {"$exists": True}},
+                        {"account_id": {"$exists": True}},
+                    ]
+                }
+            ],
             "expect_output_timestamp": {"$lte": now},
             "metadata.business_conversation_key": {"$exists": True},
             "metadata.delivery_mode": "push",
@@ -83,9 +91,13 @@ class ClawScaleOutputDispatcher:
 
     def _build_gateway_args(self, message):
         metadata = message["metadata"]
+        customer_id = resolve_customer_id(
+            customer_id=message.get("customer_id"),
+            account_id=message.get("account_id"),
+        )
         return {
             "output_id": metadata["output_id"],
-            "account_id": message["account_id"],
+            "customer_id": customer_id,
             "business_conversation_key": metadata["business_conversation_key"],
             "text": message["message"],
             "message_type": message.get("message_type", "text"),

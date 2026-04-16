@@ -13,7 +13,7 @@ def is_synthetic_coke_account_id(value: str) -> bool:
     if not isinstance(value, str):
         return False
     normalized = value.strip()
-    return normalized.startswith("acct_")
+    return normalized.startswith(("acct_", "ck_"))
 
 
 def get_agent_entity_id(entity: dict | None) -> str:
@@ -61,12 +61,20 @@ def resolve_agent_user_context(user_id, input_message, user_dao):
     if metadata.get("source") != "clawscale":
         return None
 
+    customer = metadata.get("customer")
+    if not isinstance(customer, Mapping):
+        customer = {}
+
     coke_account = metadata.get("coke_account")
     if not isinstance(coke_account, Mapping):
         coke_account = {}
 
     account_id = (
-        coke_account.get("id")
+        customer.get("id")
+        or customer.get("_id")
+        or customer.get("customer_id")
+        or customer.get("coke_account_id")
+        or coke_account.get("id")
         or coke_account.get("_id")
         or coke_account.get("coke_account_id")
         or user_id_str
@@ -77,7 +85,11 @@ def resolve_agent_user_context(user_id, input_message, user_dao):
     if not account_id:
         return None
 
-    display_name = coke_account.get("display_name") or metadata.get("sender")
+    display_name = (
+        customer.get("display_name")
+        or coke_account.get("display_name")
+        or metadata.get("sender")
+    )
     display_name = str(display_name).strip() if display_name is not None else ""
     if not display_name:
         display_name = f"user-{account_id[-6:]}"

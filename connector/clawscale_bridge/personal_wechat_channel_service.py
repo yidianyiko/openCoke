@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from connector.clawscale_bridge.customer_ids import resolve_customer_id
+
 
 class PersonalWechatChannelService:
     def __init__(self, gateway_client):
@@ -21,25 +23,69 @@ class PersonalWechatChannelService:
                 normalized["connect_url"] = connect_url
         return normalized
 
-    def create_or_reuse_channel(self, account_id: str):
+    def create_or_reuse_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._normalize_state(
-            self.gateway_client.create_or_reuse_channel(account_id=account_id)
+            self.gateway_client.create_or_reuse_channel(
+                customer_id=normalized_customer_id
+            )
         )
 
-    def start_connect(self, account_id: str):
+    def start_connect(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._normalize_state(
-            self.gateway_client.connect_channel(account_id=account_id)
+            self.gateway_client.connect_channel(customer_id=normalized_customer_id)
         )
 
-    def get_status(self, account_id: str):
-        return self._normalize_state(self.gateway_client.get_status(account_id=account_id))
-
-    def disconnect_channel(self, account_id: str):
+    def get_status(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._normalize_state(
-            self.gateway_client.disconnect_channel(account_id=account_id)
+            self.gateway_client.get_status(customer_id=normalized_customer_id)
         )
 
-    def archive_channel(self, account_id: str):
+    def disconnect_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
         return self._normalize_state(
-            self.gateway_client.archive_channel(account_id=account_id)
+            self.gateway_client.disconnect_channel(customer_id=normalized_customer_id)
+        )
+
+    def archive_channel(
+        self,
+        customer_id: str | None = None,
+        account_id: str | None = None,
+    ):
+        normalized_customer_id = resolve_customer_id(
+            customer_id=customer_id,
+            account_id=account_id,
+        )
+        return self._normalize_state(
+            self.gateway_client.archive_channel(customer_id=normalized_customer_id)
         )
