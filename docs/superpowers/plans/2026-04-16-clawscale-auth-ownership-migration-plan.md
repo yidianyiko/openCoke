@@ -136,7 +136,6 @@ pnpm --dir gateway/packages/api test -- \
 **Files:**
 - Create: `gateway/packages/api/src/routes/customer-channel-routes.ts`
 - Create: `gateway/packages/api/src/routes/customer-channel-routes.test.ts`
-- Modify: `gateway/packages/api/src/routes/coke-wechat-routes.ts`
 - Modify: `gateway/packages/api/src/routes/user-wechat-channel.ts`
 - Modify: `gateway/packages/api/src/middleware/customer-auth.ts`
 
@@ -148,12 +147,12 @@ pnpm --dir gateway/packages/api test -- \
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
-  src/routes/customer-channel-routes.test.ts \
-  src/routes/coke-wechat-routes.test.ts
+  src/routes/customer-channel-routes.test.ts
 ```
 
 - [ ] Implement neutral handlers under a stable path such as `/api/customer/channels/wechat-personal/*`.
-- [ ] Convert `coke-wechat-routes.ts` into compatibility wrappers that call the neutral handlers and emit deprecation headers.
+- [ ] Keep existing `/api/coke/wechat-channel/*` semantics unchanged in this task; only extract or share logic needed to support the new neutral handlers.
+- [ ] Ensure the neutral route works during the compatibility window without changing the old Coke route contract.
 - [ ] Re-run the route tests.
 
 ## Task 4: Add wire-identifier compatibility and cutover controls
@@ -189,6 +188,7 @@ pytest tests/unit/ -k "identity or gateway"
 
 **Files:**
 - Modify: `gateway/packages/api/src/routes/coke-auth-routes.ts`
+- Modify: `gateway/packages/api/src/routes/coke-wechat-routes.ts`
 - Modify: `gateway/packages/api/src/routes/coke-user-provision.ts`
 - Modify: `gateway/packages/api/src/index.ts`
 
@@ -200,6 +200,7 @@ c.header('Deprecation', 'true');
 c.header('Link', '</api/auth/login>; rel=\"successor-version\"');
 ```
 
+- [ ] Convert `coke-wechat-routes.ts` into compatibility wrappers that call the neutral customer-channel handlers and emit matching deprecation headers.
 - [ ] Run the package verification:
 
 ```bash
