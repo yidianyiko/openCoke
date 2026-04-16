@@ -258,7 +258,7 @@ def test_message_acquirer_mints_and_persists_business_key_for_first_turn(
     ]
 
 
-def test_message_acquirer_keeps_follow_up_virtual_identity_stable_when_business_key_appears(
+def test_message_acquirer_reuses_existing_gateway_thread_when_business_key_appears(
     monkeypatch,
 ):
     from agent.runner import message_processor as mp
@@ -281,6 +281,7 @@ def test_message_acquirer_keeps_follow_up_virtual_identity_stable_when_business_
         find_characters=lambda query: [],
     )
     fake_conversation_dao = types.SimpleNamespace(
+        get_private_conversation=lambda platform, user_id1, user_id2: None,
         get_or_create_private_conversation=lambda **kwargs: ("conv_virtual", True),
         get_conversation_by_id=lambda conversation_id: {
             "_id": conversation_id,
@@ -304,15 +305,25 @@ def test_message_acquirer_keeps_follow_up_virtual_identity_stable_when_business_
         lambda from_user, to_user, platform, status=None: [{"_id": "msg_1"}],
     )
 
-    captured = {}
+    lookup_calls = []
 
-    def fake_get_or_create_private_conversation(**kwargs):
-        captured.update(kwargs)
-        return "conv_virtual", True
+    def fake_get_private_conversation(platform, user_id1, user_id2):
+        lookup_calls.append((platform, user_id1, user_id2))
+        if user_id1 == "clawscale:gw_conv_1":
+            return {"_id": "conv_existing", "conversation_info": {}}
+        return None
 
+    def unexpected_get_or_create_private_conversation(**kwargs):
+        raise AssertionError("should reuse the existing compatibility conversation")
+
+    fake_conversation_dao.get_private_conversation = fake_get_private_conversation
     fake_conversation_dao.get_or_create_private_conversation = (
-        fake_get_or_create_private_conversation
+        unexpected_get_or_create_private_conversation
     )
+    fake_conversation_dao.get_conversation_by_id = lambda conversation_id: {
+        "_id": conversation_id,
+        "conversation_info": {},
+    }
 
     acquirer = mp.MessageAcquirer("[W1]")
     top_message = {
@@ -337,9 +348,19 @@ def test_message_acquirer_keeps_follow_up_virtual_identity_stable_when_business_
     ctx = acquirer._try_acquire_message(top_message, set())
 
     assert ctx is not None
-    assert captured["user_id1"] == "clawscale:bc_conv_1"
-    assert captured["nickname1"] == "ydyk"
-    assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
+    assert ctx.conversation_id == "conv_existing"
+    assert lookup_calls == [
+        (
+            "wechat",
+            "clawscale:bc_conv_1",
+            "clawscale-character:65f000000000000000000002",
+        ),
+        (
+            "wechat",
+            "clawscale:gw_conv_1",
+            "clawscale-character:65f000000000000000000002",
+        ),
+    ]
     assert top_message.get("status") == "pending"
 
 

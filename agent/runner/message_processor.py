@@ -235,18 +235,29 @@ class MessageAcquirer:
                 ],
             )
         else:
-            # 私聊消息：使用私聊会话
-            conversation_id, _ = (
-                self.conversation_dao.get_or_create_private_conversation(
+            existing_private_conversation_id = (
+                self._find_compatible_clawscale_request_response_private_conversation(
                     platform=platform,
-                    user_id1=user_platform_profile["id"],
-                    nickname1=user_platform_profile["nickname"],
-                    user_id2=character_platform_profile["id"],
-                    nickname2=character_platform_profile["nickname"],
-                    db_user_id1=user_id,
-                    db_user_id2=character_id,
+                    user_platform_profile=user_platform_profile,
+                    character_platform_profile=character_platform_profile,
+                    top_message=top_message,
                 )
             )
+            if existing_private_conversation_id:
+                conversation_id = existing_private_conversation_id
+            else:
+                # 私聊消息：使用私聊会话
+                conversation_id, _ = (
+                    self.conversation_dao.get_or_create_private_conversation(
+                        platform=platform,
+                        user_id1=user_platform_profile["id"],
+                        nickname1=user_platform_profile["nickname"],
+                        user_id2=character_platform_profile["id"],
+                        nickname2=character_platform_profile["nickname"],
+                        db_user_id1=user_id,
+                        db_user_id2=character_id,
+                    )
+                )
 
         # 跳过已锁定的会话
         if conversation_id in locked_conversation_ids:
@@ -353,6 +364,55 @@ class MessageAcquirer:
         }
 
         return user_platform_profile, character_platform_profile
+
+    def _find_compatible_clawscale_request_response_private_conversation(
+        self,
+        *,
+        platform: str,
+        user_platform_profile: Dict,
+        character_platform_profile: Dict,
+        top_message: Dict,
+    ) -> Optional[str]:
+        metadata = top_message.get("metadata") or {}
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+        delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+            "delivery_mode"
+        )
+        if (
+            metadata.get("source") != "clawscale"
+            or delivery_mode != "request_response"
+        ):
+            return None
+
+        get_private_conversation = getattr(
+            self.conversation_dao, "get_private_conversation", None
+        )
+        if not callable(get_private_conversation):
+            return None
+
+        candidate_user_ids = []
+        business_conversation_key = business_protocol.get("business_conversation_key")
+        gateway_conversation_id = business_protocol.get("gateway_conversation_id")
+
+        if business_conversation_key:
+            candidate_user_ids.append(f"clawscale:{business_conversation_key}")
+        if gateway_conversation_id:
+            gateway_user_id = f"clawscale:{gateway_conversation_id}"
+            if gateway_user_id not in candidate_user_ids:
+                candidate_user_ids.append(gateway_user_id)
+
+        for candidate_user_id in candidate_user_ids:
+            conversation = get_private_conversation(
+                platform,
+                candidate_user_id,
+                character_platform_profile["id"],
+            )
+            if conversation:
+                return str(conversation["_id"])
+
+        return None
 
     def _build_clawscale_virtual_user_platform(
         self, user: Dict, top_message: Dict, platform: str

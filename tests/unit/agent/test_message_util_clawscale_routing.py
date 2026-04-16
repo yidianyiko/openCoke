@@ -319,19 +319,11 @@ def test_build_clawscale_push_metadata_does_not_fallback_to_legacy_route_ids(
     assert uuid_calls == []
 
 
-def test_build_clawscale_push_metadata_falls_back_to_gateway_id_when_business_key_missing(
+def test_build_clawscale_push_metadata_does_not_treat_gateway_id_as_business_key(
     sample_context, monkeypatch
 ):
     from agent.util import message_util
 
-    uuids = iter(
-        [
-            SimpleNamespace(hex="out_1"),
-            SimpleNamespace(hex="idem_1"),
-            SimpleNamespace(hex="trace_1"),
-        ]
-    )
-    monkeypatch.setattr(message_util.uuid, "uuid4", lambda: next(uuids))
     sample_context["conversation"].pop("business_conversation_key", None)
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
         {
@@ -344,6 +336,12 @@ def test_build_clawscale_push_metadata_falls_back_to_gateway_id_when_business_ke
             }
         }
     ]
+    uuid_calls = []
+    monkeypatch.setattr(
+        message_util.uuid,
+        "uuid4",
+        lambda: uuid_calls.append("called") or SimpleNamespace(hex="unused"),
+    )
 
     metadata = message_util.build_clawscale_push_metadata(
         str(sample_context["user"]["_id"]),
@@ -351,13 +349,8 @@ def test_build_clawscale_push_metadata_falls_back_to_gateway_id_when_business_ke
         context=sample_context,
     )
 
-    assert metadata == {
-        "business_conversation_key": "gw_conv_fallback_1",
-        "output_id": "out_1",
-        "delivery_mode": "push",
-        "idempotency_key": "idem_1",
-        "trace_id": "trace_1",
-    }
+    assert metadata == {}
+    assert uuid_calls == []
 
 
 def test_build_clawscale_push_metadata_does_not_inherit_historical_causal_event_id(
