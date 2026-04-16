@@ -198,8 +198,7 @@ pytest tests/unit/ -k "identity or gateway"
 **Files:**
 - Modify: `gateway/packages/api/src/routes/coke-auth-routes.ts`
 - Modify: `gateway/packages/api/src/routes/coke-wechat-routes.ts`
-- Modify: `gateway/packages/api/src/routes/coke-user-provision.ts`
-- Modify: `gateway/packages/api/src/index.ts`
+- Modify: `gateway/packages/api/src/index.ts` (only if wrapper mounting needs adjustment)
 
 - [ ] Keep `/api/coke/register`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password`, and `/wechat-channel/*` as wrappers until plan 4 updates the web frontend.
 - [ ] Add response headers such as:
