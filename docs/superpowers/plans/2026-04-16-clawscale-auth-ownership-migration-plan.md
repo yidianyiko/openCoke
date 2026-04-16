@@ -139,21 +139,21 @@ pnpm --dir gateway/packages/api test -- \
 - Modify: `gateway/packages/api/src/routes/user-wechat-channel.ts`
 - Modify: `gateway/packages/api/src/middleware/customer-auth.ts`
 
-- [ ] Write failing route tests for:
+- [x] Write failing route tests for:
   - GET channel status by authenticated `customer_id`
   - connect / disconnect / archive by authenticated `customer_id`
   - denial when `claim_status != active`
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
   src/routes/customer-channel-routes.test.ts
 ```
 
-- [ ] Implement neutral handlers under a stable path such as `/api/customer/channels/wechat-personal/*`.
-- [ ] Keep existing `/api/coke/wechat-channel/*` semantics unchanged in this task; only extract or share logic needed to support the new neutral handlers.
-- [ ] Ensure the neutral route works during the compatibility window without changing the old Coke route contract.
-- [ ] Re-run the route tests.
+- [x] Implement neutral handlers under a stable path such as `/api/customer/channels/wechat-personal/*`.
+- [x] Keep existing `/api/coke/wechat-channel/*` semantics unchanged in this task; only extract or share logic needed to support the new neutral handlers.
+- [x] Ensure the neutral route works during the compatibility window without changing the old Coke route contract.
+- [x] Re-run the route tests.
 
 ## Task 4: Add wire-identifier compatibility and cutover controls
 
