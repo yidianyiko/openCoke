@@ -304,3 +304,16 @@ pytest tests/unit/connector/clawscale_bridge/test_bridge_app.py \
 ```
 
 - [ ] Document any route tombstones and any deferred `AiBackend` / `EndUserBackend` survivor status that remains until the backend-routing replacement plan lands.
+
+## Implementation Notes
+
+- `/api/conversations`, `/api/ai-backends`, and `/api/workflows` now return the stable tombstone payload `{ "ok": false, "error": "moved_to_agent_storage" }` with HTTP `410`.
+- `gateway/packages/web/app/dashboard/conversations/page.tsx`, `gateway/packages/web/app/dashboard/ai-backends/page.tsx`, and `gateway/packages/web/app/dashboard/workflows/page.tsx` now render explicit deprecation screens instead of calling the retired dashboard APIs.
+- `Workflow` is the only stranded Prisma model physically retired by this plan. The safe-retirement migration also drops `Conversation.backendId`, which was a history-only column no longer needed after the route-binding cutover.
+- `Conversation`, `Message`, `AiBackend`, and `EndUserBackend` remain compatibility survivors for now:
+  - `Conversation`: retained as the route-binding minimum while gateway conversation ids still participate in cutover compatibility.
+  - `Message`: retained because `route-message.ts` / `loadHistory()` still read gateway transcript history.
+  - `AiBackend`: retained because bridge delivery, backend attribution, tenant stats, and Coke bootstrap still read the gateway backend registry.
+  - `EndUserBackend`: retained because active per-end-user backend selection still lives in gateway storage.
+- `verify-stranded-model-retirement.ts` treats those survivor models as deferred rather than failed retirement work. It reports both the survivor reasons and live row counts, and it now fails active-route verification if an active `DeliveryRoute` no longer resolves its `Channel`, `EndUser`, `ClawscaleUser`, `coke_account_id`, or `business_conversation_key`.
+- The branch now carries `20260416000000_legacy_schema_baseline` so `prisma migrate reset` works on an empty database before applying the platformization and stranded-retirement migrations.
