@@ -200,16 +200,16 @@ pytest tests/unit/ -k "identity or gateway"
 - Modify: `gateway/packages/api/src/routes/coke-wechat-routes.ts`
 - Modify: `gateway/packages/api/src/index.ts` (only if wrapper mounting needs adjustment)
 
-- [ ] Keep `/api/coke/register`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password`, and `/wechat-channel/*` as wrappers until plan 4 updates the web frontend.
-- [ ] Add response headers such as:
+- [x] Keep `/api/coke/register`, `/login`, `/verify-email`, `/forgot-password`, `/reset-password`, and `/wechat-channel/*` as wrappers until plan 4 updates the web frontend.
+- [x] Add response headers such as:
 
 ```ts
 c.header('Deprecation', 'true');
 c.header('Link', '</api/auth/login>; rel=\"successor-version\"');
 ```
 
-- [ ] Convert `coke-wechat-routes.ts` into compatibility wrappers that call the neutral customer-channel handlers and emit matching deprecation headers.
-- [ ] Run the package verification:
+- [x] Convert `coke-wechat-routes.ts` into compatibility wrappers that call the neutral customer-channel handlers and emit matching deprecation headers.
+- [x] Run the package verification:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -221,4 +221,5 @@ pnpm --dir gateway/packages/api test -- \
 pnpm --dir gateway/packages/api build
 ```
 
-- [ ] Record the remaining alias routes that plan 4 must remove.
+- [x] Record the remaining alias routes that plan 4 must remove.
+  Remaining frontend-owned aliases for plan 4 removal: `/api/coke/register`, `/login`, `/verify-email`, `/verify-email/resend`, `/forgot-password`, `/reset-password`, `/me`, and `/wechat-channel/*`.
