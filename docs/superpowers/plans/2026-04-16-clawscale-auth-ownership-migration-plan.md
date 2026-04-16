@@ -125,11 +125,11 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/api/src/lib/customer-email.ts`
 - Modify: `gateway/packages/api/src/routes/customer-auth-routes.ts`
 
-- [ ] Add failing tests that prove the neutral auth routes send verification and reset emails without any Coke-specific copy or route names.
-- [ ] Run: `pnpm --dir gateway/packages/api test -- src/lib/email.test.ts src/routes/customer-auth-routes.test.ts`
-- [ ] Move the old Resend and one-click-verification logic into generic helpers so links target `/auth/verify-email` and `/auth/reset-password`.
-- [ ] Keep the existing registration edge-case behavior: auth succeeds even if email delivery fails, but the failure is logged.
-- [ ] Re-run the focused tests.
+- [x] Add failing tests that prove the neutral auth routes send verification and reset emails without any Coke-specific copy or route names.
+- [x] Run: `pnpm --dir gateway/packages/api test -- src/lib/email.test.ts src/routes/customer-auth-routes.test.ts`
+- [x] Move the old Resend and one-click-verification logic into generic helpers so links target `/auth/verify-email` and `/auth/reset-password`.
+- [x] Keep the existing registration edge-case behavior: auth succeeds even if email delivery fails, but the failure is logged.
+- [x] Re-run the focused tests.
 
 ## Task 3: Move self-service personal-channel APIs to neutral routes
 
