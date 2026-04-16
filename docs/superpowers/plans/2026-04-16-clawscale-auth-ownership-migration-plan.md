@@ -159,9 +159,16 @@ pnpm --dir gateway/packages/api test -- \
 
 **Files:**
 - Modify: `connector/clawscale_bridge/app.py`
+- Modify: `connector/clawscale_bridge/gateway_personal_channel_client.py`
+- Modify: `connector/clawscale_bridge/gateway_outbound_client.py`
 - Modify: `connector/clawscale_bridge/message_gateway.py`
 - Modify: `connector/clawscale_bridge/gateway_identity_client.py`
+- Modify: `connector/clawscale_bridge/output_dispatcher.py`
+- Modify: `connector/clawscale_bridge/personal_wechat_channel_service.py`
 - Modify: `agent/runner/identity.py`
+- Modify: `gateway/packages/api/src/routes/coke-bindings.ts`
+- Modify: `gateway/packages/api/src/routes/outbound.ts`
+- Modify: `gateway/packages/api/src/routes/user-wechat-channel.ts`
 - Create: `gateway/packages/api/src/scripts/audit-wire-identifier-compat.ts`
 
 - [ ] Add failing bridge / agent tests proving both payload forms work during the compatibility window:
