@@ -220,6 +220,71 @@ def test_bridge_inbound_rejects_untrusted_payload_without_bind_flow(monkeypatch)
     }
 
 
+@pytest.mark.parametrize(
+    ("payload", "expected_account_id"),
+    [
+        (
+            {
+                "tenant_id": "ten_1",
+                "channel_id": "ch_1",
+                "platform": "wechat_personal",
+                "external_id": "wxid_123",
+                "end_user_id": "eu_1",
+                "input": "你好",
+                "channel_scope": "personal",
+                "clawscale_user_id": "csu_1",
+                "customer_id": "acct_customer_snake",
+            },
+            "acct_customer_snake",
+        ),
+        (
+            {
+                "messages": [{"role": "user", "content": "你好"}],
+                "metadata": {
+                    "tenantId": "ten_1",
+                    "channelId": "ch_1",
+                    "platform": "wechat_personal",
+                    "externalId": "wxid_123",
+                    "endUserId": "eu_1",
+                    "channelScope": "personal",
+                    "clawscaleUserId": "csu_1",
+                    "customerId": "acct_customer_camel",
+                },
+            },
+            "acct_customer_camel",
+        ),
+    ],
+)
+def test_bridge_inbound_accepts_customer_id_aliases_for_existing_account_gate(
+    monkeypatch, payload, expected_account_id
+):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_customer_1"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.return_value = {"reply": "ok"}
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "reply": "ok"}
+    assert message_gateway.enqueue.call_args.kwargs["account_id"] == expected_account_id
+    assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_customer_1",)
+
+
 def test_bridge_inbound_returns_renewal_reply_when_subscription_is_required(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app

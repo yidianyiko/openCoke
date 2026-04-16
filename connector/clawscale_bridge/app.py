@@ -77,6 +77,12 @@ class BusinessOnlyBridgeGateway:
             return value
         return inbound_payload.get(legacy_key)
 
+    def _first_present(self, *values):
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
         metadata = inbound_payload.get("metadata") or {}
         messages = inbound_payload.get("messages") or []
@@ -105,8 +111,14 @@ class BusinessOnlyBridgeGateway:
             or metadata.get("channelScope"),
             "clawscale_user_id": inbound_payload.get("clawscale_user_id")
             or metadata.get("clawscaleUserId"),
-            "coke_account_id": inbound_payload.get("coke_account_id")
-            or metadata.get("cokeAccountId"),
+            "coke_account_id": self._first_present(
+                inbound_payload.get("coke_account_id"),
+                inbound_payload.get("customer_id"),
+                inbound_payload.get("customerId"),
+                metadata.get("cokeAccountId"),
+                metadata.get("customerId"),
+                metadata.get("customer_id"),
+            ),
             "coke_account_display_name": self._metadata_value(
                 inbound_payload,
                 metadata,

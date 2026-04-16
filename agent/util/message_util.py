@@ -436,15 +436,29 @@ def _extract_clawscale_conversation_id_from_messages(messages) -> str | None:
     if not isinstance(messages, list):
         return None
 
+    gateway_conversation_id = None
     for message in reversed(messages):
         if not isinstance(message, dict):
             continue
         metadata = message.get("metadata", {})
         if not isinstance(metadata, dict):
             continue
+        business_protocol = metadata.get("business_protocol", {})
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
         business_conversation_key = metadata.get("business_conversation_key")
+        if business_conversation_key is None:
+            business_conversation_key = business_protocol.get(
+                "business_conversation_key"
+            )
         if business_conversation_key is not None:
             return str(business_conversation_key)
+        if gateway_conversation_id is None:
+            gateway_conversation_id = metadata.get("gateway_conversation_id")
+        if gateway_conversation_id is None:
+            gateway_conversation_id = business_protocol.get("gateway_conversation_id")
+    if gateway_conversation_id is not None:
+        return str(gateway_conversation_id)
     return None
 
 

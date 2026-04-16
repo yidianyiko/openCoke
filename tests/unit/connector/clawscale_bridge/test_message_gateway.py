@@ -84,6 +84,33 @@ def test_message_gateway_enqueue_respects_inbound_event_id_without_minting():
     assert "business_conversation_key" not in inserted["metadata"]["business_protocol"]
 
 
+def test_message_gateway_builds_business_protocol_with_optional_gateway_metadata():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="你好",
+        causal_inbound_event_id="in_evt_2",
+        inbound={
+            "timestamp": 1710000000,
+            "business_conversation_key": "conv_key_2",
+        },
+    )
+
+    assert list(doc["metadata"]["business_protocol"]) == [
+        "delivery_mode",
+        "causal_inbound_event_id",
+        "business_conversation_key",
+    ]
+    assert doc["metadata"]["business_protocol"] == {
+        "delivery_mode": "request_response",
+        "causal_inbound_event_id": "in_evt_2",
+        "business_conversation_key": "conv_key_2",
+    }
+
+
 def test_message_gateway_enqueue_deduplicates_same_inbound_event_id():
     from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 

@@ -337,7 +337,7 @@ def test_message_acquirer_keeps_follow_up_virtual_identity_stable_when_business_
     ctx = acquirer._try_acquire_message(top_message, set())
 
     assert ctx is not None
-    assert captured["user_id1"] == "clawscale:gw_conv_1"
+    assert captured["user_id1"] == "clawscale:bc_conv_1"
     assert captured["nickname1"] == "ydyk"
     assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
     assert top_message.get("status") == "pending"

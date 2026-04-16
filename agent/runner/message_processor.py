@@ -370,13 +370,11 @@ class MessageAcquirer:
         ):
             return None
 
-        # Keep the virtual user identity stable across request_response turns.
-        # The gateway conversation id is present on the first turn and on follow-ups,
-        # while business_conversation_key may only appear after the first sync reply
-        # has been processed and persisted.
+        # Prefer the durable business key once it exists, but preserve the
+        # gateway conversation id as establishment-time fallback metadata.
         stable_id = (
-            business_protocol.get("gateway_conversation_id")
-            or business_protocol.get("business_conversation_key")
+            business_protocol.get("business_conversation_key")
+            or business_protocol.get("gateway_conversation_id")
             or business_protocol.get("causal_inbound_event_id")
         )
         if not stable_id:
