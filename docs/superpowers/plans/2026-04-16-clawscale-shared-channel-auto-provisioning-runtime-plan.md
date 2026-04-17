@@ -142,11 +142,11 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/api/src/scripts/verify-shared-channel-runtime.ts`
 - Modify: `gateway/packages/api/src/routes/outbound.ts`
 
-- [ ] Add tests proving:
+- [x] Add tests proving:
   - parked inbounds drain only after `AgentBinding.provision_status = ready`
   - terminal provisioning errors remain visible
   - outbound replies for shared-channel customers use the shared `channel_id`
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -154,8 +154,8 @@ pnpm --dir gateway/packages/api test -- \
   src/lib/shared-channel-provisioning.test.ts
 ```
 
-- [ ] Implement the replay / verify scripts and wire shared outbound routing through the existing delivery pipeline.
-- [ ] Re-run the focused tests and record any delivery-path assumptions inherited from the 2026-04-08 spec.
+- [x] Implement the replay / verify scripts and wire shared outbound routing through the existing delivery pipeline.
+- [x] Re-run the focused tests and record any delivery-path assumptions inherited from the 2026-04-08 spec.
 
 ## Task 4: Implement `/auth/claim` and claim-token lifecycle
 
