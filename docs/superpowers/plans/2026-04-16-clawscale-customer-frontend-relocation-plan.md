@@ -144,19 +144,25 @@ pnpm --dir gateway/packages/web test -- \
 - Modify: `gateway/packages/web/app/(coke-user)/coke/layout.tsx`
 - Modify: `gateway/packages/web/app/(customer)/auth/layout.tsx`
 
-- [ ] Move generic labels from Coke-specific copy buckets to neutral customer copy buckets.
-- [ ] Update all internal links and buttons so they point at:
+- [x] Move generic labels from Coke-specific copy buckets to neutral customer copy buckets.
+- [x] Update all internal links and buttons so they point at:
   - `/auth/login`
   - `/auth/register`
   - `/auth/forgot-password`
   - `/auth/reset-password`
   - `/auth/verify-email`
   - `/channels/wechat-personal`
-- [ ] Keep explicit redirects from the old routes until no internal caller remains.
-- [ ] Run:
+- [x] Keep explicit redirects from the old routes until no internal caller remains.
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test
 ```
 
-- [ ] Record any remaining `/coke/*` generic links that plan 6 must delete outright.
+- [x] Record any remaining `/coke/*` generic links that plan 6 must delete outright.
+  - `gateway/packages/web/app/(coke-user)/coke/login/page.tsx`
+  - `gateway/packages/web/app/(coke-user)/coke/register/page.tsx`
+  - `gateway/packages/web/app/(coke-user)/coke/forgot-password/page.tsx`
+  - `gateway/packages/web/app/(coke-user)/coke/reset-password/page.tsx`
+  - `gateway/packages/web/app/(coke-user)/coke/verify-email/page.tsx`
+  - `gateway/packages/web/app/(coke-user)/coke/bind-wechat/page.tsx`
