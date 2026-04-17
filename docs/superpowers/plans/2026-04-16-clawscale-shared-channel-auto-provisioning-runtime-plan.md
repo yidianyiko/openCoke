@@ -118,12 +118,12 @@ normalizeExternalIdentity({
 - Modify: `gateway/packages/api/src/lib/route-message.ts`
 - Modify: provider adapters under `gateway/packages/api/src/adapters/*.ts`
 
-- [ ] Write failing tests that cover:
+- [x] Write failing tests that cover:
   - lookup hit => route existing customer
   - lookup miss => create `Identity`, `Customer`, `Membership`, `AgentBinding`, `ExternalIdentity`
   - concurrent first inbound => one customer only
   - first inbound is parked when provisioning fails
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -131,9 +131,9 @@ pnpm --dir gateway/packages/api test -- \
   src/lib/route-message.test.ts
 ```
 
-- [ ] Implement the single-transaction create path and explicit upsert-then-read retry behavior required by the spec.
-- [ ] Update `route-message.ts` so shared channels enter this path before the old personal-channel logic.
-- [ ] Re-run the focused tests.
+- [x] Implement the single-transaction create path and explicit upsert-then-read retry behavior required by the spec.
+- [x] Update `route-message.ts` so shared channels enter this path before the old personal-channel logic.
+- [x] Re-run the focused tests.
 
 ## Task 3: Add reconciler, drain, and outbound shared-channel delivery
 
