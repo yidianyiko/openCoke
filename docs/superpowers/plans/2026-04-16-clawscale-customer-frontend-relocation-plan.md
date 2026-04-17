@@ -124,18 +124,18 @@ pnpm --dir gateway/packages/web test -- \
 - Modify: `gateway/packages/web/app/(coke-user)/coke/bind-wechat/page.tsx`
 - Modify: `gateway/packages/web/app/(coke-user)/coke/bind-wechat/page.test.tsx`
 
-- [ ] Add failing tests that assert the personal-channel page now lives at `/channels/wechat-personal`.
-- [ ] Run:
+- [x] Add failing tests that assert the personal-channel page now lives at `/channels/wechat-personal`.
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test -- \
   "app/(coke-user)/coke/bind-wechat/page.test.tsx"
 ```
 
-- [ ] Move the implementation into the neutral channels route group.
-- [ ] Keep `/coke/bind-wechat` as a redirect until all entry points move.
-- [ ] Add a lightweight `/channels` page that links to the supported channel surfaces for Phase 1.
-- [ ] Re-run the channel page tests.
+- [x] Move the implementation into the neutral channels route group.
+- [x] Keep `/coke/bind-wechat` as a redirect until all entry points move.
+- [x] Add a lightweight `/channels` page that links to the supported channel surfaces for Phase 1.
+- [x] Re-run the channel page tests.
 
 ## Task 4: Update copy, navigation, and redirect compatibility
 
