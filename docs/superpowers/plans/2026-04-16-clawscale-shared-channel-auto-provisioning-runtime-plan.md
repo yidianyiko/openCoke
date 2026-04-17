@@ -210,7 +210,7 @@ pnpm --dir gateway/packages/web test -- "app/(admin)/admin/customers/page.test.t
 **Files:**
 - No new source files expected
 
-- [ ] Run the full Phase 1.5 verification:
+- [x] Run the full Phase 1.5 verification:
 
 ```bash
 pnpm --dir gateway/packages/api exec prisma migrate reset --force
@@ -225,4 +225,21 @@ pytest tests/unit/ -k "gateway or identity"
   - provisioning failure parks the inbound and later drains it
   - claim link upgrades the customer to `active`
   - outbound replies continue through the shared channel
-- [ ] Record any remaining Phase 1.5 exclusions explicitly in the closeout note.
+- [x] Record any remaining Phase 1.5 exclusions explicitly in the closeout note.
+
+### Closeout Note
+
+- Automated verification completed on 2026-04-18 against a temporary local PostgreSQL instance at `postgresql://clawscale:clawscale@localhost:55432/clawscale` after adding the missing `20260418010000_parked_inbound_runtime_support` migration.
+- Completed commands:
+  - `DATABASE_URL=postgresql://clawscale:clawscale@localhost:55432/clawscale pnpm --dir gateway/packages/api exec prisma migrate reset --force`
+  - `DATABASE_URL=postgresql://clawscale:clawscale@localhost:55432/clawscale pnpm --dir gateway/packages/api test`
+  - `DATABASE_URL=postgresql://clawscale:clawscale@localhost:55432/clawscale pnpm --dir gateway/packages/api exec tsx src/scripts/verify-shared-channel-runtime.ts`
+  - `pnpm --dir gateway/packages/web test`
+  - `pytest tests/unit/ -k "gateway or identity"`
+- Remaining Phase 1.5 exclusions in this session:
+  - Manual disposable-environment verification is still pending because this worktree session does not have a disposable end-to-end stack wired to real shared-channel providers, live inbound traffic, email delivery, or outbound transport.
+  - The unverified manual flows are:
+    - first inbound on shared channel creates an `unclaimed` customer
+    - provisioning failure parks the inbound and later drains it
+    - claim link upgrades the customer to `active`
+    - outbound replies continue through the shared channel
