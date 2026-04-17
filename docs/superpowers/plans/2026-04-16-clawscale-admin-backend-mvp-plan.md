@@ -75,11 +75,11 @@ This plan does **not** cover:
 - Create: `gateway/packages/api/src/scripts/bootstrap-admin-account.ts`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] Write failing tests for:
+- [x] Write failing tests for:
   - admin login succeeds only with `AdminAccount`
   - admin session is independent of customer auth
   - inactive admins cannot log in
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -87,9 +87,9 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/admin-auth-routes.test.ts
 ```
 
-- [ ] Implement admin auth plus a bootstrap script that creates the first admin account from env vars.
-- [ ] Mount `/api/admin/login`, `/logout`, and `/session`.
-- [ ] Re-run the focused admin-auth suite.
+- [x] Implement admin auth plus a bootstrap script that creates the first admin account from env vars.
+- [x] Mount `/api/admin/login`, `/logout`, and `/session`.
+- [x] Re-run the focused admin-auth suite.
 
 ## Task 2: Build read-only admin APIs
 
