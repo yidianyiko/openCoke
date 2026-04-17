@@ -98,12 +98,12 @@ pnpm --dir gateway/packages/web test -- \
 - Modify: `gateway/packages/web/app/(coke-user)/coke/reset-password/page.tsx`
 - Modify: `gateway/packages/web/app/(coke-user)/coke/verify-email/page.tsx`
 
-- [ ] Write failing page tests that assert:
+- [x] Write failing page tests that assert:
   - login renders at `/auth/login`
   - register renders at `/auth/register`
   - verify-email success redirects no longer point at `/coke/*`
   - `/coke/login` and `/coke/register` issue redirects
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test -- \
@@ -112,9 +112,9 @@ pnpm --dir gateway/packages/web test -- \
   "app/(coke-user)/coke/verify-email/page.test.tsx"
 ```
 
-- [ ] Move the page implementations into `(customer)/auth/*`, keeping the old files as thin `redirect()` wrappers.
-- [ ] Reserve `/auth/claim` with a stable placeholder page so plan 7 has a landing point.
-- [ ] Re-run the focused auth page suite.
+- [x] Move the page implementations into `(customer)/auth/*`, keeping the old files as thin `redirect()` wrappers.
+- [x] Reserve `/auth/claim` with a stable placeholder page so plan 7 has a landing point.
+- [x] Re-run the focused auth page suite.
 
 ## Task 3: Relocate channel management into `(customer)/channels/*`
 
