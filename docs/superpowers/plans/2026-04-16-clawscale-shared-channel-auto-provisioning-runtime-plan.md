@@ -85,11 +85,11 @@ This plan does **not** cover:
 - Create: `gateway/packages/api/src/lib/parked-inbound.test.ts`
 - Modify: `gateway/packages/api/prisma/schema.prisma`
 
-- [ ] Write failing tests for:
+- [x] Write failing tests for:
   - provider-specific identity normalization
   - uniqueness of `(provider, identity_type, identity_value)`
   - queueing and draining `ParkedInbound` rows in arrival order
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -97,8 +97,8 @@ pnpm --dir gateway/packages/api test -- \
   src/lib/parked-inbound.test.ts
 ```
 
-- [ ] Add the `ParkedInbound` model and the indexes required by the spec.
-- [ ] Implement the normalization helper so all adapters can call one interface:
+- [x] Add the `ParkedInbound` model and the indexes required by the spec.
+- [x] Implement the normalization helper so all adapters can call one interface:
 
 ```ts
 normalizeExternalIdentity({
@@ -108,7 +108,7 @@ normalizeExternalIdentity({
 });
 ```
 
-- [ ] Re-run the focused tests.
+- [x] Re-run the focused tests.
 
 ## Task 2: Implement first-inbound auto-provisioning and concurrency control
 
