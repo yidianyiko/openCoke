@@ -159,7 +159,7 @@ pnpm --dir gateway/packages/web test -- \
 - Modify: `gateway/packages/web/app/dashboard/*` only where needed to point users at `/admin/*`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] Run the full admin verification:
+- [x] Run the full admin verification:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -174,4 +174,15 @@ pnpm --dir gateway/packages/api build
 pnpm --dir gateway/packages/web build
 ```
 
-- [ ] Record the remaining `/dashboard/*` entry points that plan 6 must remove.
+- [x] Record the remaining `/dashboard/*` entry points that plan 6 must remove.
+  - `/dashboard`
+  - `/dashboard/login`
+  - `/dashboard/register`
+  - `/dashboard/onboard` (still needs an explicit successor mapping in plan 6)
+  - `/dashboard/conversations`
+  - `/dashboard/channels`
+  - `/dashboard/ai-backends`
+  - `/dashboard/workflows`
+  - `/dashboard/end-users`
+  - `/dashboard/users`
+  - `/dashboard/settings`
