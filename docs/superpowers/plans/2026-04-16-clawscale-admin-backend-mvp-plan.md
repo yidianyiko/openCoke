@@ -75,11 +75,11 @@ This plan does **not** cover:
 - Create: `gateway/packages/api/src/scripts/bootstrap-admin-account.ts`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] Write failing tests for:
+- [x] Write failing tests for:
   - admin login succeeds only with `AdminAccount`
   - admin session is independent of customer auth
   - inactive admins cannot log in
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -87,9 +87,9 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/admin-auth-routes.test.ts
 ```
 
-- [ ] Implement admin auth plus a bootstrap script that creates the first admin account from env vars.
-- [ ] Mount `/api/admin/login`, `/logout`, and `/session`.
-- [ ] Re-run the focused admin-auth suite.
+- [x] Implement admin auth plus a bootstrap script that creates the first admin account from env vars.
+- [x] Mount `/api/admin/login`, `/logout`, and `/session`.
+- [x] Re-run the focused admin-auth suite.
 
 ## Task 2: Build read-only admin APIs
 
@@ -101,13 +101,13 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/api/src/routes/admin-admins.ts`
 - Create: the matching `*.test.ts` files
 
-- [ ] Add failing route tests that assert:
+- [x] Add failing route tests that assert:
   - `/api/admin/customers` returns contact identifier, claim status, registered-at / first-seen-at, agent, and channel summary
   - `/api/admin/channels` filters by status and kind
   - `/api/admin/deliveries` returns recent failed `OutboundDelivery` rows only
   - `/api/admin/agents` returns the single Coke agent detail
   - `/api/admin/admins` supports add/remove for `AdminAccount`
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -118,8 +118,8 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/admin-admins.test.ts
 ```
 
-- [ ] Implement the APIs with paging and filters where the spec requires them.
-- [ ] Re-run the focused admin route suite.
+- [x] Implement the APIs with paging and filters where the spec requires them.
+- [x] Re-run the focused admin route suite.
 
 ## Task 3: Build the `/admin/*` web shell and pages
 
@@ -135,13 +135,13 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/web/lib/admin-auth.ts`
 - Create: `gateway/packages/web/lib/admin-copy.ts`
 
-- [ ] Write failing page tests for:
+- [x] Write failing page tests for:
   - unauthenticated admins redirect to `/admin/login`
   - customers page renders the required columns
   - channels and deliveries pages render filters and paging
   - agents page is read-only
   - admins page can add/remove accounts
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test -- \
@@ -149,9 +149,9 @@ pnpm --dir gateway/packages/web test -- \
   "app/(admin)/admin/customers/page.test.tsx"
 ```
 
-- [ ] Implement the new `(admin)` route group and shared navigation.
-- [ ] Reuse old dashboard components only after renaming them into admin-owned files; do not keep `/dashboard/*` imports inside the new pages.
-- [ ] Re-run the focused admin web tests.
+- [x] Implement the new `(admin)` route group and shared navigation.
+- [x] Reuse old dashboard components only after renaming them into admin-owned files; do not keep `/dashboard/*` imports inside the new pages.
+- [x] Re-run the focused admin web tests.
 
 ## Task 4: Verify the MVP and freeze the old dashboard
 
@@ -159,7 +159,7 @@ pnpm --dir gateway/packages/web test -- \
 - Modify: `gateway/packages/web/app/dashboard/*` only where needed to point users at `/admin/*`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] Run the full admin verification:
+- [x] Run the full admin verification:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -174,4 +174,15 @@ pnpm --dir gateway/packages/api build
 pnpm --dir gateway/packages/web build
 ```
 
-- [ ] Record the remaining `/dashboard/*` entry points that plan 6 must remove.
+- [x] Record the remaining `/dashboard/*` entry points that plan 6 must remove.
+  - `/dashboard`
+  - `/dashboard/login`
+  - `/dashboard/register`
+  - `/dashboard/onboard` (still needs an explicit successor mapping in plan 6)
+  - `/dashboard/conversations`
+  - `/dashboard/channels`
+  - `/dashboard/ai-backends`
+  - `/dashboard/workflows`
+  - `/dashboard/end-users`
+  - `/dashboard/users`
+  - `/dashboard/settings`
