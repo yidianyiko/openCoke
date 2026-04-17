@@ -101,13 +101,13 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/api/src/routes/admin-admins.ts`
 - Create: the matching `*.test.ts` files
 
-- [ ] Add failing route tests that assert:
+- [x] Add failing route tests that assert:
   - `/api/admin/customers` returns contact identifier, claim status, registered-at / first-seen-at, agent, and channel summary
   - `/api/admin/channels` filters by status and kind
   - `/api/admin/deliveries` returns recent failed `OutboundDelivery` rows only
   - `/api/admin/agents` returns the single Coke agent detail
   - `/api/admin/admins` supports add/remove for `AdminAccount`
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -118,8 +118,8 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/admin-admins.test.ts
 ```
 
-- [ ] Implement the APIs with paging and filters where the spec requires them.
-- [ ] Re-run the focused admin route suite.
+- [x] Implement the APIs with paging and filters where the spec requires them.
+- [x] Re-run the focused admin route suite.
 
 ## Task 3: Build the `/admin/*` web shell and pages
 
