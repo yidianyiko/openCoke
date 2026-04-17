@@ -135,13 +135,13 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/web/lib/admin-auth.ts`
 - Create: `gateway/packages/web/lib/admin-copy.ts`
 
-- [ ] Write failing page tests for:
+- [x] Write failing page tests for:
   - unauthenticated admins redirect to `/admin/login`
   - customers page renders the required columns
   - channels and deliveries pages render filters and paging
   - agents page is read-only
   - admins page can add/remove accounts
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test -- \
@@ -149,9 +149,9 @@ pnpm --dir gateway/packages/web test -- \
   "app/(admin)/admin/customers/page.test.tsx"
 ```
 
-- [ ] Implement the new `(admin)` route group and shared navigation.
-- [ ] Reuse old dashboard components only after renaming them into admin-owned files; do not keep `/dashboard/*` imports inside the new pages.
-- [ ] Re-run the focused admin web tests.
+- [x] Implement the new `(admin)` route group and shared navigation.
+- [x] Reuse old dashboard components only after renaming them into admin-owned files; do not keep `/dashboard/*` imports inside the new pages.
+- [x] Re-run the focused admin web tests.
 
 ## Task 4: Verify the MVP and freeze the old dashboard
 
