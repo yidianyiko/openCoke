@@ -70,8 +70,8 @@ This plan does **not** cover:
 - Modify: `gateway/packages/web/lib/coke-user-auth.ts`
 - Modify: `gateway/packages/web/lib/coke-user-wechat-channel.ts`
 
-- [ ] Add failing helper tests proving the new neutral libs call `/api/auth/*` and the neutral channel endpoints instead of `/api/coke/*`.
-- [ ] Run:
+- [x] Add failing helper tests proving the new neutral libs call `/api/auth/*` and the neutral channel endpoints instead of `/api/coke/*`.
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/web test -- \
@@ -80,8 +80,8 @@ pnpm --dir gateway/packages/web test -- \
   lib/coke-user-wechat-channel.test.ts
 ```
 
-- [ ] Introduce the neutral helper names and keep the old Coke-named libs as temporary wrappers.
-- [ ] Re-run the helper tests and add coverage for the new files.
+- [x] Introduce the neutral helper names and keep the old Coke-named libs as temporary wrappers.
+- [x] Re-run the helper tests and add coverage for the new files.
 
 ## Task 2: Relocate auth pages into `(customer)/auth/*`
 
