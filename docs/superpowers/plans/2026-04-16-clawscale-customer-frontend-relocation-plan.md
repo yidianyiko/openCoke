@@ -166,3 +166,4 @@ pnpm --dir gateway/packages/web test
   - `gateway/packages/web/app/(coke-user)/coke/reset-password/page.tsx`
   - `gateway/packages/web/app/(coke-user)/coke/verify-email/page.tsx`
   - `gateway/packages/web/app/(coke-user)/coke/bind-wechat/page.tsx`
+  - Follow-up note: the redirect-wrapper inventory is unchanged after the Task 4 spec-fix; generic auth/channel copy now lives only in `customerLayout`/`customerPages`, while Coke business copy stays in `cokeUserLayout`/`cokeUserPages`.
