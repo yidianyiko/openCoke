@@ -192,18 +192,18 @@ pnpm --dir gateway/packages/api test -- \
 - Modify: `gateway/packages/web/app/(admin)/admin/customers/page.tsx`
 - Modify: `gateway/packages/web/lib/admin-api.ts`
 
-- [ ] Add failing tests for:
+- [x] Add failing tests for:
   - admin can create / configure / retire shared channels
   - customer list shows contact identifier, claim status, and parked-inbound count
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- src/routes/admin-shared-channels.test.ts
 pnpm --dir gateway/packages/web test -- "app/(admin)/admin/customers/page.test.tsx"
 ```
 
-- [ ] Implement the admin UI and APIs.
-- [ ] Re-run the focused admin tests.
+- [x] Implement the admin UI and APIs.
+- [x] Re-run the focused admin tests.
 
 ## Task 6: End-to-end verification
 
