@@ -166,11 +166,11 @@ pnpm --dir gateway/packages/api test -- \
 - Create: `gateway/packages/api/src/routes/customer-claim-routes.test.ts`
 - Create: `gateway/packages/web/app/(customer)/auth/claim/page.tsx`
 
-- [ ] Write failing tests for:
+- [x] Write failing tests for:
   - issuing a claim token sets `claim_status = pending`
   - completing a claim writes credentials and flips to `active`
   - invalid / expired tokens fail without creating a new customer
-- [ ] Run:
+- [x] Run:
 
 ```bash
 pnpm --dir gateway/packages/api test -- \
@@ -178,9 +178,9 @@ pnpm --dir gateway/packages/api test -- \
   src/routes/customer-claim-routes.test.ts
 ```
 
-- [ ] Implement the claim-token flow with the same single-use and expiry guarantees as password reset tokens.
-- [ ] Add the customer claim page under `/auth/claim`.
-- [ ] Re-run the focused claim suite.
+- [x] Implement the claim-token flow with the same single-use and expiry guarantees as password reset tokens.
+- [x] Add the customer claim page under `/auth/claim`.
+- [x] Re-run the focused claim suite.
 
 ## Task 5: Build admin shared-channel management and customer-list extensions
 
