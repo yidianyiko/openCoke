@@ -13,7 +13,7 @@ It exists for a supervising AI or human operator that needs one place to answer:
 This document is intentionally not a replacement for the plan files. It sits above them and
 defines execution order and current status.
 
-This document tracks the state of the current local checkout as of `2026-04-17`.
+This document tracks the state of the current local checkout as of `2026-04-18`.
 When this document says `main`, it means the local branch in this repository checkout, not
 necessarily `origin/main`.
 
@@ -88,7 +88,7 @@ Interpretation:
 | 2 | `2026-04-16-clawscale-auth-ownership-migration-plan.md` | `completed-local-main` | Merged into the current local `main` at `8e03dde` | `tracked` | Gateway task 5 landed at `f733ecf`; the outer repo merged the completed worktree back into local `main`. |
 | 4 | `2026-04-16-clawscale-customer-frontend-relocation-plan.md` | `completed-local-main` | Merged into the current local `main` at `ebe7828` | `tracked` | Gateway frontend relocation now rides the local `gateway/main` lineage at `34319b1`; the outer repo merged the completed worktree back into local `main`. |
 | 5 | `2026-04-16-clawscale-admin-backend-mvp-plan.md` | `completed-local-main` | Merged into the current local `main` at `dc90a50` | `tracked` | Admin backend + frontend MVP is merged into local `main`; its gateway lineage is also present in local `gateway/main` at `34319b1`. |
-| 7 | `2026-04-16-clawscale-shared-channel-auto-provisioning-runtime-plan.md` | `in-progress` | No local merge yet | `tracked` | Active worktree: `.worktrees/shared-channel-runtime` on `feat/shared-channel-runtime`; gateway branch baseline is green and Task 1 is the current entry point. |
+| 7 | `2026-04-16-clawscale-shared-channel-auto-provisioning-runtime-plan.md` | `completed-local-main` | Merged into the current local `main` at `24e5bc7` | `tracked` | Shared-channel runtime is merged into local `main`; its gateway lineage is present in local `gateway/main` at `925e981`. The plan closeout note still records manual disposable-environment verification as an explicit exclusion. |
 | 3 | `2026-04-16-coke-auth-collection-retirement-plan.md` | `not-started` | No local merge yet | `tracked` | Destructive cutover plan. Must wait for Plans 2 and 7. |
 | 6 | `2026-04-16-clawscale-dashboard-deprecation-plan.md` | `not-started` | No local merge yet | `tracked` | Cleanup plan. Must wait for Plan 5. |
 
@@ -112,17 +112,17 @@ has landed in the current local `main`; it still does not imply the work has bee
 - Plan 2 implementation lineage: `.worktrees/auth-ownership-migration`
 - Plan 4 implementation lineage: `.worktrees/customer-frontend-relocation`
 - Plan 5 implementation lineage: `.worktrees/admin-backend-mvp`
+- Plan 7 implementation lineage: `.worktrees/shared-channel-runtime`
 
 These worktrees may still exist locally for inspection, but their outputs are already merged into
 the current local `main`.
 
 ### Active unfinished-plan worktrees
 
-- Plan 7: `.worktrees/shared-channel-runtime`
+There is no active unfinished-plan worktree at this moment.
 
 ### Recommended future worktree mapping
 
-- Plan 7: `.worktrees/shared-channel-runtime`
 - Plan 3: `.worktrees/coke-auth-retirement`
 - Plan 6: `.worktrees/dashboard-deprecation`
 
@@ -143,6 +143,6 @@ The supervising AI should follow these rules:
 
 The next plan to execute is:
 
-- Plan 7: `docs/superpowers/plans/2026-04-16-clawscale-shared-channel-auto-provisioning-runtime-plan.md`
+- Plan 3: `docs/superpowers/plans/2026-04-16-coke-auth-collection-retirement-plan.md`
 
-Plans 4 and 5 are merged. Plan 7 is now the active next step from the current local `main`.
+Plans 4, 5, and 7 are merged. Plan 3 is now the next dependency-safe step from the current local `main`.
