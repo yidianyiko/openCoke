@@ -51,12 +51,8 @@ def _is_auth_only_field(field_name: str) -> bool:
     return any(token in normalized for token in ("password", "verify", "verification", "session"))
 
 
-def _migration_metadata(document: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "source_collection": "users",
-        "source_user_id": _stringify_id(document.get("_id")),
-        "migrated_at": datetime.utcnow(),
-    }
+def _current_migration_timestamp() -> datetime:
+    return datetime.utcnow()
 
 
 def _classify_non_character(document: Dict[str, Any]) -> Dict[str, Any]:
@@ -85,13 +81,22 @@ def _classify_non_character(document: Dict[str, Any]) -> Dict[str, Any]:
             "unsupported_fields": unsupported_fields,
         }
 
+    migrated_at = _current_migration_timestamp()
     profile_doc = {
         "account_id": account_id,
-        "migration": _migration_metadata(document),
+        "migration": {
+            "source_collection": "users",
+            "source_user_id": doc_id,
+            "migrated_at": migrated_at,
+        },
     }
     settings_doc = {
         "account_id": account_id,
-        "migration": _migration_metadata(document),
+        "migration": {
+            "source_collection": "users",
+            "source_user_id": doc_id,
+            "migrated_at": migrated_at,
+        },
     }
 
     for field in PROFILE_FIELDS:
@@ -126,9 +131,11 @@ def _classify_character(document: Dict[str, Any]) -> Dict[str, Any]:
         and not _is_auth_only_field(field)
     )
 
+    doc_id = _stringify_id(document.get("_id"))
     character_doc = {
         "_id": document.get("_id"),
-        "migration": _migration_metadata(document),
+        "legacy_user_id": doc_id,
+        "migrated_at": _current_migration_timestamp(),
     }
     for field in CHARACTER_FIELDS:
         if field in document:

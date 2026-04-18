@@ -1,4 +1,5 @@
 import importlib.util
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -87,7 +88,7 @@ def test_real_migration_stops_on_missing_account_id_without_writes():
     assert collections["characters"].replaced == []
 
 
-def test_real_migration_preserves_character_nickname_in_characters_collection():
+def test_real_migration_preserves_character_phase1_shape():
     module = load_migration_module()
     collections = make_collections(
         [
@@ -109,5 +110,11 @@ def test_real_migration_preserves_character_nickname_in_characters_collection():
     selector, document, upsert = collections["characters"].replaced[0]
     assert selector == {"_id": "507f1f77bcf86cd799439012"}
     assert upsert is True
+    assert document["_id"] == "507f1f77bcf86cd799439012"
+    assert document["name"] == "qiaoyun"
     assert document["nickname"] == "Qiaoyun"
-    assert document["migration"]["source_collection"] == "users"
+    assert document["platforms"] == {"wechat": {"nickname": "Qiaoyun"}}
+    assert document["user_info"] == {"description": "prompt"}
+    assert document["legacy_user_id"] == "507f1f77bcf86cd799439012"
+    assert isinstance(document["migrated_at"], datetime)
+    assert "migration" not in document

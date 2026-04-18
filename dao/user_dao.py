@@ -157,7 +157,15 @@ class UserDAO:
 
     def _sanitize_character_document(self, user_data: Dict) -> Dict:
         sanitized = {}
-        for field in ("_id", "name", "nickname", "platforms", "user_info"):
+        for field in (
+            "_id",
+            "name",
+            "nickname",
+            "platforms",
+            "user_info",
+            "legacy_user_id",
+            "migrated_at",
+        ):
             if field in user_data:
                 sanitized[field] = user_data[field]
         return sanitized
