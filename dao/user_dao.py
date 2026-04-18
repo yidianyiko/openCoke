@@ -132,7 +132,7 @@ def _normalize_account_id(value: Any) -> Optional[str]:
 
 
 class UserDAO:
-    """Business DAO for legacy users, user profiles, settings, and characters."""
+    """Business DAO for user profiles, settings, and characters."""
 
     def __init__(
         self,
@@ -145,7 +145,6 @@ class UserDAO:
     ):
         self.client = MongoClient(mongo_uri)
         self.db = self.client[db_name]
-        self.collection: Collection = self.db.get_collection("users")
         self.profile_collection: Collection = self.db.get_collection("user_profiles")
         self.settings_collection: Collection = self.db.get_collection("coke_settings")
         self.characters_collection: Collection = self.db.get_collection("characters")
@@ -184,6 +183,29 @@ class UserDAO:
 
         return profile_doc, settings_doc
 
+    def _merge_business_account_documents(
+        self,
+        account_id: str,
+        profile_doc: Optional[Dict],
+        settings_doc: Optional[Dict],
+    ) -> Optional[Dict]:
+        if not isinstance(profile_doc, dict) and not isinstance(settings_doc, dict):
+            return None
+
+        merged: Dict[str, Any] = {
+            "account_id": account_id,
+            "id": account_id,
+            "_id": account_id,
+        }
+        for document in (profile_doc, settings_doc):
+            if not isinstance(document, dict):
+                continue
+            for key, value in document.items():
+                if key == "account_id":
+                    continue
+                merged[key] = value
+        return merged
+
     def _merge_account_document(self, collection: Collection, account_id: str, document: Dict) -> None:
         set_fields = {key: value for key, value in document.items() if key != "account_id"}
         collection.update_one(
@@ -213,18 +235,33 @@ class UserDAO:
         self._merge_account_document(self.settings_collection, account_id, settings_doc)
         return account_id
 
+    def get_user_by_account_id(self, account_id: str) -> Optional[Dict]:
+        normalized_account_id = _normalize_account_id(account_id)
+        if normalized_account_id is None:
+            return None
+
+        profile_doc = self.profile_collection.find_one({"account_id": normalized_account_id})
+        settings_doc = self.settings_collection.find_one({"account_id": normalized_account_id})
+        return self._merge_business_account_documents(
+            normalized_account_id,
+            profile_doc,
+            settings_doc,
+        )
+
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:
         if not user_id:
             return None
+
+        normalized_account_id = _normalize_account_id(user_id)
+        if normalized_account_id is not None:
+            business_user = self.get_user_by_account_id(normalized_account_id)
+            if business_user is not None:
+                return business_user
 
         try:
             object_id = ObjectId(user_id)
         except (TypeError, ValueError, InvalidId):
             return None
-
-        user = self.collection.find_one({"_id": object_id})
-        if user is not None:
-            return user
 
         return self.characters_collection.find_one({"_id": object_id})
 
@@ -235,22 +272,10 @@ class UserDAO:
         return None
 
     def update_user(self, user_id: str, update_data: Dict) -> bool:
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError, InvalidId):
-            return False
-
-        result = self.collection.update_one({"_id": object_id}, {"$set": update_data})
-        return result.modified_count > 0
+        return False
 
     def delete_user(self, user_id: str) -> bool:
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError, InvalidId):
-            return False
-
-        result = self.collection.delete_one({"_id": object_id})
-        return result.deleted_count > 0
+        return False
 
     def change_status(self, user_id: str, status: str) -> bool:
         return False

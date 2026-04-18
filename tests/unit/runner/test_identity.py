@@ -135,3 +135,43 @@ def test_resolve_agent_user_context_prefers_customer_metadata_for_ck_ids():
         "is_coke_account": True,
     }
     assert is_synthetic_coke_account_id("ck_123") is True
+
+
+def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_user_is_gone():
+    object_id = "507f1f77bcf86cd799439011"
+
+    class FakeUserDAO:
+        def get_user_by_id(self, user_id):
+            assert user_id == object_id
+            return None
+
+        def get_user_by_account_id(self, account_id):
+            assert account_id == "acct_123"
+            return {
+                "account_id": "acct_123",
+                "display_name": "Alice",
+                "timezone": "Asia/Tokyo",
+            }
+
+    user = resolve_agent_user_context(
+        user_id=object_id,
+        input_message={
+            "platform": "business",
+            "metadata": {
+                "source": "clawscale",
+                "customer": {
+                    "id": "acct_123",
+                    "display_name": "Gateway Alice",
+                },
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert user == {
+        "account_id": "acct_123",
+        "display_name": "Alice",
+        "timezone": "Asia/Tokyo",
+        "id": "acct_123",
+        "_id": "acct_123",
+    }
