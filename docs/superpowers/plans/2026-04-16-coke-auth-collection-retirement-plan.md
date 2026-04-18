@@ -66,7 +66,7 @@ This plan does **not** cover:
 - Create: `gateway/packages/api/src/scripts/audit-customer-id-parity.ts`
 - Modify: `dao/user_dao.py` (read-only audit helpers only)
 
-- [ ] Add an audit script that scans the known Mongo touchpoints from:
+- [x] Add an audit script that scans the known Mongo touchpoints from:
   - `agent/util/message_util.py`
   - `agent/runner/identity.py`
   - `connector/clawscale_bridge/*.py`
@@ -85,7 +85,7 @@ This plan does **not** cover:
 
 ```bash
 rg -n "account_id" agent connector dao util -g '!tests/**'
-pnpm --dir gateway/packages/api tsx src/scripts/audit-customer-id-parity.ts
+pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
 ```
 
 - [ ] If drift is found, stop and update this plan before destructive work.
@@ -174,8 +174,8 @@ pytest tests/unit/ -k "identity or message_util or user_dao"
 - [ ] Run the cutover checklist in order:
 
 ```bash
-pnpm --dir gateway/packages/api tsx src/scripts/export-legacy-coke-auth.ts
-pnpm --dir gateway/packages/api tsx src/scripts/audit-customer-id-parity.ts
+pnpm --dir gateway/packages/api exec tsx src/scripts/export-legacy-coke-auth.ts
+pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
 python connector/scripts/migrate-legacy-users.py
 pnpm --dir gateway/packages/api exec prisma migrate deploy
 python connector/scripts/verify-auth-retirement.py

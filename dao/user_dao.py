@@ -7,7 +7,7 @@ from util.log_util import get_logger
 logger = get_logger(__name__)
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -16,6 +16,116 @@ from pymongo.collection import Collection
 from pymongo.cursor import Cursor
 
 from conf.config import CONF
+
+AUDIT_CUSTOMER_ID_COLLECTION_SPECS = (
+    {"collection": "outputmessages", "fieldPath": "account_id"},
+    {"collection": "reminders", "fieldPath": "user_id"},
+    {"collection": "conversations", "fieldPath": "talkers.id"},
+)
+
+
+def _normalize_customer_id(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _normalize_account_id_reference(value: Any) -> Optional[str]:
+    normalized = _normalize_customer_id(value)
+    if normalized is None:
+        return None
+    if normalized.startswith(("acct_", "ck_")):
+        return normalized
+    return None
+
+
+def _extract_field_values(value: Any, path_parts: Sequence[str]) -> List[Any]:
+    if not path_parts:
+        if isinstance(value, list):
+            return list(value)
+        return [value]
+
+    if isinstance(value, list):
+        extracted: List[Any] = []
+        for item in value:
+            extracted.extend(_extract_field_values(item, path_parts))
+        return extracted
+
+    if not isinstance(value, dict):
+        return []
+
+    head = path_parts[0]
+    if head not in value:
+        return []
+
+    return _extract_field_values(value[head], path_parts[1:])
+
+
+def audit_customer_id_parity(
+    customer_ids: Iterable[Any],
+    mongo_uri: str = "mongodb://"
+    + CONF["mongodb"]["mongodb_ip"]
+    + ":"
+    + CONF["mongodb"]["mongodb_port"]
+    + "/",
+    db_name: str = CONF["mongodb"]["mongodb_name"],
+    collection_specs: Sequence[Dict[str, str]] = AUDIT_CUSTOMER_ID_COLLECTION_SPECS,
+    example_limit: int = 20,
+    server_selection_timeout_ms: int = 5000,
+) -> Dict[str, Any]:
+    normalized_customer_ids = {
+        normalized
+        for normalized in (_normalize_customer_id(value) for value in customer_ids)
+        if normalized is not None
+    }
+
+    client = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=server_selection_timeout_ms,
+    )
+    try:
+        client.admin.command("ping")
+        db = client[db_name]
+
+        collections_checked: List[str] = []
+        examples: List[Dict[str, str]] = []
+        drift_count = 0
+
+        for spec in collection_specs:
+            collection_name = spec["collection"]
+            field_path = spec["fieldPath"]
+            collections_checked.append(collection_name)
+
+            collection = db.get_collection(collection_name)
+            cursor = collection.find({}, {"_id": 1, field_path: 1})
+
+            for document in cursor:
+                for value in _extract_field_values(document, field_path.split(".")):
+                    account_id = _normalize_account_id_reference(value)
+                    if account_id is None or account_id in normalized_customer_ids:
+                        continue
+
+                    drift_count += 1
+                    if len(examples) >= example_limit:
+                        continue
+
+                    examples.append(
+                        {
+                            "collection": collection_name,
+                            "fieldPath": field_path,
+                            "documentId": str(document.get("_id")),
+                            "accountId": account_id,
+                        }
+                    )
+
+        return {
+            "collectionsChecked": collections_checked,
+            "driftCount": drift_count,
+            "examples": examples,
+        }
+    finally:
+        client.close()
 
 
 class UserDAO:
