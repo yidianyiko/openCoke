@@ -201,7 +201,7 @@ class UserDAO:
             if not isinstance(document, dict):
                 continue
             for key, value in document.items():
-                if key == "account_id":
+                if key in {"account_id", "_id", "id"}:
                     continue
                 merged[key] = value
         return merged

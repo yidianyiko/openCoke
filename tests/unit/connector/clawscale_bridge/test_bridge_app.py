@@ -285,15 +285,13 @@ def test_bridge_inbound_accepts_customer_id_aliases_for_existing_account_gate(
     assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_customer_1",)
 
 
-def test_bridge_inbound_ignores_retired_auth_fields_and_still_enqueues(monkeypatch):
+def test_bridge_inbound_blocks_denied_accounts_without_enqueueing(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
 
     app = create_app(testing=True)
     message_gateway = MagicMock()
-    message_gateway.enqueue.return_value = "in_evt_1002"
     reply_waiter = MagicMock()
-    reply_waiter.wait_for_reply.return_value = {"reply": "ok"}
     service = bridge_app.BusinessOnlyBridgeGateway(
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
@@ -333,16 +331,15 @@ def test_bridge_inbound_ignores_retired_auth_fields_and_still_enqueues(monkeypat
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True, "reply": "ok"}
-    enqueue_inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
-    assert "account_status" not in enqueue_inbound
-    assert "email_verified" not in enqueue_inbound
-    assert "subscription_active" not in enqueue_inbound
-    assert "subscription_expires_at" not in enqueue_inbound
-    assert "account_access_allowed" not in enqueue_inbound
-    assert "account_access_denied_reason" not in enqueue_inbound
-    assert "renewal_url" not in enqueue_inbound
-    reply_waiter.wait_for_reply.assert_called_once_with("in_evt_1002")
+    assert response.get_json() == {
+        "ok": True,
+        "reply": (
+            "Your subscription is required. Renew here: "
+            "https://renew.example/checkout"
+        ),
+    }
+    message_gateway.enqueue.assert_not_called()
+    reply_waiter.wait_for_reply.assert_not_called()
 
 
 def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(

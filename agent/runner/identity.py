@@ -35,6 +35,24 @@ def get_agent_entity_id(entity: dict | None) -> str:
     return ""
 
 
+def _metadata_account_id(entity: Mapping) -> str:
+    for key in ("id", "_id", "customer_id", "coke_account_id"):
+        value = entity.get(key)
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _restrict_metadata_to_account(account_id: str, entity: Mapping) -> Mapping:
+    metadata_account_id = _metadata_account_id(entity)
+    if metadata_account_id and metadata_account_id != account_id:
+        return {}
+    return entity
+
+
 def _resolve_clawscale_account_id(user_id_str, input_message):
     if not isinstance(input_message, Mapping):
         return None, {}, {}
@@ -55,16 +73,21 @@ def _resolve_clawscale_account_id(user_id_str, input_message):
     if not isinstance(coke_account, Mapping):
         coke_account = {}
 
-    account_id = (
-        customer.get("id")
-        or customer.get("_id")
-        or customer.get("customer_id")
-        or customer.get("coke_account_id")
-        or coke_account.get("id")
-        or coke_account.get("_id")
-        or coke_account.get("coke_account_id")
-        or (user_id_str if is_synthetic_coke_account_id(user_id_str) else None)
-    )
+    synthetic_account_id = user_id_str if is_synthetic_coke_account_id(user_id_str) else None
+    if synthetic_account_id is not None:
+        account_id = synthetic_account_id
+        customer = _restrict_metadata_to_account(account_id, customer)
+        coke_account = _restrict_metadata_to_account(account_id, coke_account)
+    else:
+        account_id = (
+            customer.get("id")
+            or customer.get("_id")
+            or customer.get("customer_id")
+            or customer.get("coke_account_id")
+            or coke_account.get("id")
+            or coke_account.get("_id")
+            or coke_account.get("coke_account_id")
+        )
     if account_id is None:
         return None, customer, coke_account
 

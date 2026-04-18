@@ -175,3 +175,39 @@ def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_us
         "id": "acct_123",
         "_id": "acct_123",
     }
+
+
+def test_resolve_agent_user_context_keeps_synthetic_account_id_when_metadata_disagrees():
+    class FakeUserDAO:
+        def get_user_by_account_id(self, account_id):
+            assert account_id == "acct_123"
+            return {
+                "account_id": "acct_123",
+                "display_name": "Alice",
+            }
+
+    user = resolve_agent_user_context(
+        user_id="acct_123",
+        input_message={
+            "platform": "business",
+            "metadata": {
+                "source": "clawscale",
+                "customer": {
+                    "id": "acct_other",
+                    "display_name": "Wrong Customer",
+                },
+                "coke_account": {
+                    "id": "acct_other",
+                    "display_name": "Wrong Coke Account",
+                },
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert user == {
+        "account_id": "acct_123",
+        "display_name": "Alice",
+        "id": "acct_123",
+        "_id": "acct_123",
+    }

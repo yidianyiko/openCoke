@@ -78,9 +78,11 @@ def _extract_field_values(value: Any, path_parts: Iterable[str]) -> list[Any]:
     return _extract_field_values(value[head], path_parts[1:])
 
 
-def _discover_account_id(db) -> tuple[Optional[str], bool]:
+def _discover_account_ids(db, max_account_ids: int = 5) -> tuple[list[str], bool]:
     collection_names = set(db.list_collection_names())
     observed_business_docs = False
+    account_ids: list[str] = []
+    seen = set()
     for collection_name, field_path in ACCOUNT_ID_COLLECTION_PATHS:
         if collection_name not in collection_names:
             continue
@@ -89,9 +91,16 @@ def _discover_account_id(db) -> tuple[Optional[str], bool]:
         for document in collection.find({}, projection).limit(50):
             observed_business_docs = True
             for value in _extract_field_values(document, field_path.split(".")):
-                if _is_account_id(value):
-                    return str(value).strip(), True
-    return None, observed_business_docs
+                if not _is_account_id(value):
+                    continue
+                normalized = str(value).strip()
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                account_ids.append(normalized)
+                if len(account_ids) >= max_account_ids:
+                    return account_ids, True
+    return account_ids, observed_business_docs
 
 
 def _check_users_collection(db) -> dict:
@@ -108,18 +117,21 @@ def _check_users_collection(db) -> dict:
 
 def _check_business_account_resolution(
     user_dao: UserDAO,
-    account_id: Optional[str],
+    account_ids: list[str],
     observed_business_docs: bool,
 ) -> dict:
-    if not account_id:
+    if not account_ids:
         return {
-            "account_id": None,
+            "account_ids": [],
             "resolved": not observed_business_docs,
         }
 
-    resolved = isinstance(user_dao.get_user_by_account_id(account_id), dict)
+    resolved = all(
+        isinstance(user_dao.get_user_by_account_id(account_id), dict)
+        for account_id in account_ids
+    )
     return {
-        "account_id": account_id,
+        "account_ids": account_ids,
         "resolved": resolved,
     }
 
@@ -144,7 +156,7 @@ def _check_bridge_payload(bridge_gateway) -> dict:
                 "emailVerified": True,
                 "subscriptionActive": False,
                 "subscriptionExpiresAt": "2026-04-30T00:00:00Z",
-                "accountAccessAllowed": False,
+                "accountAccessAllowed": True,
                 "accountAccessDeniedReason": "subscription_required",
                 "renewalUrl": "https://renew.example/checkout",
             },
@@ -216,10 +228,12 @@ def verify_auth_retirement(
         users_collection = _check_users_collection(db)
         observed_business_docs = False
         if account_id is None:
-            account_id, observed_business_docs = _discover_account_id(db)
+            account_ids, observed_business_docs = _discover_account_ids(db)
+        else:
+            account_ids = [account_id]
         business_account_resolution = _check_business_account_resolution(
             user_dao,
-            account_id,
+            account_ids,
             observed_business_docs,
         )
 
