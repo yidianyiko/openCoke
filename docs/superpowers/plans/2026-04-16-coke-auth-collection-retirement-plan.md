@@ -130,7 +130,7 @@ pytest tests/unit/ -k "user_dao or identity"
 
 - [x] Only after dry-run review, run the real migration and save the report artifact.
 
-## Task 3: Retire Postgres legacy auth tables
+## Task 3: Switch subscriptions to `customer_id` and stage auth-table retirement
 
 **Files:**
 - Modify: `gateway/packages/api/prisma/schema.prisma`
@@ -140,10 +140,12 @@ pytest tests/unit/ -k "user_dao or identity"
 
 - [ ] Add failing tests that prove subscription and payment lookups now use `customerId` instead of `cokeAccountId`.
 - [ ] Run: `pnpm --dir gateway/packages/api test -- src/lib/coke-subscription.test.ts src/routes/coke-payment-routes.test.ts`
-- [ ] Add the retirement migration:
-  - copy any remaining subscription FKs to `customer_id`
-  - drop `verify_tokens`
-  - drop `coke_accounts`
+- [ ] Update the transition-safe migration so it:
+  - copies any remaining subscription FKs to `customer_id`
+  - preserves `coke_accounts` and `verify_tokens` for remaining compatibility callers until the maintenance-window cutover
+- [ ] Update the payment/webhook path so it:
+  - reads and writes subscription rows by `customerId`
+  - accepts both Stripe `metadata.customerId` and legacy `metadata.cokeAccountId` during the transition window
 - [ ] Re-run:
 
 ```bash
@@ -175,9 +177,10 @@ pytest tests/unit/ -k "identity or message_util or user_dao"
 ## Task 5: Execute the maintenance-window cutover and verify
 
 **Files:**
-- No new source files expected
+- A follow-up gateway migration file may be added here to drop `verify_tokens` / `coke_accounts` once no runtime path still depends on them
 
 - [ ] Put registration / reset endpoints into maintenance mode before destructive steps.
+- [ ] Confirm no remaining gateway runtime path still depends on `db.cokeAccount` or `db.verifyToken` before the destructive drop migration is applied.
 - [ ] Run the cutover checklist in order:
 
 ```bash
@@ -188,8 +191,12 @@ pnpm --dir gateway/packages/api exec prisma migrate deploy
 python connector/scripts/verify-auth-retirement.py
 ```
 
+- [ ] During the cutover migration:
+  - drop `verify_tokens`
+  - drop `coke_accounts`
 - [ ] Verify:
   - existing sessions still resolve through `Customer.id`
   - Stripe / Coke payment flows resolve through `customer_id`
+  - no gateway runtime path still depends on `db.cokeAccount` or `db.verifyToken`
   - no runtime path still queries Mongo `users` for auth
 - [ ] Document the exact maintenance-window timing and rollback artifact locations.
