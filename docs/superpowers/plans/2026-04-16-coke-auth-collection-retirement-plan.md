@@ -161,13 +161,13 @@ pnpm --dir gateway/packages/api test -- src/lib/coke-subscription.test.ts src/ro
 - Modify: `connector/clawscale_bridge/app.py`
 - Create: `connector/scripts/verify-auth-retirement.py`
 
-- [ ] Remove login / password / verification responsibilities from the Mongo auth DAO.
-- [ ] Update runtime identity resolution so it no longer requires the retired `users` auth document to exist.
-- [ ] Add a verification script that checks:
+- [x] Remove login / password / verification responsibilities from the Mongo auth DAO.
+- [x] Update runtime identity resolution so it no longer requires the retired `users` auth document to exist.
+- [x] Add a verification script that checks:
   - `users` auth collection is absent or empty
   - business collections still resolve by `account_id`
   - no ClawScale route still emits Coke-auth-only payloads
-- [ ] Run:
+- [x] Run:
 
 ```bash
 python connector/scripts/verify-auth-retirement.py
