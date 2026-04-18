@@ -13,7 +13,6 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo import MongoClient
 from pymongo.collection import Collection
-from pymongo.cursor import Cursor
 
 from conf.config import CONF
 
@@ -128,8 +127,12 @@ def audit_customer_id_parity(
         client.close()
 
 
+def _normalize_account_id(value: Any) -> Optional[str]:
+    return _normalize_customer_id(value)
+
+
 class UserDAO:
-    """用户模型类，提供users集合的增删改查操作"""
+    """Business DAO for legacy users, user profiles, settings, and characters."""
 
     def __init__(
         self,
@@ -140,54 +143,69 @@ class UserDAO:
         + "/",
         db_name: str = CONF["mongodb"]["mongodb_name"],
     ):
-        """
-        初始化User类
-
-        Args:
-            mongo_uri: MongoDB连接URI
-            db_name: 数据库名称
-        """
         self.client = MongoClient(mongo_uri)
         self.db = self.client[db_name]
         self.collection: Collection = self.db.get_collection("users")
+        self.profile_collection: Collection = self.db.get_collection("user_profiles")
+        self.settings_collection: Collection = self.db.get_collection("coke_settings")
+        self.characters_collection: Collection = self.db.get_collection("characters")
 
     def create_indexes(self):
-        """创建必要的索引"""
-        self.collection.create_index([("phone_number", 1)], sparse=True)
-        self.collection.create_index([("email", 1)], unique=True, sparse=True)
+        self.profile_collection.create_index([("account_id", 1)], unique=True)
+        self.settings_collection.create_index([("account_id", 1)], unique=True)
+        self.characters_collection.create_index([("name", 1)])
 
-        # 为status字段创建索引
-        self.collection.create_index([("status", 1)])
+    def _sanitize_character_document(self, user_data: Dict) -> Dict:
+        sanitized = {}
+        for field in ("_id", "name", "nickname", "platforms", "user_info"):
+            if field in user_data:
+                sanitized[field] = user_data[field]
+        return sanitized
 
-        # 为is_character字段创建索引
-        self.collection.create_index([("is_character", 1)])
+    def _build_business_documents(self, account_id: str, user_data: Dict) -> tuple[Dict, Dict]:
+        profile_doc = {"account_id": account_id}
+        settings_doc = {"account_id": account_id}
+
+        for field in ("name", "display_name", "platforms", "user_info"):
+            if field in user_data:
+                profile_doc[field] = user_data[field]
+
+        for field in ("timezone", "access"):
+            if field in user_data:
+                settings_doc[field] = user_data[field]
+
+        return profile_doc, settings_doc
 
     def create_user(self, user_data: Dict) -> str:
-        """
-        创建新用户
+        character_id = user_data.get("_id")
+        if isinstance(character_id, str) and ObjectId.is_valid(character_id):
+            user_data = dict(user_data)
+            user_data["_id"] = ObjectId(character_id)
 
-        Args:
-            user_data: 用户数据字典
+        if user_data.get("is_character") is True:
+            result = self.characters_collection.insert_one(
+                self._sanitize_character_document(user_data)
+            )
+            return str(result.inserted_id)
 
-        Returns:
-            str: 插入的用户ID
-        """
-        if "_id" in user_data and isinstance(user_data["_id"], str):
-            user_data["_id"] = ObjectId(user_data["_id"])
+        account_id = _normalize_account_id(user_data.get("account_id"))
+        if account_id is None:
+            raise ValueError("account_id_required")
 
-        result = self.collection.insert_one(user_data)
-        return str(result.inserted_id)
+        profile_doc, settings_doc = self._build_business_documents(account_id, user_data)
+        self.profile_collection.replace_one(
+            {"account_id": account_id},
+            profile_doc,
+            upsert=True,
+        )
+        self.settings_collection.replace_one(
+            {"account_id": account_id},
+            settings_doc,
+            upsert=True,
+        )
+        return account_id
 
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:
-        """
-        通过ID获取用户
-
-        Args:
-            user_id: 用户ID
-
-        Returns:
-            Optional[Dict]: 用户数据或None
-        """
         if not user_id:
             return None
 
@@ -196,102 +214,46 @@ class UserDAO:
         except (TypeError, ValueError, InvalidId):
             return None
 
-        return self.collection.find_one({"_id": object_id})
+        user = self.collection.find_one({"_id": object_id})
+        if user is not None:
+            return user
+
+        return self.characters_collection.find_one({"_id": object_id})
 
     def get_user_by_phone_number(self, phone_number: str) -> Optional[Dict]:
-        if not phone_number:
-            return None
-        return self.collection.find_one({"phone_number": phone_number})
+        return None
 
     def get_user_by_email(self, email: str) -> Optional[Dict]:
-        if not email:
-            return None
-        return self.collection.find_one(
-            {"email": email.lower(), "is_character": {"$ne": True}}
-        )
+        return None
 
     def update_user(self, user_id: str, update_data: Dict) -> bool:
-        """
-        更新用户信息
-
-        Args:
-            user_id: 用户ID
-            update_data: 要更新的数据
-
-        Returns:
-            bool: 更新是否成功
-        """
         try:
             object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidId):
             return False
 
-        # 创建一个只包含要更新字段的字典
-        update_fields = {"$set": update_data}
-
-        result = self.collection.update_one({"_id": object_id}, update_fields)
-
+        result = self.collection.update_one({"_id": object_id}, {"$set": update_data})
         return result.modified_count > 0
 
     def delete_user(self, user_id: str) -> bool:
-        """
-        删除用户
-
-        Args:
-            user_id: 用户ID
-
-        Returns:
-            bool: 删除是否成功
-        """
         try:
             object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, InvalidId):
             return False
 
         result = self.collection.delete_one({"_id": object_id})
         return result.deleted_count > 0
 
     def change_status(self, user_id: str, status: str) -> bool:
-        """
-        更改用户状态
-
-        Args:
-            user_id: 用户ID
-            status: 新状态 (例如 "normal" 或 "stopped")
-
-        Returns:
-            bool: 更新是否成功
-        """
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
-            return False
-
-        result = self.collection.update_one(
-            {"_id": object_id}, {"$set": {"status": status}}
-        )
-
-        return result.modified_count > 0
+        return False
 
     def find_users(
         self, query: Dict = None, limit: int = 0, skip: int = 0, sort=None
-    ) -> Cursor:
-        """
-        查找符合条件的用户
-
-        Args:
-            query: 查询条件
-            limit: 最大返回数量
-            skip: 跳过的文档数
-            sort: 排序字段
-
-        Returns:
-            Cursor: MongoDB游标
-        """
+    ) -> List[Dict]:
         if query is None:
             query = {}
 
-        cursor = self.collection.find(query)
+        cursor = self.profile_collection.find(query)
 
         if skip > 0:
             cursor = cursor.skip(skip)
@@ -305,125 +267,87 @@ class UserDAO:
         return list(cursor)
 
     def count_users(self, query: Dict = None) -> int:
-        """
-        计算符合条件的用户数量
-
-        Args:
-            query: 查询条件
-
-        Returns:
-            int: 用户数量
-        """
         if query is None:
             query = {}
 
-        return self.collection.count_documents(query)
+        return self.profile_collection.count_documents(query)
 
     def find_characters(self, query: Dict = None, limit: int = 0) -> List[Dict]:
-        """
-        查找角色用户
-
-        Args:
-            query: 附加查询条件
-            limit: 最大返回数量
-
-        Returns:
-            List[Dict]: 角色用户列表
-        """
         if query is None:
             query = {}
 
-        # 添加角色条件
-        character_query = {**query, "is_character": True}
+        character_query = dict(query)
+        character_query.pop("is_character", None)
 
         cursor = (
-            self.collection.find(character_query).limit(limit)
+            self.characters_collection.find(character_query).limit(limit)
             if limit > 0
-            else self.collection.find(character_query)
+            else self.characters_collection.find(character_query)
         )
         return list(cursor)
 
     def bulk_update_users(self, query: Dict, update: Dict) -> int:
-        """
-        批量更新用户
-
-        Args:
-            query: 查询条件
-            update: 更新内容
-
-        Returns:
-            int: 更新的文档数量
-        """
-        result = self.collection.update_many(query, {"$set": update})
+        result = self.profile_collection.update_many(query, {"$set": update})
         return result.modified_count
 
     def upsert_user(self, query: Dict, user_data: Dict) -> str:
-        """
-        插入或更新用户
-
-        Args:
-            query: 查询条件
-            user_data: 用户数据
-
-        Returns:
-            str: 用户ID
-        """
-        result = self.collection.update_one(query, {"$set": user_data}, upsert=True)
-
-        if result.upserted_id:
-            return str(result.upserted_id)
-        else:
-            # 获取匹配文档的ID
-            user = self.collection.find_one(query, {"_id": 1})
+        is_character = user_data.get("is_character") is True or query.get("is_character") is True
+        if is_character:
+            character_query = dict(query)
+            character_query.pop("is_character", None)
+            sanitized = self._sanitize_character_document(user_data)
+            result = self.characters_collection.update_one(
+                character_query,
+                {"$set": sanitized},
+                upsert=True,
+            )
+            if result.upserted_id:
+                return str(result.upserted_id)
+            user = self.characters_collection.find_one(character_query, {"_id": 1})
             return str(user["_id"]) if user else None
 
-    def update_access(
-        self, user_id: ObjectId, order_no: str, expire_time: datetime
-    ) -> bool:
-        """
-        更新用户访问授权
-
-        Args:
-            user_id: 用户 ObjectId
-            order_no: 订单编号
-            expire_time: 过期时间
-
-        Returns:
-            更新是否成功
-        """
-        result = self.collection.update_one(
-            {"_id": user_id},
-            {
-                "$set": {
-                    "access.order_no": order_no,
-                    "access.granted_at": datetime.now(),
-                    "access.expire_time": expire_time,
-                }
-            },
+        account_id = _normalize_account_id(
+            user_data.get("account_id") or query.get("account_id")
         )
-        return result.modified_count > 0
+        if account_id is None:
+            raise ValueError("account_id_required")
 
-    def update_timezone(self, user_id: str, timezone: str) -> bool:
-        """
-        Update user's timezone.
+        profile_doc, settings_doc = self._build_business_documents(account_id, user_data)
+        self.profile_collection.replace_one(
+            {"account_id": account_id},
+            profile_doc,
+            upsert=True,
+        )
+        self.settings_collection.replace_one(
+            {"account_id": account_id},
+            settings_doc,
+            upsert=True,
+        )
+        return account_id
 
-        Args:
-            user_id: User ID
-            timezone: IANA timezone string (e.g. "America/New_York")
-
-        Returns:
-            bool: True if updated successfully
-        """
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError, InvalidId):
+    def _update_settings(self, account_id: str, update_fields: Dict) -> bool:
+        normalized_account_id = _normalize_account_id(account_id)
+        if normalized_account_id is None:
             return False
 
-        result = self.collection.update_one(
-            {"_id": object_id}, {"$set": {"timezone": timezone}}
+        result = self.settings_collection.update_one(
+            {"account_id": normalized_account_id},
+            {"$set": update_fields},
         )
         return result.modified_count > 0
 
+    def update_access(self, user_id: str, order_no: str, expire_time: datetime) -> bool:
+        return self._update_settings(
+            user_id,
+            {
+                "access.order_no": order_no,
+                "access.granted_at": datetime.now(),
+                "access.expire_time": expire_time,
+            },
+        )
+
+    def update_timezone(self, user_id: str, timezone: str) -> bool:
+        return self._update_settings(user_id, {"timezone": timezone})
 
     def update_access_stripe(
         self,
@@ -432,24 +356,15 @@ class UserDAO:
         stripe_subscription_id: str,
         expire_time: datetime,
     ) -> bool:
-        """Update user access with Stripe subscription info."""
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError, InvalidId):
-            return False
-
-        result = self.collection.update_one(
-            {"_id": object_id},
+        return self._update_settings(
+            user_id,
             {
-                "$set": {
-                    "access.stripe_customer_id": stripe_customer_id,
-                    "access.stripe_subscription_id": stripe_subscription_id,
-                    "access.expire_time": expire_time,
-                    "access.granted_at": datetime.now(),
-                }
+                "access.stripe_customer_id": stripe_customer_id,
+                "access.stripe_subscription_id": stripe_subscription_id,
+                "access.expire_time": expire_time,
+                "access.granted_at": datetime.now(),
             },
         )
-        return result.modified_count > 0
 
     def update_access_creem(
         self,
@@ -458,70 +373,31 @@ class UserDAO:
         creem_subscription_id: str,
         expire_time: datetime,
     ) -> bool:
-        """Update user access with Creem subscription info."""
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError, InvalidId):
-            return False
-
-        result = self.collection.update_one(
-            {"_id": object_id},
+        return self._update_settings(
+            user_id,
             {
-                "$set": {
-                    "access.creem_customer_id": creem_customer_id,
-                    "access.creem_subscription_id": creem_subscription_id,
-                    "access.expire_time": expire_time,
-                    "access.granted_at": datetime.now(),
-                }
+                "access.creem_customer_id": creem_customer_id,
+                "access.creem_subscription_id": creem_subscription_id,
+                "access.expire_time": expire_time,
+                "access.granted_at": datetime.now(),
             },
         )
-        return result.modified_count > 0
 
     def revoke_access(self, user_id: str) -> bool:
-        """Revoke user access by setting expire_time to now."""
-        try:
-            object_id = ObjectId(user_id)
-        except (TypeError, ValueError):
-            return False
-
-        result = self.collection.update_one(
-            {"_id": object_id},
-            {"$set": {"access.expire_time": datetime.now()}},
+        return self._update_settings(
+            user_id,
+            {"access.expire_time": datetime.now()},
         )
-        return result.modified_count > 0
 
     def close(self):
-        """关闭MongoDB连接"""
         self.client.close()
 
 
-# 使用示例
 if __name__ == "__main__":
-    # 创建User实例
     user_model = UserDAO()
-
-    # # 创建新用户
-    # new_user = {
-    #     "is_character": False,
-    #     "name": "test_user",
-    #     "display_name": "Test User",
-    #     "status": "normal",
-    #     "user_info": {
-    #         "tags": ["new", "test"]
-    #     }
-    # }
-
-    # user_id = user_model.create_user(new_user)
-    # print(f"Created user with ID: {user_id}")
-
-    # # 通过ID获取用户
-    # user = user_model.get_user_by_id(user_id)
-    # print(f"Found user: {user['name']}")
-
     results = user_model.find_users(query={}, limit=10)
 
     for result in results:
         print(result)
 
-    # 关闭连接
     user_model.close()
