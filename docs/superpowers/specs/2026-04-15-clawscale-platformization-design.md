@@ -756,6 +756,7 @@ field must land in one of these Mongo destinations:
     - `_id`
     - `legacy_user_id`
     - `name`
+    - `nickname`
     - `platforms`
     - `user_info`
     - `migrated_at`
@@ -780,6 +781,14 @@ Task-level field classification follows this contract:
   - the full former `is_character = true` document body, excluding any
     auth-only fields
   - preserve the existing Mongo `_id`
+  - preserve top-level character `nickname` because Coke runtime and prompt
+    paths still read it directly during Phase 1
+
+For non-character legacy `users` documents, `account_id` remains the only
+allowed key for `user_profiles` / `coke_settings`. If a document lacks
+`account_id`, dry-run must report a `missing_account_id` anomaly and the
+real migration must refuse to synthesize a replacement from Mongo `_id` or
+any other legacy field.
 
 This split is a migration contract, not an invitation to invent additional
 destination schemas during implementation. If implementation finds a legacy

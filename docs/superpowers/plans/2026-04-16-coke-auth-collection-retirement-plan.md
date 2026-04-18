@@ -100,12 +100,12 @@ pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
 - [ ] Use these destination contracts during classification:
   - `user_profiles` => one document per non-character customer, keyed by `account_id`, for `name`, `display_name`, non-character `platforms`, non-character `user_info`, and migration metadata
   - `coke_settings` => one document per non-character customer, keyed by `account_id`, for `timezone`, `access.*`, and migration metadata
-  - `characters` => one document per legacy `is_character = true` record, preserving the existing `_id` and carrying `name`, `platforms`, `user_info`, and migration metadata
+  - `characters` => one document per legacy `is_character = true` record, preserving the existing `_id` and carrying `name`, `nickname`, `platforms`, `user_info`, and migration metadata
 - [ ] Write a migration script that classifies each field on Mongo `users` as:
   - auth-only => delete (`email`, `phone_number`, password / verification / session fields, top-level legacy auth `status`, and `is_character` after the split)
   - business-profile => move to `user_profiles` (`name`, `display_name`, non-character `platforms`, non-character `user_info`)
   - Coke setting => move to `coke_settings` (`timezone`, `access.*`)
-  - character-owned => move the full `is_character = true` document into `characters`, preserving its existing `_id`
+  - character-owned => move the full `is_character = true` document into `characters`, preserving its existing `_id` and top-level `nickname`
 - [ ] Add a dry-run mode that prints:
 
 ```json
@@ -120,6 +120,7 @@ pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
 ```
 
 - [ ] If a legacy field does not fit one of those destinations, stop and update this plan before the real migration.
+- [ ] If a non-character legacy `users` document lacks `account_id`, dry-run must report `missing_account_id` and the real migration must stop instead of deriving `account_id` from Mongo `_id`.
 - [ ] Run:
 
 ```bash
