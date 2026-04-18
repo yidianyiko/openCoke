@@ -138,15 +138,15 @@ pytest tests/unit/ -k "user_dao or identity"
 - Modify: `gateway/packages/api/src/lib/coke-subscription.ts`
 - Modify: `gateway/packages/api/src/routes/coke-payment-routes.ts`
 
-- [ ] Add failing tests that prove subscription and payment lookups now use `customerId` instead of `cokeAccountId`.
-- [ ] Run: `pnpm --dir gateway/packages/api test -- src/lib/coke-subscription.test.ts src/routes/coke-payment-routes.test.ts`
-- [ ] Update the transition-safe migration so it:
+- [x] Add failing tests that prove subscription and payment lookups now use `customerId` instead of `cokeAccountId`.
+- [x] Run: `pnpm --dir gateway/packages/api test -- src/lib/coke-subscription.test.ts src/routes/coke-payment-routes.test.ts`
+- [x] Update the transition-safe migration so it:
   - copies any remaining subscription FKs to `customer_id`
   - preserves `coke_accounts` and `verify_tokens` for remaining compatibility callers until the maintenance-window cutover
-- [ ] Update the payment/webhook path so it:
+- [x] Update the payment/webhook path so it:
   - reads and writes subscription rows by `customerId`
   - accepts both Stripe `metadata.customerId` and legacy `metadata.cokeAccountId` during the transition window
-- [ ] Re-run:
+- [x] Re-run:
 
 ```bash
 pnpm --dir gateway/packages/api exec prisma migrate reset --force
