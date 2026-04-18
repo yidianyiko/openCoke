@@ -17,10 +17,41 @@ from pymongo import MongoClient
 from conf.config import CONF
 
 
-AUTH_ONLY_FIELDS = {"email", "phone_number", "status", "is_character"}
+AUTH_ONLY_FIELDS = {
+    "email",
+    "phone_number",
+    "status",
+    "is_character",
+    "password",
+    "password_hash",
+    "password_salt",
+    "bind_secret_hash",
+    "bind_token",
+    "verify_token",
+    "verify_token_expires_at",
+    "verification_token",
+    "verification_token_expires_at",
+    "email_verified",
+    "reset_password_token",
+    "reset_password_expires_at",
+    "password_reset_token",
+    "password_reset_expires_at",
+    "session_id",
+    "session_token",
+    "session_expires_at",
+    "session_started_at",
+    "last_login_at",
+}
 PROFILE_FIELDS = {"name", "display_name", "platforms", "user_info"}
 SETTINGS_FIELDS = {"timezone", "access"}
 CHARACTER_FIELDS = {"name", "nickname", "platforms", "user_info"}
+
+
+class MigrationSafetyError(ValueError):
+    def __init__(self, code: str, report: Dict[str, Any]):
+        super().__init__(code)
+        self.code = code
+        self.report = report
 
 
 def _json_default(value: Any):
@@ -45,10 +76,7 @@ def _stringify_id(value: Any) -> str:
 
 
 def _is_auth_only_field(field_name: str) -> bool:
-    normalized = field_name.lower()
-    if normalized in AUTH_ONLY_FIELDS:
-        return True
-    return any(token in normalized for token in ("password", "verify", "verification", "session"))
+    return field_name in AUTH_ONLY_FIELDS
 
 
 def _current_migration_timestamp() -> datetime:
@@ -69,7 +97,6 @@ def _classify_non_character(document: Dict[str, Any]) -> Dict[str, Any]:
         and field not in SETTINGS_FIELDS
         and field not in AUTH_ONLY_FIELDS
         and field != "_id"
-        and not _is_auth_only_field(field)
         and field != "account_id"
     )
 
@@ -128,7 +155,6 @@ def _classify_character(document: Dict[str, Any]) -> Dict[str, Any]:
         if field not in CHARACTER_FIELDS
         and field not in AUTH_ONLY_FIELDS
         and field != "_id"
-        and not _is_auth_only_field(field)
     )
 
     doc_id = _stringify_id(document.get("_id"))
@@ -143,7 +169,7 @@ def _classify_character(document: Dict[str, Any]) -> Dict[str, Any]:
 
     return {
         "kind": "character",
-        "document_id": _stringify_id(document.get("_id")),
+        "document_id": doc_id,
         "character_doc": character_doc,
         "auth_only_fields": auth_only_fields,
         "unsupported_fields": unsupported_fields,
@@ -191,6 +217,15 @@ def _build_report(classifications: Iterable[Dict[str, Any]], dry_run: bool) -> D
     }
 
 
+def _merge_account_document(collection, account_id: str, document: Dict[str, Any]) -> None:
+    set_fields = {key: value for key, value in document.items() if key != "account_id"}
+    collection.update_one(
+        {"account_id": account_id},
+        {"$set": set_fields, "$setOnInsert": {"account_id": account_id}},
+        upsert=True,
+    )
+
+
 def migrate_legacy_users(
     *,
     collections: Optional[Dict[str, Any]] = None,
@@ -229,21 +264,21 @@ def migrate_legacy_users(
             return report
 
         if report["missing_account_id"]:
-            raise ValueError("missing_account_id")
+            raise MigrationSafetyError("missing_account_id", report)
         if report["unclassified_fields"]:
-            raise ValueError("unclassified_fields")
+            raise MigrationSafetyError("unclassified_fields", report)
 
         for document, classification in zip(user_documents, classifications):
             if classification["kind"] == "customer":
-                collections["user_profiles"].replace_one(
-                    {"account_id": classification["account_id"]},
+                _merge_account_document(
+                    collections["user_profiles"],
+                    classification["account_id"],
                     classification["profile_doc"],
-                    upsert=True,
                 )
-                collections["coke_settings"].replace_one(
-                    {"account_id": classification["account_id"]},
+                _merge_account_document(
+                    collections["coke_settings"],
+                    classification["account_id"],
                     classification["settings_doc"],
-                    upsert=True,
                 )
             elif classification["kind"] == "character":
                 character_doc = classification["character_doc"]
@@ -296,23 +331,14 @@ def main() -> int:
             mongo_uri=mongo_uri,
             db_name=db_name,
         )
-    except ValueError as exc:
-        report = {
-            "dry_run": False,
-            "users_scanned": 0,
-            "profiles_to_write": 0,
-            "settings_to_write": 0,
-            "characters_to_write": 0,
-            "auth_only_fields_to_drop": [],
-            "missing_account_id": [str(exc)],
-            "unclassified_fields": [],
-        }
-        print(json.dumps(report, ensure_ascii=False, indent=2, default=_json_default))
-        return 1
+        exit_code = 0
+    except MigrationSafetyError as exc:
+        report = exc.report
+        exit_code = 1
 
     _write_report(report, args.report_path)
     print(json.dumps(report, ensure_ascii=False, indent=2, default=_json_default))
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

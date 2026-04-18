@@ -184,6 +184,14 @@ class UserDAO:
 
         return profile_doc, settings_doc
 
+    def _merge_account_document(self, collection: Collection, account_id: str, document: Dict) -> None:
+        set_fields = {key: value for key, value in document.items() if key != "account_id"}
+        collection.update_one(
+            {"account_id": account_id},
+            {"$set": set_fields, "$setOnInsert": {"account_id": account_id}},
+            upsert=True,
+        )
+
     def create_user(self, user_data: Dict) -> str:
         character_id = user_data.get("_id")
         if isinstance(character_id, str) and ObjectId.is_valid(character_id):
@@ -201,16 +209,8 @@ class UserDAO:
             raise ValueError("account_id_required")
 
         profile_doc, settings_doc = self._build_business_documents(account_id, user_data)
-        self.profile_collection.replace_one(
-            {"account_id": account_id},
-            profile_doc,
-            upsert=True,
-        )
-        self.settings_collection.replace_one(
-            {"account_id": account_id},
-            settings_doc,
-            upsert=True,
-        )
+        self._merge_account_document(self.profile_collection, account_id, profile_doc)
+        self._merge_account_document(self.settings_collection, account_id, settings_doc)
         return account_id
 
     def get_user_by_id(self, user_id: str) -> Optional[Dict]:
@@ -321,16 +321,8 @@ class UserDAO:
             raise ValueError("account_id_required")
 
         profile_doc, settings_doc = self._build_business_documents(account_id, user_data)
-        self.profile_collection.replace_one(
-            {"account_id": account_id},
-            profile_doc,
-            upsert=True,
-        )
-        self.settings_collection.replace_one(
-            {"account_id": account_id},
-            settings_doc,
-            upsert=True,
-        )
+        self._merge_account_document(self.profile_collection, account_id, profile_doc)
+        self._merge_account_document(self.settings_collection, account_id, settings_doc)
         return account_id
 
     def _update_settings(self, account_id: str, update_fields: Dict) -> bool:
