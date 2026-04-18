@@ -226,6 +226,15 @@ def _merge_account_document(collection, account_id: str, document: Dict[str, Any
     )
 
 
+def _merge_character_document(collection, character_doc: Dict[str, Any]) -> None:
+    set_fields = {key: value for key, value in character_doc.items() if key != "_id"}
+    collection.update_one(
+        {"_id": character_doc["_id"]},
+        {"$set": set_fields, "$setOnInsert": {"_id": character_doc["_id"]}},
+        upsert=True,
+    )
+
+
 def migrate_legacy_users(
     *,
     collections: Optional[Dict[str, Any]] = None,
@@ -282,10 +291,9 @@ def migrate_legacy_users(
                 )
             elif classification["kind"] == "character":
                 character_doc = classification["character_doc"]
-                collections["characters"].replace_one(
-                    {"_id": character_doc["_id"]},
+                _merge_character_document(
+                    collections["characters"],
                     character_doc,
-                    upsert=True,
                 )
 
             collections["users"].delete_one({"_id": document["_id"]})

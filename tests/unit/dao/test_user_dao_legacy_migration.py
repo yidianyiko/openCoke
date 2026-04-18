@@ -59,12 +59,17 @@ class FakeCollection:
         return None
 
 
-def make_collections(user_documents, profile_documents=None, settings_documents=None):
+def make_collections(
+    user_documents,
+    profile_documents=None,
+    settings_documents=None,
+    character_documents=None,
+):
     return {
         "users": FakeCollection(user_documents),
         "user_profiles": FakeCollection(profile_documents or []),
         "coke_settings": FakeCollection(settings_documents or []),
-        "characters": FakeCollection([]),
+        "characters": FakeCollection(character_documents or []),
     }
 
 
@@ -155,9 +160,10 @@ def test_real_migration_preserves_character_phase1_shape():
     report = module.migrate_legacy_users(collections=collections, dry_run=False)
 
     assert report["characters_to_write"] == 1
-    selector, document, upsert = collections["characters"].replaced[0]
+    selector, update, upsert = collections["characters"].updated[0]
     assert selector == {"_id": "507f1f77bcf86cd799439012"}
     assert upsert is True
+    document = collections["characters"].documents[0]
     assert document["_id"] == "507f1f77bcf86cd799439012"
     assert document["name"] == "qiaoyun"
     assert document["nickname"] == "Qiaoyun"
@@ -166,6 +172,39 @@ def test_real_migration_preserves_character_phase1_shape():
     assert document["legacy_user_id"] == "507f1f77bcf86cd799439012"
     assert isinstance(document["migrated_at"], datetime)
     assert "migration" not in document
+    assert collections["characters"].replaced == []
+
+
+def test_real_migration_merges_character_docs_without_erasing_existing_fields():
+    module = load_migration_module()
+    collections = make_collections(
+        [
+            {
+                "_id": "507f1f77bcf86cd799439015",
+                "is_character": True,
+                "name": "coke",
+                "nickname": "Coke",
+                "platforms": {"wechat": {"nickname": "Coke"}},
+                "user_info": {"description": "prompt"},
+            }
+        ],
+        character_documents=[
+            {
+                "_id": "507f1f77bcf86cd799439015",
+                "avatar_url": "https://example.com/avatar.png",
+            }
+        ],
+    )
+
+    report = module.migrate_legacy_users(collections=collections, dry_run=False)
+
+    assert report["characters_to_write"] == 1
+    character_doc = collections["characters"].documents[0]
+    assert character_doc["avatar_url"] == "https://example.com/avatar.png"
+    assert character_doc["name"] == "coke"
+    assert character_doc["legacy_user_id"] == "507f1f77bcf86cd799439015"
+    assert collections["characters"].replaced == []
+    assert collections["characters"].updated != []
 
 
 def test_real_migration_merges_customer_docs_without_erasing_existing_fields():
