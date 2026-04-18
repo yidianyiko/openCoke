@@ -12,6 +12,7 @@ from pymongo import MongoClient
 
 from conf.config import CONF
 from connector.clawscale_bridge.app import BusinessOnlyBridgeGateway
+from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from dao.user_dao import UserDAO
 
 FORBIDDEN_ROUTE_KEYS = (
@@ -152,26 +153,46 @@ def _check_bridge_payload(bridge_gateway) -> dict:
     if not isinstance(response, dict) or response.get("status") != "ok":
         raise RuntimeError(f"bridge_payload_verification_failed:{response}")
 
-    captured_calls = getattr(bridge_gateway.message_gateway, "calls", None)
-    if not isinstance(captured_calls, list) or not captured_calls:
-        raise RuntimeError("bridge_payload_verification_failed:no_enqueue_call")
+    inputmessages = bridge_gateway.message_gateway.mongo.get_collection("inputmessages")
+    update_calls = getattr(inputmessages, "updated", None)
+    if not isinstance(update_calls, list) or not update_calls:
+        raise RuntimeError("bridge_payload_verification_failed:no_emitted_message")
 
-    inbound = captured_calls[0]["inbound"]
-    payload_keys = sorted(inbound.keys())
-    forbidden_keys = [key for key in FORBIDDEN_ROUTE_KEYS if key in inbound]
+    emitted = update_calls[0][0][1]["$setOnInsert"]
+    customer = emitted["metadata"]["customer"]
+    coke_account = emitted["metadata"]["coke_account"]
+    forbidden_keys = [
+        key
+        for key in FORBIDDEN_ROUTE_KEYS
+        if key in customer or key in coke_account
+    ]
     return {
         "forbidden_keys": forbidden_keys,
-        "payload_keys": payload_keys,
+        "customer_keys": sorted(customer.keys()),
+        "coke_account_keys": sorted(coke_account.keys()),
     }
 
 
-class _CapturingMessageGateway:
+class _CapturingCollection:
     def __init__(self):
-        self.calls: list[dict] = []
+        self.updated: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 
-    def enqueue(self, **kwargs):
-        self.calls.append(kwargs)
-        return "in_evt_verify_1"
+    def create_index(self, *args, **kwargs):
+        return None
+
+    def update_one(self, *args, **kwargs):
+        self.updated.append((args, kwargs))
+        return None
+
+
+class _CapturingMongo:
+    def __init__(self):
+        self.inputmessages = _CapturingCollection()
+
+    def get_collection(self, name: str):
+        if name != "inputmessages":
+            raise KeyError(name)
+        return self.inputmessages
 
 
 def verify_auth_retirement(
@@ -203,9 +224,11 @@ def verify_auth_retirement(
         )
 
         if bridge_gateway_factory is None:
-            message_gateway = _CapturingMessageGateway()
             bridge_gateway = BusinessOnlyBridgeGateway(
-                message_gateway=message_gateway,
+                message_gateway=CokeMessageGateway(
+                    mongo=_CapturingMongo(),
+                    user_dao=SimpleNamespace(),
+                ),
                 reply_waiter=SimpleNamespace(
                     wait_for_reply=lambda *args, **kwargs: {"reply": "ok"}
                 ),

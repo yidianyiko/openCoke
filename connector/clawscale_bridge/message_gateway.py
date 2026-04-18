@@ -61,15 +61,6 @@ class CokeMessageGateway:
         customer = {
             "id": customer_id,
             "display_name": inbound.get("coke_account_display_name"),
-            "account_status": inbound.get("account_status"),
-            "email_verified": inbound.get("email_verified"),
-            "subscription_active": inbound.get("subscription_active"),
-            "subscription_expires_at": inbound.get("subscription_expires_at"),
-            "account_access_allowed": inbound.get("account_access_allowed"),
-            "account_access_denied_reason": inbound.get(
-                "account_access_denied_reason"
-            ),
-            "renewal_url": inbound.get("renewal_url"),
         }
 
         return {

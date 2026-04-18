@@ -62,21 +62,32 @@ def test_verify_auth_retirement_checks_empty_users_collection_account_resolution
         def close(self):
             return None
 
-    class FakeMessageGateway:
+    class FakeCollection:
         def __init__(self):
-            self.calls = []
+            self.created_indexes = []
+            self.updated = []
 
-        def enqueue(self, **kwargs):
-            self.calls.append(kwargs)
-            return "in_evt_1"
+        def create_index(self, *args, **kwargs):
+            self.created_indexes.append((args, kwargs))
 
-    gateway = FakeMessageGateway()
+        def update_one(self, *args, **kwargs):
+            self.updated.append((args, kwargs))
+
+    class FakeMongo:
+        def __init__(self):
+            self.collection = FakeCollection()
+
+        def get_collection(self, name):
+            assert name == "inputmessages"
+            return self.collection
+
+    mongo = FakeMongo()
 
     report = script.verify_auth_retirement(
         mongo_client_factory=FakeMongoClient,
         user_dao_factory=FakeUserDAO,
         bridge_gateway_factory=lambda: script.BusinessOnlyBridgeGateway(
-            message_gateway=gateway,
+            message_gateway=script.CokeMessageGateway(mongo=mongo, user_dao=SimpleNamespace()),
             reply_waiter=SimpleNamespace(wait_for_reply=lambda *args, **kwargs: {"reply": "ok"}),
             target_character_id="char_1",
         ),
@@ -96,34 +107,18 @@ def test_verify_auth_retirement_checks_empty_users_collection_account_resolution
         },
         "bridge_payload": {
             "forbidden_keys": [],
-            "payload_keys": [
-                "business_conversation_key",
-                "channel_id",
-                "coke_account_display_name",
-                "coke_account_id",
-                "customer_id",
-                "end_user_id",
-                "external_id",
-                "inbound_event_id",
-                "platform",
-                "tenant_id",
-                "timestamp",
-            ],
+            "customer_keys": ["display_name", "id"],
+            "coke_account_keys": ["display_name", "id"],
         },
     }
-    assert gateway.calls[0]["account_id"] == "acct_123"
-    assert gateway.calls[0]["inbound"] == {
-        "tenant_id": "ten_1",
-        "channel_id": "ch_1",
-        "business_conversation_key": "bc_verify_1",
-        "platform": "wechat_personal",
-        "end_user_id": "eu_1",
-        "external_id": "wxid_123",
-        "timestamp": gateway.calls[0]["inbound"]["timestamp"],
-        "inbound_event_id": "in_evt_verify_1",
-        "customer_id": "acct_123",
-        "coke_account_id": "acct_123",
-        "coke_account_display_name": "Alice",
+    inserted = mongo.collection.updated[0][0][1]["$setOnInsert"]
+    assert inserted["metadata"]["customer"] == {
+        "id": "acct_123",
+        "display_name": "Alice",
+    }
+    assert inserted["metadata"]["coke_account"] == {
+        "id": "acct_123",
+        "display_name": "Alice",
     }
 
 
@@ -170,11 +165,35 @@ def test_verify_auth_retirement_allows_empty_business_collections_without_failin
         def close(self):
             return None
 
+    class CapturingCollection:
+        def __init__(self):
+            self.updated = []
+
+        def create_index(self, *args, **kwargs):
+            return None
+
+        def update_one(self, *args, **kwargs):
+            self.updated.append((args, kwargs))
+            return None
+
+    class CapturingMongo:
+        def __init__(self):
+            self.collection = CapturingCollection()
+
+        def get_collection(self, name):
+            assert name == "inputmessages"
+            return self.collection
+
+    mongo = CapturingMongo()
+
     report = script.verify_auth_retirement(
         mongo_client_factory=FakeMongoClient,
         user_dao_factory=FakeUserDAO,
         bridge_gateway_factory=lambda: script.BusinessOnlyBridgeGateway(
-            message_gateway=type("Gateway", (), {"calls": [], "enqueue": lambda self, **kwargs: self.calls.append(kwargs) or "in_evt_1"})(),
+            message_gateway=script.CokeMessageGateway(
+                mongo=mongo,
+                user_dao=SimpleNamespace(),
+            ),
             reply_waiter=SimpleNamespace(wait_for_reply=lambda *args, **kwargs: {"reply": "ok"}),
             target_character_id="char_1",
         ),
