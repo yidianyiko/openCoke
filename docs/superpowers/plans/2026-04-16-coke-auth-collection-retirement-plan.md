@@ -36,7 +36,7 @@ This plan does **not** cover:
 - `gateway/packages/api/src/scripts/export-legacy-coke-auth.ts`
   Exports legacy `coke_accounts` / `verify_tokens` rows before destructive retirement.
 - `connector/scripts/migrate-legacy-users.py`
-  Moves surviving non-auth fields from Mongo `users` into `user_profiles`, `coke_settings`, or other explicitly named business documents.
+  Moves surviving non-auth fields from Mongo `users` into `user_profiles`, `coke_settings`, or `characters`.
 - `connector/scripts/verify-auth-retirement.py`
   Confirms the legacy auth collection is gone and the remaining business collections still resolve by `account_id`.
 
@@ -97,11 +97,15 @@ pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
 - Modify: `dao/user_dao.py`
 - Modify: any Coke DAO that still depends on auth-only fields in `users`
 
+- [ ] Use these destination contracts during classification:
+  - `user_profiles` => one document per non-character customer, keyed by `account_id`, for `name`, `display_name`, non-character `platforms`, non-character `user_info`, and migration metadata
+  - `coke_settings` => one document per non-character customer, keyed by `account_id`, for `timezone`, `access.*`, and migration metadata
+  - `characters` => one document per legacy `is_character = true` record, preserving the existing `_id` and carrying `name`, `platforms`, `user_info`, and migration metadata
 - [ ] Write a migration script that classifies each field on Mongo `users` as:
-  - auth-only => delete
-  - business-profile => move to `user_profiles`
-  - Coke setting => move to `coke_settings`
-  - character-owned => move to the appropriate character document
+  - auth-only => delete (`email`, `phone_number`, password / verification / session fields, top-level legacy auth `status`, and `is_character` after the split)
+  - business-profile => move to `user_profiles` (`name`, `display_name`, non-character `platforms`, non-character `user_info`)
+  - Coke setting => move to `coke_settings` (`timezone`, `access.*`)
+  - character-owned => move the full `is_character = true` document into `characters`, preserving its existing `_id`
 - [ ] Add a dry-run mode that prints:
 
 ```json
@@ -110,10 +114,12 @@ pnpm --dir gateway/packages/api exec tsx src/scripts/audit-customer-id-parity.ts
   "users_scanned": 0,
   "profiles_to_write": 0,
   "settings_to_write": 0,
+  "characters_to_write": 0,
   "auth_only_fields_to_drop": []
 }
 ```
 
+- [ ] If a legacy field does not fit one of those destinations, stop and update this plan before the real migration.
 - [ ] Run:
 
 ```bash

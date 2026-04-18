@@ -710,8 +710,8 @@ Coke no longer owns authentication or an account identity.
 - Coke's MongoDB `users` auth **collection** is retired (plus Postgres
   `coke_accounts` is retired at the same cutover). Auth fields are
   deleted. Any remaining non-auth fields in either location are migrated
-  into clearly business-named objects (`CokeSettings`, `Character`,
-  `UserProfile`, etc.) or dropped if unused. The **field** `account_id`
+  into clearly business-named objects (`coke_settings`, `characters`,
+  `user_profiles`) or dropped if unused. The **field** `account_id`
   on Coke's other Mongo collections (messages, reminders, memory, etc.)
   **survives** — it is not removed. This spec deletes the auth
   collections, not the cross-reference field.
@@ -719,6 +719,72 @@ Coke no longer owns authentication or an account identity.
   migration described in "Cross-boundary Identifier → Migration direction",
   so no rewrite of non-`users` Mongo documents is needed.
 - Migration is one-shot; no dual-write or long-lived mapping.
+
+### Legacy `users` collection split contract
+
+Before the `users` auth collection is retired, every surviving non-auth
+field must land in one of these Mongo destinations:
+
+- `user_profiles`
+  - one document per non-character customer, keyed by `account_id`
+  - stores user-facing profile data that Coke workflows still need after
+    auth retirement
+  - minimal Phase 1 shape:
+    - `account_id`
+    - `name`
+    - `display_name`
+    - `platforms`
+    - `user_info` when that metadata belongs to the human user rather than
+      a character
+    - `migrated_from_user_id`
+    - `migrated_at`
+- `coke_settings`
+  - one document per non-character customer, keyed by `account_id`
+  - stores Coke-specific business settings that are not authentication
+    credentials
+  - minimal Phase 1 shape:
+    - `account_id`
+    - `timezone`
+    - `access`
+    - `migrated_from_user_id`
+    - `migrated_at`
+- `characters`
+  - one document per former `users.is_character = true` record
+  - preserves the existing Mongo `_id` so character references do not need
+    a second identifier migration during Phase 1
+  - minimal Phase 1 shape:
+    - `_id`
+    - `legacy_user_id`
+    - `name`
+    - `platforms`
+    - `user_info`
+    - `migrated_at`
+
+Task-level field classification follows this contract:
+
+- auth-only => delete
+  - `email`
+  - `phone_number`
+  - password / verification / session fields
+  - top-level human auth lifecycle flags such as the legacy auth `status`
+  - the `is_character` sentinel after character docs have moved out
+- business-profile => move to `user_profiles`
+  - `name`
+  - `display_name`
+  - non-character `platforms`
+  - non-character `user_info`
+- Coke setting => move to `coke_settings`
+  - `timezone`
+  - `access.*`
+- character-owned => move to `characters`
+  - the full former `is_character = true` document body, excluding any
+    auth-only fields
+  - preserve the existing Mongo `_id`
+
+This split is a migration contract, not an invitation to invent additional
+destination schemas during implementation. If implementation finds a legacy
+field that does not fit this contract, the plan must stop and be revised
+before any destructive step proceeds.
 
 ## Frontend Ownership
 
