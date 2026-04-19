@@ -1,11 +1,14 @@
 import logging
 import time
 import threading
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
 
 from conf.config import CONF
+from connector.clawscale_bridge.gateway_delivery_route_client import (
+    GatewayDeliveryRouteClient,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
@@ -55,6 +58,19 @@ def _mongo_uri() -> str:
     )
 
 
+def _derive_delivery_route_api_url(identity_api_url: str) -> str:
+    parsed = urlsplit(identity_api_url)
+    return urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            "/api/internal/coke-delivery",
+            "",
+            "",
+        )
+    )
+
+
 def _resolve_target_character_id(user_dao: UserDAO) -> str:
     character_alias = CONF.get("default_character_alias", "coke")
     characters = user_dao.find_characters({"name": character_alias}, limit=1)
@@ -64,9 +80,17 @@ def _resolve_target_character_id(user_dao: UserDAO) -> str:
 
 
 class LateReplyFallbackPromoter:
-    def __init__(self, *, mongo, reply_waiter, thread_factory=threading.Thread):
+    def __init__(
+        self,
+        *,
+        mongo,
+        reply_waiter,
+        delivery_route_client=None,
+        thread_factory=threading.Thread,
+    ):
         self.mongo = mongo
         self.reply_waiter = reply_waiter
+        self.delivery_route_client = delivery_route_client
         self.thread_factory = thread_factory
 
     def start_async(
@@ -74,6 +98,11 @@ class LateReplyFallbackPromoter:
         *,
         causal_inbound_event_id: str,
         customer_id: str,
+        tenant_id: str | None = None,
+        conversation_id: str | None = None,
+        channel_id: str | None = None,
+        end_user_id: str | None = None,
+        external_end_user_id: str | None = None,
         sync_reply_token: str | None = None,
     ):
         thread = self.thread_factory(
@@ -81,6 +110,11 @@ class LateReplyFallbackPromoter:
             kwargs={
                 "causal_inbound_event_id": causal_inbound_event_id,
                 "customer_id": customer_id,
+                "tenant_id": tenant_id,
+                "conversation_id": conversation_id,
+                "channel_id": channel_id,
+                "end_user_id": end_user_id,
+                "external_end_user_id": external_end_user_id,
                 "sync_reply_token": sync_reply_token,
             },
             daemon=True,
@@ -93,6 +127,11 @@ class LateReplyFallbackPromoter:
         *,
         causal_inbound_event_id: str,
         customer_id: str,
+        tenant_id: str | None = None,
+        conversation_id: str | None = None,
+        channel_id: str | None = None,
+        end_user_id: str | None = None,
+        external_end_user_id: str | None = None,
         sync_reply_token: str | None = None,
     ) -> bool:
         try:
@@ -127,6 +166,44 @@ class LateReplyFallbackPromoter:
 
         output_id = str(message["_id"])
         idempotency_key = f"late_sync_reply:{output_id}"
+
+        if self.delivery_route_client is not None:
+            if all(
+                isinstance(value, str) and value.strip()
+                for value in (
+                    tenant_id,
+                    conversation_id,
+                    channel_id,
+                    end_user_id,
+                    external_end_user_id,
+                )
+            ):
+                try:
+                    self.delivery_route_client.bind(
+                        tenant_id=tenant_id,
+                        conversation_id=conversation_id,
+                        account_id=customer_id,
+                        business_conversation_key=business_conversation_key,
+                        channel_id=channel_id,
+                        end_user_id=end_user_id,
+                        external_end_user_id=external_end_user_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "late_clawscale_reply_delivery_route_bind_failed: "
+                        "causal_inbound_event_id=%s output_id=%s",
+                        causal_inbound_event_id,
+                        output_id,
+                    )
+                    return False
+            else:
+                logger.warning(
+                    "late_clawscale_reply_missing_route_context: "
+                    "causal_inbound_event_id=%s output_id=%s",
+                    causal_inbound_event_id,
+                    output_id,
+                )
+                return False
 
         updated = self.mongo.update_one(
             "outputmessages",
@@ -341,6 +418,11 @@ class BusinessOnlyBridgeGateway:
                 self.late_reply_fallback.start_async(
                     causal_inbound_event_id=causal_inbound_event_id,
                     customer_id=customer_id,
+                    tenant_id=inbound.get("tenant_id"),
+                    conversation_id=inbound.get("gateway_conversation_id"),
+                    channel_id=inbound.get("channel_id"),
+                    end_user_id=inbound.get("end_user_id"),
+                    external_end_user_id=inbound.get("external_id"),
                     sync_reply_token=sync_reply_token,
                 )
                 return {"status": "ok"}
@@ -399,6 +481,10 @@ def _build_default_bridge_gateway():
         poll_interval_seconds=bridge_conf["poll_interval_seconds"],
         timeout_seconds=bridge_conf["reply_timeout_seconds"],
     )
+    delivery_route_client = GatewayDeliveryRouteClient(
+        api_url=_derive_delivery_route_api_url(bridge_conf["identity_api_url"]),
+        api_key=bridge_conf["identity_api_key"],
+    )
     late_reply_fallback = LateReplyFallbackPromoter(
         mongo=mongo,
         reply_waiter=ReplyWaiter(
@@ -406,6 +492,7 @@ def _build_default_bridge_gateway():
             poll_interval_seconds=bridge_conf["poll_interval_seconds"],
             timeout_seconds=max(bridge_conf["reply_timeout_seconds"] * 4, 300),
         ),
+        delivery_route_client=delivery_route_client,
     )
     return BusinessOnlyBridgeGateway(
         message_gateway=message_gateway,

@@ -506,6 +506,11 @@ def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkey
     late_reply_fallback.start_async.assert_called_once_with(
         causal_inbound_event_id="in_evt_timeout_1",
         customer_id="acct_1",
+        tenant_id="ten_1",
+        conversation_id=None,
+        channel_id="ch_1",
+        end_user_id="eu_1",
+        external_end_user_id="wxid_123",
         sync_reply_token="sync_tok_timeout_1",
     )
 
@@ -516,6 +521,7 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
     mongo = MagicMock()
     mongo.update_one.return_value = 1
     reply_waiter = MagicMock()
+    delivery_route_client = MagicMock()
     reply_waiter.wait_for_reply_message.return_value = {
         "_id": "out_late_1",
         "status": "pending",
@@ -533,11 +539,17 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
     promoter = bridge_app.LateReplyFallbackPromoter(
         mongo=mongo,
         reply_waiter=reply_waiter,
+        delivery_route_client=delivery_route_client,
     )
 
     promoted = promoter._promote_for_async_dispatch(
         causal_inbound_event_id="in_evt_late_1",
         customer_id="acct_1",
+        tenant_id="ten_1",
+        conversation_id="conv_1",
+        channel_id="ch_1",
+        end_user_id="eu_1",
+        external_end_user_id="wxid_1",
         sync_reply_token="sync_tok_late_1",
     )
 
@@ -546,6 +558,15 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
         "in_evt_late_1",
         sync_reply_token="sync_tok_late_1",
         consume=False,
+    )
+    delivery_route_client.bind.assert_called_once_with(
+        tenant_id="ten_1",
+        conversation_id="conv_1",
+        account_id="acct_1",
+        business_conversation_key="bc_late_1",
+        channel_id="ch_1",
+        end_user_id="eu_1",
+        external_end_user_id="wxid_1",
     )
     mongo.update_one.assert_called_once_with(
         "outputmessages",
