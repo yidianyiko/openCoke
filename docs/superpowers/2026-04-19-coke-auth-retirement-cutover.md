@@ -15,7 +15,7 @@ The destructive step is Prisma migration `20260419010000_drop_legacy_coke_auth_t
 
 - Gateway build includes `fix(auth): retire coke auth legacy storage`, `fix(payment): remove coke account compat lookups`, `refactor(api): retire coke account runtime helpers`, `fix(auth): tighten compatibility cutover`, and `fix(api): retire legacy coke auth tables`.
 - Deprecated registration / verification / reset endpoints already return `503 temporarily_paused` before the migration begins.
-- Operator has shell access to the checked-out worktree at `.worktrees/coke-auth-retirement`.
+- Operator has shell access to a clean checkout of the repository that includes the merged Plan 3 changes on local `main`.
 
 ## Maintenance Window Timing
 
@@ -31,7 +31,13 @@ Use a 10-minute window. Treat the timestamps below as offsets from the announced
 
 ## Commands
 
-Run these from `/data/projects/coke/.worktrees/coke-auth-retirement`.
+Run these from the repository root checkout that contains the merged auth-retirement work.
+
+Example:
+
+```bash
+cd /data/projects/coke
+```
 
 ```bash
 pnpm --dir gateway/packages/api exec tsx src/scripts/export-legacy-coke-auth.ts
@@ -58,7 +64,7 @@ The rollback artifacts for this cutover are:
   Treat the file as a sensitive secret-bearing artifact and move it to durable secure storage before the window closes if `/tmp` is ephemeral on the operator host.
   Override with `LEGACY_COKE_AUTH_EXPORT_PATH` or `--output <path>`.
 - The pre-drop migration history already present in `gateway/packages/api/prisma/migrations/20260416000000_legacy_schema_baseline` through `20260418010000_parked_inbound_runtime_support`.
-- The worktree branch itself: `/data/projects/coke/.worktrees/coke-auth-retirement` on branch `feat/coke-auth-retirement`.
+- The checked-out repository state that contains the merged Plan 3 commits, plus the database backup/snapshot taken before the maintenance window.
 
 No in-place database rollback is supported after `prisma migrate deploy` completes. Recovery means restoring from the exported legacy auth artifact plus the database backup/snapshot taken before the window.
 

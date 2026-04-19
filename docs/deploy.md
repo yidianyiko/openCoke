@@ -198,6 +198,55 @@ curl -k https://coke.keep4oforever.com/health
 curl -k https://coke.keep4oforever.com/bridge/healthz
 ```
 
+### 4.7 Evolution API manager 子路径挂载
+
+如果 Evolution API 继续挂在现有域名子路径 `/evolution-api/` 下，而不是独立子域名，
+需要先生成一个 patched `manager-dist/`，再重启 Evolution 容器。
+
+原因是 Evolution 自带 manager 前端默认假设自己运行在根路径：
+
+- `index.html` 静态资源写死为 `/assets/...`
+- 前端路由默认 `basename` 为空
+- 登录页默认服务器地址只会填当前 origin，不会自动带 `/evolution-api`
+
+仓库里的补丁脚本会把这些路径改成兼容现有子路径的形式：
+
+```bash
+ssh gcp-coke 'rm -rf ~/evolution/manager-dist ~/evolution/manager-dist-upstream && mkdir -p ~/evolution'
+ssh gcp-coke 'docker cp evolution-api:/evolution/manager/dist/. ~/evolution/manager-dist-upstream'
+scp deploy/evolution/patch_manager_dist.sh gcp-coke:~/evolution/patch_manager_dist.sh
+ssh gcp-coke 'bash ~/evolution/patch_manager_dist.sh ~/evolution/manager-dist-upstream ~/evolution/manager-dist'
+```
+
+然后确认 `~/evolution/.env` 里启用了 manager：
+
+```bash
+ssh gcp-coke "grep -n 'SERVER_DISABLE_MANAGER' ~/evolution/.env"
+```
+
+值应该是：
+
+```bash
+SERVER_DISABLE_MANAGER=false
+```
+
+最后同步新的 Nginx 配置并重启 Evolution：
+
+```bash
+scp deploy/nginx/coke.conf gcp-coke:~/coke/deploy/nginx/coke.conf
+ssh gcp-coke "sudo cp ~/coke/deploy/nginx/coke.conf /etc/nginx/sites-available/coke"
+ssh gcp-coke "sudo nginx -t && sudo systemctl reload nginx"
+ssh gcp-coke 'cd ~/evolution && docker compose up -d --force-recreate evolution-api'
+```
+
+回归检查：
+
+```bash
+curl -I https://coke.keep4oforever.com/evolution-api/manager/
+curl -I https://coke.keep4oforever.com/evolution-api/manager-assets/index-CO3NSIFj.js
+curl -s https://coke.keep4oforever.com/evolution-api/manager/ | head
+```
+
 ## 5. 日志与排障
 
 - 主日志：`agent/runner/agent.log`
