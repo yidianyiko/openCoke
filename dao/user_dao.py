@@ -374,40 +374,6 @@ class UserDAO:
     def update_timezone(self, user_id: str, timezone: str) -> bool:
         return self._update_settings(user_id, {"timezone": timezone})
 
-    def update_access_stripe(
-        self,
-        user_id: str,
-        stripe_customer_id: str,
-        stripe_subscription_id: str,
-        expire_time: datetime,
-    ) -> bool:
-        return self._update_settings(
-            user_id,
-            {
-                "access.stripe_customer_id": stripe_customer_id,
-                "access.stripe_subscription_id": stripe_subscription_id,
-                "access.expire_time": expire_time,
-                "access.granted_at": datetime.now(),
-            },
-        )
-
-    def update_access_creem(
-        self,
-        user_id: str,
-        creem_customer_id: str,
-        creem_subscription_id: str,
-        expire_time: datetime,
-    ) -> bool:
-        return self._update_settings(
-            user_id,
-            {
-                "access.creem_customer_id": creem_customer_id,
-                "access.creem_subscription_id": creem_subscription_id,
-                "access.expire_time": expire_time,
-                "access.granted_at": datetime.now(),
-            },
-        )
-
     def revoke_access(self, user_id: str) -> bool:
         return self._update_settings(
             user_id,

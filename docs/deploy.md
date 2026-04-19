@@ -35,7 +35,6 @@ pip install -r requirements.txt
 - `mongodb`
 - `redis`
 - `clawscale_bridge`
-- `access_control`
 - `features`
 
 生产部署还需要桥接与身份相关的运行时密钥：

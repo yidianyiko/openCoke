@@ -62,24 +62,6 @@
         "outbound_api_url": "${CLAWSCALE_OUTBOUND_API_URL}",
         "outbound_api_key": "${CLAWSCALE_OUTBOUND_API_KEY}"
     },
-    "access_control": {
-        "enabled": false,
-        "provider": "creem",
-        "platforms": {
-            "wechat": false
-        },
-        "creem": {
-            "product_id": "${CREEM_PRODUCT_ID}",
-            "success_url": "${CREEM_SUCCESS_URL}"
-        },
-        "stripe": {
-            "price_id": "${STRIPE_PRICE_ID}",
-            "success_url": "${STRIPE_SUCCESS_URL}"
-        },
-        "deny_message": "Hi! I'd love to chat with you. Subscribe here to get started:\n{checkout_url}",
-        "expire_message": "Your subscription has expired. Renew here to keep chatting:\n{checkout_url}",
-        "success_message": "[System] Subscription active until {expire_time}"
-    },
     "features": {
         "usage_tracking": {
             "enabled": true,

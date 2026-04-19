@@ -19,6 +19,8 @@ def test_runtime_configs_remove_legacy_connector_sections():
     assert "whatsapp" not in deploy_config
     assert "channels" not in runtime_config
     assert "channels" not in deploy_config
+    assert "access_control" not in runtime_config
+    assert "access_control" not in deploy_config
 
     runtime_bridge = runtime_config["clawscale_bridge"]
     deploy_bridge = deploy_config["clawscale_bridge"]
@@ -95,6 +97,18 @@ def test_legacy_gateway_assets_are_removed():
     assert not (ROOT / "tests" / "unit" / "connector" / "clawscale_bridge" / "test_output_route_resolver.py").exists()
     assert not (ROOT / "tests" / "unit" / "dao" / "test_external_identity_dao.py").exists()
     assert not (ROOT / "tests" / "unit" / "dao" / "test_clawscale_push_route_dao.py").exists()
+
+
+def test_legacy_python_payment_runtime_is_removed():
+    user_dao = (ROOT / "dao" / "user_dao.py").read_text()
+
+    assert not (ROOT / "agent" / "runner" / "payment").exists()
+    assert not (ROOT / "tests" / "unit" / "dao" / "test_user_dao_stripe.py").exists()
+    assert not (ROOT / "tests" / "unit" / "dao" / "test_user_dao_creem.py").exists()
+    assert "update_access_stripe" not in user_dao
+    assert "update_access_creem" not in user_dao
+    assert "access.stripe_customer_id" not in user_dao
+    assert "access.creem_customer_id" not in user_dao
 
 
 def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
