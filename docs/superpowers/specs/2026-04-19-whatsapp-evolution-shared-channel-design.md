@@ -23,7 +23,7 @@ The implementation must reuse the current platformization model:
 - Coke bridge request/response plus async push behavior
 
 The implementation must **not** bypass ClawScale by wiring Evolution directly
-to `coke-bridge`, and it must **not** reuse the existing gateway `whatsapp`
+into `coke-bridge`, and it must **not** reuse the existing gateway `whatsapp`
 channel type that means “gateway owns the Baileys session locally”.
 
 ## Current State
@@ -41,8 +41,8 @@ channel type that means “gateway owns the Baileys session locally”.
   - `integration = WHATSAPP-BAILEYS`
   - `connectionStatus = open`
   - `ownerJid = 8619917902815@s.whatsapp.net`
-- `GET /webhook/find/coke-whatsapp-personal` currently returns `null`
-  which means there is no existing instance webhook to preserve or migrate
+- `GET /webhook/find/coke-whatsapp-personal` currently returns `null`, which
+  means there is no existing instance webhook to preserve or migrate
 
 ### Relevant code already exists
 
@@ -64,7 +64,8 @@ What is missing is the adapter boundary between ClawScale and Evolution:
 - no channel type for an Evolution-backed WhatsApp shared channel
 - no Evolution webhook ingress route in gateway
 - no Evolution outbound sender in gateway
-- no admin/runtime logic to configure Evolution instance webhooks on connect
+- no shared-channel connect/disconnect lifecycle
+- no secret-safe shared-channel config surface for Evolution-backed channels
 
 ### Relevant Evolution API contract
 
@@ -92,6 +93,7 @@ does not require listening to `SEND_MESSAGE`.
   current exact `DeliveryRoute` model.
 - Let platform admins create, view, connect, disconnect, and retire this
   channel from the existing shared-channel admin surface.
+- Keep Evolution control secrets out of browser-visible admin payloads.
 - Make the deployment operationally simple on `gcp-coke`: one Evolution
   instance, one ClawScale shared channel, one webhook registration per
   connected channel.
@@ -125,6 +127,8 @@ Cons:
 
 - requires a new adapter and channel type
 - requires connect/disconnect logic that talks to Evolution control APIs
+- requires tightening the shared-channel admin contract so webhook secrets are
+  not exposed in the browser
 
 Decision: recommended.
 
@@ -179,8 +183,9 @@ This type must be added consistently to:
 
 - Prisma `ChannelType`
 - shared type definitions in `packages/shared`
-- channel admin validation lists
+- admin route validation lists
 - shared-channel admin UI create/edit controls
+- any migration baseline or schema guard that enumerates channel kinds
 
 This type must **not** reuse the existing `whatsapp` type because the current
 `whatsapp` adapter in
@@ -189,8 +194,7 @@ assumes gateway itself owns the Baileys auth directory and live socket state.
 
 ### 2. Split Evolution control credentials from per-channel config
 
-Per-channel config for `whatsapp_evolution` should contain only instance-local
-and channel-local values:
+Per-channel config stored in Postgres for `whatsapp_evolution` should contain:
 
 ```json
 {
@@ -235,7 +239,7 @@ The client should:
 ### 4. Add a gateway Evolution inbound webhook route
 
 Add a new HTTP route under `/gateway` specifically for Evolution-backed
-WhatsApp ingress. The route shape is:
+WhatsApp ingress:
 
 `POST /gateway/evolution/whatsapp/:channelId/:token`
 
@@ -244,7 +248,7 @@ Behavior:
 - load the channel by `channelId`
 - confirm `type === 'whatsapp_evolution'`
 - confirm `status === 'connected'`
-- validate `token` against channel config
+- validate `token` against stored channel config
 - parse the Evolution `MESSAGES_UPSERT` payload
 - ignore payloads that are not end-user inbound messages
 - normalize the payload and delegate to `routeInboundMessage()`
@@ -316,21 +320,37 @@ Outbound semantics stay aligned with the current system:
 - `DeliveryRoute` still decides *who* should receive the message
 - the Evolution sender only decides *how* to deliver on this channel type
 
-### 7. Add connect/disconnect semantics for Evolution-backed channels
+### 7. Add a shared-channel lifecycle surface for connect/disconnect
 
-Connecting a `whatsapp_evolution` channel should:
+The current shared-channel admin surface only supports list/get/patch/retire.
+That is insufficient for an integration that must actively register and remove
+an Evolution webhook.
+
+Add dedicated admin endpoints:
+
+- `POST /api/admin/shared-channels/:id/connect`
+- `POST /api/admin/shared-channels/:id/disconnect`
+
+Behavior for connect:
 
 1. validate required config exists
 2. build the public webhook URL from the current public base URL plus channel id
    and webhook token
 3. call Evolution `POST /webhook/set/{instance}`
 4. enable only the events required for this integration
-5. mark the channel `connected` if the control-plane call succeeds
+5. persist `status = 'connected'` only if the control-plane call succeeds
 
-Disconnecting should:
+Behavior for disconnect:
 
 1. disable or clear the instance webhook via Evolution control API
-2. mark the channel `disconnected`
+2. persist `status = 'disconnected'`
+
+Behavior for retire:
+
+- if a `whatsapp_evolution` shared channel is still connected, retire must first
+  clear the Evolution webhook and only then archive the channel
+- if remote webhook clear fails, retire must fail rather than leave a live
+  webhook pointing at an archived channel
 
 Operational rule:
 
@@ -340,17 +360,50 @@ Operational rule:
 This avoids stale webhook registrations and cross-wiring one instance to the
 wrong shared channel.
 
-### 8. Preserve admin shared-channel workflow
+### 8. Make the shared-channel config surface secret-safe
 
-The admin shared-channel UI already exists and is the right surface for this
-integration.
+The current shared-channel API/detail page returns and edits raw JSON config.
+That is incompatible with an internal `webhookToken` secret.
+
+For `whatsapp_evolution`, the admin shared-channel API must stop exposing raw
+secret-bearing config as an editable blob.
+
+Required contract changes:
+
+- create accepts typed input for `instanceName`; server generates
+  `webhookToken`
+- get/list responses expose safe config only, shaped as:
+
+```json
+{
+  "config": {
+    "instanceName": "coke-whatsapp-personal"
+  },
+  "hasWebhookToken": true
+}
+```
+
+- patch accepts typed safe config only; token is not patchable from the browser
+- the detail page replaces raw JSON editing with typed fields plus
+  connect/disconnect controls for `whatsapp_evolution`
+
+Other shared-channel kinds may continue using the current generic JSON config
+surface for now. The secret-safe contract is required specifically for the new
+Evolution-backed type.
+
+### 9. Preserve admin shared-channel workflow
+
+The admin shared-channel UI remains the right surface for this integration, but
+it needs one additional lifecycle state and a safer editor for this specific
+kind.
 
 Required UI/backend changes:
 
 - allow `whatsapp_evolution` in shared-channel create/edit forms
-- show fields for `instanceName`
-- auto-generate `webhookToken` server-side on create
-- keep token hidden or masked after creation; patch requests do not accept token edits
+- show typed field(s) for `instanceName`
+- show current status plus explicit `Connect`, `Disconnect`, `Save`, and
+  `Retire` actions
+- keep `webhookToken` hidden from the browser at all times
 - preserve existing agent assignment behavior for shared channels
 
 No customer-facing UI changes are required.
@@ -402,10 +455,11 @@ first change.
 
 - Missing or invalid webhook token: respond `403`
 - Channel not found or wrong type: respond `404`
-- Channel exists but is not connected: log and return `200` so Evolution does not retry stale deliveries
+- Channel exists but is not connected: log and return `200` so Evolution does
+  not retry stale deliveries
 - Unrecognized but harmless Evolution webhook payload: log and return `200`
-- Evolution control-plane failure on connect/disconnect: keep channel state
-  unchanged and return explicit error to admin caller
+- Evolution control-plane failure on connect/disconnect/retire: keep channel
+  state unchanged and return explicit error to the admin caller
 - Evolution send failure on proactive outbound: let the existing outbound
   failure path record the error; do not invent a second retry state machine
 
@@ -415,6 +469,16 @@ Gateway production env gains:
 
 - `EVOLUTION_API_BASE_URL`
 - `EVOLUTION_API_KEY`
+
+These variables must be added to:
+
+- `deploy/env/coke.env.example`
+- `docs/deploy.md`
+- the production host `~/coke/.env`
+
+The deploy script does not auto-synthesize these values. Deployment docs must
+explicitly say they are required when `whatsapp_evolution` shared channels are
+used.
 
 Nginx and public routing do not need a new service; the new webhook lands on
 the already-public Coke domain and gateway service.
@@ -429,12 +493,16 @@ The initial rollout on `gcp-coke` should be:
    gateway URL and `MESSAGES_UPSERT`
 6. send a real inbound WhatsApp message and confirm customer auto-provisioning
 7. trigger a proactive outbound send and confirm delivery through Evolution
+8. disconnect or retire the channel and confirm `webhook/find` no longer points
+   at the Coke gateway route
 
 ## Testing Strategy
 
 ### Gateway unit/integration tests
 
 - external identity normalization treats `whatsapp_evolution` like WhatsApp
+- existing `whatsapp` and `whatsapp_business` normalization tests continue to
+  pass unchanged
 - Evolution inbound handler ignores `fromMe=true`
 - Evolution inbound handler ignores unsupported payloads without error
 - Evolution inbound handler routes text payloads into `routeInboundMessage()`
@@ -442,11 +510,14 @@ The initial rollout on `gcp-coke` should be:
 - outbound delivery sends text through Evolution for `whatsapp_evolution`
 - connect action registers webhook via Evolution client
 - disconnect action clears/disables webhook via Evolution client
+- retire path clears remote webhook before archiving the channel
 - admin shared-channel routes accept and serialize `whatsapp_evolution`
+  without exposing `webhookToken`
 
 ### Deployment verification
 
 - `gateway/packages/api` tests covering the new adapter pass
+- regression tests for existing `whatsapp` / `whatsapp_business` code paths pass
 - full gateway build passes
 - on `gcp-coke`, `webhook/find/coke-whatsapp-personal` shows the configured
   gateway webhook after connect
@@ -456,8 +527,11 @@ The initial rollout on `gcp-coke` should be:
 
 ## Acceptance Criteria
 
-- The platform admin can create and connect a `whatsapp_evolution` shared
-  channel that points at `coke-whatsapp-personal`.
+- The platform admin can create a `whatsapp_evolution` shared channel that
+  points at `coke-whatsapp-personal`.
+- The platform admin can connect and disconnect that channel from the shared
+  channel detail surface.
+- The shared-channel API/UI never exposes `webhookToken` back to the browser.
 - Evolution delivers inbound user messages from that number to gateway through
   the configured webhook.
 - A previously unseen sender is auto-provisioned as a new Coke customer.
@@ -465,5 +539,5 @@ The initial rollout on `gcp-coke` should be:
 - Immediate replies from Coke reach the same WhatsApp chat.
 - Proactive outbound messages from Coke also reach that same WhatsApp chat via
   `DeliveryRoute`.
-- Disconnecting the channel removes or disables the Evolution webhook and stops
-  new ingress on that route.
+- Disconnecting or retiring the channel removes or disables the Evolution
+  webhook and stops new ingress on that route.
