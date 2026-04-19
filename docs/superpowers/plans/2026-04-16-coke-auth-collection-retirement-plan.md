@@ -45,11 +45,29 @@ This plan does **not** cover:
 - `gateway/packages/api/prisma/schema.prisma`
   Remove `CokeAccount`, `VerifyToken`, and any remaining legacy auth FKs after the neutral tables are authoritative.
 - `gateway/packages/api/prisma/migrations/20260417020000_retire_coke_auth_storage/migration.sql`
-  Drops the legacy tables after the maintenance-window audit passes.
+  Preserves legacy tables during the transition-safe phase while subscription foreign keys move to `customer_id`.
+- `gateway/packages/api/prisma/migrations/20260419010000_drop_legacy_coke_auth_tables/migration.sql`
+  Drops `verify_tokens` and `coke_accounts` only after every runtime dependency has been removed.
 - `gateway/packages/api/src/lib/coke-subscription.ts`
   Rename `cokeAccountId` handling to `customerId` while keeping Coke payment semantics intact.
 - `gateway/packages/api/src/routes/coke-payment-routes.ts`
   Read subscription state by `customer_id`.
+- `gateway/packages/api/src/routes/coke-auth-routes.ts`
+  Remove live `db.cokeAccount` / `db.verifyToken` dependencies while preserving the deprecated Coke-compatible HTTP contract.
+- `gateway/packages/api/src/lib/clawscale-user.ts`
+  Stop creating or requiring compatibility `coke_accounts` rows during user provisioning.
+- `gateway/packages/api/src/routes/customer-channel-routes.ts`
+  Resolve compatibility lookups from neutral membership / identity data instead of `coke_accounts`.
+- `gateway/packages/api/src/routes/coke-wechat-routes.ts`
+  Drop any remaining legacy auth-table reads from channel binding flows.
+- `gateway/packages/api/src/routes/coke-user-provision.ts`
+  Provision bridge identities without requiring compatibility auth rows.
+- `gateway/packages/api/src/routes/user-wechat-channel.ts`
+  Remove remaining `coke_accounts`-based lookups from user channel operations.
+- `gateway/packages/api/src/lib/route-message.ts`
+  Resolve bridge routing metadata without legacy auth-table joins.
+- `gateway/packages/api/src/lib/platformization-backfill.ts`
+  Stop backfill / verification code from depending on `coke_accounts` once cutover is complete.
 
 ### Modified Coke-side files
 
@@ -174,14 +192,50 @@ python connector/scripts/verify-auth-retirement.py
 pytest tests/unit/ -k "identity or message_util or user_dao"
 ```
 
-## Task 5: Execute the maintenance-window cutover and verify
+## Task 5: Remove remaining gateway runtime dependencies on legacy auth tables
 
 **Files:**
-- A follow-up gateway migration file may be added here to drop `verify_tokens` / `coke_accounts` once no runtime path still depends on them
+- `gateway/packages/api/src/routes/coke-auth-routes.ts`
+- `gateway/packages/api/src/lib/clawscale-user.ts`
+- `gateway/packages/api/src/routes/customer-channel-routes.ts`
+- `gateway/packages/api/src/routes/coke-wechat-routes.ts`
+- `gateway/packages/api/src/routes/coke-user-provision.ts`
+- `gateway/packages/api/src/routes/user-wechat-channel.ts`
+- `gateway/packages/api/src/lib/route-message.ts`
+- `gateway/packages/api/src/lib/platformization-backfill.ts`
+- related Gateway tests covering deprecated Coke auth compatibility and channel provisioning
 
-- [ ] Put registration / reset endpoints into maintenance mode before destructive steps.
-- [ ] Confirm no remaining gateway runtime path still depends on `db.cokeAccount` or `db.verifyToken` before the destructive drop migration is applied.
-- [ ] Run the cutover checklist in order:
+- [x] Add failing tests that prove deprecated Coke auth / channel compatibility paths still work without reading or writing `db.cokeAccount` or `db.verifyToken`.
+- [x] Run:
+
+```bash
+pnpm --dir gateway/packages/api test -- src/routes/coke-auth-routes.test.ts src/routes/customer-channel-routes.test.ts
+```
+
+- [x] Remove every live `db.cokeAccount` / `db.verifyToken` read or write from runtime code, replacing them with neutral `Customer` / `Identity` / `Membership`-based lookups or explicit maintenance-mode responses where compatibility can no longer be honored safely.
+- [x] Keep the external deprecated `/api/coke/*` contract stable enough for callers during the transition, but stop synthesizing new legacy auth rows as part of runtime provisioning.
+- [x] Re-run:
+
+```bash
+pnpm --dir gateway/packages/api test -- src/lib/coke-subscription.test.ts src/routes/coke-payment-routes.test.ts src/routes/coke-auth-routes.test.ts src/routes/customer-channel-routes.test.ts
+rg -n "db\\.(cokeAccount|verifyToken)|FROM\\s+coke_accounts|FROM\\s+verify_tokens" gateway/packages/api/src
+```
+
+- [x] If any runtime dependency remains, stop and update this plan before the destructive drop.
+
+## Task 6: Execute the maintenance-window drop migration and verify
+
+**Files:**
+- `gateway/packages/api/prisma/schema.prisma`
+- `gateway/packages/api/prisma/migrations/20260419010000_drop_legacy_coke_auth_tables/migration.sql`
+- cutover documentation artifact for maintenance timing / rollback locations
+
+- [x] Put registration / reset endpoints into maintenance mode before destructive steps.
+- [x] Create the final destructive migration that:
+  - drops `verify_tokens`
+  - drops `coke_accounts`
+  - removes the corresponding Prisma models / relations
+- [x] Run the cutover checklist in order:
 
 ```bash
 pnpm --dir gateway/packages/api exec tsx src/scripts/export-legacy-coke-auth.ts
@@ -191,12 +245,9 @@ pnpm --dir gateway/packages/api exec prisma migrate deploy
 python connector/scripts/verify-auth-retirement.py
 ```
 
-- [ ] During the cutover migration:
-  - drop `verify_tokens`
-  - drop `coke_accounts`
-- [ ] Verify:
+- [x] Verify:
   - existing sessions still resolve through `Customer.id`
   - Stripe / Coke payment flows resolve through `customer_id`
   - no gateway runtime path still depends on `db.cokeAccount` or `db.verifyToken`
   - no runtime path still queries Mongo `users` for auth
-- [ ] Document the exact maintenance-window timing and rollback artifact locations.
+- [x] Document the exact maintenance-window timing and rollback artifact locations.

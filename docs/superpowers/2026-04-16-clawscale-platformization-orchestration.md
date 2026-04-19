@@ -143,6 +143,6 @@ The supervising AI should follow these rules:
 
 The next plan to execute is:
 
-- Plan 3: `docs/superpowers/plans/2026-04-16-coke-auth-collection-retirement-plan.md`
+- Plan 6: `docs/superpowers/plans/2026-04-16-clawscale-dashboard-deprecation-plan.md`
 
-Plans 4, 5, and 7 are merged. Plan 3 is now the next dependency-safe step from the current local `main`.
+Plans 3, 4, 5, and 7 are merged. Plan 6 is now the last remaining dependency-safe step from the current local `main`.
