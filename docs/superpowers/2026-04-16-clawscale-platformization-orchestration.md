@@ -90,7 +90,7 @@ Interpretation:
 | 5 | `2026-04-16-clawscale-admin-backend-mvp-plan.md` | `completed-local-main` | Merged into the current local `main` at `dc90a50` | `tracked` | Admin backend + frontend MVP is merged into local `main`; its gateway lineage is also present in local `gateway/main` at `34319b1`. |
 | 7 | `2026-04-16-clawscale-shared-channel-auto-provisioning-runtime-plan.md` | `completed-local-main` | Merged into the current local `main` at `24e5bc7` | `tracked` | Shared-channel runtime is merged into local `main`; its gateway lineage is present in local `gateway/main` at `925e981`. The plan closeout note still records manual disposable-environment verification as an explicit exclusion. |
 | 3 | `2026-04-16-coke-auth-collection-retirement-plan.md` | `completed-local-main` | Merged into the current local `main` at `0adf64a` | `tracked` | Auth retirement is merged into local `main`; its gateway lineage is present in local `gateway/main` at `0374243`. |
-| 6 | `2026-04-16-clawscale-dashboard-deprecation-plan.md` | `in-progress` | No local merge yet | `tracked` | Cleanup plan is now active in `.worktrees/dashboard-deprecation` and remains the last dependency-safe step. |
+| 6 | `2026-04-16-clawscale-dashboard-deprecation-plan.md` | `completed-local-main` | Merged into the current local `main` at `249d9d0` | `tracked` | Dashboard deprecation is merged into local `main`; its gateway lineage is present in local `gateway/main` at `3aff499`. Legacy `/dashboard/*` now resolves through static redirect stubs because `output: export` does not honor custom redirect config. |
 
 ## Spec and Plan File Caveats
 
@@ -119,11 +119,11 @@ the current local `main`.
 
 ### Active unfinished-plan worktrees
 
-- Plan 6 implementation lineage: `.worktrees/dashboard-deprecation`
+There is no active unfinished-plan worktree at this moment.
 
 ### Recommended future worktree mapping
 
-No additional future worktrees are planned while Plan 6 is active.
+No additional future worktrees are planned.
 
 ## Controller Rules
 
@@ -140,8 +140,4 @@ The supervising AI should follow these rules:
 
 ## Immediate Next Action
 
-The next plan to execute is:
-
-- Plan 6: `docs/superpowers/plans/2026-04-16-clawscale-dashboard-deprecation-plan.md`
-
-Plans 3, 4, 5, and 7 are merged. Continue Plan 6 from `.worktrees/dashboard-deprecation`; it is now the last remaining dependency-safe step from the current local `main`.
+There is no active unfinished plan at this moment. Plans 1, 1a, 2, 3, 4, 5, 6, and 7 are all merged into the current local `main`.
