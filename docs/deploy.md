@@ -197,6 +197,22 @@ curl -k https://coke.keep4oforever.com/health
 curl -k https://coke.keep4oforever.com/bridge/healthz
 ```
 
+如需把 Coke 用户注册、Stripe Checkout 支付、Webhook 落库和订阅状态切换整条链路全自动跑一遍，
+可以直接使用 gateway 里的 smoke script：
+
+```bash
+pnpm --dir gateway install
+pnpm --dir gateway/packages/api exec playwright install chromium
+pnpm --dir gateway/packages/api coke:stripe:smoke
+```
+
+可选环境变量：
+
+- `COKE_SMOKE_BASE_URL`：覆盖默认的 `https://coke.keep4oforever.com`
+- `COKE_SMOKE_HEADLESS=false`：需要观察浏览器结账过程时可关闭 headless
+
+脚本会自动创建临时测试用户、完成一笔 Stripe test card 支付，并把截图写到系统临时目录下的 `coke-stripe-smoke/`。
+
 ### 4.7 Evolution API manager 子路径挂载
 
 如果 Evolution API 继续挂在现有域名子路径 `/evolution-api/` 下，而不是独立子域名，
