@@ -28,11 +28,31 @@ assert_equals() {
 
 make_fake_repo() {
   local root="$1"
-  mkdir -p "$root/scripts" "$root/gateway/packages/web/app"
+  mkdir -p "$root/scripts" "$root/gateway/packages/web/app/dashboard" "$root/gateway/packages/web/components" "$root/gateway/packages/web/app/(admin)/admin/shared-channels/detail"
   cp "$SOURCE_SCRIPT" "$root/scripts/deploy-compose-to-gcp.sh"
   chmod +x "$root/scripts/deploy-compose-to-gcp.sh"
   cat >"$root/gateway/packages/web/app/page.tsx" <<'EOF'
 export default function HomePage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/components/coke-homepage.tsx" <<'EOF'
+export function CokeHomepage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/app/dashboard/page.tsx" <<'EOF'
+export default function DashboardPage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/components/legacy-redirect-page.tsx" <<'EOF'
+export function LegacyRedirectPage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/app/(admin)/admin/shared-channels/detail/page.tsx" <<'EOF'
+export default function SharedChannelDetailPage() {
   return null;
 }
 EOF
@@ -70,6 +90,10 @@ EOF
 #!/bin/bash
 set -euo pipefail
 printf 'ssh %s\n' "$*" >>"${CALLS_LOG}"
+if [[ "$*" == *"app/dashboard/layout.tsx"* ]]; then
+  echo "stale dashboard layout verification path" >&2
+  exit 1
+fi
 exit 0
 EOF
   chmod +x "$root/stubs/ssh"
@@ -154,6 +178,8 @@ run_two_phase_sync_case() {
   call_log="$(cat "$CALLS_LOG")"
   assert_contains "$call_log" "--exclude=gateway/"
   assert_contains "$call_log" "gateway/"
+  assert_contains "$call_log" "app/dashboard/page.tsx"
+  assert_contains "$call_log" "components/legacy-redirect-page.tsx"
   assert_contains "$call_log" "curl "
 }
 
