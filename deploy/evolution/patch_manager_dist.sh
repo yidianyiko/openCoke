@@ -61,6 +61,7 @@ replacements = [
     ('\"/manager\"', '\"/\"'),
     ("'/manager'", "'/'"),
     ('n=()=>{e("/")}', 'n=()=>{e("/login")}'),
+    ('[{path:"/",element:i.jsx(Fse,{})},{path:"/login"', '[{path:"/welcome",element:i.jsx(Fse,{})},{path:"/login"'),
 ]
 
 for old, new in replacements:
