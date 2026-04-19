@@ -178,7 +178,7 @@ pnpm --dir gateway/packages/web build
   - `/dashboard`
   - `/dashboard/login`
   - `/dashboard/register`
-  - `/dashboard/onboard` (still needs an explicit successor mapping in plan 6)
+  - `/dashboard/onboard` (plan 6 now redirects this legacy channel-setup entry to `/admin/channels`)
   - `/dashboard/conversations`
   - `/dashboard/channels`
   - `/dashboard/ai-backends`
