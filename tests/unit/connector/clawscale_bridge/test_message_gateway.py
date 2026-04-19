@@ -42,24 +42,10 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
     assert doc["metadata"]["customer"] == {
         "id": "acct_1",
         "display_name": "Alice",
-        "account_status": "subscription_required",
-        "email_verified": True,
-        "subscription_active": False,
-        "subscription_expires_at": "2026-04-30T00:00:00Z",
-        "account_access_allowed": False,
-        "account_access_denied_reason": "subscription_required",
-        "renewal_url": "https://renew.example/checkout",
     }
     assert doc["metadata"]["coke_account"] == {
         "id": "acct_1",
         "display_name": "Alice",
-        "account_status": "subscription_required",
-        "email_verified": True,
-        "subscription_active": False,
-        "subscription_expires_at": "2026-04-30T00:00:00Z",
-        "account_access_allowed": False,
-        "account_access_denied_reason": "subscription_required",
-        "renewal_url": "https://renew.example/checkout",
     }
     assert "bridge_request_id" not in doc["metadata"]
     assert "clawscale" not in doc["metadata"]
@@ -176,3 +162,49 @@ def test_message_gateway_enqueue_returns_same_id_on_duplicate_key_race():
     )
 
     assert causal_id == "in_evt_race_1"
+
+
+def test_message_gateway_enqueue_strips_retired_auth_only_fields_from_emitted_payload():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    mongo = MagicMock()
+    collection = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway = CokeMessageGateway(mongo=mongo, user_dao=MagicMock())
+
+    gateway.enqueue(
+        account_id="user_1",
+        character_id="char_1",
+        text="你好",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_event_id": "in_evt_gateway_2",
+            "coke_account_id": "acct_1",
+            "coke_account_display_name": "Alice",
+            "account_status": "subscription_required",
+            "email_verified": True,
+            "subscription_active": False,
+            "subscription_expires_at": "2026-04-30T00:00:00Z",
+            "account_access_allowed": False,
+            "account_access_denied_reason": "subscription_required",
+            "renewal_url": "https://renew.example/checkout",
+        },
+    )
+
+    inserted = collection.update_one.call_args.args[1]["$setOnInsert"]
+    customer = inserted["metadata"]["customer"]
+    coke_account = inserted["metadata"]["coke_account"]
+    forbidden_keys = {
+        "account_status",
+        "email_verified",
+        "subscription_active",
+        "subscription_expires_at",
+        "account_access_allowed",
+        "account_access_denied_reason",
+        "renewal_url",
+    }
+
+    assert set(customer) == {"id", "display_name"}
+    assert set(coke_account) == {"id", "display_name"}
+    assert forbidden_keys.isdisjoint(customer)
+    assert forbidden_keys.isdisjoint(coke_account)

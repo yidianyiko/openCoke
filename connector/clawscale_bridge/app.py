@@ -202,16 +202,7 @@ class BusinessOnlyBridgeGateway:
         if inbound.get("coke_account_id"):
             enqueue_payload["customer_id"] = inbound["coke_account_id"]
             enqueue_payload["coke_account_id"] = inbound["coke_account_id"]
-        for key in (
-            "coke_account_display_name",
-            "account_status",
-            "email_verified",
-            "subscription_active",
-            "subscription_expires_at",
-            "account_access_allowed",
-            "account_access_denied_reason",
-            "renewal_url",
-        ):
+        for key in ("coke_account_display_name",):
             if key in inbound:
                 enqueue_payload[key] = inbound[key]
 

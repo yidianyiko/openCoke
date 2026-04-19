@@ -285,7 +285,7 @@ def test_bridge_inbound_accepts_customer_id_aliases_for_existing_account_gate(
     assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_customer_1",)
 
 
-def test_bridge_inbound_returns_renewal_reply_when_subscription_is_required(monkeypatch):
+def test_bridge_inbound_blocks_denied_accounts_without_enqueueing(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
 
@@ -416,13 +416,6 @@ def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
         "customer_id": "acct_1",
         "coke_account_id": "acct_1",
         "coke_account_display_name": "Alice",
-        "account_status": "active",
-        "email_verified": True,
-        "subscription_active": True,
-        "subscription_expires_at": "2026-04-30T00:00:00Z",
-        "account_access_allowed": True,
-        "account_access_denied_reason": None,
-        "renewal_url": "https://renew.example/checkout",
     }
     reply_waiter.wait_for_reply.assert_called_once_with(
         "in_evt_1001", sync_reply_token="sync_tok_1"
