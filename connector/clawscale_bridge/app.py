@@ -63,11 +63,116 @@ def _resolve_target_character_id(user_dao: UserDAO) -> str:
     return str(characters[0]["_id"])
 
 
+class LateReplyFallbackPromoter:
+    def __init__(self, *, mongo, reply_waiter, thread_factory=threading.Thread):
+        self.mongo = mongo
+        self.reply_waiter = reply_waiter
+        self.thread_factory = thread_factory
+
+    def start_async(
+        self,
+        *,
+        causal_inbound_event_id: str,
+        customer_id: str,
+        sync_reply_token: str | None = None,
+    ):
+        thread = self.thread_factory(
+            target=self._promote_for_async_dispatch,
+            kwargs={
+                "causal_inbound_event_id": causal_inbound_event_id,
+                "customer_id": customer_id,
+                "sync_reply_token": sync_reply_token,
+            },
+            daemon=True,
+        )
+        thread.start()
+        return thread
+
+    def _promote_for_async_dispatch(
+        self,
+        *,
+        causal_inbound_event_id: str,
+        customer_id: str,
+        sync_reply_token: str | None = None,
+    ) -> bool:
+        try:
+            message = self.reply_waiter.wait_for_reply_message(
+                causal_inbound_event_id,
+                sync_reply_token=sync_reply_token,
+                consume=False,
+            )
+        except TimeoutError:
+            logger.warning(
+                "late_clawscale_reply_timeout: causal_inbound_event_id=%s",
+                causal_inbound_event_id,
+            )
+            return False
+
+        metadata = message.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+
+        business_conversation_key = business_protocol.get("business_conversation_key")
+        if not isinstance(business_conversation_key, str) or not business_conversation_key:
+            logger.warning(
+                "late_clawscale_reply_missing_business_conversation_key: "
+                "causal_inbound_event_id=%s output_id=%s",
+                causal_inbound_event_id,
+                message.get("_id"),
+            )
+            return False
+
+        output_id = str(message["_id"])
+        idempotency_key = f"late_sync_reply:{output_id}"
+
+        updated = self.mongo.update_one(
+            "outputmessages",
+            {"_id": message["_id"], "status": "pending"},
+            {
+                "$set": {
+                    "customer_id": customer_id,
+                    "metadata.business_conversation_key": business_conversation_key,
+                    "metadata.delivery_mode": "push",
+                    "metadata.output_id": output_id,
+                    "metadata.idempotency_key": idempotency_key,
+                    "metadata.trace_id": idempotency_key,
+                    "metadata.causal_inbound_event_id": causal_inbound_event_id,
+                }
+            },
+        )
+        if updated == 0:
+            logger.info(
+                "late_clawscale_reply_already_claimed: causal_inbound_event_id=%s output_id=%s",
+                causal_inbound_event_id,
+                output_id,
+            )
+            return False
+
+        logger.info(
+            "late_clawscale_reply_promoted_for_async_dispatch: "
+            "causal_inbound_event_id=%s output_id=%s",
+            causal_inbound_event_id,
+            output_id,
+        )
+        return True
+
+
 class BusinessOnlyBridgeGateway:
-    def __init__(self, *, message_gateway, reply_waiter, target_character_id: str):
+    def __init__(
+        self,
+        *,
+        message_gateway,
+        reply_waiter,
+        target_character_id: str,
+        late_reply_fallback=None,
+    ):
         self.message_gateway = message_gateway
         self.reply_waiter = reply_waiter
         self.target_character_id = target_character_id
+        self.late_reply_fallback = late_reply_fallback
 
     def _metadata_value(
         self, inbound_payload: dict, metadata: dict, key: str, legacy_key: str
@@ -218,13 +323,28 @@ class BusinessOnlyBridgeGateway:
             inbound=enqueue_payload,
         )
         sync_reply_token = inbound.get("sync_reply_token")
-        if sync_reply_token:
-            reply = self.reply_waiter.wait_for_reply(
-                causal_inbound_event_id,
-                sync_reply_token=sync_reply_token,
-            )
-        else:
-            reply = self.reply_waiter.wait_for_reply(causal_inbound_event_id)
+        try:
+            if sync_reply_token:
+                reply = self.reply_waiter.wait_for_reply(
+                    causal_inbound_event_id,
+                    sync_reply_token=sync_reply_token,
+                )
+            else:
+                reply = self.reply_waiter.wait_for_reply(causal_inbound_event_id)
+        except TimeoutError:
+            customer_id = inbound.get("coke_account_id") or inbound.get("customer_id")
+            if (
+                self.late_reply_fallback is not None
+                and isinstance(customer_id, str)
+                and customer_id.strip()
+            ):
+                self.late_reply_fallback.start_async(
+                    causal_inbound_event_id=causal_inbound_event_id,
+                    customer_id=customer_id,
+                    sync_reply_token=sync_reply_token,
+                )
+                return {"status": "ok"}
+            raise
         if isinstance(reply, dict):
             return {"status": "ok", **reply}
         return {"status": "ok", "reply": reply}
@@ -279,10 +399,19 @@ def _build_default_bridge_gateway():
         poll_interval_seconds=bridge_conf["poll_interval_seconds"],
         timeout_seconds=bridge_conf["reply_timeout_seconds"],
     )
+    late_reply_fallback = LateReplyFallbackPromoter(
+        mongo=mongo,
+        reply_waiter=ReplyWaiter(
+            mongo=mongo,
+            poll_interval_seconds=bridge_conf["poll_interval_seconds"],
+            timeout_seconds=max(bridge_conf["reply_timeout_seconds"] * 4, 300),
+        ),
+    )
     return BusinessOnlyBridgeGateway(
         message_gateway=message_gateway,
         reply_waiter=reply_waiter,
         target_character_id=_resolve_target_character_id(user_dao),
+        late_reply_fallback=late_reply_fallback,
     )
 
 
@@ -391,7 +520,9 @@ def create_app(testing: bool = False):
         if result.get("status") != "ok":
             return jsonify({"ok": False, "error": result.get("error", "invalid_request")}), 400
 
-        response = {"ok": True, "reply": result["reply"]}
+        response = {"ok": True}
+        if isinstance(result.get("reply"), str) and result["reply"]:
+            response["reply"] = result["reply"]
         for key in (
             "business_conversation_key",
             "output_id",

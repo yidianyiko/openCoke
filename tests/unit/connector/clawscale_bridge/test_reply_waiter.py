@@ -75,3 +75,42 @@ def test_reply_waiter_allows_matching_without_sync_reply_token():
     }
     query = mongo.find_one.call_args.args[1]
     assert "metadata.business_protocol.sync_reply_token" not in query
+
+
+def test_reply_waiter_can_peek_pending_reply_without_marking_it_handled():
+    from connector.clawscale_bridge.reply_waiter import ReplyWaiter
+
+    mongo = MagicMock()
+    mongo.find_one.return_value = {
+        "_id": "out_3",
+        "status": "pending",
+        "message_type": "text",
+        "message": "稍后送达",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "in_evt_3",
+                "business_conversation_key": "conv_key_3",
+            },
+        },
+    }
+
+    waiter = ReplyWaiter(mongo=mongo, poll_interval_seconds=0.01, timeout_seconds=1)
+    message = waiter.wait_for_reply_message("in_evt_3", consume=False)
+
+    assert message == {
+        "_id": "out_3",
+        "status": "pending",
+        "message_type": "text",
+        "message": "稍后送达",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "in_evt_3",
+                "business_conversation_key": "conv_key_3",
+            },
+        },
+    }
+    mongo.update_one.assert_not_called()

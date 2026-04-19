@@ -462,6 +462,108 @@ def test_first_turn_inbound_uses_normalized_shape_and_returns_business_metadata(
     )
 
 
+def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_timeout_1"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.side_effect = TimeoutError(
+        "Timed out waiting for causal_inbound_event_id=in_evt_timeout_1"
+    )
+    late_reply_fallback = MagicMock()
+
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+        late_reply_fallback=late_reply_fallback,
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    client = app.test_client()
+    response = client.post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "end_user_id": "eu_1",
+            "external_id": "wxid_123",
+            "platform": "whatsapp_evolution",
+            "input": "are you there?",
+            "inbound_event_id": "in_evt_timeout_1",
+            "sync_reply_token": "sync_tok_timeout_1",
+            "channel_scope": "shared",
+            "coke_account_id": "acct_1",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True}
+    late_reply_fallback.start_async.assert_called_once_with(
+        causal_inbound_event_id="in_evt_timeout_1",
+        customer_id="acct_1",
+        sync_reply_token="sync_tok_timeout_1",
+    )
+
+
+def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
+    import connector.clawscale_bridge.app as bridge_app
+
+    mongo = MagicMock()
+    mongo.update_one.return_value = 1
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply_message.return_value = {
+        "_id": "out_late_1",
+        "status": "pending",
+        "message": "稍后补发",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "in_evt_late_1",
+                "business_conversation_key": "bc_late_1",
+            },
+        },
+    }
+
+    promoter = bridge_app.LateReplyFallbackPromoter(
+        mongo=mongo,
+        reply_waiter=reply_waiter,
+    )
+
+    promoted = promoter._promote_for_async_dispatch(
+        causal_inbound_event_id="in_evt_late_1",
+        customer_id="acct_1",
+        sync_reply_token="sync_tok_late_1",
+    )
+
+    assert promoted is True
+    reply_waiter.wait_for_reply_message.assert_called_once_with(
+        "in_evt_late_1",
+        sync_reply_token="sync_tok_late_1",
+        consume=False,
+    )
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_late_1", "status": "pending"},
+        {
+            "$set": {
+                "customer_id": "acct_1",
+                "metadata.business_conversation_key": "bc_late_1",
+                "metadata.delivery_mode": "push",
+                "metadata.output_id": "out_late_1",
+                "metadata.idempotency_key": "late_sync_reply:out_late_1",
+                "metadata.trace_id": "late_sync_reply:out_late_1",
+                "metadata.causal_inbound_event_id": "in_evt_late_1",
+            }
+        },
+    )
+
+
 def test_bridge_inbound_accepts_live_messages_and_metadata_shape(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
