@@ -285,6 +285,46 @@ def test_bridge_inbound_accepts_customer_id_aliases_for_existing_account_gate(
     assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_customer_1",)
 
 
+def test_bridge_inbound_accepts_shared_channel_customer_ids_without_personal_scope(
+    monkeypatch,
+):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_shared_1"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.return_value = {"reply": "shared ok"}
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [{"role": "user", "content": "你好"}],
+            "metadata": {
+                "tenantId": "ten_1",
+                "channelId": "ch_shared",
+                "platform": "whatsapp_evolution",
+                "externalId": "8617807028761",
+                "endUserId": "eu_shared_1",
+                "customerId": "ck_shared_1",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "reply": "shared ok"}
+    assert message_gateway.enqueue.call_args.kwargs["account_id"] == "ck_shared_1"
+    assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_shared_1",)
+
+
 def test_bridge_inbound_blocks_denied_accounts_without_enqueueing(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app

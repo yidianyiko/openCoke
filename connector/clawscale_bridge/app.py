@@ -83,6 +83,12 @@ class BusinessOnlyBridgeGateway:
                 return value
         return None
 
+    def _has_required_context(self, inbound: dict, required_fields: list[str]) -> bool:
+        return not any(
+            not isinstance(inbound.get(field), str) or not inbound[field].strip()
+            for field in required_fields
+        )
+
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
         metadata = inbound_payload.get("metadata") or {}
         messages = inbound_payload.get("messages") or []
@@ -165,17 +171,16 @@ class BusinessOnlyBridgeGateway:
             "platform",
             "external_id",
             "end_user_id",
-            "channel_scope",
-            "clawscale_user_id",
             "coke_account_id",
         ]
-        if inbound.get("channel_scope") != "personal":
+        if not self._has_required_context(inbound, required_fields):
             return None
-        if any(
-            not isinstance(inbound.get(field), str) or not inbound[field].strip()
-            for field in required_fields
+
+        if inbound.get("channel_scope") == "personal" and not self._has_required_context(
+            inbound, ["clawscale_user_id"]
         ):
             return None
+
         return inbound["coke_account_id"]
 
     def _enqueue_and_wait(self, account_id: str, inbound: dict, now_ts: int) -> dict:
