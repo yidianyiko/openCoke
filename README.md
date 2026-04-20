@@ -6,6 +6,10 @@ Coke is now deployed and operated as a ClawScale-backed runtime:
 2. `connector/clawscale_bridge/app.py` handles Coke-specific auth, binding, and outbound dispatch.
 3. `gateway/` provides the web UI and channel-facing API.
 
+The repository now also carries a small repo-OS layer for planning,
+verification, and handoff. That control layer lives alongside the runtime code
+instead of only in chat history.
+
 ## Quick Start
 
 ```bash
@@ -47,11 +51,41 @@ ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --bui
 ```bash
 pytest tests/unit/ -v
 pytest tests/e2e/ -v
+zsh scripts/check
+```
+
+## Repository Structure
+
+```
+AGENTS.md                  # routing layer for agents
+tasks/                     # task-local work state
+docs/design-docs/          # durable repository workflow intent
+docs/design-docs/coke-working-contract.md
+                           # Coke-specific work surfaces and planning contract
+docs/adr/                  # durable workflow and structure decisions
+docs/exec-plans/           # canonical home for new execution plans
+docs/fitness/              # verification rulebook
+docs/fitness/coke-verification-matrix.md
+                           # project-specific verification commands by surface
+docs/roadmap.md            # product and platform direction
+docs/architecture.md       # runtime architecture
+docs/deploy.md             # deployment and smoke checks
+docs/clawscale_bridge.md   # bridge and channel rollout notes
+docs/superpowers/          # dated design and implementation history
+scripts/check              # repository structure verification entrypoint
 ```
 
 ## Documentation
 
-- `AGENTS.md`: repository workflow and coding rules
+- `AGENTS.md`: routing layer and reading order
+- `docs/design-docs/index.md`: canonical repo-OS map
+- `docs/design-docs/coke-working-contract.md`: project-specific work surfaces
 - `docs/roadmap.md`: high-level status and migration direction
 - `docs/architecture.md`: current runtime architecture
 - `docs/deploy.md`: deployment and startup notes
+- `docs/fitness/README.md`: verification expectations
+- `docs/fitness/coke-verification-matrix.md`: what to run for worker, bridge,
+  gateway, deploy, and repo-OS changes
+- `docs/exec-plans/`: canonical home for new execution plans
+- `tasks/`: task-local work state
+- `docs/superpowers/`: dated design and implementation history

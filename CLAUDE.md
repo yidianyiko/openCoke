@@ -1,79 +1,54 @@
 # CLAUDE.md
 
-This file provides concise guidance for Claude Code when working in this repository.
+This file provides concise guidance for coding agents working in this
+repository.
 
-## Project Overview
+## Read First
 
-Coke is a Python 3.12+ chat agent system built on Agno, MongoDB, Redis, and several platform connectors.
+1. `AGENTS.md`
+2. `docs/design-docs/index.md`
+3. `docs/roadmap.md`
+4. `docs/architecture.md`
+5. `docs/fitness/README.md`
+6. `docs/design-docs/coke-working-contract.md`
+7. `docs/fitness/coke-verification-matrix.md`
+8. Relevant files in `tasks/`, `docs/exec-plans/`, or `docs/superpowers/`
+9. `docs/deploy.md` or `docs/clawscale_bridge.md` when the task touches those
+   surfaces
 
-The main runtime path is:
+## Current Runtime Summary
 
-1. `PrepareWorkflow`
-2. `StreamingChatWorkflow`
-3. `PostAnalyzeWorkflow`
+- Core turn pipeline:
+  1. `PrepareWorkflow`
+  2. `StreamingChatWorkflow`
+  3. `PostAnalyzeWorkflow`
+- Worker runtime: `agent/runner/agent_runner.py`
+- Bridge runtime: `connector/clawscale_bridge/app.py`
+- Web/API surface: `gateway/`
 
-## Build And Development
+## Common Commands
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Main startup entrypoint
 ./start.sh
+bash agent/runner/agent_start.sh --force-clean
 
-# Python workers only
-bash agent/runner/agent_start.sh [--force-clean]
-
-# Tests
 pytest tests/unit/ -v
 pytest tests/e2e/ -v
-pytest --cov --cov-report=html
-
-# Formatting
 black . && isort .
+zsh scripts/check
 ```
 
-## Runtime Architecture
+## Repo OS Conventions
 
-### Core Workflows
-
-- `agent/agno_agent/workflows/prepare_workflow.py`: intent parsing, context retrieval, reminder detection, optional web search
-- `agent/agno_agent/workflows/chat_workflow_streaming.py`: streaming chat generation
-- `agent/agno_agent/workflows/post_analyze_workflow.py`: post-turn analysis and memory updates
-
-### Pre-Created Agents
-
-The module-level agents in `agent/agno_agent/agents/__init__.py` are:
-
-- `orchestrator_agent`
-- `reminder_detect_agent`
-- `post_analyze_agent`
-
-The streaming chat agent is instantiated inside `StreamingChatWorkflow`.
-
-### Key Directories
-
-- `agent/agno_agent/`: agents, schemas, tools, workflows
-- `agent/prompt/`: prompt templates and personality/context/task prompts
-- `agent/runner/`: message handling, background tasks, access gate, payment providers
-- `connector/channel/`: channel base abstractions
-- `connector/adapters/`: Telegram, Discord, and terminal adapters kept in this repository
-- `connector/clawscale_bridge/`: Coke-specific ClawScale bridge runtime
-- `connector/gateway/`: gateway helper server and config
-- `dao/`: MongoDB DAOs
-- `entity/`: shared message/entity structures
-- `framework/tool/`: media and search integrations
-- `util/`: logging, time, redis, embedding, file, and OSS helpers
-
-## Queue And Storage
-
-- Redis stream mode uses `coke:input` with consumer group `coke-workers`
-- Polling mode reads from MongoDB `inputmessages`
-- Common MongoDB collections: `inputmessages`, `outputmessages`, `users`, `conversations`, `relations`, `embeddings`, `reminders`, `locks`, `orders`, `usage_records`
-
-## Current Docs
-
-- `docs/architecture.md`
-- `docs/deploy.md`
-- `AGENTS.md`
+- New task-local state lives in `tasks/`.
+- New multi-step execution plans live in `docs/exec-plans/`.
+- Durable workflow rules live in `docs/design-docs/` or `docs/adr/`.
+- Use `docs/design-docs/coke-working-contract.md` to label touched surfaces.
+- Use `docs/fitness/coke-verification-matrix.md` to choose verification
+  commands.
+- `docs/superpowers/specs/` and `docs/superpowers/plans/` remain valid dated
+  design and implementation history.
