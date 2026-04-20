@@ -132,7 +132,7 @@ verify_remote_source_tree() {
         set -euo pipefail
         test -f '$(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/page.tsx")'
         test -f '$(shell_quote "$REMOTE_ROOT/gateway/packages/web/components/coke-homepage.tsx")'
-        test -f '$(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/dashboard/page.tsx")'
+        test -f '$(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(coke-user)/coke/login/page.tsx")'
         test -f '$(shell_quote "$REMOTE_ROOT/gateway/packages/web/components/legacy-redirect-page.tsx")'
     "
 }
