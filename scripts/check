@@ -24,6 +24,7 @@ typeset -a required_files=(
   "tasks/README.md"
   "tasks/_template.md"
   "scripts/check"
+  "scripts/verify-surface"
   "agent/runner/agent_runner.py"
   "connector/clawscale_bridge/app.py"
   "connector/clawscale_bridge/output_dispatcher.py"

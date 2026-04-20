@@ -1,0 +1,68 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+
+dry_run=0
+
+if [[ "${1:-}" == "--dry-run" ]]; then
+  dry_run=1
+  shift
+fi
+
+if [[ "$#" -eq 0 ]]; then
+  print -u2 "usage: scripts/verify-surface [--dry-run] <surface> [surface...]"
+  exit 1
+fi
+
+surface_commands() {
+  local surface="$1"
+
+  case "$surface" in
+    repo-os)
+      print "pytest tests/unit/test_repo_os_structure.py -v"
+      print "zsh scripts/check"
+      ;;
+    worker-runtime)
+      print "pytest tests/unit/runner/ -v"
+      print "pytest tests/unit/agent/ -v"
+      print "pytest tests/unit/test_clawscale_only_topology.py -v"
+      ;;
+    bridge)
+      print "pytest tests/unit/connector/clawscale_bridge/ -v"
+      print "pytest tests/unit/agent/test_message_util_clawscale_routing.py -v"
+      ;;
+    gateway-api)
+      print "pnpm --dir gateway/packages/api test"
+      ;;
+    gateway-web)
+      print "pnpm --dir gateway/packages/web test"
+      ;;
+    deploy)
+      print "bash scripts/test-deploy-compose-to-gcp.sh"
+      print "zsh scripts/check"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+for surface in "$@"; do
+  if ! surface_cmds="$(surface_commands "$surface")"; then
+    print -u2 "unknown_surface:$surface"
+    exit 1
+  fi
+
+  print "== $surface =="
+
+  while IFS= read -r command; do
+    [[ -z "$command" ]] && continue
+    print "$command"
+    if [[ "$dry_run" -eq 0 ]]; then
+      eval "$command"
+    fi
+  done <<< "$surface_cmds"
+done

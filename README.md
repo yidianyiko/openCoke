@@ -52,6 +52,7 @@ ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --bui
 pytest tests/unit/ -v
 pytest tests/e2e/ -v
 zsh scripts/check
+zsh scripts/verify-surface repo-os
 ```
 
 ## Repository Structure

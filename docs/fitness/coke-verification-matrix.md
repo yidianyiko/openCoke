@@ -3,6 +3,15 @@
 Use this matrix to choose the smallest useful verification set for the surfaces
 you changed.
 
+Default entrypoint:
+
+```bash
+zsh scripts/verify-surface <surface>
+```
+
+Use `--dry-run` when you want to inspect the command mapping without executing
+it.
+
 ## Repo OS And Workflow Docs
 
 Use when changing:

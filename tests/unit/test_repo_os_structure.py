@@ -22,6 +22,7 @@ def test_repo_os_required_files_exist():
         ROOT / "tasks" / "README.md",
         ROOT / "tasks" / "_template.md",
         ROOT / "scripts" / "check",
+        ROOT / "scripts" / "verify-surface",
     ]
 
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]

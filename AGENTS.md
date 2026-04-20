@@ -81,4 +81,5 @@ When starting work in this repository, read in this order:
 - E2E tests: `pytest tests/e2e/ -v`
 - Format: `black . && isort .`
 - Repo-OS check: `zsh scripts/check`
+- Surface verification: `zsh scripts/verify-surface <surface>`
 - Production deploy: `./scripts/deploy-compose-to-gcp.sh --restart`
