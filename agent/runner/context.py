@@ -15,8 +15,8 @@ from agent.runner.identity import get_agent_entity_id
 from agent.util.message_util import messages_to_str
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
-from dao.user_dao import UserDAO
 from dao.mongo import MongoDBBase
+from dao.user_dao import UserDAO  # noqa: F401 - preserved as a patch seam for tests
 from util.profile_util import resolve_profile_label
 from util.time_util import date2str, get_default_timezone, timestamp2str
 

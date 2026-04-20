@@ -22,9 +22,6 @@ logger = get_logger(__name__)
 
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
-from entity.message import save_outputmessage
-
-
 class TerminalTestClient:
     """
     程序化终端测试客户端
@@ -250,6 +247,6 @@ class TerminalTestClient:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
         self.close()
         return False

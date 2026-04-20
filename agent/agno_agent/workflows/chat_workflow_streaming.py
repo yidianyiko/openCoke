@@ -380,14 +380,12 @@ class StreamingChatWorkflow:
         收集所有流式输出后一次性返回
         """
         messages = []
-        full_response = ""
         inner_monologue = ""
 
         async for event in self.run_stream(input_message, session_state):
             if event["type"] == "message":
                 messages.append(event["data"])
             elif event["type"] == "done":
-                full_response = event["data"].get("full_response", "")
                 inner_monologue = event["data"].get("inner_monologue", "")
 
         # 转换为原 ChatWorkflow 的返回格式（精简版）

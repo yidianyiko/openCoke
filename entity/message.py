@@ -4,8 +4,6 @@ sys.path.append(".")
 import time
 
 from dao.mongo import MongoDBBase
-from util.time_util import validate_timestamp
-
 # 模块级单例，避免每次调用创建新连接
 _mongo = MongoDBBase()
 
