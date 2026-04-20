@@ -61,6 +61,20 @@ def _resolve_target_character():
     return characters[0]
 
 
+def _build_synthetic_business_user(db_user_id: str, talker: dict | None):
+    nickname = ""
+    if isinstance(talker, dict):
+        nickname = str(talker.get("nickname") or "").strip()
+    if not nickname:
+        nickname = f"user-{db_user_id[-6:]}"
+    return {
+        "id": db_user_id,
+        "_id": db_user_id,
+        "nickname": nickname,
+        "is_coke_account": True,
+    }
+
+
 def _resolve_conversation_participants(conversation):
     talkers = conversation.get("talkers") or []
     if len(talkers) < 2:
@@ -74,12 +88,9 @@ def _resolve_conversation_participants(conversation):
         participant = user_dao.get_user_by_id(db_user_id)
         if participant is None and not is_mongo_object_id(db_user_id):
             if is_synthetic_coke_account_id(db_user_id):
-                logger.info(
-                    "skip background participant resolution for synthetic account "
-                    f"db_user_id={db_user_id}"
-                )
+                participant = _build_synthetic_business_user(db_user_id, talker)
+            else:
                 return None, None
-            return None, None
         if participant is None:
             return None, None
         resolved.append(participant)
@@ -952,11 +963,15 @@ async def _get_reminder_context(conversation_id: str, reminder: dict):
     user = user_dao.get_user_by_id(reminder_user_id)
     character = user_dao.get_user_by_id(reminder_character_id)
     if user is None and is_synthetic_coke_account_id(reminder_user_id):
-        logger.info(
-            "[REMINDER] Skip synthetic CokeAccount reminder context: "
-            f"user_id={reminder_user_id}"
+        talker = next(
+            (
+                item
+                for item in (conversation.get("talkers") or [])
+                if str(item.get("db_user_id") or "").strip() == reminder_user_id
+            ),
+            None,
         )
-        return None, None, None
+        user = _build_synthetic_business_user(reminder_user_id, talker)
     if not user or not character:
         logger.warning(
             f"[REMINDER] User or character not found, "

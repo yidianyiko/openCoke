@@ -46,7 +46,7 @@ def test_resolve_conversation_participants_prefers_db_user_ids(monkeypatch):
     assert lookups == [("get_user_by_id", "user_1"), ("get_user_by_id", "char_1")]
 
 
-def test_resolve_conversation_participants_skips_unresolved_synthetic_ids(
+def test_resolve_conversation_participants_builds_synthetic_business_user(
     monkeypatch,
 ):
     stub_agent_handler = types.ModuleType("agent.runner.agent_handler")
@@ -57,6 +57,8 @@ def test_resolve_conversation_participants_skips_unresolved_synthetic_ids(
 
     class FakeUserDAO:
         def get_user_by_id(self, user_id):
+            if user_id == "char_1":
+                return {"_id": "char_1", "name": "Coke", "is_character": True}
             return None
 
         def find_users(self, *args, **kwargs):
@@ -70,7 +72,7 @@ def test_resolve_conversation_participants_skips_unresolved_synthetic_ids(
             "talkers": [
                 {
                     "id": "clawscale:conv_1",
-                    "nickname": "Alice",
+                    "nickname": "Shared User",
                     "db_user_id": "acct_123",
                 },
                 {
@@ -82,5 +84,10 @@ def test_resolve_conversation_participants_skips_unresolved_synthetic_ids(
         }
     )
 
-    assert user is None
-    assert character is None
+    assert user == {
+        "id": "acct_123",
+        "_id": "acct_123",
+        "nickname": "Shared User",
+        "is_coke_account": True,
+    }
+    assert character == {"_id": "char_1", "name": "Coke", "is_character": True}
