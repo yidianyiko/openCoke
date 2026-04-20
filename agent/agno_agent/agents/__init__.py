@@ -14,8 +14,8 @@ import logging
 from typing import Any, Dict
 
 from agno.agent import Agent
-from agno.models.deepseek import DeepSeek
 
+from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.tools.reminder_tools import reminder_tool
@@ -102,36 +102,6 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
     return INSTRUCTIONS_ORCHESTRATOR
 
 
-# ========== Model 层重试配置 ==========
-# 解决问题：
-# -P17: Agno Agent 未配置重试，API 限流直接失败
-# -E4: LLM API 限流直接失败
-# -E5: 网络临时故障直接失败
-
-
-def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 8000):
-    """
-    创建带重试配置的 DeepSeek Model
-
-    Args:
-        model_id: 模型ID
-        max_tokens: 最大输出 token 数，默认 8000（DeepSeek API 最大限制）
-                    解决问题：LLM 输出被截断导致 JSON 解析失败
-                    ("Unterminated string" 错误)
-
-    Returns:
-        配置了重试的 DeepSeek 实例
-    """
-    return DeepSeek(
-        id=model_id,
-        # 重试配置：2次重试，指数退避
-        # 注意：Agno 的 DeepSeek 继承自 OpenAI，支持 max_retries 参数
-        max_retries=2,
-        # 输出 token 限制：确保复杂 output_schema 有足够空间
-        max_tokens=max_tokens,
-    )
-
-
 # ========== 模块级预创建 Agent ==========
 
 # ReminderDetectAgent - 提醒检测，识别提醒意图并调用提醒工具
@@ -151,7 +121,7 @@ def create_deepseek_model(model_id: str = "deepseek-chat", max_tokens: int = 800
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
-    model=create_deepseek_model(),
+    model=create_llm_model(max_tokens=8000, role="prepare"),
     description=DESCRIPTION_REMINDER_DETECT,
     tools=[reminder_tool],
     tool_call_limit=1,  # 限制为1次调用，使用 batch_create 处理多任务
@@ -174,7 +144,7 @@ reminder_detect_agent = Agent(
 orchestrator_agent = Agent(
     id="orchestrator-agent",
     name="OrchestratorAgent",
-    model=create_deepseek_model(),
+    model=create_llm_model(max_tokens=8000, role="prepare"),
     description=DESCRIPTION_ORCHESTRATOR,
     instructions=get_orchestrator_instructions(),
     output_schema=OrchestratorResponse,
@@ -196,7 +166,7 @@ orchestrator_agent = Agent(
 post_analyze_agent = Agent(
     id="post-analyze-agent",
     name="PostAnalyzeAgent",
-    model=create_deepseek_model(),
+    model=create_llm_model(max_tokens=8000, role="post_analyze"),
     instructions=INSTRUCTIONS_POST_ANALYZE,
     output_schema=PostAnalyzeResponse,
     use_json_mode=True,  # 使用 JSON mode 避免 structured output 解析失败
@@ -216,6 +186,7 @@ __all__ = [
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
     "get_orchestrator_instructions",
+    "create_llm_model",
     # 预创建 Agent
     "reminder_detect_agent",
     "orchestrator_agent",  # V2 架构核心

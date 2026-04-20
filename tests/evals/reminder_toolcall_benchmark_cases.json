@@ -1,0 +1,117 @@
+{
+  "models": [
+    "Pro/MiniMaxAI/MiniMax-M2.5",
+    "Pro/zai-org/GLM-5.1",
+    "Pro/moonshotai/Kimi-K2.5"
+  ],
+  "cases": [
+    {
+      "id": "timed_relative_create",
+      "message": "5分钟后提醒我喝水",
+      "expect_gate": true,
+      "expect_tool_call": true,
+      "expect_create": true,
+      "expect_has_time": true,
+      "category": "positive"
+    },
+    {
+      "id": "timed_absolute_create",
+      "message": "明天早上8点提醒我起床",
+      "expect_gate": true,
+      "expect_tool_call": true,
+      "expect_create": true,
+      "expect_has_time": true,
+      "category": "positive"
+    },
+    {
+      "id": "recurrence_create",
+      "message": "每天早上7点提醒我吃早餐",
+      "expect_gate": true,
+      "expect_tool_call": true,
+      "expect_create": true,
+      "expect_has_time": true,
+      "category": "positive"
+    },
+    {
+      "id": "task_without_time_create",
+      "message": "帮我记一下要买牛奶",
+      "expect_gate": true,
+      "expect_tool_call": true,
+      "expect_create": true,
+      "expect_has_time": false,
+      "category": "positive"
+    },
+    {
+      "id": "todo_without_time_create",
+      "message": "帮我加到待办：给妈妈打电话",
+      "expect_gate": true,
+      "expect_tool_call": true,
+      "expect_create": true,
+      "expect_has_time": false,
+      "category": "positive"
+    },
+    {
+      "id": "vague_time_should_not_create",
+      "message": "晚点提醒我出门",
+      "expect_gate": true,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "ambiguous"
+    },
+    {
+      "id": "missing_title_should_not_create",
+      "message": "5分钟后提醒我",
+      "expect_gate": true,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "ambiguous"
+    },
+    {
+      "id": "past_time_should_not_create",
+      "message": "提醒我昨天开会",
+      "expect_gate": true,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "ambiguous"
+    },
+    {
+      "id": "planning_list_negative",
+      "message": "本周成果、挑战、下周计划",
+      "expect_gate": false,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "negative"
+    },
+    {
+      "id": "template_negative",
+      "message": "给我个收尾模板",
+      "expect_gate": false,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "negative"
+    },
+    {
+      "id": "status_negative",
+      "message": "我今天主要想把周报写完",
+      "expect_gate": false,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "negative"
+    },
+    {
+      "id": "coaching_negative",
+      "message": "如果只剩十五分钟我该怎么办",
+      "expect_gate": false,
+      "expect_tool_call": false,
+      "expect_create": false,
+      "expect_has_time": null,
+      "category": "negative"
+    }
+  ]
+}

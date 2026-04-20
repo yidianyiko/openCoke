@@ -29,6 +29,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import post_analyze_agent
+from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物资料,
@@ -520,13 +521,12 @@ class PostAnalyzeWorkflow:
         """
         try:
             from agno.agent import Agent
-            from agno.models.deepseek import DeepSeek
 
             # 创建轻量级压缩 Agent
             compress_agent = Agent(
                 id="description-compress-agent",
                 name="DescriptionCompressAgent",
-                model=DeepSeek(id="deepseek-chat", max_retries=1, max_tokens=8000),
+                model=create_llm_model(max_tokens=8000, role="post_analyze"),
                 markdown=False,
             )
 

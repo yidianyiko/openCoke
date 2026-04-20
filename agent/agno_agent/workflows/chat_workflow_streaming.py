@@ -21,8 +21,8 @@ import re
 from typing import Any, Dict, Optional
 
 from agno.agent import Agent
-from agno.models.deepseek import DeepSeek
 
+from agent.agno_agent.model_factory import create_llm_model
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_主动消息触发,
@@ -134,7 +134,7 @@ class StreamingChatWorkflow:
         self.agent = Agent(
             id="chat-response-agent-streaming",
             name="ChatResponseAgentStreaming",
-            model=DeepSeek(id="deepseek-chat", max_tokens=4096),
+            model=create_llm_model(max_tokens=4096, role="chat_response"),
             instructions=INSTRUCTIONS_CHAT_RESPONSE,
             use_json_mode=True,
             markdown=False,
