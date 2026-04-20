@@ -182,7 +182,6 @@ The public checkout route should accept:
 It must reject:
 
 - unknown customers
-- suspended customers
 - invalid or expired tokens
 
 It does not need to reject already-active subscriptions. Creating an additional
@@ -193,6 +192,12 @@ checkout for an active customer is acceptable because:
 
 This keeps the route simple and avoids fragile timing rules around trial or
 active-renewal boundaries.
+
+The route should also preserve a dedicated HTML unavailable response if
+`resolveCokeAccountAccess(...)` returns `account_suspended`. This change does
+not introduce a new suspension data source; it only keeps the public checkout
+surface compatible with that access decision if the surrounding compatibility
+layer starts supplying it later.
 
 ### 6. Success and cancel pages
 
@@ -220,7 +225,8 @@ link.
 #### Suspended customer
 
 Return a simple HTML page stating that the account is unavailable for renewal.
-Do not redirect to Stripe.
+Do not redirect to Stripe. In the current schema this remains a compatibility
+branch rather than a newly sourced state.
 
 #### Stripe checkout creation failure
 

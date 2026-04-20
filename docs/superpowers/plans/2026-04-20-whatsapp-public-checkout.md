@@ -315,6 +315,12 @@ git -C gateway commit -m "feat(gateway): add public checkout token helpers"
 - Modify: `gateway/packages/api/src/routes/coke-payment-routes.ts`
 - Test: `gateway/packages/api/src/routes/coke-payment-routes.test.ts`
 
+Suspension note for this task:
+- preserve an HTML unavailable branch when `resolveCokeAccountAccess(..., requireEmailVerified: false)`
+  returns `account_suspended`
+- do **not** introduce a new suspension data source in this task; the current
+  compatibility loader still resolves `status: 'normal'`
+
 - [ ] **Step 1: Write the failing public-checkout route tests**
 
 ```ts
@@ -518,6 +524,9 @@ export const cokePaymentRouter = new Hono()
       requireEmailVerified: false,
     });
 
+    // The compatibility loader still hardcodes status: normal. Keep this
+    // branch so public checkout stays aligned if a future layer surfaces
+    // account_suspended through resolveCokeAccountAccess.
     if (access.accountAccessDeniedReason === 'account_suspended') {
       return c.html(
         htmlPage(
