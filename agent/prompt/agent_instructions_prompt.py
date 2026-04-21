@@ -56,7 +56,13 @@ Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
 - Use recent context when the current message is only supplementary information like "tomorrow at 3" or "the meeting one".
-- When creating or updating a timed reminder, convert the time into a concrete string the tool can parse.
+- Only use trigger_time/new_trigger_time formats that the parser supports.
+- Supported trigger_time/new_trigger_time formats:
+  - ISO 8601 with explicit date/time, for example: 2026-04-21T15:30:00+08:00
+  - Chinese relative time strings: 3分钟后, 2小时后, 5天后
+  - Chinese named relative dates: 明天, 后天, 下周
+- Never output English relative time strings like "in 1 minute", "in two hours", "tomorrow at 3pm", or "next week".
+- If the user speaks English, still convert the tool arguments into one of the supported formats above.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Do not output any explanation text. Only call the tool or stop.
 </instructions>"""

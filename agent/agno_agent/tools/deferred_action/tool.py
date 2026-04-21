@@ -27,7 +27,10 @@ def _get_session_state() -> dict:
     stop_after_tool_call=True,
     description=(
         "Visible reminder management for deferred actions. "
-        "Supports create, list, update, delete, and complete for user reminders."
+        "Supports create, list, update, delete, and complete for user reminders. "
+        "trigger_time/new_trigger_time must use parser-supported formats only: "
+        "ISO 8601 with explicit date/time, Chinese relative strings like 3分钟后 or 2小时后, "
+        'or Chinese named relative dates like 明天/后天/下周. Never use English forms like "in 1 minute".'
     ),
 )
 def visible_reminder_tool(

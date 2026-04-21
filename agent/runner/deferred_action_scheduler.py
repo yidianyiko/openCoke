@@ -23,6 +23,12 @@ def get_deferred_action_scheduler_instance() -> "DeferredActionScheduler | None"
     return _scheduler_instance
 
 
+def _normalize_utc(value: datetime, field_name: str) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
 class DeferredActionScheduler:
     def __init__(
         self,
@@ -57,7 +63,8 @@ class DeferredActionScheduler:
         if scheduled_for is None:
             return
 
-        current_now = now or self.now_provider()
+        scheduled_for = _normalize_utc(scheduled_for, "next_run_at")
+        current_now = _normalize_utc(now or self.now_provider(), "now")
         run_date = scheduled_for if scheduled_for > current_now else current_now
         self.scheduler.add_job(
             self._execute_job,

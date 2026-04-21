@@ -118,3 +118,22 @@ class TestDeferredActionScheduler:
 
         _, kwargs = mock_scheduler.add_job.call_args
         assert kwargs["run_date"] == now
+
+    def test_register_action_normalizes_naive_datetimes_loaded_from_storage(self):
+        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
+        naive_next_run_at = datetime(2026, 4, 21, 9, 0)
+        mock_scheduler = Mock()
+        scheduler = scheduler_module.DeferredActionScheduler(
+            action_dao=Mock(),
+            executor=Mock(),
+            scheduler=mock_scheduler,
+            now_provider=lambda: now,
+        )
+
+        scheduler.register_action(build_action(next_run_at=naive_next_run_at))
+
+        _, kwargs = mock_scheduler.add_job.call_args
+        assert kwargs["run_date"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+        assert kwargs["kwargs"]["scheduled_for"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=UTC
+        )

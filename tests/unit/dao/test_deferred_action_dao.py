@@ -9,6 +9,22 @@ from bson import ObjectId
 
 
 class TestDeferredActionDAO:
+    @pytest.mark.unit
+    def test_constructor_uses_timezone_aware_mongo_client(self, monkeypatch):
+        from dao import deferred_action_dao as dao_module
+
+        mock_client = MagicMock()
+        mock_db = MagicMock()
+        mock_db.get_collection.return_value = MagicMock()
+        mock_client.return_value.__getitem__.return_value = mock_db
+        monkeypatch.setattr(dao_module, "MongoClient", mock_client)
+
+        from dao.deferred_action_dao import DeferredActionDAO
+
+        DeferredActionDAO()
+
+        assert mock_client.call_args.kwargs["tz_aware"] is True
+
     @pytest.fixture
     def mock_collection(self):
         return MagicMock()
