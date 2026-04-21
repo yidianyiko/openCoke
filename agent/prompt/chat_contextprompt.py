@@ -25,13 +25,24 @@ def get_message_source_context(message_source: str, context: dict) -> str:
     Return the appropriate source annotation context based on message source.
 
     Args:
-        message_source: Message source — "user" / "reminder" / "future"
+        message_source: Message source — "user" / "reminder" / "future" / "deferred_action"
         context: Full context dict used to render templates
 
     Returns:
         Formatted message source annotation
     """
-    if message_source == "reminder":
+    deferred_kind = (
+        context.get("system_message_metadata", {}).get("kind")
+        if isinstance(context, dict)
+        else None
+    )
+    if message_source == "deferred_action":
+        template = (
+            CONTEXTPROMPT_消息来源_提醒触发
+            if deferred_kind == "user_reminder"
+            else CONTEXTPROMPT_消息来源_主动消息
+        )
+    elif message_source == "reminder":
         template = CONTEXTPROMPT_消息来源_提醒触发
     elif message_source == "future":
         template = CONTEXTPROMPT_消息来源_主动消息
@@ -42,6 +53,16 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         return render_prompt_template(template, context)
     except KeyError:
         _user_nickname = resolve_profile_label(context.get("user"), "user")
+        if message_source == "deferred_action":
+            if deferred_kind == "user_reminder":
+                return f"""### Message Source
+This is a system-triggered scheduled reminder — not a message sent by {_user_nickname}.
+You need to proactively send a reminder message to {_user_nickname} based on the reminder content.
+[NOTE] Do not treat the reminder content as something the user said and reply to it."""
+            return f"""### Message Source
+This is a scenario where you are initiating the conversation — not a message sent by {_user_nickname}.
+You need to proactively send a message to {_user_nickname} based on the planned action.
+[NOTE] You are the initiator of this message, not replying to the user."""
         if message_source == "reminder":
             return f"""### Message Source
 This is a system-triggered scheduled reminder — not a message sent by {_user_nickname}.
@@ -200,7 +221,7 @@ CONTEXTPROMPT_最新聊天消息_双方 = """### {user_label}'s Latest Chat Mess
 {MultiModalResponses}"""
 
 CONTEXTPROMPT_规划行动 = """### {character_label}'s Planned Action
-{character_label} plans to proactively send a message to {user_label}. Action content: {conversation[conversation_info][future][action]}
+{character_label} plans to proactively send a message to {user_label}. Action content: {system_message_metadata[prompt]}
 [IMPORTANT] This is a message that {character_label} is initiating — not a message from {user_label}."""
 
 CONTEXTPROMPT_系统提醒触发 = """### System Reminder Triggered
@@ -211,7 +232,7 @@ Reminder content: {system_message_metadata[title]}
 # V2.15 simplified: removed duplicate [STRICTLY FORBIDDEN] section — now uniformly provided by CONTEXTPROMPT_防重复回复
 CONTEXTPROMPT_主动消息触发 = """### Proactive Message Triggered
 {character_label} plans to proactively send a message to {user_label}.
-Action content: {conversation[conversation_info][future][action]}
+Action content: {system_message_metadata[prompt]}
 Proactive prompts sent this round: {proactive_times}
 
 [IMPORTANT] This is a message that {character_label} is initiating — not a message from {user_label}.

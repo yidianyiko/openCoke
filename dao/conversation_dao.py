@@ -666,21 +666,3 @@ class ConversationDAO:
         """关闭MongoDB连接"""
         self.client.close()
 
-
-# 使用示例
-if __name__ == "__main__":
-    # 创建Conversation实例
-    conversation_model = ConversationDAO()
-
-    conversations = conversation_model.find_conversations(
-        query={
-            "conversation_info.future.action": {
-                "$ne": None,  # 值不等于null
-                "$exists": True,  # 字段必须存在
-            },
-            "talkers.nickname": "YDYK",
-        }
-    )
-
-    for conversation in conversations:
-        print(conversation)

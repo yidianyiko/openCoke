@@ -5,7 +5,7 @@ ChatResponse Schema
 定义 ChatResponseAgent 的输出格式.
 
 V2 重构：
-- 移除 RelationChange 和 FutureResponse，这些职责移至 PostAnalyzeResponse
+- 移除 RelationChange 和 follow-up planning，这些职责移至 PostAnalyzeResponse
 - ChatResponseAgent 专注于生成高质量的多模态回复
 """
 
@@ -28,25 +28,12 @@ class MultiModalResponse(BaseModel):
     )
 
 
-# 保留这些模型定义供其他模块使用（如 PostAnalyzeResponse）
 class RelationChangeModel(BaseModel):
     """关系变化模型"""
 
     Closeness: float = Field(default=0, description="亲密度数值变化")
 
     Trustness: float = Field(default=0, description="信任度数值变化")
-
-
-class FutureResponseModel(BaseModel):
-    """未来消息规划模型"""
-
-    FutureResponseTime: str = Field(
-        default="", description="未来主动的消息时间，格式为xxxx年xx月xx日xx时xx分."
-    )
-
-    FutureResponseAction: str = Field(
-        default="无", description="未来主动消息的大致内容，大约10-20个字."
-    )
 
 
 class ChatResponse(BaseModel):
@@ -71,4 +58,4 @@ class ChatResponse(BaseModel):
     )
 
     # 已移除：RelationChange -> PostAnalyzeResponse
-    # 已移除：FutureResponse -> PostAnalyzeResponse
+    # 已移除：follow-up planning -> PostAnalyzeResponse

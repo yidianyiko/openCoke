@@ -60,8 +60,10 @@ def _agent_runner_is_available() -> bool:
     return False
 
 
-@pytest.fixture(scope="session", autouse=True)
-def require_e2e_prerequisites():
+@pytest.fixture(autouse=True)
+def require_e2e_prerequisites(request):
+    if request.node.get_closest_marker("llm") is None:
+        return
     if not _mongo_is_available():
         pytest.skip("E2E prerequisites unavailable: MongoDB is not reachable")
     if not _agent_runner_is_available():

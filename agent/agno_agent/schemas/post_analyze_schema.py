@@ -1,26 +1,28 @@
 # -*- coding: utf-8 -*-
-"""
-PostAnalyzeResponse Schema
-
-定义 PostAnalyzeAgent 的输出格式，用于总结对话并更新用户 / 角色记忆.
-
-V2 重构：
-- 新增 RelationChange：关系变化（亲密度/信任度），从 ChatResponse 移入
-- 新增 FutureResponse：未来消息规划，从 ChatResponse 移入
-- PostAnalyzeAgent 基于完整对话结果（包括角色回复）进行分析
-
-V2.5 更新：
-- 新增 CharacterLongtermPurpose：角色的长期目标，用于更新 relation.character_info.longterm_purpose
-"""
+"""PostAnalyzeResponse Schema."""
 
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from agent.agno_agent.schemas.chat_response_schema import (
-    FutureResponseModel,
-    RelationChangeModel,
-)
+from agent.agno_agent.schemas.chat_response_schema import RelationChangeModel
+
+
+class FollowupPlanModel(BaseModel):
+    """Internal proactive follow-up planning payload."""
+
+    FollowupAction: str = Field(
+        default="clear",
+        description="Internal follow-up action: create | replace | clear",
+    )
+    FollowupTime: str = Field(
+        default="",
+        description="Future proactive follow-up time, format xxxx年xx月xx日xx时xx分.",
+    )
+    FollowupPrompt: str = Field(
+        default="无",
+        description="Rough content for the next proactive follow-up.",
+    )
 
 
 class PostAnalyzeResponse(BaseModel):
@@ -41,10 +43,9 @@ class PostAnalyzeResponse(BaseModel):
         description="本轮对话的关系变化（亲密度/信任度数值变化）",
     )
 
-    # ===== 新增：未来消息规划（从 ChatResponse 移入）=====
-    FutureResponse: FutureResponseModel = Field(
-        default_factory=FutureResponseModel,
-        description="未来主动消息规划（时间和内容）",
+    FollowupPlan: FollowupPlanModel = Field(
+        default_factory=FollowupPlanModel,
+        description="Internal proactive follow-up planning payload",
     )
 
     # ===== 原有字段：记忆更新 =====

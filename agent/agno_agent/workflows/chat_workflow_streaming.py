@@ -176,7 +176,15 @@ class StreamingChatWorkflow:
         )
 
         notice_segmentation = ""  # 消息分段注意事项（仅用于主动消息和提醒）
-        if message_source == "reminder":
+        deferred_kind = session_state.get("system_message_metadata", {}).get("kind")
+        if message_source == "deferred_action":
+            if deferred_kind == "user_reminder":
+                source_template = self.userp_template_reminder
+            else:
+                source_template = self.userp_template_future
+            base_template = self.userp_template_base_lite
+            notice_segmentation = self.userp_template_notice_segmentation
+        elif message_source == "reminder":
             source_template = self.userp_template_reminder
             base_template = self.userp_template_base_lite  # 提醒消息使用精简版
             notice_segmentation = self.userp_template_notice_segmentation
@@ -308,7 +316,8 @@ class StreamingChatWorkflow:
 
         # 打印实际发送给 LLM 的 prompt（便于调试）
         logger.info(
-            f"[ChatWorkflow] message_source={message_source}, 使用模板: {'CONTEXTPROMPT_主动消息触发' if message_source == 'future' else 'CONTEXTPROMPT_系统提醒触发' if message_source == 'reminder' else 'CONTEXTPROMPT_最新聊天消息'}"
+            f"[ChatWorkflow] message_source={message_source}, 使用模板: "
+            f"{'CONTEXTPROMPT_系统提醒触发' if (message_source == 'reminder' or (message_source == 'deferred_action' and deferred_kind == 'user_reminder')) else 'CONTEXTPROMPT_主动消息触发' if (message_source == 'future' or (message_source == 'deferred_action' and deferred_kind == 'proactive_followup')) else 'CONTEXTPROMPT_最新聊天消息'}"
         )
         logger.debug(
             f"[ChatWorkflow] LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}"
@@ -389,7 +398,7 @@ class StreamingChatWorkflow:
                 inner_monologue = event["data"].get("inner_monologue", "")
 
         # 转换为原 ChatWorkflow 的返回格式（精简版）
-        # V2 重构：不再包含 RelationChange 和 FutureResponse，这些移至 PostAnalyzeWorkflow
+        # V2 重构：不再包含 RelationChange 和 follow-up planning，这些移至 PostAnalyzeWorkflow
         multimodal_responses = []
         for msg in messages:
             multimodal_responses.append(

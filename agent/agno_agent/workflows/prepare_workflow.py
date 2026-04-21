@@ -23,8 +23,8 @@ from agent.agno_agent.agents import (
     orchestrator_agent,
     reminder_detect_agent,
 )
+from agent.agno_agent.tools.deferred_action import set_deferred_action_session_state
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
-from agent.agno_agent.tools.reminder_tools import set_reminder_session_state
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.tools.timezone_tools import set_user_timezone
@@ -202,7 +202,7 @@ class PrepareWorkflow:
 
         # 系统消息（提醒、主动消息）跳过提醒检测
         message_source = session_state.get("message_source", "user")
-        if message_source in ["reminder", "future"]:
+        if message_source in ["reminder", "future", "deferred_action"]:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
@@ -312,8 +312,8 @@ class PrepareWorkflow:
     ) -> None:
         """执行提醒检测"""
         try:
-            # 设置 session_state 供 reminder_tool 使用
-            set_reminder_session_state(session_state)
+            # 设置 session_state 供 visible_reminder_tool 使用
+            set_deferred_action_session_state(session_state)
 
             # 续期锁
             self._renew_lock_if_needed(session_state)
@@ -384,7 +384,7 @@ class PrepareWorkflow:
                 )
         else:
             logger.warning(
-                "[PrepareWorkflow] ReminderDetectAgent 执行完成但未调用 reminder_tool，"
+                "[PrepareWorkflow] ReminderDetectAgent 执行完成但未调用 visible_reminder_tool，"
                 "可能是 LLM 判断为普通对话而非提醒操作请求"
             )
 
