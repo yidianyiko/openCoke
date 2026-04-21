@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 
+import pytest
 from apscheduler.jobstores.base import JobLookupError
 
 from agent.runner import deferred_action_scheduler as scheduler_module
@@ -137,3 +138,31 @@ class TestDeferredActionScheduler:
         assert kwargs["kwargs"]["scheduled_for"] == datetime(
             2026, 4, 21, 9, 0, tzinfo=UTC
         )
+
+    @pytest.mark.asyncio
+    async def test_execute_job_awaits_async_executor_result(self):
+        calls = []
+
+        async def executor(**kwargs):
+            calls.append(kwargs)
+
+        scheduler = scheduler_module.DeferredActionScheduler(
+            action_dao=Mock(),
+            executor=executor,
+            scheduler=Mock(),
+            now_provider=lambda: datetime(2026, 4, 21, 8, 0, tzinfo=UTC),
+        )
+
+        await scheduler._execute_job(
+            action_id="action-1",
+            scheduled_for=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            revision=3,
+        )
+
+        assert calls == [
+            {
+                "action_id": "action-1",
+                "scheduled_for": datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+                "revision": 3,
+            }
+        ]

@@ -1,6 +1,4 @@
 from __future__ import annotations
-
-import asyncio
 import inspect
 from datetime import UTC, datetime
 from typing import Any, Callable
@@ -92,7 +90,7 @@ class DeferredActionScheduler:
     def _job_id(self, action_id: Any) -> str:
         return f"deferred-action:{action_id}"
 
-    def _execute_job(
+    async def _execute_job(
         self,
         action_id: str,
         scheduled_for: datetime,
@@ -104,4 +102,4 @@ class DeferredActionScheduler:
             revision=revision,
         )
         if inspect.isawaitable(result):
-            asyncio.create_task(result)
+            await result
