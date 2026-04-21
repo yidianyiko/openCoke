@@ -2,12 +2,7 @@
 """
 PostAnalyzeWorkflow-后处理分析 Workflow
 
-总结对话，更新用户 / 角色记忆
-
-V2 重构：
-- 新增 RelationChange 处理：关系变化（亲密度/信任度），从 ChatWorkflow 移入
-- 新增 FutureResponse 处理：未来消息规划，从 ChatWorkflow 移入
-- 基于完整对话结果（包括角色回复）进行分析，数据更准确
+总结对话，更新用户 / 角色记忆，并规划内部 follow-up。
 
 V2.5 更新：
 - 新增 character_info 更新：CharacterPurpose → shortterm_purpose, CharacterAttitude → attitude
@@ -19,17 +14,20 @@ V2.8 更新：
 - 新增 RelationDescription 压缩机制：当描述超过阈值时，调用 LLM 进行摘要压缩
 
 V2.11 更新：
-- 解耦 FutureResponse：当本轮已创建定时提醒时，跳过 FutureResponse 的 prompt 和处理
+- 解耦旧 follow-up 规划：当本轮已创建定时提醒时，跳过内部 follow-up 的 prompt 和处理
 - 新增 get_post_analyze_prompt 动态生成 prompt，减少不必要的 token 消耗
 
 Requirements: 5.3
 """
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo
 
 from agent.agno_agent.agents import post_analyze_agent
 from agent.agno_agent.model_factory import create_llm_model
+from agent.agno_agent.tools.deferred_action.service import DeferredActionService
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物资料,
@@ -43,7 +41,7 @@ from agent.prompt.chat_taskprompt import (
     TASKPROMPT_总结,
     get_post_analyze_prompt,
 )
-from util.time_util import str2timestamp
+from util.time_util import get_default_timezone, str2timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +69,7 @@ class PostAnalyzeWorkflow:
     -RelationDescription-关系描述更新
 
      V2.11 更新：
-    -支持动态跳过 FutureResponse（当 reminder_created_with_time=True 时）
+    -支持动态跳过 internal follow-up planning（当 reminder_created_with_time=True 时）
     """
 
     # User prompt 模板组合（静态部分）
@@ -89,7 +87,7 @@ class PostAnalyzeWorkflow:
         """
         V2.11 新增：动态构建 user prompt 模板
 
-        根据 session_state 中的标志决定是否包含 FutureResponse 部分
+        根据 session_state 中的标志决定是否包含 internal follow-up planning 部分
 
         Args:
             session_state: 会话状态
@@ -101,7 +99,7 @@ class PostAnalyzeWorkflow:
 
         if skip_future_response:
             logger.info(
-                "[PostAnalyzeWorkflow] 检测到 reminder_created_with_time=True，跳过 FutureResponse prompt"
+                "[PostAnalyzeWorkflow] 检测到 reminder_created_with_time=True，跳过 internal follow-up prompt"
             )
 
         return self.userp_template_prefix + get_post_analyze_prompt(
@@ -114,8 +112,8 @@ class PostAnalyzeWorkflow:
         """
         异步执行后处理分析
 
-        V2 重构：新增 RelationChange 和 FutureResponse 处理
-        V2.11 更新：支持动态跳过 FutureResponse prompt
+        V2 重构：新增 RelationChange 和 internal follow-up 处理
+        V2.11 更新：支持动态跳过 internal follow-up prompt
 
         Args:
             session_state: 上下文状态（需包含 MultiModalResponses）
@@ -135,7 +133,7 @@ class PostAnalyzeWorkflow:
         )
         session_state["MultiModalResponses"] = multimodal_str
 
-        # V2.11: 动态构建 prompt 模板（根据 reminder_created_with_time 决定是否包含 FutureResponse）
+        # 动态构建 prompt 模板（根据 reminder_created_with_time 决定是否包含 internal follow-up）
         dynamic_template = self._build_userp_template(session_state)
 
         # 渲染 user prompt
@@ -173,8 +171,8 @@ class PostAnalyzeWorkflow:
             # V2 新增：处理关系变化
             self._handle_relation_change(content, session_state)
 
-            # V2 新增：处理未来消息规划
-            self._handle_future_response(content, session_state)
+            # 处理内部 follow-up 规划
+            self._handle_followup_plan(content, session_state)
 
             # V2.5 新增：处理角色信息更新（短期目标、态度）
             self._handle_character_info_update(content, session_state)
@@ -226,114 +224,76 @@ class PostAnalyzeWorkflow:
                 f"关系变化: closeness={closeness_change}, trustness={trustness_change}"
             )
 
-    # 主动消息次数上限，与 FutureMessageWorkflow 保持一致
-    MAX_PROACTIVE_TIMES = 2
+    def _handle_followup_plan(self, content: Dict, session_state: Dict) -> None:
+        """Create, replace, or clear the internal proactive follow-up action."""
+        conversation_id = str(session_state.get("conversation", {}).get("_id", "")).strip()
+        if not conversation_id:
+            return
 
-    def _handle_future_response(self, content: Dict, session_state: Dict) -> None:
-        """
-         处理未来消息规划（V2 新增，从 ChatWorkflow 移入）
+        service = DeferredActionService()
 
-         V2.11 更新：
-        -新增 reminder_created_with_time 检查，避免与 reminder 系统重复设置定时提醒
-
-         V2.12 更新：
-        -新增 MAX_PROACTIVE_TIMES 检查，防止主动消息重复触发
-        -当 message_source=future 且 proactive_times >= MAX_PROACTIVE_TIMES 时，跳过设置
-
-         Args:
-             content: PostAnalyze 返回的内容
-             session_state: 会话状态
-        """
-        # V2.11 新增：如果本轮已创建定时提醒，跳过 FutureResponse 设置
-        # 解决问题：番茄钟等定时提醒被同时存储在 reminders 和 conversation.future 中导致重复触发
         if session_state.get("reminder_created_with_time"):
             logger.info(
-                "[FutureResponse] 本轮已创建定时提醒，跳过 FutureResponse 设置以避免重复触发"
+                "[FollowupPlan] 本轮已创建定时提醒，清理内部 proactive follow-up"
             )
+            service.clear_internal_followup(conversation_id)
             return
 
-        # 获取 conversation 中的 future 信息
-        conversation = session_state.get("conversation", {})
-        conversation_info = conversation.get("conversation_info", {})
-        future_info = conversation_info.get("future", {})
-
-        # 初始化 proactive_times
-        if "proactive_times" not in future_info:
-            future_info["proactive_times"] = 0
-
-        # V2.12 新增：检查消息来源和主动消息次数
-        message_source = session_state.get("message_source", "user")
-        current_proactive_times = future_info.get("proactive_times", 0)
-
-        # 如果是主动消息/提醒消息，且已达到次数上限，则设置为过期状态并跳过
-        if (
-            message_source in ("future", "reminder")
-            and current_proactive_times >= self.MAX_PROACTIVE_TIMES
-        ):
-            logger.info(
-                f"[FutureResponse] 主动消息已达上限 ({current_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态"
-            )
-            future_info["status"] = "expired"
-            future_info["timestamp"] = None
-            future_info["action"] = None
-            # 更新回 session_state
-            if "future" not in conversation_info:
-                conversation_info["future"] = {}
-            conversation_info["future"] = future_info
-            return
-
-        # 获取未来消息规划
-        future_resp = content.get("FutureResponse", {})
-        if isinstance(future_resp, str):
+        plan = content.get("FollowupPlan", {})
+        if isinstance(plan, str):
             try:
                 import json
 
-                future_resp = json.loads(future_resp)
+                plan = json.loads(plan)
             except Exception:
-                future_resp = {}
+                plan = {}
 
-        future_time_str = future_resp.get("FutureResponseTime", "")
-        future_action = future_resp.get("FutureResponseAction", "无")
+        followup_action = str(plan.get("FollowupAction", "clear") or "clear").lower()
+        followup_time_str = plan.get("FollowupTime", "")
+        followup_prompt = plan.get("FollowupPrompt", "无")
 
-        # 设置未来消息规划
-        if future_time_str and future_action and future_action != "无":
-            future_info["timestamp"] = (
-                str2timestamp(future_time_str) if future_time_str else None
-            )
-            future_info["action"] = future_action
+        if (
+            followup_action not in {"create", "replace"}
+            or not followup_time_str
+            or not followup_prompt
+            or followup_prompt == "无"
+        ):
+            service.clear_internal_followup(conversation_id)
+            logger.info("[FollowupPlan] 未设置内部 proactive follow-up")
+            return
 
-            # 根据消息来源决定是否重置 proactive_times
-            if message_source == "user":
-                # 用户消息：重置主动消息次数和状态
-                future_info["proactive_times"] = 0
-                future_info["status"] = "pending"  # 重置状态，允许再次发送主动消息
-            else:
-                # 主动消息/提醒消息：递增次数
-                new_proactive_times = current_proactive_times + 1
-                future_info["proactive_times"] = new_proactive_times
+        user_tz = session_state.get("user", {}).get("timezone")
+        resolved_tz = get_default_timezone() if not user_tz else ZoneInfo(user_tz)
+        followup_timestamp = str2timestamp(followup_time_str, tz=resolved_tz)
+        if followup_timestamp is None:
+            logger.warning("[FollowupPlan] 无法解析 FollowupTime: %s", followup_time_str)
+            service.clear_internal_followup(conversation_id)
+            return
 
-                # V2.12 新增：检查是否达到上限
-                if new_proactive_times >= self.MAX_PROACTIVE_TIMES:
-                    future_info["status"] = "expired"
-                    future_info["timestamp"] = None
-                    future_info["action"] = None
-                    logger.info(
-                        f"[FutureResponse] 主动消息达到上限 ({new_proactive_times}/{self.MAX_PROACTIVE_TIMES})，设置为过期状态"
-                    )
-                else:
-                    logger.info(
-                        f"设置未来消息规划: time={future_time_str}, action={future_action}, proactive_times={new_proactive_times}"
-                    )
-        else:
-            # 清除未来消息规划
-            future_info["timestamp"] = None
-            future_info["action"] = None
-            logger.info("未设置未来消息规划")
-
-        # 更新回 session_state
-        if "future" not in conversation_info:
-            conversation_info["future"] = {}
-        conversation_info["future"] = future_info
+        proactive_times = int(session_state.get("proactive_times", 0) or 0)
+        message_source = session_state.get("message_source", "user")
+        deferred_kind = session_state.get("system_message_metadata", {}).get("kind")
+        next_proactive_times = (
+            proactive_times + 1
+            if message_source == "deferred_action" and deferred_kind == "proactive_followup"
+            else 0
+        )
+        dtstart = datetime.fromtimestamp(followup_timestamp, tz=resolved_tz)
+        service.create_or_replace_internal_followup(
+            conversation_id=conversation_id,
+            user_id=str(session_state.get("user", {}).get("id", "")),
+            character_id=str(session_state.get("character", {}).get("_id", "")),
+            title=followup_prompt[:48],
+            prompt=followup_prompt,
+            dtstart=dtstart,
+            timezone=getattr(resolved_tz, "key", str(resolved_tz)),
+            payload_metadata={"proactive_times": next_proactive_times},
+        )
+        logger.info(
+            "[FollowupPlan] 设置内部 proactive follow-up: action=%s time=%s",
+            followup_action,
+            followup_time_str,
+        )
 
     def _handle_character_info_update(self, content: Dict, session_state: Dict) -> None:
         """
@@ -611,7 +571,7 @@ class PostAnalyzeWorkflow:
         """
         从 Agent 响应中提取内容
 
-        V2 重构：新增 RelationChange 和 FutureResponse 字段
+        V2 重构：新增 RelationChange 和 FollowupPlan 字段
 
         Args:
             response: Agent 响应对象
@@ -630,16 +590,20 @@ class PostAnalyzeWorkflow:
         elif not isinstance(content, dict):
             return self._get_default_content()
 
-        # 确保必要字段存在（V2：新增 RelationChange 和 FutureResponse；V2.5：新增 CharacterLongtermPurpose）
+        # 确保必要字段存在（V2：新增 RelationChange 和 FollowupPlan；V2.5：新增 CharacterLongtermPurpose）
         result = {
             # 新增：关系变化
             "RelationChange": content.get(
                 "RelationChange", {"Closeness": 0, "Trustness": 0}
             ),
-            # 新增：未来消息规划
-            "FutureResponse": content.get(
-                "FutureResponse",
-                {"FutureResponseTime": "", "FutureResponseAction": "无"},
+            # 新增：内部 follow-up 规划
+            "FollowupPlan": content.get(
+                "FollowupPlan",
+                {
+                    "FollowupAction": "clear",
+                    "FollowupTime": "",
+                    "FollowupPrompt": "无",
+                },
             ),
             # 原有字段
             "CharacterPublicSettings": content.get("CharacterPublicSettings", "无"),
@@ -659,10 +623,14 @@ class PostAnalyzeWorkflow:
         return result
 
     def _get_default_content(self) -> Dict[str, Any]:
-        """获取默认的内容结构（V2：新增 RelationChange 和 FutureResponse；V2.5：新增 CharacterLongtermPurpose）"""
+        """获取默认的内容结构（V2：新增 RelationChange 和 FollowupPlan）"""
         return {
             "RelationChange": {"Closeness": 0, "Trustness": 0},
-            "FutureResponse": {"FutureResponseTime": "", "FutureResponseAction": "无"},
+            "FollowupPlan": {
+                "FollowupAction": "clear",
+                "FollowupTime": "",
+                "FollowupPrompt": "无",
+            },
             "CharacterPublicSettings": "无",
             "CharacterPrivateSettings": "无",
             "UserSettings": "无",

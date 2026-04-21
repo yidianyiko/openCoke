@@ -28,8 +28,6 @@ typeset -a required_files=(
   "agent/runner/agent_runner.py"
   "connector/clawscale_bridge/app.py"
   "connector/clawscale_bridge/output_dispatcher.py"
-  "gateway/packages/api/package.json"
-  "gateway/packages/web/package.json"
   "scripts/test-deploy-compose-to-gcp.sh"
 )
 
@@ -43,6 +41,13 @@ for file in "${required_files[@]}"; do
     missing=1
   fi
 done
+
+if git ls-tree HEAD gateway | rg -q '[[:space:]]gateway$'; then
+  print "OK  gateway (gitlink)"
+else
+  print "MISS gateway (gitlink)"
+  missing=1
+fi
 
 for needle in \
   "docs/design-docs/index.md" \

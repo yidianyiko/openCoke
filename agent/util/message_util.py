@@ -254,7 +254,11 @@ def send_message_via_context(
 
     status = "pending"
     handled_timestamp = expect_output_timestamp
-    is_proactive_message = context.get("message_source") in {"future", "reminder"}
+    is_proactive_message = context.get("message_source") in {
+        "future",
+        "reminder",
+        "deferred_action",
+    }
     account_id = None
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）

@@ -8,7 +8,15 @@ The production stack consists of:
 
 - `agent/runner/agent_runner.py`
   - runs Coke message workers
-  - runs background jobs
+  - boots the deferred-action scheduler
+  - runs background maintenance jobs
+- `agent/runner/deferred_action_scheduler.py`
+  - rebuilds APScheduler jobs from MongoDB state
+  - reconciles expired leases on startup
+- `agent/runner/deferred_action_executor.py`
+  - claims due actions
+  - acquires the normal conversation lock boundary
+  - routes triggered actions through `handle_message()`
 - `connector/clawscale_bridge/app.py`
   - handles user auth, bind flow, and Coke-specific bridge APIs
   - dispatches outbound replies to the gateway
@@ -16,7 +24,8 @@ The production stack consists of:
   - serves the web UI on `4040`
   - serves the API on `4041`
 - data services
-  - MongoDB for Coke runtime state
+  - MongoDB for Coke runtime state, including `deferred_actions` and
+    `deferred_action_occurrences`
   - Redis for stream wake-up / trigger events
   - Postgres for gateway state
 
@@ -30,6 +39,8 @@ flowchart LR
     subgraph Coke
         BRIDGE[ClawScale Bridge :8090]
         RUNNER[agent_runner.py]
+        SCHED[DeferredActionScheduler]
+        EXEC[DeferredActionExecutor]
         BG[background_handler]
     end
 
@@ -43,8 +54,12 @@ flowchart LR
     API --> BRIDGE
     BRIDGE --> RUNNER
     BRIDGE --> API
+    RUNNER --> SCHED
+    SCHED --> EXEC
     RUNNER --> MONGO
     RUNNER -. stream trigger .-> REDIS
+    SCHED --> MONGO
+    EXEC --> MONGO
     BG --> MONGO
     API --> PG
 ```
@@ -70,10 +85,11 @@ Key points:
 
 ## 3. Worker Runtime
 
-`agent/runner/agent_runner.py` now has only two responsibilities:
+`agent/runner/agent_runner.py` now has three responsibilities:
 
 1. run N message workers
-2. run the background handler loop
+2. boot one in-process deferred-action scheduler/executor runtime
+3. run the background handler loop
 
 Each worker:
 
@@ -88,6 +104,18 @@ Each worker:
 - batching pending messages for the same conversation
 - final status updates
 
+The deferred-action runtime now owns all reminder and proactive follow-up
+triggering:
+
+- `deferred_actions` stores business state, recurrence, `next_run_at`, and
+  visibility
+- `deferred_action_occurrences` stores per-occurrence claim/success/failure
+  audit
+- APScheduler holds only the next concrete in-process wake-up for each active
+  action
+- `agent_background_handler.py` no longer polls legacy reminder or future
+  queues
+
 ## 4. Turn Processing Pipeline
 
 The shared turn pipeline remains:
@@ -96,7 +124,8 @@ The shared turn pipeline remains:
 2. `StreamingChatWorkflow`
 3. `PostAnalyzeWorkflow`
 
-This path is invoked from `agent/runner/agent_handler.py`.
+This path is invoked from `agent/runner/agent_handler.py` for both normal user
+turns and deferred-action-triggered turns (`message_source="deferred_action"`).
 
 ## 5. Outbound Path
 

@@ -1,11 +1,10 @@
 from .chat_response_schema import (
     ChatResponse,
-    FutureResponseModel,
     MultiModalResponse,
     RelationChangeModel,
 )
 from .orchestrator_schema import ContextRetrieveParams, OrchestratorResponse
-from .post_analyze_schema import PostAnalyzeResponse
+from .post_analyze_schema import FollowupPlanModel, PostAnalyzeResponse
 
 __all__ = [
     "OrchestratorResponse",
@@ -13,6 +12,6 @@ __all__ = [
     "ChatResponse",
     "MultiModalResponse",
     "RelationChangeModel",
-    "FutureResponseModel",
+    "FollowupPlanModel",
     "PostAnalyzeResponse",
 ]

@@ -75,11 +75,12 @@ TASKPROMPT_总结 = """You are {character_label}. You interact with {user_label}
 
 Both parties have now sent some new chat messages. Summarize these latest messages. The summary must include the following sections:"""  # PLATFORM_REF: platform limitations may vary per connector
 
-# V2.11 refactor: extracted FutureResponse into a standalone variable for dynamic assembly
-# Fixes: when a timed reminder is created this round, LLM no longer needs to output FutureResponse, avoiding duplicate setup
-TASKPROMPT_总结_FutureResponse = """
-2. FutureResponse. Based on the [current user message] and [recent conversation context]: after {character_label} replies, assuming {user_label} does not reply at all afterward, at what future time should {character_label} send the next proactive message (avoid late night 22:00 to 5:00 next day)?
-FutureResponseTime is the time for the next proactive message, format: YYYY年MM月DD日HH时MM分. FutureResponseAction is the rough content of the next proactive message.
+# Internal proactive follow-up planning contract
+TASKPROMPT_总结_FollowupPlan = """
+2. FollowupPlan. Based on the [current user message] and [recent conversation context]: after {character_label} replies, assuming {user_label} does not reply at all afterward, should {character_label} create, replace, or clear one internal proactive follow-up action?
+FollowupAction must be one of: create | replace | clear.
+FollowupTime is the future time for the next proactive follow-up, format: YYYY年MM月DD日HH时MM分.
+FollowupPrompt is the rough content of the next proactive follow-up.
 
 Determine based on the following situations (avoid late night 22:00 to 8:00 next day):
 a. Task in progress, user has not confirmed start: proactively prompt to start after 180 minutes.
@@ -88,14 +89,14 @@ c. Task should have ended but user has not reported completion: proactively ask 
 d. All tasks for the day are complete or no tasks pending: remind user to plan the next task after one day.
 e. Morning slot (9:00), user has not started the day's plan: proactively ask about today's plan.
 f. User has explicitly stated they are resting or feeling low: gently check in after 1–2 hours.
-g. Conversation has naturally ended and there are no pending tasks: stop proactive messages, output FutureResponseAction as "none".
-h. [IMPORTANT] If conversation history shows the character has already proactively sent more than 1 similar message with no reply from the user: switch strategy — send a light greeting after one day instead.
-i. [IMPORTANT] If conversation history shows the character has proactively sent more than 3 messages with absolutely no reply from the user: stop proactive messages, output FutureResponseAction as "none".
+g. Conversation has naturally ended and there are no pending tasks: clear the internal proactive follow-up.
+h. [IMPORTANT] If conversation history shows the character has already proactively sent more than 1 similar message with no reply from the user: switch strategy — replace it with a light greeting after one day instead.
+i. [IMPORTANT] If conversation history shows the character has proactively sent more than 3 messages with absolutely no reply from the user: clear the internal proactive follow-up.
 """
 
-# V2.11 refactor: placeholder prompt used when FutureResponse is not needed
-TASKPROMPT_总结_FutureResponse_跳过 = """
-2. FutureResponse. A timed reminder has already been created via the reminder system this round — no need to set a proactive message. Output FutureResponseTime as an empty string and FutureResponseAction as "none".
+# Placeholder prompt used when follow-up planning is skipped
+TASKPROMPT_总结_FollowupPlan_跳过 = """
+2. FollowupPlan. A timed reminder has already been created via the reminder system this round — no internal proactive follow-up is needed. Output FollowupAction as "clear", FollowupTime as an empty string, and FollowupPrompt as "无".
 """
 
 TASKPROMPT_总结_推理要求_头部 = """### Current Proactive Message Status
@@ -139,10 +140,10 @@ def get_post_analyze_prompt(skip_future_response: bool = False) -> str:
     """
     Dynamically generate the PostAnalyze reasoning requirement prompt.
 
-    V2.11: Added support for conditionally skipping the FutureResponse section.
+    Added support for conditionally skipping the internal follow-up planning section.
 
     Args:
-        skip_future_response: Whether to skip FutureResponse (True when a timed reminder was created this round)
+        skip_future_response: Whether to skip internal follow-up planning (True when a timed reminder was created this round)
 
     Returns:
         Assembled prompt string
@@ -150,13 +151,13 @@ def get_post_analyze_prompt(skip_future_response: bool = False) -> str:
     if skip_future_response:
         return (
             TASKPROMPT_总结_推理要求_头部
-            + TASKPROMPT_总结_FutureResponse_跳过
+            + TASKPROMPT_总结_FollowupPlan_跳过
             + TASKPROMPT_总结_推理要求_尾部
         )
     else:
         return (
             TASKPROMPT_总结_推理要求_头部
-            + TASKPROMPT_总结_FutureResponse
+            + TASKPROMPT_总结_FollowupPlan
             + TASKPROMPT_总结_推理要求_尾部
         )
 

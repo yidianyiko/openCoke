@@ -1,22 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-Context Retrieve Tool for Agno Agent
+"""Context Retrieve Tool for Agno Agent."""
 
-This tool provides vector search capabilities for retrieving:
-- Character global settings (角色全局人物设定)
-- Character private settings (角色私有设定)
-- User profile (用户个人设定)
-- Character knowledge (角色知识)
-- User reminders (用户待办提醒)
-
-Requirements: 3.1
-"""
-
+from datetime import UTC, datetime
 from typing import Optional
 
+from dao.deferred_action_dao import DeferredActionDAO
 from dao.mongo import MongoDBBase
 from util.embedding_util import embedding_by_aliyun
 from util.log_util import get_logger
+from util.time_util import format_time_friendly
 
 logger = get_logger(__name__)
 
@@ -408,35 +400,28 @@ def context_retrieve_tool(
 
         # 用户待办提醒-V2.7 优化：只加载有效状态且将来会触发的提醒
         try:
-            import time
-
-            from dao.reminder_dao import ReminderDAO
-            from util.time_util import format_time_friendly
-
-            reminder_dao = ReminderDAO()
-            current_time = int(time.time())
-
-            # 获取有效状态的提醒（阶段二状态重构：使用 active 状态）
-            all_reminders = reminder_dao.find_reminders_by_user(
-                user_id, status="active"
-            )
+            action_dao = DeferredActionDAO()
+            current_time = datetime.now(UTC)
+            all_reminders = action_dao.list_visible_actions(user_id)
 
             lines = []
-            for c in all_reminders[:30]:  # 限制最多 30 条
-                t = str(c.get("title", ""))
-                ts = int(c.get("next_trigger_time", 0) or 0)
-
-                # 只保留将来会触发的提醒（next_trigger_time > 当前时间）
-                if ts <= current_time:
+            for action in all_reminders[:30]:
+                if action.get("lifecycle_state") != "active":
                     continue
 
+                title = str(action.get("title", ""))
+                next_run_at = action.get("next_run_at")
+                if not next_run_at or next_run_at <= current_time:
+                    continue
+
+                ts = int(next_run_at.timestamp())
                 time_str = format_time_friendly(ts) if ts > 0 else ""
-                line = t
+                line = title
                 if time_str:
                     line = line + " · " + time_str
                 lines.append(line)
             return_resp["confirmed_reminders"] = "\n".join(lines)
-            reminder_dao.close()
+            action_dao.close()
         except Exception as e:
             logger.warning(f"Failed to retrieve reminders: {e}")
 

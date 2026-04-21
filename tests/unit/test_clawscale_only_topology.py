@@ -130,9 +130,6 @@ def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     chat_task = (ROOT / "agent" / "prompt" / "chat_taskprompt.py").read_text()
     chat_notice = (ROOT / "agent" / "prompt" / "chat_noticeprompt.py").read_text()
     context_file = (ROOT / "agent" / "runner" / "context.py").read_text()
-    reminder_tools = (
-        ROOT / "agent" / "agno_agent" / "tools" / "reminder_tools.py"
-    ).read_text()
     time_util = (ROOT / "util" / "time_util.py").read_text()
 
     assert "platforms.wechat.id" not in message_processor
@@ -155,5 +152,4 @@ def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     assert 'setdefault("wechat"' not in context_file
     assert "在微信上认识的朋友" not in context_file
     assert "get_user_timezone" not in context_file
-    assert "get_user_timezone" not in reminder_tools
     assert "WhatsApp JID" not in time_util

@@ -29,8 +29,6 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
-from bson import ObjectId
-
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -177,20 +175,6 @@ async def _run_post_analyze_background(
                 "relations",
                 query={"uid": relation["uid"], "cid": relation["cid"]},
                 update=relation_update,
-            )
-
-        # 只更新 conversation.future 字段到数据库
-        # 注意：不能更新整个 conversation_info，会覆盖主流程的 chat_history 更新
-        if conversation_id:
-            future_info = (
-                context.get("conversation", {})
-                .get("conversation_info", {})
-                .get("future", {})
-            )
-            mongo.update_one(
-                "conversations",
-                {"_id": ObjectId(conversation_id)},
-                {"$set": {"conversation_info.future": future_info}},
             )
 
         logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 完成")
@@ -360,7 +344,7 @@ async def handle_message(
     """
     核心消息处理逻辑-Phase 1 → 2 → 3
 
-    统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程.
+    统一处理用户消息和系统消息（提醒、主动消息、deferred actions），复用完整的 Workflow 流程.
 
     Args:
         context: 已构建好的上下文（由 context_prepare 生成）
@@ -369,6 +353,7 @@ async def handle_message(
            -"user": 用户消息（默认）
            -"reminder": 提醒触发
            -"future": 主动消息
+           -"deferred_action": 统一延迟动作触发
         metadata: 额外元数据（如 reminder_id、proactive_times 等）
         check_new_message: 是否检测新消息（系统消息通常设为 False）
         worker_tag: 日志标签
@@ -555,7 +540,15 @@ async def handle_message(
                     logger.debug(f"{worker_tag} 锁续期成功 (Phase 3 前)")
 
                 # ========== V2.8 优化：提醒消息跳过 LLM 调用 ==========
-                if message_source == "reminder":
+                deferred_kind = (metadata or {}).get("kind")
+                if (
+                    message_source == "deferred_action"
+                    and deferred_kind == "user_reminder"
+                ):
+                    logger.info(
+                        f"{worker_tag} Phase 3: user reminder deferred action，跳过 PostAnalyze"
+                    )
+                elif message_source == "reminder":
                     # 提醒消息：跳过 LLM 分析，只更新 proactive_times
                     conversation_info = context.get("conversation", {}).get(
                         "conversation_info", {}

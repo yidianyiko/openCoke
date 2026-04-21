@@ -8,6 +8,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from agent.runner.deferred_action_executor import DeferredActionExecutor
+from agent.runner.deferred_action_scheduler import (
+    DeferredActionScheduler,
+    get_deferred_action_scheduler_instance,
+    set_deferred_action_scheduler_instance,
+)
 from util.log_util import get_logger, setup_logging
 
 setup_logging()
@@ -16,6 +22,8 @@ logger = get_logger(__name__)
 from agent.runner.agent_background_handler import background_handler
 from agent.runner.agent_handler import create_handler
 from agent.runner.message_processor import consume_stream_batch, get_queue_mode
+from dao.deferred_action_dao import DeferredActionDAO
+from dao.deferred_action_occurrence_dao import DeferredActionOccurrenceDAO
 from dao.mongo import MongoDBBase
 from util.redis_client import RedisClient
 
@@ -26,6 +34,28 @@ except ImportError:  # pragma: no cover - optional dependency until redis is ins
 
 
 NUM_WORKERS = int(os.environ.get("AGENT_WORKERS", 3))
+
+
+def bootstrap_deferred_action_runtime():
+    existing = get_deferred_action_scheduler_instance()
+    if existing is not None:
+        return existing
+
+    action_dao = DeferredActionDAO()
+    occurrence_dao = DeferredActionOccurrenceDAO()
+    executor = DeferredActionExecutor(
+        action_dao=action_dao,
+        occurrence_dao=occurrence_dao,
+        scheduler=None,
+    )
+    scheduler = DeferredActionScheduler(
+        action_dao=action_dao,
+        executor=executor.execute_due_action,
+    )
+    executor.scheduler = scheduler
+    set_deferred_action_scheduler_instance(scheduler)
+    scheduler.start()
+    return scheduler
 
 
 async def run_main_agent(worker_id: int):
@@ -72,11 +102,16 @@ async def run_background_agent():
 
 
 async def main():
+    deferred_action_scheduler = bootstrap_deferred_action_runtime()
     workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
     workers.append(run_background_agent())
 
     logger.info(f"启动 {NUM_WORKERS} 个消息处理 worker")
-    await asyncio.gather(*workers)
+    try:
+        await asyncio.gather(*workers)
+    finally:
+        deferred_action_scheduler.shutdown()
+        set_deferred_action_scheduler_instance(None)
 
-
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

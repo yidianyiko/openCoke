@@ -1,4 +1,5 @@
 agno==2.5.9
+APScheduler==3.11.2
 dashscope==1.23.2
 flask==3.1.3
 gunicorn==23.0.0
@@ -15,6 +16,7 @@ redis==5.0.4
 silk-python==0.2.6
 stripe>=8.0.0
 volcengine-python-sdk==1.1.5
+python-dateutil>=2.9.0
 
 # Testing
 pytest>=8.0.0

@@ -35,7 +35,10 @@ Use when changing:
 - `agent/runner/agent_runner.py`
 - `agent/runner/message_processor.py`
 - `agent/runner/agent_handler.py`
+- `agent/runner/deferred_action_*.py`
 - `agent/agno_agent/workflows/`
+- `agent/agno_agent/tools/deferred_action/`
+- `dao/deferred_action_*.py`
 - `agent/prompt/`
 
 Baseline commands:
@@ -44,6 +47,15 @@ Baseline commands:
 pytest tests/unit/runner/ -v
 pytest tests/unit/agent/ -v
 pytest tests/unit/test_clawscale_only_topology.py -v
+```
+
+Focused deferred-actions command set:
+
+```bash
+pytest tests/unit/dao/test_deferred_action_dao.py tests/unit/dao/test_deferred_action_occurrence_dao.py -v
+pytest tests/unit/runner/test_deferred_action_policy.py tests/unit/runner/test_deferred_action_scheduler.py tests/unit/runner/test_agent_runner_deferred_actions.py tests/unit/runner/test_deferred_action_executor.py tests/unit/runner/test_deferred_action_message_source.py tests/unit/runner/test_background_handler_deferred_only.py tests/unit/runner/test_background_conversation_participants.py -v
+pytest tests/unit/agent/test_deferred_action_service.py tests/unit/agent/test_post_analyze_deferred_actions.py tests/unit/test_context_retrieve_deferred_reminders.py tests/unit/agent/test_agent_handler.py tests/unit/test_clawscale_only_topology.py -v
+pytest tests/e2e/test_deferred_actions_flow.py -v
 ```
 
 ## Bridge
