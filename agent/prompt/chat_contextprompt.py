@@ -25,7 +25,7 @@ def get_message_source_context(message_source: str, context: dict) -> str:
     Return the appropriate source annotation context based on message source.
 
     Args:
-        message_source: Message source — "user" / "reminder" / "future" / "deferred_action"
+        message_source: Message source — "user" / "deferred_action"
         context: Full context dict used to render templates
 
     Returns:
@@ -42,12 +42,10 @@ def get_message_source_context(message_source: str, context: dict) -> str:
             if deferred_kind == "user_reminder"
             else CONTEXTPROMPT_消息来源_主动消息
         )
-    elif message_source == "reminder":
-        template = CONTEXTPROMPT_消息来源_提醒触发
-    elif message_source == "future":
-        template = CONTEXTPROMPT_消息来源_主动消息
-    else:  # user
+    elif message_source == "user":
         template = CONTEXTPROMPT_消息来源_用户消息
+    else:
+        raise ValueError(f"Unsupported message source: {message_source}")
 
     try:
         return render_prompt_template(template, context)
@@ -63,19 +61,10 @@ You need to proactively send a reminder message to {_user_nickname} based on the
 This is a scenario where you are initiating the conversation — not a message sent by {_user_nickname}.
 You need to proactively send a message to {_user_nickname} based on the planned action.
 [NOTE] You are the initiator of this message, not replying to the user."""
-        if message_source == "reminder":
-            return f"""### Message Source
-This is a system-triggered scheduled reminder — not a message sent by {_user_nickname}.
-You need to proactively send a reminder message to {_user_nickname} based on the reminder content.
-[NOTE] Do not treat the reminder content as something the user said and reply to it."""
-        elif message_source == "future":
-            return f"""### Message Source
-This is a scenario where you are initiating the conversation — not a message sent by {_user_nickname}.
-You need to proactively send a message to {_user_nickname} based on the planned action.
-[NOTE] You are the initiator of this message, not replying to the user."""
-        else:
+        if message_source == "user":
             return f"""### Message Source
 This is a real message sent to you by {_user_nickname} via this chat channel. Please reply normally."""
+        raise ValueError(f"Unsupported message source: {message_source}")
 
 
 CONTEXTPROMPT_时间 = """### Current System Time

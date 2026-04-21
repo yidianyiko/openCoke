@@ -1,5 +1,6 @@
 from agent.prompt.chat_contextprompt import get_message_source_context
 from agent.prompt.rendering import build_prompt_context, render_prompt_template
+import pytest
 
 
 def test_render_prompt_template_uses_generic_labels_without_platform_profiles():
@@ -42,3 +43,15 @@ def test_message_source_context_uses_generic_user_label():
 
     assert "Alice" in rendered
     assert "{user_label}" not in rendered
+
+
+@pytest.mark.parametrize("legacy_source", ["reminder", "future"])
+def test_message_source_context_rejects_legacy_system_sources(legacy_source):
+    with pytest.raises(ValueError, match="Unsupported message source"):
+        get_message_source_context(
+            legacy_source,
+            {
+                "user": {"display_name": "Alice"},
+                "conversation": {"platform": "business"},
+            },
+        )

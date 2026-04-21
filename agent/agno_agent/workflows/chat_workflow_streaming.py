@@ -175,7 +175,7 @@ class StreamingChatWorkflow:
             message_source, session_state
         )
 
-        notice_segmentation = ""  # 消息分段注意事项（仅用于主动消息和提醒）
+        notice_segmentation = ""  # 消息分段注意事项（仅用于 deferred_action）
         deferred_kind = session_state.get("system_message_metadata", {}).get("kind")
         if message_source == "deferred_action":
             if deferred_kind == "user_reminder":
@@ -184,17 +184,11 @@ class StreamingChatWorkflow:
                 source_template = self.userp_template_future
             base_template = self.userp_template_base_lite
             notice_segmentation = self.userp_template_notice_segmentation
-        elif message_source == "reminder":
-            source_template = self.userp_template_reminder
-            base_template = self.userp_template_base_lite  # 提醒消息使用精简版
-            notice_segmentation = self.userp_template_notice_segmentation
-        elif message_source == "future":
-            source_template = self.userp_template_future
-            base_template = self.userp_template_base_lite  # 主动消息使用精简版
-            notice_segmentation = self.userp_template_notice_segmentation
-        else:
+        elif message_source == "user":
             source_template = self.userp_template_user_message
             base_template = self.userp_template_base  # 用户消息使用完整版
+        else:
+            raise ValueError(f"Unsupported message source: {message_source}")
 
         # Generic tool results context (timezone, reminder, future tools)
         tool_results_context = get_tool_results_context(session_state)
@@ -317,7 +311,7 @@ class StreamingChatWorkflow:
         # 打印实际发送给 LLM 的 prompt（便于调试）
         logger.info(
             f"[ChatWorkflow] message_source={message_source}, 使用模板: "
-            f"{'CONTEXTPROMPT_系统提醒触发' if (message_source == 'reminder' or (message_source == 'deferred_action' and deferred_kind == 'user_reminder')) else 'CONTEXTPROMPT_主动消息触发' if (message_source == 'future' or (message_source == 'deferred_action' and deferred_kind == 'proactive_followup')) else 'CONTEXTPROMPT_最新聊天消息'}"
+            f"{'CONTEXTPROMPT_系统提醒触发' if (message_source == 'deferred_action' and deferred_kind == 'user_reminder') else 'CONTEXTPROMPT_主动消息触发' if (message_source == 'deferred_action' and deferred_kind == 'proactive_followup') else 'CONTEXTPROMPT_最新聊天消息'}"
         )
         logger.debug(
             f"[ChatWorkflow] LLM INPUT (len={len(rendered_userp)}):\n{'='*50}\n{rendered_userp}\n{'='*50}"

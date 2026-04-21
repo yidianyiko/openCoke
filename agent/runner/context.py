@@ -216,12 +216,6 @@ def context_prepare(user, character, conversation):
     else:
         context["input_timestamp"] = int(time.time())
 
-    if "future" not in context["conversation"]["conversation_info"]:
-        context["conversation"]["conversation_info"]["future"] = {
-            "timestamp": None,
-            "action": None,
-        }
-
     # BUG-006 High fix: Handle corrupted relation data with missing "relationship" field
     if "relationship" not in relation:
         relation["relationship"] = {"closeness": 20, "trustness": 20, "dislike": 0}

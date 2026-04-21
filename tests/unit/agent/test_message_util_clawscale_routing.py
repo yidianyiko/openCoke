@@ -6,7 +6,8 @@ def test_message_util_emits_business_only_output_doc_for_clawscale_proactive_mes
 ):
     from agent.util import message_util
 
-    sample_context["message_source"] = "future"
+    sample_context["message_source"] = "deferred_action"
+    sample_context["system_message_metadata"] = {"kind": "proactive_followup"}
     sample_context["conversation"]["chatroom_name"] = None
     sample_context["conversation"]["platform"] = "wechat_personal"
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
@@ -69,7 +70,8 @@ def test_message_util_marks_proactive_output_failed_when_business_key_missing(
     from agent.util import message_util
 
     now_ts = 1710000000
-    sample_context["message_source"] = "future"
+    sample_context["message_source"] = "deferred_action"
+    sample_context["system_message_metadata"] = {"kind": "proactive_followup"}
     sample_context["conversation"]["chatroom_name"] = None
     sample_context["conversation"]["platform"] = "wechat"
     sample_context["conversation"]["conversation_info"]["input_messages"] = []

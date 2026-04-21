@@ -351,8 +351,6 @@ async def handle_message(
         input_message_str: 输入消息字符串
         message_source: 消息来源
            -"user": 用户消息（默认）
-           -"reminder": 提醒触发
-           -"future": 主动消息
            -"deferred_action": 统一延迟动作触发
         metadata: 额外元数据（如 reminder_id、proactive_times 等）
         check_new_message: 是否检测新消息（系统消息通常设为 False）
@@ -547,21 +545,6 @@ async def handle_message(
                 ):
                     logger.info(
                         f"{worker_tag} Phase 3: user reminder deferred action，跳过 PostAnalyze"
-                    )
-                elif message_source == "reminder":
-                    # 提醒消息：跳过 LLM 分析，只更新 proactive_times
-                    conversation_info = context.get("conversation", {}).get(
-                        "conversation_info", {}
-                    )
-                    future_info = conversation_info.get("future", {})
-                    if "future" not in conversation_info:
-                        conversation_info["future"] = {}
-                        future_info = conversation_info["future"]
-                    future_info["proactive_times"] = (
-                        future_info.get("proactive_times", 0) + 1
-                    )
-                    logger.info(
-                        f"{worker_tag} Phase 3: 提醒消息，跳过 PostAnalyze LLM，proactive_times={future_info['proactive_times']}"
                     )
                 else:
                     # 用户消息/主动消息：后台执行 PostAnalyze（Fire-and-Forget）

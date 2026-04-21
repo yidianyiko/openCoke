@@ -38,6 +38,7 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
 
     time_str = ctx["conversation"]["conversation_info"]["time_str"]
     assert time_str  # non-empty
+    assert "future" not in ctx["conversation"]["conversation_info"]
     dao_instance.update_timezone.assert_not_called()
 
 

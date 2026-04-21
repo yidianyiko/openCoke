@@ -200,9 +200,9 @@ class PrepareWorkflow:
         """判断是否需要执行提醒检测"""
         need_reminder = orchestrator.get("need_reminder_detect", False)
 
-        # 系统消息（提醒、主动消息）跳过提醒检测
+        # 系统延迟动作跳过提醒检测
         message_source = session_state.get("message_source", "user")
-        if message_source in ["reminder", "future", "deferred_action"]:
+        if message_source == "deferred_action":
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
