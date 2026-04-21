@@ -265,6 +265,51 @@ class TestDeferredActionExecutor:
         scheduler.reschedule_action.assert_called_once()
         scheduler.remove_action.assert_not_called()
 
+    async def test_build_context_recovers_synthetic_business_user_from_conversation_talkers(self):
+        action = build_action(
+            user_id="ck_synthetic_user",
+            character_id="char-1",
+            conversation_id="conv-1",
+        )
+        conversation = {
+            "_id": "conv-1",
+            "platform": "business",
+            "talkers": [
+                {"db_user_id": "ck_synthetic_user", "nickname": "Codex Smoke"},
+                {"db_user_id": "char-1", "nickname": "qiaoyun"},
+            ],
+        }
+        context_builder = Mock(return_value=build_context())
+        executor = executor_module.DeferredActionExecutor(
+            action_dao=Mock(),
+            occurrence_dao=Mock(),
+            scheduler=Mock(),
+            lock_manager=Mock(),
+            conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+            user_dao=Mock(
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: None
+                    if user_id == "ck_synthetic_user"
+                    else {"_id": "char-1", "nickname": "qiaoyun"}
+                )
+            ),
+            handle_message_fn=AsyncMock(),
+            context_builder=context_builder,
+        )
+
+        executor._build_context(action)
+
+        context_builder.assert_called_once()
+        user_arg, character_arg, conversation_arg = context_builder.call_args.args
+        assert user_arg == {
+            "id": "ck_synthetic_user",
+            "_id": "ck_synthetic_user",
+            "nickname": "Codex Smoke",
+            "is_coke_account": True,
+        }
+        assert character_arg == {"_id": "char-1", "nickname": "qiaoyun"}
+        assert conversation_arg == conversation
+
     async def test_failure_path_retries_one_shot_actions(self):
         now = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
         action = build_action()

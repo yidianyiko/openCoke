@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from agent.runner import deferred_action_policy as policy
 from agent.runner.context import context_prepare
+from agent.runner.identity import is_synthetic_coke_account_id
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
 from dao.user_dao import UserDAO
@@ -267,8 +268,37 @@ class DeferredActionExecutor:
     def _build_context(self, action: dict[str, Any]) -> dict:
         conversation = self.conversation_dao.get_conversation_by_id(action["conversation_id"])
         user = self.user_dao.get_user_by_id(action["user_id"])
+        if user is None:
+            user = self._recover_synthetic_business_user(
+                action["user_id"],
+                conversation,
+            )
         character = self.user_dao.get_user_by_id(action["character_id"])
         return self.context_builder(user, character, conversation)
+
+    def _recover_synthetic_business_user(
+        self,
+        user_id: str,
+        conversation: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if not is_synthetic_coke_account_id(user_id):
+            return None
+
+        talkers = (conversation or {}).get("talkers") or []
+        for talker in talkers:
+            db_user_id = str(talker.get("db_user_id") or "").strip()
+            if db_user_id != user_id:
+                continue
+            nickname = str(talker.get("nickname") or "").strip()
+            if not nickname:
+                nickname = f"user-{user_id[-6:]}"
+            return {
+                "id": user_id,
+                "_id": user_id,
+                "nickname": nickname,
+                "is_coke_account": True,
+            }
+        return None
 
     def _build_input_message(self, action: dict[str, Any]) -> str:
         prompt = (action.get("payload") or {}).get("prompt") or action.get("title") or ""
