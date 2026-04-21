@@ -22,7 +22,7 @@ class DeferredActionOccurrenceDAO:
         + "/",
         db_name: str = CONF["mongodb"]["mongodb_name"],
     ):
-        self.client = MongoClient(mongo_uri)
+        self.client = MongoClient(mongo_uri, tz_aware=True)
         self.db = self.client[db_name]
         self.collection: Collection = self.db.get_collection(self.COLLECTION)
 

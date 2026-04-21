@@ -17,6 +17,11 @@ def _load_handle_message() -> Callable[..., Any]:
     return handle_message
 
 
+def _normalize_mongo_datetime(value: datetime) -> datetime:
+    normalized = value.astimezone(UTC)
+    return normalized.replace(microsecond=(normalized.microsecond // 1000) * 1000)
+
+
 class DeferredActionExecutor:
     def __init__(
         self,
@@ -70,7 +75,7 @@ class DeferredActionExecutor:
             return "lock_unavailable"
 
         lease_token = str(uuid.uuid4())
-        started_at = self.now_provider()
+        started_at = _normalize_mongo_datetime(self.now_provider())
         lease_until = started_at + timedelta(seconds=self.action_lease_timeout)
         claimed = self.action_dao.claim_action_lease(
             action_id=action_id,
@@ -130,7 +135,7 @@ class DeferredActionExecutor:
             if is_content_blocked:
                 raise RuntimeError("content blocked")
 
-            finished_at = self.now_provider()
+            finished_at = _normalize_mongo_datetime(self.now_provider())
             self.occurrence_dao.mark_occurrence_succeeded(trigger_key, finished_at)
             self._handle_success(
                 action=action,
@@ -141,7 +146,7 @@ class DeferredActionExecutor:
             )
             return "succeeded"
         except Exception as exc:
-            finished_at = self.now_provider()
+            finished_at = _normalize_mongo_datetime(self.now_provider())
             attempt_count = int(occurrence.get("attempt_count", 1))
             self.occurrence_dao.mark_occurrence_failed(
                 trigger_key,

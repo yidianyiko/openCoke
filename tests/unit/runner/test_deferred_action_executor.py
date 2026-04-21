@@ -163,6 +163,54 @@ class TestDeferredActionExecutor:
         handle_message.assert_not_called()
         action_dao.release_action_lease.assert_called_once_with("action-1", ANY)
 
+    async def test_first_claim_is_not_treated_as_duplicate_when_mongo_truncates_millis(self):
+        now = datetime(2026, 4, 21, 9, 0, 0, 123456, tzinfo=UTC)
+        action = build_action()
+        action_dao = Mock(
+            get_action=Mock(return_value=action),
+            claim_action_lease=Mock(return_value=True),
+            update_action=Mock(return_value=True),
+        )
+        occurrence_dao = Mock(
+            claim_or_get_occurrence=Mock(
+                return_value={
+                    "trigger_key": "action:action-1:2026-04-21T09:00:00+00:00",
+                    "status": "claimed",
+                    "attempt_count": 1,
+                    "last_started_at": datetime(2026, 4, 21, 9, 0, 0, 123000, tzinfo=UTC),
+                }
+            ),
+            mark_occurrence_succeeded=Mock(),
+        )
+        handle_message = AsyncMock(return_value=([], build_context(), False, False))
+        scheduler = Mock(remove_action=Mock())
+        executor = executor_module.DeferredActionExecutor(
+            action_dao=action_dao,
+            occurrence_dao=occurrence_dao,
+            scheduler=scheduler,
+            lock_manager=Mock(
+                acquire_lock_async=AsyncMock(return_value="lock-1"),
+                release_lock_safe_async=AsyncMock(),
+            ),
+            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+            user_dao=Mock(
+                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+            ),
+            handle_message_fn=handle_message,
+            context_builder=Mock(return_value=build_context()),
+            now_provider=lambda: now,
+        )
+
+        result = await executor.execute_due_action(
+            action_id="action-1",
+            scheduled_for=action["next_run_at"],
+            revision=action["revision"],
+        )
+
+        assert result == "succeeded"
+        handle_message.assert_awaited_once()
+        occurrence_dao.mark_occurrence_succeeded.assert_called_once()
+
     async def test_success_path_updates_lifecycle_and_reschedules_recurring_actions(self):
         now = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
         action = build_action(rrule="FREQ=DAILY")
