@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import re
+
 # ========== Message source annotation (auto-injected based on message_source) ==========
 # Injected at the code level — the LLM does not need to determine the message source
 
@@ -318,6 +320,71 @@ def get_url_context(session_state: dict) -> str:
 
 
 # ========== Generic Tool Result ==========
+
+
+def _looks_like_explicit_timezone_question(message: str) -> bool:
+    normalized = " ".join(str(message or "").lower().split())
+    if not normalized:
+        return False
+
+    timezone_markers = ("时区", "timezone", "time zone")
+    query_markers = ("什么", "哪个", "现在", "当前", "按", "用", "what", "which", "current", "using")
+    return any(marker in normalized for marker in timezone_markers) and any(
+        marker in normalized for marker in query_markers
+    )
+
+
+def _looks_like_explicit_local_time_or_date_question(message: str) -> bool:
+    normalized = " ".join(str(message or "").lower().split())
+    if not normalized:
+        return False
+
+    patterns = (
+        r"现在.*几点",
+        r"当地时间.*几点",
+        r"现在当地时间",
+        r"今天几号",
+        r"今天星期几",
+        r"今天日期",
+        r"现在日期",
+        r"当前日期",
+        r"what time is it",
+        r"current local time",
+        r"local time",
+        r"what date is it",
+        r"current date",
+        r"today'?s date",
+    )
+    return any(re.search(pattern, normalized) for pattern in patterns)
+
+
+def get_inferred_timezone_visibility_context(
+    session_state: dict,
+    input_message: str,
+    *,
+    message_source: str = "user",
+) -> str:
+    if message_source != "user":
+        return ""
+
+    user = session_state.get("user") or {}
+    timezone = user.get("timezone")
+    if not timezone or user.get("timezone_status") != "system_inferred":
+        return ""
+
+    if not (
+        _looks_like_explicit_timezone_question(input_message)
+        or _looks_like_explicit_local_time_or_date_question(input_message)
+    ):
+        return ""
+
+    source = user.get("timezone_source") or "unknown source"
+    return (
+        "### Timezone Context\n"
+        f"Current time-sensitive interpretation should use {timezone}.\n"
+        f"This timezone is system inferred from {source}.\n"
+        "If you answer the user's timezone, local time, or local date question, mention that the timezone is inferred."
+    )
 
 
 def _get_inferred_timezone_note(session_state: dict, results: list[dict]) -> str:

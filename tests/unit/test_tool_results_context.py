@@ -104,3 +104,62 @@ def test_timezone_context_mentions_inferred_state_for_reminder_results():
 
     assert "Europe/London" in output
     assert "system inferred" in output.lower()
+
+
+def test_inferred_timezone_visibility_surfaces_for_explicit_timezone_question():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "system_inferred",
+            "timezone_source": "web_region",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "你现在按什么时区理解时间？",
+    )
+
+    assert "Europe/London" in output
+    assert "system inferred" in output.lower()
+
+
+def test_inferred_timezone_visibility_surfaces_for_explicit_local_time_question():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "system_inferred",
+            "timezone_source": "web_region",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "现在当地时间几点了？",
+    )
+
+    assert "Europe/London" in output
+    assert "system inferred" in output.lower()
+
+
+def test_inferred_timezone_visibility_stays_quiet_for_generic_conversation():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "system_inferred",
+            "timezone_source": "web_region",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "今天过得怎么样？",
+    )
+
+    assert output == ""
