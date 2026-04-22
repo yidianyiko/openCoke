@@ -191,6 +191,8 @@ def context_prepare(user, character, conversation):
 
     timezone_context = _resolve_user_timezone_context(context["user"])
     user_tz = timezone_context.pop("zoneinfo")
+    if "timezone" not in timezone_context:
+        context["user"].pop("timezone", None)
     context["user"].update(timezone_context)
 
     # ========== 使用文件配置的角色提示词 ==========
