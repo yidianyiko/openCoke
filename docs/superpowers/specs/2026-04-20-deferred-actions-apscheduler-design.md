@@ -1,5 +1,12 @@
 # Deferred Actions APScheduler Design
 
+> Status note (2026-04-22): This design is now implemented. The live runtime
+> uses `deferred_actions` for reminder and proactive follow-up scheduling, no
+> active worker path reads or writes `conversation_info.future`, and
+> `scripts/retire_legacy_reminder_compat.py` performs the remaining one-time
+> data cleanup for retired compatibility fields and the legacy `reminders`
+> collection.
+
 ## Summary
 
 We will replace the current split `future` and `reminder` runtime with a new

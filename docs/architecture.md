@@ -1,6 +1,7 @@
 # Architecture Reference
 
-This document describes the current ClawScale-only runtime wired in this repository.
+This document describes the current ClawScale-only runtime wired in this
+repository.
 
 ## 1. Runtime Topology
 
@@ -113,8 +114,12 @@ triggering:
   audit
 - APScheduler holds only the next concrete in-process wake-up for each active
   action
+- no live runtime path depends on `conversation_info.future`
 - `agent_background_handler.py` no longer polls legacy reminder or future
   queues
+- `scripts/retire_legacy_reminder_compat.py` is the one-time operational
+  cleanup path that unsets retired conversation compatibility fields and drops
+  the legacy `reminders` collection after migration
 
 ## 4. Turn Processing Pipeline
 

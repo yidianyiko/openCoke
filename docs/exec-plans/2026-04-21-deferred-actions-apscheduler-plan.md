@@ -2,7 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the split future/reminder runtime with a clean-break deferred-actions system backed by MongoDB business state, RRULE recurrence, and a single in-process APScheduler 3.x instance.
+> Status note (2026-04-22): This historical plan has been completed on the
+> `compat-retirement-reminders` branch. `deferred_actions` and
+> `deferred_action_occurrences` are the live scheduling runtime, no active
+> runtime path depends on `conversation_info.future`, and
+> `scripts/retire_legacy_reminder_compat.py` is the cleanup entrypoint for
+> retiring the legacy `reminders` collection and related compatibility fields.
+
+**Goal:** Replace the split future/reminder runtime with a clean-break
+deferred-actions system backed by MongoDB business state, RRULE recurrence, and
+a single in-process APScheduler 3.x instance.
 
 **Architecture:** MongoDB remains the only source of truth via `deferred_actions` and `deferred_action_occurrences`. APScheduler 3.x only schedules the next concrete fire time for each active action. Triggered actions enter through a single deferred-action executor that acquires the normal conversation turn lock before calling `handle_message()`.
 
