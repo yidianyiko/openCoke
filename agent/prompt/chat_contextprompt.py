@@ -322,6 +322,10 @@ def get_url_context(session_state: dict) -> str:
 # ========== Generic Tool Result ==========
 
 
+def _get_visible_timezone_name(user: dict) -> str | None:
+    return user.get("timezone") or user.get("effective_timezone")
+
+
 def _looks_like_explicit_timezone_question(message: str) -> bool:
     normalized = " ".join(str(message or "").lower().split())
     if not normalized:
@@ -368,7 +372,7 @@ def get_inferred_timezone_visibility_context(
         return ""
 
     user = session_state.get("user") or {}
-    timezone = user.get("timezone")
+    timezone = _get_visible_timezone_name(user)
     if not timezone or user.get("timezone_status") != "system_inferred":
         return ""
 
@@ -389,7 +393,7 @@ def get_inferred_timezone_visibility_context(
 
 def _get_inferred_timezone_note(session_state: dict, results: list[dict]) -> str:
     user = session_state.get("user") or {}
-    timezone = user.get("timezone")
+    timezone = _get_visible_timezone_name(user)
     if not timezone or user.get("timezone_status") != "system_inferred":
         return ""
 

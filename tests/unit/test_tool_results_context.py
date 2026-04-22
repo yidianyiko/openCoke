@@ -163,3 +163,43 @@ def test_inferred_timezone_visibility_stays_quiet_for_generic_conversation():
     )
 
     assert output == ""
+
+
+def test_inferred_timezone_visibility_uses_effective_timezone_when_timezone_missing():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "effective_timezone": "Asia/Tokyo",
+            "timezone_status": "system_inferred",
+            "timezone_source": "deployment_default",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "你现在按什么时区理解时间？",
+    )
+
+    assert "Asia/Tokyo" in output
+    assert "system inferred" in output.lower()
+
+
+def test_inferred_timezone_visibility_uses_effective_timezone_for_local_time_question():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "effective_timezone": "Asia/Tokyo",
+            "timezone_status": "system_inferred",
+            "timezone_source": "deployment_default",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "现在当地时间几点了？",
+    )
+
+    assert "Asia/Tokyo" in output
+    assert "system inferred" in output.lower()
