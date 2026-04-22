@@ -234,6 +234,51 @@ class TestPrepareWorkflowTimezone:
         assert result["session_state"]["timezone_update_message"] == "已切换到东京时间"
 
     @pytest.mark.asyncio
+    async def test_prepare_workflow_legacy_need_timezone_update_still_direct_sets(self):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending()
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = {
+                "inner_monologue": "",
+                "need_context_retrieve": False,
+                "context_retrieve_params": {},
+                "need_reminder_detect": False,
+                "need_web_search": False,
+                "web_search_query": "",
+                "need_timezone_update": True,
+                "timezone_value": "Asia/Tokyo",
+            }
+
+        with (
+            patch.object(
+                workflow,
+                "_run_orchestrator",
+                AsyncMock(side_effect=fake_orchestrator),
+            ),
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.set_user_timezone.entrypoint",
+                return_value={
+                    "ok": True,
+                    "message": "已切换到东京时间",
+                    "state": {
+                        "timezone": "Asia/Tokyo",
+                        "timezone_status": "user_confirmed",
+                        "timezone_source": "user_explicit",
+                        "pending_timezone_change": None,
+                        "pending_task_draft": None,
+                    },
+                },
+            ) as mock_set_timezone,
+        ):
+            result = await workflow.run("改成东京时间", session_state)
+
+        mock_set_timezone.assert_called_once()
+        assert result["session_state"]["user"]["timezone"] == "Asia/Tokyo"
+
+    @pytest.mark.asyncio
     async def test_prepare_workflow_ignores_unknown_timezone_action(self):
         from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -417,6 +462,7 @@ class TestPrepareWorkflowTimezone:
                 "expires_at": 1893456000,
             }
         )
+        session_state["user"]["pending_task_draft"] = {"kind": "visible_reminder"}
 
         async def fake_orchestrator(_message, state):
             state["orchestrator"] = _orchestrator_result()
@@ -454,3 +500,4 @@ class TestPrepareWorkflowTimezone:
         mock_consume_confirmation.assert_not_called()
         mock_orchestrator.assert_awaited_once()
         assert result["session_state"]["user"]["pending_timezone_change"] is None
+        assert result["session_state"]["user"]["pending_task_draft"] is None

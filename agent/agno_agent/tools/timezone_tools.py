@@ -18,7 +18,7 @@ from util.time_util import get_default_timezone
 
 logger = logging.getLogger(__name__)
 
-TIMEZONE_PROPOSAL_TTL_SECONDS = 30 * 60
+TIMEZONE_PROPOSAL_TTL_SECONDS = 15 * 60
 
 # Mapping of common IANA timezone keys to Chinese display names (UTC offset).
 # Used only for the confirmation message — not for lookup logic.
@@ -151,6 +151,13 @@ def normalize_timezone_confirmation_decision(decision: str) -> str:
     return _normalize_confirmation_decision(decision)
 
 
+def _format_timezone_transition_message(old_timezone: str, new_timezone: str) -> str:
+    return (
+        f"检测到您可能换了时区。要把时区从 {old_timezone} "
+        f"切换到 {new_timezone} 吗？回复“是”确认，回复“否”保持不变。"
+    )
+
+
 def is_timezone_proposal_expired(
     pending_change: dict | None,
     *,
@@ -190,12 +197,13 @@ def clear_pending_timezone_proposal(
     if not state:
         state = _get_current_timezone_state(dao, session_state, user_id)
 
-    if not state.get("pending_timezone_change"):
+    if not state.get("pending_timezone_change") and not state.get("pending_task_draft"):
         _update_session_user_state(session_state, state)
         return {"ok": True, "message": "", "state": state, "cleared": False}
 
     next_state = dict(state)
     next_state["pending_timezone_change"] = None
+    next_state["pending_task_draft"] = None
     if not dao.update_timezone_state(user_id, next_state):
         logger.error(
             "clear_pending_timezone_proposal: DB update failed for user %s", user_id
@@ -302,8 +310,8 @@ def store_timezone_proposal(
         logger.error(f"store_timezone_proposal: DB update failed for user {user_id}")
         return {"ok": False, "message": "暂时无法记录待确认的时区变更"}
 
-    display = _TZ_DISPLAY.get(canonical_timezone, canonical_timezone)
-    message = f"检测到您可能在{display}，要把时区切换到这里吗？回复“是”确认，回复“否”保持不变。"
+    old_timezone = str(current_state.get("timezone") or _get_fallback_timezone(session_state))
+    message = _format_timezone_transition_message(old_timezone, canonical_timezone)
     _update_session_user_state(session_state, next_state)
     _append_tool_result(session_state, tool_name="时区确认", ok=True, message=message)
     logger.info(
@@ -367,6 +375,7 @@ def consume_timezone_confirmation(
     else:
         next_state = dict(current_state)
         next_state["pending_timezone_change"] = None
+        next_state["pending_task_draft"] = None
         message = "好的，保持当前时区不变。"
 
     if not dao.update_timezone_state(user_id, next_state):
