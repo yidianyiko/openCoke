@@ -23,7 +23,8 @@ as one-time imported reminders.
 The first version is intentionally a migration, not a sync product:
 
 - read only the user's Google `primary` calendar
-- import all calendar events
+- attempt import of all visible calendar events, with explicit partial-failure
+  reporting for unsupported recurrence shapes
 - convert imported events into Coke-owned reminders
 - do not keep an ongoing Google connection
 - do not sync updates back to Google
@@ -32,6 +33,10 @@ The first version is intentionally a migration, not a sync product:
 This design must also support the shared WhatsApp path where a user already
 exists in Coke as an auto-provisioned, `unclaimed` customer before they ever
 visit the web app.
+
+Because today's reminder runtime is conversation-scoped, this design also needs
+to define exactly which existing Coke conversation an imported reminder belongs
+to. V1 does not invent a synthetic "web-only reminder inbox".
 
 ## Non-Goals
 
@@ -56,11 +61,17 @@ The user approved the following product rules during design:
 - if an all-day event has no Google reminder, the Coke reminder fires at
   `09:00` on that day
 - history is included
-- past single events become non-triggering historical reminder records
-- open-ended recurring events should become Coke recurring reminders
+- past single events become imported historical reminder records in the
+  existing `completed` lifecycle
+- open-ended recurring events without exception instances should become Coke
+  recurring reminders
 - users auto-created from WhatsApp must claim their account before importing
 - WhatsApp claim entry opens with an "enter your email" page first
 - claim completion reuses the existing password-setting flow
+- import only starts when Coke can resolve a valid target private conversation
+- recurring-series fidelity is intentionally narrow in v1: exception-bearing
+  Google series are reported as partial import failures instead of being
+  silently misrepresented
 
 ## Users
 
@@ -139,7 +150,34 @@ This follows the current repository boundary:
 - `gateway` already owns web auth and customer identity state
 - Coke runtime already owns reminder semantics and scheduling
 
-### 4. Persist only import-run audit, not a long-lived Google connection
+### 4. Attach imported reminders to an existing private Coke conversation
+
+The current reminder runtime is not account-global. Every reminder belongs to a
+specific `conversation_id`, `user_id`, and `character_id`, and later execution
+re-enters the normal conversation turn pipeline.
+
+V1 therefore uses this rule:
+
+- every imported reminder must attach to one existing private conversation
+  between the customer and Coke's default character
+- the import run stores that target conversation identity up front
+- imported reminders reuse that conversation's `conversation_id`, `user_id`,
+  and `character_id`
+- v1 does not import into group conversations
+- v1 does not create a synthetic web-only reminder destination
+
+Resolution rules:
+
+- if the import starts from a shared WhatsApp claim-entry flow, carry the
+  originating private conversation forward and reuse it as the target
+- if the import starts from a normal claimed web session, resolve the user's
+  most recent deliverable private conversation with the default Coke character
+- if no valid private conversation can be resolved, block import and instruct
+  the user to start a Coke conversation first
+
+This is a product constraint for v1, not an implementation detail.
+
+### 5. Persist only import-run audit, not a long-lived Google connection
 
 The first version should not create a long-lived Google integration model.
 
@@ -158,7 +196,7 @@ We will not persist:
 
 This means the product remains a one-time importer, not a sync substrate.
 
-### 5. Use least-privilege Google access
+### 6. Use least-privilege Google access
 
 Because the product is a one-time read-only import:
 
@@ -183,14 +221,19 @@ OAuth guidance and Calendar API docs:
 
 1. User logs into Coke web.
 2. User opens the calendar import screen.
-3. Coke creates an import run in `authorizing` state.
-4. Gateway redirects the user to Google OAuth.
-5. Google redirects back to Coke.
-6. Gateway exchanges the code for a short-lived access token.
-7. Gateway reads the user's `primary` calendar events.
-8. Gateway hands the normalized payload to a Coke internal import endpoint.
-9. Coke runtime creates reminders in `deferred_actions`.
-10. Gateway records the final import result and shows a summary screen.
+3. Gateway resolves a valid target private conversation for imported reminders.
+4. If no target conversation exists, the UI blocks import and explains how to
+   start a Coke conversation first.
+5. Coke creates an import run in `authorizing` state, including the target
+   conversation identity.
+6. Gateway redirects the user to Google OAuth.
+7. Google redirects back to Coke.
+8. Gateway exchanges the code for a short-lived access token.
+9. Gateway reads the user's `primary` calendar events.
+10. Gateway hands the normalized payload plus the target conversation identity
+    to a Coke internal import endpoint.
+11. Coke runtime creates reminders in `deferred_actions`.
+12. Gateway records the final import result and shows a summary screen.
 
 ### Flow B: Unclaimed shared WhatsApp customer imports Google Calendar
 
@@ -201,9 +244,10 @@ OAuth guidance and Calendar API docs:
 5. Gateway sends a claim email to that address.
 6. User opens the claim email and lands on the existing `/auth/claim` page.
 7. User sets a password.
-8. Claim completes and the identity becomes `active`.
-9. The user is redirected into the calendar import entry screen.
-10. The normal claimed-user import flow begins.
+8. Claim completes, the identity becomes `active`, and the user is redirected
+   to a validated continuation
+   destination that preserves the calendar-import intent.
+9. The normal claimed-user import flow begins.
 
 ## UX Rules
 
@@ -228,6 +272,8 @@ Keep the current `/auth/claim` behavior:
 - ask for password and confirm password
 - complete claim
 - sign the user in
+- honor a validated post-claim continuation target when one is present
+- otherwise fall back to the current default post-claim destination
 
 No phone-number-specific branch is added.
 
@@ -238,6 +284,9 @@ The import screen should clearly state:
 - this imports the user's Google `primary` calendar
 - imported events become Coke reminders
 - changes made later in Google will not sync automatically
+- import requires an existing Coke private conversation
+- advanced Google recurring series with exception instances may be skipped with
+  warning in v1
 - running import again may duplicate reminders that the user has already chosen
   to keep as Coke-only data
 
@@ -258,6 +307,8 @@ Recommended fields:
 - `id`
 - `customerId`
 - `identityId`
+- `targetConversationId`
+- `targetCharacterId`
 - `provider` with fixed value `google_calendar`
 - `triggerSource` such as `manual_web` or `whatsapp_claim_redirect`
 - `status`
@@ -296,6 +347,14 @@ protection, for example:
 These fields are implementation support metadata, not a public product
 contract.
 
+V1 should also add a best-effort non-unique Mongo index for imported reminder
+lookup, keyed by:
+
+- `user_id`
+- `payload.metadata.import_provider`
+- `payload.metadata.source_event_id`
+- `payload.metadata.source_original_start_time`
+
 ## API And Route Additions
 
 ### Gateway web
@@ -310,18 +369,36 @@ contract.
 - add a Google OAuth callback endpoint
 - add an import-run status endpoint
 
-### Coke bridge / internal import surface
+The claim-request and claim-complete flow must carry a validated continuation
+state so the successful claim can return to the import entry flow instead of
+always falling back to the default channels page.
 
-Add a new bridge-authenticated internal endpoint for Google Calendar import.
+### Coke runtime internal import surface
 
-The exact path name can follow the current bridge naming style, but the design
-requires:
+Add a new internal runtime mutation surface for Google Calendar import.
+
+The exact wiring can extend the bridge or use another internal service adapter,
+but the design requires:
 
 - gateway must not write reminders directly into Mongo
 - gateway must not reimplement reminder recurrence logic
 - runtime reminder creation must stay in Coke-owned code
+- this is a new batch-mutation surface, not a variant of today's
+  request-response `/bridge/inbound` endpoint
 
 ## Mapping Rules: Google Event -> Coke Reminder
+
+### Import target identity
+
+Every imported reminder must be created against one resolved private Coke
+conversation:
+
+- `conversation_id` comes from the resolved target conversation
+- `user_id` is the human participant in that conversation
+- `character_id` is the default Coke character in that conversation
+
+If Coke cannot resolve such a conversation for the importing user, the import
+must not start.
 
 ### Calendar scope
 
@@ -350,6 +427,12 @@ event:
    - timed event -> reminder at event start
    - all-day event -> reminder at `09:00` local calendar time on that day
 
+Timezone precedence for import interpretation:
+
+1. the event's explicit timezone, when Google provides one
+2. otherwise the source calendar timezone
+3. otherwise the Coke account timezone selected for the target conversation
+
 Method-specific Google reminder channels such as `email` versus `popup` are not
 preserved because Coke reminder delivery is governed by Coke's own delivery
 system.
@@ -357,9 +440,12 @@ system.
 ### Single events
 
 - future single events become active one-shot Coke reminders
-- past single events become historical non-triggering reminders
-- historical imported events should use a non-active lifecycle state so they do
-  not schedule future work
+- past single events become imported historical reminders in the existing
+  `completed` lifecycle
+- historical imported events must be written with `next_run_at = null`
+- historical imported events must not be created through the default
+  end-user reminder helper unchanged, because that helper always seeds an
+  `active` reminder
 
 ### Recurring events
 
@@ -368,10 +454,15 @@ represent them.
 
 Rules:
 
-- simple recurring series become one Coke recurring reminder
+- only recurring series with no exception instances become one Coke recurring
+  reminder in v1
 - open-ended recurring series remain recurring Coke reminders
 - the recurring reminder keeps the original series start so recurrence stays
   semantically correct
+- the runtime import path must seed `next_run_at` to the first future
+  occurrence, not to `now`, even when the original series start is in the past
+- recurring imports therefore require an import-aware runtime creation path,
+  not the generic end-user create helper unchanged
 
 ### Recurring exceptions
 
@@ -385,11 +476,12 @@ The importer must not silently flatten away those exceptions.
 
 Required behavior:
 
-- if Coke can represent the recurrence set losslessly, import the recurrence
-  set directly
-- if Coke cannot represent the series losslessly, degrade safely by importing
-  concrete one-shot reminders for the affected series or affected exception
-  window rather than silently dropping exceptions
+- v1 does not import exception-bearing Google recurring series as Coke `rrule`
+  reminders
+- if a Google recurring series contains moved or cancelled exception instances,
+  v1 records that series as skipped/failed-with-warning in the import result
+- v1 must never create a simplified Coke recurring reminder that would
+  reintroduce cancelled occurrences or lose moved-instance semantics silently
 
 This is the main correctness rule for recurring-event import.
 
@@ -400,11 +492,14 @@ infinite recurring series is not a sane first-version behavior.
 
 Therefore:
 
-- one-shot historical events are materialized as historical reminder records
-- recurring series are imported as recurring reminders anchored at their
-  original series start
+- one-shot historical events are materialized as imported `completed` reminder
+  records
+- exception-free recurring series are imported as recurring reminders anchored
+  at their original series start
 - v1 does not materialize every historical instance of an open-ended recurring
   series as separate completed reminders
+- exception-bearing recurring series are surfaced as partial import failures,
+  not backfilled into an unbounded set of one-shot reminders
 
 This preserves the user's recurring system without creating unbounded record
 explosions.
@@ -418,6 +513,8 @@ Required behavior:
 
 - within one import run, deduplicate repeated Google payload entries by source
   event identity
+- across import runs, duplicate avoidance is best-effort only and uses the
+  imported reminder metadata index described above
 - when possible, skip creating a second imported Coke reminder if an existing
   reminder already carries the same Google source metadata for the same user
 - do not overwrite or mutate an existing Coke reminder that the user has
@@ -428,16 +525,20 @@ pull in additional data that the user already imported previously.
 
 ## Security And Auth Rules
 
-- Google import requires an authenticated customer session whose `claimStatus`
-  is `active`
+- Google import requires an authenticated customer session whose email is
+  verified and whose identity is `active`
 - unclaimed or pending identities cannot start Google OAuth
+- normal web users in `pending` state must verify email before import
+- import requires a resolved target private conversation before OAuth begins
 - claim-entry links must be signed and short-lived
 - Google OAuth must use signed `state`
 - Google OAuth must use PKCE
 - Google access tokens must be discarded after run completion
 - no long-lived Google refresh token is stored in v1
-- bridge import endpoint must use the existing bridge auth pattern, not a
+- the internal runtime import surface must use server-to-server auth, not a
   public customer token
+- v1 does not add a new subscription-specific gate inside this feature; any
+  broader subscription gating remains a separate product decision
 
 ## Failure Handling
 
@@ -447,14 +548,22 @@ pull in additional data that the user already imported previously.
   request a fresh link from WhatsApp
 - email already belongs to another active identity -> show a clear error and
   tell the user to log in or use another email
+- missing or invalid post-claim continuation target -> safely fall back to the
+  default post-claim destination
 
 ### Google import failures
 
+- no valid target private conversation -> block import and tell the user to
+  start or resume a Coke conversation first
 - user cancels Google consent -> mark the run failed and return to the import
   page with a retry message
 - Google callback or token exchange fails -> mark the run failed
+- Google fetch exceeds the single interactive run budget or access token
+  lifetime -> fail cleanly and require the user to rerun import
 - Google API partial fetch issues -> if any reminders were imported, prefer
   `succeeded_with_errors` over hard failure
+- exception-bearing recurring series -> count them in `skippedCount` or
+  `failedCount` with a user-visible warning
 - runtime import rejects specific events -> count them in `failedCount`, keep
   the batch result visible, and do not roll back successfully imported
   reminders
@@ -513,6 +622,8 @@ an owned email identity.
   import.
 - The import preserves Google reminder timing semantics within Coke's single
   reminder model.
-- Recurring exceptions are preserved or degraded safely; they are never
-  silently dropped.
+- Imported reminders always attach to a resolved private Coke conversation.
+- Historical single events do not schedule future work after import.
+- Exception-bearing recurring Google series are not silently flattened into
+  misleading Coke recurrence rules.
 - The system records batch-level import audit state in Postgres.

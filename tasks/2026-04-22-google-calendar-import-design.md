@@ -40,6 +40,10 @@ entry flow.
   before import
 - The spec defines the gateway/runtime responsibility split
 - The spec defines the minimum durable persistence needed for v1
+- The spec defines which existing Coke conversation imported reminders attach to
+- The spec states how historical imported events avoid triggering immediately
+- The spec states that exception-bearing recurring Google series are skipped
+  with warning in v1 instead of being silently flattened
 
 ## Verification
 
@@ -59,3 +63,9 @@ entry flow.
   - Coke reads `primary` calendar once
   - Coke creates local reminders
   - no ongoing Google connection is kept in v1
+- Review-driven clarifications added to the spec:
+  - import requires a resolved private Coke conversation target
+  - historical imports use non-active completed records instead of active
+    reminders
+  - recurring imports need an import-aware runtime path
+  - exception-bearing recurring Google series are partial-import failures in v1
