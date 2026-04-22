@@ -196,8 +196,8 @@ def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
     }
 
 
-def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
-    sample_context, monkeypatch, caplog
+def test_message_util_merges_extra_clawscale_sync_outputs_into_first_reply(
+    sample_context, monkeypatch
 ):
     from agent.util import message_util
 
@@ -218,16 +218,43 @@ def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
         }
     ]
 
-    captured = []
+    fake_mongo_state = {
+        "document": None,
+        "queries": [],
+        "updates": [],
+    }
+
+    class FakeMongo:
+        def find_one(self, collection_name, query):
+            fake_mongo_state["queries"].append((collection_name, query))
+            document = fake_mongo_state["document"]
+            if collection_name != "outputmessages" or document is None:
+                return None
+            if query != {"_id": "out_1", "status": "pending"}:
+                return None
+            return dict(document)
+
+        def update_one(self, collection_name, query, update):
+            fake_mongo_state["updates"].append((collection_name, query, update))
+            if collection_name != "outputmessages":
+                return 0
+            document = fake_mongo_state["document"]
+            if document is None or query != {"_id": "out_1", "status": "pending"}:
+                return 0
+            document["message"] = update["$set"]["message"]
+            return 1
+
+    monkeypatch.setattr(message_util, "MongoDBBase", lambda: FakeMongo())
 
     def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
         payload = {
+            "_id": "out_1",
             "message": message,
             "status": kwargs["status"],
             "handled_timestamp": kwargs["handled_timestamp"],
             "metadata": kwargs["metadata"],
         }
-        captured.append(payload)
+        fake_mongo_state["document"] = dict(payload)
         return payload
 
     monkeypatch.setattr(message_util, "send_message", fake_send_message)
@@ -236,20 +263,27 @@ def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
     second = message_util.send_message_via_context(sample_context, "第二条同步回复")
 
     assert first["status"] == "pending"
-    assert second["status"] == "failed"
-    assert second["handled_timestamp"] is not None
-    assert second["metadata"]["failure_reason"] == "unexpected_extra_request_response_output"
+    assert second["status"] == "pending"
+    assert second["_id"] == "out_1"
+    assert second["message"] == "第一条同步回复\n第二条同步回复"
     assert second["metadata"]["business_protocol"] == {
         "delivery_mode": "request_response",
         "causal_inbound_event_id": "in_evt_1",
         "gateway_conversation_id": "gw_conv_1",
         "business_conversation_key": "bc_1",
     }
-    assert any(
-        "unexpected_extra_request_response_output" in record.getMessage()
-        for record in caplog.records
-    )
-    assert len(captured) == 2
+    assert "failure_reason" not in second["metadata"]
+    assert fake_mongo_state["document"]["message"] == "第一条同步回复\n第二条同步回复"
+    assert fake_mongo_state["queries"] == [
+        ("outputmessages", {"_id": "out_1", "status": "pending"})
+    ]
+    assert fake_mongo_state["updates"] == [
+        (
+            "outputmessages",
+            {"_id": "out_1", "status": "pending"},
+            {"$set": {"message": "第一条同步回复\n第二条同步回复"}},
+        )
+    ]
 
 
 def test_build_clawscale_push_metadata_returns_business_only_fields(

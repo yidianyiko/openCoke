@@ -22,18 +22,51 @@ def test_reply_waiter_consumes_first_pending_text_reply_by_causal_inbound_event(
                 },
             },
         },
+        {
+            "_id": "out_1",
+            "status": "pending",
+            "message_type": "text",
+            "message": "收到\n后续补充",
+            "metadata": {
+                "source": "clawscale",
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "causal_inbound_event_id": "in_evt_1",
+                    "sync_reply_token": "sync_tok_1",
+                    "business_conversation_key": "conv_key_1",
+                },
+            },
+        },
     ]
 
     waiter = ReplyWaiter(mongo=mongo, poll_interval_seconds=0.01, timeout_seconds=1)
     reply = waiter.wait_for_reply("in_evt_1", sync_reply_token="sync_tok_1")
 
     assert reply == {
-        "reply": "收到",
+        "reply": "收到\n后续补充",
         "output_id": "out_1",
         "causal_inbound_event_id": "in_evt_1",
         "business_conversation_key": "conv_key_1",
     }
-    mongo.find_one.assert_called_with(
+    assert mongo.find_one.call_args_list[-1].args == (
+        "outputmessages",
+        {
+            "_id": "out_1",
+            "status": "pending",
+        },
+    )
+    assert mongo.find_one.call_args_list[0].args == (
+        "outputmessages",
+        {
+            "status": "pending",
+            "message_type": "text",
+            "metadata.source": "clawscale",
+            "metadata.business_protocol.delivery_mode": "request_response",
+            "metadata.business_protocol.causal_inbound_event_id": "in_evt_1",
+            "metadata.business_protocol.sync_reply_token": "sync_tok_1",
+        },
+    )
+    assert mongo.find_one.call_args_list[1].args == (
         "outputmessages",
         {
             "status": "pending",

@@ -357,9 +357,17 @@ class UserDAO:
 
         result = self.settings_collection.update_one(
             {"account_id": normalized_account_id},
-            {"$set": update_fields},
+            {
+                "$set": update_fields,
+                "$setOnInsert": {"account_id": normalized_account_id},
+            },
+            upsert=True,
         )
-        return result.modified_count > 0
+        return (
+            result.modified_count > 0
+            or getattr(result, "matched_count", 0) > 0
+            or getattr(result, "upserted_id", None) is not None
+        )
 
     def update_access(self, user_id: str, order_no: str, expire_time: datetime) -> bool:
         return self._update_settings(

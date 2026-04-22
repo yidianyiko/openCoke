@@ -327,6 +327,40 @@ def _send_single_message(
     return outputmessage, expect_output_timestamp
 
 
+def _is_clawscale_sync_text_reply_context(context: dict, message_source: str) -> bool:
+    if message_source != "user":
+        return False
+
+    conversation = context.get("conversation", {})
+    if conversation.get("platform") != "business":
+        return False
+
+    input_messages = conversation.get("conversation_info", {}).get("input_messages", [])
+    if not input_messages:
+        return False
+
+    metadata = input_messages[0].get("metadata", {})
+    if not isinstance(metadata, dict) or metadata.get("source") != "clawscale":
+        return False
+
+    business_protocol = metadata.get("business_protocol", {})
+    if not isinstance(business_protocol, dict):
+        return False
+
+    return business_protocol.get("delivery_mode") == "request_response"
+
+
+def _combine_sync_text_responses(multimodal_responses: list[dict]) -> str:
+    combined_parts = []
+    for response in multimodal_responses:
+        if response.get("type", "text") != "text":
+            continue
+        content = str(response.get("content", "")).replace("<换行>", "\n").strip()
+        if content:
+            combined_parts.append(content)
+    return "\n".join(combined_parts)
+
+
 # ========== 核心消息处理函数 ==========
 
 
@@ -445,8 +479,12 @@ async def handle_message(
             expect_output_timestamp = int(time.time())
             multimodal_responses_index = 0
             all_multimodal_responses = []
+            buffered_sync_text_responses = []
             is_lock_lost = False  # 新增：锁丢失标志
             stream_error = None
+            is_clawscale_sync_text_reply = _is_clawscale_sync_text_reply_context(
+                context, message_source
+            )
 
             async for event in streaming_chat_workflow.run_stream(
                 input_message=input_message_str, session_state=context
@@ -455,6 +493,13 @@ async def handle_message(
                     multimodal_response = event["data"]
                     multimodal_responses_index += 1
                     all_multimodal_responses.append(multimodal_response)
+
+                    if (
+                        is_clawscale_sync_text_reply
+                        and multimodal_response.get("type", "text") == "text"
+                    ):
+                        buffered_sync_text_responses.append(multimodal_response)
+                        continue
 
                     # ========== 新增：发送消息前验证锁所有权 ==========
                     if lock_id and conversation_id:
@@ -517,6 +562,27 @@ async def handle_message(
                     logger.error(f"{worker_tag} 流式错误: {stream_error}")
                     is_rollback = True
                     break
+
+            if (
+                not is_rollback
+                and buffered_sync_text_responses
+                and is_clawscale_sync_text_reply
+            ):
+                combined_sync_text = _combine_sync_text_responses(
+                    buffered_sync_text_responses
+                )
+                if combined_sync_text:
+                    outputmessage, expect_output_timestamp = _send_single_message(
+                        context=context,
+                        multimodal_response={
+                            "type": "text",
+                            "content": combined_sync_text,
+                        },
+                        expect_output_timestamp=expect_output_timestamp,
+                        is_first=True,
+                    )
+                    if outputmessage is not None:
+                        resp_messages.append(outputmessage)
 
             # ========== 新增：锁丢失时标记为 rollback ==========
             if is_lock_lost:
