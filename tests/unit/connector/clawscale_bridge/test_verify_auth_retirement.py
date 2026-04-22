@@ -207,7 +207,7 @@ def test_verify_auth_retirement_allows_empty_business_collections_without_failin
     }
 
 
-def test_verify_auth_retirement_discovers_account_id_from_deferred_actions_user_id():
+def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_user_id():
     script = _load_script_module()
 
     class EmptyCollection:
@@ -221,7 +221,7 @@ def test_verify_auth_retirement_discovers_account_id_from_deferred_actions_user_
 
     class DeferredActionsCollection(EmptyCollection):
         def __init__(self):
-            self.documents = [{"_id": "defer_1", "user_id": "acct_456"}]
+            self.documents = [{"_id": "defer_1", "user_id": "acct_333"}]
 
         def limit(self, count):
             assert count == 50
@@ -262,6 +262,7 @@ def test_verify_auth_retirement_discovers_account_id_from_deferred_actions_user_
 
         def get_user_by_account_id(self, account_id):
             self.lookups.append(account_id)
+            assert account_id == "acct_333"
             return {"account_id": account_id, "display_name": "Deferred"}
 
         def close(self):
@@ -316,10 +317,10 @@ def test_verify_auth_retirement_discovers_account_id_from_deferred_actions_user_
     )
 
     assert report["business_account_resolution"] == {
-        "account_ids": ["acct_456"],
+        "account_ids": ["acct_333"],
         "resolved": True,
     }
-    assert user_dao_instances[0].lookups == ["acct_456"]
+    assert user_dao_instances[0].lookups == ["acct_333"]
     assert "deferred_actions" in mongo_client_instances[0]._db.requested_collections
     assert "reminders" not in mongo_client_instances[0]._db.requested_collections
 
