@@ -224,6 +224,36 @@ class TestDeferredActionService:
         assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
         scheduler.register_action.assert_called_once_with(action)
 
+    def test_create_imported_exhausted_recurring_reminder_is_completed_without_schedule(self):
+        now = datetime(2026, 4, 22, 10, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_recurring_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Expired daily standup",
+            dtstart=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            rrule="FREQ=DAILY;COUNT=2",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_4",
+                "source_original_start_time": "2026-04-20T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "completed"
+        assert action["next_run_at"] is None
+        scheduler.register_action.assert_not_called()
+
     def test_list_visible_reminders_filters_internal_followups(self):
         action_dao = Mock(
             list_visible_actions=Mock(

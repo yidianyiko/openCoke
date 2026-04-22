@@ -144,6 +144,11 @@ class DeferredActionService:
         rrule: str,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        next_run_at = self._compute_imported_next_run_at(
+            dtstart=dtstart,
+            rrule=rrule,
+            now=self.now_provider(),
+        )
         return self._create_imported_reminder(
             user_id=user_id,
             character_id=character_id,
@@ -153,13 +158,9 @@ class DeferredActionService:
             timezone=timezone,
             rrule=rrule,
             metadata=metadata,
-            lifecycle_state="active",
-            next_run_at=self._compute_imported_next_run_at(
-                dtstart=dtstart,
-                rrule=rrule,
-                now=self.now_provider(),
-            ),
-            register_with_scheduler=True,
+            lifecycle_state="active" if next_run_at is not None else "completed",
+            next_run_at=next_run_at,
+            register_with_scheduler=next_run_at is not None,
         )
 
     def list_visible_reminders(self, user_id: str) -> list[dict[str, Any]]:
