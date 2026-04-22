@@ -146,6 +146,37 @@ def detect_repeated_proactive_output(chat_history, character_user_id, limit=3):
     return forbidden_list
 
 
+def _resolve_user_timezone_context(user):
+    timezone_value = user.get("timezone")
+    timezone_source = user.get("timezone_source")
+    timezone_status = user.get("timezone_status")
+
+    if timezone_value:
+        try:
+            effective_timezone = ZoneInfo(str(timezone_value)).key
+            return {
+                "timezone": effective_timezone,
+                "effective_timezone": effective_timezone,
+                "timezone_source": timezone_source or "legacy_preserved",
+                "timezone_status": timezone_status or "user_confirmed",
+                "zoneinfo": ZoneInfo(effective_timezone),
+            }
+        except (KeyError, Exception):
+            logger.warning(
+                f"Invalid stored timezone '{timezone_value}', falling back to default"
+            )
+
+    default_timezone = get_default_timezone()
+    default_timezone_key = default_timezone.key
+    return {
+        "timezone": default_timezone_key,
+        "effective_timezone": default_timezone_key,
+        "timezone_source": timezone_source or "deployment_default",
+        "timezone_status": timezone_status or "system_inferred",
+        "zoneinfo": default_timezone,
+    }
+
+
 def context_prepare(user, character, conversation):
     user_id = get_agent_entity_id(user)
     character_id = get_agent_entity_id(character)
@@ -159,17 +190,9 @@ def context_prepare(user, character, conversation):
     context["user"].setdefault("nickname", resolve_profile_label(user, "用户"))
     context["character"].setdefault("nickname", resolve_profile_label(character, "角色"))
 
-    # Resolve user timezone: stored setting takes priority, otherwise use the
-    # product default. Channel identifiers should not leak into business state.
-    stored_tz_str = user.get("timezone")
-    if stored_tz_str:
-        try:
-            user_tz = ZoneInfo(stored_tz_str)
-        except (KeyError, Exception):
-            logger.warning(f"Invalid stored timezone '{stored_tz_str}', falling back to default")
-            user_tz = get_default_timezone()
-    else:
-        user_tz = get_default_timezone()
+    timezone_context = _resolve_user_timezone_context(context["user"])
+    user_tz = timezone_context.pop("zoneinfo")
+    context["user"].update(timezone_context)
 
     # ========== 使用文件配置的角色提示词 ==========
     # 优先从 Python 文件读取，便于版本控制和快速迭代

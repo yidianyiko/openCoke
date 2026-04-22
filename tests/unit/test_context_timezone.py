@@ -1,22 +1,27 @@
 # tests/unit/test_context_timezone.py
 import pytest
 from unittest.mock import MagicMock, patch
+from zoneinfo import ZoneInfo
 
 
-def make_minimal_user(timezone=None):
+def make_minimal_user(timezone=None, timezone_source=None, timezone_status=None):
     user = {
         "_id": "507f1f77bcf86cd799439011",
         "display_name": "Test User",
     }
     if timezone is not None:
         user["timezone"] = timezone
+    if timezone_source is not None:
+        user["timezone_source"] = timezone_source
+    if timezone_status is not None:
+        user["timezone_status"] = timezone_status
     return user
 
 
 @patch("agent.runner.context.UserDAO")
 @patch("agent.runner.context.MongoDBBase")
 def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
-    """User with stored timezone uses it, does not call update_timezone."""
+    """Legacy flat timezone remains usable and is surfaced with canonical defaults."""
     from agent.runner.context import context_prepare
 
     user = make_minimal_user(timezone="America/New_York")
@@ -38,25 +43,32 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
 
     time_str = ctx["conversation"]["conversation_info"]["time_str"]
     assert time_str  # non-empty
+    assert ctx["user"]["timezone"] == "America/New_York"
+    assert ctx["user"]["effective_timezone"] == "America/New_York"
+    assert ctx["user"]["timezone_source"] == "legacy_preserved"
+    assert ctx["user"]["timezone_status"] == "user_confirmed"
     assert "future" not in ctx["conversation"]["conversation_info"]
     dao_instance.update_timezone.assert_not_called()
 
 
 @patch("agent.runner.context.UserDAO")
 @patch("agent.runner.context.MongoDBBase")
-def test_context_prepare_backfills_timezone_for_legacy_user(mock_mongo, mock_dao):
-    """User without timezone falls back to product default without lazy backfill."""
+def test_context_prepare_surfaces_canonical_timezone_state(mock_mongo, mock_dao):
+    """Canonical timezone state is copied into session_state user context."""
     from agent.runner.context import context_prepare
 
-    user = make_minimal_user(timezone=None)
+    user = make_minimal_user(
+        timezone="Europe/London",
+        timezone_source="messaging_identity_region",
+        timezone_status="system_inferred",
+    )
     mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
     dao_instance = MagicMock()
-    dao_instance.update_timezone.return_value = True
     mock_dao.return_value = dao_instance
 
     with patch("agent.runner.context.get_character_prompt", return_value=None):
         with patch("agent.runner.context.ConversationDAO"):
-            context_prepare(
+            ctx = context_prepare(
                 user=user,
                 character={"_id": "c1", "name": "Coke", "platforms": {}, "user_info": {}},
                 conversation={
@@ -66,6 +78,46 @@ def test_context_prepare_backfills_timezone_for_legacy_user(mock_mongo, mock_dao
                 },
             )
 
+    assert ctx["user"]["timezone"] == "Europe/London"
+    assert ctx["user"]["effective_timezone"] == "Europe/London"
+    assert ctx["user"]["timezone_source"] == "messaging_identity_region"
+    assert ctx["user"]["timezone_status"] == "system_inferred"
+    dao_instance.update_timezone.assert_not_called()
+
+
+@patch("agent.runner.context.UserDAO")
+@patch("agent.runner.context.MongoDBBase")
+def test_context_prepare_falls_back_to_default_timezone_state(mock_mongo, mock_dao):
+    """User without canonical timezone state gets an in-memory deployment-default context."""
+    from agent.runner.context import context_prepare
+
+    user = make_minimal_user(timezone=None)
+    mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
+    dao_instance = MagicMock()
+    mock_dao.return_value = dao_instance
+
+    with patch("agent.runner.context.get_default_timezone", return_value=ZoneInfo("Asia/Tokyo")):
+        with patch("agent.runner.context.get_character_prompt", return_value=None):
+            with patch("agent.runner.context.ConversationDAO"):
+                ctx = context_prepare(
+                    user=user,
+                    character={
+                        "_id": "c1",
+                        "name": "Coke",
+                        "platforms": {},
+                        "user_info": {},
+                    },
+                    conversation={
+                        "_id": "conv1",
+                        "platform": "wechat",
+                        "conversation_info": {"chat_history": [], "input_messages": []},
+                    },
+                )
+
+    assert ctx["user"]["timezone"] == "Asia/Tokyo"
+    assert ctx["user"]["effective_timezone"] == "Asia/Tokyo"
+    assert ctx["user"]["timezone_source"] == "deployment_default"
+    assert ctx["user"]["timezone_status"] == "system_inferred"
     dao_instance.update_timezone.assert_not_called()
 
 
