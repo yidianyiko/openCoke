@@ -1,6 +1,6 @@
 # Task: Design Google Calendar One-Time Import And WhatsApp Claim Entry
 
-- Status: In Review
+- Status: Planned
 - Owner: Codex
 - Date: 2026-04-22
 
@@ -69,3 +69,6 @@ entry flow.
     reminders
   - recurring imports need an import-aware runtime path
   - exception-bearing recurring Google series are partial-import failures in v1
+- Implementation handoff:
+  - execution plan saved at `docs/exec-plans/2026-04-22-google-calendar-import.md`
+  - the plan includes a real Google OAuth + import path, not just doc-only prep
