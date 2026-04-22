@@ -11,6 +11,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     agno_agent = types.ModuleType("agno.agent")
     agno_models = types.ModuleType("agno.models")
     agno_models.__path__ = []
+    agno_tools = types.ModuleType("agno.tools")
     agno_models_deepseek = types.ModuleType("agno.models.deepseek")
     agno_models_openai = types.ModuleType("agno.models.openai")
     agno_models_siliconflow = types.ModuleType("agno.models.siliconflow")
@@ -23,7 +24,14 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
+    def _tool_decorator(*args, **kwargs):
+        def _decorate(fn):
+            return fn
+
+        return _decorate
+
     agno_agent.Agent = _Agent
+    agno_tools.tool = _tool_decorator
     agno_models_deepseek.DeepSeek = _Model
     agno_models_openai.OpenAIChat = _Model
     agno_models_siliconflow.Siliconflow = _Model
@@ -31,6 +39,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "agno", agno)
     monkeypatch.setitem(sys.modules, "agno.agent", agno_agent)
     monkeypatch.setitem(sys.modules, "agno.models", agno_models)
+    monkeypatch.setitem(sys.modules, "agno.tools", agno_tools)
     monkeypatch.setitem(sys.modules, "agno.models.deepseek", agno_models_deepseek)
     monkeypatch.setitem(sys.modules, "agno.models.openai", agno_models_openai)
     monkeypatch.setitem(
@@ -274,7 +283,7 @@ async def test_handle_message_skips_post_analyze_for_deferred_actions(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_combines_sync_business_text_stream_into_single_reply(
+async def test_handle_message_emits_sync_business_text_before_stream_done(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
@@ -350,18 +359,28 @@ async def test_handle_message_combines_sync_business_text_stream_into_single_rep
     async def fake_prepare_run(input_message, session_state):
         return {"session_state": session_state}
 
+    sent = []
+    merged_output = {"message": ""}
+
     async def fake_run_stream(input_message, session_state):
         yield {"type": "message", "data": {"type": "text", "content": "第一段"}}
+        assert sent == [{"type": "text", "content": "第一段"}]
         yield {"type": "message", "data": {"type": "text", "content": "第二段"}}
+        assert sent == [
+            {"type": "text", "content": "第一段"},
+            {"type": "text", "content": "第二段"},
+        ]
         yield {"type": "done", "data": {"total_messages": 2}}
 
-    sent = []
-
     def fake_send_single_message(**kwargs):
+        content = kwargs["multimodal_response"]["content"]
         sent.append(kwargs["multimodal_response"])
-        return {"message": kwargs["multimodal_response"]["content"]}, kwargs[
-            "expect_output_timestamp"
-        ]
+        merged_output["message"] = (
+            f"{merged_output['message']}\n{content}".strip()
+            if merged_output["message"]
+            else content
+        )
+        return merged_output, kwargs["expect_output_timestamp"]
 
     monkeypatch.setattr(agent_handler.prepare_workflow, "run", fake_prepare_run)
     monkeypatch.setattr(
@@ -383,6 +402,9 @@ async def test_handle_message_combines_sync_business_text_stream_into_single_rep
     )
 
     assert resp_messages == [{"message": "第一段\n第二段"}]
-    assert sent == [{"type": "text", "content": "第一段\n第二段"}]
+    assert sent == [
+        {"type": "text", "content": "第一段"},
+        {"type": "text", "content": "第二段"},
+    ]
     assert is_rollback is False
     assert is_content_blocked is False
