@@ -138,13 +138,34 @@ def make_session_state(user_id="507f1f77bcf86cd799439011"):
 # Tests
 # ---------------------------------------------------------------------------
 
+@patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
-def test_set_user_timezone_tool_success(mock_dao_class):
+def test_set_user_timezone_uses_canonical_state_update(
+    mock_dao_class,
+    mock_service_class,
+):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
     dao_instance = MagicMock()
-    dao_instance.update_timezone.return_value = True
+    dao_instance.get_timezone_state.return_value = {
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "messaging_identity_region",
+        "timezone_status": "system_inferred",
+        "pending_timezone_change": {"timezone": "Europe/London"},
+        "pending_task_draft": None,
+    }
+    dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
+
+    service_instance = MagicMock()
+    service_instance.apply_user_explicit_change.return_value = {
+        "timezone": "America/New_York",
+        "timezone_source": "user_explicit",
+        "timezone_status": "user_confirmed",
+        "pending_timezone_change": None,
+        "pending_task_draft": None,
+    }
+    mock_service_class.return_value = service_instance
 
     session_state = make_session_state()
     result = set_user_timezone.entrypoint(
@@ -153,10 +174,18 @@ def test_set_user_timezone_tool_success(mock_dao_class):
     )
 
     assert result["ok"] is True
-    assert "纽约" in result["message"] or "America/New_York" in result["message"]
-    dao_instance.update_timezone.assert_called_once_with(
-        "507f1f77bcf86cd799439011", "America/New_York"
+    assert result["state"]["timezone"] == "America/New_York"
+    service_instance.apply_user_explicit_change.assert_called_once_with(
+        dao_instance.get_timezone_state.return_value,
+        "America/New_York",
     )
+    dao_instance.update_timezone_state.assert_called_once_with(
+        "507f1f77bcf86cd799439011",
+        service_instance.apply_user_explicit_change.return_value,
+    )
+    dao_instance.update_timezone.assert_not_called()
+    assert session_state["tool_results"][0]["tool_name"] == "时区更新"
+    assert session_state["tool_results"][0]["ok"] is True
 
 
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
@@ -184,3 +213,30 @@ def test_set_user_timezone_tool_missing_user(mock_dao_class):
 
     assert result["ok"] is False
     mock_dao_class.return_value.update_timezone.assert_not_called()
+
+
+@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class):
+    from agent.agno_agent.tools.timezone_tools import consume_timezone_confirmation
+
+    dao_instance = MagicMock()
+    dao_instance.get_timezone_state.return_value = {
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "messaging_identity_region",
+        "timezone_status": "system_inferred",
+        "pending_timezone_change": {
+            "timezone": "Europe/London",
+            "origin_conversation_id": "conv-1",
+            "expires_at": 1770000000,
+        },
+        "pending_task_draft": None,
+    }
+    mock_dao_class.return_value = dao_instance
+
+    result = consume_timezone_confirmation.entrypoint(
+        decision="yes",
+        session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-2"}},
+    )
+
+    assert result["ok"] is False
+    dao_instance.update_timezone_state.assert_not_called()
