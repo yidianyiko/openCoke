@@ -43,14 +43,23 @@ class FakeConversationsCollection:
 
 
 class FakeRemindersCollection:
-    def __init__(self, document_count: int, existing_collection_names, timeline):
+    def __init__(
+        self,
+        document_count: int,
+        existing_collection_names,
+        timeline,
+        on_count_documents=None,
+    ):
         self.document_count = document_count
         self.renamed_to = None
         self.existing_collection_names = existing_collection_names
         self.timeline = timeline
+        self.on_count_documents = on_count_documents
 
     def count_documents(self, query):
         assert query == {}
+        if self.on_count_documents is not None:
+            self.on_count_documents()
         return self.document_count
 
     def rename(self, new_name):
@@ -70,6 +79,7 @@ class FakeDatabase:
         reminder_count: int,
         reminders_exists: bool = True,
         existing_collection_names: set[str] | None = None,
+        on_reminders_count_documents=None,
     ):
         self.timeline = []
         self.existing_collection_names = set(existing_collection_names or set())
@@ -81,6 +91,7 @@ class FakeDatabase:
             reminder_count,
             self.existing_collection_names,
             self.timeline,
+            on_count_documents=on_reminders_count_documents,
         )
         self.reminders_exists = reminders_exists
 
@@ -222,9 +233,42 @@ def test_retire_legacy_reminder_compat_chooses_new_archive_name_when_timestamp_n
             {"$unset": {"conversation_info.future": ""}},
         )
     ]
-    assert db.timeline[0] == "list_collection_names"
-    assert "update_many" in db.timeline
-    assert db.timeline.index("list_collection_names") < db.timeline.index("update_many")
+    assert db.timeline == [
+        "list_collection_names",
+        ("rename", "reminders_legacy_retired_20260422093045_2"),
+        "update_many",
+    ]
+    assert client.closed is True
+
+
+def test_retire_legacy_reminder_compat_does_not_unset_futures_if_archive_rename_collides_after_snapshot():
+    script = _load_script_module()
+    archive_name = "reminders_legacy_retired_20260422093045"
+    db = FakeDatabase(
+        future_count=2,
+        reminder_count=4,
+        reminders_exists=True,
+        on_reminders_count_documents=lambda: db.existing_collection_names.add(
+            archive_name
+        ),
+    )
+    client = FakeMongoClient(db, "mongodb://example", serverSelectionTimeoutMS=5000)
+
+    with pytest.raises(RuntimeError, match="collection already exists"):
+        script.retire_legacy_reminder_compat(
+            mongo_client_factory=lambda *args, **kwargs: client,
+            mongo_uri="mongodb://example",
+            db_name="test_db",
+            execute=True,
+            now=datetime(2026, 4, 22, 9, 30, 45, tzinfo=UTC),
+        )
+
+    assert db.reminders.renamed_to is None
+    assert db.conversations.update_calls == []
+    assert db.timeline == [
+        "list_collection_names",
+        ("rename", archive_name),
+    ]
     assert client.closed is True
 
 
