@@ -161,6 +161,7 @@ def test_resolve_agent_user_context_prefers_customer_metadata_for_ck_ids():
 
 def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_user_is_gone():
     object_id = "507f1f77bcf86cd799439011"
+    persisted = {}
 
     class FakeUserDAO:
         def get_user_by_id(self, user_id):
@@ -174,6 +175,11 @@ def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_us
                 "display_name": "Alice",
                 "timezone": "Asia/Tokyo",
             }
+
+        def update_timezone_state(self, account_id, state):
+            persisted["account_id"] = account_id
+            persisted["state"] = dict(state)
+            return True
 
     user = resolve_agent_user_context(
         user_id=object_id,
@@ -200,6 +206,16 @@ def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_us
         "pending_task_draft": None,
         "id": "acct_123",
         "_id": "acct_123",
+    }
+    assert persisted == {
+        "account_id": "acct_123",
+        "state": {
+            "timezone": "Asia/Tokyo",
+            "timezone_source": "legacy_preserved",
+            "timezone_status": "user_confirmed",
+            "pending_timezone_change": None,
+            "pending_task_draft": None,
+        },
     }
 
 
@@ -287,7 +303,7 @@ def test_resolve_agent_user_context_hydrates_existing_canonical_timezone_state()
     }
 
 
-def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_message_hint():
+def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_explicit_timezone_hint():
     persisted = {}
 
     class FakeUserDAO:
@@ -311,7 +327,7 @@ def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_mes
         user_id="acct_123",
         input_message={
             "platform": "business",
-            "external_id": "America/New_York",
+            "timezone": "America/New_York",
             "metadata": {
                 "source": "clawscale",
             },
@@ -323,13 +339,60 @@ def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_mes
         "account_id": "acct_123",
         "state": {
             "timezone": "America/New_York",
-            "timezone_source": "messaging_identity_region",
+            "timezone_source": "external_account_timezone",
             "timezone_status": "system_inferred",
             "pending_timezone_change": None,
             "pending_task_draft": None,
         },
     }
     assert user["timezone"] == "America/New_York"
+    assert user["timezone_source"] == "external_account_timezone"
+    assert user["timezone_status"] == "system_inferred"
+
+
+def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_phone_like_external_identity():
+    persisted = {}
+
+    class FakeUserDAO:
+        def get_user_by_account_id(self, account_id):
+            assert account_id == "acct_123"
+            return {
+                "account_id": "acct_123",
+                "display_name": "Alice",
+            }
+
+        def get_timezone_state(self, account_id):
+            assert account_id == "acct_123"
+            return None
+
+        def update_timezone_state(self, account_id, state):
+            persisted["account_id"] = account_id
+            persisted["state"] = dict(state)
+            return True
+
+    user = resolve_agent_user_context(
+        user_id="acct_123",
+        input_message={
+            "platform": "business",
+            "externalId": "8617807028761",
+            "metadata": {
+                "source": "clawscale",
+            },
+        },
+        user_dao=FakeUserDAO(),
+    )
+
+    assert persisted == {
+        "account_id": "acct_123",
+        "state": {
+            "timezone": "Asia/Shanghai",
+            "timezone_source": "messaging_identity_region",
+            "timezone_status": "system_inferred",
+            "pending_timezone_change": None,
+            "pending_task_draft": None,
+        },
+    }
+    assert user["timezone"] == "Asia/Shanghai"
     assert user["timezone_source"] == "messaging_identity_region"
     assert user["timezone_status"] == "system_inferred"
 

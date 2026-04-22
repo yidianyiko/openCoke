@@ -114,7 +114,7 @@ def test_context_prepare_falls_back_to_default_timezone_state(mock_mongo, mock_d
                     },
                 )
 
-    assert ctx["user"]["timezone"] == "Asia/Tokyo"
+    assert "timezone" not in ctx["user"]
     assert ctx["user"]["effective_timezone"] == "Asia/Tokyo"
     assert ctx["user"]["timezone_source"] == "deployment_default"
     assert ctx["user"]["timezone_status"] == "system_inferred"

@@ -169,7 +169,6 @@ def _resolve_user_timezone_context(user):
     default_timezone = get_default_timezone()
     default_timezone_key = default_timezone.key
     return {
-        "timezone": default_timezone_key,
         "effective_timezone": default_timezone_key,
         "timezone_source": timezone_source or "deployment_default",
         "timezone_status": timezone_status or "system_inferred",

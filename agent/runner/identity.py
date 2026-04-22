@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+import re
 
 from bson import ObjectId
 
@@ -12,6 +13,16 @@ TIMEZONE_STATE_FIELDS = (
     "timezone_status",
     "pending_timezone_change",
     "pending_task_draft",
+)
+
+PHONE_LIKE_RE = re.compile(r"^\+?\d{7,20}$")
+PHONE_TIMEZONE_BY_PREFIX = (
+    ("886", "Asia/Taipei"),
+    ("852", "Asia/Hong_Kong"),
+    ("853", "Asia/Macau"),
+    ("81", "Asia/Tokyo"),
+    ("82", "Asia/Seoul"),
+    ("86", "Asia/Shanghai"),
 )
 
 
@@ -138,11 +149,7 @@ def _extract_timezone_candidates(input_message):
     seen = set()
     for value in (
         input_message.get("timezone"),
-        input_message.get("external_id"),
-        input_message.get("externalId"),
         metadata.get("timezone"),
-        metadata.get("external_id"),
-        metadata.get("externalId"),
     ):
         if value is None:
             continue
@@ -153,10 +160,44 @@ def _extract_timezone_candidates(input_message):
         candidates.append(
             {
                 "timezone": normalized,
+                "source": "external_account_timezone",
+            }
+        )
+
+    for value in (
+        input_message.get("external_id"),
+        input_message.get("externalId"),
+        metadata.get("external_id"),
+        metadata.get("externalId"),
+    ):
+        if value is None:
+            continue
+        mapped_timezone = _map_phone_like_identity_timezone(value)
+        if not mapped_timezone or mapped_timezone in seen:
+            continue
+        seen.add(mapped_timezone)
+        candidates.append(
+            {
+                "timezone": mapped_timezone,
                 "source": "messaging_identity_region",
             }
         )
     return candidates
+
+
+def _map_phone_like_identity_timezone(value):
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+
+    digits = normalized[1:] if normalized.startswith("+") else normalized
+    if not PHONE_LIKE_RE.match(normalized):
+        return None
+
+    for prefix, timezone in PHONE_TIMEZONE_BY_PREFIX:
+        if digits.startswith(prefix):
+            return timezone
+    return None
 
 
 def _resolve_timezone_state(account_id, input_message, user_dao, current_user=None):
@@ -164,6 +205,7 @@ def _resolve_timezone_state(account_id, input_message, user_dao, current_user=No
     fallback_timezone = get_default_timezone().key
 
     existing_state = None
+    should_persist = False
     get_timezone_state = getattr(user_dao, "get_timezone_state", None)
     if callable(get_timezone_state):
         existing_state = get_timezone_state(account_id)
@@ -179,14 +221,20 @@ def _resolve_timezone_state(account_id, input_message, user_dao, current_user=No
             ):
                 if key in current_user and current_user.get(key) is not None:
                     existing_state[key] = current_user.get(key)
+            should_persist = True
 
     if isinstance(existing_state, Mapping) and existing_state.get("timezone"):
         try:
-            return timezone_service.build_initial_state(
+            state = timezone_service.build_initial_state(
                 existing_state=dict(existing_state),
                 candidates=[],
                 fallback_timezone=fallback_timezone,
             )
+            if should_persist:
+                update_timezone_state = getattr(user_dao, "update_timezone_state", None)
+                if callable(update_timezone_state):
+                    update_timezone_state(account_id, state)
+            return state
         except ValueError:
             pass
 
