@@ -65,7 +65,12 @@ class GoogleCalendarImportService:
         calendar_defaults = calendar_defaults or {}
         events = events or []
 
-        result = {"imported_count": 0, "skipped_count": 0, "warnings": []}
+        result = {
+            "imported_count": 0,
+            "skipped_count": 0,
+            "warning_count": 0,
+            "warnings": [],
+        }
         series_ids = {
             str(event.get("id"))
             for event in events
@@ -75,6 +80,7 @@ class GoogleCalendarImportService:
             str(event.get("recurringEventId"))
             for event in events
             if isinstance(event, dict)
+            and not self._is_tombstone_only_cancellation_artifact(event)
             and event.get("recurringEventId")
             and event.get("originalStartTime")
             and str(event.get("recurringEventId")) in series_ids
@@ -103,6 +109,7 @@ class GoogleCalendarImportService:
                         "reason": "unsupported_recurring_exceptions",
                     }
                 )
+                result["warning_count"] = len(result["warnings"])
                 continue
 
             source_original_start_time = self._source_original_start_time(event)
@@ -123,6 +130,7 @@ class GoogleCalendarImportService:
                         "reason": "duplicate_existing_reminder",
                     }
                 )
+                result["warning_count"] = len(result["warnings"])
                 continue
 
             dtstart, timezone_name = self._effective_reminder_datetime(
@@ -256,14 +264,14 @@ class GoogleCalendarImportService:
         self, event: dict[str, Any], calendar_defaults: dict[str, Any]
     ) -> int | None:
         reminders = event.get("reminders") or {}
-        if reminders.get("useDefault"):
+        if reminders.get("useDefault") is True:
             effective = calendar_defaults.get("default_reminders") or []
         else:
             overrides = reminders.get("overrides")
             if overrides:
                 effective = overrides
             else:
-                effective = calendar_defaults.get("default_reminders") or []
+                effective = []
 
         minutes = [
             item.get("minutes")

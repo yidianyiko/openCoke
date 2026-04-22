@@ -521,6 +521,26 @@ def _build_google_calendar_import_service():
     return GoogleCalendarImportService()
 
 
+def _resolve_google_calendar_import_target(service, payload: dict) -> dict:
+    customer_id = payload.get("customer_id")
+    conversation_id = payload.get("target_conversation_id")
+    character_id = payload.get("target_character_id")
+    target_timezone = payload.get("target_timezone")
+
+    if all(
+        isinstance(value, str) and value.strip()
+        for value in (customer_id, conversation_id, character_id, target_timezone)
+    ):
+        return {
+            "conversation_id": conversation_id,
+            "user_id": customer_id,
+            "character_id": character_id,
+            "timezone": target_timezone,
+        }
+
+    return service.preflight(customer_id=customer_id)
+
+
 def _run_output_dispatcher_loop(dispatcher, poll_interval_seconds: int):
     while True:
         try:
@@ -662,7 +682,7 @@ def create_app(testing: bool = False):
 
         payload = request.get_json(force=True) or {}
         try:
-            target = service.preflight(customer_id=payload.get("customer_id"))
+            target = _resolve_google_calendar_import_target(service, payload)
             result = service.import_events(
                 target=target,
                 run_id=payload.get("run_id"),

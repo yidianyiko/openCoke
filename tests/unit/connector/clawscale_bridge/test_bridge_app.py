@@ -744,6 +744,7 @@ def test_google_calendar_import_run_returns_counts_and_warnings(monkeypatch):
             return_value={
                 "imported_count": 2,
                 "skipped_count": 1,
+                "warning_count": 1,
                 "warnings": [
                     {
                         "event_id": "evt-2",
@@ -760,6 +761,9 @@ def test_google_calendar_import_run_returns_counts_and_warnings(monkeypatch):
         "identity_id": "ident_1",
         "run_id": "run_1",
         "provider_account_email": "alice@example.com",
+        "target_conversation_id": "conv-1",
+        "target_character_id": "char_1",
+        "target_timezone": "Asia/Tokyo",
         "calendar_defaults": {"timezone": "Asia/Tokyo", "default_reminders": []},
         "events": [{"id": "evt-1", "status": "confirmed"}],
     }
@@ -776,6 +780,7 @@ def test_google_calendar_import_run_returns_counts_and_warnings(monkeypatch):
         "data": {
             "imported_count": 2,
             "skipped_count": 1,
+            "warning_count": 1,
             "warnings": [
                 {
                     "event_id": "evt-2",
@@ -784,11 +789,61 @@ def test_google_calendar_import_run_returns_counts_and_warnings(monkeypatch):
             ],
         },
     }
-    service.preflight.assert_called_once_with(customer_id="ck_1")
+    service.preflight.assert_not_called()
     service.import_events.assert_called_once_with(
         target=target,
         run_id="run_1",
         provider_account_email="alice@example.com",
+        calendar_defaults={"timezone": "Asia/Tokyo", "default_reminders": []},
+        events=[{"id": "evt-1", "status": "confirmed"}],
+    )
+
+
+def test_google_calendar_import_run_uses_provided_target_without_re_resolving(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock(
+        preflight=MagicMock(
+            side_effect=AssertionError("run route should not re-resolve target")
+        ),
+        import_events=MagicMock(
+            return_value={
+                "imported_count": 1,
+                "skipped_count": 0,
+                "warning_count": 0,
+                "warnings": [],
+            }
+        ),
+    )
+    monkeypatch.setitem(app.config, "GOOGLE_CALENDAR_IMPORT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/google-calendar-import/run",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "ck_1",
+            "identity_id": "ident_1",
+            "run_id": "run_2",
+            "target_conversation_id": "conv-stable",
+            "target_character_id": "char-stable",
+            "target_timezone": "America/New_York",
+            "calendar_defaults": {"timezone": "Asia/Tokyo", "default_reminders": []},
+            "events": [{"id": "evt-1", "status": "confirmed"}],
+        },
+    )
+
+    assert response.status_code == 200
+    service.preflight.assert_not_called()
+    service.import_events.assert_called_once_with(
+        target={
+            "conversation_id": "conv-stable",
+            "user_id": "ck_1",
+            "character_id": "char-stable",
+            "timezone": "America/New_York",
+        },
+        run_id="run_2",
+        provider_account_email=None,
         calendar_defaults={"timezone": "Asia/Tokyo", "default_reminders": []},
         events=[{"id": "evt-1", "status": "confirmed"}],
     )
