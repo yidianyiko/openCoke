@@ -28,7 +28,16 @@ assert_equals() {
 
 make_fake_repo() {
   local root="$1"
-  mkdir -p "$root/scripts" "$root/gateway/packages/web/app/dashboard" "$root/gateway/packages/web/components" "$root/gateway/packages/web/app/(admin)/admin/shared-channels/detail"
+  mkdir -p \
+    "$root/scripts" \
+    "$root/gateway/packages/web/app/dashboard" \
+    "$root/gateway/packages/web/app/(customer)/auth/login" \
+    "$root/gateway/packages/web/app/(customer)/auth/register" \
+    "$root/gateway/packages/web/app/(customer)/channels/wechat-personal" \
+    "$root/gateway/packages/web/app/(customer)/account/subscription" \
+    "$root/gateway/packages/web/components" \
+    "$root/gateway/packages/web/app/(admin)/admin/shared-channels/detail" \
+    "$root/gateway/packages/api/src/routes"
   cp "$SOURCE_SCRIPT" "$root/scripts/deploy-compose-to-gcp.sh"
   chmod +x "$root/scripts/deploy-compose-to-gcp.sh"
   cat >"$root/gateway/packages/web/app/page.tsx" <<'EOF'
@@ -46,8 +55,23 @@ export default function DashboardPage() {
   return null;
 }
 EOF
-  cat >"$root/gateway/packages/web/components/legacy-redirect-page.tsx" <<'EOF'
-export function LegacyRedirectPage() {
+  cat >"$root/gateway/packages/web/app/(customer)/auth/login/page.tsx" <<'EOF'
+export default function CustomerLoginPage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/app/(customer)/auth/register/page.tsx" <<'EOF'
+export default function CustomerRegisterPage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/app/(customer)/channels/wechat-personal/page.tsx" <<'EOF'
+export default function CustomerWechatPersonalPage() {
+  return null;
+}
+EOF
+  cat >"$root/gateway/packages/web/app/(customer)/account/subscription/page.tsx" <<'EOF'
+export default function CustomerSubscriptionPage() {
   return null;
 }
 EOF
@@ -55,6 +79,18 @@ EOF
 export default function SharedChannelDetailPage() {
   return null;
 }
+EOF
+  cat >"$root/gateway/packages/api/src/index.ts" <<'EOF'
+export {};
+EOF
+  cat >"$root/gateway/packages/api/src/routes/customer-auth-routes.ts" <<'EOF'
+export {};
+EOF
+  cat >"$root/gateway/packages/api/src/routes/customer-channel-routes.ts" <<'EOF'
+export {};
+EOF
+  cat >"$root/gateway/packages/api/src/routes/customer-subscription-routes.ts" <<'EOF'
+export {};
 EOF
 }
 
@@ -112,7 +148,12 @@ set -euo pipefail
 printf 'curl %s\n' "$*" >>"${CALLS_LOG}"
 
 if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
-  if [[ "$*" == *"/coke/login"* ]]; then
+  if [[ "$*" == *"/auth/login"* ]]; then
+    printf '200'
+    exit 0
+  fi
+
+  if [[ "$*" == *"/auth/register"* ]]; then
     printf '200'
     exit 0
   fi
@@ -121,11 +162,23 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
     printf '404'
     exit 0
   fi
+
+  if [[ "$*" == *"/coke/login"* ]]; then
+    printf '404'
+    exit 0
+  fi
+
+  if [[ "$*" == *"/api/coke/auth/login"* ]]; then
+    printf '404'
+    exit 0
+  fi
 fi
 
 cat <<'OUT'
 coke | An AI Partner That Grows With You
 __COKE_LOCALE__
+<a href="/channels/wechat-personal">WeChat channel</a>
+<a href="/account/subscription">Subscription</a>
 Preparing your workspace...
 OUT
 EOF
@@ -178,9 +231,18 @@ run_two_phase_sync_case() {
   call_log="$(cat "$CALLS_LOG")"
   assert_contains "$call_log" "--exclude=gateway/"
   assert_contains "$call_log" "gateway/"
-  assert_contains "$call_log" "app/dashboard/page.tsx"
-  assert_contains "$call_log" "components/legacy-redirect-page.tsx"
+  assert_contains "$call_log" "auth/login/page.tsx"
+  assert_contains "$call_log" "auth/register/page.tsx"
+  assert_contains "$call_log" "channels/wechat-personal/page.tsx"
+  assert_contains "$call_log" "account/subscription/page.tsx"
+  assert_contains "$call_log" "customer-auth-routes.ts"
+  assert_contains "$call_log" "customer-channel-routes.ts"
+  assert_contains "$call_log" "customer-subscription-routes.ts"
   assert_contains "$call_log" "curl "
+  assert_contains "$call_log" "/auth/login"
+  assert_contains "$call_log" "/auth/register"
+  assert_contains "$call_log" "/coke/login"
+  assert_contains "$call_log" "/api/coke/auth/login"
 }
 
 run_mismatch_case

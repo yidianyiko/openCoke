@@ -14,6 +14,8 @@ sessions.
   delivery, and verification.
 - [`coke-working-contract.md`](./coke-working-contract.md): the Coke-specific
   work surfaces and planning contract.
+- [`interface-contract.md`](./interface-contract.md): the canonical public and
+  internal route namespace contract.
 
 ## Canonical Neighbors
 

@@ -132,8 +132,14 @@ verify_remote_source_tree() {
         set -euo pipefail
         test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/page.tsx")
         test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/components/coke-homepage.tsx")
-        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(coke-user)/coke/login/page.tsx")
-        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/components/legacy-redirect-page.tsx")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(customer)/auth/login/page.tsx")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(customer)/auth/register/page.tsx")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(customer)/channels/wechat-personal/page.tsx")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/web/app/(customer)/account/subscription/page.tsx")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/api/src/index.ts")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/api/src/routes/customer-auth-routes.ts")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/api/src/routes/customer-channel-routes.ts")
+        test -f $(shell_quote "$REMOTE_ROOT/gateway/packages/api/src/routes/customer-subscription-routes.ts")
     "
 }
 
@@ -157,15 +163,26 @@ verify_public_site() {
     ssh "$REMOTE_HOST" "
         set -euo pipefail
         homepage=\$(curl -fsS $(shell_quote "$public_url/"))
-        login_page=\$(curl -fsS $(shell_quote "$public_url/coke/login"))
-        login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/coke/login"))
+        login_page=\$(curl -fsS $(shell_quote "$public_url/auth/login"))
+        register_page=\$(curl -fsS $(shell_quote "$public_url/auth/register"))
+        login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/auth/login"))
+        register_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/auth/register"))
         old_login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/login"))
+        old_web_namespace_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/coke/login"))
+        old_api_namespace_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/api/coke/auth/login"))
         printf '%s' \"\$homepage\" | grep -q '__COKE_LOCALE__'
         printf '%s' \"\$homepage\" | grep -q 'coke | An AI Partner That Grows With You'
-        printf '%s' \"\$homepage\" | grep -q 'Sign in / 登录' && exit 1 || true
+        printf '%s' \"\$homepage\" | grep -q 'href=\"/channels/wechat-personal\"'
+        printf '%s' \"\$homepage\" | grep -q 'href=\"/account/subscription\"'
+        printf '%s' \"\$homepage\" | grep -q '/coke/' && exit 1 || true
+        printf '%s' \"\$homepage\" | grep -q '/api/coke/' && exit 1 || true
         printf '%s' \"\$login_page\" | grep -q '__COKE_LOCALE__'
+        printf '%s' \"\$register_page\" | grep -q '__COKE_LOCALE__'
         test \"\$login_status\" = '200'
+        test \"\$register_status\" = '200'
         test \"\$old_login_status\" = '404'
+        test \"\$old_web_namespace_status\" = '404'
+        test \"\$old_api_namespace_status\" = '404'
     "
 }
 

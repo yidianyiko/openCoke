@@ -44,6 +44,13 @@ pip install -r requirements.txt
 - `CLAWSCALE_OUTBOUND_API_KEY`：ClawScale 出站服务调用密钥
 - `CLAWSCALE_WECHAT_CHANNEL_API_KEY`：ClawScale 微信通道调用密钥
 
+当前对外接口按这个契约部署和核验：
+
+- Web：`/auth/*`、`/channels/wechat-personal`、`/account/subscription`
+- Public API：`/api/auth/*`、`/api/customer/channels/wechat-personal/*`、`/api/customer/subscription`、`/api/customer/subscription/checkout`、`/api/public/subscription-checkout`、`/api/webhooks/stripe`
+- Internal API：`/api/internal/*`
+- Legacy：`/coke/*` 和 `/api/coke/*` 已移除，部署后应返回 404
+
 ## 3. 本地开发启动
 
 ### 方式 A: 顶层启动脚本
@@ -94,6 +101,7 @@ bash agent/runner/agent_start.sh --force-clean
 如果两者不一致，脚本会直接失败，避免把旧的 gateway/web 内容部署到线上。
 
 脚本也会把根仓库和 `gateway/` 分两次同步，确保远端 `~/coke/gateway` 会被完整刷新，而不是混入旧目录结构。
+同步完成后，脚本会核验新的 Web 入口和公共 API 结构，并确认旧的 `/coke/*` 和 `/api/coke/*` 命名空间已经 404。
 
 如果当前公网域名不是远端 `.env` 里已有的值，部署时应显式传入：
 
@@ -138,8 +146,10 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 - `CLAWSCALE_OUTBOUND_API_KEY`
 - `CLAWSCALE_WECHAT_CHANNEL_API_KEY`
 
-如果只配置了账号注册而没有配置邮件发送，`/api/coke/register` 仍会创建账户，
-但用户只能在 `/coke/verify-email` 页面通过“Resend verification email”完成验证。
+如果只配置了账号注册而没有配置邮件发送，`/api/auth/register` 仍会创建账户，
+但用户只能在 `/auth/verify-email` 页面通过“Resend verification email”完成验证。
+公开页面的导航应指向 `/channels/wechat-personal` 和 `/account/subscription`，
+而不是旧的 `/coke/*` 客户端命名空间。
 
 ### 4.3 启动 Compose 栈
 
@@ -150,12 +160,16 @@ ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --bui
 如果使用推荐部署脚本并带 `--restart`，它会在 `docker compose up -d --build --remove-orphans` 之后自动执行这些校验：
 
 - 远端 `gateway/packages/web` 新首页源文件存在
+- 远端 `gateway/packages/web/app/(customer)/auth/login/page.tsx`、`gateway/packages/web/app/(customer)/auth/register/page.tsx`、`gateway/packages/web/app/(customer)/channels/wechat-personal/page.tsx` 和 `gateway/packages/web/app/(customer)/account/subscription/page.tsx` 存在
+- 远端 `gateway/packages/api/src/routes/customer-auth-routes.ts`、`gateway/packages/api/src/routes/customer-channel-routes.ts`、`gateway/packages/api/src/routes/customer-subscription-routes.ts` 和 `gateway/packages/api/src/index.ts` 存在
 - `http://127.0.0.1:4041/health`
 - `http://127.0.0.1:8090/bridge/healthz`
 - 公网首页包含新的 locale bootstrap 标记 `__COKE_LOCALE__`
-- 公网首页不再包含旧的双语 CTA 文案 `Sign in / 登录`
-- 公网 `/coke/login` 返回 `200`
+- 公网首页包含 `/channels/wechat-personal` 和 `/account/subscription` 的入口
+- 公网 `/auth/login` 返回 `200`
+- 公网 `/auth/register` 返回 `200`
 - 公网旧入口 `/login` 返回 `404`
+- 公网旧客户命名空间 `/coke/login` 和 `/api/coke/auth/login` 返回 `404`
 
 `docker-compose.prod.yml` 里包含一个一次性 `coke-bootstrap` 服务：
 

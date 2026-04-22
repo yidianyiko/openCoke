@@ -136,7 +136,11 @@ product can evolve.
 - ClawScale integration is implemented beyond the design stage
 - the repository contains a working Coke bridge, Coke user auth, gateway-side
   unified user model, and a personal WeChat channel lifecycle exposed through
-  `/user/wechat-channel` and `/coke/bind-wechat`
+  `/channels/wechat-personal`, `/account/subscription`, `/api/auth/*`, and the
+  `/api/customer/*` / `/api/public/*` contract
+- the internal API remains under `/api/internal/*`
+- legacy `/coke/*` and `/api/coke/*` customer namespaces have been removed and
+  now return 404
 - legacy Ecloud/Evolution and Coke-owned direct channel runtimes have been
   removed from the repository
 - ClawScale is now the only supported production channel entrypoint for Coke
