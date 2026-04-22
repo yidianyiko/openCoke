@@ -103,7 +103,7 @@ Commands:
 
 ```bash
 pnpm --dir gateway/packages/api test -- src/routes/customer-claim-routes.test.ts src/routes/customer-google-calendar-import-routes.test.ts
-pnpm --dir gateway/packages/web test -- app/(customer)/auth/claim-entry/page.test.tsx app/(customer)/auth/claim/page.test.tsx app/(customer)/account/calendar-import/page.test.tsx
+pnpm --dir gateway/packages/web test -- 'app/(customer)/auth/claim-entry/page.test.tsx' 'app/(customer)/auth/claim/page.test.tsx' 'app/(customer)/account/calendar-import/page.test.tsx'
 ```
 
 ## Bridge Calendar Import Runtime
