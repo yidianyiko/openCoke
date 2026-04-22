@@ -38,6 +38,8 @@ class DeferredActionService:
         dtstart: datetime,
         timezone: str,
         rrule: str | None = None,
+        schedule_kind: str = "floating_local",
+        fixed_timezone: bool = False,
         prompt: str | None = None,
         retry_policy: dict | None = None,
     ) -> dict[str, Any]:
@@ -54,6 +56,8 @@ class DeferredActionService:
             "title": title,
             "payload": {"prompt": prompt or title, "metadata": {}},
             "timezone": timezone,
+            "schedule_kind": schedule_kind,
+            "fixed_timezone": fixed_timezone,
             "dtstart": dtstart,
             "rrule": rrule,
             "next_run_at": None,
@@ -117,11 +121,15 @@ class DeferredActionService:
         dtstart: datetime | None = None,
         timezone: str | None = None,
         rrule: str | None = None,
+        schedule_kind: str | None = None,
+        fixed_timezone: bool | None = None,
         prompt: str | None = None,
     ) -> dict[str, Any]:
         action = self._require_visible_reminder(action_id, user_id)
         now = self.now_provider()
         updated = {**action}
+        updated.setdefault("schedule_kind", "floating_local")
+        updated.setdefault("fixed_timezone", False)
         if title is not None:
             updated["title"] = title
         if dtstart is not None:
@@ -130,6 +138,10 @@ class DeferredActionService:
             updated["timezone"] = timezone
         if rrule is not None:
             updated["rrule"] = rrule
+        if schedule_kind is not None:
+            updated["schedule_kind"] = schedule_kind
+        if fixed_timezone is not None:
+            updated["fixed_timezone"] = fixed_timezone
         if prompt is not None or title is not None:
             updated["payload"] = {
                 **(action.get("payload") or {}),
@@ -141,6 +153,8 @@ class DeferredActionService:
             "title": updated["title"],
             "payload": updated["payload"],
             "timezone": updated["timezone"],
+            "schedule_kind": updated["schedule_kind"],
+            "fixed_timezone": updated["fixed_timezone"],
             "dtstart": updated["dtstart"],
             "rrule": updated.get("rrule"),
             "next_run_at": updated["next_run_at"],

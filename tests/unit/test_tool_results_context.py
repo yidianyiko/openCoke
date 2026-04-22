@@ -64,3 +64,43 @@ def test_multiple_results_all_rendered():
     assert "[提醒创建]" in output
     # Both appear in single block
     assert output.count("### System Operation Results") == 1
+
+
+def test_timezone_context_stays_quiet_for_non_time_dependent_tool_results():
+    from agent.prompt.chat_contextprompt import get_tool_results_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "system_inferred",
+            "timezone_source": "web_region",
+        },
+        "tool_results": [
+            {"tool_name": "时区更新", "ok": True, "result_summary": "已更新为伦敦时间", "extra_notes": ""}
+        ],
+    }
+
+    output = get_tool_results_context(state)
+
+    assert "Europe/London" not in output
+    assert "system inferred" not in output.lower()
+
+
+def test_timezone_context_mentions_inferred_state_for_reminder_results():
+    from agent.prompt.chat_contextprompt import get_tool_results_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "system_inferred",
+            "timezone_source": "web_region",
+        },
+        "tool_results": [
+            {"tool_name": "提醒操作", "ok": True, "result_summary": "明天早上9点提醒开会", "extra_notes": ""}
+        ],
+    }
+
+    output = get_tool_results_context(state)
+
+    assert "Europe/London" in output
+    assert "system inferred" in output.lower()

@@ -1,9 +1,58 @@
+import importlib.util
+import sys
+import types
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
-from agent.agno_agent.tools.deferred_action import service as service_module
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+
+
+def _load_service_module():
+    module_name = "agent.agno_agent.tools.deferred_action.service"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+
+    for pkg, path in (
+        ("agent.agno_agent", _PROJECT_ROOT / "agent" / "agno_agent"),
+        ("agent.agno_agent.tools", _PROJECT_ROOT / "agent" / "agno_agent" / "tools"),
+        (
+            "agent.agno_agent.tools.deferred_action",
+            _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "deferred_action",
+        ),
+    ):
+        if pkg not in sys.modules:
+            mod = types.ModuleType(pkg)
+            mod.__path__ = [str(path)]
+            mod.__package__ = pkg
+            mod.__spec__ = None
+            sys.modules[pkg] = mod
+
+    scheduler_module_name = "agent.runner.deferred_action_scheduler"
+    if scheduler_module_name not in sys.modules:
+        scheduler_module = types.ModuleType(scheduler_module_name)
+
+        def _get_deferred_action_scheduler_instance():
+            return None
+
+        scheduler_module.get_deferred_action_scheduler_instance = (
+            _get_deferred_action_scheduler_instance
+        )
+        sys.modules[scheduler_module_name] = scheduler_module
+
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "deferred_action" / "service.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+service_module = _load_service_module()
 
 
 def build_action(**overrides):
@@ -67,6 +116,8 @@ class TestDeferredActionService:
         assert action["_id"] == "action-1"
         assert action["kind"] == "user_reminder"
         assert action["visibility"] == "visible"
+        assert action["schedule_kind"] == "floating_local"
+        assert action["fixed_timezone"] is False
         assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
         scheduler.register_action.assert_called_once_with(action)
 
@@ -117,7 +168,7 @@ class TestDeferredActionService:
 
     def test_update_visible_reminder_increments_revision_and_reschedules(self):
         now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
-        existing = build_action()
+        existing = build_action(schedule_kind="absolute_delay", fixed_timezone=False)
         action_dao = Mock(
             get_action=Mock(return_value=existing),
             update_action=Mock(return_value=True),
@@ -135,13 +186,39 @@ class TestDeferredActionService:
             title="运动",
             dtstart=datetime(2026, 4, 21, 10, 0, tzinfo=UTC),
             timezone="UTC",
+            schedule_kind="floating_local",
         )
 
         action_dao.update_action.assert_called_once()
         assert updated["revision"] == 3
         assert updated["title"] == "运动"
+        assert updated["schedule_kind"] == "floating_local"
+        assert updated["fixed_timezone"] is False
         assert updated["next_run_at"] == datetime(2026, 4, 21, 10, 0, tzinfo=UTC)
         scheduler.reschedule_action.assert_called_once_with(updated)
+
+    def test_update_visible_reminder_preserves_schedule_metadata_when_not_overridden(self):
+        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
+        existing = build_action(schedule_kind="absolute_delay", fixed_timezone=False)
+        action_dao = Mock(
+            get_action=Mock(return_value=existing),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.update_visible_reminder(
+            action_id="action-1",
+            user_id="user-1",
+            title="继续喝水",
+        )
+
+        assert updated["schedule_kind"] == "absolute_delay"
+        assert updated["fixed_timezone"] is False
 
     def test_delete_and_complete_visible_reminder_unschedule_it(self):
         existing = build_action()

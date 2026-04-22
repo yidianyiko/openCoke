@@ -320,6 +320,22 @@ def get_url_context(session_state: dict) -> str:
 # ========== Generic Tool Result ==========
 
 
+def _get_inferred_timezone_note(session_state: dict, results: list[dict]) -> str:
+    user = session_state.get("user") or {}
+    timezone = user.get("timezone")
+    if not timezone or user.get("timezone_status") != "system_inferred":
+        return ""
+
+    if not any("提醒" in str(entry.get("tool_name", "")) for entry in results):
+        return ""
+
+    source = user.get("timezone_source") or "unknown source"
+    return (
+        "Time-sensitive note: the reminder time above was interpreted using "
+        f"{timezone} (system inferred from {source})."
+    )
+
+
 def get_tool_results_context(session_state: dict) -> str:
     """Render all tool execution results into a unified ### System Operation Results prompt block.
 
@@ -342,6 +358,11 @@ def get_tool_results_context(session_state: dict) -> str:
         extra = entry.get("extra_notes", "")
         if extra:
             lines.append(f"Additional notes: {extra}")
+        lines.append("")
+
+    timezone_note = _get_inferred_timezone_note(session_state, results)
+    if timezone_note:
+        lines.append(timezone_note)
         lines.append("")
 
     lines += [
