@@ -203,6 +203,22 @@ class ConversationDAO:
             conversation = self.ensure_conversation_info_structure(conversation)
         return conversation
 
+    def find_latest_private_conversation_by_db_user_ids(
+        self, db_user_id1: str, db_user_id2: str
+    ) -> Optional[Dict]:
+        if not db_user_id1 or not db_user_id2:
+            return None
+
+        query = {
+            "chatroom_name": None,
+            "talkers.db_user_id": {"$all": [db_user_id1, db_user_id2]},
+            "$where": "this.talkers.length === 2",
+        }
+        rows = list(self.collection.find(query).sort([("_id", -1)]).limit(1))
+        if not rows:
+            return None
+        return self.ensure_conversation_info_structure(rows[0])
+
     def get_group_conversation(
         self, platform: str, chatroom_name: str
     ) -> Optional[Dict]:

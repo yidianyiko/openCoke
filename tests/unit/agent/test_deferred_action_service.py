@@ -1,9 +1,51 @@
+import importlib.util
+import sys
+import types
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
-from agent.agno_agent.tools.deferred_action import service as service_module
+
+apscheduler_module = types.ModuleType("apscheduler")
+apscheduler_jobstores_module = types.ModuleType("apscheduler.jobstores")
+apscheduler_jobstores_base_module = types.ModuleType("apscheduler.jobstores.base")
+apscheduler_schedulers_module = types.ModuleType("apscheduler.schedulers")
+apscheduler_schedulers_asyncio_module = types.ModuleType("apscheduler.schedulers.asyncio")
+
+
+class _JobLookupError(Exception):
+    pass
+
+
+class _AsyncIOScheduler:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+apscheduler_jobstores_base_module.JobLookupError = _JobLookupError
+apscheduler_schedulers_asyncio_module.AsyncIOScheduler = _AsyncIOScheduler
+sys.modules.setdefault("apscheduler", apscheduler_module)
+sys.modules.setdefault("apscheduler.jobstores", apscheduler_jobstores_module)
+sys.modules.setdefault("apscheduler.jobstores.base", apscheduler_jobstores_base_module)
+sys.modules.setdefault("apscheduler.schedulers", apscheduler_schedulers_module)
+sys.modules.setdefault(
+    "apscheduler.schedulers.asyncio", apscheduler_schedulers_asyncio_module
+)
+
+service_spec = importlib.util.spec_from_file_location(
+    "test_deferred_action_service_module",
+    Path(__file__).resolve().parents[3]
+    / "agent"
+    / "agno_agent"
+    / "tools"
+    / "deferred_action"
+    / "service.py",
+)
+service_module = importlib.util.module_from_spec(service_spec)
+assert service_spec.loader is not None
+service_spec.loader.exec_module(service_module)
 
 
 def build_action(**overrides):
@@ -45,6 +87,37 @@ def build_action(**overrides):
 
 
 class TestDeferredActionService:
+    def test_create_imported_future_reminder_is_active_and_visible(self):
+        now = datetime(2026, 4, 22, 8, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_future_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Tomorrow meeting",
+            dtstart=datetime(2026, 4, 23, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_1",
+                "source_original_start_time": "2026-04-23T09:00:00Z",
+            },
+        )
+
+        assert action["_id"] == "action-1"
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "active"
+        assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+        assert action["payload"]["metadata"]["import_provider"] == "google_calendar"
+        scheduler.register_action.assert_called_once_with(action)
+
     def test_create_visible_one_shot_reminder(self):
         now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
         action_dao = Mock(create_action=Mock(return_value="action-1"))
@@ -92,6 +165,64 @@ class TestDeferredActionService:
 
         assert action["rrule"] == "FREQ=DAILY"
         assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+
+    def test_create_imported_historical_reminder_uses_completed_lifecycle(self):
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock()
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: datetime(2026, 4, 22, 8, 0, tzinfo=UTC),
+        )
+
+        action = service.create_imported_historical_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Yesterday meeting",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_2",
+                "source_original_start_time": "2026-04-21T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "completed"
+        assert action["next_run_at"] is None
+        scheduler.register_action.assert_not_called()
+
+    def test_create_imported_recurring_reminder_seeds_first_future_occurrence(self):
+        now = datetime(2026, 4, 22, 10, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_recurring_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Daily standup",
+            dtstart=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            rrule="FREQ=DAILY",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_3",
+                "source_original_start_time": "2026-04-20T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["rrule"] == "FREQ=DAILY"
+        assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+        scheduler.register_action.assert_called_once_with(action)
 
     def test_list_visible_reminders_filters_internal_followups(self):
         action_dao = Mock(

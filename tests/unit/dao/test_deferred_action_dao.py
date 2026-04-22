@@ -62,6 +62,17 @@ class TestDeferredActionDAO:
         assert (([("conversation_id", 1), ("kind", 1), ("lifecycle_state", 1)],), {}) in calls
         assert (([("user_id", 1), ("visibility", 1), ("lifecycle_state", 1), ("next_run_at", 1)],), {}) in calls
         assert (
+            (
+                [
+                    ("user_id", 1),
+                    ("payload.metadata.import_provider", 1),
+                    ("payload.metadata.source_event_id", 1),
+                    ("payload.metadata.source_original_start_time", 1),
+                ],
+            ),
+            {},
+        ) in calls
+        assert (
             ([("conversation_id", 1), ("kind", 1), ("lifecycle_state", 1)],),
             {
                 "unique": True,
@@ -211,6 +222,30 @@ class TestDeferredActionDAO:
         assert result == expected
         mock_collection.find.assert_called_once_with({"lifecycle_state": "active"})
         cursor.sort.assert_called_once_with("next_run_at", 1)
+
+    @pytest.mark.unit
+    def test_find_imported_reminder_duplicate_uses_import_metadata(
+        self, deferred_action_dao, mock_collection
+    ):
+        expected = {"_id": ObjectId(), "title": "Imported reminder"}
+        mock_collection.find_one.return_value = expected
+
+        result = deferred_action_dao.find_imported_reminder_duplicate(
+            user_id="ck_1",
+            import_provider="google_calendar",
+            source_event_id="evt_123",
+            source_original_start_time="2026-04-22T09:00:00Z",
+        )
+
+        assert result == expected
+        mock_collection.find_one.assert_called_once_with(
+            {
+                "user_id": "ck_1",
+                "payload.metadata.import_provider": "google_calendar",
+                "payload.metadata.source_event_id": "evt_123",
+                "payload.metadata.source_original_start_time": "2026-04-22T09:00:00Z",
+            }
+        )
 
     @pytest.mark.unit
     def test_reconcile_expired_leases_clears_expired_active_leases(

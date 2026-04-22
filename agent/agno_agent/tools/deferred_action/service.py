@@ -78,6 +78,90 @@ class DeferredActionService:
             self.scheduler.register_action(action)
         return action
 
+    def create_imported_future_reminder(
+        self,
+        *,
+        user_id: str,
+        character_id: str,
+        conversation_id: str,
+        title: str,
+        dtstart: datetime,
+        timezone: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self._create_imported_reminder(
+            user_id=user_id,
+            character_id=character_id,
+            conversation_id=conversation_id,
+            title=title,
+            dtstart=dtstart,
+            timezone=timezone,
+            rrule=None,
+            metadata=metadata,
+            lifecycle_state="active",
+            next_run_at=self._compute_imported_next_run_at(
+                dtstart=dtstart,
+                rrule=None,
+                now=self.now_provider(),
+            ),
+            register_with_scheduler=True,
+        )
+
+    def create_imported_historical_reminder(
+        self,
+        *,
+        user_id: str,
+        character_id: str,
+        conversation_id: str,
+        title: str,
+        dtstart: datetime,
+        timezone: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self._create_imported_reminder(
+            user_id=user_id,
+            character_id=character_id,
+            conversation_id=conversation_id,
+            title=title,
+            dtstart=dtstart,
+            timezone=timezone,
+            rrule=None,
+            metadata=metadata,
+            lifecycle_state="completed",
+            next_run_at=None,
+            register_with_scheduler=False,
+        )
+
+    def create_imported_recurring_reminder(
+        self,
+        *,
+        user_id: str,
+        character_id: str,
+        conversation_id: str,
+        title: str,
+        dtstart: datetime,
+        timezone: str,
+        rrule: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self._create_imported_reminder(
+            user_id=user_id,
+            character_id=character_id,
+            conversation_id=conversation_id,
+            title=title,
+            dtstart=dtstart,
+            timezone=timezone,
+            rrule=rrule,
+            metadata=metadata,
+            lifecycle_state="active",
+            next_run_at=self._compute_imported_next_run_at(
+                dtstart=dtstart,
+                rrule=rrule,
+                now=self.now_provider(),
+            ),
+            register_with_scheduler=True,
+        )
+
     def list_visible_reminders(self, user_id: str) -> list[dict[str, Any]]:
         reminders = self.action_dao.list_visible_actions(user_id)
         return [
@@ -302,6 +386,72 @@ class DeferredActionService:
         if self.scheduler is not None:
             self.scheduler.register_action(action)
         return action
+
+    def _create_imported_reminder(
+        self,
+        *,
+        user_id: str,
+        character_id: str,
+        conversation_id: str,
+        title: str,
+        dtstart: datetime,
+        timezone: str,
+        rrule: str | None,
+        metadata: dict[str, Any] | None,
+        lifecycle_state: str,
+        next_run_at: datetime | None,
+        register_with_scheduler: bool,
+    ) -> dict[str, Any]:
+        now = self.now_provider()
+        action = {
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "character_id": character_id,
+            "kind": "user_reminder",
+            "source": "google_calendar_import",
+            "visibility": "visible",
+            "lifecycle_state": lifecycle_state,
+            "revision": 0,
+            "title": title,
+            "payload": {"prompt": title, "metadata": metadata or {}},
+            "timezone": timezone,
+            "dtstart": dtstart,
+            "rrule": rrule,
+            "next_run_at": next_run_at,
+            "last_run_at": None,
+            "run_count": 0,
+            "max_runs": None,
+            "expires_at": None,
+            "retry_policy": dict(DEFAULT_RETRY_POLICY),
+            "lease": {
+                "token": None,
+                "leased_at": None,
+                "lease_expires_at": None,
+            },
+            "last_error": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        action_id = self.action_dao.create_action(action)
+        action["_id"] = action_id
+        if register_with_scheduler and self.scheduler is not None:
+            self.scheduler.register_action(action)
+        return action
+
+    def _compute_imported_next_run_at(
+        self,
+        *,
+        dtstart: datetime,
+        rrule: str | None,
+        now: datetime,
+    ) -> datetime | None:
+        if not rrule:
+            return dtstart if dtstart > now else None
+
+        recurrence = policy.parse_rrule(dtstart, rrule)
+        if dtstart > now:
+            return dtstart
+        return recurrence.after(now, inc=False)
 
     def _update_internal_followup(
         self,
