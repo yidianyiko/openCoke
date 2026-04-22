@@ -223,6 +223,34 @@ def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minu
 
 
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+def test_store_timezone_proposal_ignores_user_confirmed_timezone_state(mock_dao_class):
+    from agent.agno_agent.tools.timezone_tools import store_timezone_proposal
+
+    dao_instance = MagicMock()
+    dao_instance.get_timezone_state.return_value = {
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "user_explicit",
+        "timezone_status": "user_confirmed",
+        "pending_timezone_change": None,
+        "pending_task_draft": None,
+    }
+    mock_dao_class.return_value = dao_instance
+
+    session_state = make_session_state()
+    session_state["conversation"] = {"_id": "conv-1"}
+    result = store_timezone_proposal.entrypoint(
+        timezone="Europe/London",
+        session_state=session_state,
+    )
+
+    assert result["ok"] is True
+    assert result["message"] == ""
+    assert result["state"]["timezone"] == "Asia/Shanghai"
+    assert result["state"]["pending_timezone_change"] is None
+    dao_instance.update_timezone_state.assert_not_called()
+
+
+@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
 def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 

@@ -299,6 +299,10 @@ def store_timezone_proposal(
 
     dao = UserDAO()
     current_state = _get_current_timezone_state(dao, session_state, user_id)
+    if current_state.get("timezone_status") == "user_confirmed":
+        _update_session_user_state(session_state, current_state)
+        return {"ok": True, "message": "", "state": current_state, "ignored": True}
+
     next_state = dict(current_state)
     next_state["pending_timezone_change"] = {
         "timezone": canonical_timezone,
