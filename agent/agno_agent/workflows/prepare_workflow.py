@@ -28,7 +28,10 @@ from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.tools.timezone_tools import (
+    clear_pending_timezone_proposal,
     consume_timezone_confirmation,
+    is_timezone_proposal_expired,
+    normalize_timezone_confirmation_decision,
     set_user_timezone,
     store_timezone_proposal,
 )
@@ -90,32 +93,6 @@ class PrepareWorkflow:
 ### 当前用户消息
 {current_message}"""
 
-    _SHORT_YES_REPLIES = {
-        "yes",
-        "y",
-        "ok",
-        "okay",
-        "sure",
-        "confirm",
-        "是",
-        "好",
-        "好的",
-        "对",
-        "嗯",
-        "行",
-    }
-    _SHORT_NO_REPLIES = {
-        "no",
-        "n",
-        "nope",
-        "cancel",
-        "不用",
-        "不",
-        "不是",
-        "否",
-        "先别",
-    }
-
     async def run(
         self, input_message: str, session_state: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -162,8 +139,6 @@ class PrepareWorkflow:
             self._run_timezone_update(session_state, timezone_value)
         elif timezone_action == "proposal" and timezone_value:
             self._store_pending_timezone_change(session_state, timezone_value)
-        elif need_timezone_update and timezone_value:
-            self._run_timezone_update(session_state, timezone_value)
         elif need_timezone_update or timezone_action != "none":
             logger.warning("时区更新被请求但 timezone_value 为空，跳过")
         else:
@@ -348,9 +323,26 @@ class PrepareWorkflow:
         self, input_message: str, session_state: Dict[str, Any]
     ) -> bool:
         """同一会话中的简短 yes/no 回复优先消费待确认的时区变更"""
-        decision = self._match_short_confirmation_reply(input_message)
         pending_change = session_state.get("user", {}).get("pending_timezone_change")
-        if not decision or not pending_change:
+        if not pending_change:
+            return False
+        if pending_change.get("origin_conversation_id") != self._get_current_conversation_id(
+            session_state
+        ):
+            return False
+        if is_timezone_proposal_expired(pending_change):
+            clear_result = clear_pending_timezone_proposal(session_state=session_state)
+            if clear_result.get("state"):
+                session_state.setdefault("user", {}).update(clear_result["state"])
+            logger.info("[PrepareWorkflow] 已清理过期的时区提议")
+            return False
+
+        decision = self._match_short_confirmation_reply(input_message)
+        if not decision:
+            clear_result = clear_pending_timezone_proposal(session_state=session_state)
+            if clear_result.get("state"):
+                session_state.setdefault("user", {}).update(clear_result["state"])
+            logger.info("[PrepareWorkflow] 已清理未被确认的同会话时区提议")
             return False
 
         try:
@@ -376,19 +368,24 @@ class PrepareWorkflow:
         normalized = str(input_message or "").strip().lower()
         if not normalized or len(normalized) > 12 or " " in normalized:
             return ""
-        if normalized in self._SHORT_YES_REPLIES:
-            return "yes"
-        if normalized in self._SHORT_NO_REPLIES:
-            return "no"
-        return ""
+        return normalize_timezone_confirmation_decision(normalized)
 
     def _resolve_timezone_action(self, orchestrator: Dict[str, Any]) -> str:
+        if "timezone_action" not in orchestrator:
+            if orchestrator.get("need_timezone_update"):
+                return "direct_set"
+            return "none"
+
         action = str(orchestrator.get("timezone_action", "none") or "none").strip()
         if action in {"none", "direct_set", "proposal"}:
             return action
-        if orchestrator.get("need_timezone_update"):
-            return "direct_set"
         return "none"
+
+    def _get_current_conversation_id(self, session_state: Dict[str, Any]) -> str:
+        conversation = session_state.get("conversation", {})
+        return str(
+            conversation.get("_id") or session_state.get("conversation_id", "")
+        ).strip()
 
     def _run_url_extraction(
         self, input_message: str, session_state: Dict[str, Any]

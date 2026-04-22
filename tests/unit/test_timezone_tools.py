@@ -7,6 +7,7 @@ Stubs for agno and agent.agno_agent are set up at the top of this file
 and do not interfere with other unit tests that import real modules.
 """
 import sys
+import time
 import types
 import importlib.util
 from pathlib import Path
@@ -240,3 +241,39 @@ def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class
 
     assert result["ok"] is False
     dao_instance.update_timezone_state.assert_not_called()
+
+
+@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)
+@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+def test_consume_timezone_confirmation_rejects_expired_proposal(
+    mock_dao_class,
+    _mock_time,
+):
+    from agent.agno_agent.tools.timezone_tools import consume_timezone_confirmation
+
+    dao_instance = MagicMock()
+    dao_instance.get_timezone_state.return_value = {
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "messaging_identity_region",
+        "timezone_status": "system_inferred",
+        "pending_timezone_change": {
+            "timezone": "Europe/London",
+            "origin_conversation_id": "conv-1",
+            "expires_at": 1999,
+        },
+        "pending_task_draft": None,
+    }
+    dao_instance.update_timezone_state.return_value = True
+    mock_dao_class.return_value = dao_instance
+
+    result = consume_timezone_confirmation.entrypoint(
+        decision="yes",
+        session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-1"}},
+    )
+
+    assert result["ok"] is False
+    assert "已过期" in result["message"]
+    dao_instance.update_timezone_state.assert_called_once()
+    persisted_state = dao_instance.update_timezone_state.call_args[0][1]
+    assert persisted_state["timezone"] == "Asia/Shanghai"
+    assert persisted_state["pending_timezone_change"] is None

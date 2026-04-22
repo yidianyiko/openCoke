@@ -234,6 +234,41 @@ class TestPrepareWorkflowTimezone:
         assert result["session_state"]["timezone_update_message"] == "已切换到东京时间"
 
     @pytest.mark.asyncio
+    async def test_prepare_workflow_ignores_unknown_timezone_action(self):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending()
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = {
+                **_orchestrator_result(),
+                "need_timezone_update": True,
+                "timezone_action": "mystery_mode",
+                "timezone_value": "Asia/Tokyo",
+            }
+
+        with (
+            patch.object(
+                workflow,
+                "_run_orchestrator",
+                AsyncMock(side_effect=fake_orchestrator),
+            ),
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.set_user_timezone.entrypoint"
+            ) as mock_set_timezone,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.store_timezone_proposal.entrypoint"
+            ) as mock_store_proposal,
+        ):
+            result = await workflow.run("切到东京", session_state)
+
+        mock_set_timezone.assert_not_called()
+        mock_store_proposal.assert_not_called()
+        assert "timezone_update_message" not in result["session_state"]
+        assert result["session_state"]["user"]["timezone"] == "Asia/Shanghai"
+
+    @pytest.mark.asyncio
     async def test_prepare_workflow_stores_pending_timezone_proposal(self):
         from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -288,7 +323,7 @@ class TestPrepareWorkflowTimezone:
             {
                 "timezone": "Europe/London",
                 "origin_conversation_id": "conv-1",
-                "expires_at": 1770000000,
+                "expires_at": 1893456000,
             }
         )
 
@@ -318,4 +353,104 @@ class TestPrepareWorkflowTimezone:
         mock_orchestrator.assert_not_awaited()
         assert result["session_state"]["timezone_update_message"] == "已切换到伦敦时间。"
         assert result["session_state"]["user"]["timezone"] == "Europe/London"
+        assert result["session_state"]["user"]["pending_timezone_change"] is None
+
+    @pytest.mark.asyncio
+    async def test_prepare_workflow_does_not_confirm_expired_proposal(self):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending(
+            {
+                "timezone": "Europe/London",
+                "origin_conversation_id": "conv-1",
+                "expires_at": 1000,
+            }
+        )
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = _orchestrator_result()
+
+        with (
+            patch.object(
+                workflow,
+                "_run_orchestrator",
+                AsyncMock(side_effect=fake_orchestrator),
+            ) as mock_orchestrator,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.is_timezone_proposal_expired",
+                return_value=True,
+            ),
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.clear_pending_timezone_proposal",
+                return_value={
+                    "ok": True,
+                    "state": {
+                        "timezone": "Asia/Shanghai",
+                        "timezone_status": "system_inferred",
+                        "timezone_source": "messaging_identity_region",
+                        "pending_timezone_change": None,
+                        "pending_task_draft": None,
+                    },
+                },
+            ) as mock_clear_pending,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.consume_timezone_confirmation.entrypoint"
+            ) as mock_consume_confirmation,
+        ):
+            result = await workflow.run("yes", session_state)
+
+        mock_clear_pending.assert_called_once_with(session_state=session_state)
+        mock_consume_confirmation.assert_not_called()
+        mock_orchestrator.assert_awaited_once()
+        assert result["session_state"]["user"]["pending_timezone_change"] is None
+
+    @pytest.mark.asyncio
+    async def test_prepare_workflow_clears_pending_proposal_on_unrelated_message(self):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending(
+            {
+                "timezone": "Europe/London",
+                "origin_conversation_id": "conv-1",
+                "expires_at": 1893456000,
+            }
+        )
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = _orchestrator_result()
+
+        with (
+            patch.object(
+                workflow,
+                "_run_orchestrator",
+                AsyncMock(side_effect=fake_orchestrator),
+            ) as mock_orchestrator,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.clear_pending_timezone_proposal",
+                return_value={
+                    "ok": True,
+                    "state": {
+                        "timezone": "Asia/Shanghai",
+                        "timezone_status": "system_inferred",
+                        "timezone_source": "messaging_identity_region",
+                        "pending_timezone_change": None,
+                        "pending_task_draft": None,
+                    },
+                },
+            ) as mock_clear_pending,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.is_timezone_proposal_expired",
+                return_value=False,
+            ),
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.consume_timezone_confirmation.entrypoint"
+            ) as mock_consume_confirmation,
+        ):
+            result = await workflow.run("tell me more", session_state)
+
+        mock_clear_pending.assert_called_once_with(session_state=session_state)
+        mock_consume_confirmation.assert_not_called()
+        mock_orchestrator.assert_awaited_once()
         assert result["session_state"]["user"]["pending_timezone_change"] is None

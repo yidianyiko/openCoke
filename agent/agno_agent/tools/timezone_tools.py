@@ -70,6 +70,8 @@ _NO_REPLIES = {
     "先别",
 }
 
+PENDING_PROPOSAL_EXPIRED_MESSAGE = "当前时区确认已过期，请根据最新位置重新发起。"
+
 
 def _canonicalize_timezone(timezone: str) -> str:
     try:
@@ -143,6 +145,65 @@ def _normalize_confirmation_decision(decision: str) -> str:
     if normalized in _NO_REPLIES:
         return "no"
     return ""
+
+
+def normalize_timezone_confirmation_decision(decision: str) -> str:
+    return _normalize_confirmation_decision(decision)
+
+
+def is_timezone_proposal_expired(
+    pending_change: dict | None,
+    *,
+    now_ts: int | None = None,
+) -> bool:
+    if not pending_change:
+        return False
+
+    expires_at = pending_change.get("expires_at")
+    if expires_at in (None, ""):
+        return False
+
+    try:
+        expires_at_value = int(expires_at)
+    except (TypeError, ValueError):
+        return True
+
+    current_ts = int(time.time()) if now_ts is None else int(now_ts)
+    return expires_at_value <= current_ts
+
+
+def clear_pending_timezone_proposal(
+    session_state: dict = None,
+    *,
+    current_state: dict | None = None,
+    dao: UserDAO | None = None,
+) -> dict:
+    if not session_state:
+        session_state = {}
+
+    user_id = _get_user_id(session_state)
+    if not user_id:
+        return {"ok": False, "message": "无法清理待确认的时区变更"}
+
+    dao = dao or UserDAO()
+    state = current_state or dao.get_timezone_state(user_id)
+    if not state:
+        state = _get_current_timezone_state(dao, session_state, user_id)
+
+    if not state.get("pending_timezone_change"):
+        _update_session_user_state(session_state, state)
+        return {"ok": True, "message": "", "state": state, "cleared": False}
+
+    next_state = dict(state)
+    next_state["pending_timezone_change"] = None
+    if not dao.update_timezone_state(user_id, next_state):
+        logger.error(
+            "clear_pending_timezone_proposal: DB update failed for user %s", user_id
+        )
+        return {"ok": False, "message": "待确认的时区变更清理失败"}
+
+    _update_session_user_state(session_state, next_state)
+    return {"ok": True, "message": "", "state": next_state, "cleared": True}
 
 
 @tool(
@@ -269,7 +330,7 @@ def consume_timezone_confirmation(
     if not session_state:
         session_state = {}
 
-    normalized_decision = _normalize_confirmation_decision(decision)
+    normalized_decision = normalize_timezone_confirmation_decision(decision)
     if not normalized_decision:
         return {"ok": False, "message": "无法识别时区确认回复"}
 
@@ -286,6 +347,13 @@ def consume_timezone_confirmation(
     pending_change = current_state.get("pending_timezone_change") or {}
     if pending_change.get("origin_conversation_id") != conversation_id:
         return {"ok": False, "message": "当前没有可确认的时区变更"}
+    if is_timezone_proposal_expired(pending_change):
+        clear_pending_timezone_proposal(
+            session_state=session_state,
+            current_state=current_state,
+            dao=dao,
+        )
+        return {"ok": False, "message": PENDING_PROPOSAL_EXPIRED_MESSAGE}
 
     if normalized_decision == "yes":
         timezone = pending_change.get("timezone", "")
