@@ -283,11 +283,18 @@ git commit -m "feat: add account timezone state service"
 - Test: `tests/unit/runner/test_identity.py`
 - Test: `tests/unit/test_context_timezone.py`
 
+Context rule for this task:
+- Surface `timezone` only when canonical or legacy-persisted timezone state
+  actually exists.
+- When the runtime is only using a fallback for this request, expose
+  `effective_timezone`, `timezone_source`, and `timezone_status`, but do not
+  fabricate a canonical `timezone` field.
+
 - [ ] **Step 1: Write failing runtime tests for first-touch inference and legacy preservation**
 
 ```python
 # tests/unit/runner/test_identity.py
-def test_resolve_agent_user_context_infers_timezone_for_business_account_without_state(monkeypatch):
+def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_phone_like_external_identity():
     from agent.runner.identity import resolve_agent_user_context
 
     user_dao = MagicMock()
@@ -307,13 +314,13 @@ def test_resolve_agent_user_context_infers_timezone_for_business_account_without
             "metadata": {
                 "source": "clawscale",
                 "customer": {"id": "ck_user_1"},
-                "external": {"wa_id": "14155551234"},
+                "external_id": "8617807028761",
             },
         },
         user_dao,
     )
 
-    assert context["timezone"] == "America/New_York"
+    assert context["timezone"] == "Asia/Shanghai"
     assert context["timezone_status"] == "system_inferred"
     user_dao.update_timezone_state.assert_called_once()
 ```
@@ -343,6 +350,7 @@ def test_context_prepare_uses_effective_timezone_from_state(mock_mongo, mock_dao
             )
 
     assert ctx["user"]["timezone"] == "Europe/London"
+    assert ctx["user"]["effective_timezone"] == "Europe/London"
     assert ctx["conversation"]["conversation_info"]["time_str"]
 ```
 
@@ -402,12 +410,11 @@ def _hydrate_timezone_state(account_id: str, input_message, user_dao, user: dict
 
 ```python
 # agent/runner/context.py
-stored_tz_str = user.get("timezone")
-timezone_status = user.get("timezone_status")
-timezone_source = user.get("timezone_source")
-context["user"]["timezone_status"] = timezone_status
-context["user"]["timezone_source"] = timezone_source
-context["user"]["effective_timezone"] = stored_tz_str or get_default_timezone().key
+timezone_context = _resolve_user_timezone_context(context["user"])
+user_tz = timezone_context.pop("zoneinfo")
+if "timezone" not in timezone_context and "timezone" in context["user"]:
+    context["user"].pop("timezone", None)
+context["user"].update(timezone_context)
 ```
 
 - [ ] **Step 4: Run the runtime tests again**
