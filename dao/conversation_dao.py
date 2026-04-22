@@ -39,12 +39,6 @@ class ConversationDAO:
             "input_messages_str": str,
             "chat_history_str": str,
             "photo_history": [...],
-            "future": {
-                "timestamp": int | None,
-                "action": str | None,
-                "proactive_times": int,
-                "status": str  # "pending", "scheduled", etc.
-            },
             "turn_sent_contents": [str, ...]
         }
     }
@@ -78,24 +72,7 @@ class ConversationDAO:
             info["chat_history_str"] = ""
         if "photo_history" not in info:
             info["photo_history"] = []
-        if "future" not in info:
-            info["future"] = {
-                "timestamp": None,
-                "action": None,
-                "proactive_times": 0,
-                "status": "pending",
-            }
-        else:
-            # 确保 future 的子字段存在
-            future = info["future"]
-            if "timestamp" not in future:
-                future["timestamp"] = None
-            if "action" not in future:
-                future["action"] = None
-            if "proactive_times" not in future:
-                future["proactive_times"] = 0
-            if "status" not in future:
-                future["status"] = "pending"
+        info.pop("future", None)
         if "turn_sent_contents" not in info:
             info["turn_sent_contents"] = []
 
@@ -509,12 +486,6 @@ class ConversationDAO:
                 "input_messages_str": "",
                 "chat_history_str": "",
                 "photo_history": [],
-                "future": {
-                    "timestamp": None,
-                    "action": None,
-                    "proactive_times": 0,
-                    "status": "pending",
-                },
                 "turn_sent_contents": [],
             },
         }
@@ -553,12 +524,6 @@ class ConversationDAO:
                 "input_messages_str": "",
                 "chat_history_str": "",
                 "photo_history": [],
-                "future": {
-                    "timestamp": None,
-                    "action": None,
-                    "proactive_times": 0,
-                    "status": "pending",
-                },
                 "turn_sent_contents": [],
             },
         }
@@ -665,4 +630,3 @@ class ConversationDAO:
     def close(self):
         """关闭MongoDB连接"""
         self.client.close()
-

@@ -43,7 +43,6 @@ def sample_context():
                 "chat_history_str": "",
                 "time_str": "2024年12月25日",
                 "photo_history": [],
-                "future": {"timestamp": None, "action": None},
                 "turn_sent_contents": [],
             },
         },

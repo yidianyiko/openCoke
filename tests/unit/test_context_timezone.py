@@ -67,3 +67,25 @@ def test_context_prepare_backfills_timezone_for_legacy_user(mock_mongo, mock_dao
             )
 
     dao_instance.update_timezone.assert_not_called()
+
+
+def test_ensure_conversation_info_structure_drops_legacy_future():
+    from dao.conversation_dao import ConversationDAO
+
+    conversation = {
+        "_id": "conv1",
+        "conversation_info": {
+            "chat_history": [],
+            "input_messages": [],
+            "future": {
+                "timestamp": None,
+                "action": None,
+                "proactive_times": 0,
+                "status": "pending",
+            },
+        },
+    }
+
+    normalized = ConversationDAO.ensure_conversation_info_structure(conversation)
+
+    assert "future" not in normalized["conversation_info"]
