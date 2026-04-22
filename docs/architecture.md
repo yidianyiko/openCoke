@@ -161,7 +161,8 @@ Runtime ownership is split as follows:
   - serves the customer-facing web/API flow
 - `connector/clawscale_bridge/`
   - resolves the target Coke conversation for an import
-  - creates imported reminders in the worker/runtime boundary
+  - exposes the internal preflight and import routes that hand work into the
+    worker/runtime reminder path
 
 ## 7. Deployment Topology
 
