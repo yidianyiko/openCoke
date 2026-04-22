@@ -207,6 +207,123 @@ def test_verify_auth_retirement_allows_empty_business_collections_without_failin
     }
 
 
+def test_verify_auth_retirement_discovers_account_id_from_deferred_actions_user_id():
+    script = _load_script_module()
+
+    class EmptyCollection:
+        def find(self, query, projection):
+            assert query == {}
+            return self
+
+        def limit(self, count):
+            assert count == 50
+            return []
+
+    class DeferredActionsCollection(EmptyCollection):
+        def __init__(self):
+            self.documents = [{"_id": "defer_1", "user_id": "acct_456"}]
+
+        def limit(self, count):
+            assert count == 50
+            return list(self.documents)
+
+    class FakeDatabase:
+        def __init__(self):
+            self.requested_collections = []
+            self.collections = {
+                "user_profiles": EmptyCollection(),
+                "coke_settings": EmptyCollection(),
+                "outputmessages": EmptyCollection(),
+                "deferred_actions": DeferredActionsCollection(),
+                "conversations": EmptyCollection(),
+            }
+
+        def list_collection_names(self):
+            return list(self.collections)
+
+        def get_collection(self, name):
+            self.requested_collections.append(name)
+            return self.collections[name]
+
+    class FakeMongoClient:
+        def __init__(self, *args, **kwargs):
+            self.admin = SimpleNamespace(command=lambda command: None)
+            self._db = FakeDatabase()
+
+        def __getitem__(self, name):
+            return self._db
+
+        def close(self):
+            return None
+
+    class FakeUserDAO:
+        def __init__(self, *args, **kwargs):
+            self.lookups = []
+
+        def get_user_by_account_id(self, account_id):
+            self.lookups.append(account_id)
+            return {"account_id": account_id, "display_name": "Deferred"}
+
+        def close(self):
+            return None
+
+    class CapturingCollection:
+        def __init__(self):
+            self.updated = []
+
+        def create_index(self, *args, **kwargs):
+            return None
+
+        def update_one(self, *args, **kwargs):
+            self.updated.append((args, kwargs))
+            return None
+
+    class CapturingMongo:
+        def __init__(self):
+            self.collection = CapturingCollection()
+
+        def get_collection(self, name):
+            assert name == "inputmessages"
+            return self.collection
+
+    mongo = CapturingMongo()
+    mongo_client_instances = []
+    user_dao_instances = []
+
+    def mongo_client_factory(*args, **kwargs):
+        client = FakeMongoClient(*args, **kwargs)
+        mongo_client_instances.append(client)
+        return client
+
+    def user_dao_factory(*args, **kwargs):
+        dao = FakeUserDAO(*args, **kwargs)
+        user_dao_instances.append(dao)
+        return dao
+
+    report = script.verify_auth_retirement(
+        mongo_client_factory=mongo_client_factory,
+        user_dao_factory=user_dao_factory,
+        bridge_gateway_factory=lambda: script.BusinessOnlyBridgeGateway(
+            message_gateway=script.CokeMessageGateway(
+                mongo=mongo,
+                user_dao=SimpleNamespace(),
+            ),
+            reply_waiter=SimpleNamespace(wait_for_reply=lambda *args, **kwargs: {"reply": "ok"}),
+            target_character_id="char_1",
+        ),
+        mongo_uri="mongodb://example",
+        db_name="test",
+    )
+
+    assert report["business_account_resolution"] == {
+        "account_ids": ["acct_456"],
+        "resolved": True,
+    }
+    assert user_dao_instances[0].lookups == ["acct_456"]
+    assert "deferred_actions" in mongo_client_instances[0]._db.requested_collections
+    assert "reminders" not in mongo_client_instances[0]._db.requested_collections
+
+
 def test_verify_auth_retirement_checks_multiple_discovered_account_ids_when_business_docs_exist():
     script = _load_script_module()
 
