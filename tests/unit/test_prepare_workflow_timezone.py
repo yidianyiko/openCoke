@@ -22,7 +22,7 @@ def _make_package(name: str, path: Path | None = None) -> types.ModuleType:
     mod = types.ModuleType(name)
     mod.__path__ = [str(path)] if path else []
     mod.__package__ = name
-    mod.__spec__ = None
+    mod.__spec__ = importlib.util.spec_from_loader(name, loader=None, is_package=True)
     sys.modules[name] = mod
     return mod
 
@@ -32,7 +32,14 @@ def _load_module_by_path(module_name: str, rel_path: str) -> None:
         return
 
     path = _PROJECT_ROOT / rel_path
-    spec = importlib.util.spec_from_file_location(module_name, path)
+    if path.name == "__init__.py":
+        spec = importlib.util.spec_from_file_location(
+            module_name,
+            path,
+            submodule_search_locations=[str(path.parent)],
+        )
+    else:
+        spec = importlib.util.spec_from_file_location(module_name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = mod
     spec.loader.exec_module(mod)
@@ -79,12 +86,6 @@ def _ensure_prepare_workflow_loaded() -> None:
         sys.modules["agent.agno_agent.agents"] = agents_mod
         sys.modules["agent.agno_agent"].agents = agents_mod
 
-    if "agent.agno_agent.tools.deferred_action" not in sys.modules:
-        deferred_mod = types.ModuleType("agent.agno_agent.tools.deferred_action")
-        deferred_mod.set_deferred_action_session_state = lambda session_state: None
-        sys.modules["agent.agno_agent.tools.deferred_action"] = deferred_mod
-        sys.modules["agent.agno_agent.tools"].deferred_action = deferred_mod
-
     if "agent.agno_agent.tools.context_retrieve_tool" not in sys.modules:
         context_mod = types.ModuleType("agent.agno_agent.tools.context_retrieve_tool")
         context_mod.context_retrieve_tool = lambda **kwargs: {}
@@ -114,14 +115,6 @@ def _ensure_prepare_workflow_loaded() -> None:
         sys.modules["agent.agno_agent.utils.usage_tracker"] = tracker_mod
         sys.modules["agent.agno_agent.utils"].usage_tracker = tracker_mod
 
-    if "agent.prompt.chat_contextprompt" not in sys.modules:
-        prompt_context_mod = types.ModuleType("agent.prompt.chat_contextprompt")
-        prompt_context_mod.CONTEXTPROMPT_历史对话_精简 = ""
-        prompt_context_mod.CONTEXTPROMPT_时间 = ""
-        prompt_context_mod.CONTEXTPROMPT_最新聊天消息 = ""
-        sys.modules["agent.prompt.chat_contextprompt"] = prompt_context_mod
-        sys.modules["agent.prompt"].chat_contextprompt = prompt_context_mod
-
     if "agent.prompt.rendering" not in sys.modules:
         rendering_mod = types.ModuleType("agent.prompt.rendering")
         rendering_mod.render_prompt_template = lambda template, _context: template
@@ -143,12 +136,28 @@ def _ensure_prepare_workflow_loaded() -> None:
         sys.modules["agent.util"].message_util = message_util_mod
 
     _load_module_by_path(
+        "agent.prompt.chat_contextprompt",
+        "agent/prompt/chat_contextprompt.py",
+    )
+    _load_module_by_path(
         "agent.agno_agent.tools.tool_result",
         "agent/agno_agent/tools/tool_result.py",
     )
     _load_module_by_path(
         "agent.agno_agent.tools.timezone_tools",
         "agent/agno_agent/tools/timezone_tools.py",
+    )
+    if "agent.agno_agent.tools.deferred_action" not in sys.modules:
+        deferred_mod = _make_package(
+            "agent.agno_agent.tools.deferred_action",
+            _AGNO_AGENT_TOOLS_ROOT / "deferred_action",
+        )
+        deferred_mod.set_deferred_action_session_state = lambda session_state: None
+        sys.modules["agent.agno_agent.tools"].deferred_action = deferred_mod
+
+    _load_module_by_path(
+        "agent.agno_agent.tools.deferred_action.time_parser",
+        "agent/agno_agent/tools/deferred_action/time_parser.py",
     )
     _load_module_by_path(
         "agent.agno_agent.workflows.prepare_workflow",
