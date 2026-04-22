@@ -21,14 +21,16 @@ Define Coke's product-level timezone system so every user has one canonical
 timezone across channels and every time-dependent capability reads from the same
 source of truth.
 
-The design must work for today's WhatsApp Evolution entry path and also scale
-to Coke's existing web surface and future app clients.
+The design must work for today's shared messaging entry paths, including
+WhatsApp Evolution and Coke's existing ClawScale-backed messaging surfaces, and
+also scale to Coke's web surface and future app clients.
 
 ## Non-Goals
 
 - No per-channel timezone setting.
 - No separate per-conversation timezone state.
-- No silent post-registration timezone flips from system signals.
+- No silent post-registration timezone flips from system signals once an
+  account already has a timezone.
 - No timezone change history or audit log in v1.
 - No requirement that a web settings page exists before the model is useful.
 - No attempt to infer exact user timezone from signals the channel does not
@@ -51,8 +53,8 @@ The user approved the following product rules during design:
 - after a user-explicit timezone is set, no system source may override it
 - for any non-user signal that would change the current timezone after account
   creation, ask immediately before applying the change
-- if the user does not reply to that confirmation, the proposal expires and the
-  existing timezone remains in force
+- if the user does not reply to that confirmation in time, the proposal expires
+  and the existing timezone remains in force
 - if the user rejects that confirmation, keep the existing timezone
 - system-inferred timezone should be disclosed when the user asks what timezone
   Coke is using
@@ -71,15 +73,16 @@ The user approved the following product rules during design:
 
 ## Current Constraints
 
-### WhatsApp Evolution today
+### Messaging channels today
 
-For WhatsApp Evolution users, Coke can reliably get:
+For messaging-channel users, Coke can reliably get:
 
-- normalized WhatsApp identity / phone number
+- a normalized external identity from the connected channel
 - message text and message metadata
-- optional WhatsApp profile display name
+- any profile label that the channel exposes
 
-It cannot reliably get from the native webhook:
+For WhatsApp Evolution specifically, Coke cannot reliably get from the native
+webhook:
 
 - end-user device timezone
 - end-user device locale
@@ -88,6 +91,10 @@ It cannot reliably get from the native webhook:
 
 This means WhatsApp can provide a weak registration default via phone-region
 inference, but it cannot be treated as a precise timezone source.
+
+Other current messaging surfaces may expose different identifiers, but this
+design treats messaging ingress generically: channel-origin metadata is weaker
+than app or web-local timezone signals and should therefore rank below them.
 
 ### Web and future app surfaces
 
@@ -196,7 +203,8 @@ When Coke needs to choose among available system sources, the priority order is:
 1. app device timezone
 2. web IP or region inference
 3. external account timezone from a connected profile or integration
-4. WhatsApp phone-region inference
+4. messaging-identity region inference, such as WhatsApp phone-region
+   inference
 5. deployment default timezone fallback when no better signal exists
 
 This priority governs which system source becomes the current inferred value at
@@ -215,6 +223,8 @@ Examples:
 
 - WhatsApp-only user: derive a country or region from the phone identity, map
   it to a default timezone, and apply it immediately
+- another messaging-only user on a weaker shared channel: use that channel's
+  best identity-region inference if available
 - logged-in web user: prefer web region inference over phone-region inference
 - future app user: prefer the app-reported device timezone over weaker signals
 
@@ -254,7 +264,8 @@ system sources lose the ability to overwrite it automatically.
 
 After the account already has an `effective_timezone`, any non-user signal that
 would change that timezone must go through immediate user confirmation before
-it takes effect.
+it takes effect, but only while the account is still operating on a
+`system_inferred` timezone.
 
 This includes:
 
@@ -275,6 +286,17 @@ Behavior:
 
 If the user already has a `user_confirmed` timezone, Coke does not prompt about
 system-source conflicts and does not auto-change the timezone.
+
+To keep this compatible with the no-history rule, Coke only stores one active
+`pending_timezone_change`. While that proposal is pending, Coke does not open a
+second timezone proposal. Once the proposal is confirmed, rejected, or expires,
+it is discarded. A later qualifying signal may create a fresh proposal.
+
+If the proposal originated from a specific conversation or channel turn, only a
+reply from that same originating conversation may confirm or reject it. The
+proposal is still account-global state, but reply correlation is conversation-
+scoped to avoid an accidental "yes" or "no" from a different channel changing a
+global timezone unexpectedly.
 
 ### 6. Minimum chat-side timezone management
 
@@ -302,21 +324,28 @@ All time parsing follows these rules:
   `effective_timezone`
 - if the message does not carry its own timezone, parse the time using the
   user's current `effective_timezone`
-- relative expressions such as "in 3 hours", "tomorrow morning", or "tonight"
-  are also interpreted from the current `effective_timezone`
+- floating local-time expressions such as "tomorrow morning", "tonight", or
+  "next Monday at 9" are interpreted from the current `effective_timezone`
+- interval or delay expressions such as "in 3 hours" are resolved at creation
+  time into an absolute target instant using the current `effective_timezone`
+  only as the parse context
 
 This separates one-off task context from the user's long-lived timezone.
 
 ### 8. Reminder and scheduled-task semantics
 
-Time-dependent tasks preserve local-time meaning by default.
+Time-dependent tasks preserve local-time meaning by default, but interval-based
+tasks preserve absolute-delay meaning.
 
 Rules:
 
-- reminders and scheduled tasks without an explicit fixed timezone follow the
-  user's current `effective_timezone`
-- if the user later changes timezone, future unexecuted tasks are reinterpreted
-  using the new timezone
+- floating local-time reminders and scheduled tasks without an explicit fixed
+  timezone follow the user's current `effective_timezone`
+- if the user later changes timezone, future unexecuted floating local-time
+  tasks are reinterpreted using the new timezone
+- interval-based tasks that were created from an absolute delay such as "in 3
+  hours" keep the resolved target instant and do not shift on later timezone
+  changes
 - reminders and tasks that explicitly pin their own timezone keep that pinned
   timezone and do not follow later user timezone changes
 
@@ -339,11 +368,18 @@ then Coke must resolve the timezone question first.
 Behavior:
 
 - ask the timezone confirmation immediately
+- hold at most one pending task draft together with the pending timezone
+  proposal
+- the confirmation window lasts until the user's next reply in the originating
+  conversation or 15 minutes, whichever comes first
 - do not create the task under the proposed new timezone until the user answers
-- if the user confirms, create the task under the new timezone
-- if the user rejects, create the task under the old timezone
-- if the user does not answer and the proposal expires, do not create the task
-  from that message
+- if the user's next reply is an affirmative confirmation, create the task
+  under the new timezone
+- if the user's next reply is a negative confirmation, create the task under
+  the old timezone
+- if the user sends some other next message or the confirmation window expires,
+  discard the pending task draft and do not create the task from the earlier
+  message
 
 This rule avoids silently scheduling work against a timezone the user has not
 accepted.
@@ -365,8 +401,7 @@ Requirements:
 
 - the question should accept short replies such as yes or no
 - the confirmation should not block unrelated future conversation turns
-- the same expired proposal should not keep repeating unless a new timezone
-  signal appears later
+- only one timezone proposal may be active at a time
 
 ### 11. Timezone visibility in time-dependent replies
 
@@ -382,6 +417,24 @@ Examples:
 
 Ordinary conversation should stay quiet about timezone unless it matters.
 
+### 12. Existing-account rollout
+
+This design also needs a safe rule for accounts that already exist before the
+new timezone model ships.
+
+Rollout rule:
+
+- if an existing account already has a stored timezone value, preserve it as
+  the initial `effective_timezone`
+- existing stored timezone values should be treated as `user_confirmed` for
+  safety, so the new system does not unexpectedly overwrite them
+- if an existing account has no stored timezone value, compute a
+  `system_inferred` timezone on the first post-rollout account touch that has
+  enough information to resolve one, such as message ingress, web session
+  establishment, app launch, or settings read
+- the deployment default timezone should remain a runtime fallback, not a
+  backfilled user-owned timezone record
+
 ## Data and Interface Implications
 
 This design requires account-level timezone state, not just a bare timezone
@@ -394,6 +447,8 @@ At minimum the product contract needs:
 - `timezone_status`
 - `pending_timezone_change` when a post-registration change is awaiting user
   confirmation
+- `pending_task_draft` only when the product is holding a time-dependent task
+  behind a timezone confirmation window
 
 The runtime must expose this canonical state consistently to:
 
@@ -418,6 +473,8 @@ rather than inventing parallel timezone state elsewhere.
   disagreement silently
 - task contains its own explicit timezone -> use task-local timezone without
   modifying global timezone
+- a pending timezone confirmation receives an unrelated next message ->
+  expire the proposal and discard any held task draft
 
 ## Testing Expectations
 
@@ -443,6 +500,6 @@ between:
 - inferred defaults that help the product work immediately, and
 - user-confirmed timezone choices that permanently take priority
 
-This gives Coke a usable WhatsApp-first default today while staying compatible
+This gives Coke a usable multi-channel default today while staying compatible
 with stronger app and web signals later, without silently surprising users
 after account creation.
