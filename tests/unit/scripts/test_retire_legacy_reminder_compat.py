@@ -24,15 +24,17 @@ def _load_script_module():
 
 
 class FakeConversationsCollection:
-    def __init__(self, future_count: int):
+    def __init__(self, future_count: int, timeline):
         self.future_count = future_count
         self.update_calls = []
+        self.timeline = timeline
 
     def count_documents(self, query):
         assert query == {"conversation_info.future": {"$exists": True}}
         return self.future_count
 
     def update_many(self, query, update):
+        self.timeline.append("update_many")
         self.update_calls.append((query, update))
         return SimpleNamespace(
             matched_count=self.future_count,
@@ -41,16 +43,22 @@ class FakeConversationsCollection:
 
 
 class FakeRemindersCollection:
-    def __init__(self, document_count: int):
+    def __init__(self, document_count: int, existing_collection_names, timeline):
         self.document_count = document_count
         self.renamed_to = None
+        self.existing_collection_names = existing_collection_names
+        self.timeline = timeline
 
     def count_documents(self, query):
         assert query == {}
         return self.document_count
 
     def rename(self, new_name):
+        self.timeline.append(("rename", new_name))
+        if new_name in self.existing_collection_names:
+            raise RuntimeError(f"collection already exists: {new_name}")
         self.renamed_to = new_name
+        self.existing_collection_names.add(new_name)
         return SimpleNamespace(name=new_name)
 
 
@@ -61,16 +69,24 @@ class FakeDatabase:
         future_count: int,
         reminder_count: int,
         reminders_exists: bool = True,
+        existing_collection_names: set[str] | None = None,
     ):
-        self.conversations = FakeConversationsCollection(future_count)
-        self.reminders = FakeRemindersCollection(reminder_count)
+        self.timeline = []
+        self.existing_collection_names = set(existing_collection_names or set())
+        self.existing_collection_names.add("conversations")
+        if reminders_exists:
+            self.existing_collection_names.add("reminders")
+        self.conversations = FakeConversationsCollection(future_count, self.timeline)
+        self.reminders = FakeRemindersCollection(
+            reminder_count,
+            self.existing_collection_names,
+            self.timeline,
+        )
         self.reminders_exists = reminders_exists
 
     def list_collection_names(self):
-        names = ["conversations"]
-        if self.reminders_exists:
-            names.append("reminders")
-        return names
+        self.timeline.append("list_collection_names")
+        return sorted(self.existing_collection_names)
 
     def get_collection(self, name):
         if name == "conversations":
@@ -166,6 +182,49 @@ def test_retire_legacy_reminder_compat_executes_unset_and_archive():
         )
     ]
     assert db.reminders.renamed_to == "reminders_legacy_retired_20260422093045"
+    assert client.closed is True
+
+
+def test_retire_legacy_reminder_compat_chooses_new_archive_name_when_timestamp_name_exists():
+    script = _load_script_module()
+    collided_name = "reminders_legacy_retired_20260422093045"
+    db = FakeDatabase(
+        future_count=2,
+        reminder_count=4,
+        reminders_exists=True,
+        existing_collection_names={collided_name},
+    )
+    client = FakeMongoClient(db, "mongodb://example", serverSelectionTimeoutMS=5000)
+
+    report = script.retire_legacy_reminder_compat(
+        mongo_client_factory=lambda *args, **kwargs: client,
+        mongo_uri="mongodb://example",
+        db_name="test_db",
+        execute=True,
+        now=datetime(2026, 4, 22, 9, 30, 45, tzinfo=UTC),
+    )
+
+    assert report["conversation_future"] == {
+        "count": 2,
+        "matched_count": 2,
+        "modified_count": 2,
+    }
+    assert report["reminders"]["exists"] is True
+    assert report["reminders"]["archived"] is True
+    assert report["reminders"]["archive_collection_name"] == db.reminders.renamed_to
+    assert report["reminders"]["archive_collection_name"] != collided_name
+    assert report["reminders"]["archive_collection_name"].startswith(
+        "reminders_legacy_retired_20260422093045"
+    )
+    assert db.conversations.update_calls == [
+        (
+            {"conversation_info.future": {"$exists": True}},
+            {"$unset": {"conversation_info.future": ""}},
+        )
+    ]
+    assert db.timeline[0] == "list_collection_names"
+    assert "update_many" in db.timeline
+    assert db.timeline.index("list_collection_names") < db.timeline.index("update_many")
     assert client.closed is True
 
 

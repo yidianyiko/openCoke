@@ -33,6 +33,22 @@ def archive_collection_name(now: datetime) -> str:
     return f"reminders_legacy_retired_{now.astimezone(UTC).strftime('%Y%m%d%H%M%S')}"
 
 
+def reserve_archive_collection_name(
+    now: datetime,
+    existing_collection_names: set[str],
+) -> str:
+    base_name = archive_collection_name(now)
+    if base_name not in existing_collection_names:
+        return base_name
+
+    suffix = 2
+    while True:
+        candidate = f"{base_name}_{suffix}"
+        if candidate not in existing_collection_names:
+            return candidate
+        suffix += 1
+
+
 def retire_legacy_reminder_compat(
     *,
     mongo_client_factory: Callable[..., Any] = MongoClient,
@@ -59,8 +75,16 @@ def retire_legacy_reminder_compat(
         future_count = conversations.count_documents(future_query)
         matched_count = 0
         modified_count = 0
+        collection_names = set(db.list_collection_names())
+        reminders_exists = "reminders" in collection_names
+        reminder_count = 0
+        archived = False
+        archived_name = None
+        archive_name = None
 
         if execute:
+            if reminders_exists:
+                archive_name = reserve_archive_collection_name(now, collection_names)
             update_result = conversations.update_many(
                 future_query,
                 {"$unset": {"conversation_info.future": ""}},
@@ -68,17 +92,11 @@ def retire_legacy_reminder_compat(
             matched_count = int(getattr(update_result, "matched_count", 0) or 0)
             modified_count = int(getattr(update_result, "modified_count", 0) or 0)
 
-        collection_names = set(db.list_collection_names())
-        reminders_exists = "reminders" in collection_names
-        reminder_count = 0
-        archived = False
-        archived_name = None
-
         if reminders_exists:
             reminders = db.get_collection("reminders")
             reminder_count = reminders.count_documents({})
             if execute:
-                archived_name = archive_collection_name(now)
+                archived_name = archive_name
                 reminders.rename(archived_name)
                 archived = True
 
