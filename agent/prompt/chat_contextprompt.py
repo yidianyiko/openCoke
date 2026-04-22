@@ -373,13 +373,32 @@ def get_inferred_timezone_visibility_context(
 
     user = session_state.get("user") or {}
     timezone = _get_visible_timezone_name(user)
-    if not timezone or user.get("timezone_status") != "system_inferred":
+    if not timezone:
         return ""
 
-    if not (
-        _looks_like_explicit_timezone_question(input_message)
-        or _looks_like_explicit_local_time_or_date_question(input_message)
-    ):
+    timezone_status = user.get("timezone_status")
+    explicit_timezone_question = _looks_like_explicit_timezone_question(input_message)
+    explicit_local_time_question = _looks_like_explicit_local_time_or_date_question(
+        input_message
+    )
+
+    if explicit_timezone_question:
+        if timezone_status == "system_inferred":
+            source = user.get("timezone_source") or "unknown source"
+            return (
+                "### Timezone Context\n"
+                f"Current time-sensitive interpretation should use {timezone}.\n"
+                f"This timezone is system inferred from {source}.\n"
+                "If you answer the user's timezone, local time, or local date question, mention that the timezone is inferred."
+            )
+
+        return (
+            "### Timezone Context\n"
+            f"Current user timezone should be treated as {timezone}.\n"
+            "Use it when answering the user's explicit timezone question."
+        )
+
+    if timezone_status != "system_inferred" or not explicit_local_time_question:
         return ""
 
     source = user.get("timezone_source") or "unknown source"

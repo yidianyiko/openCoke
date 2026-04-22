@@ -28,6 +28,7 @@ from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.tools.timezone_tools import (
+    PENDING_PROPOSAL_EXPIRED_MESSAGE,
     clear_pending_timezone_proposal,
     consume_timezone_confirmation,
     is_timezone_proposal_expired,
@@ -35,6 +36,7 @@ from agent.agno_agent.tools.timezone_tools import (
     set_user_timezone,
     store_timezone_proposal,
 )
+from agent.agno_agent.tools.tool_result import append_tool_result
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_历史对话_精简,
@@ -330,14 +332,23 @@ class PrepareWorkflow:
             session_state
         ):
             return False
+        decision = self._match_short_confirmation_reply(input_message)
         if is_timezone_proposal_expired(pending_change):
             clear_result = clear_pending_timezone_proposal(session_state=session_state)
             if clear_result.get("state"):
                 session_state.setdefault("user", {}).update(clear_result["state"])
+            if decision:
+                append_tool_result(
+                    session_state,
+                    tool_name="时区确认",
+                    ok=False,
+                    result_summary=PENDING_PROPOSAL_EXPIRED_MESSAGE,
+                )
+                logger.info("[PrepareWorkflow] 已向用户返回过期的时区确认提示")
+                return True
             logger.info("[PrepareWorkflow] 已清理过期的时区提议")
             return False
 
-        decision = self._match_short_confirmation_reply(input_message)
         if not decision:
             clear_result = clear_pending_timezone_proposal(session_state=session_state)
             if clear_result.get("state"):

@@ -126,6 +126,26 @@ def test_inferred_timezone_visibility_surfaces_for_explicit_timezone_question():
     assert "system inferred" in output.lower()
 
 
+def test_confirmed_timezone_visibility_surfaces_for_explicit_timezone_question():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "user_confirmed",
+            "timezone_source": "user_explicit",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "你现在按什么时区理解时间？",
+    )
+
+    assert "Europe/London" in output
+    assert "system inferred" not in output.lower()
+
+
 def test_inferred_timezone_visibility_surfaces_for_explicit_local_time_question():
     from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
 
@@ -203,3 +223,22 @@ def test_inferred_timezone_visibility_uses_effective_timezone_for_local_time_que
 
     assert "Asia/Tokyo" in output
     assert "system inferred" in output.lower()
+
+
+def test_confirmed_timezone_visibility_stays_quiet_for_local_time_question():
+    from agent.prompt.chat_contextprompt import get_inferred_timezone_visibility_context
+
+    state = {
+        "user": {
+            "timezone": "Europe/London",
+            "timezone_status": "user_confirmed",
+            "timezone_source": "user_explicit",
+        }
+    }
+
+    output = get_inferred_timezone_visibility_context(
+        state,
+        "现在当地时间几点了？",
+    )
+
+    assert output == ""

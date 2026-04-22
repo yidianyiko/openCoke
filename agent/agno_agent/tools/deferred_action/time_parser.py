@@ -82,7 +82,7 @@ def _parse_absolute_delay(
     resolved_tz: ZoneInfo,
     base_timestamp: int | None,
 ) -> datetime | None:
-    if not re.search(r"\d+\s*(分钟|小时|钟头|天)[后之]后?", trigger_time):
+    if not re.search(r"\d+\s*(分钟|(?:个)?小时|(?:个)?钟头|天)[后之]后?", trigger_time):
         return None
 
     relative_timestamp = parse_relative_time(

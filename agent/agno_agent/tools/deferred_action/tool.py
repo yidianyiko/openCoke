@@ -5,6 +5,7 @@ import contextvars
 from agno.tools import tool
 
 from agent.agno_agent.tools.tool_result import append_tool_result
+from util.time_util import get_default_timezone
 
 from .service import DeferredActionService
 from .time_parser import parse_visible_reminder_time
@@ -21,6 +22,15 @@ def set_deferred_action_session_state(session_state: dict) -> None:
 
 def _get_session_state() -> dict:
     return _context_session_state.get()
+
+
+def _resolve_runtime_timezone(session_state: dict) -> str:
+    user = session_state.get("user", {})
+    return str(
+        user.get("effective_timezone")
+        or user.get("timezone")
+        or get_default_timezone().key
+    )
 
 
 @tool(
@@ -50,7 +60,7 @@ def visible_reminder_tool(
     user_id = str(user.get("id", ""))
     character_id = str(character.get("_id", ""))
     conversation_id = str(conversation.get("_id", ""))
-    timezone = user.get("timezone") or "Asia/Shanghai"
+    timezone = _resolve_runtime_timezone(session_state)
     base_timestamp = session_state.get("input_timestamp")
     service = DeferredActionService()
 
