@@ -34,3 +34,57 @@ def test_update_timezone_returns_false_when_not_modified():
     dao.settings_collection.update_one.return_value = MagicMock(modified_count=0)
     result = dao.update_timezone("acct_123456", "Asia/Tokyo")
     assert result is False
+
+
+def test_update_timezone_state_upserts_settings_document():
+    dao = make_dao()
+    dao.settings_collection.update_one.return_value = MagicMock(
+        modified_count=0,
+        upserted_id="new-settings",
+    )
+
+    state = {
+        "timezone": "America/New_York",
+        "timezone_source": "messaging_identity_region",
+        "timezone_status": "system_inferred",
+    }
+
+    result = dao.update_timezone_state("acct_123456", state)
+
+    assert result is True
+    dao.settings_collection.update_one.assert_called_once_with(
+        {"account_id": "acct_123456"},
+        {
+            "$set": {
+                "timezone": "America/New_York",
+                "timezone_source": "messaging_identity_region",
+                "timezone_status": "system_inferred",
+                "pending_timezone_change": None,
+                "pending_task_draft": None,
+            },
+            "$setOnInsert": {"account_id": "acct_123456"},
+        },
+        upsert=True,
+    )
+
+
+def test_get_timezone_state_returns_only_timezone_fields():
+    dao = make_dao()
+    dao.settings_collection.find_one.return_value = {
+        "account_id": "acct_123456",
+        "timezone": "Asia/Tokyo",
+        "timezone_source": "user_explicit",
+        "timezone_status": "user_confirmed",
+        "pending_timezone_change": None,
+        "access": {"order_no": "keep-out"},
+    }
+
+    result = dao.get_timezone_state("acct_123456")
+
+    assert result == {
+        "timezone": "Asia/Tokyo",
+        "timezone_source": "user_explicit",
+        "timezone_status": "user_confirmed",
+        "pending_timezone_change": None,
+        "pending_task_draft": None,
+    }

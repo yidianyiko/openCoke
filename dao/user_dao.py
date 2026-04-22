@@ -22,6 +22,14 @@ AUDIT_CUSTOMER_ID_COLLECTION_SPECS = (
     {"collection": "conversations", "fieldPath": "talkers.id"},
 )
 
+TIMEZONE_STATE_FIELDS = (
+    "timezone",
+    "timezone_source",
+    "timezone_status",
+    "pending_timezone_change",
+    "pending_task_draft",
+)
+
 
 def _normalize_customer_id(value: Any) -> Optional[str]:
     if value is None:
@@ -360,6 +368,41 @@ class UserDAO:
             {"$set": update_fields},
         )
         return result.modified_count > 0
+
+    def get_timezone_state(self, account_id: str) -> Optional[Dict]:
+        normalized_account_id = _normalize_account_id(account_id)
+        if normalized_account_id is None:
+            return None
+
+        document = self.settings_collection.find_one(
+            {"account_id": normalized_account_id}
+        ) or {}
+        if not document.get("timezone"):
+            return None
+
+        return {
+            "timezone": document.get("timezone"),
+            "timezone_source": document.get("timezone_source", "legacy_preserved"),
+            "timezone_status": document.get("timezone_status", "user_confirmed"),
+            "pending_timezone_change": document.get("pending_timezone_change"),
+            "pending_task_draft": document.get("pending_task_draft"),
+        }
+
+    def update_timezone_state(self, account_id: str, state: Dict) -> bool:
+        normalized_account_id = _normalize_account_id(account_id)
+        if normalized_account_id is None:
+            return False
+
+        set_fields = {field: state.get(field) for field in TIMEZONE_STATE_FIELDS}
+        result = self.settings_collection.update_one(
+            {"account_id": normalized_account_id},
+            {
+                "$set": set_fields,
+                "$setOnInsert": {"account_id": normalized_account_id},
+            },
+            upsert=True,
+        )
+        return bool(result.modified_count or result.upserted_id)
 
     def update_access(self, user_id: str, order_no: str, expire_time: datetime) -> bool:
         return self._update_settings(
