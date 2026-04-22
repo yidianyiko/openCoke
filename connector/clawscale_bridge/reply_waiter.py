@@ -152,7 +152,18 @@ class ReplyWaiter:
         messages = self.wait_for_reply_messages(
             causal_inbound_event_id,
             sync_reply_token=sync_reply_token,
-            consume=True,
+            consume=False,
+        )
+        message = self._refresh_pending_reply_message(message)
+        self.mongo.update_one(
+            "outputmessages",
+            {"_id": message["_id"], "status": "pending"},
+            {
+                "$set": {
+                    "status": "handled",
+                    "handled_timestamp": int(time.time()),
+                }
+            },
         )
         message = messages[0]
         protocol_meta = message.get("metadata", {}).get("business_protocol", {})
@@ -169,3 +180,23 @@ class ReplyWaiter:
         if business_conversation_key:
             response["business_conversation_key"] = business_conversation_key
         return response
+
+    def _refresh_pending_reply_message(self, message: dict) -> dict:
+        if not isinstance(message, dict):
+            return message
+
+        deadline = time.time() + self.poll_interval_seconds
+        latest_message = message
+
+        while time.time() < deadline:
+            time.sleep(self.poll_interval_seconds)
+            refreshed = self.mongo.find_one(
+                "outputmessages",
+                {"_id": message["_id"], "status": "pending"},
+            )
+            if not isinstance(refreshed, dict):
+                break
+            latest_message = refreshed
+            message = refreshed
+
+        return latest_message

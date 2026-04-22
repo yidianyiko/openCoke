@@ -256,6 +256,7 @@ def send_message_via_context(
     handled_timestamp = expect_output_timestamp
     is_proactive_message = context.get("message_source") == "deferred_action"
     account_id = None
+    append_to_existing_sync_reply = False
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
         input_messages = (
@@ -271,6 +272,14 @@ def send_message_via_context(
         metadata = _inject_business_key_into_clawscale_reply_metadata(
             context=context,
             metadata=metadata,
+        )
+        status, handled_timestamp, metadata, append_to_existing_sync_reply = (
+            _prepare_clawscale_sync_reply_output(
+                context=context,
+                status=status,
+                handled_timestamp=handled_timestamp,
+                metadata=metadata,
+            )
         )
     elif get_agent_entity_id(context.get("user")):
         account_id = get_agent_entity_id(context.get("user"))
@@ -294,7 +303,15 @@ def send_message_via_context(
                 _extract_clawscale_conversation_id_from_context(context),
             )
 
-    return send_message(
+    if append_to_existing_sync_reply:
+        merged_sync_reply = _append_to_existing_clawscale_sync_reply(
+            context=context,
+            message=message,
+        )
+        if merged_sync_reply is not None:
+            return merged_sync_reply
+
+    output_message = send_message(
         platform=None if is_proactive_message else context["conversation"]["platform"],
         from_user=None if is_proactive_message else get_agent_entity_id(context.get("character")),
         to_user=None if is_proactive_message else get_agent_entity_id(context.get("user")),
@@ -307,6 +324,105 @@ def send_message_via_context(
         account_id=account_id,
         metadata=metadata,
     )
+    _remember_clawscale_sync_reply_output(
+        context=context, output_message=output_message
+    )
+    return output_message
+
+
+def _prepare_clawscale_sync_reply_output(
+    *, context: dict | None, status: str, handled_timestamp: int | None, metadata: dict | None
+) -> tuple[str, int | None, dict, bool]:
+    if not isinstance(metadata, dict):
+        normalized_metadata = {} if metadata is None else metadata
+        return status, handled_timestamp, normalized_metadata, False
+    if not isinstance(context, dict):
+        return status, handled_timestamp, metadata, False
+    if metadata.get("source") != "clawscale":
+        return status, handled_timestamp, metadata, False
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        business_protocol = {}
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    if delivery_mode != "request_response":
+        return status, handled_timestamp, metadata, False
+
+    if not context.get("_clawscale_sync_reply_emitted"):
+        context["_clawscale_sync_reply_emitted"] = True
+        return status, handled_timestamp, metadata, False
+
+    return status, handled_timestamp, metadata, True
+
+
+def _remember_clawscale_sync_reply_output(
+    *, context: dict | None, output_message: dict | None
+) -> None:
+    if not isinstance(context, dict) or not isinstance(output_message, dict):
+        return
+    if output_message.get("status") != "pending":
+        return
+    if not _is_clawscale_request_response_metadata(output_message.get("metadata")):
+        return
+
+    output_id = output_message.get("_id")
+    if output_id is not None:
+        context["_clawscale_sync_reply_output_id"] = output_id
+
+
+def _append_to_existing_clawscale_sync_reply(
+    *, context: dict | None, message: str
+) -> dict | None:
+    if not isinstance(context, dict):
+        return None
+
+    output_id = context.get("_clawscale_sync_reply_output_id")
+    if output_id is None:
+        logger.warning("clawscale_sync_reply_output_id_missing_for_merge")
+        return None
+
+    mongo = MongoDBBase()
+    existing_message = mongo.find_one(
+        "outputmessages",
+        {"_id": output_id, "status": "pending"},
+    )
+    if not isinstance(existing_message, dict):
+        logger.warning(
+            "clawscale_sync_reply_pending_output_missing_for_merge: %s", output_id
+        )
+        return None
+
+    base_message = existing_message.get("message", "") or ""
+    merged_message = f"{base_message}\n{message}" if base_message else message
+    updated = mongo.update_one(
+        "outputmessages",
+        {"_id": output_id, "status": "pending"},
+        {"$set": {"message": merged_message}},
+    )
+    if updated <= 0:
+        logger.warning("clawscale_sync_reply_merge_update_failed: %s", output_id)
+        return None
+
+    existing_message["message"] = merged_message
+    return existing_message
+
+
+def _is_clawscale_request_response_metadata(metadata: dict | None) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("source") != "clawscale":
+        return False
+
+    business_protocol = metadata.get("business_protocol")
+    if not isinstance(business_protocol, dict):
+        return False
+
+    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+        "delivery_mode"
+    )
+    return delivery_mode == "request_response"
 
 
 def _inject_business_key_into_clawscale_reply_metadata(

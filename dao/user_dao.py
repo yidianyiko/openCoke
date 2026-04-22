@@ -371,9 +371,17 @@ class UserDAO:
 
         result = self.settings_collection.update_one(
             {"account_id": normalized_account_id},
-            {"$set": update_fields},
+            {
+                "$set": update_fields,
+                "$setOnInsert": {"account_id": normalized_account_id},
+            },
+            upsert=True,
         )
-        return result.modified_count > 0
+        return (
+            result.modified_count > 0
+            or getattr(result, "matched_count", 0) > 0
+            or getattr(result, "upserted_id", None) is not None
+        )
 
     def get_timezone_state(self, account_id: str) -> Optional[Dict]:
         normalized_account_id = _normalize_account_id(account_id)
