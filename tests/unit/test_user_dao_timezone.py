@@ -88,3 +88,18 @@ def test_get_timezone_state_returns_only_timezone_fields():
         "pending_timezone_change": None,
         "pending_task_draft": None,
     }
+
+
+def test_update_timezone_state_rejects_missing_required_fields():
+    dao = make_dao()
+
+    result = dao.update_timezone_state(
+        "acct_123456",
+        {
+            "timezone": "Asia/Tokyo",
+            "timezone_source": "user_explicit",
+        },
+    )
+
+    assert result is False
+    dao.settings_collection.update_one.assert_not_called()

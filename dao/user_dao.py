@@ -30,6 +30,12 @@ TIMEZONE_STATE_FIELDS = (
     "pending_task_draft",
 )
 
+TIMEZONE_REQUIRED_STATE_FIELDS = (
+    "timezone",
+    "timezone_source",
+    "timezone_status",
+)
+
 
 def _normalize_customer_id(value: Any) -> Optional[str]:
     if value is None:
@@ -391,6 +397,8 @@ class UserDAO:
     def update_timezone_state(self, account_id: str, state: Dict) -> bool:
         normalized_account_id = _normalize_account_id(account_id)
         if normalized_account_id is None:
+            return False
+        if any(field not in state for field in TIMEZONE_REQUIRED_STATE_FIELDS):
             return False
 
         set_fields = {field: state.get(field) for field in TIMEZONE_STATE_FIELDS}
