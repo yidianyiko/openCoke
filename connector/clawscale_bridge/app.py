@@ -9,6 +9,9 @@ from conf.config import CONF
 from connector.clawscale_bridge.gateway_delivery_route_client import (
     GatewayDeliveryRouteClient,
 )
+from connector.clawscale_bridge.google_calendar_import_service import (
+    GoogleCalendarImportService,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
@@ -514,6 +517,10 @@ def _build_output_dispatcher():
     )
 
 
+def _build_google_calendar_import_service():
+    return GoogleCalendarImportService()
+
+
 def _run_output_dispatcher_loop(dispatcher, poll_interval_seconds: int):
     while True:
         try:
@@ -567,6 +574,7 @@ def create_app(testing: bool = False):
         _validate_runtime_bridge_settings()
         app.config["COKE_BRIDGE_API_KEY"] = _require_bridge_setting("api_key")
         app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
+        app.config["GOOGLE_CALENDAR_IMPORT_SERVICE"] = _build_google_calendar_import_service()
         app.config["COKE_WEB_ALLOWED_ORIGIN"] = _require_bridge_setting(
             "web_allowed_origin"
         )
@@ -618,6 +626,53 @@ def create_app(testing: bool = False):
             if key in result and result[key]:
                 response[key] = result[key]
         return jsonify(response)
+
+    @app.post("/bridge/internal/google-calendar-import/preflight")
+    def google_calendar_import_preflight():
+        from connector.clawscale_bridge.auth import require_bridge_auth
+
+        ok, error = require_bridge_auth(app.config["COKE_BRIDGE_API_KEY"])
+        if not ok:
+            body, status = error
+            return jsonify(body), status
+
+        service = app.config.get("GOOGLE_CALENDAR_IMPORT_SERVICE")
+        if service is None:
+            return jsonify({"ok": False, "error": "bridge service not wired"}), 500
+
+        payload = request.get_json(force=True) or {}
+        try:
+            result = service.preflight(customer_id=payload.get("customer_id"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "data": result})
+
+    @app.post("/bridge/internal/google-calendar-import/run")
+    def google_calendar_import_run():
+        from connector.clawscale_bridge.auth import require_bridge_auth
+
+        ok, error = require_bridge_auth(app.config["COKE_BRIDGE_API_KEY"])
+        if not ok:
+            body, status = error
+            return jsonify(body), status
+
+        service = app.config.get("GOOGLE_CALENDAR_IMPORT_SERVICE")
+        if service is None:
+            return jsonify({"ok": False, "error": "bridge service not wired"}), 500
+
+        payload = request.get_json(force=True) or {}
+        try:
+            target = service.preflight(customer_id=payload.get("customer_id"))
+            result = service.import_events(
+                target=target,
+                run_id=payload.get("run_id"),
+                provider_account_email=payload.get("provider_account_email"),
+                calendar_defaults=payload.get("calendar_defaults") or {},
+                events=payload.get("events") or [],
+            )
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "data": result})
 
     return app
 

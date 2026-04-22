@@ -11,6 +11,9 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     monkeypatch.setattr(
         bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
     )
+    monkeypatch.setattr(
+        bridge_app, "_build_google_calendar_import_service", lambda: MagicMock()
+    )
 
     app = bridge_app.create_app(testing=False)
 
@@ -53,6 +56,9 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
     )
     monkeypatch.setattr(
         bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_google_calendar_import_service", lambda: MagicMock()
     )
     monkeypatch.setattr(bridge_app, "MongoDBBase", lambda **kwargs: MagicMock())
 
@@ -639,3 +645,150 @@ def test_bridge_inbound_accepts_live_messages_and_metadata_shape(monkeypatch):
     }
     message_gateway.enqueue.assert_called_once()
     reply_waiter.wait_for_reply.assert_called_once_with("in_evt_live_1")
+
+
+def test_google_calendar_import_preflight_rejects_missing_bearer_token():
+    from connector.clawscale_bridge.app import create_app
+
+    client = create_app(testing=True).test_client()
+
+    response = client.post(
+        "/bridge/internal/google-calendar-import/preflight",
+        json={"customer_id": "ck_1"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_google_calendar_import_preflight_returns_target_conversation(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock(
+        preflight=MagicMock(
+            return_value={
+                "conversation_id": "conv-1",
+                "user_id": "ck_1",
+                "character_id": "char_1",
+                "timezone": "Asia/Tokyo",
+            }
+        )
+    )
+    monkeypatch.setitem(app.config, "GOOGLE_CALENDAR_IMPORT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/google-calendar-import/preflight",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "ck_1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {
+            "conversation_id": "conv-1",
+            "user_id": "ck_1",
+            "character_id": "char_1",
+            "timezone": "Asia/Tokyo",
+        },
+    }
+    service.preflight.assert_called_once_with(customer_id="ck_1")
+
+
+def test_google_calendar_import_preflight_returns_conversation_required(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock(preflight=MagicMock(side_effect=ValueError("conversation_required")))
+    monkeypatch.setitem(app.config, "GOOGLE_CALENDAR_IMPORT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/google-calendar-import/preflight",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "ck_1"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "conversation_required",
+    }
+
+
+def test_google_calendar_import_run_rejects_missing_bearer_token():
+    from connector.clawscale_bridge.app import create_app
+
+    client = create_app(testing=True).test_client()
+
+    response = client.post(
+        "/bridge/internal/google-calendar-import/run",
+        json={"customer_id": "ck_1", "identity_id": "id_1", "run_id": "run_1", "events": []},
+    )
+
+    assert response.status_code == 401
+
+
+def test_google_calendar_import_run_returns_counts_and_warnings(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    target = {
+        "conversation_id": "conv-1",
+        "user_id": "ck_1",
+        "character_id": "char_1",
+        "timezone": "Asia/Tokyo",
+    }
+    service = MagicMock(
+        preflight=MagicMock(return_value=target),
+        import_events=MagicMock(
+            return_value={
+                "imported_count": 2,
+                "skipped_count": 1,
+                "warnings": [
+                    {
+                        "event_id": "evt-2",
+                        "reason": "unsupported_recurring_exceptions",
+                    }
+                ],
+            }
+        )
+    )
+    monkeypatch.setitem(app.config, "GOOGLE_CALENDAR_IMPORT_SERVICE", service)
+
+    payload = {
+        "customer_id": "ck_1",
+        "identity_id": "ident_1",
+        "run_id": "run_1",
+        "provider_account_email": "alice@example.com",
+        "calendar_defaults": {"timezone": "Asia/Tokyo", "default_reminders": []},
+        "events": [{"id": "evt-1", "status": "confirmed"}],
+    }
+
+    response = app.test_client().post(
+        "/bridge/internal/google-calendar-import/run",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {
+            "imported_count": 2,
+            "skipped_count": 1,
+            "warnings": [
+                {
+                    "event_id": "evt-2",
+                    "reason": "unsupported_recurring_exceptions",
+                }
+            ],
+        },
+    }
+    service.preflight.assert_called_once_with(customer_id="ck_1")
+    service.import_events.assert_called_once_with(
+        target=target,
+        run_id="run_1",
+        provider_account_email="alice@example.com",
+        calendar_defaults={"timezone": "Asia/Tokyo", "default_reminders": []},
+        events=[{"id": "evt-1", "status": "confirmed"}],
+    )
