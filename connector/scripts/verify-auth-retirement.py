@@ -29,7 +29,7 @@ ACCOUNT_ID_COLLECTION_PATHS = (
     ("user_profiles", "account_id"),
     ("coke_settings", "account_id"),
     ("outputmessages", "account_id"),
-    ("reminders", "user_id"),
+    ("deferred_actions", "user_id"),
     ("conversations", "talkers.id"),
 )
 

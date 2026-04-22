@@ -13,8 +13,8 @@ def test_audit_customer_id_parity_reports_drift_examples_and_ignores_non_account
             {"_id": "out_ok", "account_id": "ck_live"},
             {"_id": "out_drift", "account_id": "ck_missing"},
         ]
-        reminders = MagicMock()
-        reminders.find.return_value = [
+        deferred_actions = MagicMock()
+        deferred_actions.find.return_value = [
             {"_id": "rem_ignore", "user_id": "507f1f77bcf86cd799439011"},
             {"_id": "rem_drift", "user_id": "acct_missing"},
         ]
@@ -31,7 +31,7 @@ def test_audit_customer_id_parity_reports_drift_examples_and_ignores_non_account
 
         collections = {
             "outputmessages": outputmessages,
-            "reminders": reminders,
+            "deferred_actions": deferred_actions,
             "conversations": conversations,
         }
         mock_db.get_collection.side_effect = collections.__getitem__
@@ -47,7 +47,7 @@ def test_audit_customer_id_parity_reports_drift_examples_and_ignores_non_account
         )
 
         assert report == {
-            "collectionsChecked": ["outputmessages", "reminders", "conversations"],
+            "collectionsChecked": ["outputmessages", "deferred_actions", "conversations"],
             "driftCount": 3,
             "examples": [
                 {
@@ -57,7 +57,7 @@ def test_audit_customer_id_parity_reports_drift_examples_and_ignores_non_account
                     "accountId": "ck_missing",
                 },
                 {
-                    "collection": "reminders",
+                    "collection": "deferred_actions",
                     "fieldPath": "user_id",
                     "documentId": "rem_drift",
                     "accountId": "acct_missing",
@@ -81,8 +81,8 @@ def test_audit_customer_id_parity_returns_zero_drift_when_all_refs_match():
 
         outputmessages = MagicMock()
         outputmessages.find.return_value = [{"_id": "out_ok", "account_id": "ck_live"}]
-        reminders = MagicMock()
-        reminders.find.return_value = [{"_id": "rem_ok", "user_id": "acct_live"}]
+        deferred_actions = MagicMock()
+        deferred_actions.find.return_value = [{"_id": "rem_ok", "user_id": "acct_live"}]
         conversations = MagicMock()
         conversations.find.return_value = [
             {"_id": "conv_ok", "talkers": [{"id": "ck_live"}, {"id": "acct_live"}]}
@@ -90,7 +90,7 @@ def test_audit_customer_id_parity_returns_zero_drift_when_all_refs_match():
 
         collections = {
             "outputmessages": outputmessages,
-            "reminders": reminders,
+            "deferred_actions": deferred_actions,
             "conversations": conversations,
         }
         mock_db.get_collection.side_effect = collections.__getitem__
@@ -104,7 +104,7 @@ def test_audit_customer_id_parity_returns_zero_drift_when_all_refs_match():
         )
 
         assert report == {
-            "collectionsChecked": ["outputmessages", "reminders", "conversations"],
+            "collectionsChecked": ["outputmessages", "deferred_actions", "conversations"],
             "driftCount": 0,
             "examples": [],
         }

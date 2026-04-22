@@ -18,7 +18,7 @@ from conf.config import CONF
 
 AUDIT_CUSTOMER_ID_COLLECTION_SPECS = (
     {"collection": "outputmessages", "fieldPath": "account_id"},
-    {"collection": "reminders", "fieldPath": "user_id"},
+    {"collection": "deferred_actions", "fieldPath": "user_id"},
     {"collection": "conversations", "fieldPath": "talkers.id"},
 )
 
