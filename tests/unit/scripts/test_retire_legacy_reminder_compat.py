@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 def _load_script_module():
     script_path = (
@@ -167,6 +169,43 @@ def test_retire_legacy_reminder_compat_executes_unset_and_archive():
     assert client.closed is True
 
 
+def test_retire_legacy_reminder_compat_handles_absent_reminders_collection():
+    script = _load_script_module()
+    db = FakeDatabase(future_count=1, reminder_count=0, reminders_exists=False)
+    client = FakeMongoClient(db, "mongodb://example", serverSelectionTimeoutMS=5000)
+
+    report = script.retire_legacy_reminder_compat(
+        mongo_client_factory=lambda *args, **kwargs: client,
+        mongo_uri="mongodb://example",
+        db_name="test_db",
+        execute=True,
+        now=datetime(2026, 4, 22, 9, 30, 45, tzinfo=UTC),
+    )
+
+    assert report == {
+        "dry_run": False,
+        "execute": True,
+        "conversation_future": {
+            "count": 1,
+            "matched_count": 1,
+            "modified_count": 1,
+        },
+        "reminders": {
+            "exists": False,
+            "document_count": 0,
+            "archive_collection_name": None,
+            "archived": False,
+        },
+    }
+    assert db.conversations.update_calls == [
+        (
+            {"conversation_info.future": {"$exists": True}},
+            {"$unset": {"conversation_info.future": ""}},
+        )
+    ]
+    assert client.closed is True
+
+
 def test_main_supports_cli_overrides_and_report_path(tmp_path, monkeypatch, capsys):
     script = _load_script_module()
     captured = {}
@@ -216,3 +255,49 @@ def test_main_supports_cli_overrides_and_report_path(tmp_path, monkeypatch, caps
     stdout = json.loads(capsys.readouterr().out)
     assert stdout["execute"] is True
     assert json.loads(report_path.read_text()) == stdout
+
+
+def test_main_keeps_success_when_report_path_write_fails(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    script = _load_script_module()
+
+    monkeypatch.setattr(
+        script,
+        "retire_legacy_reminder_compat",
+        lambda **kwargs: {
+            "dry_run": False,
+            "execute": True,
+            "conversation_future": {
+                "count": 1,
+                "matched_count": 1,
+                "modified_count": 1,
+            },
+            "reminders": {
+                "exists": True,
+                "document_count": 2,
+                "archive_collection_name": "reminders_legacy_retired_20260422093045",
+                "archived": True,
+            },
+        },
+    )
+
+    blocked_parent = tmp_path / "blocked-parent"
+    blocked_parent.write_text("not-a-directory", encoding="utf-8")
+    blocked_report_path = blocked_parent / "retirement-report.json"
+
+    exit_code = script.main(
+        [
+            "--execute",
+            "--report-path",
+            str(blocked_report_path),
+        ]
+    )
+
+    assert exit_code == 0
+    stdout, stderr = capsys.readouterr()
+    assert json.loads(stdout)["execute"] is True
+    assert "warning" in stderr.lower()
+    assert str(blocked_report_path) in stderr

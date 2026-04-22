@@ -131,6 +131,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def write_report_best_effort(report_path: str, rendered: str) -> None:
+    path = Path(report_path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(rendered + "\n", encoding="utf-8")
+    except OSError as exc:
+        print(
+            f"warning: failed to write report to {path}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -145,7 +157,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(rendered)
 
     if args.report_path:
-        Path(args.report_path).write_text(rendered + "\n", encoding="utf-8")
+        write_report_best_effort(args.report_path, rendered)
 
     return 0
 
