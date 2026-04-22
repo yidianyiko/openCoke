@@ -118,8 +118,8 @@ triggering:
 - `agent_background_handler.py` no longer polls legacy reminder or future
   queues
 - `scripts/retire_legacy_reminder_compat.py` is the one-time operational
-  cleanup path that unsets retired conversation compatibility fields and drops
-  the legacy `reminders` collection after migration
+  cleanup path that unsets retired conversation compatibility fields and
+  archives the legacy `reminders` collection to a timestamped backup name
 
 ## 4. Turn Processing Pipeline
 
