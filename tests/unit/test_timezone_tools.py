@@ -235,6 +235,22 @@ def test_set_user_timezone_realigns_visible_reminders_on_success(
     )
 
 
+@patch("agent.agno_agent.tools.deferred_action.service.DeferredActionService")
+def test_realign_visible_reminders_helper_calls_service_with_keywords(
+    mock_service_class,
+):
+    from agent.agno_agent.tools.timezone_tools import (
+        _realign_visible_reminders_for_timezone_change,
+    )
+
+    _realign_visible_reminders_for_timezone_change("acct-1", "Asia/Tokyo")
+
+    mock_service_class.return_value.realign_visible_reminders_for_timezone_change.assert_called_once_with(
+        user_id="acct-1",
+        timezone="Asia/Tokyo",
+    )
+
+
 @patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=1000)
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
 def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minute_ttl(
@@ -433,6 +449,43 @@ def test_consume_timezone_confirmation_yes_realigns_visible_reminders_on_success
 
     assert result["ok"] is True
     mock_realign_reminders.assert_called_once_with("acct-1", "Europe/London")
+
+
+@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)
+@patch(
+    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+)
+@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
+    mock_dao_class,
+    mock_realign_reminders,
+    _mock_time,
+):
+    from agent.agno_agent.tools.timezone_tools import consume_timezone_confirmation
+
+    dao_instance = MagicMock()
+    dao_instance.get_timezone_state.return_value = {
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "messaging_identity_region",
+        "timezone_status": "system_inferred",
+        "pending_timezone_change": {
+            "timezone": "Europe/London",
+            "origin_conversation_id": "conv-1",
+            "expires_at": 3000,
+        },
+        "pending_task_draft": None,
+    }
+    dao_instance.update_timezone_state.return_value = True
+    mock_dao_class.return_value = dao_instance
+
+    result = consume_timezone_confirmation.entrypoint(
+        decision="no",
+        session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-1"}},
+    )
+
+    assert result["ok"] is True
+    assert result["decision"] == "no"
+    mock_realign_reminders.assert_not_called()
 
 
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")

@@ -148,7 +148,8 @@ def _realign_visible_reminders_for_timezone_change(user_id: str, timezone: str) 
         )
 
         DeferredActionService().realign_visible_reminders_for_timezone_change(
-            user_id, timezone
+            user_id=user_id,
+            timezone=timezone,
         )
     except Exception:
         logger.exception(
@@ -410,7 +411,11 @@ def consume_timezone_confirmation(
 
     _update_session_user_state(session_state, next_state)
     _append_tool_result(session_state, tool_name="时区确认", ok=True, message=message)
-    _realign_visible_reminders_for_timezone_change(user_id, str(next_state.get("timezone", "")))
+    if normalized_decision == "yes":
+        _realign_visible_reminders_for_timezone_change(
+            user_id,
+            str(next_state.get("timezone", "")),
+        )
     logger.info(
         "consume_timezone_confirmation: user %s decision=%s conversation=%s",
         user_id,

@@ -187,9 +187,11 @@ class DeferredActionService:
                 continue
             if action.get("kind") != "user_reminder":
                 continue
-            if action.get("schedule_kind") != "floating_local":
+            schedule_kind = action.get("schedule_kind", "floating_local")
+            fixed_timezone = action.get("fixed_timezone", False)
+            if schedule_kind != "floating_local":
                 continue
-            if action.get("fixed_timezone") is not False:
+            if fixed_timezone is not False:
                 continue
 
             dtstart = action.get("dtstart")
@@ -199,6 +201,8 @@ class DeferredActionService:
             updated = {
                 **action,
                 "timezone": timezone,
+                "schedule_kind": schedule_kind,
+                "fixed_timezone": fixed_timezone,
                 "dtstart": dtstart.replace(tzinfo=target_timezone),
             }
             updated["next_run_at"] = policy.compute_initial_next_run_at(updated, now)

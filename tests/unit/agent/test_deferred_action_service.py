@@ -402,3 +402,35 @@ class TestDeferredActionService:
             service_module.policy.compute_initial_next_run_at(realigned, now)
         )
         scheduler.reschedule_action.assert_called_once_with(realigned)
+
+    def test_realign_visible_reminders_treats_missing_metadata_as_legacy_defaults(self):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        existing.pop("schedule_kind", None)
+        existing.pop("fixed_timezone", None)
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["schedule_kind"] == "floating_local"
+        assert realigned["fixed_timezone"] is False
+        assert realigned["timezone"] == "Asia/Tokyo"
+        scheduler.reschedule_action.assert_called_once_with(realigned)
