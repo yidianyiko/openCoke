@@ -152,8 +152,11 @@ def _ensure_prepare_workflow_loaded() -> None:
             "agent.agno_agent.tools.deferred_action",
             _AGNO_AGENT_TOOLS_ROOT / "deferred_action",
         )
-        deferred_mod.set_deferred_action_session_state = lambda session_state: None
         sys.modules["agent.agno_agent.tools"].deferred_action = deferred_mod
+
+    deferred_mod = sys.modules["agent.agno_agent.tools.deferred_action"]
+    if not hasattr(deferred_mod, "set_deferred_action_session_state"):
+        deferred_mod.set_deferred_action_session_state = lambda session_state: None
 
     _load_module_by_path(
         "agent.agno_agent.tools.deferred_action.time_parser",
