@@ -140,6 +140,8 @@ Use `direct_set` for clear commands such as:
 - "switch to Singapore time"
 - "set my timezone to Tokyo"
 - "改成东京时间"
+- "我现在在纽约，之后按纽约时间和我说"
+- "我在伦敦，之后按伦敦时间提醒我"
 
 Use `proposal` for signals such as:
 - "I'm in New York now"

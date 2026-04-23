@@ -17,6 +17,7 @@ Requirements: 5.1
 """
 
 import logging
+import re
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import (
@@ -50,6 +51,14 @@ from agent.prompt.chat_taskprompt import (
 from agent.util.message_util import messages_to_str
 
 logger = logging.getLogger(__name__)
+
+_EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
+    re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}按.{0,20}时间"),
+    re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}(用|按照).{0,20}(时间|时区)"),
+    re.compile(
+        r"(from now on|going forward|after this).{0,24}(use|follow).{0,24}(time|timezone)"
+    ),
+)
 
 
 class PrepareWorkflow:
@@ -137,6 +146,16 @@ class PrepareWorkflow:
         need_timezone_update = orchestrator.get("need_timezone_update", False)
         timezone_action = self._resolve_timezone_action(orchestrator)
         timezone_value = orchestrator.get("timezone_value", "")
+        if self._should_force_direct_timezone_set(
+            input_message=input_message,
+            timezone_action=timezone_action,
+            timezone_value=timezone_value,
+        ):
+            logger.info(
+                "[PrepareWorkflow] 将明确时区请求从 proposal 升级为 direct_set: %s",
+                timezone_value,
+            )
+            timezone_action = "direct_set"
         if timezone_action == "direct_set" and timezone_value:
             self._run_timezone_update(session_state, timezone_value)
         elif timezone_action == "proposal" and timezone_value:
@@ -391,6 +410,26 @@ class PrepareWorkflow:
         if action in {"none", "direct_set", "proposal"}:
             return action
         return "none"
+
+    def _should_force_direct_timezone_set(
+        self,
+        *,
+        input_message: str,
+        timezone_action: str,
+        timezone_value: str,
+    ) -> bool:
+        if timezone_action != "proposal" or not timezone_value:
+            return False
+
+        raw_text = str(input_message or "").strip()
+        if not raw_text:
+            return False
+
+        normalized_lower = " ".join(raw_text.lower().split())
+        return any(
+            pattern.search(raw_text) or pattern.search(normalized_lower)
+            for pattern in _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS
+        )
 
     def _get_current_conversation_id(self, session_state: Dict[str, Any]) -> str:
         conversation = session_state.get("conversation", {})

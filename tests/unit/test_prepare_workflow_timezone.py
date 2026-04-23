@@ -372,6 +372,54 @@ class TestPrepareWorkflowTimezone:
         assert pending["expires_at"] == 1770000000
 
     @pytest.mark.asyncio
+    async def test_prepare_workflow_upgrades_explicit_future_timezone_request_to_direct_set(
+        self,
+    ):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending()
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = _orchestrator_result(
+                timezone_action="proposal",
+                timezone_value="America/New_York",
+            )
+
+        with (
+            patch.object(
+                workflow,
+                "_run_orchestrator",
+                AsyncMock(side_effect=fake_orchestrator),
+            ),
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.set_user_timezone.entrypoint",
+                return_value={
+                    "ok": True,
+                    "message": "已切换到纽约时间",
+                    "state": {
+                        "timezone": "America/New_York",
+                        "timezone_status": "user_confirmed",
+                        "timezone_source": "user_explicit",
+                        "pending_timezone_change": None,
+                        "pending_task_draft": None,
+                    },
+                },
+            ) as mock_set_timezone,
+            patch(
+                "agent.agno_agent.workflows.prepare_workflow.store_timezone_proposal.entrypoint"
+            ) as mock_store_proposal,
+        ):
+            result = await workflow.run(
+                "我现在在纽约，之后按纽约时间和我说",
+                session_state,
+            )
+
+        mock_set_timezone.assert_called_once()
+        mock_store_proposal.assert_not_called()
+        assert result["session_state"]["user"]["timezone"] == "America/New_York"
+
+    @pytest.mark.asyncio
     async def test_prepare_workflow_consumes_same_conversation_short_confirmation(self):
         from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
