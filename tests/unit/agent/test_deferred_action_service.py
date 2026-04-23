@@ -145,6 +145,127 @@ class TestDeferredActionService:
         assert action["rrule"] == "FREQ=DAILY"
         assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
 
+    def test_create_imported_future_reminder_is_active_and_visible(self):
+        now = datetime(2026, 4, 22, 8, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_future_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Tomorrow meeting",
+            dtstart=datetime(2026, 4, 23, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_1",
+                "source_original_start_time": "2026-04-23T09:00:00Z",
+            },
+        )
+
+        assert action["_id"] == "action-1"
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "active"
+        assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+        assert action["payload"]["metadata"]["import_provider"] == "google_calendar"
+        scheduler.register_action.assert_called_once_with(action)
+
+    def test_create_imported_historical_reminder_uses_completed_lifecycle(self):
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock()
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: datetime(2026, 4, 22, 8, 0, tzinfo=UTC),
+        )
+
+        action = service.create_imported_historical_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Yesterday meeting",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_2",
+                "source_original_start_time": "2026-04-21T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "completed"
+        assert action["next_run_at"] is None
+        scheduler.register_action.assert_not_called()
+
+    def test_create_imported_recurring_reminder_seeds_first_future_occurrence(self):
+        now = datetime(2026, 4, 22, 10, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_recurring_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Daily standup",
+            dtstart=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            rrule="FREQ=DAILY",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_3",
+                "source_original_start_time": "2026-04-20T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["rrule"] == "FREQ=DAILY"
+        assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+        scheduler.register_action.assert_called_once_with(action)
+
+    def test_create_imported_exhausted_recurring_reminder_is_completed_without_schedule(
+        self,
+    ):
+        now = datetime(2026, 4, 22, 10, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_imported_recurring_reminder(
+            user_id="ck_1",
+            character_id="char_1",
+            conversation_id="conv_1",
+            title="Expired daily standup",
+            dtstart=datetime(2026, 4, 20, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            rrule="FREQ=DAILY;COUNT=2",
+            metadata={
+                "import_provider": "google_calendar",
+                "source_event_id": "evt_4",
+                "source_original_start_time": "2026-04-20T09:00:00Z",
+            },
+        )
+
+        assert action["source"] == "google_calendar_import"
+        assert action["lifecycle_state"] == "completed"
+        assert action["next_run_at"] is None
+        scheduler.register_action.assert_not_called()
+
     def test_list_visible_reminders_filters_internal_followups(self):
         action_dao = Mock(
             list_visible_actions=Mock(
@@ -198,7 +319,9 @@ class TestDeferredActionService:
         assert updated["next_run_at"] == datetime(2026, 4, 21, 10, 0, tzinfo=UTC)
         scheduler.reschedule_action.assert_called_once_with(updated)
 
-    def test_update_visible_reminder_preserves_schedule_metadata_when_not_overridden(self):
+    def test_update_visible_reminder_preserves_schedule_metadata_when_not_overridden(
+        self,
+    ):
         now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
         existing = build_action(schedule_kind="absolute_delay", fixed_timezone=False)
         action_dao = Mock(
@@ -403,7 +526,9 @@ class TestDeferredActionService:
         )
         scheduler.reschedule_action.assert_called_once_with(realigned)
 
-    def test_realign_visible_reminders_treats_missing_metadata_as_legacy_defaults(self):
+    def test_realign_visible_reminders_treats_missing_metadata_as_legacy_defaults(
+        self,
+    ):
         now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
         existing = build_action(
             timezone="UTC",

@@ -92,6 +92,34 @@ pnpm --dir gateway/packages/api test
 For narrow tasks, run targeted Vitest files first, then broaden if the change
 crosses shared routing, schema, auth, or outbound logic.
 
+## Gateway Calendar Import
+
+Use when changing:
+
+- `gateway/packages/api` claim-entry, Google OAuth, or import routes
+- `gateway/packages/web` claim-entry or calendar import pages
+
+Commands:
+
+```bash
+pnpm --dir gateway/packages/api test -- src/routes/customer-claim-routes.test.ts src/routes/customer-google-calendar-import-routes.test.ts
+pnpm --dir gateway/packages/web test -- 'app/(customer)/auth/claim-entry/page.test.tsx' 'app/(customer)/auth/claim/page.test.tsx' 'app/(customer)/account/calendar-import/page.test.tsx'
+```
+
+## Bridge Calendar Import Runtime
+
+Use when changing:
+
+- `connector/clawscale_bridge/google_calendar_import_service.py`
+- import-aware conversation resolution or reminder creation helpers in the worker/runtime boundary
+
+Commands:
+
+```bash
+pytest tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py tests/unit/connector/clawscale_bridge/test_bridge_app.py -v
+pytest tests/unit/dao/test_conversation_dao_calendar_import.py tests/unit/dao/test_deferred_action_dao.py tests/unit/agent/test_deferred_action_service.py -v
+```
+
 ## Gateway Web
 
 Use when changing:

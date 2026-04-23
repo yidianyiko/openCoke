@@ -36,6 +36,14 @@ class DeferredActionDAO:
             [("user_id", 1), ("visibility", 1), ("lifecycle_state", 1), ("next_run_at", 1)]
         )
         self.collection.create_index(
+            [
+                ("user_id", 1),
+                ("payload.metadata.import_provider", 1),
+                ("payload.metadata.source_event_id", 1),
+                ("payload.metadata.source_original_start_time", 1),
+            ]
+        )
+        self.collection.create_index(
             [("conversation_id", 1), ("kind", 1), ("lifecycle_state", 1)],
             unique=True,
             partialFilterExpression={
@@ -132,6 +140,23 @@ class DeferredActionDAO:
                 "kind": "proactive_followup",
                 "visibility": "internal",
                 "lifecycle_state": "active",
+            }
+        )
+
+    def find_imported_reminder_duplicate(
+        self,
+        *,
+        user_id: str,
+        import_provider: str,
+        source_event_id: str,
+        source_original_start_time: str,
+    ) -> Optional[Dict]:
+        return self.collection.find_one(
+            {
+                "user_id": user_id,
+                "payload.metadata.import_provider": import_provider,
+                "payload.metadata.source_event_id": source_event_id,
+                "payload.metadata.source_original_start_time": source_original_start_time,
             }
         )
 

@@ -145,7 +145,26 @@ agent outputmessages
 
 This means the Coke repository no longer owns any direct platform connector runtime.
 
-## 6. Deployment Topology
+## 6. Google Calendar Import Boundary
+
+The first-version Google Calendar import flow is a one-time migration for a
+claimed customer's `primary` calendar. Imported events become Coke-owned
+reminders, and historical imports are written as completed records so they do
+not schedule future work.
+
+Runtime ownership is split as follows:
+
+- `gateway/`
+  - owns claim-entry
+  - owns Google OAuth and callback handling
+  - owns Postgres audit state for import runs
+  - serves the customer-facing web/API flow
+- `connector/clawscale_bridge/`
+  - resolves the target Coke conversation for an import
+  - exposes the internal preflight and import routes that hand work into the
+    worker/runtime reminder path
+
+## 7. Deployment Topology
 
 The checked-in production deployment matches the runtime above:
 
