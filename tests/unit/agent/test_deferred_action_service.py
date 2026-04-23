@@ -4,6 +4,7 @@ import types
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -278,3 +279,126 @@ class TestDeferredActionService:
 
         assert exact["_id"] == "a1"
         assert fuzzy["_id"] == "a2"
+
+    def test_realign_visible_reminders_updates_floating_local_active_reminder(self):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["timezone"] == "Asia/Tokyo"
+        assert realigned["dtstart"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+        )
+        assert realigned["next_run_at"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+        )
+        action_dao.update_action.assert_called_once()
+        scheduler.reschedule_action.assert_called_once_with(realigned)
+
+    def test_realign_visible_reminders_skips_absolute_delay_fixed_timezone_and_inactive(
+        self,
+    ):
+        active_absolute_delay = build_action(
+            _id="absolute-delay",
+            schedule_kind="absolute_delay",
+            fixed_timezone=False,
+        )
+        active_fixed_timezone = build_action(
+            _id="fixed-timezone",
+            schedule_kind="floating_local",
+            fixed_timezone=True,
+        )
+        inactive_floating = build_action(
+            _id="inactive-floating",
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            lifecycle_state="cancelled",
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(
+                return_value=[
+                    active_absolute_delay,
+                    active_fixed_timezone,
+                    inactive_floating,
+                ]
+            ),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: datetime(2026, 4, 21, 0, 0, tzinfo=UTC),
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert updated == []
+        action_dao.update_action.assert_not_called()
+        scheduler.reschedule_action.assert_not_called()
+
+    def test_realign_visible_reminders_recomputes_next_run_for_recurring_floating_local(
+        self,
+    ):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            rrule="FREQ=DAILY",
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="America/New_York",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["dtstart"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("America/New_York")
+        )
+        assert realigned["next_run_at"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("America/New_York")
+        )
+        assert realigned["next_run_at"] == (
+            service_module.policy.compute_initial_next_run_at(realigned, now)
+        )
+        scheduler.reschedule_action.assert_called_once_with(realigned)

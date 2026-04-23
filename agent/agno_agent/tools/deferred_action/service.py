@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from agent.runner import deferred_action_policy as policy
 from agent.runner.deferred_action_scheduler import (
@@ -170,6 +171,56 @@ class DeferredActionService:
         if self.scheduler is not None:
             self.scheduler.reschedule_action(updated)
         return updated
+
+    def realign_visible_reminders_for_timezone_change(
+        self,
+        *,
+        user_id: str,
+        timezone: str,
+    ) -> list[dict[str, Any]]:
+        now = self.now_provider()
+        target_timezone = ZoneInfo(timezone)
+        updated_actions: list[dict[str, Any]] = []
+
+        for action in self.list_visible_reminders(user_id):
+            if action.get("lifecycle_state") != "active":
+                continue
+            if action.get("kind") != "user_reminder":
+                continue
+            if action.get("schedule_kind") != "floating_local":
+                continue
+            if action.get("fixed_timezone") is not False:
+                continue
+
+            dtstart = action.get("dtstart")
+            if dtstart is None:
+                continue
+
+            updated = {
+                **action,
+                "timezone": timezone,
+                "dtstart": dtstart.replace(tzinfo=target_timezone),
+            }
+            updated["next_run_at"] = policy.compute_initial_next_run_at(updated, now)
+
+            self.action_dao.update_action(
+                str(action["_id"]),
+                updates={
+                    "timezone": updated["timezone"],
+                    "dtstart": updated["dtstart"],
+                    "next_run_at": updated["next_run_at"],
+                },
+                expected_revision=action["revision"],
+                now=now,
+            )
+            updated["revision"] = action["revision"] + 1
+            updated["updated_at"] = now
+            updated_actions.append(updated)
+
+            if self.scheduler is not None:
+                self.scheduler.reschedule_action(updated)
+
+        return updated_actions
 
     def delete_visible_reminder(self, action_id: str, user_id: str) -> dict[str, Any]:
         return self._finish_visible_reminder(action_id, user_id, lifecycle_state="cancelled")
