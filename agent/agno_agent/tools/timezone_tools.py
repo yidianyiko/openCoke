@@ -138,6 +138,25 @@ def _append_tool_result(session_state: dict | None, *, tool_name: str, ok: bool,
     )
 
 
+def _realign_visible_reminders_for_timezone_change(user_id: str, timezone: str) -> None:
+    if not user_id or not timezone:
+        return
+
+    try:
+        from agent.agno_agent.tools.deferred_action.service import (
+            DeferredActionService,
+        )
+
+        DeferredActionService().realign_visible_reminders_for_timezone_change(
+            user_id, timezone
+        )
+    except Exception:
+        logger.exception(
+            "realign_visible_reminders_for_timezone_change failed for user %s",
+            user_id,
+        )
+
+
 def _normalize_confirmation_decision(decision: str) -> str:
     normalized = str(decision or "").strip().lower()
     if normalized in _YES_REPLIES:
@@ -265,6 +284,7 @@ def set_user_timezone(
     message = f"已将您的时区更新为{display}。"
     _update_session_user_state(session_state, next_state)
     _append_tool_result(session_state, tool_name="时区更新", ok=True, message=message)
+    _realign_visible_reminders_for_timezone_change(user_id, canonical_timezone)
 
     logger.info(f"set_user_timezone: user {user_id} → {canonical_timezone}")
     return {"ok": True, "message": message, "state": next_state}
@@ -390,6 +410,7 @@ def consume_timezone_confirmation(
 
     _update_session_user_state(session_state, next_state)
     _append_tool_result(session_state, tool_name="时区确认", ok=True, message=message)
+    _realign_visible_reminders_for_timezone_change(user_id, str(next_state.get("timezone", "")))
     logger.info(
         "consume_timezone_confirmation: user %s decision=%s conversation=%s",
         user_id,
