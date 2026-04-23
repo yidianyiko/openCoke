@@ -41,6 +41,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_系统提醒触发,
     CONTEXTPROMPT_防重复回复,
     get_message_source_context,
+    get_inferred_timezone_visibility_context,
     get_relevant_history_context,
     get_reminders_context,
     get_tool_results_context,
@@ -195,6 +196,14 @@ class StreamingChatWorkflow:
         if tool_results_context:
             logger.info("[ChatWorkflow] 添加系统操作结果上下文")
 
+        inferred_timezone_context = get_inferred_timezone_visibility_context(
+            session_state,
+            input_message,
+            message_source=message_source,
+        )
+        if inferred_timezone_context:
+            logger.info("[ChatWorkflow] 添加推断时区可见性上下文")
+
         # V2.8 guard：OrchestratorAgent 判断需要提醒检测，但工具未执行时，
         # 使用 CONTEXTPROMPT_提醒未执行 提示 LLM 不要假设提醒已创建
         reminder_not_executed_context = ""
@@ -293,6 +302,8 @@ class StreamingChatWorkflow:
         # 渲染 user prompt
         try:
             rendered_userp = self._render_template(full_template, session_state)
+            if inferred_timezone_context:
+                rendered_userp = rendered_userp + "\n" + inferred_timezone_context
             # 工具结果上下文放在输出格式前
             if tool_results_context:
                 rendered_userp = rendered_userp + "\n" + tool_results_context

@@ -1,6 +1,29 @@
 from collections.abc import Mapping
+import re
 
 from bson import ObjectId
+
+from agent.timezone_service import TimezoneService
+from util.time_util import get_default_timezone
+
+
+TIMEZONE_STATE_FIELDS = (
+    "timezone",
+    "timezone_source",
+    "timezone_status",
+    "pending_timezone_change",
+    "pending_task_draft",
+)
+
+PHONE_LIKE_RE = re.compile(r"^\+?\d{7,20}$")
+PHONE_TIMEZONE_BY_PREFIX = (
+    ("886", "Asia/Taipei"),
+    ("852", "Asia/Hong_Kong"),
+    ("853", "Asia/Macau"),
+    ("81", "Asia/Tokyo"),
+    ("82", "Asia/Seoul"),
+    ("86", "Asia/Shanghai"),
+)
 
 
 def is_mongo_object_id(value: str) -> bool:
@@ -114,6 +137,131 @@ def _resolve_clawscale_display_name(account_id, input_message, customer, coke_ac
     return f"user-{account_id[-6:]}"
 
 
+def _extract_timezone_candidates(input_message):
+    if not isinstance(input_message, Mapping):
+        return []
+
+    metadata = input_message.get("metadata")
+    if not isinstance(metadata, Mapping):
+        metadata = {}
+
+    candidates = []
+    seen = set()
+    for value in (
+        input_message.get("timezone"),
+        metadata.get("timezone"),
+    ):
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        candidates.append(
+            {
+                "timezone": normalized,
+                "source": "external_account_timezone",
+            }
+        )
+
+    for value in (
+        input_message.get("external_id"),
+        input_message.get("externalId"),
+        metadata.get("external_id"),
+        metadata.get("externalId"),
+    ):
+        if value is None:
+            continue
+        mapped_timezone = _map_phone_like_identity_timezone(value)
+        if not mapped_timezone or mapped_timezone in seen:
+            continue
+        seen.add(mapped_timezone)
+        candidates.append(
+            {
+                "timezone": mapped_timezone,
+                "source": "messaging_identity_region",
+            }
+        )
+    return candidates
+
+
+def _map_phone_like_identity_timezone(value):
+    normalized = str(value).strip()
+    if not normalized:
+        return None
+
+    digits = normalized[1:] if normalized.startswith("+") else normalized
+    if not PHONE_LIKE_RE.match(normalized):
+        return None
+
+    for prefix, timezone in PHONE_TIMEZONE_BY_PREFIX:
+        if digits.startswith(prefix):
+            return timezone
+    return None
+
+
+def _resolve_timezone_state(account_id, input_message, user_dao, current_user=None):
+    timezone_service = TimezoneService()
+    fallback_timezone = get_default_timezone().key
+
+    existing_state = None
+    should_persist = False
+    get_timezone_state = getattr(user_dao, "get_timezone_state", None)
+    if callable(get_timezone_state):
+        existing_state = get_timezone_state(account_id)
+
+    if not (isinstance(existing_state, Mapping) and existing_state.get("timezone")):
+        if isinstance(current_user, Mapping) and current_user.get("timezone"):
+            existing_state = {"timezone": current_user.get("timezone")}
+            for key in (
+                "timezone_source",
+                "timezone_status",
+                "pending_timezone_change",
+                "pending_task_draft",
+            ):
+                if key in current_user and current_user.get(key) is not None:
+                    existing_state[key] = current_user.get(key)
+            should_persist = True
+
+    if isinstance(existing_state, Mapping) and existing_state.get("timezone"):
+        try:
+            state = timezone_service.build_initial_state(
+                existing_state=dict(existing_state),
+                candidates=[],
+                fallback_timezone=fallback_timezone,
+            )
+            if should_persist:
+                update_timezone_state = getattr(user_dao, "update_timezone_state", None)
+                if callable(update_timezone_state):
+                    update_timezone_state(account_id, state)
+            return state
+        except ValueError:
+            pass
+
+    state = timezone_service.build_initial_state(
+        existing_state=None,
+        candidates=_extract_timezone_candidates(input_message),
+        fallback_timezone=fallback_timezone,
+    )
+
+    update_timezone_state = getattr(user_dao, "update_timezone_state", None)
+    if callable(update_timezone_state):
+        update_timezone_state(account_id, state)
+
+    return state
+
+
+def _apply_timezone_state(user, timezone_state):
+    if not isinstance(user, dict) or not isinstance(timezone_state, Mapping):
+        return user
+
+    resolved_user = dict(user)
+    for key in TIMEZONE_STATE_FIELDS:
+        if key in timezone_state:
+            resolved_user[key] = timezone_state[key]
+    return resolved_user
+
+
 def _resolve_business_account_user(account_id, input_message, user_dao, customer, coke_account):
     get_user_by_account_id = getattr(user_dao, "get_user_by_account_id", None)
     if callable(get_user_by_account_id):
@@ -123,9 +271,15 @@ def _resolve_business_account_user(account_id, input_message, user_dao, customer
             resolved_user.setdefault("account_id", account_id)
             resolved_user["id"] = account_id
             resolved_user["_id"] = account_id
-            return resolved_user
+            timezone_state = _resolve_timezone_state(
+                account_id,
+                input_message,
+                user_dao,
+                current_user=resolved_user,
+            )
+            return _apply_timezone_state(resolved_user, timezone_state)
 
-    return {
+    fallback_user = {
         "id": account_id,
         "_id": account_id,
         "nickname": _resolve_clawscale_display_name(
@@ -136,6 +290,13 @@ def _resolve_business_account_user(account_id, input_message, user_dao, customer
         ),
         "is_coke_account": True,
     }
+    timezone_state = _resolve_timezone_state(
+        account_id,
+        input_message,
+        user_dao,
+        current_user=fallback_user,
+    )
+    return _apply_timezone_state(fallback_user, timezone_state)
 
 
 def resolve_agent_user_context(user_id, input_message, user_dao):

@@ -5,6 +5,7 @@ import contextvars
 from agno.tools import tool
 
 from agent.agno_agent.tools.tool_result import append_tool_result
+from util.time_util import get_default_timezone
 
 from .service import DeferredActionService
 from .time_parser import parse_visible_reminder_time
@@ -21,6 +22,15 @@ def set_deferred_action_session_state(session_state: dict) -> None:
 
 def _get_session_state() -> dict:
     return _context_session_state.get()
+
+
+def _resolve_runtime_timezone(session_state: dict) -> str:
+    user = session_state.get("user", {})
+    return str(
+        user.get("effective_timezone")
+        or user.get("timezone")
+        or get_default_timezone().key
+    )
 
 
 @tool(
@@ -50,14 +60,14 @@ def visible_reminder_tool(
     user_id = str(user.get("id", ""))
     character_id = str(character.get("_id", ""))
     conversation_id = str(conversation.get("_id", ""))
-    timezone = user.get("timezone") or "Asia/Shanghai"
+    timezone = _resolve_runtime_timezone(session_state)
     base_timestamp = session_state.get("input_timestamp")
     service = DeferredActionService()
 
     if action == "create":
         if not title or not trigger_time:
             raise ValueError("title and trigger_time are required for create")
-        dtstart = parse_visible_reminder_time(
+        parsed_time = parse_visible_reminder_time(
             trigger_time,
             timezone=timezone,
             base_timestamp=base_timestamp,
@@ -67,9 +77,11 @@ def visible_reminder_tool(
             character_id=character_id,
             conversation_id=conversation_id,
             title=title,
-            dtstart=dtstart,
+            dtstart=parsed_time["dtstart"],
             timezone=timezone,
             rrule=rrule,
+            schedule_kind=parsed_time["schedule_kind"],
+            fixed_timezone=parsed_time["fixed_timezone"],
         )
         session_state["reminder_created_with_time"] = True
         summary = f"已创建提醒：{created['title']}"
@@ -91,12 +103,15 @@ def visible_reminder_tool(
         if new_title is not None or title is not None:
             updates["title"] = new_title or title
         if new_trigger_time is not None or trigger_time is not None:
-            updates["dtstart"] = parse_visible_reminder_time(
+            parsed_time = parse_visible_reminder_time(
                 new_trigger_time or trigger_time,
                 timezone=timezone,
                 base_timestamp=base_timestamp,
             )
+            updates["dtstart"] = parsed_time["dtstart"]
             updates["timezone"] = timezone
+            updates["schedule_kind"] = parsed_time["schedule_kind"]
+            updates["fixed_timezone"] = parsed_time["fixed_timezone"]
         if rrule is not None:
             updates["rrule"] = rrule
         updated = service.update_visible_reminder(

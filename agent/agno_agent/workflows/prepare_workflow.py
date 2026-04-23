@@ -17,6 +17,7 @@ Requirements: 5.1
 """
 
 import logging
+import re
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import (
@@ -27,7 +28,16 @@ from agent.agno_agent.tools.deferred_action import set_deferred_action_session_s
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
-from agent.agno_agent.tools.timezone_tools import set_user_timezone
+from agent.agno_agent.tools.timezone_tools import (
+    PENDING_PROPOSAL_EXPIRED_MESSAGE,
+    clear_pending_timezone_proposal,
+    consume_timezone_confirmation,
+    is_timezone_proposal_expired,
+    normalize_timezone_confirmation_decision,
+    set_user_timezone,
+    store_timezone_proposal,
+)
+from agent.agno_agent.tools.tool_result import append_tool_result
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_历史对话_精简,
@@ -41,6 +51,14 @@ from agent.prompt.chat_taskprompt import (
 from agent.util.message_util import messages_to_str
 
 logger = logging.getLogger(__name__)
+
+_EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
+    re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}按.{0,20}时间"),
+    re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}(用|按照).{0,20}(时间|时区)"),
+    re.compile(
+        r"(from now on|going forward|after this).{0,24}(use|follow).{0,24}(time|timezone)"
+    ),
+)
 
 
 class PrepareWorkflow:
@@ -103,6 +121,9 @@ class PrepareWorkflow:
         """
         session_state = session_state or {}
 
+        if self._consume_pending_timezone_confirmation(input_message, session_state):
+            return {"session_state": session_state}
+
         # Step 1: Orchestrator 决策 (1次 LLM)
         await self._run_orchestrator(input_message, session_state)
 
@@ -123,13 +144,26 @@ class PrepareWorkflow:
 
         # Step 2.7: 时区更新 (按需调用，0次 LLM)
         need_timezone_update = orchestrator.get("need_timezone_update", False)
+        timezone_action = self._resolve_timezone_action(orchestrator)
         timezone_value = orchestrator.get("timezone_value", "")
-        if need_timezone_update and timezone_value:
+        if self._should_force_direct_timezone_set(
+            input_message=input_message,
+            timezone_action=timezone_action,
+            timezone_value=timezone_value,
+        ):
+            logger.info(
+                "[PrepareWorkflow] 将明确时区请求从 proposal 升级为 direct_set: %s",
+                timezone_value,
+            )
+            timezone_action = "direct_set"
+        if timezone_action == "direct_set" and timezone_value:
             self._run_timezone_update(session_state, timezone_value)
-        elif need_timezone_update:
+        elif timezone_action == "proposal" and timezone_value:
+            self._store_pending_timezone_change(session_state, timezone_value)
+        elif need_timezone_update or timezone_action != "none":
             logger.warning("时区更新被请求但 timezone_value 为空，跳过")
         else:
-            logger.info("跳过时区更新 (need_timezone_update=False)")
+            logger.info("跳过时区更新 (timezone_action=none)")
 
         # Step 2.6: 链接内容提取 (检测消息中的 URL 并获取内容)
         self._run_url_extraction(input_message, session_state)
@@ -280,10 +314,128 @@ class PrepareWorkflow:
             if result.get("ok"):
                 logger.info(f"[PrepareWorkflow] 时区更新成功: {timezone_value}")
                 session_state["timezone_update_message"] = result.get("message", "")
+                if result.get("state"):
+                    session_state.setdefault("user", {}).update(result["state"])
             else:
                 logger.warning(f"[PrepareWorkflow] 时区更新失败: {result.get('message')}")
         except Exception as e:
             logger.error(f"[PrepareWorkflow] 时区更新异常: {e}")
+
+    def _store_pending_timezone_change(
+        self, session_state: Dict[str, Any], timezone_value: str
+    ) -> None:
+        """记录待确认的时区提议"""
+        try:
+            result = store_timezone_proposal.entrypoint(
+                timezone=timezone_value,
+                session_state=session_state,
+            )
+            if result.get("ok"):
+                logger.info(f"[PrepareWorkflow] 时区提议已记录: {timezone_value}")
+                session_state["timezone_update_message"] = result.get("message", "")
+                if result.get("state"):
+                    session_state.setdefault("user", {}).update(result["state"])
+            else:
+                logger.warning(f"[PrepareWorkflow] 时区提议记录失败: {result.get('message')}")
+        except Exception as e:
+            logger.error(f"[PrepareWorkflow] 时区提议记录异常: {e}")
+
+    def _consume_pending_timezone_confirmation(
+        self, input_message: str, session_state: Dict[str, Any]
+    ) -> bool:
+        """同一会话中的简短 yes/no 回复优先消费待确认的时区变更"""
+        pending_change = session_state.get("user", {}).get("pending_timezone_change")
+        if not pending_change:
+            return False
+        if pending_change.get("origin_conversation_id") != self._get_current_conversation_id(
+            session_state
+        ):
+            return False
+        decision = self._match_short_confirmation_reply(input_message)
+        if is_timezone_proposal_expired(pending_change):
+            clear_result = clear_pending_timezone_proposal(session_state=session_state)
+            if clear_result.get("state"):
+                session_state.setdefault("user", {}).update(clear_result["state"])
+            if decision:
+                append_tool_result(
+                    session_state,
+                    tool_name="时区确认",
+                    ok=False,
+                    result_summary=PENDING_PROPOSAL_EXPIRED_MESSAGE,
+                )
+                logger.info("[PrepareWorkflow] 已向用户返回过期的时区确认提示")
+                return True
+            logger.info("[PrepareWorkflow] 已清理过期的时区提议")
+            return False
+
+        if not decision:
+            clear_result = clear_pending_timezone_proposal(session_state=session_state)
+            if clear_result.get("state"):
+                session_state.setdefault("user", {}).update(clear_result["state"])
+            logger.info("[PrepareWorkflow] 已清理未被确认的同会话时区提议")
+            return False
+
+        try:
+            result = consume_timezone_confirmation.entrypoint(
+                decision=decision,
+                session_state=session_state,
+            )
+        except Exception as e:
+            logger.error(f"[PrepareWorkflow] 时区确认消费异常: {e}")
+            return False
+
+        if not result.get("ok"):
+            logger.info("[PrepareWorkflow] 当前消息未消费待确认时区变更")
+            return False
+
+        session_state["timezone_update_message"] = result.get("message", "")
+        if result.get("state"):
+            session_state.setdefault("user", {}).update(result["state"])
+        logger.info("[PrepareWorkflow] 已消费待确认的时区变更")
+        return True
+
+    def _match_short_confirmation_reply(self, input_message: str) -> str:
+        normalized = str(input_message or "").strip().lower()
+        if not normalized or len(normalized) > 12 or " " in normalized:
+            return ""
+        return normalize_timezone_confirmation_decision(normalized)
+
+    def _resolve_timezone_action(self, orchestrator: Dict[str, Any]) -> str:
+        if "timezone_action" not in orchestrator:
+            if orchestrator.get("need_timezone_update"):
+                return "direct_set"
+            return "none"
+
+        action = str(orchestrator.get("timezone_action", "none") or "none").strip()
+        if action in {"none", "direct_set", "proposal"}:
+            return action
+        return "none"
+
+    def _should_force_direct_timezone_set(
+        self,
+        *,
+        input_message: str,
+        timezone_action: str,
+        timezone_value: str,
+    ) -> bool:
+        if timezone_action != "proposal" or not timezone_value:
+            return False
+
+        raw_text = str(input_message or "").strip()
+        if not raw_text:
+            return False
+
+        normalized_lower = " ".join(raw_text.lower().split())
+        return any(
+            pattern.search(raw_text) or pattern.search(normalized_lower)
+            for pattern in _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS
+        )
+
+    def _get_current_conversation_id(self, session_state: Dict[str, Any]) -> str:
+        conversation = session_state.get("conversation", {})
+        return str(
+            conversation.get("_id") or session_state.get("conversation_id", "")
+        ).strip()
 
     def _run_url_extraction(
         self, input_message: str, session_state: Dict[str, Any]
@@ -475,6 +627,7 @@ class PrepareWorkflow:
             "need_web_search": False,
             "web_search_query": "",
             "need_timezone_update": False,
+            "timezone_action": "none",
             "timezone_value": "",
         }
 

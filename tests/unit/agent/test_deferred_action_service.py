@@ -4,48 +4,56 @@ import types
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
+from zoneinfo import ZoneInfo
 
 import pytest
 
-
-apscheduler_module = types.ModuleType("apscheduler")
-apscheduler_jobstores_module = types.ModuleType("apscheduler.jobstores")
-apscheduler_jobstores_base_module = types.ModuleType("apscheduler.jobstores.base")
-apscheduler_schedulers_module = types.ModuleType("apscheduler.schedulers")
-apscheduler_schedulers_asyncio_module = types.ModuleType("apscheduler.schedulers.asyncio")
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 
 
-class _JobLookupError(Exception):
-    pass
+def _load_service_module():
+    module_name = "agent.agno_agent.tools.deferred_action.service"
+    if module_name in sys.modules:
+        return sys.modules[module_name]
+
+    for pkg, path in (
+        ("agent.agno_agent", _PROJECT_ROOT / "agent" / "agno_agent"),
+        ("agent.agno_agent.tools", _PROJECT_ROOT / "agent" / "agno_agent" / "tools"),
+        (
+            "agent.agno_agent.tools.deferred_action",
+            _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "deferred_action",
+        ),
+    ):
+        if pkg not in sys.modules:
+            mod = types.ModuleType(pkg)
+            mod.__path__ = [str(path)]
+            mod.__package__ = pkg
+            mod.__spec__ = None
+            sys.modules[pkg] = mod
+
+    scheduler_module_name = "agent.runner.deferred_action_scheduler"
+    if scheduler_module_name not in sys.modules:
+        scheduler_module = types.ModuleType(scheduler_module_name)
+
+        def _get_deferred_action_scheduler_instance():
+            return None
+
+        scheduler_module.get_deferred_action_scheduler_instance = (
+            _get_deferred_action_scheduler_instance
+        )
+        sys.modules[scheduler_module_name] = scheduler_module
+
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "deferred_action" / "service.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
-class _AsyncIOScheduler:
-    def __init__(self, *args, **kwargs):
-        pass
-
-
-apscheduler_jobstores_base_module.JobLookupError = _JobLookupError
-apscheduler_schedulers_asyncio_module.AsyncIOScheduler = _AsyncIOScheduler
-sys.modules.setdefault("apscheduler", apscheduler_module)
-sys.modules.setdefault("apscheduler.jobstores", apscheduler_jobstores_module)
-sys.modules.setdefault("apscheduler.jobstores.base", apscheduler_jobstores_base_module)
-sys.modules.setdefault("apscheduler.schedulers", apscheduler_schedulers_module)
-sys.modules.setdefault(
-    "apscheduler.schedulers.asyncio", apscheduler_schedulers_asyncio_module
-)
-
-service_spec = importlib.util.spec_from_file_location(
-    "test_deferred_action_service_module",
-    Path(__file__).resolve().parents[3]
-    / "agent"
-    / "agno_agent"
-    / "tools"
-    / "deferred_action"
-    / "service.py",
-)
-service_module = importlib.util.module_from_spec(service_spec)
-assert service_spec.loader is not None
-service_spec.loader.exec_module(service_module)
+service_module = _load_service_module()
 
 
 def build_action(**overrides):
@@ -87,6 +95,56 @@ def build_action(**overrides):
 
 
 class TestDeferredActionService:
+    def test_create_visible_one_shot_reminder(self):
+        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_visible_reminder(
+            user_id="user-1",
+            character_id="char-1",
+            conversation_id="conv-1",
+            title="喝水",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+        )
+
+        assert action["_id"] == "action-1"
+        assert action["kind"] == "user_reminder"
+        assert action["visibility"] == "visible"
+        assert action["schedule_kind"] == "floating_local"
+        assert action["fixed_timezone"] is False
+        assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+        scheduler.register_action.assert_called_once_with(action)
+
+    def test_create_visible_recurring_rrule_reminder(self):
+        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
+        action_dao = Mock(create_action=Mock(return_value="action-1"))
+        scheduler = Mock(register_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        action = service.create_visible_reminder(
+            user_id="user-1",
+            character_id="char-1",
+            conversation_id="conv-1",
+            title="早提醒",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            timezone="UTC",
+            rrule="FREQ=DAILY",
+        )
+
+        assert action["rrule"] == "FREQ=DAILY"
+        assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+
     def test_create_imported_future_reminder_is_active_and_visible(self):
         now = datetime(2026, 4, 22, 8, 0, tzinfo=UTC)
         action_dao = Mock(create_action=Mock(return_value="action-1"))
@@ -117,54 +175,6 @@ class TestDeferredActionService:
         assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
         assert action["payload"]["metadata"]["import_provider"] == "google_calendar"
         scheduler.register_action.assert_called_once_with(action)
-
-    def test_create_visible_one_shot_reminder(self):
-        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
-        action_dao = Mock(create_action=Mock(return_value="action-1"))
-        scheduler = Mock(register_action=Mock())
-        service = service_module.DeferredActionService(
-            action_dao=action_dao,
-            scheduler=scheduler,
-            now_provider=lambda: now,
-        )
-
-        action = service.create_visible_reminder(
-            user_id="user-1",
-            character_id="char-1",
-            conversation_id="conv-1",
-            title="喝水",
-            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
-            timezone="UTC",
-        )
-
-        assert action["_id"] == "action-1"
-        assert action["kind"] == "user_reminder"
-        assert action["visibility"] == "visible"
-        assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
-        scheduler.register_action.assert_called_once_with(action)
-
-    def test_create_visible_recurring_rrule_reminder(self):
-        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
-        action_dao = Mock(create_action=Mock(return_value="action-1"))
-        scheduler = Mock(register_action=Mock())
-        service = service_module.DeferredActionService(
-            action_dao=action_dao,
-            scheduler=scheduler,
-            now_provider=lambda: now,
-        )
-
-        action = service.create_visible_reminder(
-            user_id="user-1",
-            character_id="char-1",
-            conversation_id="conv-1",
-            title="早提醒",
-            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
-            timezone="UTC",
-            rrule="FREQ=DAILY",
-        )
-
-        assert action["rrule"] == "FREQ=DAILY"
-        assert action["next_run_at"] == datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
 
     def test_create_imported_historical_reminder_uses_completed_lifecycle(self):
         action_dao = Mock(create_action=Mock(return_value="action-1"))
@@ -224,7 +234,9 @@ class TestDeferredActionService:
         assert action["next_run_at"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
         scheduler.register_action.assert_called_once_with(action)
 
-    def test_create_imported_exhausted_recurring_reminder_is_completed_without_schedule(self):
+    def test_create_imported_exhausted_recurring_reminder_is_completed_without_schedule(
+        self,
+    ):
         now = datetime(2026, 4, 22, 10, 0, tzinfo=UTC)
         action_dao = Mock(create_action=Mock(return_value="action-1"))
         scheduler = Mock(register_action=Mock())
@@ -278,7 +290,7 @@ class TestDeferredActionService:
 
     def test_update_visible_reminder_increments_revision_and_reschedules(self):
         now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
-        existing = build_action()
+        existing = build_action(schedule_kind="absolute_delay", fixed_timezone=False)
         action_dao = Mock(
             get_action=Mock(return_value=existing),
             update_action=Mock(return_value=True),
@@ -296,13 +308,41 @@ class TestDeferredActionService:
             title="运动",
             dtstart=datetime(2026, 4, 21, 10, 0, tzinfo=UTC),
             timezone="UTC",
+            schedule_kind="floating_local",
         )
 
         action_dao.update_action.assert_called_once()
         assert updated["revision"] == 3
         assert updated["title"] == "运动"
+        assert updated["schedule_kind"] == "floating_local"
+        assert updated["fixed_timezone"] is False
         assert updated["next_run_at"] == datetime(2026, 4, 21, 10, 0, tzinfo=UTC)
         scheduler.reschedule_action.assert_called_once_with(updated)
+
+    def test_update_visible_reminder_preserves_schedule_metadata_when_not_overridden(
+        self,
+    ):
+        now = datetime(2026, 4, 21, 8, 0, tzinfo=UTC)
+        existing = build_action(schedule_kind="absolute_delay", fixed_timezone=False)
+        action_dao = Mock(
+            get_action=Mock(return_value=existing),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.update_visible_reminder(
+            action_id="action-1",
+            user_id="user-1",
+            title="继续喝水",
+        )
+
+        assert updated["schedule_kind"] == "absolute_delay"
+        assert updated["fixed_timezone"] is False
 
     def test_delete_and_complete_visible_reminder_unschedule_it(self):
         existing = build_action()
@@ -362,3 +402,160 @@ class TestDeferredActionService:
 
         assert exact["_id"] == "a1"
         assert fuzzy["_id"] == "a2"
+
+    def test_realign_visible_reminders_updates_floating_local_active_reminder(self):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["timezone"] == "Asia/Tokyo"
+        assert realigned["dtstart"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+        )
+        assert realigned["next_run_at"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+        )
+        action_dao.update_action.assert_called_once()
+        scheduler.reschedule_action.assert_called_once_with(realigned)
+
+    def test_realign_visible_reminders_skips_absolute_delay_fixed_timezone_and_inactive(
+        self,
+    ):
+        active_absolute_delay = build_action(
+            _id="absolute-delay",
+            schedule_kind="absolute_delay",
+            fixed_timezone=False,
+        )
+        active_fixed_timezone = build_action(
+            _id="fixed-timezone",
+            schedule_kind="floating_local",
+            fixed_timezone=True,
+        )
+        inactive_floating = build_action(
+            _id="inactive-floating",
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            lifecycle_state="cancelled",
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(
+                return_value=[
+                    active_absolute_delay,
+                    active_fixed_timezone,
+                    inactive_floating,
+                ]
+            ),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: datetime(2026, 4, 21, 0, 0, tzinfo=UTC),
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert updated == []
+        action_dao.update_action.assert_not_called()
+        scheduler.reschedule_action.assert_not_called()
+
+    def test_realign_visible_reminders_recomputes_next_run_for_recurring_floating_local(
+        self,
+    ):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            schedule_kind="floating_local",
+            fixed_timezone=False,
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            rrule="FREQ=DAILY",
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="America/New_York",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["dtstart"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("America/New_York")
+        )
+        assert realigned["next_run_at"] == datetime(
+            2026, 4, 21, 9, 0, tzinfo=ZoneInfo("America/New_York")
+        )
+        assert realigned["next_run_at"] == (
+            service_module.policy.compute_initial_next_run_at(realigned, now)
+        )
+        scheduler.reschedule_action.assert_called_once_with(realigned)
+
+    def test_realign_visible_reminders_treats_missing_metadata_as_legacy_defaults(
+        self,
+    ):
+        now = datetime(2026, 4, 21, 0, 0, tzinfo=UTC)
+        existing = build_action(
+            timezone="UTC",
+            dtstart=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+            next_run_at=datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+        existing.pop("schedule_kind", None)
+        existing.pop("fixed_timezone", None)
+        action_dao = Mock(
+            list_visible_actions=Mock(return_value=[existing]),
+            update_action=Mock(return_value=True),
+        )
+        scheduler = Mock(reschedule_action=Mock())
+        service = service_module.DeferredActionService(
+            action_dao=action_dao,
+            scheduler=scheduler,
+            now_provider=lambda: now,
+        )
+
+        updated = service.realign_visible_reminders_for_timezone_change(
+            user_id="user-1",
+            timezone="Asia/Tokyo",
+        )
+
+        assert len(updated) == 1
+        realigned = updated[0]
+        assert realigned["schedule_kind"] == "floating_local"
+        assert realigned["fixed_timezone"] is False
+        assert realigned["timezone"] == "Asia/Tokyo"
+        scheduler.reschedule_action.assert_called_once_with(realigned)

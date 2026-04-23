@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from agent.runner import deferred_action_policy as policy
 from agent.runner.deferred_action_scheduler import (
@@ -38,6 +39,8 @@ class DeferredActionService:
         dtstart: datetime,
         timezone: str,
         rrule: str | None = None,
+        schedule_kind: str = "floating_local",
+        fixed_timezone: bool = False,
         prompt: str | None = None,
         retry_policy: dict | None = None,
     ) -> dict[str, Any]:
@@ -54,6 +57,8 @@ class DeferredActionService:
             "title": title,
             "payload": {"prompt": prompt or title, "metadata": {}},
             "timezone": timezone,
+            "schedule_kind": schedule_kind,
+            "fixed_timezone": fixed_timezone,
             "dtstart": dtstart,
             "rrule": rrule,
             "next_run_at": None,
@@ -202,11 +207,15 @@ class DeferredActionService:
         dtstart: datetime | None = None,
         timezone: str | None = None,
         rrule: str | None = None,
+        schedule_kind: str | None = None,
+        fixed_timezone: bool | None = None,
         prompt: str | None = None,
     ) -> dict[str, Any]:
         action = self._require_visible_reminder(action_id, user_id)
         now = self.now_provider()
         updated = {**action}
+        updated.setdefault("schedule_kind", "floating_local")
+        updated.setdefault("fixed_timezone", False)
         if title is not None:
             updated["title"] = title
         if dtstart is not None:
@@ -215,6 +224,10 @@ class DeferredActionService:
             updated["timezone"] = timezone
         if rrule is not None:
             updated["rrule"] = rrule
+        if schedule_kind is not None:
+            updated["schedule_kind"] = schedule_kind
+        if fixed_timezone is not None:
+            updated["fixed_timezone"] = fixed_timezone
         if prompt is not None or title is not None:
             updated["payload"] = {
                 **(action.get("payload") or {}),
@@ -226,6 +239,8 @@ class DeferredActionService:
             "title": updated["title"],
             "payload": updated["payload"],
             "timezone": updated["timezone"],
+            "schedule_kind": updated["schedule_kind"],
+            "fixed_timezone": updated["fixed_timezone"],
             "dtstart": updated["dtstart"],
             "rrule": updated.get("rrule"),
             "next_run_at": updated["next_run_at"],
@@ -241,6 +256,60 @@ class DeferredActionService:
         if self.scheduler is not None:
             self.scheduler.reschedule_action(updated)
         return updated
+
+    def realign_visible_reminders_for_timezone_change(
+        self,
+        *,
+        user_id: str,
+        timezone: str,
+    ) -> list[dict[str, Any]]:
+        now = self.now_provider()
+        target_timezone = ZoneInfo(timezone)
+        updated_actions: list[dict[str, Any]] = []
+
+        for action in self.list_visible_reminders(user_id):
+            if action.get("lifecycle_state") != "active":
+                continue
+            if action.get("kind") != "user_reminder":
+                continue
+            schedule_kind = action.get("schedule_kind", "floating_local")
+            fixed_timezone = action.get("fixed_timezone", False)
+            if schedule_kind != "floating_local":
+                continue
+            if fixed_timezone is not False:
+                continue
+
+            dtstart = action.get("dtstart")
+            if dtstart is None:
+                continue
+
+            updated = {
+                **action,
+                "timezone": timezone,
+                "schedule_kind": schedule_kind,
+                "fixed_timezone": fixed_timezone,
+                "dtstart": dtstart.replace(tzinfo=target_timezone),
+            }
+            updated["next_run_at"] = policy.compute_initial_next_run_at(updated, now)
+
+            self.action_dao.update_action(
+                str(action["_id"]),
+                updates={
+                    "timezone": updated["timezone"],
+                    "dtstart": updated["dtstart"],
+                    "next_run_at": updated["next_run_at"],
+                },
+                expected_revision=action["revision"],
+                now=now,
+            )
+            updated["revision"] = action["revision"] + 1
+            updated["updated_at"] = now
+            updated_actions.append(updated)
+
+            if self.scheduler is not None:
+                self.scheduler.reschedule_action(updated)
+
+        return updated_actions
 
     def delete_visible_reminder(self, action_id: str, user_id: str) -> dict[str, Any]:
         return self._finish_visible_reminder(action_id, user_id, lifecycle_state="cancelled")

@@ -158,11 +158,21 @@ class OrchestratorResponse(BaseModel):
         ),
     )
 
+    timezone_action: str = Field(
+        default="none",
+        description=(
+            "时区动作类型。"
+            "可选值：none、direct_set、proposal。"
+            "direct_set 表示用户明确要求立即切换时区；"
+            "proposal 表示检测到新的时区信号，需要先征求确认。"
+        ),
+    )
+
     timezone_value: str = Field(
         default="",
         description=(
             "用户所在地对应的 IANA 时区名称。"
-            "当 need_timezone_update=true 时填写。"
+            "当 need_timezone_update=true 或 timezone_action 不为 none 时填写。"
             "示例：'America/New_York'、'Asia/Tokyo'、'Europe/London'"
         ),
     )

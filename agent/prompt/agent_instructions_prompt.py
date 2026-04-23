@@ -124,14 +124,34 @@ Fill in when need_web_search=true. Generate concise, effective search terms:
 - "What has Musk been up to lately" → "Musk latest news"
 
 ### need_timezone_update
-Set to true: user explicitly states their current location (e.g. "I'm in New York", "I moved to Tokyo", "switch to Singapore time", "I'm in Shanghai now")
+Set to true when a timezone action is needed.
 Set to false:
 1. Only mentions a city without indicating they are there (e.g. "Tokyo is great", "what's the weather like in New York")
 2. Asking about the time in a location rather than indicating they are there (e.g. "what time is it in Tokyo now")
 3. All other cases
 
+### timezone_action
+Always choose one of:
+- `none`: no timezone action
+- `direct_set`: the user explicitly asks to change timezone now, or clearly confirms a timezone change request in the same message
+- `proposal`: the message is a new timezone signal that suggests the user may be in a different timezone, but they did not directly ask to switch
+
+Use `direct_set` for clear commands such as:
+- "switch to Singapore time"
+- "set my timezone to Tokyo"
+- "改成东京时间"
+- "我现在在纽约，之后按纽约时间和我说"
+- "我在伦敦，之后按伦敦时间提醒我"
+
+Use `proposal` for signals such as:
+- "I'm in New York now"
+- "I moved to London"
+- "我现在在伦敦"
+
+When `timezone_action=proposal`, the assistant should later ask for confirmation instead of changing the timezone immediately.
+
 ### timezone_value
-Fill in the corresponding IANA timezone name when need_timezone_update=true, e.g. "America/New_York", "Asia/Tokyo"
+Fill in the corresponding IANA timezone name when `timezone_action` is `direct_set` or `proposal`, e.g. "America/New_York", "Asia/Tokyo"
 
 ### context_retrieve_params
 Generate retrieval parameters based on user message content. Refer to the format description in the Schema.
