@@ -31,7 +31,7 @@ The user page should treat the channel record as the source of truth for ownersh
 It should not depend on a shared bind record or a tenant-level shared WeChat connection for the
 primary onboarding path.
 The customer-facing API lives under `/api/customer/*`; `/api/internal/*` stays internal, and
-legacy `/coke/*` and `/api/coke/*` paths are removed and return 404.
+retired public entrypoints `/login`, `/coke/login`, and `/api/coke/auth/login` return 404.
 
 ## Environment
 
@@ -60,7 +60,7 @@ Bridge/runtime environment:
 4. Restart the Coke bridge so it picks up the current identity API settings.
 5. Verify a test Coke user can create, connect, disconnect, and archive their own WeChat channel from `/channels/wechat-personal`.
 6. Verify that a successful create or connect response can land the page directly in `pending` with QR/connect info and that the page keeps polling while the session remains active.
-7. Verify the removed `/coke/*` and `/api/coke/*` namespaces now return 404 instead of acting as compatibility aliases.
+7. Verify the retired public entrypoints `/login`, `/coke/login`, and `/api/coke/auth/login` now return 404 instead of acting as compatibility aliases.
 
 ## Start Coke bridge
 
