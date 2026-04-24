@@ -40,6 +40,9 @@ make_fake_repo() {
     "$root/gateway/packages/api/src/routes"
   cp "$SOURCE_SCRIPT" "$root/scripts/deploy-compose-to-gcp.sh"
   chmod +x "$root/scripts/deploy-compose-to-gcp.sh"
+  cat >"$root/.env" <<'EOF'
+DOMAIN_CLIENT=https://coke.ydyk123.top
+EOF
   cat >"$root/gateway/packages/web/app/page.tsx" <<'EOF'
 export default function HomePage() {
   return null;
@@ -130,9 +133,23 @@ if [[ "$*" == *"app/dashboard/layout.tsx"* ]]; then
   echo "stale dashboard layout verification path" >&2
   exit 1
 fi
+if [[ "$#" -lt 2 ]]; then
+  exit 0
+fi
+
+remote_shell="$2"
+REMOTE_ROOT="${REMOTE_ROOT:?missing REMOTE_ROOT}" bash -lc "$remote_shell"
 exit 0
 EOF
   chmod +x "$root/stubs/ssh"
+
+  cat >"$root/stubs/docker" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >>"${CALLS_LOG}"
+exit 0
+EOF
+  chmod +x "$root/stubs/docker"
 
   cat >"$root/stubs/rsync" <<'EOF'
 #!/bin/bash
@@ -148,6 +165,11 @@ set -euo pipefail
 printf 'curl %s\n' "$*" >>"${CALLS_LOG}"
 
 if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
+  if [[ "$*" == *"/api/coke/auth/login"* ]]; then
+    printf '404'
+    exit 0
+  fi
+
   if [[ "$*" == *"/auth/login"* ]]; then
     printf '200'
     exit 0
@@ -164,11 +186,6 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
   fi
 
   if [[ "$*" == *"/coke/login"* ]]; then
-    printf '404'
-    exit 0
-  fi
-
-  if [[ "$*" == *"/api/coke/auth/login"* ]]; then
     printf '404'
     exit 0
   fi
@@ -196,6 +213,7 @@ run_mismatch_case() {
   export EXPECTED_GATEWAY_COMMIT="expected-gateway-commit"
   export ACTUAL_GATEWAY_COMMIT="stale-gateway-commit"
   export CALLS_LOG="$root/calls.log"
+  export REMOTE_ROOT="$root"
   : >"$CALLS_LOG"
 
   if PATH="$root/stubs:$PATH" "$root/scripts/deploy-compose-to-gcp.sh" --dry-run >"$root/stdout.log" 2>"$root/stderr.log"; then
@@ -218,6 +236,7 @@ run_two_phase_sync_case() {
   export EXPECTED_GATEWAY_COMMIT="fresh-gateway-commit"
   export ACTUAL_GATEWAY_COMMIT="fresh-gateway-commit"
   export CALLS_LOG="$root/calls.log"
+  export REMOTE_ROOT="$root"
   : >"$CALLS_LOG"
 
   PATH="$root/stubs:$PATH" PUBLIC_BASE_URL="https://coke.ydyk123.top" \
@@ -251,6 +270,7 @@ run_two_phase_sync_case() {
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/login\"' && exit 1 || true"
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/coke/login\"' && exit 1 || true"
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q '/api/coke/auth/login' && exit 1 || true"
+  assert_contains "$call_log" "docker compose -f docker-compose.prod.yml up -d --build --remove-orphans"
 }
 
 run_mismatch_case
