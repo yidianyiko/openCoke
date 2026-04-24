@@ -175,11 +175,12 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
 fi
 
 cat <<'OUT'
-coke | An AI Partner That Grows With You
+Kap AI
+Plan meetings, reminders, and the next move in one thread.
 __COKE_LOCALE__
+<img src="/kap-koala-hero.png" alt="Kap koala mascot" />
 <a href="/channels/wechat-personal">WeChat channel</a>
 <a href="/account/subscription">Subscription</a>
-Preparing your workspace...
 OUT
 EOF
   chmod +x "$root/stubs/curl"
@@ -241,6 +242,7 @@ run_two_phase_sync_case() {
   assert_contains "$call_log" "curl "
   assert_contains "$call_log" "/auth/login"
   assert_contains "$call_log" "/auth/register"
+  assert_contains "$call_log" "/login"
   assert_contains "$call_log" "/coke/login"
   assert_contains "$call_log" "/api/coke/auth/login"
 }
