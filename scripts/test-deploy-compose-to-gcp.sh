@@ -177,6 +177,7 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
 cat <<'OUT'
 __COKE_LOCALE__
 <a href="/auth/login">Sign in</a>
+<a href="/auth/register">Create account</a>
 <a href="/channels/wechat-personal">WeChat channel</a>
 <a href="/account/subscription">Subscription</a>
 OUT
@@ -243,7 +244,8 @@ run_two_phase_sync_case() {
   assert_contains "$call_log" "https://coke.ydyk123.top/login"
   assert_contains "$call_log" "https://coke.ydyk123.top/coke/login"
   assert_contains "$call_log" "https://coke.ydyk123.top/api/coke/auth/login"
-  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -Eq 'href=\"/auth/(login|register)\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/login\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/register\"'"
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/channels/wechat-personal\"'"
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/account/subscription\"'"
   assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/login\"' && exit 1 || true"
