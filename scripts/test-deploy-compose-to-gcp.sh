@@ -172,13 +172,11 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
     printf '404'
     exit 0
   fi
-fi
+  fi
 
 cat <<'OUT'
-Kap AI
-Plan meetings, reminders, and the next move in one thread.
 __COKE_LOCALE__
-<img src="/kap-koala-hero.png" alt="Kap koala mascot" />
+<a href="/auth/login">Sign in</a>
 <a href="/channels/wechat-personal">WeChat channel</a>
 <a href="/account/subscription">Subscription</a>
 OUT
@@ -240,11 +238,17 @@ run_two_phase_sync_case() {
   assert_contains "$call_log" "customer-channel-routes.ts"
   assert_contains "$call_log" "customer-subscription-routes.ts"
   assert_contains "$call_log" "curl "
-  assert_contains "$call_log" "/auth/login"
-  assert_contains "$call_log" "/auth/register"
-  assert_contains "$call_log" "/login"
-  assert_contains "$call_log" "/coke/login"
-  assert_contains "$call_log" "/api/coke/auth/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/auth/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/auth/register"
+  assert_contains "$call_log" "https://coke.ydyk123.top/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/coke/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/api/coke/auth/login"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -Eq 'href=\"/auth/(login|register)\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/channels/wechat-personal\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/account/subscription\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/login\"' && exit 1 || true"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/coke/login\"' && exit 1 || true"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q '/api/coke/auth/login' && exit 1 || true"
 }
 
 run_mismatch_case
