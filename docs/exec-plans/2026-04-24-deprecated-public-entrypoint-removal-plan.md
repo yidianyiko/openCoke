@@ -97,14 +97,13 @@ git commit -m "test: record retired public entrypoint guards"
 
 - [ ] **Step 1: Update the deploy script test fixture first**
 
-In `scripts/test-deploy-compose-to-gcp.sh`, change the fake homepage body returned by the curl stub from the old Coke marker to current Kap markers:
+In `scripts/test-deploy-compose-to-gcp.sh`, change the fake homepage body returned by the curl stub from the old Coke marker to stable supported-surface markers:
 
 ```bash
 cat <<'OUT'
-Kap AI
-Plan meetings, reminders, and the next move in one thread.
 __COKE_LOCALE__
-<img src="/kap-koala-hero.png" alt="Kap koala mascot" />
+<a href="/auth/login">Sign in</a>
+<a href="/auth/register">Create account</a>
 <a href="/channels/wechat-personal">WeChat channel</a>
 <a href="/account/subscription">Subscription</a>
 OUT
@@ -126,12 +125,13 @@ In `scripts/deploy-compose-to-gcp.sh`, replace the stale homepage copy check:
 printf '%s' "$homepage" | grep -q 'coke | An AI Partner That Grows With You'
 ```
 
-with current Kap markers:
+with stable supported-surface markers:
 
 ```bash
-printf '%s' "$homepage" | grep -q 'Kap AI'
-printf '%s' "$homepage" | grep -q 'Plan meetings, reminders, and the next move in one thread.'
-printf '%s' "$homepage" | grep -q '/kap-koala-hero.png'
+printf '%s' "$homepage" | grep -q 'href="/auth/login"'
+printf '%s' "$homepage" | grep -q 'href="/auth/register"'
+printf '%s' "$homepage" | grep -q 'href="/channels/wechat-personal"'
+printf '%s' "$homepage" | grep -q 'href="/account/subscription"'
 ```
 
 Keep the explicit retired-route probes:
@@ -159,14 +159,16 @@ printf '%s' "$homepage" | grep -q '/api/coke/auth/login' && exit 1 || true
 
 - [ ] **Step 3: Update the deploy-script test expectations**
 
-In `scripts/test-deploy-compose-to-gcp.sh`, keep the call-log assertions for the supported pages and the explicit retired-route probes:
+In `scripts/test-deploy-compose-to-gcp.sh`, keep the call-log assertions for the supported pages and the explicit retired-route probes, and make the checks exact enough that `/login` cannot be satisfied by `/auth/login`:
 
 ```bash
-  assert_contains "$call_log" "/auth/login"
-  assert_contains "$call_log" "/auth/register"
-  assert_contains "$call_log" "/login"
-  assert_contains "$call_log" "/coke/login"
-  assert_contains "$call_log" "/api/coke/auth/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/auth/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/auth/register"
+  assert_contains "$call_log" "https://coke.ydyk123.top/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/coke/login"
+  assert_contains "$call_log" "https://coke.ydyk123.top/api/coke/auth/login"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/login\"'"
+  assert_contains "$call_log" "printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/register\"'"
 ```
 
 Do not assert broad `/coke/` namespace scanning in the test.
