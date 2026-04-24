@@ -73,11 +73,15 @@ update_remote_public_env() {
         set -euo pipefail
         file=$quoted_env
         [ -f \"\$file\" ] || { echo 'Missing remote .env file' >&2; exit 1; }
+        escape_sed_replacement() {
+            printf '%s' \"\$1\" | sed 's/[&|\\\\]/\\\\&/g'
+        }
         update_env() {
             key=\"\$1\"
             value=\"\$2\"
+            escaped_value=\"\$(escape_sed_replacement \"\$value\")\"
             if grep -q \"^\${key}=\" \"\$file\"; then
-                sed -i \"s|^\${key}=.*|\${key}=\${value}|\" \"\$file\"
+                sed -i \"s|^\${key}=.*|\${key}=\${escaped_value}|\" \"\$file\"
             else
                 printf '%s=%s\n' \"\$key\" \"\$value\" >> \"\$file\"
             fi
