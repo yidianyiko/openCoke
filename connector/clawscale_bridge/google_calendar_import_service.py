@@ -245,12 +245,21 @@ class GoogleCalendarImportService:
     ) -> str:
         start = event.get("start") or {}
         end = event.get("end") or {}
-        for candidate in (
-            start.get("timeZone"),
-            end.get("timeZone"),
-            calendar_defaults.get("timezone"),
-            target_timezone,
-        ):
+        if start.get("date") and not start.get("dateTime"):
+            candidates = (
+                start.get("timeZone"),
+                end.get("timeZone"),
+                target_timezone,
+                calendar_defaults.get("timezone"),
+            )
+        else:
+            candidates = (
+                start.get("timeZone"),
+                end.get("timeZone"),
+                calendar_defaults.get("timezone"),
+                target_timezone,
+            )
+        for candidate in candidates:
             if isinstance(candidate, str) and candidate.strip():
                 try:
                     ZoneInfo(candidate)

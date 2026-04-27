@@ -138,7 +138,7 @@ def test_import_events_creates_future_single_event_with_event_timezone_override(
     }
 
 
-def test_import_events_skips_duplicate_and_uses_all_day_local_default_time():
+def test_import_events_skips_duplicate_and_uses_all_day_target_timezone():
     from connector.clawscale_bridge.google_calendar_import_service import (
         GoogleCalendarImportService,
     )
@@ -167,7 +167,7 @@ def test_import_events_skips_duplicate_and_uses_all_day_local_default_time():
         },
         run_id="run-2",
         provider_account_email=None,
-        calendar_defaults={},
+        calendar_defaults={"timezone": "UTC", "default_reminders": []},
         events=[
             {
                 "id": "evt-dup",
