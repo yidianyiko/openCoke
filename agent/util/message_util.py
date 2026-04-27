@@ -272,14 +272,6 @@ def send_message_via_context(
             context=context,
             metadata=metadata,
         )
-        status, handled_timestamp, metadata = (
-            _enforce_single_clawscale_sync_reply_per_turn(
-                context=context,
-                status=status,
-                handled_timestamp=handled_timestamp,
-                metadata=metadata,
-            )
-        )
     elif get_agent_entity_id(context.get("user")):
         account_id = get_agent_entity_id(context.get("user"))
         clawscale_metadata = build_clawscale_push_metadata(
@@ -315,42 +307,6 @@ def send_message_via_context(
         account_id=account_id,
         metadata=metadata,
     )
-
-
-def _enforce_single_clawscale_sync_reply_per_turn(
-    *, context: dict | None, status: str, handled_timestamp: int | None, metadata: dict | None
-) -> tuple[str, int | None, dict]:
-    if not isinstance(metadata, dict):
-        return status, handled_timestamp, {} if metadata is None else metadata
-    if not isinstance(context, dict):
-        return status, handled_timestamp, metadata
-    if metadata.get("source") != "clawscale":
-        return status, handled_timestamp, metadata
-
-    business_protocol = metadata.get("business_protocol")
-    if not isinstance(business_protocol, dict):
-        business_protocol = {}
-    delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
-        "delivery_mode"
-    )
-    if delivery_mode != "request_response":
-        return status, handled_timestamp, metadata
-
-    if not context.get("_clawscale_sync_reply_emitted"):
-        context["_clawscale_sync_reply_emitted"] = True
-        return status, handled_timestamp, metadata
-
-    failure_metadata = {
-        **metadata,
-        "failure_reason": "unexpected_extra_request_response_output",
-    }
-    logger.warning(
-        "unexpected_extra_request_response_output: dropped extra sync reply for "
-        "business_conversation_key=%s causal_inbound_event_id=%s",
-        business_protocol.get("business_conversation_key"),
-        business_protocol.get("causal_inbound_event_id"),
-    )
-    return "failed", int(time.time()), failure_metadata
 
 
 def _inject_business_key_into_clawscale_reply_metadata(

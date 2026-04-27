@@ -196,8 +196,8 @@ def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
     }
 
 
-def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
-    sample_context, monkeypatch, caplog
+def test_message_util_allows_multiple_clawscale_sync_outputs_for_bridge_merge(
+    sample_context, monkeypatch
 ):
     from agent.util import message_util
 
@@ -236,19 +236,14 @@ def test_message_util_drops_extra_clawscale_sync_outputs_in_same_turn(
     second = message_util.send_message_via_context(sample_context, "第二条同步回复")
 
     assert first["status"] == "pending"
-    assert second["status"] == "failed"
-    assert second["handled_timestamp"] is not None
-    assert second["metadata"]["failure_reason"] == "unexpected_extra_request_response_output"
+    assert second["status"] == "pending"
+    assert second["handled_timestamp"] is None
     assert second["metadata"]["business_protocol"] == {
         "delivery_mode": "request_response",
         "causal_inbound_event_id": "in_evt_1",
         "gateway_conversation_id": "gw_conv_1",
         "business_conversation_key": "bc_1",
     }
-    assert any(
-        "unexpected_extra_request_response_output" in record.getMessage()
-        for record in caplog.records
-    )
     assert len(captured) == 2
 
 
