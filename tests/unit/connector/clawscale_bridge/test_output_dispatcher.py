@@ -1,5 +1,7 @@
 from unittest.mock import ANY, MagicMock
 
+import pytest
+
 
 def _build_message_doc(**overrides):
     doc = {
@@ -91,6 +93,8 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
         idempotency_key="idem_1",
         trace_id="trace_1",
         causal_inbound_event_id=None,
+        media_urls=None,
+        audio_as_voice=False,
     )
     mongo.update_one.assert_called_once_with(
         "outputmessages",
@@ -149,6 +153,158 @@ def test_output_dispatcher_marks_malformed_claimed_message_failed(monkeypatch):
             "output_id": "out_1",
         },
     }
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is False
+    gateway_client.post_output.assert_not_called()
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_1", "status": "dispatching"},
+        {"$set": {"status": "failed", "handled_timestamp": now}},
+    )
+
+
+def test_output_dispatcher_forwards_trimmed_image_url(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        status="dispatching",
+        message_type="image",
+        metadata={
+            "business_conversation_key": "bc_1",
+            "delivery_mode": "push",
+            "idempotency_key": "idem_1",
+            "trace_id": "trace_1",
+            "output_id": "out_1",
+            "url": "  https://cdn.example.com/image.png  ",
+        },
+    )
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_1",
+        customer_id="acc_1",
+        business_conversation_key="bc_1",
+        text="记得开会",
+        message_type="image",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        causal_inbound_event_id=None,
+        media_urls=["https://cdn.example.com/image.png"],
+        audio_as_voice=False,
+    )
+
+
+def test_output_dispatcher_forwards_voice_url_as_voice(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        status="dispatching",
+        message_type="voice",
+        metadata={
+            "business_conversation_key": "bc_1",
+            "delivery_mode": "push",
+            "idempotency_key": "idem_1",
+            "trace_id": "trace_1",
+            "output_id": "out_1",
+            "url": "https://cdn.example.com/voice.mp3",
+        },
+    )
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_1",
+        customer_id="acc_1",
+        business_conversation_key="bc_1",
+        text="记得开会",
+        message_type="voice",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        causal_inbound_event_id=None,
+        media_urls=["https://cdn.example.com/voice.mp3"],
+        audio_as_voice=True,
+    )
+
+
+@pytest.mark.parametrize(
+    ("message_type", "metadata_url"),
+    [
+        ("image", "   "),
+        ("voice", None),
+    ],
+)
+def test_output_dispatcher_marks_malformed_media_message_failed(
+    monkeypatch,
+    message_type,
+    metadata_url,
+):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    metadata = {
+        "business_conversation_key": "bc_1",
+        "delivery_mode": "push",
+        "idempotency_key": "idem_1",
+        "trace_id": "trace_1",
+        "output_id": "out_1",
+    }
+    if metadata_url is not None:
+        metadata["url"] = metadata_url
+
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = _build_message_doc(
+        status="dispatching",
+        message_type=message_type,
+        metadata=metadata,
+    )
 
     mongo = MagicMock()
     mongo.get_collection.return_value = collection
@@ -352,4 +508,6 @@ def test_output_dispatcher_claims_customer_id_messages_during_compatibility_wind
         idempotency_key="idem_1",
         trace_id="trace_1",
         causal_inbound_event_id=None,
+        media_urls=None,
+        audio_as_voice=False,
     )

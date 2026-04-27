@@ -91,6 +91,19 @@ class ClawScaleOutputDispatcher:
 
     def _build_gateway_args(self, message):
         metadata = message["metadata"]
+        message_type = message.get("message_type", "text")
+        media_urls = None
+        audio_as_voice = False
+        if message_type in {"image", "voice"}:
+            raw_url = metadata.get("url")
+            if not isinstance(raw_url, str):
+                raise ValueError("media output requires metadata.url")
+            media_url = raw_url.strip()
+            if not media_url:
+                raise ValueError("media output requires non-blank metadata.url")
+            media_urls = [media_url]
+            audio_as_voice = message_type == "voice"
+
         customer_id = resolve_customer_id(
             customer_id=message.get("customer_id"),
             account_id=message.get("account_id"),
@@ -100,12 +113,14 @@ class ClawScaleOutputDispatcher:
             "customer_id": customer_id,
             "business_conversation_key": metadata["business_conversation_key"],
             "text": message["message"],
-            "message_type": message.get("message_type", "text"),
+            "message_type": message_type,
             "delivery_mode": metadata["delivery_mode"],
             "expect_output_timestamp": message["expect_output_timestamp"],
             "idempotency_key": metadata["idempotency_key"],
             "trace_id": metadata["trace_id"],
             "causal_inbound_event_id": metadata.get("causal_inbound_event_id"),
+            "media_urls": media_urls,
+            "audio_as_voice": audio_as_voice,
         }
 
     def dispatch_once(self) -> bool:
