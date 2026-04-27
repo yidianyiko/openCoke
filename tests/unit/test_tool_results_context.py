@@ -5,6 +5,32 @@ def test_empty_when_no_tool_results():
     assert get_tool_results_context({"tool_results": []}) == ""
 
 
+def test_calendar_import_direct_reply_contains_link_and_instructions():
+    from agent.prompt.chat_contextprompt import get_calendar_import_direct_reply
+
+    state = {
+        "tool_results": [
+            {
+                "tool_name": "日历导入入口",
+                "ok": True,
+                "result_summary": (
+                    "用户想导入 Google Calendar。请把这个入口链接发给用户："
+                    "https://coke.example/account/calendar-import。"
+                    "说明打开后登录或验证邮箱，然后点击 Start Google Calendar import 授权 Google。"
+                    "不要说导入已经完成。"
+                ),
+                "extra_notes": "",
+            }
+        ]
+    }
+
+    reply = get_calendar_import_direct_reply(state)
+
+    assert "https://coke.example/account/calendar-import" in reply
+    assert "Start Google Calendar import" in reply
+    assert "授权" in reply
+
+
 def test_single_success_result():
     from agent.prompt.chat_contextprompt import get_tool_results_context
 

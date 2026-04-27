@@ -42,6 +42,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_防重复回复,
     get_message_source_context,
     get_inferred_timezone_visibility_context,
+    get_calendar_import_direct_reply,
     get_relevant_history_context,
     get_reminders_context,
     get_tool_results_context,
@@ -195,6 +196,23 @@ class StreamingChatWorkflow:
         tool_results_context = get_tool_results_context(session_state)
         if tool_results_context:
             logger.info("[ChatWorkflow] 添加系统操作结果上下文")
+
+        calendar_import_reply = get_calendar_import_direct_reply(session_state)
+        if calendar_import_reply:
+            logger.info("[ChatWorkflow] 直接返回 Google Calendar 导入入口")
+            yield {
+                "type": "message",
+                "data": {"type": "text", "content": calendar_import_reply},
+            }
+            yield {
+                "type": "done",
+                "data": {
+                    "full_response": calendar_import_reply,
+                    "total_messages": 1,
+                    "inner_monologue": "",
+                },
+            }
+            return
 
         inferred_timezone_context = get_inferred_timezone_visibility_context(
             session_state,

@@ -8,6 +8,12 @@ import re
 from agent.prompt.rendering import render_prompt_template
 from util.profile_util import resolve_profile_label
 
+
+_CALENDAR_IMPORT_TOOL_NAME = "日历导入入口"
+_URL_PATTERN = re.compile(
+    r"https?://[^\s，。；;,)）]+|/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+"
+)
+
 CONTEXTPROMPT_消息来源_用户消息 = """### Message Source
 This is a real message sent to you by {user_label} via this chat channel."""
 
@@ -464,3 +470,23 @@ def get_tool_results_context(session_state: dict) -> str:
         '[IMPORTANT] Only confirm an operation has been executed when you see this "System Operation Results" block. Do not assume success when this block is absent.',
     ]
     return "\n".join(lines)
+
+
+def get_calendar_import_direct_reply(session_state: dict) -> str:
+    """Return a deterministic first reply for Google Calendar import entry links."""
+    results: list[dict] = session_state.get("tool_results") or []
+    for entry in results:
+        if entry.get("tool_name") != _CALENDAR_IMPORT_TOOL_NAME or not entry.get("ok"):
+            continue
+
+        summary = str(entry.get("result_summary") or "")
+        match = _URL_PATTERN.search(summary)
+        if not match:
+            return ""
+
+        link = match.group(0).rstrip("。.,，；;)")
+        return (
+            f"可以，打开这个入口导入 Google Calendar：{link}\n"
+            "登录或验证邮箱后，点击 Start Google Calendar import 授权 Google。"
+        )
+    return ""
