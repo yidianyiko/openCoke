@@ -207,6 +207,38 @@ def _orchestrator_result(*, timezone_action="none", timezone_value=""):
 
 class TestPrepareWorkflowTimezone:
     @pytest.mark.asyncio
+    async def test_prepare_workflow_surfaces_google_calendar_import_link(self, monkeypatch):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        monkeypatch.setenv("DOMAIN_CLIENT", "https://coke.example")
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending()
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = _orchestrator_result()
+
+        with patch.object(
+            workflow,
+            "_run_orchestrator",
+            AsyncMock(side_effect=fake_orchestrator),
+        ):
+            result = await workflow.run("我想导入谷歌日历", session_state)
+
+        assert result["session_state"]["tool_results"] == [
+            {
+                "tool_name": "日历导入入口",
+                "ok": True,
+                "result_summary": (
+                    "用户想导入 Google Calendar。请把这个入口链接发给用户："
+                    "https://coke.example/account/calendar-import。"
+                    "说明打开后登录或验证邮箱，然后点击 Start Google Calendar import 授权 Google。"
+                    "不要说导入已经完成。"
+                ),
+                "extra_notes": "",
+            }
+        ]
+
+    @pytest.mark.asyncio
     async def test_prepare_workflow_applies_direct_timezone_change(self):
         from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 

@@ -17,6 +17,7 @@ Requirements: 5.1
 """
 
 import logging
+import os
 import re
 from typing import Any, Dict, Optional
 
@@ -58,6 +59,24 @@ _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
     re.compile(
         r"(from now on|going forward|after this).{0,24}(use|follow).{0,24}(time|timezone)"
     ),
+)
+
+_CALENDAR_IMPORT_PATH = "/account/calendar-import"
+_CALENDAR_IMPORT_INTENT_PATTERNS = (
+    re.compile(r"(导入|同步|绑定|接入|连接|授权).{0,12}(谷歌|google)?日历", re.IGNORECASE),
+    re.compile(r"(谷歌|google).{0,12}日历.{0,12}(导入|同步|绑定|接入|连接|授权)", re.IGNORECASE),
+    re.compile(
+        r"\b(import|sync|connect|link|authorize|integrate)\b.{0,40}\b(google\s+calendar|calendar)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(google\s+calendar|calendar)\b.{0,40}\b(import|sync|connect|link|authorize|integrate)\b",
+        re.IGNORECASE,
+    ),
+)
+_REMINDER_FIRST_PATTERNS = (
+    re.compile(r"(提醒我|叫我|到时候|闹钟)"),
+    re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
 )
 
 
@@ -164,6 +183,9 @@ class PrepareWorkflow:
             logger.warning("时区更新被请求但 timezone_value 为空，跳过")
         else:
             logger.info("跳过时区更新 (timezone_action=none)")
+
+        # Step 2.75: Google Calendar import is a web-only flow; surface the entry link in chat.
+        self._surface_calendar_import_entry_if_needed(input_message, session_state)
 
         # Step 2.6: 链接内容提取 (检测消息中的 URL 并获取内容)
         self._run_url_extraction(input_message, session_state)
@@ -455,6 +477,46 @@ class PrepareWorkflow:
                 logger.debug("[PrepareWorkflow] 消息中未检测到 URL")
         except Exception as e:
             logger.warning(f"[PrepareWorkflow] URL 提取失败: {e}")
+
+    def _surface_calendar_import_entry_if_needed(
+        self, input_message: str, session_state: Dict[str, Any]
+    ) -> None:
+        if not self._looks_like_calendar_import_intent(input_message):
+            return
+
+        link = self._build_customer_web_url(_CALENDAR_IMPORT_PATH)
+        append_tool_result(
+            session_state,
+            tool_name="日历导入入口",
+            ok=True,
+            result_summary=(
+                "用户想导入 Google Calendar。请把这个入口链接发给用户："
+                f"{link}。"
+                "说明打开后登录或验证邮箱，然后点击 Start Google Calendar import 授权 Google。"
+                "不要说导入已经完成。"
+            ),
+        )
+        logger.info("[PrepareWorkflow] 已添加 Google Calendar 导入入口链接")
+
+    def _looks_like_calendar_import_intent(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        if any(pattern.search(text) for pattern in _REMINDER_FIRST_PATTERNS):
+            return False
+        return any(pattern.search(text) for pattern in _CALENDAR_IMPORT_INTENT_PATTERNS)
+
+    def _build_customer_web_url(self, path: str) -> str:
+        for key in (
+            "DOMAIN_CLIENT",
+            "NEXT_PUBLIC_COKE_API_URL",
+            "NEXT_PUBLIC_API_URL",
+            "COKE_WEB_ALLOWED_ORIGIN",
+        ):
+            base_url = os.environ.get(key, "").strip().rstrip("/")
+            if base_url:
+                return f"{base_url}{path}"
+        return path
 
     async def _run_reminder_detect(
         self,
