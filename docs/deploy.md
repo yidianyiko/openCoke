@@ -164,7 +164,7 @@ ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --bui
 - 远端 `gateway/packages/api/src/routes/customer-auth-routes.ts`、`gateway/packages/api/src/routes/customer-channel-routes.ts`、`gateway/packages/api/src/routes/customer-subscription-routes.ts` 和 `gateway/packages/api/src/index.ts` 存在
 - `http://127.0.0.1:4041/health`
 - `http://127.0.0.1:8090/bridge/healthz`
-- 公网首页包含新的 locale bootstrap 标记 `__COKE_LOCALE__`
+- 公网首页包含当前 Kap 监督定位文案
 - 公网首页包含 `/channels/wechat-personal` 和 `/account/subscription` 的入口
 - 公网 `/auth/login` 返回 `200`
 - 公网 `/auth/register` 返回 `200`

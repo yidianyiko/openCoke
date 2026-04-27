@@ -192,7 +192,9 @@ if [[ "$*" == *"-w '%{http_code}'"* || "$*" == *'-w %{http_code}'* ]]; then
   fi
 
 cat <<'OUT'
-__COKE_LOCALE__
+An AI Supervisor That Follows Up
+Sign in to Kap
+Create your Kap account
 <a href="/auth/login">Sign in</a>
 <a href="/auth/register">Create account</a>
 <a href="/channels/wechat-personal">WeChat channel</a>

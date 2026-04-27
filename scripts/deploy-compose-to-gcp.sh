@@ -174,7 +174,7 @@ verify_public_site() {
         old_login_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/login"))
         old_web_namespace_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/coke/login"))
         old_api_namespace_status=\$(curl -k -s -o /dev/null -w '%{http_code}' $(shell_quote "$public_url/api/coke/auth/login"))
-        printf '%s' \"\$homepage\" | grep -q '__COKE_LOCALE__'
+        printf '%s' \"\$homepage\" | grep -q 'An AI Supervisor That Follows Up'
         printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/login\"'
         printf '%s' \"\$homepage\" | grep -q 'href=\"/auth/register\"'
         printf '%s' \"\$homepage\" | grep -q 'href=\"/channels/wechat-personal\"'
@@ -182,8 +182,8 @@ verify_public_site() {
         printf '%s' \"\$homepage\" | grep -q 'href=\"/login\"' && exit 1 || true
         printf '%s' \"\$homepage\" | grep -q 'href=\"/coke/login\"' && exit 1 || true
         printf '%s' \"\$homepage\" | grep -q '/api/coke/auth/login' && exit 1 || true
-        printf '%s' \"\$login_page\" | grep -q '__COKE_LOCALE__'
-        printf '%s' \"\$register_page\" | grep -q '__COKE_LOCALE__'
+        printf '%s' \"\$login_page\" | grep -q 'Sign in to Kap'
+        printf '%s' \"\$register_page\" | grep -q 'Create your Kap account'
         test \"\$login_status\" = '200'
         test \"\$register_status\" = '200'
         test \"\$old_login_status\" = '404'
