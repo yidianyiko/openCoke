@@ -2,7 +2,7 @@
 
 Date: 2026-04-27
 
-Status: Verified locally
+Status: Deployed
 
 ## Context
 
@@ -39,4 +39,9 @@ locale reconciliation was moved after hydration.
   no `__next_error__`, `dynamic =`, `locale-bootstrap`, or `__COKE_LOCALE__`.
 - Playwright smoke on local 4040 with persisted `coke-locale=zh` confirmed no
   hydration/script console errors and post-hydration Chinese navigation.
-- Pending: production deploy smoke check if this fix is rolled out.
+- `./scripts/deploy-compose-to-gcp.sh --restart`
+- Production `curl` smoke on `https://coke.keep4oforever.com` for `/`,
+  `/auth/login`, and `/global` confirmed no `__next_error__`, `dynamic =`,
+  `locale-bootstrap`, or `__COKE_LOCALE__`.
+- Production Playwright smoke with persisted `coke-locale=zh` confirmed no
+  hydration/script console errors and post-hydration Chinese navigation.
