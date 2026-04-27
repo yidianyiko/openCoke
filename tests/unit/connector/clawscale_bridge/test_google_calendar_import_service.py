@@ -42,6 +42,51 @@ def test_preflight_returns_target_conversation_identity_and_timezone():
     }
 
 
+def test_preflight_prefers_whatsapp_business_conversation_key_when_present():
+    from connector.clawscale_bridge.google_calendar_import_service import (
+        GoogleCalendarImportService,
+    )
+
+    conversation_dao = MagicMock()
+    conversation_dao.get_private_conversation.return_value = {
+        "_id": "conv-whatsapp",
+        "conversation_info": {},
+    }
+    conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
+        "_id": "conv-web",
+        "conversation_info": {},
+    }
+    user_dao = MagicMock(
+        get_user_by_id=MagicMock(return_value={"_id": "ck_email", "timezone": "Asia/Tokyo"})
+    )
+
+    service = GoogleCalendarImportService(
+        conversation_dao=conversation_dao,
+        deferred_action_service=MagicMock(),
+        character_id_provider=lambda: "char_1",
+        user_dao=user_dao,
+    )
+
+    result = service.preflight(
+        customer_id="ck_email",
+        business_conversation_key="bc_1",
+        gateway_conversation_id="gw_1",
+    )
+
+    assert result == {
+        "conversation_id": "conv-whatsapp",
+        "user_id": "ck_email",
+        "character_id": "char_1",
+        "timezone": "Asia/Tokyo",
+    }
+    conversation_dao.get_private_conversation.assert_called_once_with(
+        "business",
+        "clawscale:bc_1",
+        "clawscale-character:char_1",
+    )
+    conversation_dao.find_latest_private_conversation_by_db_user_ids.assert_not_called()
+
+
 def test_preflight_raises_conversation_required_when_missing():
     from connector.clawscale_bridge.google_calendar_import_service import (
         GoogleCalendarImportService,

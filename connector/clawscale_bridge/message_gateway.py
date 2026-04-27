@@ -53,6 +53,10 @@ class CokeMessageGateway:
         gateway_conversation_id = inbound.get("gateway_conversation_id")
         if gateway_conversation_id:
             business_protocol["gateway_conversation_id"] = gateway_conversation_id
+        for key in ("tenant_id", "channel_id", "end_user_id", "external_id"):
+            value = inbound.get(key)
+            if value:
+                business_protocol[key] = value
 
         customer_id = resolve_customer_id(
             customer_id=inbound.get("customer_id") or inbound.get("coke_account_id"),

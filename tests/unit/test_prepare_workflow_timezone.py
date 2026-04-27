@@ -207,12 +207,35 @@ def _orchestrator_result(*, timezone_action="none", timezone_value=""):
 
 class TestPrepareWorkflowTimezone:
     @pytest.mark.asyncio
-    async def test_prepare_workflow_surfaces_google_calendar_import_link(self, monkeypatch):
+    async def test_prepare_workflow_surfaces_google_calendar_import_handoff_link(self, monkeypatch):
         from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+        from agent.agno_agent.workflows import prepare_workflow
 
         monkeypatch.setenv("DOMAIN_CLIENT", "https://coke.example")
         workflow = PrepareWorkflow()
         session_state = _session_state_with_pending()
+        session_state["conversation"]["conversation_info"]["input_messages"] = [
+            {
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "business_conversation_key": "bc_1",
+                        "gateway_conversation_id": "gw_1",
+                        "tenant_id": "tnt_1",
+                        "channel_id": "ch_1",
+                        "end_user_id": "eu_1",
+                        "external_id": "8617807028761",
+                    },
+                    "customer": {"id": "ck_whatsapp"},
+                }
+            }
+        ]
+
+        monkeypatch.setattr(
+            prepare_workflow,
+            "create_calendar_import_handoff_link",
+            lambda payload: "https://coke.example/handoff/calendar-import?token=tok_1",
+        )
 
         async def fake_orchestrator(_message, state):
             state["orchestrator"] = _orchestrator_result()
@@ -230,13 +253,49 @@ class TestPrepareWorkflowTimezone:
                 "ok": True,
                 "result_summary": (
                     "用户想导入 Google Calendar。请把这个入口链接发给用户："
-                    "https://coke.example/account/calendar-import。"
+                    "https://coke.example/handoff/calendar-import?token=tok_1。"
                     "说明打开后登录或验证邮箱，然后点击 Start Google Calendar import 授权 Google。"
                     "不要说导入已经完成。"
                 ),
                 "extra_notes": "",
             }
         ]
+
+    @pytest.mark.asyncio
+    async def test_prepare_workflow_does_not_send_fixed_calendar_link_when_whatsapp_handoff_context_missing(
+        self, monkeypatch
+    ):
+        from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+        monkeypatch.setenv("DOMAIN_CLIENT", "https://coke.example")
+        workflow = PrepareWorkflow()
+        session_state = _session_state_with_pending()
+        session_state["conversation"]["conversation_info"]["input_messages"] = [
+            {
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "business_conversation_key": "bc_1",
+                    },
+                    "customer": {"id": "ck_whatsapp"},
+                }
+            }
+        ]
+
+        async def fake_orchestrator(_message, state):
+            state["orchestrator"] = _orchestrator_result()
+
+        with patch.object(
+            workflow,
+            "_run_orchestrator",
+            AsyncMock(side_effect=fake_orchestrator),
+        ):
+            result = await workflow.run("我想导入谷歌日历", session_state)
+
+        [tool_result] = result["session_state"]["tool_results"]
+        assert tool_result["ok"] is False
+        assert "https://coke.example/account/calendar-import" not in tool_result["result_summary"]
+        assert "暂时无法生成你的专属导入链接" in tool_result["result_summary"]
 
     @pytest.mark.asyncio
     async def test_prepare_workflow_applies_direct_timezone_change(self):

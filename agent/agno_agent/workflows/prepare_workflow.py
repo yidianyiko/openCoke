@@ -27,6 +27,9 @@ from agent.agno_agent.agents import (
 )
 from agent.agno_agent.tools.deferred_action import set_deferred_action_session_state
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
+from agent.agno_agent.tools.calendar_import_handoff import (
+    create_calendar_import_handoff_link,
+)
 from agent.agno_agent.tools.url_reader import extract_urls_content, format_url_context
 from agent.agno_agent.tools.web_search_tool import web_search_tool
 from agent.agno_agent.tools.timezone_tools import (
@@ -484,7 +487,36 @@ class PrepareWorkflow:
         if not self._looks_like_calendar_import_intent(input_message):
             return
 
-        link = self._build_customer_web_url(_CALENDAR_IMPORT_PATH)
+        link = None
+        handoff_error = None
+        if self._is_clawscale_business_context(session_state):
+            payload = self._build_calendar_import_handoff_payload(session_state)
+            if not payload:
+                handoff_error = "missing_handoff_context"
+            else:
+                try:
+                    link = create_calendar_import_handoff_link(payload)
+                except Exception as exc:
+                    handoff_error = str(exc) or exc.__class__.__name__
+                    logger.warning(
+                        "[PrepareWorkflow] Google Calendar handoff link create failed: %s",
+                        handoff_error,
+                    )
+
+        if self._is_clawscale_business_context(session_state) and not link:
+            append_tool_result(
+                session_state,
+                tool_name="日历导入入口",
+                ok=False,
+                result_summary=(
+                    "暂时无法生成你的专属导入链接，请稍后再试。"
+                    f"失败原因：{handoff_error or 'handoff_link_unavailable'}。"
+                ),
+            )
+            return
+
+        if not link:
+            link = self._build_customer_web_url(_CALENDAR_IMPORT_PATH)
         append_tool_result(
             session_state,
             tool_name="日历导入入口",
@@ -497,6 +529,54 @@ class PrepareWorkflow:
             ),
         )
         logger.info("[PrepareWorkflow] 已添加 Google Calendar 导入入口链接")
+
+    def _latest_input_metadata(self, session_state: Dict[str, Any]) -> Dict[str, Any]:
+        input_messages = (
+            session_state.get("conversation", {})
+            .get("conversation_info", {})
+            .get("input_messages", [])
+        )
+        if not isinstance(input_messages, list):
+            return {}
+        for message in reversed(input_messages):
+            metadata = message.get("metadata") if isinstance(message, dict) else None
+            if isinstance(metadata, dict):
+                return metadata
+        return {}
+
+    def _is_clawscale_business_context(self, session_state: Dict[str, Any]) -> bool:
+        return self._latest_input_metadata(session_state).get("source") == "clawscale"
+
+    def _build_calendar_import_handoff_payload(
+        self, session_state: Dict[str, Any]
+    ) -> Dict[str, str] | None:
+        metadata = self._latest_input_metadata(session_state)
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+        customer = metadata.get("customer")
+        if not isinstance(customer, dict):
+            customer = {}
+
+        source_customer_id = str(
+            customer.get("id") or session_state.get("user", {}).get("id") or ""
+        ).strip()
+        payload = {
+            "source_customer_id": source_customer_id,
+            "tenant_id": str(business_protocol.get("tenant_id") or "").strip(),
+            "channel_id": str(business_protocol.get("channel_id") or "").strip(),
+            "end_user_id": str(business_protocol.get("end_user_id") or "").strip(),
+            "external_id": str(business_protocol.get("external_id") or "").strip(),
+            "gateway_conversation_id": str(
+                business_protocol.get("gateway_conversation_id") or ""
+            ).strip(),
+            "business_conversation_key": str(
+                business_protocol.get("business_conversation_key") or ""
+            ).strip(),
+        }
+        if not all(payload.values()):
+            return None
+        return payload
 
     def _looks_like_calendar_import_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()

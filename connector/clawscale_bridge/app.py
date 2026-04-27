@@ -662,7 +662,11 @@ def create_app(testing: bool = False):
 
         payload = request.get_json(force=True) or {}
         try:
-            result = service.preflight(customer_id=payload.get("customer_id"))
+            result = service.preflight(
+                customer_id=payload.get("customer_id"),
+                business_conversation_key=payload.get("business_conversation_key"),
+                gateway_conversation_id=payload.get("gateway_conversation_id"),
+            )
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
         return jsonify({"ok": True, "data": result})

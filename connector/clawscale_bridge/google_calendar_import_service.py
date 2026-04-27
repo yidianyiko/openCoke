@@ -34,15 +34,29 @@ class GoogleCalendarImportService:
         self.default_timezone_provider = default_timezone_provider or get_default_timezone
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
-    def preflight(self, *, customer_id: str) -> dict[str, str]:
+    def preflight(
+        self,
+        *,
+        customer_id: str,
+        business_conversation_key: str | None = None,
+        gateway_conversation_id: str | None = None,
+    ) -> dict[str, str]:
         if not isinstance(customer_id, str) or not customer_id.strip():
             raise ValueError("customer_id_required")
 
         character_id = self.character_id_provider()
-        conversation = self.conversation_dao.find_latest_private_conversation_by_db_user_ids(
-            db_user_id1=customer_id,
-            db_user_id2=character_id,
+        conversation = self._find_business_conversation(
+            character_id=character_id,
+            business_conversation_key=business_conversation_key,
+            gateway_conversation_id=gateway_conversation_id,
         )
+        if not conversation:
+            conversation = (
+                self.conversation_dao.find_latest_private_conversation_by_db_user_ids(
+                    db_user_id1=customer_id,
+                    db_user_id2=character_id,
+                )
+            )
         if not conversation:
             raise ValueError("conversation_required")
 
@@ -52,6 +66,32 @@ class GoogleCalendarImportService:
             "character_id": character_id,
             "timezone": self._resolve_target_timezone(customer_id),
         }
+
+    def _find_business_conversation(
+        self,
+        *,
+        character_id: str,
+        business_conversation_key: str | None,
+        gateway_conversation_id: str | None,
+    ) -> dict[str, Any] | None:
+        get_private_conversation = getattr(
+            self.conversation_dao, "get_private_conversation", None
+        )
+        if not callable(get_private_conversation):
+            return None
+
+        character_platform_id = f"clawscale-character:{character_id}"
+        for candidate in (business_conversation_key, gateway_conversation_id):
+            if not isinstance(candidate, str) or not candidate.strip():
+                continue
+            conversation = get_private_conversation(
+                "business",
+                f"clawscale:{candidate}",
+                character_platform_id,
+            )
+            if conversation:
+                return conversation
+        return None
 
     def import_events(
         self,

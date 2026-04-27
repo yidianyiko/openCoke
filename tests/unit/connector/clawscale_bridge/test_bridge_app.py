@@ -692,7 +692,47 @@ def test_google_calendar_import_preflight_returns_target_conversation(monkeypatc
             "timezone": "Asia/Tokyo",
         },
     }
-    service.preflight.assert_called_once_with(customer_id="ck_1")
+    service.preflight.assert_called_once_with(
+        customer_id="ck_1",
+        business_conversation_key=None,
+        gateway_conversation_id=None,
+    )
+
+
+def test_google_calendar_import_preflight_forwards_business_conversation_context(
+    monkeypatch,
+):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock(
+        preflight=MagicMock(
+            return_value={
+                "conversation_id": "conv-whatsapp",
+                "user_id": "ck_email",
+                "character_id": "char_1",
+                "timezone": "Asia/Tokyo",
+            }
+        )
+    )
+    monkeypatch.setitem(app.config, "GOOGLE_CALENDAR_IMPORT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/google-calendar-import/preflight",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "ck_email",
+            "business_conversation_key": "bc_1",
+            "gateway_conversation_id": "gw_1",
+        },
+    )
+
+    assert response.status_code == 200
+    service.preflight.assert_called_once_with(
+        customer_id="ck_email",
+        business_conversation_key="bc_1",
+        gateway_conversation_id="gw_1",
+    )
 
 
 def test_google_calendar_import_preflight_returns_conversation_required(monkeypatch):

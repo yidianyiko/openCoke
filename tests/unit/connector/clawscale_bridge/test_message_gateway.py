@@ -17,6 +17,10 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
             "sync_reply_token": "sync_tok_1",
             "business_conversation_key": "conv_key_1",
             "gateway_conversation_id": "gw_conv_1",
+            "tenant_id": "tnt_1",
+            "channel_id": "ch_1",
+            "end_user_id": "eu_1",
+            "external_id": "8617807028761",
             "coke_account_id": "acct_1",
             "coke_account_display_name": "Alice",
             "account_status": "subscription_required",
@@ -38,6 +42,10 @@ def test_message_gateway_builds_normalized_business_protocol_input_message():
         "sync_reply_token": "sync_tok_1",
         "business_conversation_key": "conv_key_1",
         "gateway_conversation_id": "gw_conv_1",
+        "tenant_id": "tnt_1",
+        "channel_id": "ch_1",
+        "end_user_id": "eu_1",
+        "external_id": "8617807028761",
     }
     assert doc["metadata"]["customer"] == {
         "id": "acct_1",
