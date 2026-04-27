@@ -91,3 +91,50 @@ def test_gateway_outbound_client_omits_optional_causal_event_id():
         headers={"Authorization": "Bearer outbound-secret"},
         timeout=15,
     )
+
+
+def test_gateway_outbound_client_serializes_media_options():
+    from connector.clawscale_bridge.gateway_outbound_client import (
+        GatewayOutboundClient,
+    )
+
+    session = MagicMock()
+
+    client = GatewayOutboundClient(
+        api_url="https://gateway.local/api/outbound",
+        api_key="outbound-secret",
+        session=session,
+    )
+
+    client.post_output(
+        output_id="out_1",
+        account_id="acc_1",
+        business_conversation_key="bc_1",
+        text="voice note",
+        message_type="voice",
+        delivery_mode="push",
+        expect_output_timestamp="2024-03-09T16:00:00Z",
+        idempotency_key="idem_1",
+        trace_id="trace_1",
+        media_urls=["https://cdn.example.com/voice.mp3"],
+        audio_as_voice=True,
+    )
+
+    session.post.assert_called_once_with(
+        "https://gateway.local/api/outbound",
+        json={
+            "output_id": "out_1",
+            "customer_id": "acc_1",
+            "business_conversation_key": "bc_1",
+            "text": "voice note",
+            "message_type": "voice",
+            "delivery_mode": "push",
+            "expect_output_timestamp": "2024-03-09T16:00:00Z",
+            "idempotency_key": "idem_1",
+            "trace_id": "trace_1",
+            "mediaUrls": ["https://cdn.example.com/voice.mp3"],
+            "audioAsVoice": True,
+        },
+        headers={"Authorization": "Bearer outbound-secret"},
+        timeout=15,
+    )
