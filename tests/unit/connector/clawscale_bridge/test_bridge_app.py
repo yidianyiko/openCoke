@@ -2,12 +2,56 @@ import pytest
 from unittest.mock import MagicMock
 
 
+def _install_bridge_service(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+    import connector.clawscale_bridge.app as bridge_app
+
+    app = create_app(testing=True)
+    message_gateway = MagicMock()
+    message_gateway.enqueue.return_value = "in_evt_media_1"
+    reply_waiter = MagicMock()
+    reply_waiter.wait_for_reply.return_value = {"reply": "ok"}
+    service = bridge_app.BusinessOnlyBridgeGateway(
+        message_gateway=message_gateway,
+        reply_waiter=reply_waiter,
+        target_character_id="char_1",
+    )
+    monkeypatch.setitem(app.config, "BRIDGE_GATEWAY", service)
+    return app, message_gateway, reply_waiter
+
+
+def _trusted_metadata():
+    return {
+        "tenantId": "ten_1",
+        "channelId": "ch_1",
+        "endUserId": "eu_1",
+        "externalId": "wxid_123",
+        "platform": "wechat_personal",
+        "channelScope": "personal",
+        "clawscaleUserId": "csu_1",
+        "cokeAccountId": "acct_1",
+        "inboundEventId": "in_evt_media_1",
+    }
+
+
+def _set_required_bridge_settings(bridge_app, monkeypatch):
+    for key, value in {
+        "api_key": "local-bridge-key",
+        "web_allowed_origin": "http://127.0.0.1:4040",
+        "wechat_channel_api_url": "https://wechat.local/api",
+        "wechat_channel_api_key": "wechat-secret",
+        "identity_api_url": "https://identity.local",
+        "identity_api_key": "identity-secret",
+        "outbound_api_url": "https://gateway.local/api/outbound",
+        "outbound_api_key": "outbound-secret",
+    }.items():
+        monkeypatch.setitem(bridge_app.CONF["clawscale_bridge"], key, value)
+
+
 def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"], "api_key", "local-bridge-key"
-    )
+    _set_required_bridge_settings(bridge_app, monkeypatch)
     monkeypatch.setattr(
         bridge_app, "_build_default_bridge_gateway", lambda: MagicMock()
     )
@@ -36,19 +80,7 @@ def test_create_app_rejects_unresolved_required_bridge_settings(monkeypatch):
 def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatch):
     import connector.clawscale_bridge.app as bridge_app
 
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"], "api_key", "local-bridge-key"
-    )
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"],
-        "outbound_api_url",
-        "https://gateway.local/api/outbound",
-    )
-    monkeypatch.setitem(
-        bridge_app.CONF["clawscale_bridge"],
-        "outbound_api_key",
-        "outbound-secret",
-    )
+    _set_required_bridge_settings(bridge_app, monkeypatch)
     monkeypatch.setitem(
         bridge_app.CONF["clawscale_bridge"],
         "output_dispatcher_poll_interval_seconds",
@@ -329,6 +361,218 @@ def test_bridge_inbound_accepts_shared_channel_customer_ids_without_personal_sco
     assert response.get_json() == {"ok": True, "reply": "shared ok"}
     assert message_gateway.enqueue.call_args.kwargs["account_id"] == "ck_shared_1"
     assert reply_waiter.wait_for_reply.call_args.args == ("in_evt_shared_1",)
+
+
+def test_bridge_inbound_reads_message_attachments_and_enqueues_fallback(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "caption",
+                    "attachments": [
+                        {
+                            "url": "https://cdn.example.com/photo.jpg",
+                            "filename": "photo.jpg",
+                            "contentType": "image/jpeg",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert message_gateway.enqueue.call_args.kwargs["text"] == (
+        "caption\n\nAttachment: https://cdn.example.com/photo.jpg"
+    )
+    assert inbound["input"] == "caption\n\nAttachment: https://cdn.example.com/photo.jpg"
+    assert inbound["inbound_text"] == "caption"
+    assert inbound["attachments"][0]["safeDisplayUrl"] == (
+        "https://cdn.example.com/photo.jpg"
+    )
+
+
+def test_bridge_inbound_top_level_valid_attachments_override_message_level(
+    monkeypatch,
+):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "attachments": [
+                {
+                    "url": "https://cdn.example.com/top.pdf",
+                    "filename": "top.pdf",
+                    "contentType": "application/pdf",
+                }
+            ],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "see attached",
+                    "attachments": [
+                        {
+                            "url": "ftp://cdn.example.com/bad.jpg",
+                            "filename": "bad.jpg",
+                            "contentType": "image/jpeg",
+                        },
+                        {
+                            "url": "https://cdn.example.com/message.jpg",
+                            "filename": "message.jpg",
+                            "contentType": "image/jpeg",
+                        },
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert inbound["input"] == "see attached\n\nAttachment: https://cdn.example.com/top.pdf"
+    assert inbound["attachments"] == [
+        {
+            "url": "https://cdn.example.com/top.pdf",
+            "contentType": "application/pdf",
+            "filename": "top.pdf",
+            "safeDisplayUrl": "https://cdn.example.com/top.pdf",
+        }
+    ]
+
+
+def test_bridge_inbound_attachment_only_enqueues_display_fallback(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "",
+                    "attachments": [
+                        {
+                            "url": "https://cdn.example.com/voice.ogg",
+                            "filename": "voice.ogg",
+                            "contentType": "audio/ogg",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert message_gateway.enqueue.call_args.kwargs["text"] == (
+        "Attachment: https://cdn.example.com/voice.ogg"
+    )
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert inbound["inbound_text"] == ""
+    assert inbound["attachments"][0]["safeDisplayUrl"] == (
+        "https://cdn.example.com/voice.ogg"
+    )
+
+
+def test_bridge_inbound_data_url_is_redacted_from_fallback_input(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+    data_url = "data:image/png;base64,cG5n"
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "inline",
+                    "attachments": [
+                        {
+                            "url": data_url,
+                            "filename": "\u0000photo.png",
+                            "contentType": "image/png",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert inbound["input"] == (
+        "inline\n\nAttachment: [inline image/png attachment: photo.png]"
+    )
+    assert "cG5n" not in inbound["input"]
+    assert inbound["attachments"][0]["safeDisplayUrl"] == (
+        "[inline image/png attachment: photo.png]"
+    )
+
+
+def test_bridge_inbound_invalid_attachment_only_is_ignored_after_account_validation(
+    monkeypatch,
+):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "",
+                    "attachments": [
+                        {
+                            "url": "ftp://cdn.example.com/photo.jpg",
+                            "filename": "photo.jpg",
+                            "contentType": "image/jpeg",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "ignored": True,
+        "reason": "empty_inbound",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_missing_account_context_precedes_empty_ignore(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    metadata = _trusted_metadata()
+    del metadata["cokeAccountId"]
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"messages": [{"role": "user", "content": ""}], "metadata": metadata},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "missing_coke_account_id",
+    }
+    message_gateway.enqueue.assert_not_called()
 
 
 def test_bridge_inbound_blocks_denied_accounts_without_enqueueing(monkeypatch):

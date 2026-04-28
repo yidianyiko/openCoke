@@ -12,6 +12,10 @@ from connector.clawscale_bridge.gateway_delivery_route_client import (
 from connector.clawscale_bridge.google_calendar_import_service import (
     GoogleCalendarImportService,
 )
+from connector.clawscale_bridge.inbound_attachments import (
+    format_input_with_attachments,
+    normalize_inbound_attachments,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
@@ -274,10 +278,46 @@ class BusinessOnlyBridgeGateway:
             for field in required_fields
         )
 
+    def _latest_user_message(self, messages: list) -> dict:
+        for message in reversed(messages):
+            if isinstance(message, dict) and message.get("role") == "user":
+                return message
+        return {}
+
+    def _choose_attachments(
+        self,
+        *,
+        inbound_payload: dict,
+        latest_user_message: dict,
+        last_message: dict,
+    ) -> list[dict]:
+        candidates = (
+            inbound_payload.get("attachments"),
+            latest_user_message.get("attachments"),
+            last_message.get("attachments"),
+        )
+        for raw_attachments in candidates:
+            result = normalize_inbound_attachments(raw_attachments)
+            if result.attachments:
+                return result.attachments
+        return []
+
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
         metadata = inbound_payload.get("metadata") or {}
         messages = inbound_payload.get("messages") or []
-        last_message = messages[-1] if messages else {}
+        last_message = messages[-1] if messages and isinstance(messages[-1], dict) else {}
+        latest_user_message = self._latest_user_message(messages)
+        inbound_text = (
+            inbound_payload.get("input")
+            or latest_user_message.get("content")
+            or last_message.get("content")
+            or ""
+        )
+        attachments = self._choose_attachments(
+            inbound_payload=inbound_payload,
+            latest_user_message=latest_user_message,
+            last_message=last_message,
+        )
 
         normalized = {
             "tenant_id": inbound_payload.get("tenant_id") or metadata.get("tenantId"),
@@ -295,9 +335,9 @@ class BusinessOnlyBridgeGateway:
             or metadata.get("inboundEventId"),
             "sync_reply_token": inbound_payload.get("sync_reply_token")
             or metadata.get("syncReplyToken"),
-            "input": inbound_payload.get("input")
-            or last_message.get("content")
-            or "",
+            "input": format_input_with_attachments(inbound_text, attachments),
+            "inbound_text": inbound_text,
+            "attachments": attachments,
             "channel_scope": inbound_payload.get("channel_scope")
             or metadata.get("channelScope"),
             "clawscale_user_id": inbound_payload.get("clawscale_user_id")
@@ -395,6 +435,10 @@ class BusinessOnlyBridgeGateway:
         for key in ("coke_account_display_name",):
             if key in inbound:
                 enqueue_payload[key] = inbound[key]
+        if inbound.get("attachments"):
+            enqueue_payload["input"] = inbound["input"]
+            enqueue_payload["inbound_text"] = inbound.get("inbound_text", "")
+            enqueue_payload["attachments"] = inbound["attachments"]
 
         causal_inbound_event_id = self.message_gateway.enqueue(
             account_id=account_id,
@@ -458,6 +502,11 @@ class BusinessOnlyBridgeGateway:
             return {
                 "status": "error",
                 "error": "missing_coke_account_id",
+            }
+        if not inbound.get("input", "").strip() and not inbound.get("attachments"):
+            return {
+                "status": "ignored",
+                "reason": "empty_inbound",
             }
         if inbound.get("account_access_allowed") is False:
             return {
@@ -632,6 +681,14 @@ def create_app(testing: bool = False):
             return jsonify({"ok": False, "error": "bridge service not wired"}), 500
 
         result = gateway.handle_inbound(payload)
+        if result.get("status") == "ignored":
+            return jsonify(
+                {
+                    "ok": True,
+                    "ignored": True,
+                    "reason": result.get("reason", "empty_inbound"),
+                }
+            )
         if result.get("status") != "ok":
             return jsonify({"ok": False, "error": result.get("error", "invalid_request")}), 400
 
