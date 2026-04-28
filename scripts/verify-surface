@@ -6,6 +6,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 dry_run=0
+pytest_cmd="python -m pytest"
+
+if [[ -x ".venv/bin/python" ]]; then
+  pytest_cmd=".venv/bin/python -m pytest"
+fi
 
 if [[ "${1:-}" == "--dry-run" ]]; then
   dry_run=1
@@ -22,17 +27,17 @@ surface_commands() {
 
   case "$surface" in
     repo-os)
-      print "pytest tests/unit/test_repo_os_structure.py -v"
+      print "$pytest_cmd tests/unit/test_repo_os_structure.py -v"
       print "zsh scripts/check"
       ;;
     worker-runtime)
-      print "pytest tests/unit/runner/ -v"
-      print "pytest tests/unit/agent/ -v"
-      print "pytest tests/unit/test_clawscale_only_topology.py -v"
+      print "$pytest_cmd tests/unit/runner/ -v"
+      print "$pytest_cmd tests/unit/agent/ -v"
+      print "$pytest_cmd tests/unit/test_clawscale_only_topology.py -v"
       ;;
     bridge)
-      print "pytest tests/unit/connector/clawscale_bridge/ -v"
-      print "pytest tests/unit/agent/test_message_util_clawscale_routing.py -v"
+      print "$pytest_cmd tests/unit/connector/clawscale_bridge/ -v"
+      print "$pytest_cmd tests/unit/agent/test_message_util_clawscale_routing.py -v"
       ;;
     gateway-api)
       print "pnpm --dir gateway/packages/api test"

@@ -20,12 +20,19 @@ def test_verify_surface_dry_run_prints_repo_os_and_bridge_commands():
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "== repo-os ==" in result.stdout
-    assert "pytest tests/unit/test_repo_os_structure.py -v" in result.stdout
+    assert (
+        ".venv/bin/python -m pytest tests/unit/test_repo_os_structure.py -v"
+        in result.stdout
+    )
     assert "zsh scripts/check" in result.stdout
     assert "== bridge ==" in result.stdout
-    assert "pytest tests/unit/connector/clawscale_bridge/ -v" in result.stdout
     assert (
-        "pytest tests/unit/agent/test_message_util_clawscale_routing.py -v"
+        ".venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/ -v"
+        in result.stdout
+    )
+    assert (
+        ".venv/bin/python -m pytest "
+        "tests/unit/agent/test_message_util_clawscale_routing.py -v"
         in result.stdout
     )
 

@@ -93,13 +93,16 @@ def _ensure_web_search_tool_loaded() -> None:
         mod = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = mod
         spec.loader.exec_module(mod)
-        # Wire into parent package
-        tools_pkg = sys.modules["agent.agno_agent.tools"]
-        tools_pkg.web_search_tool = mod.web_search_tool
-        if not hasattr(tools_pkg, "__all__"):
-            tools_pkg.__all__ = []
-        if "web_search_tool" not in tools_pkg.__all__:
-            tools_pkg.__all__.append("web_search_tool")
+
+    # Wire into the parent package even when another test loaded the submodule
+    # first, because some tests create hollow parent packages by path.
+    tools_pkg = sys.modules["agent.agno_agent.tools"]
+    web_search_mod = sys.modules[module_name]
+    tools_pkg.web_search_tool = web_search_mod.web_search_tool
+    if not hasattr(tools_pkg, "__all__"):
+        tools_pkg.__all__ = []
+    if "web_search_tool" not in tools_pkg.__all__:
+        tools_pkg.__all__.append("web_search_tool")
 
 
 _ensure_agno_stubs()

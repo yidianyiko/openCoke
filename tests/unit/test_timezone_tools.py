@@ -135,13 +135,23 @@ def make_session_state(user_id="507f1f77bcf86cd799439011"):
     }
 
 
+def call_tool_entrypoint(tool, **kwargs):
+    entrypoint = getattr(tool, "entrypoint", tool)
+    entrypoint = getattr(entrypoint, "raw_function", entrypoint)
+    return entrypoint(**kwargs)
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
 @patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch(
+    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+)
 def test_set_user_timezone_uses_canonical_state_update(
+    mock_realign_reminders,
     mock_dao_class,
     mock_service_class,
 ):
@@ -169,7 +179,8 @@ def test_set_user_timezone_uses_canonical_state_update(
     mock_service_class.return_value = service_instance
 
     session_state = make_session_state()
-    result = set_user_timezone.entrypoint(
+    result = call_tool_entrypoint(
+        set_user_timezone,
         timezone="America/New_York",
         session_state=session_state,
     )
@@ -185,6 +196,10 @@ def test_set_user_timezone_uses_canonical_state_update(
         service_instance.apply_user_explicit_change.return_value,
     )
     dao_instance.update_timezone.assert_not_called()
+    mock_realign_reminders.assert_called_once_with(
+        "507f1f77bcf86cd799439011",
+        "America/New_York",
+    )
     assert session_state["tool_results"][0]["tool_name"] == "时区更新"
     assert session_state["tool_results"][0]["ok"] is True
 
@@ -223,7 +238,8 @@ def test_set_user_timezone_realigns_visible_reminders_on_success(
     mock_service_class.return_value = service_instance
 
     session_state = make_session_state()
-    result = set_user_timezone.entrypoint(
+    result = call_tool_entrypoint(
+        set_user_timezone,
         timezone="America/New_York",
         session_state=session_state,
     )
@@ -272,7 +288,8 @@ def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minu
 
     session_state = make_session_state()
     session_state["conversation"] = {"_id": "conv-1"}
-    result = store_timezone_proposal.entrypoint(
+    result = call_tool_entrypoint(
+        store_timezone_proposal,
         timezone="Europe/London",
         session_state=session_state,
     )
@@ -300,7 +317,8 @@ def test_store_timezone_proposal_ignores_user_confirmed_timezone_state(mock_dao_
 
     session_state = make_session_state()
     session_state["conversation"] = {"_id": "conv-1"}
-    result = store_timezone_proposal.entrypoint(
+    result = call_tool_entrypoint(
+        store_timezone_proposal,
         timezone="Europe/London",
         session_state=session_state,
     )
@@ -317,7 +335,8 @@ def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
     session_state = make_session_state()
-    result = set_user_timezone.entrypoint(
+    result = call_tool_entrypoint(
+        set_user_timezone,
         timezone="Not/AValid",
         session_state=session_state,
     )
@@ -330,7 +349,8 @@ def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
 def test_set_user_timezone_tool_missing_user(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
-    result = set_user_timezone.entrypoint(
+    result = call_tool_entrypoint(
+        set_user_timezone,
         timezone="Asia/Tokyo",
         session_state={},
     )
@@ -357,7 +377,8 @@ def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class
     }
     mock_dao_class.return_value = dao_instance
 
-    result = consume_timezone_confirmation.entrypoint(
+    result = call_tool_entrypoint(
+        consume_timezone_confirmation,
         decision="yes",
         session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-2"}},
     )
@@ -389,7 +410,8 @@ def test_consume_timezone_confirmation_rejects_expired_proposal(
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
 
-    result = consume_timezone_confirmation.entrypoint(
+    result = call_tool_entrypoint(
+        consume_timezone_confirmation,
         decision="yes",
         session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-1"}},
     )
@@ -442,7 +464,8 @@ def test_consume_timezone_confirmation_yes_realigns_visible_reminders_on_success
     }
     mock_service_class.return_value = service_instance
 
-    result = consume_timezone_confirmation.entrypoint(
+    result = call_tool_entrypoint(
+        consume_timezone_confirmation,
         decision="yes",
         session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-1"}},
     )
@@ -478,7 +501,8 @@ def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
 
-    result = consume_timezone_confirmation.entrypoint(
+    result = call_tool_entrypoint(
+        consume_timezone_confirmation,
         decision="no",
         session_state={"user": {"id": "acct-1"}, "conversation": {"_id": "conv-1"}},
     )

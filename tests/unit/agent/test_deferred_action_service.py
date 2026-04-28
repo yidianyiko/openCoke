@@ -1,3 +1,4 @@
+import importlib
 import importlib.util
 import sys
 import types
@@ -31,18 +32,6 @@ def _load_service_module():
             mod.__spec__ = None
             sys.modules[pkg] = mod
 
-    scheduler_module_name = "agent.runner.deferred_action_scheduler"
-    if scheduler_module_name not in sys.modules:
-        scheduler_module = types.ModuleType(scheduler_module_name)
-
-        def _get_deferred_action_scheduler_instance():
-            return None
-
-        scheduler_module.get_deferred_action_scheduler_instance = (
-            _get_deferred_action_scheduler_instance
-        )
-        sys.modules[scheduler_module_name] = scheduler_module
-
     spec = importlib.util.spec_from_file_location(
         module_name,
         _PROJECT_ROOT / "agent" / "agno_agent" / "tools" / "deferred_action" / "service.py",
@@ -50,10 +39,24 @@ def _load_service_module():
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
+    package = sys.modules["agent.agno_agent.tools.deferred_action"]
+    package.DeferredActionService = module.DeferredActionService
+    tool_module = importlib.import_module("agent.agno_agent.tools.deferred_action.tool")
+    package.set_deferred_action_session_state = (
+        tool_module.set_deferred_action_session_state
+    )
+    package.visible_reminder_tool = tool_module.visible_reminder_tool
     return module
 
 
 service_module = _load_service_module()
+
+
+def test_service_module_loader_preserves_deferred_action_package_exports():
+    deferred_action_package = sys.modules["agent.agno_agent.tools.deferred_action"]
+
+    assert hasattr(deferred_action_package, "DeferredActionService")
+    assert hasattr(deferred_action_package, "visible_reminder_tool")
 
 
 def build_action(**overrides):

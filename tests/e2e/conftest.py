@@ -60,14 +60,18 @@ def _agent_runner_is_available() -> bool:
     return False
 
 
-@pytest.fixture(autouse=True)
-def require_e2e_prerequisites(request):
-    if request.node.get_closest_marker("llm") is None:
-        return
+def _skip_if_llm_e2e_prerequisites_unavailable() -> None:
     if not _mongo_is_available():
         pytest.skip("E2E prerequisites unavailable: MongoDB is not reachable")
     if not _agent_runner_is_available():
         pytest.skip("E2E prerequisites unavailable: agent runner is not running")
+
+
+@pytest.fixture(autouse=True)
+def require_e2e_prerequisites(request):
+    if request.node.get_closest_marker("llm") is None:
+        return
+    _skip_if_llm_e2e_prerequisites_unavailable()
 
 
 @pytest.fixture(scope="module")
@@ -77,6 +81,8 @@ def terminal_client():
 
     scope=module: 同一测试模块内复用，减少连接开销
     """
+    _skip_if_llm_e2e_prerequisites_unavailable()
+
     from connector.terminal.terminal_test_client import TerminalTestClient
 
     client = TerminalTestClient(

@@ -84,6 +84,11 @@ def test_message_acquirer_accepts_coke_account_sender_for_business_clawscale_mes
         "_id": "acct_123",
         "nickname": "Gateway Alice",
         "is_coke_account": True,
+        "timezone": "Asia/Shanghai",
+        "timezone_source": "deployment_default",
+        "timezone_status": "system_inferred",
+        "pending_timezone_change": None,
+        "pending_task_draft": None,
     }
     assert captured["read_all"] == ("acct_123", character_id, "business", "pending")
     assert captured["conversation_args"]["db_user_id1"] == "acct_123"
