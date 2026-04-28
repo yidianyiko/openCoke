@@ -28,9 +28,11 @@ inbound behavior.
 ## Scope
 
 - Define the Gateway-to-Bridge inbound attachment contract.
+- Define shared Gateway and Bridge attachment normalization limits.
 - Normalize inbound attachments in the bridge.
 - Preserve attachments in `inputmessages.metadata`.
-- Provide a text fallback visible to the existing Python worker prompt path.
+- Provide a text fallback visible to the existing Python worker prompt path
+  without exposing raw `data:` URLs in prompts or logs.
 - Add tests for Gateway routing and bridge enqueue behavior.
 
 ## Out Of Scope
@@ -40,6 +42,17 @@ inbound behavior.
 - Voice transcription.
 - Direct Python model vision/audio invocation beyond existing prompt fallback.
 - Native media support for every Gateway adapter.
+
+## Security And Compatibility Notes
+
+- `data:` URLs are accepted only for bounded trusted-adapter/Bridge paths, not
+  the generic external Gateway route.
+- Normalization must enforce attachment count, URL length, decoded `data:` byte
+  limits, total payload limits, and allowed `data:` content types.
+- Raw `data:` URLs must not be written into prompt fallback text, logs, or JS
+  OpenAI/OpenClaw image payloads.
+- Text-only inbound dedupe remains keyed by causal inbound event id and must not
+  regress.
 
 ## References
 

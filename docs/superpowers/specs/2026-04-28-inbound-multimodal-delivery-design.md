@@ -60,8 +60,8 @@ OpenClaw reference pattern:
 - Attachment-only inbound events must be accepted when they have at least one
   valid attachment.
 - Python worker prompts must see an explicit fallback line for every attachment.
-- The contract must support both `http(s)` URLs and `data:` URLs because the
-  current WeChat personal adapter decrypts media to data URLs.
+- The contract must support bounded `data:` URLs for trusted adapter-generated
+  media because the current WeChat personal adapter decrypts media to data URLs.
 
 ## Non-Goals
 
@@ -85,17 +85,60 @@ type InboundAttachment = {
 };
 ```
 
+Shared normalization boundary:
+
+- Gateway must introduce a shared attachment normalizer and use it at the
+  `routeInboundMessage` boundary before persisting messages or building backend
+  history.
+- HTTP routes and adapters may call the same normalizer earlier for clearer
+  route-level errors, but `routeInboundMessage` remains the final guard.
+- Bridge must use an equivalent Python normalizer before enqueueing
+  `inputmessages`.
+- Every normalized attachment includes an internal `safeDisplayUrl` used for
+  fallback text and logs. For `http(s)` this is the URL. For `data:` this is a
+  redacted marker:
+
+```text
+[inline <contentType> attachment: <filename>]
+```
+
 Validation rules:
 
 - `url` must be a non-empty string after trimming.
 - `url` may be absolute `http://`, absolute `https://`, or `data:`.
 - Relative paths and `file://` URLs are rejected.
+- `data:` URLs are accepted only when the caller is a trusted adapter or the
+  bridge itself is reading Gateway-produced message history. Generic external
+  `/gateway/:channelId` requests reject `data:`.
+- `data:` URLs must use base64 form.
+- Allowed `data:` content types are:
+  - `image/jpeg`
+  - `image/png`
+  - `image/webp`
+  - `audio/ogg`
+  - `audio/mpeg`
+  - `audio/silk`
+  - `video/mp4`
+  - `application/pdf`
 - `filename` defaults to `attachment` when absent or blank.
 - `contentType` defaults to `application/octet-stream` when absent or blank.
 - `size` is retained only when it is a non-negative finite number.
 - Invalid attachment entries are dropped.
 - If normalized text is blank and all attachments are invalid or absent, the
   inbound request is treated as empty and must not enqueue a worker message.
+
+Limits:
+
+- Maximum attachments per inbound message: 4.
+- Maximum URL length for `http(s)` URLs: 4096 characters.
+- Maximum decoded bytes per `data:` URL: 2 MiB.
+- Maximum total decoded `data:` bytes per inbound message: 4 MiB.
+- Maximum total attachment JSON footprint passed across the bridge: 5 MiB.
+- Payloads that exceed a route-level body cap return `413`.
+- Payloads with only oversized or invalid attachments and no text return `400`
+  at Gateway routes and ignored/no-enqueue at Bridge.
+- Payloads with text plus oversized or invalid attachments keep the text and
+  drop the invalid attachments.
 
 Supported sources:
 
@@ -112,20 +155,21 @@ to message-level attachments.
 
 ## Text Fallback Format
 
-Bridge builds a Worker-visible message string from text plus attachment links:
+Bridge builds a Worker-visible message string from text plus attachment display
+references:
 
 ```text
 <text>
 
-Attachment: <url>
-Attachment: <url>
+Attachment: <safeDisplayUrl>
+Attachment: <safeDisplayUrl>
 ```
 
 For attachment-only messages:
 
 ```text
-Attachment: <url>
-Attachment: <url>
+Attachment: <safeDisplayUrl>
+Attachment: <safeDisplayUrl>
 ```
 
 The fallback text is stored as `inputmessages.message`. This keeps existing
@@ -135,6 +179,9 @@ native media readers in the first pass.
 The original caption/text is stored separately in metadata as
 `metadata.inbound_text` when attachments are present. This lets later native
 media work distinguish user caption text from generated fallback lines.
+
+Raw `data:` URLs are never written into fallback text or logs. They are stored
+only in normalized metadata so trusted downstream code can use them later.
 
 ## Worker Message Shape
 
@@ -165,6 +212,10 @@ metadata = {
 This keeps simple single-media cases visible to legacy message formatting while
 avoiding misleading `image` or `voice` types for mixed files.
 
+Because `message_type` changes Python prompt formatting, implementation must
+prove that the final `messages_to_str` output still contains every attachment
+fallback line for image, voice, mixed, and `data:` redaction cases.
+
 ## Gateway Changes
 
 Generic inbound route:
@@ -174,6 +225,21 @@ Generic inbound route:
 - It normalizes and drops invalid attachment entries before calling
   `routeInboundMessage`.
 - It returns `400` when both text and normalized attachments are absent.
+- It rejects `data:` URLs because it is an external generic endpoint.
+- It returns `413` when the JSON body exceeds the configured inbound payload
+  cap.
+
+Central route normalization:
+
+- `routeInboundMessage` must re-normalize `input.attachments` with the shared
+  normalizer before message persistence, backend history construction, access
+  handling, and backend dispatch.
+- Attachments from direct adapters are allowed to contain bounded `data:` URLs
+  only when the adapter runs in-process and explicitly passes trusted adapter
+  metadata.
+- Normalized attachments must be the only shape persisted to
+  `message.metadata.attachments`.
+- Backend history must use normalized attachments, not raw adapter input.
 
 WhatsApp Evolution webhook:
 
@@ -197,6 +263,16 @@ Gateway message persistence:
 - Tests must prove attachments are passed to `generateReply` history for bridge
   backends.
 
+Gateway backend dispatch:
+
+- `data:` attachments are Bridge/custom-backend-safe metadata, not automatically
+  safe for all model providers.
+- JS OpenAI/OpenClaw backend image parts may include `http(s)` image URLs.
+- JS OpenAI/OpenClaw backend image parts must not include `data:` URLs in this
+  pass. They should be represented as text-only redacted attachment references
+  unless a later backend capability explicitly allows inline data URLs.
+- Non-image attachments continue to be represented as text references.
+
 ## Bridge Changes
 
 `BusinessOnlyBridgeGateway._normalize_inbound`:
@@ -204,9 +280,11 @@ Gateway message persistence:
 - Extracts normalized attachments from top-level and message-level sources.
 - Extracts text from top-level `input`, latest user message content, or last
   message content.
-- Builds fallback input text from text plus attachment URLs.
+- Builds fallback input text from text plus attachment display references.
 - Stores normalized attachments and original text in the normalized inbound
   dict.
+- Applies the same attachment count, URL length, decoded byte, content type, and
+  total payload limits as Gateway.
 
 `BusinessOnlyBridgeGateway._enqueue_and_wait`:
 
@@ -236,6 +314,13 @@ Gateway message persistence:
 - Invalid individual attachments are dropped, not fatal.
 - A payload with text and invalid attachments still enqueues the text.
 - Access-denied replies do not include attachment fallback text.
+- Empty detection happens after trusted account context validation in the
+  Bridge. A malformed attachment-only request that also lacks account context
+  still returns the existing `missing_coke_account_id` error.
+- Empty detection happens before enqueue/reply waiting once account context is
+  trusted.
+- Gateway external routes return `400` for semantically empty requests and
+  `413` for body-size violations.
 
 ## Compatibility
 
@@ -244,8 +329,10 @@ Gateway message persistence:
 - Existing bridge requests with `messages` but no attachments keep working.
 - Existing stored `inputmessages` without attachment metadata keep formatting as
   before.
-- Data URLs are accepted inbound only. Outbound continues to require public
-  `http(s)` media URLs.
+- Bounded `data:` URLs are accepted inbound only from trusted adapters or Bridge
+  history. Outbound continues to require public `http(s)` media URLs.
+- Raw `data:` URLs are excluded from fallback text, logs, and JS OpenAI/OpenClaw
+  image parts in this pass.
 
 ## Tests
 
@@ -255,12 +342,19 @@ Gateway tests:
   attachments to `routeInboundMessage`.
 - Generic inbound route accepts attachment-only requests.
 - Generic inbound route rejects empty text plus no valid attachments.
+- Generic inbound route rejects `data:` attachments.
+- Gateway shared normalizer enforces attachment count, URL length, decoded
+  `data:` byte, total `data:` byte, content type, and `file://` rejection rules.
 - WhatsApp Evolution media-only image/audio events call `routeInboundMessage`
   instead of being ignored.
 - WhatsApp Evolution captioned image routes caption plus attachment.
 - `routeInboundMessage` persists `metadata.attachments`.
 - `routeInboundMessage` passes attachments in `generateReply` history for bridge
   backends.
+- `routeInboundMessage` normalizes attachments from direct adapters and drops
+  malformed entries before persistence/history.
+- JS OpenAI/OpenClaw backend conversion redacts `data:` attachments instead of
+  placing raw data URLs in `image_url` parts.
 
 Bridge tests:
 
@@ -274,13 +368,19 @@ Bridge tests:
 - Single image attachment writes `message_type: "image"`.
 - Single audio attachment writes `message_type: "voice"`.
 - Mixed or file attachments keep `message_type: "text"`.
+- `messages_to_str` retains attachment fallback text for image, voice, mixed,
+  and redacted `data:` cases.
+- Bridge normalizer enforces max attachments, max URL length, decoded `data:`
+  byte limits, total payload limits, and allowed content types.
 - Existing text-only tests continue to pass.
 
 Verification commands:
 
 ```bash
 pytest tests/unit/connector/clawscale_bridge/ -v
+pytest tests/unit/agent/test_message_util_clawscale_routing.py -v
 pnpm --dir gateway/packages/api exec vitest run src/gateway/message-router.test.ts src/lib/route-message.test.ts
+pnpm --dir gateway/packages/api test
 pnpm --dir gateway/packages/api build
 zsh scripts/check
 ```
@@ -294,4 +394,15 @@ zsh scripts/check
 - WhatsApp Evolution media-only inbound events are routed.
 - Text-only inbound behavior remains unchanged.
 - Invalid attachment-only inbound events do not enqueue empty worker messages.
-- Inbound accepts `data:` URLs while outbound continues to reject them.
+- Inbound accepts bounded trusted-adapter `data:` URLs while outbound continues
+  to reject them.
+- Generic external inbound rejects `data:` URLs.
+- Raw `data:` URLs do not appear in fallback text, logs, or JS OpenAI/OpenClaw
+  image payloads.
+- Top-level bridge attachments override message-level attachments only when the
+  top-level set has at least one valid normalized attachment.
+- Invalid attachments with valid text are dropped without dropping the text.
+- Multiple attachment fallback preserves attachment order.
+- Duplicate inbound-event dedupe remains keyed only by causal inbound event id;
+  attachment metadata changes on a duplicate event do not mutate the original
+  worker message.
