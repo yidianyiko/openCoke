@@ -1,7 +1,8 @@
 # Architecture Reference
 
-This document describes the current ClawScale-only runtime wired in this
-repository.
+This document describes the current ClawScale-backed runtime wired in this
+repository, including the gateway-owned shared-channel experiments that feed
+the same Coke worker pipeline.
 
 ## 1. Runtime Topology
 
@@ -24,6 +25,8 @@ The production stack consists of:
 - `gateway/`
   - serves the web UI on `4040`
   - serves the API on `4041`
+  - owns shared-channel admin/config state and provider webhook routes for the
+    active `whatsapp_evolution`, `wechat_ecloud`, and `linq` experiments
 - data services
   - MongoDB for Coke runtime state, including `deferred_actions` and
     `deferred_action_occurrences`
@@ -35,6 +38,7 @@ flowchart LR
     subgraph Web
         UI[Gateway Web :4040]
         API[Gateway API :4041]
+        PROVIDERS[Shared Channel Providers]
     end
 
     subgraph Coke
@@ -52,6 +56,7 @@ flowchart LR
     end
 
     UI --> API
+    PROVIDERS --> API
     API --> BRIDGE
     BRIDGE --> RUNNER
     BRIDGE --> API
@@ -67,7 +72,7 @@ flowchart LR
 
 ## 2. Inbound Path
 
-Current inbound traffic comes through ClawScale:
+Current personal-channel inbound traffic comes through ClawScale:
 
 ```text
 user channel
@@ -78,9 +83,27 @@ user channel
   -> agent workers
 ```
 
+Active shared-channel experiments enter through provider-specific gateway
+webhook routes before converging on the same Coke bridge and worker runtime:
+
+```text
+provider webhook
+  -> gateway /gateway/evolution/whatsapp | /gateway/ecloud/wechat | /gateway/linq
+  -> shared-channel provisioning and route binding
+  -> bridge /bridge/inbound
+  -> MongoDB inputmessages
+  -> optional Redis XADD
+  -> agent workers
+```
+
 Key points:
 
 - `connector/clawscale_bridge/app.py` validates bridge requests and converts them into Coke input documents.
+- `gateway/packages/api/src/gateway/message-router.ts` owns provider webhook
+  normalization for active shared-channel experiments.
+- `gateway/packages/api/src/lib/route-message.ts` and shared-channel
+  provisioning map external senders onto Coke customers and delivery routes
+  before handing messages to the bridge.
 - `util/redis_stream.py` is only a wake-up path; MongoDB remains the source of truth.
 - `agent/runner/message_processor.py` still acquires work from `inputmessages` and conversation locks in MongoDB.
 
@@ -140,12 +163,42 @@ Outbound replies now follow:
 agent outputmessages
   -> bridge output dispatcher
   -> gateway /api/outbound
-  -> ClawScale-managed delivery route
+  -> delivery route
+  -> ClawScale-managed personal route or shared-channel provider route
 ```
 
-This means the Coke repository no longer owns any direct platform connector runtime.
+For personal `wechat_personal`, delivery is ClawScale-backed. For active
+shared-channel experiments, gateway dispatches through the provider-specific
+delivery branch for `whatsapp_evolution`, `wechat_ecloud`, or `linq`. Retired
+Coke-owned direct channel runtimes should not be reintroduced for the personal
+onboarding path.
 
-## 6. Google Calendar Import Boundary
+## 6. Shared-Channel Boundary
+
+Shared channels are active gateway-owned experiments, not the primary personal
+onboarding path.
+
+Runtime ownership is split as follows:
+
+- `gateway/`
+  - owns shared-channel admin/config state
+  - owns provider webhook verification and normalization
+  - owns shared-customer provisioning and delivery-route binding
+  - owns provider-specific outbound delivery through `/api/outbound`
+- `connector/clawscale_bridge/`
+  - remains the boundary that converts normalized inbound events into Coke
+    `inputmessages`
+  - dispatches Coke `outputmessages` back to the gateway
+- worker runtime
+  - treats shared-channel turns like normal Coke turns after the bridge handoff
+
+Current active shared-channel kinds:
+
+- `whatsapp_evolution`
+- `wechat_ecloud`
+- `linq`
+
+## 7. Google Calendar Import Boundary
 
 The first-version Google Calendar import flow is a one-time migration for a
 claimed customer's `primary` calendar. Imported events become Coke-owned
@@ -164,7 +217,7 @@ Runtime ownership is split as follows:
   - exposes the internal preflight and import routes that hand work into the
     worker/runtime reminder path
 
-## 7. Deployment Topology
+## 8. Deployment Topology
 
 The checked-in production deployment matches the runtime above:
 

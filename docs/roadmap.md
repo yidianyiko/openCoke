@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-04-09
+Last updated: 2026-04-28
 
 This document is the primary product and platform direction view for this
 repository.
@@ -30,6 +30,9 @@ Core product shape:
 - one assistant relationship
 - personal reminders and proactive follow-up
 - personal channel delivery, especially personal WeChat
+- shared-channel entrypoints may also route new external conversations into the
+  same personal supervision runtime when they support acquisition or channel
+  coverage experiments
 
 Current status:
 
@@ -40,13 +43,20 @@ Current status:
   delivery paths
 - the current work around ClawScale personal WeChat, bridge auth, async push,
   and rollout validation is still serving Phase 1 delivery and stabilization
+- shared-channel integrations for `whatsapp_evolution`, `wechat_ecloud`, and
+  `linq` are active platform experiments that feed the same Coke worker/runtime
+  through gateway provisioning, webhook normalization, delivery routes, and
+  `/api/outbound`
 
 Near-term focus for Phase 1:
 
 - finish rollout validation for personal `wechat_personal`
+- stabilize the current shared-channel experiments where they support real
+  acquisition or delivery paths: Evolution WhatsApp, Ecloud private WeChat, and
+  Linq
 - keep reminder and proactive delivery stable across bridge, worker, and
   gateway restarts
-- keep the pure ClawScale deployment path stable and repeatable
+- keep the ClawScale-backed deployment path stable and repeatable
 
 ### Phase 2: TOB Supervision Solution
 
@@ -125,6 +135,7 @@ product can evolve.
 ### Current platform themes
 
 - channel and gateway integration
+- shared-channel webhook ingestion, provisioning, and outbound delivery
 - bridge runtime and translation boundaries
 - identity and account provisioning
 - async delivery for reminders and proactive messages
@@ -138,18 +149,30 @@ product can evolve.
   unified user model, and a personal WeChat channel lifecycle exposed through
   `/channels/wechat-personal`, `/account/subscription`, `/api/auth/*`, and the
   `/api/customer/*` / `/api/public/*` contract
+- the gateway also contains active shared-channel integrations for
+  `whatsapp_evolution`, `wechat_ecloud`, and `linq`; these are not legacy
+  compatibility paths, and they currently depend on the shared-channel admin
+  surface, provider-specific webhook routes, shared-customer provisioning, and
+  outbound delivery branches
 - the internal API remains under `/api/internal/*`
 - retired public entrypoints `/login`, `/coke/login`, and `/api/coke/auth/login`
   have been removed and now return 404
-- legacy Ecloud/Evolution and Coke-owned direct channel runtimes have been
-  removed from the repository
-- ClawScale is now the only supported production channel entrypoint for Coke
+- old Coke-owned direct channel runtimes have been retired from the personal
+  onboarding path; current shared-channel provider integrations live in the
+  gateway and are part of the active platform surface
+- ClawScale-backed bridge delivery is the supported production path for
+  personal Coke users, while shared-channel provider routes remain active for
+  external-channel experiments
 
 ### Platform priorities now
 
 - stabilize personal `wechat_personal` async push in end-to-end environments
+- keep `whatsapp_evolution`, `wechat_ecloud`, and `linq` shared-channel
+  behavior reliable enough to evaluate as acquisition and external delivery
+  paths
 - keep the new personal-channel path as the default Phase 1 onboarding flow
-- continue removing Coke-side legacy compatibility code and obsolete product concepts
+- continue removing Coke-side legacy compatibility code, obsolete product
+  concepts, and unused generic channel adapters
 - continue moving toward clearer ownership boundaries between Coke business
   state, bridge translation logic, and gateway/channel state
 
@@ -182,7 +205,8 @@ If you need a simple summary of where the codebase stands today:
 
 - Phase 1 is the active product phase and is largely implemented
 - the current engineering backlog is mostly Phase 1 stabilization and migration
-  cleanup
+  cleanup, plus active shared-channel experiments around Evolution WhatsApp,
+  Ecloud private WeChat, and Linq
 - Phase 2 is the next product phase: a TOB supervision solution, starting with
   learning institutions and a manager-side product
 - Phase 3 remains exploratory and should be treated as design-stage only
