@@ -755,6 +755,8 @@ def explicit_reminder_request(text: str) -> bool:
     normalized = str(text or "").lower()
     if vague_reminder_capability_question(normalized):
         return False
+    if reminder_time_query(normalized):
+        return False
     if any(
         keyword in normalized
         for keyword in ("提醒", "remind", "闹钟", "通知我", "每天", "每个小时", "每周", "每月")
@@ -776,11 +778,20 @@ _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN = re.compile(
 _VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
     r"^(你)?(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
 )
+_REMINDER_TIME_QUERY_PATTERN = re.compile(
+    r"(几点|什么时候|什么时间|何时|哪天|哪个时间).{0,12}提醒我|"
+    r"提醒我.{0,12}(几点|什么时候|什么时间|何时|哪天|哪个时间)"
+)
 
 
 def vague_reminder_capability_question(text: str) -> bool:
     normalized = normalize_text(text).strip()
     return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(normalized))
+
+
+def reminder_time_query(text: str) -> bool:
+    normalized = normalize_text(text).strip()
+    return bool(_REMINDER_TIME_QUERY_PATTERN.search(normalized))
 
 
 def actionable_implicit_reminder_request(text: str) -> bool:
