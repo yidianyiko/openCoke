@@ -469,6 +469,13 @@ def validate_expected_creates(
     for expected in expected_creates:
         if not output_mentions_expected_title(output_text, expected.title):
             errors.append(f"user_output_missing_expected_title:{expected.title}")
+        output_segment = output_segment_for_expected(output_text, expected)
+        if not output_segment:
+            continue
+        if expected.recurring is True and not segment_has_recurring_signal(output_segment):
+            errors.append(f"user_output_missing_recurring:{expected.title}")
+        if expected.recurring is False and segment_has_recurring_signal(output_segment):
+            errors.append(f"user_output_unexpected_recurring:{expected.title}")
     return errors
 
 
@@ -490,6 +497,47 @@ def output_mentions_expected_title(output_text: str, title: str) -> bool:
     ):
         return True
     return False
+
+
+def output_segment_for_expected(
+    output_text: str,
+    expected: ExpectedReminderCreate,
+) -> str:
+    positions: list[int] = []
+    local_time = (expected.local_time or "")[:5]
+    if local_time:
+        index = output_text.find(local_time)
+        if index >= 0:
+            positions.append(index)
+    for variant in expected_title_variants(expected.title):
+        index = output_text.find(variant)
+        if index >= 0:
+            positions.append(index)
+    if not positions:
+        return ""
+
+    position = min(positions)
+    start = 0
+    end = len(output_text)
+    for separator in "，,。；;！？!?\n":
+        left = output_text.rfind(separator, 0, position)
+        if left >= start:
+            start = left + 1
+        right = output_text.find(separator, position)
+        if right != -1 and right < end:
+            end = right
+    return output_text[start:end]
+
+
+def expected_title_variants(title: str) -> list[str]:
+    normalized_title = normalize_expected_title(title)
+    variants = [normalized_title] if normalized_title else []
+    if (
+        len(normalized_title) >= 2
+        and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
+    ):
+        variants.append(normalized_title[1:])
+    return variants
 
 
 def find_matching_reminder(
