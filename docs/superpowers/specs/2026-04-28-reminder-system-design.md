@@ -3,24 +3,32 @@
 **Status:** draft for review
 **Date:** 2026-04-28
 **Supersedes:** the Reminder System portions of the pre-split reminder core
-redesign draft, plus the now-merged agent integration spec.
+redesign draft, plus the now-merged agent integration draft.
 
 ## Summary
 
-Reminder System is the minimum reminder core that powers Coke Phase 1
-personal supervision. It directly replaces the reminder portion of the current
+Reminder System is the minimum durable reminder core for Coke Phase 1
+personal supervision. It replaces the reminder portion of the current
 `deferred_actions` runtime as a breaking redesign.
 
-The system has two layers in this spec:
+This spec treats **Reminder System** and **Agent System** as separate systems.
+They interact only through structured protocols:
 
-1. **Reminder Core** — data model, service, scheduler, chat delivery, and
-   storage. Producer-neutral.
-2. **Agent Integration** — the only producer in v1. Owns LLM tool schema,
-   prompt instructions, and translation between LLM intent and core service
-   calls.
+1. **Command protocol, Agent System -> Reminder System**
+   - Agent System creates, updates, cancels, completes, and lists reminders
+     through a structured command surface.
+   - V1 exposes that surface through an MCP-compatible tool adapter used by
+     the agent runtime.
 
-HTTP/API, Web UI, and Google Calendar import are explicit non-goals and will
-be added under their own future producer sections when each is built.
+2. **Fired-event protocol, Reminder System -> Agent System**
+   - Reminder System emits a structured `ReminderFiredEvent` when a reminder is
+     due.
+   - Agent System consumes the event and owns all user-visible output.
+
+Reminder System owns reminder state, schedule semantics, lifecycle, and the
+durable next fire time. Agent System owns natural-language understanding,
+target disambiguation, user-visible response wording, chat locks, and final
+conversation output.
 
 V1 is a clean replacement, not a compatibility migration. Existing reminder
 rows in `deferred_actions` may be dropped during rollout because the system
@@ -29,15 +37,18 @@ separate runtime concern until its own redesign replaces it.
 
 ## Goals
 
-- Provide a minimum reminder core that powers assistant-created reminders for
-  the current single-user supervision product.
+- Provide a minimum reminder system that powers assistant-created reminders
+  for the current single-user supervision product.
+- Make Reminder System independent from Agent System internals.
+- Let Agent System write reminders through a structured command protocol.
+- Let Reminder System fire reminders through a structured event protocol.
 - Keep product semantics distinct from process-local scheduler state.
-- Use Mongo as the durable source of truth and APScheduler 3.x as the
-  in-process timing layer.
+- Use Mongo as the durable source of truth for reminder aggregate state.
+- Use APScheduler 3.x only as an in-process wake-up layer.
 - Keep exactly one durable scheduler source: `Reminder.next_fire_at`.
-- Keep agent-specific intent detection, tool schema, prompt behavior, and
-  response translation in the agent integration layer, so future producers
-  (UI, HTTP, calendar import) can reuse the core service unchanged.
+- Preserve enough routing context for Agent System to render the future
+  reminder in the intended conversation.
+- Avoid reminder shadow copies in Agent System.
 
 ## Non-Goals
 
@@ -47,10 +58,11 @@ schema-on-read storage.
 
 Producers and surfaces:
 
-- HTTP/API producer
+- Public HTTP/API producer
 - Web UI producer
-- Google Calendar import (would need `time_policy=zoned`, external
-  attribution, sanitized event snapshots)
+- Google Calendar import
+- Direct user access to Reminder System without Agent System mediation
+- Multiple Agent System implementations
 
 Reminder shape:
 
@@ -63,68 +75,185 @@ Reminder shape:
 - Internal reminders (`visibility=internal`); proactive follow-up is its own
   redesign
 - `body`, `priority`, `sort_order`, `metadata` fields on reminders
+- External-source attribution (`external_id`, `external_key`, `snapshot`,
+  `imported_at`)
 
-Delivery and runtime:
+Delivery and reliability:
 
-- Multi-target delivery (`email`, `push`, `webhook`); v1 ships chat only
+- Email, push, webhook, or multi-target delivery
+- Reminder System writing chat output directly
 - Acknowledgement, dismissal, snooze
 - Constant/repeat notifications
 - Configurable retry policy
-- Floating realignment on user timezone change
-- Default reminder policy collection (timed-offset and all-day-local-time
-  defaults; v1 always fires at the scheduled instant)
-- Optimistic concurrency (`revision`)
-- Trigger leases (`lease_token`, `leased_at`, `lease_expires_at`)
+- Durable outbox implementation
 - Per-occurrence history table or delivery-attempt table
+- Multi-worker scheduler claiming
+- Trigger leases (`lease_token`, `leased_at`, `lease_expires_at`)
+- Optimistic concurrency (`revision`)
+- Exactly-once output
 
-Migration:
+Agent behavior:
 
-- Reminder data migration from `deferred_actions`
-
-Agent integration:
-
-- Replacement of the two-stage agent flow
+- Replacement of the existing OrchestratorAgent -> ReminderDetectAgent flow
 - ChatResponseAgent direct reminder writes
 - OrchestratorAgent direct reminder creation
 - Natural-language parsing inside Reminder System
 - Proactive follow-up redesign beyond preserving the existing
   `reminder_created_with_time` suppression behavior
 
-## Architecture Overview
+Migration:
+
+- Reminder data migration from `deferred_actions`
+
+## System Architecture
 
 ```text
-PrepareWorkflow
-  -> OrchestratorAgent
-  -> ReminderDetectAgent, only when need_reminder_detect=true
-  -> visible_reminder_tool wrapper      ── agent integration layer
-  -> ReminderService                    ── reminder core layer
-       -> Mongo (durable state)
-       -> APScheduler (in-process wake-ups)
-       -> Chat delivery adapter
-  -> session_state.tool_results
-
-ChatWorkflow
-  -> reads tool_results and reports actual reminder outcomes
-
-PostAnalyzeWorkflow
-  -> skips internal proactive follow-up when a timed reminder was created
++---------------------------+       command protocol        +---------------------------+
+| Agent System             | ---------------------------> | Reminder System           |
+|                           |                              |                           |
+| - OrchestratorAgent       |                              | - Reminder command port   |
+| - ReminderDetectAgent     |                              | - ReminderService         |
+| - MCP/tool adapter        |                              | - ReminderScheduler       |
+| - ChatResponseAgent       |                              | - Mongo reminders         |
+| - conversation locks      |                              | - APScheduler wake-ups    |
+| - final chat output       |                              |                           |
+|                           | <--------------------------- |                           |
++---------------------------+       fired-event protocol    +---------------------------+
 ```
 
-The layering rule: the agent integration layer is the only producer in v1
-and may not hold reminder business rules. The reminder core layer owns
-validation, lifecycle, scheduling, and delivery; it does not know about LLM
-tool schema or chat-response prose.
+Expanded runtime view:
 
----
+```text
+User message
+   |
+   v
+Agent System
+   |
+   | structured create/update/list/cancel/complete command
+   v
+Reminder Command Port
+   |
+   v
+ReminderService  <---------->  Mongo.reminders
+   |
+   | register / replace / remove wake-up
+   v
+ReminderScheduler  <------->  APScheduler 3.x
+   |
+   | ReminderFiredEvent
+   v
+Agent Reminder Event Handler
+   |
+   | normal agent/chat output pipeline
+   v
+Conversation output
+```
 
-# Reminder Core
+The architecture rule:
 
-This part of the spec defines the producer-neutral reminder core.
+- Reminder System never writes chat output directly.
+- Reminder System never calls an LLM.
+- Agent System never writes Mongo reminder documents directly.
+- Agent System does not maintain a separate durable reminder copy.
+- Protocol payloads are the only contract between the systems.
+
+## Ownership Boundary
+
+Reminder System owns:
+
+- `Reminder` aggregate state
+- schedule validation
+- recurrence computation
+- lifecycle transitions
+- durable `next_fire_at`
+- Mongo persistence
+- scheduler startup reconstruction
+- stale wake-up rejection
+- fired-event emission
+- structured Reminder errors
+
+Agent System owns:
+
+- natural-language intent detection
+- ambiguous user request clarification
+- keyword or phrase based target resolution
+- MCP/tool argument construction
+- current user and conversation context
+- final response wording
+- conversation/output locking
+- channel-specific output behavior
+- rendering `ReminderFiredEvent` into a user-visible message
+- PostAnalyze suppression after explicit timed reminder creation
+
+Protocol owns:
+
+- command shapes from Agent System to Reminder System
+- result shapes from Reminder System to Agent System
+- fired-event shape from Reminder System to Agent System
+- fire result shape from Agent System back to Reminder System
+- stable error codes
+
+## User-Level Association Model
+
+There is no separate "agent reminder" object in V1. The durable Reminder
+record is the canonical reminder.
+
+Agent-visible reminder identity is built from four pieces:
+
+1. `owner_user_id`
+   - The trusted principal shared by Agent System and Reminder System.
+   - Every Reminder command is scoped by this id.
+   - Agent System derives it from authenticated runtime context. The LLM never
+     supplies it.
+
+2. `reminder_id`
+   - The canonical Reminder System id returned from create and list commands.
+   - Update, cancel, and complete commands target this id.
+   - Agent System may show it internally or keep it in tool result context,
+     but ordinary chat output should usually refer to title and time.
+
+3. `agent_output_target`
+   - The future output routing hint stored on the reminder.
+   - It captures where Agent System should render the fired reminder.
+   - It is derived from the current conversation at creation time.
+
+4. `title` and schedule summary
+   - The human-facing description used for list results and keyword
+     resolution.
+   - Keyword resolution is always Agent System behavior. Reminder System only
+     accepts canonical ids.
+
+Common flows:
+
+- Create:
+  Agent System parses user intent, derives trusted owner/context, calls
+  Reminder System, receives `reminder_id`, and uses the returned reminder in
+  chat confirmation.
+
+- List:
+  Agent System calls Reminder System by `owner_user_id`, receives durable
+  reminders, and presents them to the user. There is no local agent reminder
+  cache.
+
+- Update/cancel/complete by phrase:
+  Agent System lists reminders for the owner, resolves the user phrase to one
+  `reminder_id`, then sends a command using that id. If the phrase is
+  ambiguous, Agent System asks the user to clarify. Reminder System has no
+  search command in V1.
+
+- Fire:
+  Reminder System emits `ReminderFiredEvent` containing `reminder_id`,
+  `owner_user_id`, title, fire time, and `agent_output_target`. Agent System
+  uses that event to write the actual conversation output.
+
+- User changes conversation:
+  V1 keeps the original `agent_output_target`. Moving a reminder to another
+  conversation is out of scope.
 
 ## Domain Model
 
-V1 exposes three dataclasses: `Reminder`, `ReminderSchedule`, and
-`ChatDeliveryTarget`. There is no `ReminderList`, `ReminderTrigger`,
+V1 exposes three core dataclasses: `Reminder`, `ReminderSchedule`, and
+`AgentOutputTarget`. There is no `ReminderList`, `ReminderTrigger`,
 `ReminderSource`, `DeliveryTarget`, `ReminderNotificationPolicy`,
 `RetryPolicy`, or `DefaultReminderPolicy` in v1.
 
@@ -138,14 +267,14 @@ class Reminder:
 
     title: str
     schedule: ReminderSchedule
-    chat_delivery: ChatDeliveryTarget
-    source_type: Literal["user", "assistant", "system"]
+    agent_output_target: AgentOutputTarget
+    created_by_system: Literal["agent"]
 
     lifecycle_state: Literal["active", "completed", "cancelled", "failed"]
 
     next_fire_at: datetime | None
     last_fired_at: datetime | None
-    last_delivered_at: datetime | None
+    last_event_ack_at: datetime | None
     last_error: str | None
 
     created_at: datetime
@@ -156,9 +285,13 @@ class Reminder:
 ```
 
 `title` is the only user-editable text field on a reminder in v1.
-`next_fire_at` is the durable scheduler source. The scheduler runtime never
-reads APScheduler state to decide what to fire; it always reads
-`next_fire_at`.
+`next_fire_at` is the only durable scheduler source. The scheduler runtime
+never reads APScheduler state to decide what to fire; it always reads
+`Reminder.next_fire_at` from Mongo.
+
+`last_event_ack_at` means Agent System acknowledged successful handling of a
+fired event. Reminder System does not assert that a provider delivered a chat
+message to an external app.
 
 ### ReminderSchedule
 
@@ -174,40 +307,378 @@ class ReminderSchedule:
 
 `anchor_at` is the schedule anchor. For one-shot reminders it is the
 scheduled time; for recurring reminders it is the recurrence base and may be
-in the past. It is timezone-aware at API boundaries and stored as UTC in
+in the past. It is timezone-aware at protocol boundaries and stored as UTC in
 Mongo.
 
 `local_date` and `local_time` are the durable wall-clock intent. `timezone`
-is always an IANA timezone name. V1 always treats schedules as floating local
-time: the scheduler interprets `local_time` in the user's effective timezone
-when computing the next fire time.
+is always an IANA timezone name and is the schedule's calculation timezone.
+V1 snapshots this value when the reminder is created or rescheduled. User
+timezone changes do not affect existing reminders.
 
-### ChatDeliveryTarget
+Schedule invariants:
+
+- `schedule.anchor_at` is stored as UTC.
+- `schedule.local_date` is the start local date. For recurring reminders it
+  is the recurrence start date, not each future occurrence date.
+- `schedule.anchor_at == schedule.local_date + schedule.local_time`
+  interpreted in `schedule.timezone`, converted to UTC.
+- `next_fire_at` is not stored inside `ReminderSchedule`. The reminder-level
+  `next_fire_at` stores the next concrete UTC instant derived from this
+  schedule.
+
+### AgentOutputTarget
 
 ```python
 @dataclass
-class ChatDeliveryTarget:
+class AgentOutputTarget:
     conversation_id: str
     character_id: str
     route_key: str | None
 ```
 
-Chat is the only delivery channel in v1, and its routing parameters live
-directly on the reminder. There is no `delivery_targets[]` array and no
-opaque `config` dict.
+This is not a chat delivery adapter. It is protocol routing context telling
+Agent System where to render a future `ReminderFiredEvent`.
 
-If the chat route cannot be resolved at fire time, the reminder transitions
-to `lifecycle_state="failed"` with `last_error` set. There is no retry in v1.
+Field rules:
 
-### Source Attribution
+- `conversation_id` is the Agent System conversation that should receive the
+  fired reminder output. It is required.
+- `character_id` is the assistant/persona identity that should speak in that
+  conversation. It is required.
+- `route_key` is an optional Agent System routing hint for the current
+  conversation output route. It must be stable enough for Agent System to
+  resolve after a worker restart, but Reminder System treats it as opaque.
+- Agent System must derive all fields from trusted runtime context and must
+  validate that the target belongs to `owner_user_id` before creating or
+  rescheduling a reminder.
+- The LLM must not provide these fields.
+- If Agent System cannot resolve the target when a reminder fires, it returns
+  a failed `ReminderFireResult`; Reminder System then marks the reminder
+  failed in V1.
 
-V1 stores only `source_type` as a string enum on the reminder. External-source
-attribution (`external_id`, `external_key`, `snapshot`, `imported_at`) is
-deferred until Google Calendar import or another external producer is built.
+### Creation Attribution
+
+V1 stores `created_by_system="agent"`. The field identifies which trusted
+system created the reminder, not which human owns it.
+
+External-source attribution is deferred until Google Calendar import or
+another external producer is built.
+
+## Command Protocol: Agent System -> Reminder System
+
+Reminder System exposes a structured command port. V1 binds this port through
+an MCP-compatible tool adapter in Agent System.
+
+The protocol is structured and reminder-domain oriented. It does not accept
+natural language.
+
+```python
+@dataclass
+class ReminderCreateCommand:
+    title: str
+    schedule: ReminderSchedule
+    agent_output_target: AgentOutputTarget
+    created_by_system: Literal["agent"]
+
+
+@dataclass
+class ReminderPatch:
+    title: str | None = None
+    schedule: ReminderSchedule | None = None
+
+
+@dataclass
+class ReminderQuery:
+    lifecycle_states: list[str] | None = None
+
+
+@dataclass
+class ReminderCommand:
+    action: Literal["create", "update", "cancel", "complete", "list"]
+    reminder_id: str | None = None
+    create: ReminderCreateCommand | None = None
+    patch: ReminderPatch | None = None
+    query: ReminderQuery | None = None
+
+
+@dataclass
+class ReminderCommandEnvelope:
+    owner_user_id: str
+    command: ReminderCommand
+
+
+@dataclass
+class ReminderBatchCommandEnvelope:
+    owner_user_id: str
+    commands: list[ReminderCommand]
+
+
+@dataclass
+class ReminderCommandResult:
+    ok: bool
+    action: str
+    reminder: Reminder | None
+    reminders: list[Reminder] | None
+    error: ReminderError | None
+```
+
+Service API:
+
+```python
+class ReminderService:
+    def create(self, *, owner_user_id: str,
+               command: ReminderCreateCommand) -> Reminder: ...
+
+    def update(self, *, reminder_id: str, owner_user_id: str,
+               patch: ReminderPatch) -> Reminder: ...
+
+    def cancel(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
+    def complete(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
+
+    def get(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
+    def list_for_user(self, *, owner_user_id: str,
+                      query: ReminderQuery) -> list[Reminder]: ...
+
+    def execute_batch(self, *, owner_user_id: str,
+                      commands: list[ReminderCommand]
+                      ) -> list[ReminderCommandResult]: ...
+```
+
+Rules:
+
+- Agent System authenticates outside Reminder System and sends trusted
+  `owner_user_id` in the command envelope.
+- `owner_user_id` applies to every operation in a batch envelope. V1 does not
+  allow cross-owner batch commands.
+- Agent System passes structured schedule and output target data.
+- Reminder System rejects naive datetimes, natural-language times, invalid
+  timezones, and unsupported RRULE strings.
+- Ownership is checked on every reminder operation.
+- `execute_batch` preserves input order and returns one result per operation.
+- A failed batch operation does not roll back prior successful operations.
+- Later batch operations continue unless their own required selector is
+  missing or invalid.
+- Keyword resolution lives in Agent System. Reminder System identifies update,
+  cancel, and complete targets by `reminder_id`.
+- `get` is a service helper for trusted code paths and is not a command
+  protocol action in V1.
+- `search` is not a Reminder System command in V1. Agent System implements
+  phrase matching by listing owner-scoped reminders and resolving locally.
+
+## MCP Tool Adapter
+
+The V1 Agent System exposes the command protocol to ReminderDetectAgent
+through one MCP-compatible tool adapter.
+
+The LLM-facing schema may stay compact:
+
+```python
+def visible_reminder_tool(
+    action: str,
+    title: str | None = None,
+    trigger_at: str | None = None,
+    reminder_id: str | None = None,
+    keyword: str | None = None,
+    new_title: str | None = None,
+    new_trigger_at: str | None = None,
+    rrule: str | None = None,
+    operations: list[dict[str, Any]] | None = None,
+) -> str: ...
+```
+
+The adapter derives trusted context:
+
+- `owner_user_id` from authenticated runtime context
+- `created_by_system="agent"`
+- `agent_output_target` from the current conversation, character, and route
+- `schedule.timezone` from the user's then-effective timezone
+
+The LLM must not provide owner ids, creator system, conversation ids,
+character ids, route keys, or timezones.
+
+Mapping rules:
+
+- `create` requires `title` and aware ISO 8601 `trigger_at`.
+- `trigger_at` and `new_trigger_at` must be aware ISO 8601 datetimes.
+- `rrule`, when present, must be an RFC 5545 RRULE string supported by
+  Reminder System.
+- `delete` is an LLM/tool adapter alias for the canonical `cancel` command
+  and maps to `ReminderService.cancel`.
+- `complete` maps to `ReminderService.complete`.
+- `list` maps to `ReminderService.list_for_user`.
+- `batch` maps to `ReminderService.execute_batch` and preserves operation
+  order.
+
+Keyword resolution:
+
+- If the LLM supplies only `keyword` for update, cancel, or complete, the tool
+  adapter may resolve it against visible reminders for the owner.
+- Ambiguous or missing matches become structured tool failures.
+- Reminder System never guesses a target from natural language.
+- Future UI and HTTP producers should prefer direct `reminder_id` selection.
+
+Tool results written for ChatWorkflow:
+
+```text
+{
+  tool_name: "提醒操作",
+  ok: bool,
+  action: str,
+  reminder_id: str | null,
+  result_summary: str,
+  error_code: str | null,
+}
+```
+
+For batch, the adapter must preserve partial success visibility. ChatWorkflow
+must be able to distinguish full success, partial success, and full failure.
+
+Timed create and timed update successes set:
+
+```python
+session_state["reminder_created_with_time"] = True
+```
+
+List, cancel, complete, failed create, and title-only updates do not set this
+flag.
+
+## Fired-Event Protocol: Reminder System -> Agent System
+
+When a reminder reaches `next_fire_at`, Reminder System emits a structured
+event to Agent System.
+
+```python
+@dataclass
+class ReminderFiredEvent:
+    event_type: Literal["reminder.fired"]
+    event_id: str
+    fire_id: str
+    reminder_id: str
+    owner_user_id: str
+    title: str
+    fire_at: datetime
+    scheduled_for: datetime
+    agent_output_target: AgentOutputTarget
+```
+
+Field rules:
+
+- `event_id` is unique per emission attempt.
+- `fire_id` is deterministic for one scheduled fire, for example
+  `{reminder_id}:{scheduled_for.isoformat()}`.
+- `scheduled_for` is the stored `next_fire_at` that caused the wake-up.
+- `fire_at` is the time Reminder System emitted the event.
+- `agent_output_target` is the stored target from the reminder.
+
+Agent System returns:
+
+```python
+@dataclass
+class ReminderFireResult:
+    ok: bool
+    fire_id: str
+    output_reference: str | None
+    error_code: str | None
+    error_message: str | None
+```
+
+Semantics:
+
+- `ok=True` means Agent System accepted and handled the event through its
+  output pipeline.
+- `ok=False` means Agent System could not render the reminder. V1 treats this
+  as terminal reminder failure.
+- Reminder System does not inspect or generate final chat prose.
+- Reminder System may store `output_reference` in logs, but V1 does not store
+  it on the reminder model.
+
+V1 transport:
+
+- The event may be delivered through an in-process function call from
+  `ReminderScheduler` to an Agent event handler.
+- The function call is still treated as a protocol boundary.
+- Future transports may be webhook, queue, durable outbox, or another MCP-like
+  event channel without changing the Reminder domain model.
+
+## Scheduler Runtime
+
+`ReminderScheduler` uses APScheduler 3.x.
+
+Mongo is the durable source of truth. APScheduler is only an in-process
+timing layer that wakes the scheduler loop.
+
+Rules:
+
+- On startup, `ReminderScheduler` scans active reminders with
+  `next_fire_at != null` and registers an APScheduler job per reminder it has
+  not already registered.
+- Each APScheduler job id is `reminder:{reminder_id}`.
+- Each job payload contains `reminder_id` and `next_fire_at` so stale
+  wake-ups can be detected and rejected.
+- When a job fires, the scheduler re-reads the reminder from Mongo and
+  validates `lifecycle_state="active"` and stored `next_fire_at` matching the
+  wake-up payload.
+- The scheduler emits `ReminderFiredEvent` to Agent System.
+- The scheduler updates `next_fire_at`, lifecycle, and timestamps based on
+  `ReminderFireResult`.
+- `create`, `update`, `cancel`, and `complete` ask the scheduler to register,
+  replace, or remove its APScheduler job.
+- On process restart, runtime jobs are reconstructed from Mongo by the
+  startup scan.
+- No APScheduler job store is used.
+- APScheduler 4.x is out of scope.
+
+Concurrency and crash safety:
+
+- A single Coke worker process runs `ReminderScheduler` at a time. Deployment
+  guarantees this; v1 does not handle multi-worker schedulers.
+- Within the process, the scheduler loop holds an asyncio lock keyed on
+  `reminder_id` for the fetch -> emit -> update sequence.
+- The post-event update is gated by an atomic `findOneAndUpdate` predicate on
+  `(_id, next_fire_at, lifecycle_state="active")`.
+- If the predicate does not match, the wake-up is dropped without emitting a
+  new event.
+- If a worker crashes after Agent System outputs the reminder but before
+  Reminder System persists the post-event update, startup reconstruction may
+  re-emit the same `fire_id`.
+- Agent System should treat `fire_id` as the idempotency key when it has a
+  local output ledger. V1 does not require a durable idempotency ledger.
+
+After successful event handling:
+
+- One-shot reminders set `lifecycle_state="completed"`,
+  `last_fired_at=scheduled_for`, `last_event_ack_at=now`,
+  `completed_at=now`, and clear `next_fire_at`.
+- Recurring reminders advance `next_fire_at` to the next recurrence instant,
+  set `last_fired_at=scheduled_for` and `last_event_ack_at=now`, and remain
+  `active`.
+- Recurring reminders with no remaining instant set
+  `lifecycle_state="completed"`, `last_fired_at=scheduled_for`,
+  `last_event_ack_at=now`, `completed_at=now`, and clear `next_fire_at`.
+
+After failed event handling:
+
+- The reminder sets `lifecycle_state="failed"`,
+  `last_fired_at=scheduled_for`, `failed_at=now`, records `last_error`, and
+  clears `next_fire_at`.
+
+Lifecycle transitions:
+
+| event | from | to | timestamp updates | scheduler effect |
+|---|---|---|---|---|
+| create one-shot | none | `active` | `created_at=updated_at=now`; terminal timestamps null | set `next_fire_at=anchor_at` |
+| create recurring | none | `active` | `created_at=updated_at=now`; terminal timestamps null | set `next_fire_at` to first future recurrence |
+| reschedule active | `active` | `active` | `updated_at=now`; preserve fire history | replace `next_fire_at` |
+| cancel | `active` | `cancelled` | `updated_at=cancelled_at=now` | clear `next_fire_at` |
+| manual complete | `active` | `completed` | `updated_at=completed_at=now` | clear `next_fire_at` |
+| one-shot event acked | `active` | `completed` | `updated_at=completed_at=last_event_ack_at=now`; `last_fired_at=scheduled_for` | clear `next_fire_at` |
+| recurring event acked with next instant | `active` | `active` | `updated_at=last_event_ack_at=now`; `last_fired_at=scheduled_for` | replace `next_fire_at` |
+| recurring event acked with no next instant | `active` | `completed` | `updated_at=completed_at=last_event_ack_at=now`; `last_fired_at=scheduled_for` | clear `next_fire_at` |
+| event failed | `active` | `failed` | `updated_at=failed_at=now`; `last_fired_at=scheduled_for`; set `last_error` | clear `next_fire_at` |
 
 ## Time And Recurrence Semantics
 
-All API datetimes are timezone-aware. Naive datetimes are rejected.
+All protocol datetimes are timezone-aware. Naive datetimes are rejected.
 
 One-shot schedules:
 
@@ -224,8 +695,8 @@ Recurring schedules:
   after `now`.
 - If there is no future fire time, creation fails with
   `InvalidSchedule(reason="no_future_fire_time")`.
-- After successful delivery, the scheduler advances `next_fire_at` to the
-  next recurrence fire time and the reminder remains `active`.
+- After successful event handling, the scheduler advances `next_fire_at` to
+  the next recurrence fire time and the reminder remains `active`.
 - If a recurring reminder has no remaining future fire time, it transitions
   to `lifecycle_state="completed"` and clears `next_fire_at`.
 
@@ -233,11 +704,12 @@ Floating local-time behavior:
 
 - Schedules preserve `local_date` and `local_time` as durable intent.
 - `next_fire_at` is computed by interpreting `local_time` on the next fire
-  date in the user's effective timezone at compute time.
+  date in `schedule.timezone`.
 - V1 does not realign existing `next_fire_at` values when the user changes
-  timezone. New reminders use the new timezone; existing recurring reminders
-  pick up the new timezone whenever the scheduler next computes
-  `next_fire_at` after a delivery.
+  timezone.
+- New reminders snapshot the user's then-effective timezone into
+  `schedule.timezone`.
+- Existing reminders continue using their stored `schedule.timezone`.
 
 Supported RRULE subset in v1:
 
@@ -255,163 +727,68 @@ Rejected in v1:
 - `EXDATE`, `RDATE`
 - natural-language recurrence strings
 
-## Service API
+## Agent System Runtime Flow
 
-`ReminderService` is a plain Python service. It has no client runtime
-dependency and no response-formatting behavior. It is the single domain
-service for v1.
+### User Turn
 
-```python
-@dataclass
-class ReminderCreateInput:
-    title: str
-    schedule: ReminderSchedule
-    chat_delivery: ChatDeliveryTarget
-    source_type: Literal["user", "assistant", "system"]
+Agent System keeps the existing sequencing:
 
+1. Run OrchestratorAgent.
+2. Read `orchestrator.need_reminder_detect`.
+3. Run context retrieval, web search, timezone handling, calendar import
+   entry surfacing, and URL extraction as today.
+4. If `need_reminder_detect=true`, run ReminderDetectAgent.
+5. Before running ReminderDetectAgent, set the trusted session-state context
+   consumed by the MCP/tool adapter.
+6. ReminderDetectAgent either calls `visible_reminder_tool` or stops.
+7. The tool adapter sends structured commands to Reminder System.
+8. The tool adapter writes structured results to `session_state.tool_results`.
+9. ChatWorkflow reads tool results and reports what actually happened.
 
-@dataclass
-class ReminderPatch:
-    title: str | None = None
-    schedule: ReminderSchedule | None = None
+ReminderDetectAgent failure must not fail the main user turn. It should log
+the failure and leave ChatWorkflow to continue. If Orchestrator requested
+reminder detection but no tool result exists, ChatWorkflow must use the
+existing "reminder not executed" context so the assistant does not claim
+success.
 
+### ReminderDetectAgent
 
-@dataclass
-class ReminderQuery:
-    lifecycle_states: list[str] | None = None
-
-
-@dataclass
-class ReminderBatchOperation:
-    action: Literal["create", "update", "cancel", "complete", "list"]
-    reminder_id: str | None = None
-    create: ReminderCreateInput | None = None
-    patch: ReminderPatch | None = None
-    query: ReminderQuery | None = None
-
-
-@dataclass
-class ReminderBatchResult:
-    ok: bool
-    action: str
-    reminder: Reminder | None
-    reminders: list[Reminder] | None
-    error: ReminderError | None
-
-
-class ReminderService:
-    def create(self, *, owner_user_id: str,
-               input: ReminderCreateInput) -> Reminder: ...
-
-    def update(self, *, reminder_id: str, owner_user_id: str,
-               patch: ReminderPatch) -> Reminder: ...
-
-    def cancel(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
-    def complete(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
-
-    def get(self, *, reminder_id: str, owner_user_id: str) -> Reminder: ...
-    def list_for_user(self, *, owner_user_id: str,
-                      query: ReminderQuery) -> list[Reminder]: ...
-
-    def execute_batch(self, *, owner_user_id: str,
-                      operations: list[ReminderBatchOperation]
-                      ) -> list[ReminderBatchResult]: ...
-```
+ReminderDetectAgent remains the only agent-facing reminder write path in v1.
 
 Rules:
 
-- Producers authenticate outside Reminder System and pass trusted
-  `owner_user_id`.
-- Producers pass structured schedule and chat delivery data. Reminder System
-  rejects naive datetimes, natural-language times, and unsupported RRULE
-  strings.
-- Ownership is checked on every reminder operation.
-- `execute_batch` preserves input order and returns one result per operation.
-  A failed operation does not roll back prior successful operations. Later
-  operations continue unless their own required selector is missing or
-  invalid.
-- Keyword resolution (mapping a user-supplied phrase to a reminder id) is a
-  producer-side convenience and lives in the producer wrapper, not in
-  Reminder System. The service identifies targets by `reminder_id`.
+- It may call `visible_reminder_tool`.
+- It must not call `ReminderService` directly.
+- It must not generate final user-facing prose.
+- It must output aware ISO 8601 datetimes for time-bearing create/update
+  operations.
+- It must output RFC 5545 RRULE strings for recurrence.
+- It must use batch when a single user message contains multiple reminder
+  operations.
+- It must preserve user operation order in batch.
+- It should stop without calling the tool when time or target selection is too
+  ambiguous to form a structured command.
 
-When a second producer is added (HTTP/API, UI, GCal), `ReminderService` may
-be wrapped by a producer-facing command service or extended with an explicit
-`ReminderCommandContext`. Until then, the agent integration calls
-`ReminderService` directly.
+`tool_call_limit=1` and `stop_after_tool_call=True` remain required.
+Multi-step user operations are represented as one `batch` tool call, not
+multiple tool calls.
 
-## Scheduler Runtime
+### Fired Reminder Output
 
-`ReminderScheduler` uses APScheduler 3.x.
+When Agent System receives `ReminderFiredEvent`, it owns the final output
+flow:
 
-Mongo is the durable source of truth. APScheduler is only an in-process
-timing layer that wakes the scheduler loop.
+1. Resolve `agent_output_target`.
+2. Acquire the normal conversation/output lock boundary.
+3. Construct a user-visible reminder message from the event.
+4. Write output through the existing agent/chat output pipeline.
+5. Return `ReminderFireResult`.
 
-Rules:
+Agent System may use a deterministic, template-like output for V1. It does
+not need to run a general LLM turn unless product behavior requires it.
 
-- On startup, `ReminderScheduler` scans active reminders with
-  `next_fire_at != null` and registers an APScheduler job per reminder it has
-  not already registered.
-- Each APScheduler job id is `reminder:{reminder_id}`.
-- Each job payload contains `reminder_id` and `next_fire_at` so stale
-  wake-ups can be detected and rejected.
-- When a job fires, the scheduler loop re-reads the reminder from Mongo,
-  validates `lifecycle_state="active"` and the stored `next_fire_at` matches
-  the wake-up payload, dispatches a chat delivery request, then updates
-  `next_fire_at`, lifecycle, and timestamps.
-- `create`, `update`, `cancel`, and `complete` ask the scheduler to register,
-  replace, or remove its APScheduler job.
-- On process restart, runtime jobs are reconstructed from Mongo by the
-  startup scan above.
-- No APScheduler job store is used.
-- APScheduler 4.x is out of scope.
-
-Concurrency and crash safety:
-
-- A single Coke worker process runs `ReminderScheduler` at a time. The
-  deployment guarantees this; v1 does not handle multi-worker schedulers.
-- Within the process, the scheduler loop holds an asyncio lock keyed on
-  `reminder_id` for the fetch → deliver → update sequence so a wake-up
-  arriving during startup reconstruction cannot double-fire.
-- The post-delivery update is gated by an atomic `findOneAndUpdate` predicate
-  on `(_id, next_fire_at, lifecycle_state="active")`. If the predicate does
-  not match, the wake-up is dropped without delivery.
-- If a worker crashes between successful delivery and the post-delivery
-  update, startup reconstruction may re-fire the same instant. The chat
-  adapter must tolerate occasional duplicate delivery; v1 does not implement
-  per-fire idempotency keys.
-
-After successful delivery:
-
-- One-shot reminders set `lifecycle_state="completed"`,
-  `last_delivered_at=now`, and clear `next_fire_at`.
-- Recurring reminders advance `next_fire_at` to the next recurrence instant,
-  set `last_delivered_at=now`, and remain `active`.
-- Recurring reminders with no remaining instant set
-  `lifecycle_state="completed"` and clear `next_fire_at`.
-
-After failed delivery:
-
-- The reminder sets `lifecycle_state="failed"`, records `last_error`, and
-  clears `next_fire_at`.
-
-## Chat Delivery
-
-The scheduler dispatches `ChatDeliveryRequest` to a single chat adapter:
-
-```python
-@dataclass
-class ChatDeliveryRequest:
-    reminder_id: str
-    owner_user_id: str
-    title: str
-    fire_at: datetime
-    chat_delivery: ChatDeliveryTarget
-```
-
-The chat adapter resolves the route, respects the conversation/output lock
-boundary used by the selected chat route, and writes user-visible output. It
-does not call the old deferred-action executor path. It returns success or a
-structured failure; Reminder System updates lifecycle state from that result.
+The fired reminder path should not call the old deferred-action executor path.
+It should enter the same output safety boundary used by normal agent output.
 
 ## Storage
 
@@ -431,19 +808,19 @@ Single collection: `reminders`.
     rrule: str | null,
   },
 
-  chat_delivery: {
+  agent_output_target: {
     conversation_id: str,
     character_id: str,
     route_key: str | null,
   },
 
-  source_type: "user" | "assistant" | "system",
+  created_by_system: "agent",
 
   lifecycle_state: "active" | "completed" | "cancelled" | "failed",
 
   next_fire_at: ts | null,
   last_fired_at: ts | null,
-  last_delivered_at: ts | null,
+  last_event_ack_at: ts | null,
   last_error: str | null,
 
   created_at: ts,
@@ -456,12 +833,20 @@ Single collection: `reminders`.
 
 Indexes:
 
-- `{owner_user_id: 1, lifecycle_state: 1, created_at: -1}` for owner list views
+- `{owner_user_id: 1, lifecycle_state: 1, created_at: -1}` for owner list
+  views
 - `{lifecycle_state: 1, next_fire_at: 1}` for scheduler scans
+
+Storage rules:
+
+- Reminder System is the only writer of `reminders`.
+- Agent System must not write reminder documents directly.
+- All schedule invariants are enforced before persistence and on update.
+- Mongo stores aggregate state, not a durable queue or scheduler job store.
 
 ## Error Model
 
-Core errors are structured and stable:
+Core Reminder errors are structured and stable:
 
 | error | when |
 |---|---|
@@ -469,8 +854,12 @@ Core errors are structured and stable:
 | `RRULENotSupported` | unsupported or malformed RRULE |
 | `ReminderNotFound` | reminder id does not exist for owner |
 | `OwnershipViolation` | owner mismatch |
-| `InvalidChatDelivery` | required chat delivery fields missing |
+| `InvalidOutputTarget` | required agent output target fields missing |
 | `InvalidArgument` | generic shape validation |
+| `ReminderFireFailed` | Agent System returned failed fire result |
+
+`ReminderFireFailed` is emitted from the fired-event path, not from the
+LLM-facing command tool path.
 
 Each error exposes:
 
@@ -481,382 +870,99 @@ class ReminderError(Exception):
     detail: dict[str, Any]
 ```
 
-Producer wrappers translate these into surface-specific failures. Reminder
-System does not know about client response phrasing or tool result
-formatting.
+Agent System translates Reminder errors into surface-specific tool failures
+and final user-facing wording. Reminder System does not know about client
+response phrasing.
 
----
+Required tool error mapping:
 
-# Agent Integration
-
-This part of the spec defines the v1 producer that bridges the existing
-two-stage agent flow to `ReminderService`. It is the only producer in v1.
-
-## Ownership Boundary
-
-Reminder Core (above) owns:
-
-- `ReminderService` and its inputs and outputs
-- core reminder validation and lifecycle behavior
-- floating local-time schedule semantics and the supported RRULE subset
-- chat delivery routing and post-delivery state advance
-- structured error codes
-- ordered partial batch result semantics
-
-Agent Integration (below) owns:
-
-- Orchestrator reminder gate rules
-- ReminderDetectAgent instructions
-- Agno `visible_reminder_tool` schema and wrapper behavior
-- session-state extraction for owner and chat delivery context
-- conversion from LLM tool arguments to `ReminderService` calls
-- translation of `ReminderService` results into `session_state.tool_results`
-- ChatWorkflow context that reports actual reminder tool outcomes
-- PostAnalyze suppression of internal follow-up after timed reminder creation
-- ReminderDetectAgent and tool-call evaluation corpus and runner
-
-## Runtime Flow
-
-### PrepareWorkflow
-
-`PrepareWorkflow` keeps the existing sequencing:
-
-1. Run OrchestratorAgent.
-2. Read `orchestrator.need_reminder_detect`.
-3. Run context retrieval, web search, timezone handling, calendar import
-   entry surfacing, and URL extraction as today.
-4. If `need_reminder_detect=true`, run ReminderDetectAgent.
-5. Before running ReminderDetectAgent, set the session-state context consumed
-   by the Agno tool wrapper.
-6. ReminderDetectAgent either calls `visible_reminder_tool` or stops.
-7. Tool wrapper writes structured results to `session_state.tool_results`.
-
-ReminderDetectAgent failure must not fail the main user turn. It should log
-the failure and leave ChatWorkflow to continue. If the Orchestrator requested
-reminder detection but no tool result exists, ChatWorkflow must use the
-existing "reminder not executed" context so the assistant does not claim
-success.
-
-### ReminderDetectAgent
-
-ReminderDetectAgent remains the only agent-facing reminder write path in v1.
-
-Rules:
-
-- It may call `visible_reminder_tool`.
-- It must not call `ReminderService` or any lower-level reminder service
-  directly.
-- It must not generate final user-facing prose.
-- It must output aware ISO 8601 datetimes for time-bearing create/update
-  operations.
-- It must output RFC 5545 RRULE strings for recurrence.
-- It must use batch when a single user message contains multiple reminder
-  operations.
-- It must preserve user operation order in batch.
-- It should stop without calling the tool when time or target selection is
-  too ambiguous to form a structured command.
-
-`tool_call_limit=1` and `stop_after_tool_call=True` remain required.
-Multi-step user operations are represented as one `batch` tool call, not
-multiple tool calls.
-
-## visible_reminder_tool Wrapper
-
-`visible_reminder_tool` is an Agno wrapper around `ReminderService`.
-
-It accepts LLM-facing arguments for:
-
-- `create`
-- `list`
-- `update`
-- `delete`
-- `complete`
-- `batch`
-
-The wrapper derives the trusted runtime context from `session_state`:
-
-- `owner_user_id` from the trusted runtime user
-- `source_type="assistant"`
-- `chat_delivery` from the current chat conversation, character, and route
-- the user's effective timezone, used to interpret tool-supplied datetimes
-
-The LLM must not provide owner ids, source types, conversation ids, character
-ids, route keys, or timezones. Those values come from trusted runtime
-context.
-
-### Tool Argument Contract
-
-```python
-def visible_reminder_tool(
-    action: str,
-    title: str | None = None,
-    trigger_at: str | None = None,
-    reminder_id: str | None = None,
-    keyword: str | None = None,
-    new_title: str | None = None,
-    new_trigger_at: str | None = None,
-    rrule: str | None = None,
-    operations: list[dict[str, Any]] | None = None,
-) -> str: ...
-```
-
-Mapping rules:
-
-- `create` requires `title` and `trigger_at`.
-- `trigger_at` and `new_trigger_at` must be aware ISO 8601 datetimes.
-- `rrule`, when present, must be an RFC 5545 RRULE string supported by
-  Reminder System.
-- `delete` maps to `ReminderService.cancel`.
-- `complete` maps to `ReminderService.complete`.
-- `list` maps to `ReminderService.list_for_user` filtered to active and
-  recently completed reminders.
-- `batch` maps to `ReminderService.execute_batch` and preserves operation
-  order.
-
-Keyword resolution is an agent-integration convenience only. If a user asks
-to update, delete, or complete a reminder and the LLM supplies only
-`keyword`, the wrapper may resolve it against visible reminders for the
-owner. Ambiguous or missing matches become structured tool failures and must
-not be guessed by Reminder System.
-
-The wrapper does not accept `body`, `new_body`, `priority`, `sort_order`,
-`list_id`, or `delivery_targets`. Those fields were removed from the v1
-reminder model.
-
-### Operation Mapping
-
-#### Create
-
-The wrapper builds a `ReminderCreateInput` from tool arguments and runtime
-context, then calls `ReminderService.create`.
-
-Fields:
-
-- `title` from the LLM
-- `schedule.anchor_at` from the parsed `trigger_at`
-- `schedule.local_date`, `schedule.local_time`, `schedule.timezone` derived
-  from `trigger_at` interpreted in the user's effective timezone
-- `schedule.rrule` from the LLM when provided
-- `chat_delivery` from `session_state`
-- `source_type="assistant"`
-
-On success, if the created reminder has a future `next_fire_at`, the wrapper
-sets:
-
-```python
-session_state["reminder_created_with_time"] = True
-```
-
-#### Update
-
-Update requires `reminder_id` or successful keyword resolution. The wrapper
-builds a `ReminderPatch`:
-
-- `title` updated when `new_title` is provided.
-- `schedule` updated when `new_trigger_at` or `rrule` is provided. The
-  wrapper recomputes `local_date`, `local_time`, and `timezone` from the
-  parsed datetime and the user's effective timezone. If only `rrule` is
-  supplied, the wrapper reuses the existing anchor and local intent.
-
-If an update changes the scheduled time and the call succeeds, the wrapper
-sets `reminder_created_with_time=True` so PostAnalyze does not also create an
-internal proactive follow-up for the same user intent.
-
-#### List
-
-List calls `ReminderService.list_for_user` and returns enough structured data
-for ChatWorkflow to answer the user, including title, schedule summary,
-lifecycle state, and reminder id when appropriate for follow-up operations.
-
-#### Cancel And Complete
-
-Delete maps to `ReminderService.cancel` because cancellation preserves domain
-lifecycle state. Complete maps to `ReminderService.complete`. Both require
-`reminder_id` or successful keyword resolution.
-
-#### Batch
-
-Batch preserves the user's requested operation order. The wrapper converts
-each flat operation object into a `ReminderBatchOperation` and calls
-`ReminderService.execute_batch`.
-
-Rules:
-
-- The wrapper returns one result per operation, in input order.
-- Earlier successes remain successful if a later operation fails.
-- A failed operation does not make the whole batch look successful.
-- If any timed create/update succeeds, set `reminder_created_with_time=True`.
-
-### Tool Results
-
-The wrapper appends normalized tool result records to
-`session_state.tool_results`.
-
-Each result should include:
-
-```text
-{
-  tool_name: "提醒操作",
-  ok: bool,
-  action: str,
-  reminder_id: str | null,
-  result_summary: str,
-  error_code: str | null,
-}
-```
-
-`result_summary` is a concise factual summary for ChatWorkflow context. It
-may be localized for the current runtime, but it must not include unsupported
-claims or generated apologies. ChatResponseAgent owns final user-facing
-wording.
-
-For batch, the wrapper may append one aggregate result plus per-operation
-details, or append one result per operation. In both cases ChatWorkflow must
-be able to distinguish full success, partial success, and full failure.
-
-### Error Translation
-
-The wrapper translates `ReminderError` into stable tool failures.
-
-| Reminder error | Tool behavior |
+| Reminder error | Agent tool behavior |
 |---|---|
 | `InvalidSchedule` | no write; tell ChatWorkflow the time was invalid or missing |
 | `RRULENotSupported` | no write; report unsupported recurrence |
 | `ReminderNotFound` | no write; ask user to clarify target |
 | `OwnershipViolation` | no write; generic not-found style result |
-| `InvalidChatDelivery` | no write; report reminder could not be routed |
+| `InvalidOutputTarget` | no write; report reminder could not be routed |
 | `InvalidArgument` | no write; report malformed request |
 
-The wrapper must not swallow failures as success. ChatWorkflow must be able
-to see `ok=false`.
+The tool adapter must not swallow failures as success. ChatWorkflow must be
+able to see `ok=false`.
 
-## ChatWorkflow Integration
+## Operational Behavior
 
-ChatWorkflow reads `session_state.tool_results` and tells the user what
-actually happened.
+Startup:
 
-Rules:
+- Reminder System reconstructs APScheduler jobs from active Mongo reminders.
+- Agent System does not need to replay reminder state on startup.
+- If Agent System is unavailable, fired events fail in V1 and reminders become
+  failed.
 
-- If a reminder operation succeeded, ChatResponse may confirm the concrete
-  operation.
-- If a reminder operation failed, ChatResponse should explain the failure and
-  ask for the missing clarification when useful.
-- If Orchestrator set `need_reminder_detect=true` but no reminder tool result
-  is present, ChatWorkflow must include the reminder-not-executed context and
-  must not claim a reminder was set.
-- ChatResponseAgent must not independently create, update, cancel, or
-  complete reminders.
+Restart:
 
-## PostAnalyze Integration
+- APScheduler jobs are disposable.
+- Mongo `next_fire_at` reconstructs runtime state.
+- A crash after Agent output but before Reminder state update may cause
+  duplicate event emission for the same `fire_id`.
 
-`PostAnalyzeWorkflow` keeps the existing suppression contract:
+Observability:
 
-- If `session_state["reminder_created_with_time"]` is true, skip or clear
-  internal proactive follow-up planning for the turn.
-- Pure list/delete/complete operations do not set this flag.
-- Title-only updates do not set this flag unless they also change a
-  scheduled time.
-- Partial batch sets this flag when at least one timed create/update
-  succeeds.
+- Log command attempts and results by `owner_user_id`, `reminder_id`, and
+  action.
+- Log fired-event attempts by `fire_id`, `reminder_id`, `scheduled_for`, and
+  result.
+- Do not log raw user secrets or provider credentials.
 
-This contract prevents duplicate follow-up scheduling when the user already
-asked for an explicit reminder.
+Security:
 
-## Prompt Requirements
+- The LLM cannot choose `owner_user_id`.
+- The LLM cannot choose `agent_output_target`.
+- Reminder commands are scoped to the authenticated owner.
+- Ownership mismatch should return not-found style behavior to Agent System.
 
-ReminderDetectAgent instructions must say:
+## Acceptance Criteria
 
-- Use the visible reminder tool only for user-visible reminder operations.
-- Do not plan internal proactive follow-ups.
-- Resolve local and relative user times into aware ISO 8601 datetimes before
-  calling the tool.
-- Do not pass natural-language time strings to the tool.
-- Use RRULE strings for recurrence.
-- Use batch for multiple operations in one user message.
-- Preserve operation order in batch.
-- Prefer concise titles.
-- Stop without tool call when the user intent is too ambiguous to form a
-  structured command.
+### System Boundary
 
-Orchestrator instructions must preserve the current gate:
+- The spec describes Reminder System and Agent System as separate systems.
+- Reminder System exposes a structured command protocol to Agent System.
+- Reminder System emits structured `ReminderFiredEvent` objects to Agent
+  System.
+- Reminder System never writes chat output directly.
+- Agent System owns all user-visible chat output.
+- Agent System never writes Mongo reminder documents directly.
+- Protocol payloads define the boundary between systems.
 
-- Set `need_reminder_detect=true` for reminder/task/alarm/timer intent, user
-  personal reminder queries, and context continuation.
-- Set it false for unrelated small talk, external-world search, and pure past
-  facts.
-- Orchestrator must not call `ReminderService` or `visible_reminder_tool` in
-  v1.
-
-## Evaluation
-
-The existing reminder operation corpus remains the primary agent-facing
-evaluation input. The evaluation path should isolate:
-
-- Orchestrator gate accuracy
-- ReminderDetectAgent tool-call accuracy
-- operation classification accuracy
-- timed create/update accuracy
-- batch operation shape and ordering
-- false-positive rate on negative cases
-
-The evaluation runner should use a fake `visible_reminder_tool` recorder or a
-fake `ReminderService`, not Mongo, scheduler, ChatResponse, PostAnalyze, or
-outbound delivery.
-
-The corpus should include:
-
-- explicit timed create
-- vague create that should ask for clarification rather than create
-- list
-- update title
-- update time
-- cancel/delete
-- complete
-- recurrence
-- batch with all success
-- batch with partial failure
-- negative non-reminder cases
-
----
-
-# Acceptance Criteria
-
-## Reminder Core
+### Reminder Core
 
 - The redesigned `Reminder` no longer has top-level `actor`, `upsert_key`,
   `delivery_channel`, `conversation_id`, `character_id`, `dtstart`,
   `timezone`, `rrule`, `expires_at`, `next_run_at`, `last_run_at`,
-  `run_count`, or generated-text fields. The new shape uses `schedule`,
-  `chat_delivery`, `source_type`, `lifecycle_state`, `next_fire_at`,
-  `last_fired_at`, `last_delivered_at`, and `last_error`.
+  `run_count`, or generated-text fields.
+- The new shape uses `schedule`, `agent_output_target`, `created_by_system`,
+  `lifecycle_state`, `next_fire_at`, `last_fired_at`,
+  `last_event_ack_at`, and `last_error`.
 - Core model exposes only `Reminder`, `ReminderSchedule`, and
-  `ChatDeliveryTarget`. No `ReminderList`, `ReminderTrigger`,
-  `ReminderSource` object, `DeliveryTarget`, `ReminderNotificationPolicy`,
-  `RetryPolicy`, or `DefaultReminderPolicy` exists in v1.
+  `AgentOutputTarget`.
 - `Reminder.next_fire_at` is the only durable scheduler source.
 - The system supports a single floating local-time schedule with optional
   RRULE recurrence and no all-day or zoned variants.
-- Chat is the only delivery channel; routing fields live directly on the
-  reminder.
-- `ReminderService` is the only service; there is no separate
-  `ReminderCommandService` in v1.
+- `ReminderService` is the only domain service.
 - `execute_batch` preserves order and returns ordered partial results without
   rolling back prior successes.
 - V1 does not migrate existing reminder rows from `deferred_actions`.
 
-## Agent Integration
+### Agent Integration
 
 - Agent flow remains OrchestratorAgent gate followed by ReminderDetectAgent.
 - ReminderDetectAgent remains the only agent-facing reminder write path.
 - OrchestratorAgent does not call `ReminderService` or
   `visible_reminder_tool` in v1.
 - ChatResponseAgent does not directly write reminders.
-- `visible_reminder_tool` is an Agno wrapper around `ReminderService`, not a
-  holder of reminder business rules.
-- `visible_reminder_tool` no longer depends on `DeferredActionService`.
-- The wrapper derives owner, source type, and chat delivery context from
-  trusted `session_state`, not from LLM arguments.
-- The wrapper does not accept `body`, `new_body`, `priority`, `sort_order`,
+- `visible_reminder_tool` is an MCP-compatible adapter over the Reminder
+  command protocol, not a holder of reminder business rules.
+- The adapter derives owner, creator system, output target, and schedule
+  timezone from trusted runtime context, not from LLM arguments.
+- The adapter does not accept `body`, `new_body`, `priority`, `sort_order`,
   `list_id`, or `delivery_targets` arguments.
 - Timed create and timed update successes set
   `session_state["reminder_created_with_time"] = True`.
@@ -869,30 +975,30 @@ The corpus should include:
   `need_reminder_detect=true` and no tool result exists.
 - PostAnalyze skips or clears internal proactive follow-up when a timed
   reminder was successfully created or rescheduled in the turn.
-- ReminderDetectAgent evaluation covers create, list, update, cancel,
-  complete, recurrence, batch, ambiguous cases, and negative cases.
+- Fired reminders are rendered by Agent System from `ReminderFiredEvent`.
 
-# Test Matrix
+## Test Matrix
 
-## Reminder Core
+### Reminder System
 
 | layer | covers |
 |---|---|
-| model | default values, field validation, lifecycle timestamps |
+| model | field validation, schedule invariant, lifecycle timestamps |
 | schedule | timezone validation, floating local-time computation, supported RRULE subset, rejected RRULE features |
-| service | create, list, update, cancel, complete, ownership checks, ordered batch with partial failure |
-| scheduler | startup reconstruction, atomic claim race, post-delivery state advance for one-shot and recurring reminders |
-| storage | collection schema, index coverage |
-| delivery | chat success path, chat failure marks reminder failed |
+| command protocol | create, list, update, cancel, complete, ownership checks, ordered batch with partial failure |
+| scheduler | startup reconstruction, stale wake-up rejection, atomic post-event update, one-shot and recurring state advance |
+| fired-event protocol | event payload shape, deterministic `fire_id`, success and failure result handling |
+| storage | collection schema, index coverage, no Agent direct writes |
 
-## Agent Integration
+### Agent System
 
 | layer | covers |
 |---|---|
 | prompt | Orchestrator gate rules, ReminderDetectAgent ISO/RRULE/batch instructions |
-| tool wrapper | argument parsing, session context derivation, service call mapping, error mapping |
-| service integration | calls `ReminderService.create/update/cancel/complete/list_for_user/execute_batch` with correct context |
+| MCP/tool adapter | argument parsing, trusted context derivation, command mapping, error mapping |
+| association | owner-scoped list, keyword-to-id resolution, ambiguous target failure |
 | batch | ordered results, partial failure, timed-success flag behavior |
 | ChatWorkflow | tool result context, no-success-claim guard when no tool result exists |
+| fired output | event target resolution, output lock usage, `ReminderFireResult` success/failure |
 | PostAnalyze | timed create/update suppresses internal proactive follow-up |
-| eval | fake tool or fake service, no Mongo/scheduler/outbound dependency |
+| eval | fake tool or fake Reminder command port, no Mongo/scheduler/outbound dependency |
