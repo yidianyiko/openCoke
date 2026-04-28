@@ -10,8 +10,15 @@ The production stack consists of:
 
 - `agent/runner/agent_runner.py`
   - runs Coke message workers
+  - boots the reminder scheduler
   - boots the deferred-action scheduler
   - runs background maintenance jobs
+- `agent/runner/reminder_scheduler.py`
+  - rebuilds APScheduler reminder jobs from MongoDB `reminders.next_fire_at`
+  - emits structured reminder fired events to the Agent System event handler
+- `agent/runner/reminder_event_handler.py`
+  - resolves the reminder output target back into conversation context
+  - writes final reminder output through the Agent System output boundary
 - `agent/runner/deferred_action_scheduler.py`
   - rebuilds APScheduler jobs from MongoDB state
   - reconciles expired leases on startup
@@ -28,8 +35,8 @@ The production stack consists of:
   - owns shared-channel admin/config state and provider webhook routes for the
     active `whatsapp_evolution`, `wechat_ecloud`, and `linq` experiments
 - data services
-  - MongoDB for Coke runtime state, including `deferred_actions` and
-    `deferred_action_occurrences`
+  - MongoDB for Coke runtime state, including visible `reminders`,
+    `deferred_actions`, and `deferred_action_occurrences`
   - Redis for stream wake-up / trigger events
   - Postgres for gateway state
 
@@ -44,6 +51,8 @@ flowchart LR
     subgraph Coke
         BRIDGE[ClawScale Bridge :8090]
         RUNNER[agent_runner.py]
+        RSCHED[ReminderScheduler]
+        RHANDLER[ReminderFireEventHandler]
         SCHED[DeferredActionScheduler]
         EXEC[DeferredActionExecutor]
         BG[background_handler]
@@ -60,10 +69,13 @@ flowchart LR
     API --> BRIDGE
     BRIDGE --> RUNNER
     BRIDGE --> API
+    RUNNER --> RSCHED
+    RSCHED --> RHANDLER
     RUNNER --> SCHED
     SCHED --> EXEC
     RUNNER --> MONGO
     RUNNER -. stream trigger .-> REDIS
+    RSCHED --> MONGO
     SCHED --> MONGO
     EXEC --> MONGO
     BG --> MONGO
@@ -109,11 +121,12 @@ Key points:
 
 ## 3. Worker Runtime
 
-`agent/runner/agent_runner.py` now has three responsibilities:
+`agent/runner/agent_runner.py` now has four responsibilities:
 
 1. run N message workers
-2. boot one in-process deferred-action scheduler/executor runtime
-3. run the background handler loop
+2. boot one in-process Reminder System scheduler
+3. boot one in-process deferred-action scheduler/executor runtime
+4. run the background handler loop
 
 Each worker:
 
@@ -128,11 +141,28 @@ Each worker:
 - batching pending messages for the same conversation
 - final status updates
 
-The deferred-action runtime now owns all reminder and proactive follow-up
-triggering:
+The Reminder System owns the new assistant-created, agent-facing visible
+reminder protocol path:
 
-- `deferred_actions` stores business state, recurrence, `next_run_at`, and
-  visibility
+- `reminders` stores visible reminder state created through the
+  `agent.agno_agent.tools.reminder_protocol` adapter, including schedule data,
+  output target, lifecycle, and the next durable wake-up in `next_fire_at`
+- `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
+  startup and keeps APScheduler as an in-process wake-up mechanism only
+- fired reminders are emitted as structured events and return to the Agent
+  System through `ReminderFireEventHandler` for conversation resolution and
+  final user-visible output
+- successful one-shot fired events complete the reminder, successful recurring
+  fired events advance `next_fire_at`, and failed event handling marks the
+  reminder failed
+
+The deferred-action runtime remains active outside that new protocol boundary:
+
+- `deferred_actions` stores internal proactive follow-up state, recurrence,
+  `next_run_at`, and visibility for legacy follow-up behavior
+- historical/import visible deferred-action APIs can still contain
+  `kind=user_reminder` records and are out of scope for this Reminder System
+  protocol cutover until a separate migration removes or redirects them
 - `deferred_action_occurrences` stores per-occurrence claim/success/failure
   audit
 - APScheduler holds only the next concrete in-process wake-up for each active

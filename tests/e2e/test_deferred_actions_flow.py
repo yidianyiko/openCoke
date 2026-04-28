@@ -99,7 +99,8 @@ class InMemoryActionDAO:
             copy.deepcopy(action)
             for action in sorted(
                 self._actions.values(),
-                key=lambda item: item.get("next_run_at") or datetime.max.replace(tzinfo=UTC),
+                key=lambda item: item.get("next_run_at")
+                or datetime.max.replace(tzinfo=UTC),
             )
             if action.get("lifecycle_state") == "active"
             and action.get("next_run_at") is not None
@@ -119,9 +120,11 @@ class InMemoryActionDAO:
             copy.deepcopy(action)
             for action in sorted(
                 self._actions.values(),
-                key=lambda item: item.get("next_run_at") or datetime.max.replace(tzinfo=UTC),
+                key=lambda item: item.get("next_run_at")
+                or datetime.max.replace(tzinfo=UTC),
             )
-            if action.get("user_id") == user_id and action.get("visibility") == "visible"
+            if action.get("user_id") == user_id
+            and action.get("visibility") == "visible"
         ]
 
     def find_active_internal_followup(self, conversation_id: str) -> dict | None:
@@ -166,7 +169,9 @@ class InMemoryOccurrenceDAO:
         occurrence["last_started_at"] = started_at
         occurrence["status"] = "claimed"
 
-    def mark_occurrence_succeeded(self, trigger_key: str, finished_at: datetime) -> None:
+    def mark_occurrence_succeeded(
+        self, trigger_key: str, finished_at: datetime
+    ) -> None:
         occurrence = self._occurrences[trigger_key]
         occurrence["status"] = "succeeded"
         occurrence["last_finished_at"] = finished_at
@@ -199,7 +204,17 @@ class RecordingSchedulerBackend:
     def shutdown(self, wait: bool = False) -> None:
         self.stopped = True
 
-    def add_job(self, func, *, trigger, id, replace_existing, run_date, kwargs, misfire_grace_time):
+    def add_job(
+        self,
+        func,
+        *,
+        trigger,
+        id,
+        replace_existing,
+        run_date,
+        kwargs,
+        misfire_grace_time,
+    ):
         self.jobs[id] = {
             "func": func,
             "trigger": trigger,
@@ -259,7 +274,9 @@ async def test_recurring_visible_reminder_survives_restart_and_reschedules():
             acquire_lock_async=AsyncMock(return_value="lock-1"),
             release_lock_safe_async=AsyncMock(),
         ),
-        conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+        conversation_dao=Mock(
+            get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+        ),
         user_dao=Mock(
             get_user_by_id=Mock(
                 side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
@@ -316,6 +333,9 @@ async def test_recurring_visible_reminder_survives_restart_and_reschedules():
         timezone="UTC",
     )
 
+    # Internal proactive follow-up remains on the legacy deferred_actions
+    # boundary until that subsystem is redesigned.
+    assert action_dao.get_action(internal["_id"])["kind"] == "proactive_followup"
     visible = service_after_restart.list_visible_reminders("user-1")
     assert [item["_id"] for item in visible] == ["action-1"]
     with pytest.raises(ValueError, match="visible user reminders only"):
