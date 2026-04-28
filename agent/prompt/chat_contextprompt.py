@@ -490,3 +490,14 @@ def get_calendar_import_direct_reply(session_state: dict) -> str:
             "登录或验证邮箱后，点击 Start Google Calendar import 授权 Google。"
         )
     return ""
+
+
+def get_reminder_operation_direct_reply(session_state: dict) -> str:
+    """Return deterministic reminder CRUD acknowledgements from tool results."""
+    results: list[dict] = session_state.get("tool_results") or []
+    summaries = [
+        str(entry.get("result_summary") or "").strip()
+        for entry in results
+        if entry.get("tool_name") == "提醒操作"
+    ]
+    return "；".join(summary for summary in summaries if summary)

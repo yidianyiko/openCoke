@@ -95,6 +95,32 @@ def test_calendar_import_direct_reply_contains_link_and_instructions():
     assert "授权" in reply
 
 
+def test_reminder_operation_direct_reply_joins_exact_tool_summaries():
+    from agent.prompt.chat_contextprompt import get_reminder_operation_direct_reply
+
+    state = {
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "已创建提醒：喝水（2026-04-29 18:02）",
+                "extra_notes": "action=create",
+            },
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "已创建提醒：吃饭（每天 18:04）",
+                "extra_notes": "action=create",
+            },
+        ]
+    }
+
+    assert get_reminder_operation_direct_reply(state) == (
+        "已创建提醒：喝水（2026-04-29 18:02）；"
+        "已创建提醒：吃饭（每天 18:04）"
+    )
+
+
 def test_single_success_result():
     from agent.prompt.chat_contextprompt import get_tool_results_context
 
@@ -381,7 +407,7 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
 
 
 @pytest.mark.asyncio
-async def test_chat_workflow_omits_pending_reminder_notice_when_tool_result_exists(
+async def test_chat_workflow_directly_returns_reminder_tool_result(
     monkeypatch,
 ):
     install_chat_workflow_stubs(monkeypatch)
@@ -406,7 +432,7 @@ async def test_chat_workflow_omits_pending_reminder_notice_when_tool_result_exis
             {
                 "tool_name": "提醒操作",
                 "ok": True,
-                "result_summary": "Created reminder",
+                "result_summary": "已创建提醒：喝水（2026-04-29 18:02）",
                 "extra_notes": "",
             }
         ],
@@ -417,8 +443,8 @@ async def test_chat_workflow_omits_pending_reminder_notice_when_tool_result_exis
     ]
 
     assert events[-1]["type"] == "done"
-    assert "### System Notice: Reminder Setup Pending" not in workflow.agent.input
-    assert "Created reminder" in workflow.agent.input
+    assert events[0]["data"]["content"] == "已创建提醒：喝水（2026-04-29 18:02）"
+    assert workflow.agent.input is None
 
 
 @pytest.mark.asyncio

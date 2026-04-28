@@ -227,6 +227,9 @@ def test_create_derives_owner_target_and_timezone_from_session_state(monkeypatch
     )
     assert session_state["reminder_created_with_time"] is True
     assert session_state["tool_results"][0]["ok"] is True
+    assert session_state["tool_results"][0]["result_summary"] == (
+        "已创建提醒：call mom（2026-04-29 10:30）"
+    )
 
 
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):
@@ -376,7 +379,7 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
         True,
     ]
     assert [item["result_summary"] for item in session_state["tool_results"]] == [
-        "已创建提醒：drink water",
+        "已创建提醒：drink water（2026-04-29 10:00）",
         "更新提醒失败：keyword 'missing' matched 0 reminders",
         "已完成提醒：completed",
     ]
@@ -409,8 +412,8 @@ def test_batch_allows_operations_without_top_level_action(monkeypatch):
     )
 
     assert result.splitlines() == [
-        "已创建提醒：drink water",
-        "已创建提醒：exercise",
+        "已创建提醒：drink water（2026-04-29 17:57）",
+        "已创建提醒：exercise（每天 17:58）",
     ]
     assert [call[0] for call in service.calls] == ["create", "create"]
     assert [item["ok"] for item in session_state["tool_results"]] == [True, True]

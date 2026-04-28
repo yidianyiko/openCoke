@@ -43,6 +43,7 @@ from agent.prompt.chat_contextprompt import (
     get_message_source_context,
     get_inferred_timezone_visibility_context,
     get_calendar_import_direct_reply,
+    get_reminder_operation_direct_reply,
     get_relevant_history_context,
     get_reminders_context,
     get_tool_results_context,
@@ -213,6 +214,23 @@ class StreamingChatWorkflow:
                 "type": "done",
                 "data": {
                     "full_response": calendar_import_reply,
+                    "total_messages": 1,
+                    "inner_monologue": "",
+                },
+            }
+            return
+
+        reminder_operation_reply = get_reminder_operation_direct_reply(session_state)
+        if reminder_operation_reply and message_source == "user":
+            logger.info("[ChatWorkflow] 直接返回提醒操作结果")
+            yield {
+                "type": "message",
+                "data": {"type": "text", "content": reminder_operation_reply},
+            }
+            yield {
+                "type": "done",
+                "data": {
+                    "full_response": reminder_operation_reply,
                     "total_messages": 1,
                     "inner_monologue": "",
                 },

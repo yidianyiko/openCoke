@@ -292,7 +292,7 @@ def _execute_one(
             owner_user_id=context.owner_user_id,
             command=command,
         )
-        return f"已创建提醒：{created.title}", True
+        return f"已创建提醒：{_format_reminder_with_schedule(created)}", True
 
     if action == "list":
         reminders = service.list_for_user(
@@ -320,7 +320,7 @@ def _execute_one(
             owner_user_id=context.owner_user_id,
             patch=patch,
         )
-        return f"已更新提醒：{updated.title}", patch.schedule is not None
+        return f"已更新提醒：{_format_reminder_with_schedule(updated)}", patch.schedule is not None
 
     if action == "cancel":
         target_id = _resolve_reminder_id(
@@ -497,6 +497,20 @@ def _format_list_summary(reminders: list[Reminder]) -> str:
         f"{item.next_fire_at.isoformat() if item.next_fire_at else 'none'}"
         for item in reminders
     )
+
+
+def _format_reminder_with_schedule(reminder: Reminder) -> str:
+    schedule = reminder.schedule
+    time_text = schedule.local_time.strftime("%H:%M")
+    if schedule.rrule == "FREQ=DAILY":
+        schedule_text = f"每天 {time_text}"
+    elif schedule.rrule:
+        schedule_text = (
+            f"{schedule.local_date.isoformat()} {time_text}，循环规则 {schedule.rrule}"
+        )
+    else:
+        schedule_text = f"{schedule.local_date.isoformat()} {time_text}"
+    return f"{reminder.title}（{schedule_text}）"
 
 
 def _action_failure_label(action: str) -> str:
