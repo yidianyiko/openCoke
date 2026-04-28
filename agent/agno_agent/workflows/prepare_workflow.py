@@ -722,6 +722,16 @@ class PrepareWorkflow:
             # 续期锁
             self._renew_lock_if_needed(session_state)
 
+            if self._should_use_deterministic_create_before_detector(input_message):
+                if self._try_simple_reminder_create_fallback(
+                    input_message,
+                    session_state,
+                ):
+                    logger.info(
+                        "[PrepareWorkflow] ReminderDetectAgent 前确定性提醒创建成功"
+                    )
+                    return
+
             # 构建并执行 ReminderDetectAgent
             reminder_input = self._build_reminder_input(input_message, session_state)
             logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT")
@@ -845,6 +855,11 @@ class PrepareWorkflow:
                 "[PrepareWorkflow] ReminderDetectAgent 超时后简单提醒 fallback 失败"
             )
             return False
+
+    def _should_use_deterministic_create_before_detector(self, input_message: str) -> bool:
+        return self._looks_like_implicit_reminder_intent(
+            input_message
+        ) and not self._looks_like_explicit_reminder_intent(input_message)
 
     def _parse_simple_reminder_creates(
         self,
@@ -1018,7 +1033,7 @@ class PrepareWorkflow:
             return []
 
         trigger_at = (now + timedelta(days=1)).replace(
-            hour=18,
+            hour=17,
             minute=0,
             second=0,
             microsecond=0,

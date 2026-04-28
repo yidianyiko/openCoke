@@ -68,7 +68,9 @@ async def test_explicit_reminder_request_runs_detector_when_orchestrator_misses_
 
 
 @pytest.mark.asyncio
-async def test_implicit_time_task_runs_detector_when_orchestrator_misses_it():
+async def test_implicit_time_task_uses_deterministic_create_before_detector(monkeypatch):
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
@@ -103,6 +105,23 @@ async def test_implicit_time_task_runs_detector_when_orchestrator_misses_it():
         "character": {"_id": "char-1"},
         "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
     }
+    fallback_calls = []
+
+    def fake_visible_reminder_tool(**kwargs):
+        fallback_calls.append(kwargs)
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=True,
+            result_summary=f"已创建提醒：{kwargs['title']}",
+        )
+        return f"已创建提醒：{kwargs['title']}"
+
+    monkeypatch.setattr(
+        prepare_workflow,
+        "visible_reminder_tool",
+        fake_visible_reminder_tool,
+    )
 
     with (
         patch(
@@ -124,8 +143,10 @@ async def test_implicit_time_task_runs_detector_when_orchestrator_misses_it():
             session_state,
         )
 
-    reminder_detect_agent.arun.assert_awaited_once()
+    reminder_detect_agent.arun.assert_not_awaited()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    assert fallback_calls[0]["title"] == "背书"
+    assert "T06:15:00" in fallback_calls[0]["trigger_at"]
 
 
 @pytest.mark.asyncio
@@ -527,7 +548,7 @@ async def test_reminder_detect_timeout_uses_deadline_fallback(monkeypatch):
     assert fallback_calls
     assert fallback_calls[0]["action"] == "create"
     assert fallback_calls[0]["title"] == "学习llya的一篇文章"
-    assert "T18:00:00" in fallback_calls[0]["trigger_at"]
+    assert "T17:00:00" in fallback_calls[0]["trigger_at"]
     assert fallback_calls[0]["rrule"] is None
     [tool_result] = result["session_state"]["tool_results"]
     assert tool_result["ok"] is True
