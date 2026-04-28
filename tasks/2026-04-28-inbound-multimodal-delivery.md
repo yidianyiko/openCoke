@@ -51,8 +51,20 @@ inbound behavior.
   limits, total payload limits, and allowed `data:` content types.
 - Raw `data:` URLs must not be written into prompt fallback text, logs, or JS
   OpenAI/OpenClaw image payloads.
+- Trusted `data:` acceptance must be an internal adapter/Bridge option, never
+  a client-supplied payload flag.
 - Text-only inbound dedupe remains keyed by causal inbound event id and must not
   regress.
+
+## Verification Surface
+
+- Bridge unit surface: `pytest tests/unit/connector/clawscale_bridge/ -v`
+- Worker formatter routing: `pytest tests/unit/agent/test_message_util_clawscale_routing.py -v`
+- Gateway focused surface:
+  `pnpm --dir gateway/packages/api exec vitest run src/gateway/message-router.test.ts src/lib/route-message.test.ts`
+- Gateway full API suite: `pnpm --dir gateway/packages/api test`
+- Gateway typecheck: `pnpm --dir gateway/packages/api build`
+- Repo-OS check: `zsh scripts/check`
 
 ## References
 

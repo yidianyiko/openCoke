@@ -110,6 +110,9 @@ Validation rules:
 - `data:` URLs are accepted only when the caller is a trusted adapter or the
   bridge itself is reading Gateway-produced message history. Generic external
   `/gateway/:channelId` requests reject `data:`.
+- Trust is an internal function option such as `{ allowDataUrls: true }` passed
+  by in-process adapters or Bridge code. It must never be inferred from
+  client-supplied JSON, `meta`, `metadata`, headers, or attachment fields.
 - `data:` URLs must use base64 form.
 - Allowed `data:` content types are:
   - `image/jpeg`
@@ -134,6 +137,9 @@ Limits:
 - Maximum decoded bytes per `data:` URL: 2 MiB.
 - Maximum total decoded `data:` bytes per inbound message: 4 MiB.
 - Maximum total attachment JSON footprint passed across the bridge: 5 MiB.
+- Maximum count and footprint are hard failures for the attachment set, not
+  truncation rules. If a request has too many attachments or exceeds total
+  footprint, all attachments in that request are considered invalid.
 - Payloads that exceed a route-level body cap return `413`.
 - Payloads with only oversized or invalid attachments and no text return `400`
   at Gateway routes and ignored/no-enqueue at Bridge.
@@ -397,6 +403,8 @@ zsh scripts/check
 - Inbound accepts bounded trusted-adapter `data:` URLs while outbound continues
   to reject them.
 - Generic external inbound rejects `data:` URLs.
+- Oversized, over-count, over-footprint, unsupported-type, `file://`, and
+  relative-path attachment-only payloads do not enqueue or route worker work.
 - Raw `data:` URLs do not appear in fallback text, logs, or JS OpenAI/OpenClaw
   image payloads.
 - Top-level bridge attachments override message-level attachments only when the
