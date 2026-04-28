@@ -242,6 +242,117 @@ def test_message_gateway_preserves_redacted_inline_attachment_values():
     assert not doc["metadata"]["mediaUrls"][0].startswith("data:")
 
 
+def test_message_gateway_redacts_raw_data_url_attachments_before_persistence():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    raw_payload = "cG5n"
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="Attachment: raw upload",
+        causal_inbound_event_id="in_evt_raw_data_1",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_text": "",
+            "attachments": [
+                {
+                    "url": f"\x00\x1fdata:image/png;base64,{raw_payload}",
+                    "contentType": "image/png",
+                    "filename": "screenshot.png",
+                    "safeDisplayUrl": "data:image/png;base64,unsafe-display",
+                    "extra": "must not persist",
+                }
+            ],
+        },
+    )
+
+    assert doc["message_type"] == "image"
+    assert doc["metadata"]["attachments"] == [
+        {
+            "url": "[redacted inline image/png attachment]",
+            "contentType": "image/png",
+            "filename": "screenshot.png",
+            "safeDisplayUrl": "[redacted inline image/png attachment]",
+        }
+    ]
+    assert doc["metadata"]["mediaUrls"] == ["[redacted inline image/png attachment]"]
+    assert "data:image" not in str(doc)
+    assert raw_payload not in str(doc)
+
+
+def test_message_gateway_copies_attachments_before_persistence():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    attachment = {
+        "url": "https://cdn.example.com/photo.jpg",
+        "contentType": "image/jpeg",
+        "filename": "photo.jpg",
+        "safeDisplayUrl": "https://cdn.example.com/photo.jpg",
+    }
+    inbound = {
+        "timestamp": 1710000000,
+        "inbound_text": "caption",
+        "attachments": [attachment],
+    }
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="caption\n\nAttachment: https://cdn.example.com/photo.jpg",
+        causal_inbound_event_id="in_evt_alias_1",
+        inbound=inbound,
+    )
+
+    attachment["url"] = "data:image/png;base64,cG5n"
+    attachment["filename"] = "mutated.png"
+    attachment["extra"] = "mutated"
+    inbound["attachments"].append(
+        {
+            "url": "https://cdn.example.com/other.jpg",
+            "contentType": "image/jpeg",
+        }
+    )
+
+    assert doc["metadata"]["attachments"] == [
+        {
+            "url": "https://cdn.example.com/photo.jpg",
+            "contentType": "image/jpeg",
+            "filename": "photo.jpg",
+            "safeDisplayUrl": "https://cdn.example.com/photo.jpg",
+        }
+    ]
+    assert doc["metadata"]["mediaUrls"] == ["https://cdn.example.com/photo.jpg"]
+
+
+def test_message_gateway_drops_malformed_attachment_without_url():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="looks like an image",
+        causal_inbound_event_id="in_evt_malformed_1",
+        inbound={
+            "timestamp": 1710000000,
+            "attachments": [
+                {
+                    "contentType": "image/png",
+                    "filename": "missing-url.png",
+                }
+            ],
+        },
+    )
+
+    assert doc["message_type"] == "text"
+    assert "attachments" not in doc["metadata"]
+    assert "mediaUrls" not in doc["metadata"]
+
+
 def test_message_gateway_enqueue_deduplicates_same_inbound_event_id():
     from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 
