@@ -20,13 +20,18 @@ import logging
 import os
 import re
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agent.agno_agent.agents import (
     orchestrator_agent,
     reminder_detect_agent,
 )
-from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
+from agent.agno_agent.tools.reminder_protocol import (
+    set_reminder_session_state,
+    visible_reminder_tool,
+)
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.calendar_import_handoff import (
     create_calendar_import_handoff_link,
@@ -110,6 +115,12 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
         r"\b(remind me|set a reminder|set an alarm|notify me)\b",
         re.IGNORECASE,
     ),
+)
+_SIMPLE_TIME_REMINDER_PATTERN = re.compile(
+    r"(?P<hour>[01]?\d|2[0-3])\s*[:：]\s*(?P<minute>[0-5]\d)"
+)
+_REMINDER_TITLE_AFTER_MARKER_PATTERN = re.compile(
+    r"(提醒我|叫我|通知我)(?P<title>[^，。！？!?；;\n]+)"
 )
 
 
@@ -717,6 +728,11 @@ class PrepareWorkflow:
                 _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS,
             )
             session_state["prepare_reminder_detect_timeout"] = True
+            if self._try_simple_reminder_create_fallback(
+                input_message,
+                session_state,
+            ):
+                return
             append_tool_result(
                 session_state,
                 tool_name="提醒操作",
@@ -772,6 +788,92 @@ class PrepareWorkflow:
                 "[PrepareWorkflow] ReminderDetectAgent 执行完成但未调用 visible_reminder_tool，"
                 "可能是 LLM 判断为普通对话而非提醒操作请求"
             )
+
+    def _try_simple_reminder_create_fallback(
+        self,
+        input_message: str,
+        session_state: Dict[str, Any],
+    ) -> bool:
+        parsed = self._parse_simple_reminder_create(input_message, session_state)
+        if not parsed:
+            return False
+        try:
+            entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
+            entrypoint = getattr(entrypoint, "raw_function", entrypoint)
+            result = entrypoint(
+                action="create",
+                title=parsed["title"],
+                trigger_at=parsed["trigger_at"],
+                rrule=parsed["rrule"],
+            )
+            logger.info(
+                "[PrepareWorkflow] ReminderDetectAgent 超时后简单提醒 fallback 成功: %s",
+                result,
+            )
+            return True
+        except Exception:
+            logger.exception(
+                "[PrepareWorkflow] ReminderDetectAgent 超时后简单提醒 fallback 失败"
+            )
+            return False
+
+    def _parse_simple_reminder_create(
+        self,
+        input_message: str,
+        session_state: Dict[str, Any],
+    ) -> dict[str, str | None] | None:
+        text = str(input_message or "").strip()
+        if not self._looks_like_explicit_reminder_intent(text):
+            return None
+
+        time_match = _SIMPLE_TIME_REMINDER_PATTERN.search(text)
+        if not time_match:
+            return None
+
+        title_match = _REMINDER_TITLE_AFTER_MARKER_PATTERN.search(text)
+        if not title_match:
+            return None
+        title = self._clean_simple_reminder_title(title_match.group("title"))
+        if not title:
+            return None
+
+        timezone_name = self._get_user_timezone_name(session_state)
+        try:
+            tzinfo = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            logger.warning(
+                "[PrepareWorkflow] 简单提醒 fallback 遇到无效时区: %s",
+                timezone_name,
+            )
+            return None
+
+        now = datetime.now(tzinfo)
+        hour = int(time_match.group("hour"))
+        minute = int(time_match.group("minute"))
+        trigger_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if trigger_at <= now:
+            trigger_at += timedelta(days=1)
+
+        return {
+            "title": title,
+            "trigger_at": trigger_at.isoformat(),
+            "rrule": "FREQ=DAILY" if "每天" in text else None,
+        }
+
+    def _clean_simple_reminder_title(self, raw_title: str) -> str:
+        title = str(raw_title or "").strip()
+        title = re.sub(r"^(一下|下|去|要|：|:|\s)+", "", title)
+        title = re.sub(r"(可以吗|可以么|行吗|好吗|好么|吗|么|呀|呢|吧|哈)+$", "", title)
+        return title.strip(" ，。！？!?；;")
+
+    def _get_user_timezone_name(self, session_state: Dict[str, Any]) -> str:
+        user = session_state.get("user") or {}
+        timezone_name = (
+            user.get("effective_timezone")
+            or user.get("timezone")
+            or "Asia/Shanghai"
+        )
+        return str(timezone_name)
 
     def _build_reminder_input(self, current_message: str, session_state: dict) -> str:
         """
