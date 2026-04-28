@@ -279,7 +279,14 @@ def test_validate_observations_accepts_case3_expected_shape():
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[{"message": "已创建提醒：18:02喝水，18:04每天吃饭"}],
+        outputs=[
+            {
+                "message": (
+                    "好嘞，水是18:02，饭是18:04，都给你安排上了！"
+                    "今天下午准点提醒你。"
+                )
+            }
+        ],
         reminders=reminders,
     )
 

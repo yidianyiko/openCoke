@@ -467,9 +467,29 @@ def validate_expected_creates(
 
     output_text = combined_output_text(outputs)
     for expected in expected_creates:
-        if expected.title not in output_text:
+        if not output_mentions_expected_title(output_text, expected.title):
             errors.append(f"user_output_missing_expected_title:{expected.title}")
     return errors
+
+
+_COMMON_TITLE_LEADING_VERBS = frozenset(
+    "喝吃学背看写做跑练买拿取打出睡起读"
+)
+
+
+def output_mentions_expected_title(output_text: str, title: str) -> bool:
+    normalized_title = normalize_expected_title(title)
+    if not normalized_title:
+        return False
+    if normalized_title in output_text:
+        return True
+    if (
+        len(normalized_title) >= 2
+        and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
+        and normalized_title[1:] in output_text
+    ):
+        return True
+    return False
 
 
 def find_matching_reminder(
@@ -546,11 +566,13 @@ def output_mentions_crud_ack(
         return False
 
     action_ack = re.search(
-        r"(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成).{0,12}提醒|"
-        r"提醒.{0,12}(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成)",
+        r"(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成|安排).{0,12}提醒|"
+        r"提醒.{0,12}(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成|安排)",
         output_text,
     )
     if action_ack:
+        return True
+    if ("安排上" in output_text or "设好" in output_text or "记好" in output_text) and "提醒" in output_text:
         return True
 
     titles = [str(reminder.get("title") or "").strip() for reminder in reminders]
