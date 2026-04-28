@@ -1,4 +1,20 @@
 from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+
+def _stub_prompt_formatter_dependencies(monkeypatch):
+    from agent.util import message_util
+
+    monkeypatch.setattr(
+        message_util,
+        "UserDAO",
+        lambda: MagicMock(get_user_by_id=lambda _: None),
+    )
+    monkeypatch.setattr(
+        message_util,
+        "MongoDBBase",
+        lambda: MagicMock(get_vector_by_id=lambda *_: None),
+    )
 
 
 def test_message_util_emits_business_only_output_doc_for_clawscale_proactive_message(
@@ -62,6 +78,111 @@ def test_message_util_emits_business_only_output_doc_for_clawscale_proactive_mes
         "causal_inbound_event_id": "in_1",
     }
     assert "legacy_inbound" not in message["metadata"]
+
+
+def test_clawscale_image_message_prompt_keeps_attachment_fallback(monkeypatch):
+    from agent.util.message_util import messages_to_str
+
+    _stub_prompt_formatter_dependencies(monkeypatch)
+
+    rendered = messages_to_str(
+        [
+            {
+                "platform": "business",
+                "from_user": "acct_1",
+                "input_timestamp": 1710000000,
+                "message_type": "image",
+                "message": "caption\n\nAttachment: https://cdn.example.com/photo.jpg",
+                "metadata": {
+                    "source": "clawscale",
+                    "coke_account": {"id": "acct_1", "display_name": "Alice"},
+                },
+            }
+        ]
+    )
+
+    assert "Attachment: https://cdn.example.com/photo.jpg" in rendered
+
+
+def test_clawscale_voice_message_prompt_keeps_attachment_fallback(monkeypatch):
+    from agent.util.message_util import messages_to_str
+
+    _stub_prompt_formatter_dependencies(monkeypatch)
+
+    rendered = messages_to_str(
+        [
+            {
+                "platform": "business",
+                "from_user": "acct_1",
+                "input_timestamp": 1710000000,
+                "message_type": "voice",
+                "message": "Attachment: https://cdn.example.com/audio.ogg",
+                "metadata": {
+                    "source": "clawscale",
+                    "coke_account": {"id": "acct_1", "display_name": "Alice"},
+                },
+            }
+        ]
+    )
+
+    assert "Attachment: https://cdn.example.com/audio.ogg" in rendered
+
+
+def test_clawscale_mixed_file_message_prompt_keeps_attachment_fallback(monkeypatch):
+    from agent.util.message_util import messages_to_str
+
+    _stub_prompt_formatter_dependencies(monkeypatch)
+
+    rendered = messages_to_str(
+        [
+            {
+                "platform": "business",
+                "from_user": "acct_1",
+                "input_timestamp": 1710000000,
+                "message_type": "text",
+                "message": (
+                    "please review\n\n"
+                    "Attachment: https://cdn.example.com/photo.jpg\n"
+                    "Attachment: https://cdn.example.com/doc.pdf"
+                ),
+                "metadata": {
+                    "source": "clawscale",
+                    "coke_account": {"id": "acct_1", "display_name": "Alice"},
+                },
+            }
+        ]
+    )
+
+    assert "Attachment: https://cdn.example.com/photo.jpg" in rendered
+    assert "Attachment: https://cdn.example.com/doc.pdf" in rendered
+
+
+def test_clawscale_redacted_inline_data_marker_prompt_keeps_attachment_fallback(
+    monkeypatch,
+):
+    from agent.util.message_util import messages_to_str
+
+    _stub_prompt_formatter_dependencies(monkeypatch)
+
+    redacted_marker = "[inline image/png attachment: screenshot.png]"
+    rendered = messages_to_str(
+        [
+            {
+                "platform": "business",
+                "from_user": "acct_1",
+                "input_timestamp": 1710000000,
+                "message_type": "image",
+                "message": f"Attachment: {redacted_marker}",
+                "metadata": {
+                    "source": "clawscale",
+                    "coke_account": {"id": "acct_1", "display_name": "Alice"},
+                },
+            }
+        ]
+    )
+
+    assert f"Attachment: {redacted_marker}" in rendered
+    assert "data:" not in rendered
 
 
 def test_message_util_marks_proactive_output_failed_when_business_key_missing(

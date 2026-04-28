@@ -108,6 +108,140 @@ def test_message_gateway_builds_business_protocol_with_optional_gateway_metadata
     }
 
 
+def test_message_gateway_preserves_single_image_attachment_metadata_and_type():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    attachment = {
+        "url": "https://cdn.example.com/photo.jpg",
+        "contentType": "image/jpeg",
+        "filename": "photo.jpg",
+        "safeDisplayUrl": "https://cdn.example.com/photo.jpg",
+        "size": 1234,
+    }
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="caption\n\nAttachment: https://cdn.example.com/photo.jpg",
+        causal_inbound_event_id="in_evt_image_1",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_text": "caption",
+            "attachments": [attachment],
+        },
+    )
+
+    assert doc["message_type"] == "image"
+    assert doc["metadata"]["attachments"] == [attachment]
+    assert doc["metadata"]["mediaUrls"] == ["https://cdn.example.com/photo.jpg"]
+    assert doc["metadata"]["inbound_text"] == "caption"
+
+
+def test_message_gateway_preserves_single_audio_attachment_metadata_and_type():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    attachment = {
+        "url": "https://cdn.example.com/audio.ogg",
+        "contentType": "audio/ogg",
+        "filename": "audio.ogg",
+        "safeDisplayUrl": "https://cdn.example.com/audio.ogg",
+    }
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="Attachment: https://cdn.example.com/audio.ogg",
+        causal_inbound_event_id="in_evt_audio_1",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_text": "",
+            "attachments": [attachment],
+        },
+    )
+
+    assert doc["message_type"] == "voice"
+    assert doc["metadata"]["attachments"] == [attachment]
+    assert doc["metadata"]["mediaUrls"] == ["https://cdn.example.com/audio.ogg"]
+    assert doc["metadata"]["inbound_text"] == ""
+
+
+def test_message_gateway_keeps_mixed_and_file_attachments_as_text():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    attachments = [
+        {
+            "url": "https://cdn.example.com/photo.jpg",
+            "contentType": "image/jpeg",
+            "filename": "photo.jpg",
+            "safeDisplayUrl": "https://cdn.example.com/photo.jpg",
+        },
+        {
+            "url": "https://cdn.example.com/doc.pdf",
+            "contentType": "application/pdf",
+            "filename": "doc.pdf",
+            "safeDisplayUrl": "https://cdn.example.com/doc.pdf",
+        },
+    ]
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text=(
+            "please review\n\n"
+            "Attachment: https://cdn.example.com/photo.jpg\n"
+            "Attachment: https://cdn.example.com/doc.pdf"
+        ),
+        causal_inbound_event_id="in_evt_mixed_1",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_text": "please review",
+            "attachments": attachments,
+        },
+    )
+
+    assert doc["message_type"] == "text"
+    assert doc["metadata"]["attachments"] == attachments
+    assert doc["metadata"]["mediaUrls"] == [
+        "https://cdn.example.com/photo.jpg",
+        "https://cdn.example.com/doc.pdf",
+    ]
+    assert doc["metadata"]["inbound_text"] == "please review"
+
+
+def test_message_gateway_preserves_redacted_inline_attachment_values():
+    from connector.clawscale_bridge.message_gateway import CokeMessageGateway
+
+    attachment = {
+        "url": "[inline image/png attachment: screenshot.png]",
+        "contentType": "image/png",
+        "filename": "screenshot.png",
+        "safeDisplayUrl": "[inline image/png attachment: screenshot.png]",
+    }
+    gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
+
+    doc = gateway.build_input_message(
+        account_id="user_1",
+        character_id="char_1",
+        text="Attachment: [inline image/png attachment: screenshot.png]",
+        causal_inbound_event_id="in_evt_inline_1",
+        inbound={
+            "timestamp": 1710000000,
+            "inbound_text": "",
+            "attachments": [attachment],
+        },
+    )
+
+    assert doc["message_type"] == "image"
+    assert doc["metadata"]["attachments"] == [attachment]
+    assert doc["metadata"]["mediaUrls"] == [
+        "[inline image/png attachment: screenshot.png]"
+    ]
+    assert not doc["metadata"]["mediaUrls"][0].startswith("data:")
+
+
 def test_message_gateway_enqueue_deduplicates_same_inbound_event_id():
     from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 

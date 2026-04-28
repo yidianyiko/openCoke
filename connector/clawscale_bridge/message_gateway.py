@@ -5,6 +5,29 @@ from pymongo.errors import DuplicateKeyError
 from connector.clawscale_bridge.customer_ids import resolve_customer_id
 
 
+def _normalized_attachments_from_inbound(inbound: dict) -> list[dict]:
+    attachments = inbound.get("attachments")
+    if not isinstance(attachments, list):
+        return []
+    return [attachment for attachment in attachments if isinstance(attachment, dict)]
+
+
+def _resolve_message_type(attachments: list[dict]) -> str:
+    if len(attachments) != 1:
+        return "text"
+
+    content_type = attachments[0].get("contentType")
+    if not isinstance(content_type, str):
+        return "text"
+
+    normalized_content_type = content_type.lower()
+    if normalized_content_type.startswith("image/"):
+        return "image"
+    if normalized_content_type.startswith("audio/"):
+        return "voice"
+    return "text"
+
+
 class CokeMessageGateway:
     def __init__(self, mongo, user_dao, target_character_alias: str = "coke"):
         self.mongo = mongo
@@ -63,6 +86,23 @@ class CokeMessageGateway:
             "display_name": inbound.get("coke_account_display_name"),
         }
 
+        attachments = _normalized_attachments_from_inbound(inbound)
+        metadata = {
+            "source": "clawscale",
+            "business_protocol": business_protocol,
+            "customer": customer,
+            "coke_account": customer,
+        }
+        if attachments:
+            metadata["attachments"] = attachments
+            metadata["mediaUrls"] = [
+                attachment.get("url")
+                for attachment in attachments
+                if isinstance(attachment.get("url"), str)
+            ]
+            if "inbound_text" in inbound:
+                metadata["inbound_text"] = inbound.get("inbound_text")
+
         return {
             "input_timestamp": inbound["timestamp"],
             "handled_timestamp": inbound["timestamp"],
@@ -71,14 +111,9 @@ class CokeMessageGateway:
             "platform": "business",
             "chatroom_name": None,
             "to_user": character_id,
-            "message_type": "text",
+            "message_type": _resolve_message_type(attachments),
             "message": text,
-            "metadata": {
-                "source": "clawscale",
-                "business_protocol": business_protocol,
-                "customer": customer,
-                "coke_account": customer,
-            },
+            "metadata": metadata,
         }
 
     def enqueue(self, account_id: str, character_id: str, text: str, inbound: dict):
