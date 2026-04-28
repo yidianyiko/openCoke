@@ -776,7 +776,8 @@ _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN = re.compile(
     r".*(?:学完|完成|做完|弄完).*明天下班前"
 )
 _VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
-    r"^(你)?(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
+    r"(?:^|[，,。；;！？!?\s]).{0,12}"
+    r"(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
 )
 _REMINDER_TIME_QUERY_PATTERN = re.compile(
     r"(几点|什么时候|什么时间|何时|哪天|哪个时间).{0,12}提醒我|"

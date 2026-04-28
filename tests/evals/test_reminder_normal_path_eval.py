@@ -417,6 +417,24 @@ def test_validate_observations_does_not_require_crud_for_vague_capability_questi
     assert "no_reminder_created" not in errors
 
 
+def test_validate_observations_does_not_require_crud_for_frustrated_capability_question():
+    case = normal_eval.ReminderNormalPathCase(
+        input="怎么这样！那你到底会不会提醒我",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "会提醒你，但需要具体时间和内容。"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" not in errors
+
+
 def test_validate_observations_does_not_require_crud_for_reminder_time_query():
     case = normal_eval.ReminderNormalPathCase(
         input="那你打算几点提醒我",
