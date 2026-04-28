@@ -196,10 +196,7 @@ def test_set_user_timezone_uses_canonical_state_update(
         service_instance.apply_user_explicit_change.return_value,
     )
     dao_instance.update_timezone.assert_not_called()
-    mock_realign_reminders.assert_called_once_with(
-        "507f1f77bcf86cd799439011",
-        "America/New_York",
-    )
+    mock_realign_reminders.assert_not_called()
     assert session_state["tool_results"][0]["tool_name"] == "时区更新"
     assert session_state["tool_results"][0]["ok"] is True
 
@@ -209,7 +206,7 @@ def test_set_user_timezone_uses_canonical_state_update(
 )
 @patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
-def test_set_user_timezone_realigns_visible_reminders_on_success(
+def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
     mock_dao_class,
     mock_service_class,
     mock_realign_reminders,
@@ -245,10 +242,7 @@ def test_set_user_timezone_realigns_visible_reminders_on_success(
     )
 
     assert result["ok"] is True
-    mock_realign_reminders.assert_called_once_with(
-        "507f1f77bcf86cd799439011",
-        "America/New_York",
-    )
+    mock_realign_reminders.assert_not_called()
 
 
 @patch("agent.agno_agent.tools.deferred_action.service.DeferredActionService")
@@ -431,7 +425,7 @@ def test_consume_timezone_confirmation_rejects_expired_proposal(
 )
 @patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
 @patch("agent.agno_agent.tools.timezone_tools.UserDAO")
-def test_consume_timezone_confirmation_yes_realigns_visible_reminders_on_success(
+def test_consume_timezone_confirmation_yes_does_not_realign_v1_reminders_on_success(
     mock_dao_class,
     mock_service_class,
     mock_realign_reminders,
@@ -471,7 +465,7 @@ def test_consume_timezone_confirmation_yes_realigns_visible_reminders_on_success
     )
 
     assert result["ok"] is True
-    mock_realign_reminders.assert_called_once_with("acct-1", "Europe/London")
+    mock_realign_reminders.assert_not_called()
 
 
 @patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)

@@ -1,3 +1,67 @@
+from types import SimpleNamespace
+
+import pytest
+
+
+class CapturingStreamingAgent:
+    def __init__(self):
+        self.input = None
+
+    async def arun(self, *, input, session_state, stream):
+        self.input = input
+        yield SimpleNamespace(
+            content='{"MultiModalResponses":[{"type":"text","content":"ok"}]}'
+        )
+
+
+def install_chat_workflow_stubs(monkeypatch):
+    import sys
+    import types
+
+    agno = types.ModuleType("agno")
+    agno.__path__ = []
+    agno_agent = types.ModuleType("agno.agent")
+    agno_models = types.ModuleType("agno.models")
+    agno_models.__path__ = []
+    agno_tools = types.ModuleType("agno.tools")
+
+    class StubClass:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def arun(self, *args, **kwargs):
+            return None
+
+    def tool_decorator(*args, **kwargs):
+        def decorate(fn):
+            return fn
+
+        return decorate
+
+    agno_agent.Agent = StubClass
+    agno_tools.tool = tool_decorator
+
+    monkeypatch.setitem(sys.modules, "agno", agno)
+    monkeypatch.setitem(sys.modules, "agno.agent", agno_agent)
+    monkeypatch.setitem(sys.modules, "agno.models", agno_models)
+    monkeypatch.setitem(sys.modules, "agno.tools", agno_tools)
+    monkeypatch.setitem(
+        sys.modules,
+        "agno.models.deepseek",
+        types.SimpleNamespace(DeepSeek=StubClass),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agno.models.openai",
+        types.SimpleNamespace(OpenAIChat=StubClass),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agno.models.siliconflow",
+        types.SimpleNamespace(Siliconflow=StubClass),
+    )
+
+
 def test_empty_when_no_tool_results():
     from agent.prompt.chat_contextprompt import get_tool_results_context
 
@@ -268,3 +332,131 @@ def test_confirmed_timezone_visibility_stays_quiet_for_local_time_question():
     )
 
     assert output == ""
+
+
+def test_reminder_detect_instructions_require_aware_iso8601_rrule_and_batch():
+    from agent.prompt.agent_instructions_prompt import (
+        get_reminder_detect_instructions,
+    )
+
+    instructions = get_reminder_detect_instructions("2026年04月28日09时00分")
+
+    assert "ISO 8601 aware datetime" in instructions
+    assert "RFC 5545 RRULE" in instructions
+    assert "batch" in instructions
+    assert "multiple reminder operations" in instructions
+
+
+@pytest.mark.asyncio
+async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
+    monkeypatch,
+):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月28日09时00分",
+                "input_messages_str": "remind me tomorrow",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+    }
+
+    events = [
+        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
+    assert "Do not assume the reminder has been set successfully" in workflow.agent.input
+
+
+@pytest.mark.asyncio
+async def test_chat_workflow_omits_pending_reminder_notice_when_tool_result_exists(
+    monkeypatch,
+):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月28日09时00分",
+                "input_messages_str": "remind me tomorrow",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "Created reminder",
+                "extra_notes": "",
+            }
+        ],
+    }
+
+    events = [
+        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert "### System Notice: Reminder Setup Pending" not in workflow.agent.input
+    assert "Created reminder" in workflow.agent.input
+
+
+@pytest.mark.asyncio
+async def test_chat_workflow_keeps_pending_reminder_notice_for_unrelated_tool_result(
+    monkeypatch,
+):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月28日09时00分",
+                "input_messages_str": "remind me tomorrow",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+        "tool_results": [
+            {
+                "tool_name": "时区更新",
+                "ok": True,
+                "result_summary": "Updated timezone",
+                "extra_notes": "",
+            }
+        ],
+    }
+
+    events = [
+        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert "Updated timezone" in workflow.agent.input
+    assert "### System Notice: Reminder Setup Pending" in workflow.agent.input

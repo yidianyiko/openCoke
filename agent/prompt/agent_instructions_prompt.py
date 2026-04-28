@@ -51,7 +51,7 @@ Supported visible_reminder_tool actions:
 - update: use when the user wants to change an existing reminder. Use keyword plus new_title and/or new_trigger_at.
 - delete: use when the user wants to cancel a reminder. Use keyword.
 - complete: use when the user says a reminder/task is done. Use keyword.
-- batch: use when one user message contains multiple reminder operations. Preserve the user's operation order.
+- batch: must use when one user message contains multiple reminder operations. Preserve the user's operation order.
 
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.

@@ -67,6 +67,11 @@ from agent.prompt.personality_prompt import CHAT_AGENT_PERSONALITY_MINIMAL
 logger = logging.getLogger(__name__)
 
 
+def _has_reminder_tool_result(session_state: Dict[str, Any]) -> bool:
+    results = session_state.get("tool_results") or []
+    return any(entry.get("tool_name") == "提醒操作" for entry in results)
+
+
 # 流式 JSON 解析说明
 # LLM 输出 JSON 格式，我们流式解析 MultiModalResponses 数组中的每个元素
 
@@ -227,7 +232,11 @@ class StreamingChatWorkflow:
         reminder_not_executed_context = ""
         orchestrator = session_state.get("orchestrator", {})
         need_reminder = orchestrator.get("need_reminder_detect", False)
-        if need_reminder and message_source == "user" and not tool_results_context:
+        if (
+            need_reminder
+            and message_source == "user"
+            and not _has_reminder_tool_result(session_state)
+        ):
             reminder_not_executed_context = self.userp_template_reminder_not_executed
             logger.warning(
                 "[ChatWorkflow] OrchestratorAgent 判断 need_reminder_detect=True，但未找到提醒工具结果.添加提醒未执行提示"
