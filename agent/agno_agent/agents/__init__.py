@@ -18,7 +18,7 @@ from agno.agent import Agent
 from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
-from agent.agno_agent.tools.deferred_action import visible_reminder_tool
+from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 from agent.prompt.agent_instructions_prompt import (
     DESCRIPTION_ORCHESTRATOR,
     DESCRIPTION_REMINDER_DETECT,

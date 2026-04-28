@@ -18,7 +18,7 @@ Tools:
 
 from agent.agno_agent.tools.album_tools import photo_delete_tool
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
-from agent.agno_agent.tools.deferred_action import visible_reminder_tool
+from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 from agent.agno_agent.tools.image_tools import (
     image2text_tool,
     image_generate_tool,

@@ -25,7 +25,7 @@ from agent.agno_agent.agents import (
     orchestrator_agent,
     reminder_detect_agent,
 )
-from agent.agno_agent.tools.deferred_action import set_deferred_action_session_state
+from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.calendar_import_handoff import (
     create_calendar_import_handoff_link,
@@ -610,7 +610,7 @@ class PrepareWorkflow:
         """执行提醒检测"""
         try:
             # 设置 session_state 供 visible_reminder_tool 使用
-            set_deferred_action_session_state(session_state)
+            set_reminder_session_state(session_state)
 
             # 续期锁
             self._renew_lock_if_needed(session_state)
