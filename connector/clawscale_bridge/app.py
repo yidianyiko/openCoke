@@ -4,6 +4,7 @@ import threading
 from urllib.parse import urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
 from connector.clawscale_bridge.gateway_delivery_route_client import (
@@ -632,13 +633,19 @@ def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str
     if not request_origin or request_origin == allowed_origin:
         return allowed_origin
 
-    allowed = urlsplit(allowed_origin)
-    requested = urlsplit(request_origin)
+    try:
+        allowed = urlsplit(allowed_origin)
+        requested = urlsplit(request_origin)
+        allowed_port = allowed.port
+        requested_port = requested.port
+    except ValueError:
+        return allowed_origin
+
     loopback_hosts = {"localhost", "127.0.0.1"}
 
     if (
         allowed.scheme == requested.scheme
-        and allowed.port == requested.port
+        and allowed_port == requested_port
         and allowed.hostname in loopback_hosts
         and requested.hostname in loopback_hosts
     ):
@@ -697,7 +704,13 @@ def create_app(testing: bool = False):
                 {"ok": False, "error": "attachment_payload_too_large"}
             ), 413
 
-        payload = request.get_json(force=True)
+        try:
+            payload = request.get_json(force=True)
+        except BadRequest:
+            return jsonify({"ok": False, "error": "invalid_json"}), 400
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "error": "invalid_request"}), 400
+
         gateway = app.config.get("BRIDGE_GATEWAY")
         if gateway is None:
             return jsonify({"ok": False, "error": "bridge service not wired"}), 500

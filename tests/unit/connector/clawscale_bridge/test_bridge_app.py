@@ -225,6 +225,59 @@ def test_bridge_inbound_rejects_missing_bearer_token():
     assert response.status_code == 401
 
 
+def test_bridge_healthz_malformed_origin_port_uses_configured_cors_origin():
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    client = app.test_client()
+
+    response = client.get("/bridge/healthz", headers={"Origin": "http://host:bad"})
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
+
+
+def test_bridge_healthz_malformed_ipv6_origin_uses_configured_cors_origin():
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    client = app.test_client()
+
+    response = client.get("/bridge/healthz", headers={"Origin": "http://[::1"})
+
+    assert response.status_code == 200
+    assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:4040"
+
+
+def test_bridge_inbound_rejects_authenticated_array_payload(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=[],
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_request"}
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_rejects_authenticated_invalid_json(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        data="{",
+        content_type="application/json",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_json"}
+    message_gateway.enqueue.assert_not_called()
+
+
 def test_bridge_inbound_rejects_untrusted_payload_without_bind_flow(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
