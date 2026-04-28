@@ -57,6 +57,13 @@ class CaseBatch:
     limit: int
 
 
+@dataclass(frozen=True)
+class ExpectedReminderCreate:
+    title: str
+    local_time: str | None
+    recurring: bool | None
+
+
 def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[ReminderNormalPathCase]:
     data = json.loads(path.read_text(encoding="utf-8"))
     return [
@@ -379,6 +386,7 @@ def validate_observations(
     reminders: list[dict[str, Any]],
 ) -> list[str]:
     errors: list[str] = []
+    expected_creates = expected_created_reminders(case.input)
     if input_status != "handled":
         errors.append(f"input_{input_status}")
     if not outputs:
@@ -392,9 +400,118 @@ def validate_observations(
             errors.append("reminder_missing_title")
     if duplicate_reminder_keys(reminders):
         errors.append("duplicate_reminder_created")
+    errors.extend(validate_expected_creates(expected_creates, reminders, outputs))
     if reminders and not output_mentions_crud_ack(outputs, reminders):
         errors.append("user_output_missing_crud_ack")
     return errors
+
+
+def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
+    if not explicit_reminder_request(text):
+        return []
+
+    normalized = normalize_text(text)
+    matches = list(re.finditer(r"(?<!\d)(?P<hour>\d{1,2})\s*:\s*(?P<minute>\d{1,2})(?!\d)", normalized))
+    expected: list[ExpectedReminderCreate] = []
+    for index, match in enumerate(matches):
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute"))
+        if not (0 <= hour <= 23 and 0 <= minute <= 59):
+            continue
+        segment_start = previous_clause_boundary(normalized, match.start())
+        segment_end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        recurrence_segment = normalized[segment_start:match.start()]
+        title = extract_expected_title(normalized[match.end():segment_end])
+        if not title:
+            continue
+        expected.append(
+            ExpectedReminderCreate(
+                title=title,
+                local_time=f"{hour:02d}:{minute:02d}:00",
+                recurring=segment_has_recurring_signal(recurrence_segment),
+            )
+        )
+    return expected
+
+
+def validate_expected_creates(
+    expected_creates: list[ExpectedReminderCreate],
+    reminders: list[dict[str, Any]],
+    outputs: list[dict[str, Any]],
+) -> list[str]:
+    if not expected_creates:
+        return []
+
+    errors: list[str] = []
+    if len(reminders) < len(expected_creates):
+        errors.append(
+            f"expected_reminder_count_mismatch:{len(expected_creates)}>{len(reminders)}"
+        )
+
+    for expected in expected_creates:
+        reminder = find_matching_reminder(expected, reminders)
+        if reminder is None:
+            errors.append(f"missing_expected_reminder_title:{expected.title}")
+            continue
+        schedule = reminder.get("schedule") or {}
+        if not isinstance(schedule, dict):
+            schedule = {}
+        actual_local_time = str(schedule.get("local_time") or "")
+        if expected.local_time and actual_local_time and actual_local_time != expected.local_time:
+            errors.append(f"expected_reminder_time_mismatch:{expected.title}")
+        rrule = str(schedule.get("rrule") or "").strip()
+        if expected.recurring is True and not rrule:
+            errors.append(f"expected_recurring_reminder_not_recurring:{expected.title}")
+        if expected.recurring is False and rrule:
+            errors.append(f"expected_one_shot_reminder_is_recurring:{expected.title}")
+
+    output_text = combined_output_text(outputs)
+    for expected in expected_creates:
+        if expected.title not in output_text:
+            errors.append(f"user_output_missing_expected_title:{expected.title}")
+    return errors
+
+
+def find_matching_reminder(
+    expected: ExpectedReminderCreate,
+    reminders: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    normalized_expected = normalize_expected_title(expected.title)
+    for reminder in reminders:
+        reminder_title = normalize_expected_title(str(reminder.get("title") or ""))
+        if reminder_title == normalized_expected:
+            return reminder
+    return None
+
+
+def normalize_text(text: str) -> str:
+    return str(text or "").replace("：", ":")
+
+
+def previous_clause_boundary(text: str, position: int) -> int:
+    boundary = 0
+    for separator in "，,。；;！？!?\n":
+        index = text.rfind(separator, 0, position)
+        if index >= boundary:
+            boundary = index + 1
+    return boundary
+
+
+def segment_has_recurring_signal(segment: str) -> bool:
+    return bool(re.search(r"每天|每日|每个小时|每小时|每周|每月", segment))
+
+
+def extract_expected_title(suffix: str) -> str:
+    candidate = suffix.strip()
+    candidate = re.sub(r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate)
+    candidate = re.split(r"[，,。；;！？!?\n]", candidate, maxsplit=1)[0]
+    candidate = re.sub(r"^(?:一个是|一是|二是|三是|还有|再|去|要)+", "", candidate).strip()
+    candidate = re.sub(r"(?:呀|啊|哦|呢|么|吗|吧|啦|了)+$", "", candidate).strip()
+    return normalize_expected_title(candidate)
+
+
+def normalize_expected_title(title: str) -> str:
+    return re.sub(r"\s+", "", str(title or "").strip())
 
 
 def duplicate_reminder_keys(reminders: list[dict[str, Any]]) -> set[tuple[Any, ...]]:
@@ -424,9 +541,7 @@ def output_mentions_crud_ack(
     outputs: list[dict[str, Any]],
     reminders: list[dict[str, Any]],
 ) -> bool:
-    output_text = "\n".join(
-        str(output.get("message") or output.get("content") or "") for output in outputs
-    )
+    output_text = combined_output_text(outputs)
     if not output_text.strip():
         return False
 
@@ -440,6 +555,12 @@ def output_mentions_crud_ack(
 
     titles = [str(reminder.get("title") or "").strip() for reminder in reminders]
     return "提醒" in output_text and any(title and title in output_text for title in titles)
+
+
+def combined_output_text(outputs: list[dict[str, Any]]) -> str:
+    return "\n".join(
+        str(output.get("message") or output.get("content") or "") for output in outputs
+    )
 
 
 def explicit_reminder_request(text: str) -> bool:
