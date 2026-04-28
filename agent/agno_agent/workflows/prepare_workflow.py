@@ -119,6 +119,11 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
 _SIMPLE_TIME_REMINDER_PATTERN = re.compile(
     r"(?P<hour>[01]?\d|2[0-3])\s*[:：]\s*(?P<minute>[0-5]\d)"
 )
+_SIMPLE_CHINESE_TIME_REMINDER_PATTERN = re.compile(
+    r"(?P<period>今天晚上|今晚|晚上|下午|上午|早上|中午|凌晨)?"
+    r"(?P<hour>[零〇一二两三四五六七八九十\d]{1,3})点"
+    r"(?P<minute>半|[0-5]?\d|[零〇一二两三四五六七八九十]{1,3})?分?"
+)
 _REMINDER_TITLE_AFTER_MARKER_PATTERN = re.compile(
     r"(提醒我|叫我|通知我)(?P<title>[^，。！？!?；;\n]+)"
 )
@@ -883,7 +888,105 @@ class PrepareWorkflow:
             )
         if operations:
             return operations
+        operations = self._parse_chinese_time_reminder_creates(text, now)
+        if operations:
+            return operations
         return self._parse_deadline_reminder_creates(text, now)
+
+    def _parse_chinese_time_reminder_creates(
+        self,
+        text: str,
+        now: datetime,
+    ) -> list[dict[str, str | None]]:
+        if not self._looks_like_explicit_reminder_intent(text):
+            return []
+
+        operations: list[dict[str, str | None]] = []
+        time_matches = list(_SIMPLE_CHINESE_TIME_REMINDER_PATTERN.finditer(text))
+        for index, time_match in enumerate(time_matches):
+            hour = self._parse_simple_time_number(time_match.group("hour"))
+            minute = self._parse_simple_minute(time_match.group("minute"))
+            if hour is None or minute is None:
+                continue
+            hour = self._apply_day_period(hour, time_match.group("period") or "")
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                continue
+
+            segment_start = self._previous_clause_boundary(text, time_match.start())
+            segment_end = (
+                time_matches[index + 1].start()
+                if index + 1 < len(time_matches)
+                else len(text)
+            )
+            title = self._extract_simple_reminder_title_after_time(
+                text[time_match.end() : segment_end]
+            )
+            if not title:
+                continue
+
+            trigger_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if trigger_at <= now:
+                trigger_at += timedelta(days=1)
+
+            recurrence_segment = text[segment_start : time_match.start()]
+            operations.append(
+                {
+                    "action": "create",
+                    "title": title,
+                    "trigger_at": trigger_at.isoformat(),
+                    "rrule": (
+                        "FREQ=DAILY"
+                        if self._segment_has_simple_recurrence(recurrence_segment)
+                        else None
+                    ),
+                }
+            )
+        return operations
+
+    def _parse_simple_time_number(self, value: str | None) -> int | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        if text.isdigit():
+            return int(text)
+        digits = {
+            "零": 0,
+            "〇": 0,
+            "一": 1,
+            "二": 2,
+            "两": 2,
+            "三": 3,
+            "四": 4,
+            "五": 5,
+            "六": 6,
+            "七": 7,
+            "八": 8,
+            "九": 9,
+        }
+        if text == "十":
+            return 10
+        if "十" in text:
+            left, _, right = text.partition("十")
+            tens = digits.get(left, 1 if not left else None)
+            ones = digits.get(right, 0 if not right else None)
+            if tens is None or ones is None:
+                return None
+            return tens * 10 + ones
+        return digits.get(text)
+
+    def _parse_simple_minute(self, value: str | None) -> int | None:
+        if value is None or value == "":
+            return 0
+        if value == "半":
+            return 30
+        return self._parse_simple_time_number(value)
+
+    def _apply_day_period(self, hour: int, period: str) -> int:
+        if period in {"下午", "晚上", "今晚", "今天晚上"} and 1 <= hour < 12:
+            return hour + 12
+        if period == "中午" and 1 <= hour < 11:
+            return hour + 12
+        return hour
 
     def _parse_deadline_reminder_creates(
         self,
