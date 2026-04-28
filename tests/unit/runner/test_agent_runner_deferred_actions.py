@@ -1,7 +1,7 @@
 import importlib
 import sys
 import types
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, call
 
 import pytest
 
@@ -96,6 +96,55 @@ def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
     assert created["executor_kwargs"]["scheduler"] is None
 
 
+def test_bootstrap_deferred_action_runtime_cleans_up_when_start_raises(monkeypatch):
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
+
+    scheduler = Mock(
+        start=Mock(side_effect=RuntimeError("deferred start failed")),
+        shutdown=Mock(),
+    )
+    set_instance = Mock()
+
+    class FakeExecutor:
+        def __init__(self, **kwargs):
+            self.scheduler = kwargs["scheduler"]
+
+        async def execute_due_action(self, **kwargs):
+            return None
+
+    monkeypatch.setattr(agent_runner, "DeferredActionDAO", Mock(return_value=Mock()))
+    monkeypatch.setattr(
+        agent_runner,
+        "DeferredActionOccurrenceDAO",
+        Mock(return_value=Mock()),
+    )
+    monkeypatch.setattr(agent_runner, "DeferredActionExecutor", FakeExecutor)
+    monkeypatch.setattr(
+        agent_runner,
+        "DeferredActionScheduler",
+        Mock(return_value=scheduler),
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "set_deferred_action_scheduler_instance",
+        set_instance,
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "get_deferred_action_scheduler_instance",
+        Mock(return_value=None),
+    )
+
+    with pytest.raises(RuntimeError, match="deferred start failed"):
+        agent_runner.bootstrap_deferred_action_runtime()
+
+    scheduler.shutdown.assert_called_once()
+    assert set_instance.call_args_list == [
+        call(scheduler),
+        call(None),
+    ]
+
+
 def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     agent_runner = import_agent_runner_with_stubs(monkeypatch)
 
@@ -123,6 +172,43 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     set_instance.assert_called_once_with(scheduler)
     assert created["scheduler_kwargs"]["reminder_dao"] is reminder_dao
     assert created["scheduler_kwargs"]["fire_event_handler"] is handler
+
+
+def test_bootstrap_reminder_runtime_cleans_up_when_start_raises(monkeypatch):
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
+
+    scheduler = Mock(
+        start=Mock(side_effect=RuntimeError("reminder start failed")),
+        shutdown=Mock(),
+    )
+    set_instance = Mock()
+
+    monkeypatch.setattr(agent_runner, "ReminderDAO", Mock(return_value=Mock()))
+    monkeypatch.setattr(
+        agent_runner,
+        "ReminderFireEventHandler",
+        Mock(return_value=Mock()),
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "ReminderScheduler",
+        Mock(return_value=scheduler),
+    )
+    monkeypatch.setattr(agent_runner, "set_reminder_scheduler_instance", set_instance)
+    monkeypatch.setattr(
+        agent_runner,
+        "get_reminder_scheduler_instance",
+        Mock(return_value=None),
+    )
+
+    with pytest.raises(RuntimeError, match="reminder start failed"):
+        agent_runner.bootstrap_reminder_runtime()
+
+    scheduler.shutdown.assert_called_once()
+    assert set_instance.call_args_list == [
+        call(scheduler),
+        call(None),
+    ]
 
 
 @pytest.mark.asyncio

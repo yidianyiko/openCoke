@@ -61,7 +61,15 @@ def bootstrap_deferred_action_runtime():
     )
     executor.scheduler = scheduler
     set_deferred_action_scheduler_instance(scheduler)
-    scheduler.start()
+    try:
+        scheduler.start()
+    except Exception:
+        _shutdown_runtime(
+            "deferred action scheduler",
+            scheduler,
+            set_deferred_action_scheduler_instance,
+        )
+        raise
     return scheduler
 
 
@@ -77,7 +85,15 @@ def bootstrap_reminder_runtime():
         fire_event_handler=handler,
     )
     set_reminder_scheduler_instance(scheduler)
-    scheduler.start()
+    try:
+        scheduler.start()
+    except Exception:
+        _shutdown_runtime(
+            "reminder scheduler",
+            scheduler,
+            set_reminder_scheduler_instance,
+        )
+        raise
     return scheduler
 
 
