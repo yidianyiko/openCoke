@@ -157,6 +157,19 @@ class FakeReminderService:
         ]
 
 
+class FailingCreateReminderService(FakeReminderService):
+    def create(
+        self,
+        *,
+        owner_user_id: str,
+        command: ReminderCreateCommand,
+    ) -> Reminder:
+        self.calls.append(
+            ("create", {"owner_user_id": owner_user_id, "command": command})
+        )
+        raise RuntimeError("database offline")
+
+
 def call_tool(**kwargs: Any) -> str:
     from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
@@ -169,6 +182,12 @@ def install_service(monkeypatch: pytest.MonkeyPatch, service: FakeReminderServic
     import agent.agno_agent.tools.reminder_protocol.tool as tool_module
 
     monkeypatch.setattr(tool_module, "ReminderService", lambda: service)
+
+
+def install_service_factory(monkeypatch: pytest.MonkeyPatch, factory):
+    import agent.agno_agent.tools.reminder_protocol.tool as tool_module
+
+    monkeypatch.setattr(tool_module, "ReminderService", factory)
 
 
 def set_session_state(session_state: dict) -> None:
@@ -361,6 +380,202 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
         "更新提醒失败：keyword 'missing' matched 0 reminders",
         "已完成提醒：completed",
     ]
+
+
+def test_missing_owner_context_appends_failed_tool_result_without_service_call(
+    monkeypatch,
+):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="unsafe",
+        trigger_at="2026-04-29T10:00:00+09:00",
+    )
+
+    assert result == "创建提醒失败：Reminder owner_user_id is missing"
+    assert service.calls == []
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "创建提醒失败：Reminder owner_user_id is missing",
+            "extra_notes": "action=create; error_code=InvalidArgument",
+        }
+    ]
+    assert "reminder_created_with_time" not in session_state
+
+
+@pytest.mark.parametrize(
+    "session_state",
+    [
+        {
+            "user": {"id": "user-1"},
+            "character": {"_id": "char-1"},
+            "conversation": {},
+        },
+        {
+            "user": {"id": "user-1"},
+            "character": {},
+            "conversation": {"_id": "conv-1"},
+        },
+    ],
+)
+def test_missing_target_context_appends_invalid_output_target_failure(
+    monkeypatch,
+    session_state,
+):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="missing target",
+        trigger_at="2026-04-29T10:00:00+09:00",
+    )
+
+    assert result.startswith("创建提醒失败：Reminder output target")
+    assert service.calls == []
+    assert session_state["tool_results"][0]["ok"] is False
+    assert (
+        session_state["tool_results"][0]["extra_notes"]
+        == "action=create; error_code=InvalidOutputTarget"
+    )
+    assert "reminder_created_with_time" not in session_state
+
+
+def test_empty_batch_appends_failed_tool_result(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(action="batch", operations=[])
+
+    assert result == "批量提醒操作失败：operations are required for batch"
+    assert service.calls == []
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "批量提醒操作失败：operations are required for batch",
+            "extra_notes": "action=batch; error_code=InvalidArgument",
+        }
+    ]
+
+
+def test_service_construction_failure_appends_failed_tool_result(monkeypatch):
+    def raise_on_construct():
+        raise RuntimeError("dao unavailable")
+
+    install_service_factory(monkeypatch, raise_on_construct)
+    session_state = {
+        "user": {"id": "user-1"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(action="list")
+
+    assert result == "提醒操作失败：adapter failure"
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "提醒操作失败：adapter failure",
+            "extra_notes": "action=list; error_code=ReminderAdapterError",
+        }
+    ]
+
+
+def test_unexpected_service_exception_appends_failed_tool_result(monkeypatch):
+    service = FailingCreateReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="crash",
+        trigger_at="2026-04-29T10:00:00+09:00",
+    )
+
+    assert result == "创建提醒失败：adapter failure"
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "创建提醒失败：adapter failure",
+            "extra_notes": "action=create; error_code=ReminderAdapterError",
+        }
+    ]
+    assert "reminder_created_with_time" not in session_state
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {
+            "action": "update",
+            "reminder_id": "rem-1",
+            "new_trigger_at": "not-a-date",
+        },
+    ],
+)
+def test_failed_timed_create_or_update_does_not_set_time_flag(
+    monkeypatch,
+    kwargs,
+):
+    service = FakeReminderService([reminder("rem-1", title="old")])
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    call_tool(**kwargs)
+
+    assert session_state["tool_results"][0]["ok"] is False
+    assert "reminder_created_with_time" not in session_state
+
+
+def test_failed_timed_create_service_error_does_not_set_time_flag(monkeypatch):
+    service = FailingCreateReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    call_tool(
+        action="create",
+        title="service failure",
+        trigger_at="2026-04-29T10:00:00+09:00",
+    )
+
+    assert session_state["tool_results"][0]["ok"] is False
+    assert "reminder_created_with_time" not in session_state
 
 
 @pytest.mark.parametrize(

@@ -8,7 +8,7 @@ from typing import Any
 from agno.tools import tool
 
 from agent.agno_agent.tools.tool_result import append_tool_result
-from agent.reminder.errors import InvalidArgument, ReminderError
+from agent.reminder.errors import InvalidArgument, InvalidOutputTarget, ReminderError
 from agent.reminder.models import (
     AgentOutputTarget,
     Reminder,
@@ -62,52 +62,117 @@ def _execute_visible_reminder_tool_action(
     operations: list[dict[str, Any]] | None = None,
 ) -> str:
     session_state = _get_session_state()
-    service = ReminderService()
+    canonical_action = _canonical_action(action)
 
-    if action == "batch":
+    if canonical_action == "batch":
         if not operations:
-            raise ValueError("operations are required for batch")
-        summaries = []
-        for operation in operations:
-            if not isinstance(operation, dict):
-                summary = "提醒操作失败：batch operation must be an object"
-                append_tool_result(
-                    session_state,
-                    tool_name="提醒操作",
-                    ok=False,
-                    result_summary=summary,
-                    extra_notes="action=batch; error_code=InvalidArgument",
-                )
-                summaries.append(summary)
-                continue
-            summaries.append(
-                _run_operation(
-                    service=service,
-                    session_state=session_state,
-                    action=str(operation.get("action") or ""),
-                    title=operation.get("title"),
-                    trigger_at=operation.get("trigger_at"),
-                    reminder_id=operation.get("reminder_id"),
-                    keyword=operation.get("keyword"),
-                    new_title=operation.get("new_title"),
-                    new_trigger_at=operation.get("new_trigger_at"),
-                    rrule=operation.get("rrule"),
-                )
+            return _append_failure(
+                session_state,
+                action="batch",
+                summary="批量提醒操作失败：operations are required for batch",
+                error_code="InvalidArgument",
             )
-        return "\n".join(summaries)
 
-    return _run_operation(
-        service=service,
-        session_state=session_state,
-        action=action,
-        title=title,
-        trigger_at=trigger_at,
-        reminder_id=reminder_id,
-        keyword=keyword,
-        new_title=new_title,
-        new_trigger_at=new_trigger_at,
-        rrule=rrule,
+    context_failure = _validate_runtime_context_for_action(
+        session_state,
+        action=canonical_action,
     )
+    if context_failure is not None:
+        return context_failure
+
+    try:
+        service = ReminderService()
+    except Exception:
+        return _append_failure(
+            session_state,
+            action=canonical_action,
+            summary="提醒操作失败：adapter failure",
+            error_code="ReminderAdapterError",
+        )
+
+    try:
+        if canonical_action == "batch":
+            # The adapter batches operation-by-operation so keyword resolution and
+            # ChatWorkflow-visible tool results are preserved for each item.
+            return _execute_batch_operations(
+                service=service,
+                session_state=session_state,
+                operations=operations or [],
+            )
+
+        return _run_operation(
+            service=service,
+            session_state=session_state,
+            action=canonical_action,
+            title=title,
+            trigger_at=trigger_at,
+            reminder_id=reminder_id,
+            keyword=keyword,
+            new_title=new_title,
+            new_trigger_at=new_trigger_at,
+            rrule=rrule,
+        )
+    except Exception:
+        return _append_failure(
+            session_state,
+            action=canonical_action,
+            summary=f"{_action_failure_label(canonical_action)}失败：adapter failure",
+            error_code="ReminderAdapterError",
+        )
+
+
+def _validate_runtime_context_for_action(
+    session_state: dict,
+    *,
+    action: str,
+) -> str | None:
+    try:
+        _derive_runtime_context(session_state)
+    except ReminderError as exc:
+        summary = f"{_action_failure_label(action)}失败：{exc.user_message}"
+        return _append_failure(
+            session_state,
+            action=action,
+            summary=summary,
+            error_code=exc.code,
+        )
+    return None
+
+
+def _execute_batch_operations(
+    *,
+    service: ReminderService,
+    session_state: dict,
+    operations: list[dict[str, Any]],
+) -> str:
+    summaries = []
+    for operation in operations:
+        if not isinstance(operation, dict):
+            summary = "提醒操作失败：batch operation must be an object"
+            append_tool_result(
+                session_state,
+                tool_name="提醒操作",
+                ok=False,
+                result_summary=summary,
+                extra_notes="action=batch; error_code=InvalidArgument",
+            )
+            summaries.append(summary)
+            continue
+        summaries.append(
+            _run_operation(
+                service=service,
+                session_state=session_state,
+                action=str(operation.get("action") or ""),
+                title=operation.get("title"),
+                trigger_at=operation.get("trigger_at"),
+                reminder_id=operation.get("reminder_id"),
+                keyword=operation.get("keyword"),
+                new_title=operation.get("new_title"),
+                new_trigger_at=operation.get("new_trigger_at"),
+                rrule=operation.get("rrule"),
+            )
+        )
+    return "\n".join(summaries)
 
 
 def _run_operation(
@@ -170,6 +235,13 @@ def _run_operation(
             extra_notes=f"action={canonical_action}; error_code=InvalidArgument",
         )
         return summary
+    except Exception:
+        return _append_failure(
+            session_state,
+            action=canonical_action,
+            summary=f"{_action_failure_label(canonical_action)}失败：adapter failure",
+            error_code="ReminderAdapterError",
+        )
 
     if timed_write:
         session_state["reminder_created_with_time"] = True
@@ -300,6 +372,21 @@ def _derive_runtime_context(session_state: dict) -> _RuntimeContext:
         or user.get("timezone")
         or get_default_timezone().key
     )
+    if not owner_user_id:
+        raise InvalidArgument(
+            "Reminder owner_user_id is missing",
+            detail={"field": "owner_user_id"},
+        )
+    if not conversation_id:
+        raise InvalidOutputTarget(
+            "Reminder output target conversation_id must be non-empty",
+            detail={"field": "conversation_id"},
+        )
+    if not character_id:
+        raise InvalidOutputTarget(
+            "Reminder output target character_id must be non-empty",
+            detail={"field": "character_id"},
+        )
     return _RuntimeContext(
         owner_user_id=owner_user_id,
         target=AgentOutputTarget(
@@ -414,6 +501,23 @@ def _action_failure_label(action: str) -> str:
         "complete": "完成提醒",
         "list": "列出提醒",
     }.get(action, "提醒操作")
+
+
+def _append_failure(
+    session_state: dict,
+    *,
+    action: str,
+    summary: str,
+    error_code: str,
+) -> str:
+    append_tool_result(
+        session_state,
+        tool_name="提醒操作",
+        ok=False,
+        result_summary=summary,
+        extra_notes=f"action={action}; error_code={error_code}",
+    )
+    return summary
 
 
 @tool(
