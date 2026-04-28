@@ -212,6 +212,7 @@ def submit_cases(
             timezone_name=timezone_name,
             use_case_timestamp=use_case_timestamp,
         )
+        submitted_wall_at = datetime.now(timezone.utc)
         metadata = build_input_metadata(
             batch_id=batch_id,
             case_index=case_index,
@@ -236,6 +237,13 @@ def submit_cases(
             "user_id": user_id,
             "input_message_id": str(inserted_id),
             "submitted_at": input_timestamp,
+            "submitted_wall_at": submitted_wall_at,
+            "batch_id": batch_id,
+            "conversation_key": case_conversation_key(
+                batch_id=batch_id,
+                case_index=case_index,
+                transport=transport,
+            ),
         }
     return submitted
 
@@ -274,6 +282,17 @@ def build_input_metadata(
         }
     )
     return metadata
+
+
+def case_conversation_key(
+    *,
+    batch_id: str,
+    case_index: int,
+    transport: str,
+) -> str | None:
+    if transport != "business-clawscale":
+        return None
+    return f"{batch_id}-case-{case_index}"
 
 
 def collect_results(
@@ -339,28 +358,34 @@ def build_result(
     case: ReminderNormalPathCase = item["case"]
     user_id = item["user_id"]
     submitted_at = item["submitted_at"]
+    submitted_wall_at = item.get("submitted_wall_at")
     outputs = list(
         db.outputmessages.find(
-            {
-                "platform": platform,
-                "from_user": character_id,
-                "to_user": user_id,
-                "expect_output_timestamp": {"$gte": submitted_at - 1},
-            }
+            build_output_query(
+                case_index=case_index,
+                item=item,
+                user_id=user_id,
+                character_id=character_id,
+                platform=platform,
+                submitted_at=submitted_at,
+            )
         ).sort("expect_output_timestamp", 1)
     )
-    submitted_dt = datetime.fromtimestamp(submitted_at - 1, tz=timezone.utc)
+    submitted_dt = (
+        submitted_wall_at
+        if isinstance(submitted_wall_at, datetime)
+        else datetime.fromtimestamp(submitted_at, tz=timezone.utc)
+    )
     reminders = list(
         db.reminders.find(
-            {
-                "owner_user_id": user_id,
-                "$or": [
-                    {"created_at": {"$gte": submitted_dt}},
-                    {"updated_at": {"$gte": submitted_dt}},
-                    {"cancelled_at": {"$gte": submitted_dt}},
-                    {"completed_at": {"$gte": submitted_dt}},
-                ],
-            }
+            build_reminder_query(
+                db,
+                item=item,
+                user_id=user_id,
+                character_id=character_id,
+                platform=platform,
+                submitted_dt=submitted_dt,
+            )
         ).sort("updated_at", 1)
     )
     errors = validate_observations(case, input_status, outputs, reminders)
@@ -377,6 +402,94 @@ def build_result(
         reminders=[json_safe(reminder) for reminder in reminders],
         elapsed_seconds=round(elapsed_seconds, 3),
     )
+
+
+def build_output_query(
+    *,
+    case_index: int,
+    item: dict[str, Any],
+    user_id: str,
+    character_id: str,
+    platform: str,
+    submitted_at: int,
+) -> dict[str, Any]:
+    query = {
+        "platform": platform,
+        "from_user": character_id,
+        "to_user": user_id,
+    }
+    batch_id = item.get("batch_id")
+    if batch_id:
+        query.update(
+            {
+                "metadata.batch_id": batch_id,
+                "metadata.case_index": case_index,
+            }
+        )
+    else:
+        query["expect_output_timestamp"] = {"$gte": submitted_at}
+    return query
+
+
+def build_reminder_query(
+    db,
+    *,
+    item: dict[str, Any],
+    user_id: str,
+    character_id: str,
+    platform: str,
+    submitted_dt: datetime,
+) -> dict[str, Any]:
+    query: dict[str, Any] = {"owner_user_id": user_id}
+    conversation_ids = resolve_case_conversation_ids(
+        db,
+        item=item,
+        character_id=character_id,
+        platform=platform,
+    )
+    if conversation_ids:
+        query["agent_output_target.conversation_id"] = {"$in": conversation_ids}
+        return query
+
+    query["$or"] = [
+        {"created_at": {"$gte": submitted_dt}},
+        {"updated_at": {"$gte": submitted_dt}},
+        {"cancelled_at": {"$gte": submitted_dt}},
+        {"completed_at": {"$gte": submitted_dt}},
+    ]
+    return query
+
+
+def resolve_case_conversation_ids(
+    db,
+    *,
+    item: dict[str, Any],
+    character_id: str,
+    platform: str,
+) -> list[str]:
+    conversation_key = item.get("conversation_key")
+    if not conversation_key:
+        return []
+
+    conversations = list(
+        db.conversations.find(
+            {
+                "platform": platform,
+                "chatroom_name": None,
+                "talkers.id": {
+                    "$all": [
+                        f"clawscale:{conversation_key}",
+                        f"clawscale-character:{character_id}",
+                    ]
+                },
+            }
+        )
+    )
+    return [
+        str(conversation["_id"])
+        for conversation in conversations
+        if conversation.get("_id")
+    ]
 
 
 def validate_observations(

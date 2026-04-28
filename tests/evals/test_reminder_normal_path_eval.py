@@ -111,6 +111,91 @@ class RecordingDB:
         self.inputmessages = RecordingCollection()
 
 
+class QueryResult(list):
+    def sort(self, key, direction=None):
+        if isinstance(key, list):
+            sort_key, direction = key[0]
+        else:
+            sort_key = key
+        return QueryResult(
+            sorted(
+                self,
+                key=lambda document: dotted_get(document, sort_key),
+                reverse=direction == -1,
+            )
+        )
+
+
+class QueryCollection:
+    def __init__(self, documents):
+        self.documents = documents
+        self.queries = []
+
+    def find(self, query):
+        self.queries.append(query)
+        return QueryResult(
+            [
+                document
+                for document in self.documents
+                if document_matches_query(document, query)
+            ]
+        )
+
+
+class QueryDB:
+    def __init__(self, *, outputs, reminders, conversations=None):
+        self.outputmessages = QueryCollection(outputs)
+        self.reminders = QueryCollection(reminders)
+        self.conversations = QueryCollection(conversations or [])
+
+
+def dotted_get(document, path):
+    return dotted_get_parts(document, path.split("."))
+
+
+def dotted_get_parts(document, parts):
+    if not parts:
+        return document
+    current = document
+    part = parts[0]
+    if isinstance(current, list):
+        values = []
+        for item in current:
+            value = dotted_get_parts(item, parts)
+            if isinstance(value, list):
+                values.extend(value)
+            elif value is not None:
+                values.append(value)
+        return values
+    if not isinstance(current, dict):
+        return None
+    return dotted_get_parts(current.get(part), parts[1:])
+
+
+def document_matches_query(document, query):
+    for key, expected in query.items():
+        if key == "$or":
+            if not any(document_matches_query(document, option) for option in expected):
+                return False
+            continue
+        actual = dotted_get(document, key)
+        if isinstance(expected, dict):
+            if "$gte" in expected and not (
+                actual is not None and actual >= expected["$gte"]
+            ):
+                return False
+            if "$in" in expected and actual not in expected["$in"]:
+                return False
+            if "$all" in expected:
+                actual_values = actual if isinstance(actual, list) else [actual]
+                if not all(item in actual_values for item in expected["$all"]):
+                    return False
+            continue
+        if actual != expected:
+            return False
+    return True
+
+
 def test_submit_cases_can_write_clawscale_request_response_envelope(monkeypatch):
     db = RecordingDB()
     case = normal_eval.ReminderNormalPathCase(
@@ -143,6 +228,95 @@ def test_submit_cases_can_write_clawscale_request_response_envelope(monkeypatch)
         "gateway_conversation_id": "manual-reminder-test-case-7",
         "business_conversation_key": "manual-reminder-test-case-7",
         "causal_inbound_event_id": "manual-reminder-test-case-7-inbound",
+    }
+
+
+def test_build_result_isolates_outputs_and_reminders_to_current_case():
+    case = normal_eval.ReminderNormalPathCase(
+        input="18:00提醒我喝水",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={"from_user": "692c14e6a538f0baad5561b6"},
+    )
+    submitted_wall_at = datetime(2026, 4, 29, 8, 0, tzinfo=timezone.utc)
+    db = QueryDB(
+        outputs=[
+            {
+                "platform": "business",
+                "from_user": "char-1",
+                "to_user": "user-1",
+                "expect_output_timestamp": 1777449600,
+                "message": "已创建提醒：错误的上一例",
+                "metadata": {"batch_id": "batch-a", "case_index": 11},
+            },
+            {
+                "platform": "business",
+                "from_user": "char-1",
+                "to_user": "user-1",
+                "expect_output_timestamp": 1777449601,
+                "message": "已创建提醒：喝水",
+                "metadata": {"batch_id": "batch-a", "case_index": 12},
+            },
+        ],
+        reminders=[
+            {
+                "owner_user_id": "user-1",
+                "title": "错误的上一例",
+                "lifecycle_state": "active",
+                "next_fire_at": submitted_wall_at,
+                "created_at": submitted_wall_at,
+                "updated_at": submitted_wall_at,
+                "agent_output_target": {"conversation_id": "conv-11"},
+            },
+            {
+                "owner_user_id": "user-1",
+                "title": "喝水",
+                "lifecycle_state": "active",
+                "next_fire_at": submitted_wall_at,
+                "created_at": submitted_wall_at,
+                "updated_at": submitted_wall_at,
+                "agent_output_target": {
+                    "conversation_id": "692c14aaa538f0baad556112"
+                },
+            },
+        ],
+        conversations=[
+            {
+                "_id": ObjectId("692c14aaa538f0baad556112"),
+                "platform": "business",
+                "chatroom_name": None,
+                "talkers": [
+                    {"id": "clawscale:batch-a-case-12"},
+                    {"id": "clawscale-character:char-1"},
+                ],
+            }
+        ],
+    )
+
+    result = normal_eval.build_result(
+        db,
+        case_index=12,
+        item={
+            "case": case,
+            "user_id": "user-1",
+            "input_message_id": "692c14aaa538f0baad5561b4",
+            "submitted_at": 1777449600,
+            "submitted_wall_at": submitted_wall_at,
+            "batch_id": "batch-a",
+            "conversation_key": "batch-a-case-12",
+        },
+        input_status="handled",
+        character_id="char-1",
+        platform="business",
+        elapsed_seconds=1.5,
+    )
+
+    assert [output["message"] for output in result.outputs] == ["已创建提醒：喝水"]
+    assert [reminder["title"] for reminder in result.reminders] == ["喝水"]
+    assert db.outputmessages.queries[0]["metadata.batch_id"] == "batch-a"
+    assert db.outputmessages.queries[0]["metadata.case_index"] == 12
+    assert db.reminders.queries[0]["agent_output_target.conversation_id"] == {
+        "$in": ["692c14aaa538f0baad556112"]
     }
 
 
