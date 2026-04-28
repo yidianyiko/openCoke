@@ -58,8 +58,11 @@ class ReminderDAO:
     def list_due_active(self) -> List[Dict]:
         return list(
             self.collection.find(
-                {"lifecycle_state": "active", "next_fire_at": {"$ne": None}}
-            )
+                {
+                    "lifecycle_state": "active",
+                    "next_fire_at": {"$ne": None, "$exists": True},
+                }
+            ).sort("next_fire_at", 1)
         )
 
     def replace_reminder(
@@ -69,7 +72,7 @@ class ReminderDAO:
             {"_id": ObjectId(reminder_id), "owner_user_id": owner_user_id},
             {"$set": updates},
         )
-        return result.modified_count > 0
+        return result.matched_count > 0
 
     def atomic_apply_fire_success(
         self, reminder_id: str, expected_next_fire_at: datetime, updates: Dict
@@ -82,12 +85,13 @@ class ReminderDAO:
             },
             {"$set": updates},
         )
-        return result.modified_count > 0
+        return result.matched_count > 0
 
     def atomic_apply_fire_failure(
         self, reminder_id: str, expected_next_fire_at: datetime, updates: Dict
     ) -> bool:
         set_fields = dict(updates)
+        set_fields["lifecycle_state"] = "failed"
         set_fields["next_fire_at"] = None
         result = self.collection.update_one(
             {
@@ -97,7 +101,7 @@ class ReminderDAO:
             },
             {"$set": set_fields},
         )
-        return result.modified_count > 0
+        return result.matched_count > 0
 
     def close(self):
         self.client.close()

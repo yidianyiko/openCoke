@@ -146,20 +146,26 @@ class TestReminderDAO:
         self, reminder_dao, mock_collection
     ):
         expected = [{"_id": ObjectId(), "lifecycle_state": "active"}]
-        mock_collection.find.return_value = expected
+        cursor = MagicMock()
+        cursor.sort.return_value = expected
+        mock_collection.find.return_value = cursor
 
         result = reminder_dao.list_due_active()
 
         assert result == expected
         mock_collection.find.assert_called_once_with(
-            {"lifecycle_state": "active", "next_fire_at": {"$ne": None}}
+            {
+                "lifecycle_state": "active",
+                "next_fire_at": {"$ne": None, "$exists": True},
+            }
         )
+        cursor.sort.assert_called_once_with("next_fire_at", 1)
 
     @pytest.mark.unit
     def test_replace_reminder_filters_by_id_and_owner(
         self, reminder_dao, mock_collection
     ):
-        mock_collection.update_one.return_value = MagicMock(modified_count=1)
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
         reminder_id = ObjectId()
         updates = {"title": "updated"}
 
@@ -172,10 +178,25 @@ class TestReminderDAO:
         )
 
     @pytest.mark.unit
+    def test_replace_reminder_treats_idempotent_matched_update_as_success(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(
+            matched_count=1, modified_count=0
+        )
+        reminder_id = ObjectId()
+
+        result = reminder_dao.replace_reminder(
+            str(reminder_id), "user_1", {"title": "unchanged"}
+        )
+
+        assert result is True
+
+    @pytest.mark.unit
     def test_atomic_apply_fire_success_uses_active_next_fire_selector(
         self, reminder_dao, mock_collection
     ):
-        mock_collection.update_one.return_value = MagicMock(modified_count=1)
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
         reminder_id = ObjectId()
         expected_next_fire_at = datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc)
         updates = {
@@ -198,10 +219,28 @@ class TestReminderDAO:
         )
 
     @pytest.mark.unit
+    def test_atomic_apply_fire_success_treats_idempotent_matched_update_as_success(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(
+            matched_count=1, modified_count=0
+        )
+        reminder_id = ObjectId()
+        expected_next_fire_at = datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc)
+
+        result = reminder_dao.atomic_apply_fire_success(
+            str(reminder_id),
+            expected_next_fire_at,
+            {"last_fired_at": expected_next_fire_at},
+        )
+
+        assert result is True
+
+    @pytest.mark.unit
     def test_atomic_apply_fire_failure_clears_next_fire_at_and_sets_failed_fields(
         self, reminder_dao, mock_collection
     ):
-        mock_collection.update_one.return_value = MagicMock(modified_count=1)
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
         reminder_id = ObjectId()
         expected_next_fire_at = datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc)
         finished_at = datetime(2026, 4, 28, 9, 1, tzinfo=timezone.utc)
@@ -231,3 +270,61 @@ class TestReminderDAO:
                 }
             },
         )
+
+    @pytest.mark.unit
+    def test_atomic_apply_fire_failure_forces_failed_state_and_next_fire_clear(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
+        reminder_id = ObjectId()
+        expected_next_fire_at = datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc)
+        failed_at = datetime(2026, 4, 28, 9, 1, tzinfo=timezone.utc)
+        last_fired_at = datetime(2026, 4, 28, 9, 0, 30, tzinfo=timezone.utc)
+
+        result = reminder_dao.atomic_apply_fire_failure(
+            str(reminder_id),
+            expected_next_fire_at,
+            {
+                "lifecycle_state": "active",
+                "next_fire_at": expected_next_fire_at,
+                "failed_at": failed_at,
+                "last_fired_at": last_fired_at,
+                "last_error": "delivery failed",
+            },
+        )
+
+        assert result is True
+        mock_collection.update_one.assert_called_once_with(
+            {
+                "_id": reminder_id,
+                "next_fire_at": expected_next_fire_at,
+                "lifecycle_state": "active",
+            },
+            {
+                "$set": {
+                    "lifecycle_state": "failed",
+                    "next_fire_at": None,
+                    "failed_at": failed_at,
+                    "last_fired_at": last_fired_at,
+                    "last_error": "delivery failed",
+                }
+            },
+        )
+
+    @pytest.mark.unit
+    def test_atomic_apply_fire_failure_treats_idempotent_matched_update_as_success(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(
+            matched_count=1, modified_count=0
+        )
+        reminder_id = ObjectId()
+        expected_next_fire_at = datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc)
+
+        result = reminder_dao.atomic_apply_fire_failure(
+            str(reminder_id),
+            expected_next_fire_at,
+            {"last_error": "already failed"},
+        )
+
+        assert result is True
