@@ -391,7 +391,7 @@ def validate_observations(
         errors.append(f"input_{input_status}")
     if not outputs:
         errors.append("no_user_output")
-    if explicit_reminder_request(case.input) and not reminders:
+    if reminder_case_requires_crud(case) and not reminders:
         errors.append("no_reminder_created")
     for reminder in reminders:
         if reminder.get("next_fire_at") is None and reminder.get("lifecycle_state") == "active":
@@ -648,6 +648,10 @@ def explicit_reminder_request(text: str) -> bool:
             "每月",
         )
     )
+
+
+def reminder_case_requires_crud(case: ReminderNormalPathCase) -> bool:
+    return case.expected_intent.lower() == "reminder" or explicit_reminder_request(case.input)
 
 
 def summarize(results: list[ReminderNormalPathResult]) -> dict[str, Any]:

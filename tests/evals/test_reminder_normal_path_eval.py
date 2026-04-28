@@ -171,6 +171,24 @@ def test_validate_observations_requires_user_visible_crud_ack():
     assert "user_output_missing_crud_ack" in errors
 
 
+def test_validate_observations_requires_reminder_for_expected_reminder_intent():
+    case = normal_eval.ReminderNormalPathCase(
+        input="最近要学习llya的一篇文章 明天下班前必须学完",
+        expected_intent="reminder",
+        matched_keywords=["明天", "下班", "学习"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "提醒操作失败：提醒识别超时，未能完成提醒设置"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" in errors
+
+
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",
