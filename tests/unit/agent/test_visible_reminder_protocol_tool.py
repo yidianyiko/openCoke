@@ -382,6 +382,40 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
     ]
 
 
+def test_batch_allows_operations_without_top_level_action(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        operations=[
+            {
+                "action": "create",
+                "title": "drink water",
+                "trigger_at": "2026-04-29T17:57:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "exercise",
+                "trigger_at": "2026-04-29T17:58:00+09:00",
+                "rrule": "FREQ=DAILY",
+            },
+        ],
+    )
+
+    assert result.splitlines() == [
+        "已创建提醒：drink water",
+        "已创建提醒：exercise",
+    ]
+    assert [call[0] for call in service.calls] == ["create", "create"]
+    assert [item["ok"] for item in session_state["tool_results"]] == [True, True]
+
+
 def test_missing_owner_context_appends_failed_tool_result_without_service_call(
     monkeypatch,
 ):

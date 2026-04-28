@@ -538,7 +538,7 @@ def _append_failure(
     ),
 )
 def visible_reminder_tool(
-    action: str,
+    action: str | None = None,
     title: str | None = None,
     trigger_at: str | None = None,
     reminder_id: str | None = None,
@@ -548,8 +548,9 @@ def visible_reminder_tool(
     rrule: str | None = None,
     operations: list[dict[str, Any]] | None = None,
 ) -> str:
+    resolved_action = action or ("batch" if operations is not None else "")
     return _execute_visible_reminder_tool_action(
-        action=action,
+        action=resolved_action,
         title=title,
         trigger_at=trigger_at,
         reminder_id=reminder_id,
