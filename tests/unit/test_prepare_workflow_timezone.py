@@ -159,10 +159,6 @@ def _ensure_prepare_workflow_loaded() -> None:
         deferred_mod.set_deferred_action_session_state = lambda session_state: None
 
     _load_module_by_path(
-        "agent.agno_agent.tools.deferred_action.time_parser",
-        "agent/agno_agent/tools/deferred_action/time_parser.py",
-    )
-    _load_module_by_path(
         "agent.agno_agent.workflows.prepare_workflow",
         "agent/agno_agent/workflows/prepare_workflow.py",
     )

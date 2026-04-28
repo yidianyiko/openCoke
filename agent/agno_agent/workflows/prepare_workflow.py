@@ -120,6 +120,9 @@ class PrepareWorkflow:
     REMINDER_CONTEXT_TEMPLATE = """### 当前时间
 {time_str}
 
+### 用户时区
+{timezone}
+
 ### 最近对话上下文（最近5条）
 {recent_chat_context}
 
@@ -713,10 +716,17 @@ class PrepareWorkflow:
             .get("conversation_info", {})
             .get("time_str", "")
         )
+        user = session_state.get("user", {})
+        timezone = (
+            user.get("effective_timezone")
+            or user.get("timezone")
+            or "unknown"
+        )
 
         # 渲染模板
         return self.REMINDER_CONTEXT_TEMPLATE.format(
             time_str=time_str,
+            timezone=timezone,
             recent_chat_context=recent_chat_context,
             current_message=current_message,
         )

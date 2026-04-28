@@ -46,23 +46,26 @@ You analyze the current user message plus recent conversation context and decide
 Current time: {current_time_str}
 
 Supported visible_reminder_tool actions:
-- create: use when the user wants a new reminder. Required fields: title, trigger_time.
+- create: use when the user wants a new reminder. Required fields: title, trigger_at.
 - list: use when the user asks what reminders they have.
-- update: use when the user wants to change an existing reminder. Use keyword plus new_title and/or new_trigger_time.
+- update: use when the user wants to change an existing reminder. Use keyword plus new_title and/or new_trigger_at.
 - delete: use when the user wants to cancel a reminder. Use keyword.
 - complete: use when the user says a reminder/task is done. Use keyword.
+- batch: use when one user message contains multiple reminder operations. Preserve the user's operation order.
 
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
 - Use recent context when the current message is only supplementary information like "tomorrow at 3" or "the meeting one".
-- Only use trigger_time/new_trigger_time formats that the parser supports.
-- Supported trigger_time/new_trigger_time formats:
-  - ISO 8601 with explicit date/time, for example: 2026-04-21T15:30:00+08:00
-  - Chinese relative time strings: 3分钟后, 2小时后, 5天后
-  - Chinese named relative dates: 明天, 后天, 下周
-- Never output English relative time strings like "in 1 minute", "in two hours", "tomorrow at 3pm", or "next week".
-- If the user speaks English, still convert the tool arguments into one of the supported formats above.
+- For create/update time changes, output trigger_at/new_trigger_at as an ISO 8601 aware datetime with timezone offset or Z.
+- Example trigger_at: 2026-04-21T15:30:00+08:00.
+- Use the current time and the user timezone shown in the input context to resolve relative or local user time into trigger_at.
+- If the input context says the user timezone is Asia/Tokyo, local user times must use +09:00 unless the user explicitly names another timezone.
+- Do not pass relative time strings such as "3分钟后", "明天", "in 1 minute", or "tomorrow at 3pm" to the tool.
+- For recurrence, output an RFC 5545 RRULE string. Example: rrule="FREQ=DAILY".
+- For batch, operations must be a list of flat operation objects, each with an action field.
+- Correct batch operation: {{"action":"create","title":"喝水","trigger_at":"2026-04-21T15:30:00+08:00"}}.
+- Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Do not output any explanation text. Only call the tool or stop.
 </instructions>"""
