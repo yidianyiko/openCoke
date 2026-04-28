@@ -122,6 +122,9 @@ _SIMPLE_TIME_REMINDER_PATTERN = re.compile(
 _REMINDER_TITLE_AFTER_MARKER_PATTERN = re.compile(
     r"(提醒我|叫我|通知我)(?P<title>[^，。！？!?；;\n]+)"
 )
+_TOMORROW_WORK_END_DEADLINE_PATTERN = re.compile(
+    r"(?P<title>.+?)\s*明天下班前(?P<tail>.*?(?:必须|要|得|需要).*(?:学完|完成|做完|弄完)|.*(?:学完|完成|做完|弄完))"
+)
 
 
 class PrepareWorkflow:
@@ -827,12 +830,12 @@ class PrepareWorkflow:
         session_state: Dict[str, Any],
     ) -> list[dict[str, str | None]]:
         text = str(input_message or "").replace("：", ":").strip()
-        if not self._looks_like_explicit_reminder_intent(text):
-            return []
 
-        time_matches = list(_SIMPLE_TIME_REMINDER_PATTERN.finditer(text))
-        if not time_matches:
-            return []
+        time_matches = (
+            list(_SIMPLE_TIME_REMINDER_PATTERN.finditer(text))
+            if self._looks_like_explicit_reminder_intent(text)
+            else []
+        )
 
         timezone_name = self._get_user_timezone_name(session_state)
         try:
@@ -878,7 +881,36 @@ class PrepareWorkflow:
                     ),
                 }
             )
-        return operations
+        if operations:
+            return operations
+        return self._parse_deadline_reminder_creates(text, now)
+
+    def _parse_deadline_reminder_creates(
+        self,
+        text: str,
+        now: datetime,
+    ) -> list[dict[str, str | None]]:
+        deadline_match = _TOMORROW_WORK_END_DEADLINE_PATTERN.search(text)
+        if not deadline_match:
+            return []
+        title = self._clean_deadline_reminder_title(deadline_match.group("title"))
+        if not title:
+            return []
+
+        trigger_at = (now + timedelta(days=1)).replace(
+            hour=18,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        return [
+            {
+                "action": "create",
+                "title": title,
+                "trigger_at": trigger_at.isoformat(),
+                "rrule": None,
+            }
+        ]
 
     def _previous_clause_boundary(self, text: str, position: int) -> int:
         boundary = 0
@@ -896,6 +928,11 @@ class PrepareWorkflow:
         title = re.sub(r"^(提醒我|提醒一下我|提醒|叫我|喊我|通知我|让我|帮我|记得)+", "", title)
         title = re.split(r"[，,。；;！？!?\n]", title, maxsplit=1)[0]
         title = re.sub(r"^(一个是|一是|二是|三是|还有|再|去|要)+", "", title).strip()
+        return self._clean_simple_reminder_title(title)
+
+    def _clean_deadline_reminder_title(self, raw_title: str) -> str:
+        title = str(raw_title or "").strip()
+        title = re.sub(r"^(最近|最近要|我最近要|我想|我想要|我要|要|需要|得|必须)+", "", title)
         return self._clean_simple_reminder_title(title)
 
     def _clean_simple_reminder_title(self, raw_title: str) -> str:
