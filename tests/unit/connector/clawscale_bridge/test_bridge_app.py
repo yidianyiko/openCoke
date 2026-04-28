@@ -278,6 +278,40 @@ def test_bridge_inbound_rejects_authenticated_invalid_json(monkeypatch):
     message_gateway.enqueue.assert_not_called()
 
 
+def test_bridge_inbound_rejects_string_metadata_without_crashing(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"metadata": "bad", "messages": [{"role": "user", "content": "hi"}]},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "missing_coke_account_id",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_rejects_object_messages_without_crashing(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"messages": {"role": "user", "content": "hi"}},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "missing_coke_account_id",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
 def test_bridge_inbound_rejects_untrusted_payload_without_bind_flow(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app

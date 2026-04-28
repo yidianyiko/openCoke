@@ -309,8 +309,12 @@ class BusinessOnlyBridgeGateway:
         return normalize_inbound_attachments(None)
 
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
-        metadata = inbound_payload.get("metadata") or {}
-        messages = inbound_payload.get("messages") or []
+        metadata = inbound_payload.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        messages = inbound_payload.get("messages")
+        if not isinstance(messages, list):
+            messages = []
         last_message = messages[-1] if messages and isinstance(messages[-1], dict) else {}
         latest_user_message = self._latest_user_message(messages)
         inbound_text = (
