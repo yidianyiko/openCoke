@@ -22,6 +22,7 @@ from agent.reminder.models import (
     ReminderQuery,
     ReminderSchedule,
 )
+from agent.reminder.service import ReminderService
 
 __all__ = [
     "AgentOutputTarget",
@@ -44,4 +45,5 @@ __all__ = [
     "ReminderPatch",
     "ReminderQuery",
     "ReminderSchedule",
+    "ReminderService",
 ]
