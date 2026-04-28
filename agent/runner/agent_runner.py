@@ -14,6 +14,12 @@ from agent.runner.deferred_action_scheduler import (
     get_deferred_action_scheduler_instance,
     set_deferred_action_scheduler_instance,
 )
+from agent.runner.reminder_event_handler import ReminderFireEventHandler
+from agent.runner.reminder_scheduler import (
+    ReminderScheduler,
+    get_reminder_scheduler_instance,
+    set_reminder_scheduler_instance,
+)
 from util.log_util import get_logger, setup_logging
 
 setup_logging()
@@ -24,6 +30,7 @@ from agent.runner.agent_handler import create_handler
 from agent.runner.message_processor import consume_stream_batch, get_queue_mode
 from dao.deferred_action_dao import DeferredActionDAO
 from dao.deferred_action_occurrence_dao import DeferredActionOccurrenceDAO
+from dao.reminder_dao import ReminderDAO
 from dao.mongo import MongoDBBase
 from util.redis_client import RedisClient
 
@@ -54,6 +61,22 @@ def bootstrap_deferred_action_runtime():
     )
     executor.scheduler = scheduler
     set_deferred_action_scheduler_instance(scheduler)
+    scheduler.start()
+    return scheduler
+
+
+def bootstrap_reminder_runtime():
+    existing = get_reminder_scheduler_instance()
+    if existing is not None:
+        return existing
+
+    reminder_dao = ReminderDAO()
+    handler = ReminderFireEventHandler()
+    scheduler = ReminderScheduler(
+        reminder_dao=reminder_dao,
+        fire_event_handler=handler,
+    )
+    set_reminder_scheduler_instance(scheduler)
     scheduler.start()
     return scheduler
 
@@ -103,6 +126,7 @@ async def run_background_agent():
 
 async def main():
     deferred_action_scheduler = bootstrap_deferred_action_runtime()
+    reminder_scheduler = bootstrap_reminder_runtime()
     workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
     workers.append(run_background_agent())
 
@@ -112,6 +136,9 @@ async def main():
     finally:
         deferred_action_scheduler.shutdown()
         set_deferred_action_scheduler_instance(None)
+        reminder_scheduler.shutdown()
+        set_reminder_scheduler_instance(None)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

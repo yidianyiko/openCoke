@@ -34,7 +34,9 @@ def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "util.redis_client",
-        types.SimpleNamespace(RedisClient=types.SimpleNamespace(from_config=lambda: None)),
+        types.SimpleNamespace(
+            RedisClient=types.SimpleNamespace(from_config=lambda: None)
+        ),
     )
 
     sys.modules.pop("agent.runner.agent_runner", None)
@@ -86,3 +88,67 @@ def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
     assert created["executor_kwargs"]["action_dao"] is action_dao
     assert created["executor_kwargs"]["occurrence_dao"] is occurrence_dao
     assert created["executor_kwargs"]["scheduler"] is None
+
+
+def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.agent_background_handler",
+        types.SimpleNamespace(background_handler=AsyncMock()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.agent_handler",
+        types.SimpleNamespace(
+            create_handler=lambda *args, **kwargs: AsyncMock(),
+            handle_message=AsyncMock(),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.message_processor",
+        types.SimpleNamespace(
+            consume_stream_batch=lambda *args, **kwargs: None,
+            get_queue_mode=lambda: "poll",
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.mongo",
+        types.SimpleNamespace(MongoDBBase=lambda *args, **kwargs: object()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "util.redis_client",
+        types.SimpleNamespace(
+            RedisClient=types.SimpleNamespace(from_config=lambda: None)
+        ),
+    )
+
+    sys.modules.pop("agent.runner.agent_runner", None)
+    agent_runner = importlib.import_module("agent.runner.agent_runner")
+
+    reminder_dao = Mock()
+    handler = Mock()
+    scheduler = Mock(start=Mock(), shutdown=Mock())
+    set_instance = Mock()
+    get_instance = Mock(return_value=None)
+    created = {}
+
+    monkeypatch.setattr(agent_runner, "ReminderDAO", lambda: reminder_dao)
+    monkeypatch.setattr(agent_runner, "ReminderFireEventHandler", lambda: handler)
+    monkeypatch.setattr(
+        agent_runner,
+        "ReminderScheduler",
+        lambda **kwargs: created.update({"scheduler_kwargs": kwargs}) or scheduler,
+    )
+    monkeypatch.setattr(agent_runner, "set_reminder_scheduler_instance", set_instance)
+    monkeypatch.setattr(agent_runner, "get_reminder_scheduler_instance", get_instance)
+
+    runtime = agent_runner.bootstrap_reminder_runtime()
+
+    assert runtime is scheduler
+    scheduler.start.assert_called_once()
+    set_instance.assert_called_once_with(scheduler)
+    assert created["scheduler_kwargs"]["reminder_dao"] is reminder_dao
+    assert created["scheduler_kwargs"]["fire_event_handler"] is handler
