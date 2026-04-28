@@ -1,6 +1,6 @@
 # Task: Design WeChat Ecloud Shared Channel
 
-- Status: In Review
+- Status: Implemented
 - Owner: Codex
 - Date: 2026-04-28
 
@@ -51,6 +51,21 @@ design without adding QR-code login or Moments publishing.
 - Command: `zsh scripts/check`
 - Expected evidence: repo-OS checks pass after the spec is written
 - Evidence: passed on 2026-04-28 with `check passed`
+
+## Implementation Handoff
+
+- Plan: `docs/superpowers/plans/2026-04-28-wechat-ecloud-shared-channel.md`
+- Worktree: `/data/projects/coke/.worktrees/wechat-ecloud-shared-channel`
+- Superproject branch: `feature/wechat-ecloud-shared-channel`
+- Gateway branch: `feature/wechat-ecloud-shared-channel`
+- Gateway head: `cd9ea0e fix: reject generic ecloud channel detail`
+- Verification:
+  - `pnpm --filter @clawscale/shared build`
+  - `pnpm --filter @clawscale/api db:generate`
+  - `pnpm --filter @clawscale/api exec vitest run src/lib/wechat-ecloud-config.test.ts src/lib/wechat-ecloud-api.test.ts src/lib/wechat-ecloud-webhook.test.ts src/lib/outbound-delivery.test.ts src/lib/route-message.test.ts src/gateway/message-router.test.ts src/routes/admin-shared-channels.test.ts src/routes/admin-channels.test.ts src/routes/channels.test.ts`
+  - `pnpm --filter @clawscale/api build`
+  - `pnpm --filter @clawscale/web test -- app/'(admin)'/admin/shared-channels/page.test.tsx app/'(admin)'/admin/shared-channels/detail/page.test.tsx`
+  - `zsh scripts/check`
 
 ## Notes
 
