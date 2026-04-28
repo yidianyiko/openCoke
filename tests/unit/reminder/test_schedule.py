@@ -8,6 +8,7 @@ from agent.reminder.schedule import (
     build_schedule_from_anchor,
     compute_initial_next_fire_at,
     compute_next_fire_after_success,
+    validate_timezone,
     validate_rrule_subset,
 )
 
@@ -72,6 +73,117 @@ def test_supported_and_rejected_rrule_subset():
 
     with pytest.raises(RRULENotSupported):
         validate_rrule_subset("FREQ=DAILY;BYHOUR=9")
+
+
+def test_rejects_naive_datetimes():
+    with pytest.raises(InvalidSchedule):
+        build_schedule_from_anchor(
+            anchor_at=datetime(2026, 4, 29, 10, 0),
+            timezone="Asia/Tokyo",
+            rrule=None,
+        )
+
+    one_shot = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 29, 1, 0),
+        local_date=date(2026, 4, 29),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule=None,
+    )
+    with pytest.raises(InvalidSchedule):
+        compute_initial_next_fire_at(
+            one_shot,
+            now=datetime(2026, 4, 28, 1, 0, tzinfo=UTC),
+        )
+
+    recurring = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 28, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 4, 28),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule="FREQ=DAILY",
+    )
+    with pytest.raises(InvalidSchedule):
+        compute_next_fire_after_success(
+            recurring,
+            scheduled_for=datetime(2026, 4, 28, 1, 0),
+            now=datetime(2026, 4, 28, 1, 1, tzinfo=UTC),
+        )
+
+    with pytest.raises(InvalidSchedule):
+        compute_next_fire_after_success(
+            recurring,
+            scheduled_for=datetime(2026, 4, 28, 1, 0, tzinfo=UTC),
+            now=datetime(2026, 4, 28, 1, 1),
+        )
+
+
+def test_rejects_invalid_timezone():
+    with pytest.raises(InvalidSchedule):
+        validate_timezone("Not/AZone")
+
+    with pytest.raises(InvalidSchedule):
+        build_schedule_from_anchor(
+            anchor_at=datetime(2026, 4, 29, 10, 0, tzinfo=UTC),
+            timezone="Not/AZone",
+            rrule=None,
+        )
+
+
+@pytest.mark.parametrize(
+    "modifier",
+    [
+        "BYHOUR=9",
+        "BYMINUTE=30",
+        "BYMONTH=4",
+        "BYMONTHDAY=29",
+        "BYSETPOS=1",
+        "BYWEEKNO=17",
+        "BYYEARDAY=119",
+        "WKST=MO",
+        "EXDATE=20260429T010000Z",
+        "RDATE=20260429T010000Z",
+    ],
+)
+def test_rejects_unsupported_rrule_modifiers(modifier):
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset(f"FREQ=DAILY;{modifier}")
+
+
+def test_validates_until_must_be_utc_datetime():
+    assert (
+        validate_rrule_subset("FREQ=DAILY;UNTIL=20260501T000000Z")
+        == "FREQ=DAILY;UNTIL=20260501T000000Z"
+    )
+
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset("FREQ=DAILY;UNTIL=2026-05-01")
+
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset("FREQ=DAILY;UNTIL=20260501T000000")
+
+
+def test_rejects_non_weekly_or_invalid_byday():
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset("FREQ=DAILY;BYDAY=MO")
+
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset("FREQ=WEEKLY;BYDAY=MONDAY")
+
+
+def test_recurring_schedule_preserves_floating_local_time_across_dst():
+    schedule = build_schedule_from_anchor(
+        anchor_at=datetime(2026, 3, 7, 14, 0, tzinfo=UTC),
+        timezone="America/New_York",
+        rrule="FREQ=DAILY",
+    )
+
+    assert schedule.local_date == date(2026, 3, 7)
+    assert schedule.local_time == time(9, 0)
+    assert compute_initial_next_fire_at(
+        schedule,
+        now=datetime(2026, 3, 7, 15, 0, tzinfo=UTC),
+    ) == datetime(2026, 3, 8, 13, 0, tzinfo=UTC)
 
 
 def test_next_fire_after_success_returns_none_for_exhausted_recurrence():

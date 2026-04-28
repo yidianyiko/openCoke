@@ -89,6 +89,7 @@ def validate_rrule_subset(rrule: str | None) -> str | None:
 
     _validate_positive_integer(parts, "COUNT", rrule)
     _validate_positive_integer(parts, "INTERVAL", rrule)
+    _validate_until(parts, rrule)
     return rrule
 
 
@@ -180,6 +181,19 @@ def _validate_positive_integer(parts: dict[str, str], key: str, rrule: str) -> N
             "Reminder recurrence integer modifier must be positive",
             detail={"rrule": rrule, "key": key},
         )
+
+
+def _validate_until(parts: dict[str, str], rrule: str) -> None:
+    value = parts.get("UNTIL")
+    if value is None:
+        return
+    try:
+        datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC)
+    except ValueError as exc:
+        raise RRULENotSupported(
+            "Reminder recurrence UNTIL must be a UTC datetime",
+            detail={"rrule": rrule},
+        ) from exc
 
 
 def _next_recurrence_after(
