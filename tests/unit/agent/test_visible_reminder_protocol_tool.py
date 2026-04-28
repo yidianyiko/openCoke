@@ -513,6 +513,30 @@ def test_empty_batch_appends_failed_tool_result(monkeypatch):
     ]
 
 
+def test_missing_action_appends_clarifying_tool_result_without_service_call(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(action=None)
+
+    assert result == "我还需要提醒内容和时间，才能帮你设置提醒。"
+    assert service.calls == []
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "我还需要提醒内容和时间，才能帮你设置提醒。",
+            "extra_notes": "action=; error_code=MissingReminderDetails",
+        }
+    ]
+
+
 def test_service_construction_failure_appends_failed_tool_result(monkeypatch):
     def raise_on_construct():
         raise RuntimeError("dao unavailable")

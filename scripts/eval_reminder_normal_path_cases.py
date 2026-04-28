@@ -755,6 +755,8 @@ def explicit_reminder_request(text: str) -> bool:
     normalized = str(text or "").lower()
     if vague_reminder_capability_question(normalized):
         return False
+    if underspecified_reminder_request(normalized):
+        return False
     if reminder_time_query(normalized):
         return False
     if any(
@@ -783,6 +785,9 @@ _REMINDER_TIME_QUERY_PATTERN = re.compile(
     r"(几点|什么时候|什么时间|何时|哪天|哪个时间).{0,12}提醒我|"
     r"提醒我.{0,12}(几点|什么时候|什么时间|何时|哪天|哪个时间)"
 )
+_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN = re.compile(
+    r"^(你)?(帮我|给我)?提醒(我)?(一下|下)?[。！？!?]*$"
+)
 
 
 def vague_reminder_capability_question(text: str) -> bool:
@@ -793,6 +798,11 @@ def vague_reminder_capability_question(text: str) -> bool:
 def reminder_time_query(text: str) -> bool:
     normalized = normalize_text(text).strip()
     return bool(_REMINDER_TIME_QUERY_PATTERN.search(normalized))
+
+
+def underspecified_reminder_request(text: str) -> bool:
+    normalized = normalize_text(text).strip()
+    return bool(_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN.search(normalized))
 
 
 def actionable_implicit_reminder_request(text: str) -> bool:

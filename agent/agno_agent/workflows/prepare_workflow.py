@@ -127,6 +127,9 @@ _ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
 _VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
     r"^(你)?(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
 )
+_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN = re.compile(
+    r"^(你)?(帮我|给我)?提醒(我)?(一下|下)?[。！？!?]*$"
+)
 _IMPLICIT_REMINDER_INTENT_PATTERNS = (
     re.compile(
         r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
@@ -371,6 +374,16 @@ class PrepareWorkflow:
             )
             return False
 
+        if self._looks_like_underspecified_reminder_request(input_message):
+            orchestrator["need_reminder_detect"] = False
+            session_state["direct_reply"] = (
+                "可以。你想让我提醒你做什么、什么时候提醒？"
+            )
+            logger.info(
+                "[PrepareWorkflow] 提醒请求缺少内容和时间，跳过 ReminderDetectAgent"
+            )
+            return False
+
         if not need_reminder and self._looks_like_reminder_intent(
             input_message
         ):
@@ -404,6 +417,12 @@ class PrepareWorkflow:
     ) -> bool:
         text = str(input_message or "").strip()
         return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(text))
+
+    def _looks_like_underspecified_reminder_request(
+        self, input_message: str
+    ) -> bool:
+        text = str(input_message or "").strip()
+        return bool(_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN.search(text))
 
     def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()

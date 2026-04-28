@@ -23,6 +23,8 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+_SUPPORTED_ACTIONS = {"create", "update", "cancel", "complete", "list", "batch"}
+
 
 _context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar(
     "reminder_session_state", default={}
@@ -66,6 +68,13 @@ def _execute_visible_reminder_tool_action(
 ) -> str:
     session_state = _get_session_state()
     canonical_action = _canonical_action(action)
+    if canonical_action not in _SUPPORTED_ACTIONS:
+        return _append_failure(
+            session_state,
+            action=canonical_action,
+            summary="我还需要提醒内容和时间，才能帮你设置提醒。",
+            error_code="MissingReminderDetails",
+        )
 
     if canonical_action == "batch":
         if not operations:
