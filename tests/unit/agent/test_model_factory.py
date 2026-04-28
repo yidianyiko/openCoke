@@ -1,10 +1,34 @@
 from importlib import reload
+import json
+from pathlib import Path
 
 from agno.models.openai import OpenAIChat
 from agno.models.siliconflow import Siliconflow
 
 from agent.agno_agent import agents, model_factory
 from agent.agno_agent.workflows import chat_workflow_streaming
+
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_chat_response_config_uses_siliconflow_deepseek_v4_flash():
+    expected = {
+        "provider": "siliconflow",
+        "model_id": "deepseek-ai/DeepSeek-V4-Flash",
+        "api_key": "${SiliconFlow_API_KEY}",
+        "base_url": "https://api.siliconflow.cn/v1",
+    }
+
+    for config_path in (
+        ROOT / "conf" / "config.json",
+        ROOT / "deploy" / "config" / "coke.config.json",
+    ):
+        config = json.loads(config_path.read_text())
+        chat_response = config["llm"]["roles"]["chat_response"]
+        assert chat_response["provider"] == expected["provider"], config_path
+        assert chat_response["model_id"] == expected["model_id"], config_path
+        assert chat_response["api_key"] == expected["api_key"], config_path
+        assert chat_response["base_url"] == expected["base_url"], config_path
 
 
 def test_create_llm_model_uses_role_specific_prepare_config(monkeypatch):
@@ -95,9 +119,10 @@ def test_runtime_uses_split_prepare_and_chat_models(monkeypatch):
                     "max_retries": 2,
                 },
                 "chat_response": {
-                    "provider": "openai",
-                    "model_id": "gpt-4o",
-                    "api_key": "sk-openai",
+                    "provider": "siliconflow",
+                    "model_id": "deepseek-ai/DeepSeek-V4-Flash",
+                    "api_key": "sk-chat",
+                    "base_url": "https://api.siliconflow.cn/v1",
                     "max_retries": 2,
                 },
             },
@@ -114,5 +139,5 @@ def test_runtime_uses_split_prepare_and_chat_models(monkeypatch):
     assert isinstance(agents.post_analyze_agent.model, Siliconflow)
     assert agents.reminder_detect_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
     assert agents.post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
-    assert isinstance(workflow.agent.model, OpenAIChat)
-    assert workflow.agent.model.id == "gpt-4o"
+    assert isinstance(workflow.agent.model, Siliconflow)
+    assert workflow.agent.model.id == "deepseek-ai/DeepSeek-V4-Flash"

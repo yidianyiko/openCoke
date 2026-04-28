@@ -66,9 +66,10 @@
                 "max_retries": 2
             },
             "chat_response": {
-                "provider": "openai",
-                "model_id": "gpt-4o",
-                "api_key": "${OPENAI_API_KEY}",
+                "provider": "siliconflow",
+                "model_id": "deepseek-ai/DeepSeek-V4-Flash",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
                 "max_retries": 2
             }
         }

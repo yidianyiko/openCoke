@@ -45,6 +45,36 @@
         "APPKEY": "${ALIYUN_ASR_APPKEY}"
     },
     "admin_user_id": "${ADMIN_USER_ID}",
+    "llm": {
+        "provider": "siliconflow",
+        "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+        "api_key": "${SiliconFlow_API_KEY}",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "max_retries": 2,
+        "roles": {
+            "prepare": {
+                "provider": "siliconflow",
+                "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
+                "max_retries": 2
+            },
+            "post_analyze": {
+                "provider": "siliconflow",
+                "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
+                "max_retries": 2
+            },
+            "chat_response": {
+                "provider": "siliconflow",
+                "model_id": "deepseek-ai/DeepSeek-V4-Flash",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
+                "max_retries": 2
+            }
+        }
+    },
     "clawscale_bridge": {
         "host": "0.0.0.0",
         "port": 8090,
