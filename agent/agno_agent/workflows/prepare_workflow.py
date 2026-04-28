@@ -116,6 +116,12 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_IMPLICIT_REMINDER_INTENT_PATTERNS = (
+    re.compile(
+        r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
+        r".{0,12}(开始|背书|学习|起床|出门|跑步|乐跑|喝水|吃饭)"
+    ),
+)
 _SIMPLE_TIME_REMINDER_PATTERN = re.compile(
     r"(?P<hour>[01]?\d|2[0-3])\s*[:：]\s*(?P<minute>[0-5]\d)"
 )
@@ -314,10 +320,10 @@ class PrepareWorkflow:
                 _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS,
             )
             orchestrator_result = self._get_default_orchestrator()
-            if self._looks_like_explicit_reminder_intent(input_message):
+            if self._looks_like_reminder_intent(input_message):
                 orchestrator_result["need_reminder_detect"] = True
                 logger.info(
-                    "[PrepareWorkflow] Orchestrator 超时后命中显式提醒意图，"
+                    "[PrepareWorkflow] Orchestrator 超时后命中提醒意图规则，"
                     "使用默认调度继续提醒检测"
                 )
             session_state["orchestrator"] = orchestrator_result
@@ -343,12 +349,12 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
-        if not need_reminder and self._looks_like_explicit_reminder_intent(
+        if not need_reminder and self._looks_like_reminder_intent(
             input_message
         ):
             orchestrator["need_reminder_detect"] = True
             logger.info(
-                "[PrepareWorkflow] 显式提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
+                "[PrepareWorkflow] 提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
             )
             return True
 
@@ -359,6 +365,17 @@ class PrepareWorkflow:
         if not text:
             return False
         return any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
+
+    def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(pattern.search(text) for pattern in _IMPLICIT_REMINDER_INTENT_PATTERNS)
+
+    def _looks_like_reminder_intent(self, input_message: str) -> bool:
+        return self._looks_like_explicit_reminder_intent(
+            input_message
+        ) or self._looks_like_implicit_reminder_intent(input_message)
 
     def _run_context_retrieve(
         self, session_state: Dict[str, Any], need_context: bool
@@ -838,7 +855,7 @@ class PrepareWorkflow:
 
         time_matches = (
             list(_SIMPLE_TIME_REMINDER_PATTERN.finditer(text))
-            if self._looks_like_explicit_reminder_intent(text)
+            if self._looks_like_reminder_intent(text)
             else []
         )
 
@@ -898,7 +915,7 @@ class PrepareWorkflow:
         text: str,
         now: datetime,
     ) -> list[dict[str, str | None]]:
-        if not self._looks_like_explicit_reminder_intent(text):
+        if not self._looks_like_reminder_intent(text):
             return []
 
         operations: list[dict[str, str | None]] = []
@@ -1030,7 +1047,7 @@ class PrepareWorkflow:
         title = str(suffix or "").strip()
         title = re.sub(r"^(提醒我|提醒一下我|提醒|叫我|喊我|通知我|让我|帮我|记得)+", "", title)
         title = re.split(r"[，,。；;！？!?\n]", title, maxsplit=1)[0]
-        title = re.sub(r"^(一个是|一是|二是|三是|还有|再|去|要)+", "", title).strip()
+        title = re.sub(r"^(一个是|一是|二是|三是|还有|再|去|要|开始)+", "", title).strip()
         return self._clean_simple_reminder_title(title)
 
     def _clean_deadline_reminder_title(self, raw_title: str) -> str:
