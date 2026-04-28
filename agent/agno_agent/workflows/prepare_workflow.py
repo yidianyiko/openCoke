@@ -124,6 +124,9 @@ _ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
 _ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
     r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
 )
+_VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
+    r"^(你)?(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
+)
 _IMPLICIT_REMINDER_INTENT_PATTERNS = (
     re.compile(
         r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
@@ -357,6 +360,13 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
+        if self._looks_like_vague_reminder_capability_question(input_message):
+            orchestrator["need_reminder_detect"] = False
+            logger.info(
+                "[PrepareWorkflow] 提醒能力问句缺少可执行内容，跳过 ReminderDetectAgent"
+            )
+            return False
+
         if not need_reminder and self._looks_like_reminder_intent(
             input_message
         ):
@@ -384,6 +394,12 @@ class PrepareWorkflow:
             _ACTIONABLE_CALL_ME_TIME_PATTERN.search(text)
             or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(text)
         )
+
+    def _looks_like_vague_reminder_capability_question(
+        self, input_message: str
+    ) -> bool:
+        text = str(input_message or "").strip()
+        return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(text))
 
     def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
