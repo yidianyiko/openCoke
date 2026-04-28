@@ -19,6 +19,9 @@ from agent.reminder.models import (
 from agent.reminder.schedule import build_schedule_from_anchor
 from agent.reminder.service import ReminderService
 from util.time_util import get_default_timezone
+from util.log_util import get_logger
+
+logger = get_logger(__name__)
 
 
 _context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar(
@@ -83,6 +86,7 @@ def _execute_visible_reminder_tool_action(
     try:
         service = ReminderService()
     except Exception:
+        logger.exception("ReminderService adapter initialization failed")
         return _append_failure(
             session_state,
             action=canonical_action,
@@ -113,6 +117,7 @@ def _execute_visible_reminder_tool_action(
             rrule=rrule,
         )
     except Exception:
+        logger.exception("visible reminder tool adapter action failed")
         return _append_failure(
             session_state,
             action=canonical_action,
@@ -236,6 +241,7 @@ def _run_operation(
         )
         return summary
     except Exception:
+        logger.exception("visible reminder operation failed")
         return _append_failure(
             session_state,
             action=canonical_action,

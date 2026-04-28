@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from typing import Any
 
 from bson.errors import InvalidId
@@ -37,8 +37,16 @@ class ReminderService:
             reminder_dao = ReminderDAO()
 
         self.reminder_dao = reminder_dao
-        self.scheduler = scheduler
+        self.scheduler = scheduler or self._get_runtime_scheduler()
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
+
+    def _get_runtime_scheduler(self):
+        try:
+            from agent.runner.reminder_scheduler import get_reminder_scheduler_instance
+
+            return get_reminder_scheduler_instance()
+        except Exception:
+            return None
 
     def create(
         self,
@@ -375,8 +383,8 @@ class ReminderService:
             title=document["title"],
             schedule=ReminderSchedule(
                 anchor_at=schedule["anchor_at"],
-                local_date=schedule["local_date"],
-                local_time=schedule["local_time"],
+                local_date=self._parse_local_date(schedule["local_date"]),
+                local_time=self._parse_local_time(schedule["local_time"]),
                 timezone=schedule["timezone"],
                 rrule=schedule.get("rrule"),
             ),
@@ -401,11 +409,31 @@ class ReminderService:
     def _schedule_to_document(self, schedule: ReminderSchedule) -> dict:
         return {
             "anchor_at": schedule.anchor_at,
-            "local_date": schedule.local_date,
-            "local_time": schedule.local_time,
+            "local_date": schedule.local_date.isoformat(),
+            "local_time": schedule.local_time.isoformat(),
             "timezone": schedule.timezone,
             "rrule": schedule.rrule,
         }
+
+    def _parse_local_date(self, value: Any) -> date:
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        raise InvalidArgument(
+            "Reminder schedule local_date is invalid",
+            detail={"field": "schedule.local_date"},
+        )
+
+    def _parse_local_time(self, value: Any) -> time:
+        if isinstance(value, time):
+            return value
+        if isinstance(value, str):
+            return time.fromisoformat(value)
+        raise InvalidArgument(
+            "Reminder schedule local_time is invalid",
+            detail={"field": "schedule.local_time"},
+        )
 
     def _target_to_document(self, target: AgentOutputTarget) -> dict:
         return {

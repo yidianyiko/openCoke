@@ -19,6 +19,7 @@ Requirements: 5.1
 import logging
 import os
 import re
+import asyncio
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import (
@@ -56,6 +57,28 @@ from agent.util.message_util import messages_to_str
 
 logger = logging.getLogger(__name__)
 
+
+def _float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning("%s=%r is not a valid float; using %.1f", name, raw_value, default)
+        return default
+    return value if value > 0 else default
+
+
+_PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS = _float_env(
+    "COKE_PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS",
+    45.0,
+)
+_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS = _float_env(
+    "COKE_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
+    45.0,
+)
+
 _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
     re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}按.{0,20}时间"),
     re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}(用|按照).{0,20}(时间|时区)"),
@@ -80,6 +103,13 @@ _CALENDAR_IMPORT_INTENT_PATTERNS = (
 _REMINDER_FIRST_PATTERNS = (
     re.compile(r"(提醒我|叫我|到时候|闹钟)"),
     re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
+)
+_EXPLICIT_REMINDER_INTENT_PATTERNS = (
+    re.compile(r"(提醒我|叫我|闹钟|通知我|别忘了提醒)"),
+    re.compile(
+        r"\b(remind me|set a reminder|set an alarm|notify me)\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -155,7 +185,11 @@ class PrepareWorkflow:
         # 获取调度决策
         orchestrator = session_state.get("orchestrator", {})
         need_context = orchestrator.get("need_context_retrieve", True)
-        need_reminder = self._should_run_reminder_detect(orchestrator, session_state)
+        need_reminder = self._should_run_reminder_detect(
+            input_message,
+            orchestrator,
+            session_state,
+        )
 
         # Step 2: 上下文检索 (直接调用 Tool，0次 LLM)
         self._run_context_retrieve(session_state, need_context)
@@ -221,8 +255,12 @@ class PrepareWorkflow:
         )
 
         try:
-            orchestrator_response = await orchestrator_agent.arun(
-                input=rendered_prompt, session_state=session_state
+            orchestrator_response = await asyncio.wait_for(
+                orchestrator_agent.arun(
+                    input=rendered_prompt,
+                    session_state=session_state,
+                ),
+                timeout=_PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS,
             )
 
             # 记录用量
@@ -251,13 +289,31 @@ class PrepareWorkflow:
                 session_state["orchestrator"] = self._get_default_orchestrator()
                 session_state["query_rewrite"] = self._get_default_query_rewrite()
 
+        except asyncio.TimeoutError:
+            logger.error(
+                "OrchestratorAgent 执行超时: timeout=%.1fs",
+                _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS,
+            )
+            orchestrator_result = self._get_default_orchestrator()
+            if self._looks_like_explicit_reminder_intent(input_message):
+                orchestrator_result["need_reminder_detect"] = True
+                logger.info(
+                    "[PrepareWorkflow] Orchestrator 超时后命中显式提醒意图，"
+                    "使用默认调度继续提醒检测"
+                )
+            session_state["orchestrator"] = orchestrator_result
+            session_state["prepare_orchestrator_timeout"] = True
+            self._map_to_query_rewrite(session_state, orchestrator_result)
         except Exception as e:
             logger.error(f"OrchestratorAgent 执行失败: {e}")
             session_state["orchestrator"] = self._get_default_orchestrator()
             session_state["query_rewrite"] = self._get_default_query_rewrite()
 
     def _should_run_reminder_detect(
-        self, orchestrator: Dict[str, Any], session_state: Dict[str, Any]
+        self,
+        input_message: str,
+        orchestrator: Dict[str, Any],
+        session_state: Dict[str, Any],
     ) -> bool:
         """判断是否需要执行提醒检测"""
         need_reminder = orchestrator.get("need_reminder_detect", False)
@@ -268,7 +324,22 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
+        if not need_reminder and self._looks_like_explicit_reminder_intent(
+            input_message
+        ):
+            orchestrator["need_reminder_detect"] = True
+            logger.info(
+                "[PrepareWorkflow] 显式提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
+            )
+            return True
+
         return need_reminder
+
+    def _looks_like_explicit_reminder_intent(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
 
     def _run_context_retrieve(
         self, session_state: Dict[str, Any], need_context: bool
@@ -619,8 +690,12 @@ class PrepareWorkflow:
             reminder_input = self._build_reminder_input(input_message, session_state)
             logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT")
 
-            reminder_response = await reminder_detect_agent.arun(
-                input=reminder_input, session_state=session_state
+            reminder_response = await asyncio.wait_for(
+                reminder_detect_agent.arun(
+                    input=reminder_input,
+                    session_state=session_state,
+                ),
+                timeout=_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS,
             )
 
             # 记录用量
@@ -636,6 +711,19 @@ class PrepareWorkflow:
             # 记录结果
             self._log_reminder_result(reminder_response, session_state)
 
+        except asyncio.TimeoutError:
+            logger.error(
+                "ReminderDetectAgent 执行超时: timeout=%.1fs",
+                _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS,
+            )
+            session_state["prepare_reminder_detect_timeout"] = True
+            append_tool_result(
+                session_state,
+                tool_name="提醒操作",
+                ok=False,
+                result_summary="提醒操作失败：提醒识别超时，未能完成提醒设置",
+                extra_notes="action=detect; error_code=ReminderDetectTimeout",
+            )
         except Exception as e:
             logger.error(f"ReminderDetectAgent 执行失败: {e}")
             # 提醒检测失败不影响主流程

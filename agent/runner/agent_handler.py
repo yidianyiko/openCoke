@@ -515,6 +515,12 @@ async def handle_message(
                                 timeout=LOCK_TIMEOUT,
                             )
 
+                        if is_sync_text_reply_message:
+                            logger.info(
+                                f"{worker_tag} Clawscale request_response 首条文本回复已写入，提前结束流式等待"
+                            )
+                            break
+
                     # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
                     if check_new_message and message_source == "user":
                         user = context.get("user", {})

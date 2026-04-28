@@ -19,27 +19,27 @@ from util.message_log_util import format_std_message_for_log, should_log_message
 from util.time_util import get_message_timestamp, safe_timestamp_compare, timestamp2str
 
 
-def messages_to_str(messages, language="cn"):
+def messages_to_str(messages, language="cn", tz=None):
     if len(messages) == 0:
         return ""
 
     messages_str_lines = []
     for message in messages:
-        messages_str_lines.append(message_to_str(message, language))
+        messages_str_lines.append(message_to_str(message, language, tz=tz))
 
     return "\n".join(messages_str_lines)
 
 
-def message_to_str(message, language="cn"):
+def message_to_str(message, language="cn", tz=None):
     try:
         # BUG-003 fix: Use .get() with default instead of direct key access
         message_type = message.get("message_type", "text")
         if message_type in ["text", "voice"]:
-            return normal_message_to_str(message, language=language)
+            return normal_message_to_str(message, language=language, tz=tz)
         if message_type in ["reference"]:
-            return reference_message_to_str(message, language=language)
+            return reference_message_to_str(message, language=language, tz=tz)
         if message_type in ["image"]:
-            return image_message_to_str(message, language=language)
+            return image_message_to_str(message, language=language, tz=tz)
     except Exception:
         logger.error(traceback.format_exc())
         return ""
@@ -82,7 +82,7 @@ def _resolve_business_coke_account_display_name(message):
     return None
 
 
-def normal_message_to_str(message, language="cn"):
+def normal_message_to_str(message, language="cn", tz=None):
     # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
         message_time = get_message_timestamp(message)
@@ -103,7 +103,7 @@ def normal_message_to_str(message, language="cn"):
     if not talker_name:
         talker = user_dao.get_user_by_id(from_user) if from_user else None
         talker_name = _resolve_talker_name(talker, message)
-    time_str = timestamp2str(message_time)
+    time_str = timestamp2str(message_time, tz=tz)
 
     if language == "cn":
         message_type_map = {"text": "文本", "voice": "语音"}
@@ -125,7 +125,7 @@ def normal_message_to_str(message, language="cn"):
     )
 
 
-def reference_message_to_str(message, language="cn"):
+def reference_message_to_str(message, language="cn", tz=None):
     # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
         message_time = get_message_timestamp(message)
@@ -146,7 +146,7 @@ def reference_message_to_str(message, language="cn"):
     if not talker_name:
         talker = user_dao.get_user_by_id(from_user) if from_user else None
         talker_name = _resolve_talker_name(talker, message)
-    time_str = timestamp2str(message_time)
+    time_str = timestamp2str(message_time, tz=tz)
 
     message_content = message.get("message", "") or ""
     # BUG-005 fix: Use .get() for nested metadata access
@@ -169,7 +169,7 @@ def reference_message_to_str(message, language="cn"):
     )
 
 
-def image_message_to_str(message, language="cn"):
+def image_message_to_str(message, language="cn", tz=None):
     # BUG-004 & BUG-010 fix: Use validated timestamp extraction
     if "input_timestamp" in message:
         message_time = get_message_timestamp(message)
@@ -190,7 +190,7 @@ def image_message_to_str(message, language="cn"):
     if not talker_name:
         talker = user_dao.get_user_by_id(from_user) if from_user else None
         talker_name = _resolve_talker_name(talker, message)
-    time_str = timestamp2str(message_time)
+    time_str = timestamp2str(message_time, tz=tz)
 
     mongo = MongoDBBase()
     image_str = ""

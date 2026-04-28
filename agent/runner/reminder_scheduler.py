@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import inspect
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from typing import Any, Callable
 
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from agent.reminder.errors import InvalidArgument
 from agent.reminder.models import (
     AgentOutputTarget,
     Reminder,
@@ -220,8 +221,8 @@ class ReminderScheduler:
             title=document["title"],
             schedule=ReminderSchedule(
                 anchor_at=schedule["anchor_at"],
-                local_date=schedule["local_date"],
-                local_time=schedule["local_time"],
+                local_date=self._parse_local_date(schedule["local_date"]),
+                local_time=self._parse_local_time(schedule["local_time"]),
                 timezone=schedule["timezone"],
                 rrule=schedule.get("rrule"),
             ),
@@ -241,4 +242,24 @@ class ReminderScheduler:
             completed_at=document.get("completed_at"),
             cancelled_at=document.get("cancelled_at"),
             failed_at=document.get("failed_at"),
+        )
+
+    def _parse_local_date(self, value: Any) -> date:
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        raise InvalidArgument(
+            "Reminder schedule local_date is invalid",
+            detail={"field": "schedule.local_date"},
+        )
+
+    def _parse_local_time(self, value: Any) -> time:
+        if isinstance(value, time):
+            return value
+        if isinstance(value, str):
+            return time.fromisoformat(value)
+        raise InvalidArgument(
+            "Reminder schedule local_time is invalid",
+            detail={"field": "schedule.local_time"},
         )

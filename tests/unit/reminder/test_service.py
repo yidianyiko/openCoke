@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, time
 from unittest.mock import Mock
 
 import pytest
+from bson import BSON
 from bson.errors import InvalidId
 
 from agent.reminder.errors import (
@@ -76,6 +77,12 @@ class InMemoryReminderDAO:
             return False
         document.update(updates)
         return True
+
+
+class BSONEncodingReminderDAO(InMemoryReminderDAO):
+    def insert_reminder(self, document: dict) -> str:
+        BSON.encode(document)
+        return super().insert_reminder(document)
 
 
 class InvalidIdReminderDAO(InMemoryReminderDAO):
@@ -203,6 +210,36 @@ def test_create_validates_output_target_and_writes_next_fire_at():
     assert reminder.next_fire_at == FUTURE
     assert dao.documents["rem-1"]["next_fire_at"] == FUTURE
     scheduler.register_reminder.assert_called_once_with(reminder)
+
+
+def test_create_uses_global_scheduler_when_scheduler_not_injected():
+    from agent.runner.reminder_scheduler import set_reminder_scheduler_instance
+
+    dao = InMemoryReminderDAO()
+    scheduler = Mock()
+    set_reminder_scheduler_instance(scheduler)
+    try:
+        service = ReminderService(
+            reminder_dao=dao,
+            now_provider=lambda: NOW,
+        )
+
+        reminder = service.create(owner_user_id="user-1", command=create_command())
+
+        scheduler.register_reminder.assert_called_once_with(reminder)
+    finally:
+        set_reminder_scheduler_instance(None)
+
+
+def test_create_writes_bson_encodable_schedule_document():
+    service, dao, _ = make_service(dao=BSONEncodingReminderDAO())
+
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+
+    assert reminder.schedule.local_date == date(2026, 4, 29)
+    assert reminder.schedule.local_time == time(10, 0)
+    assert dao.documents["rem-1"]["schedule"]["local_date"] == "2026-04-29"
+    assert dao.documents["rem-1"]["schedule"]["local_time"] == "10:00:00"
 
 
 def test_create_rejects_past_one_shot_reminders():

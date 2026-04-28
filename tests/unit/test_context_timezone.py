@@ -53,6 +53,62 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
 
 @patch("agent.runner.context.UserDAO")
 @patch("agent.runner.context.MongoDBBase")
+def test_context_prepare_formats_input_messages_in_user_timezone(mock_mongo, mock_dao):
+    """Relative-time prompts should not mix default timezone message stamps with user timezone current time."""
+    from agent.runner.context import context_prepare
+
+    user = make_minimal_user(timezone="Asia/Tokyo")
+    mock_mongo.return_value.find_one.return_value = {
+        "relationship": {},
+        "uid": "x",
+        "cid": "y",
+    }
+    mock_dao.return_value = MagicMock()
+
+    with patch("agent.runner.context.get_character_prompt", return_value=None):
+        with patch("agent.runner.context.ConversationDAO"):
+            ctx = context_prepare(
+                user=user,
+                character={
+                    "_id": "c1",
+                    "name": "Coke",
+                    "platforms": {},
+                    "user_info": {},
+                },
+                conversation={
+                    "_id": "conv1",
+                    "platform": "business",
+                    "chatroom_name": None,
+                    "conversation_info": {
+                        "chat_history": [],
+                        "input_messages": [
+                            {
+                                "platform": "business",
+                                "from_user": "user-1",
+                                "to_user": "c1",
+                                "input_timestamp": 1777396434,
+                                "message_type": "text",
+                                "message": "请在一分钟后提醒我：烟测。",
+                                "metadata": {
+                                    "source": "clawscale",
+                                    "coke_account": {
+                                        "id": "user-1",
+                                        "display_name": "tester",
+                                    },
+                                },
+                            }
+                        ],
+                    },
+                },
+            )
+
+    input_messages_str = ctx["conversation"]["conversation_info"]["input_messages_str"]
+    assert "2026年04月29日02时13分" in input_messages_str
+    assert "2026年04月29日01时13分" not in input_messages_str
+
+
+@patch("agent.runner.context.UserDAO")
+@patch("agent.runner.context.MongoDBBase")
 def test_context_prepare_surfaces_canonical_timezone_state(mock_mongo, mock_dao):
     """Canonical timezone state is copied into session_state user context."""
     from agent.runner.context import context_prepare

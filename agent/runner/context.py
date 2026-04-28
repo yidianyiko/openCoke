@@ -273,7 +273,10 @@ def context_prepare(user, character, conversation):
         # 将群聊消息转换为上下文格式
         if recent_group_messages:
             # 复用 messages_to_str 进行格式化（与私聊格式一致）
-            context["group_chat_context"] = messages_to_str(recent_group_messages)
+            context["group_chat_context"] = messages_to_str(
+                recent_group_messages,
+                tz=user_tz,
+            )
             logger.info(f"[群聊上下文] 加载了 {len(recent_group_messages)} 条群聊消息")
         else:
             context["group_chat_context"] = ""
@@ -283,10 +286,14 @@ def context_prepare(user, character, conversation):
     # V2.7 优化：只取最近 15 条历史对话，减少 token 消耗
     recent_chat_history = chat_history[-15:] if len(chat_history) > 15 else chat_history
     context["conversation"]["conversation_info"]["chat_history_str"] = messages_to_str(
-        recent_chat_history
+        recent_chat_history,
+        tz=user_tz,
     )
     context["conversation"]["conversation_info"]["input_messages_str"] = (
-        messages_to_str(context["conversation"]["conversation_info"]["input_messages"])
+        messages_to_str(
+            context["conversation"]["conversation_info"]["input_messages"],
+            tz=user_tz,
+        )
     )
 
     date_str = date2str(int(time.time()), tz=user_tz)

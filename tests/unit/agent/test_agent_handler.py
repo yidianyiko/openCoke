@@ -5,6 +5,10 @@ import types
 import pytest
 
 
+class _StubUserDAO:
+    pass
+
+
 def _install_agent_handler_agno_stubs(monkeypatch):
     agno = types.ModuleType("agno")
     agno.__path__ = []
@@ -120,7 +124,7 @@ async def test_handle_message_marks_stream_provider_error_for_rollback(
     monkeypatch.setitem(
         sys.modules,
         "dao.user_dao",
-        types.SimpleNamespace(UserDAO=lambda *args, **kwargs: object()),
+        types.SimpleNamespace(UserDAO=_StubUserDAO),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -206,7 +210,7 @@ async def test_handle_message_skips_post_analyze_for_deferred_actions(
     monkeypatch.setitem(
         sys.modules,
         "dao.user_dao",
-        types.SimpleNamespace(UserDAO=lambda *args, **kwargs: object()),
+        types.SimpleNamespace(UserDAO=_StubUserDAO),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -283,7 +287,7 @@ async def test_handle_message_skips_post_analyze_for_deferred_actions(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_emits_sync_business_text_before_stream_done(
+async def test_handle_message_finishes_sync_business_text_after_first_reply(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
@@ -310,7 +314,7 @@ async def test_handle_message_emits_sync_business_text_before_stream_done(
     monkeypatch.setitem(
         sys.modules,
         "dao.user_dao",
-        types.SimpleNamespace(UserDAO=lambda *args, **kwargs: object()),
+        types.SimpleNamespace(UserDAO=_StubUserDAO),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -360,27 +364,20 @@ async def test_handle_message_emits_sync_business_text_before_stream_done(
         return {"session_state": session_state}
 
     sent = []
-    merged_output = {"message": ""}
+    second_chunk_requested = False
 
     async def fake_run_stream(input_message, session_state):
+        nonlocal second_chunk_requested
         yield {"type": "message", "data": {"type": "text", "content": "第一段"}}
         assert sent == [{"type": "text", "content": "第一段"}]
+        second_chunk_requested = True
         yield {"type": "message", "data": {"type": "text", "content": "第二段"}}
-        assert sent == [
-            {"type": "text", "content": "第一段"},
-            {"type": "text", "content": "第二段"},
-        ]
         yield {"type": "done", "data": {"total_messages": 2}}
 
     def fake_send_single_message(**kwargs):
         content = kwargs["multimodal_response"]["content"]
         sent.append(kwargs["multimodal_response"])
-        merged_output["message"] = (
-            f"{merged_output['message']}\n{content}".strip()
-            if merged_output["message"]
-            else content
-        )
-        return merged_output, kwargs["expect_output_timestamp"]
+        return {"message": content}, kwargs["expect_output_timestamp"]
 
     monkeypatch.setattr(agent_handler.prepare_workflow, "run", fake_prepare_run)
     monkeypatch.setattr(
@@ -401,10 +398,8 @@ async def test_handle_message_emits_sync_business_text_before_stream_done(
         current_message_ids=[],
     )
 
-    assert resp_messages == [{"message": "第一段\n第二段"}]
-    assert sent == [
-        {"type": "text", "content": "第一段"},
-        {"type": "text", "content": "第二段"},
-    ]
+    assert resp_messages == [{"message": "第一段"}]
+    assert sent == [{"type": "text", "content": "第一段"}]
+    assert second_chunk_requested is False
     assert is_rollback is False
     assert is_content_blocked is False
