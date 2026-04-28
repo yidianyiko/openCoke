@@ -8,7 +8,7 @@ from dateutil.rrule import rrulestr
 from agent.reminder.errors import InvalidSchedule, RRULENotSupported
 from agent.reminder.models import ReminderSchedule
 
-_SUPPORTED_FREQS = {"DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
+_SUPPORTED_FREQS = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
 _SUPPORTED_KEYS = {"FREQ", "COUNT", "UNTIL", "INTERVAL", "BYDAY"}
 _SUPPORTED_BYDAY = {"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
 _REJECTED_KEYS = {

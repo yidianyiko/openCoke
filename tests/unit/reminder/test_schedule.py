@@ -67,12 +67,25 @@ def test_supported_and_rejected_rrule_subset():
         validate_rrule_subset("FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2")
         == "FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2"
     )
-
-    with pytest.raises(RRULENotSupported):
-        validate_rrule_subset("FREQ=HOURLY")
+    assert validate_rrule_subset("FREQ=HOURLY") == "FREQ=HOURLY"
 
     with pytest.raises(RRULENotSupported):
         validate_rrule_subset("FREQ=DAILY;BYHOUR=9")
+
+
+def test_hourly_schedule_uses_first_future_occurrence():
+    schedule = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 4, 29),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule="FREQ=HOURLY",
+    )
+
+    assert compute_initial_next_fire_at(
+        schedule,
+        now=datetime(2026, 4, 29, 2, 30, tzinfo=UTC),
+    ) == datetime(2026, 4, 29, 3, 0, tzinfo=UTC)
 
 
 def test_rejects_naive_datetimes():
