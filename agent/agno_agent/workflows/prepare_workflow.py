@@ -794,18 +794,22 @@ class PrepareWorkflow:
         input_message: str,
         session_state: Dict[str, Any],
     ) -> bool:
-        parsed = self._parse_simple_reminder_create(input_message, session_state)
-        if not parsed:
+        operations = self._parse_simple_reminder_creates(input_message, session_state)
+        if not operations:
             return False
         try:
             entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
             entrypoint = getattr(entrypoint, "raw_function", entrypoint)
-            result = entrypoint(
-                action="create",
-                title=parsed["title"],
-                trigger_at=parsed["trigger_at"],
-                rrule=parsed["rrule"],
-            )
+            if len(operations) == 1:
+                operation = operations[0]
+                result = entrypoint(
+                    action="create",
+                    title=operation["title"],
+                    trigger_at=operation["trigger_at"],
+                    rrule=operation["rrule"],
+                )
+            else:
+                result = entrypoint(action="batch", operations=operations)
             logger.info(
                 "[PrepareWorkflow] ReminderDetectAgent 超时后简单提醒 fallback 成功: %s",
                 result,
@@ -817,25 +821,18 @@ class PrepareWorkflow:
             )
             return False
 
-    def _parse_simple_reminder_create(
+    def _parse_simple_reminder_creates(
         self,
         input_message: str,
         session_state: Dict[str, Any],
-    ) -> dict[str, str | None] | None:
-        text = str(input_message or "").strip()
+    ) -> list[dict[str, str | None]]:
+        text = str(input_message or "").replace("：", ":").strip()
         if not self._looks_like_explicit_reminder_intent(text):
-            return None
+            return []
 
-        time_match = _SIMPLE_TIME_REMINDER_PATTERN.search(text)
-        if not time_match:
-            return None
-
-        title_match = _REMINDER_TITLE_AFTER_MARKER_PATTERN.search(text)
-        if not title_match:
-            return None
-        title = self._clean_simple_reminder_title(title_match.group("title"))
-        if not title:
-            return None
+        time_matches = list(_SIMPLE_TIME_REMINDER_PATTERN.finditer(text))
+        if not time_matches:
+            return []
 
         timezone_name = self._get_user_timezone_name(session_state)
         try:
@@ -845,20 +842,61 @@ class PrepareWorkflow:
                 "[PrepareWorkflow] 简单提醒 fallback 遇到无效时区: %s",
                 timezone_name,
             )
-            return None
+            return []
 
         now = datetime.now(tzinfo)
-        hour = int(time_match.group("hour"))
-        minute = int(time_match.group("minute"))
-        trigger_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if trigger_at <= now:
-            trigger_at += timedelta(days=1)
+        operations: list[dict[str, str | None]] = []
+        for index, time_match in enumerate(time_matches):
+            segment_start = self._previous_clause_boundary(text, time_match.start())
+            segment_end = (
+                time_matches[index + 1].start()
+                if index + 1 < len(time_matches)
+                else len(text)
+            )
+            title = self._extract_simple_reminder_title_after_time(
+                text[time_match.end() : segment_end]
+            )
+            if not title:
+                continue
 
-        return {
-            "title": title,
-            "trigger_at": trigger_at.isoformat(),
-            "rrule": "FREQ=DAILY" if "每天" in text else None,
-        }
+            hour = int(time_match.group("hour"))
+            minute = int(time_match.group("minute"))
+            trigger_at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if trigger_at <= now:
+                trigger_at += timedelta(days=1)
+
+            recurrence_segment = text[segment_start : time_match.start()]
+            operations.append(
+                {
+                    "action": "create",
+                    "title": title,
+                    "trigger_at": trigger_at.isoformat(),
+                    "rrule": (
+                        "FREQ=DAILY"
+                        if self._segment_has_simple_recurrence(recurrence_segment)
+                        else None
+                    ),
+                }
+            )
+        return operations
+
+    def _previous_clause_boundary(self, text: str, position: int) -> int:
+        boundary = 0
+        for separator in "，,。；;！？!?\n":
+            index = text.rfind(separator, 0, position)
+            if index >= boundary:
+                boundary = index + 1
+        return boundary
+
+    def _segment_has_simple_recurrence(self, segment: str) -> bool:
+        return bool(re.search(r"每天|每日|每个小时|每小时|每周|每月", segment))
+
+    def _extract_simple_reminder_title_after_time(self, suffix: str) -> str:
+        title = str(suffix or "").strip()
+        title = re.sub(r"^(提醒我|提醒一下我|提醒|叫我|喊我|通知我|让我|帮我|记得)+", "", title)
+        title = re.split(r"[，,。；;！？!?\n]", title, maxsplit=1)[0]
+        title = re.sub(r"^(一个是|一是|二是|三是|还有|再|去|要)+", "", title).strip()
+        return self._clean_simple_reminder_title(title)
 
     def _clean_simple_reminder_title(self, raw_title: str) -> str:
         title = str(raw_title or "").strip()
