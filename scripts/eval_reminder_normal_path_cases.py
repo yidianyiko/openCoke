@@ -684,6 +684,11 @@ def segment_has_recurring_signal(segment: str) -> bool:
 
 def extract_expected_title(suffix: str) -> str:
     candidate = suffix.strip()
+    candidate = re.sub(
+        r"^(?:你可以|可以|可不可以|能不能|能否|能|麻烦你|麻烦|请你|请|帮我|帮忙)+",
+        "",
+        candidate,
+    ).strip()
     candidate = re.sub(r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate)
     candidate = re.split(r"[，,。；;！？!?\n]", candidate, maxsplit=1)[0]
     candidate = re.sub(r"^(?:一个是|一是|二是|三是|还有|再|去|要)+", "", candidate).strip()

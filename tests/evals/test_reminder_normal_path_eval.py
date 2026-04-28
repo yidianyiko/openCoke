@@ -497,6 +497,18 @@ def test_expected_created_reminders_infers_multi_create_titles_and_recurrence():
     ]
 
 
+def test_expected_created_reminders_strips_modal_reminder_prefix():
+    expected = normal_eval.expected_created_reminders("明天早上6:30可以提醒我起床吗")
+
+    assert expected == [
+        normal_eval.ExpectedReminderCreate(
+            title="起床",
+            local_time="06:30:00",
+            recurring=False,
+        )
+    ]
+
+
 def test_validate_observations_rejects_case3_false_positive_shape():
     case = normal_eval.ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
