@@ -4,6 +4,7 @@ import threading
 from urllib.parse import urlsplit, urlunsplit
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import BadRequest
 
 from conf.config import CONF
 from connector.clawscale_bridge.gateway_delivery_route_client import (
@@ -12,6 +13,11 @@ from connector.clawscale_bridge.gateway_delivery_route_client import (
 from connector.clawscale_bridge.google_calendar_import_service import (
     GoogleCalendarImportService,
 )
+from connector.clawscale_bridge.inbound_attachments import (
+    MAX_ATTACHMENT_JSON_BYTES,
+    format_input_with_attachments,
+    normalize_inbound_attachments,
+)
 from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 from connector.clawscale_bridge.reply_waiter import ReplyWaiter
 from connector.clawscale_bridge.output_dispatcher import ClawScaleOutputDispatcher
@@ -19,6 +25,7 @@ from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 
 logger = logging.getLogger(__name__)
+MAX_BRIDGE_INBOUND_REQUEST_BYTES = MAX_ATTACHMENT_JSON_BYTES
 
 
 def _is_unresolved_bridge_setting(value) -> bool:
@@ -274,10 +281,54 @@ class BusinessOnlyBridgeGateway:
             for field in required_fields
         )
 
+    def _latest_user_message(self, messages: list) -> dict:
+        for message in reversed(messages):
+            if isinstance(message, dict) and message.get("role") == "user":
+                return message
+        return {}
+
+    def _choose_attachments(
+        self,
+        *,
+        inbound_payload: dict,
+        latest_user_message: dict,
+        last_message: dict,
+    ):
+        candidates = [inbound_payload.get("attachments")]
+        if latest_user_message:
+            candidates.append(latest_user_message.get("attachments"))
+        if last_message.get("role") == "user" and last_message is not latest_user_message:
+            candidates.append(last_message.get("attachments"))
+
+        for raw_attachments in candidates:
+            result = normalize_inbound_attachments(raw_attachments)
+            if result.rejected:
+                return result
+            if result.attachments:
+                return result
+        return normalize_inbound_attachments(None)
+
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
-        metadata = inbound_payload.get("metadata") or {}
-        messages = inbound_payload.get("messages") or []
-        last_message = messages[-1] if messages else {}
+        metadata = inbound_payload.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+        messages = inbound_payload.get("messages")
+        if not isinstance(messages, list):
+            messages = []
+        last_message = messages[-1] if messages and isinstance(messages[-1], dict) else {}
+        latest_user_message = self._latest_user_message(messages)
+        inbound_text = (
+            inbound_payload.get("input")
+            or latest_user_message.get("content")
+            or last_message.get("content")
+            or ""
+        )
+        attachment_result = self._choose_attachments(
+            inbound_payload=inbound_payload,
+            latest_user_message=latest_user_message,
+            last_message=last_message,
+        )
+        attachments = attachment_result.attachments
 
         normalized = {
             "tenant_id": inbound_payload.get("tenant_id") or metadata.get("tenantId"),
@@ -295,9 +346,11 @@ class BusinessOnlyBridgeGateway:
             or metadata.get("inboundEventId"),
             "sync_reply_token": inbound_payload.get("sync_reply_token")
             or metadata.get("syncReplyToken"),
-            "input": inbound_payload.get("input")
-            or last_message.get("content")
-            or "",
+            "input": format_input_with_attachments(inbound_text, attachments),
+            "inbound_text": inbound_text,
+            "attachments": attachments,
+            "attachments_rejected": attachment_result.rejected,
+            "attachments_rejected_reason": attachment_result.reason,
             "channel_scope": inbound_payload.get("channel_scope")
             or metadata.get("channelScope"),
             "clawscale_user_id": inbound_payload.get("clawscale_user_id")
@@ -395,6 +448,10 @@ class BusinessOnlyBridgeGateway:
         for key in ("coke_account_display_name",):
             if key in inbound:
                 enqueue_payload[key] = inbound[key]
+        if inbound.get("attachments"):
+            enqueue_payload["input"] = inbound["input"]
+            enqueue_payload["inbound_text"] = inbound.get("inbound_text", "")
+            enqueue_payload["attachments"] = inbound["attachments"]
 
         causal_inbound_event_id = self.message_gateway.enqueue(
             account_id=account_id,
@@ -458,6 +515,17 @@ class BusinessOnlyBridgeGateway:
             return {
                 "status": "error",
                 "error": "missing_coke_account_id",
+            }
+        if inbound.get("attachments_rejected"):
+            return {
+                "status": "error",
+                "error": inbound.get("attachments_rejected_reason")
+                or "attachment_payload_too_large",
+            }
+        if not inbound.get("input", "").strip() and not inbound.get("attachments"):
+            return {
+                "status": "ignored",
+                "reason": "empty_inbound",
             }
         if inbound.get("account_access_allowed") is False:
             return {
@@ -569,13 +637,19 @@ def _resolve_cors_origin(allowed_origin: str, request_origin: str | None) -> str
     if not request_origin or request_origin == allowed_origin:
         return allowed_origin
 
-    allowed = urlsplit(allowed_origin)
-    requested = urlsplit(request_origin)
+    try:
+        allowed = urlsplit(allowed_origin)
+        requested = urlsplit(request_origin)
+        allowed_port = allowed.port
+        requested_port = requested.port
+    except ValueError:
+        return allowed_origin
+
     loopback_hosts = {"localhost", "127.0.0.1"}
 
     if (
         allowed.scheme == requested.scheme
-        and allowed.port == requested.port
+        and allowed_port == requested_port
         and allowed.hostname in loopback_hosts
         and requested.hostname in loopback_hosts
     ):
@@ -626,12 +700,34 @@ def create_app(testing: bool = False):
             body, status = error
             return jsonify(body), status
 
-        payload = request.get_json(force=True)
+        if (
+            request.content_length is not None
+            and request.content_length > MAX_BRIDGE_INBOUND_REQUEST_BYTES
+        ):
+            return jsonify(
+                {"ok": False, "error": "attachment_payload_too_large"}
+            ), 413
+
+        try:
+            payload = request.get_json(force=True)
+        except BadRequest:
+            return jsonify({"ok": False, "error": "invalid_json"}), 400
+        if not isinstance(payload, dict):
+            return jsonify({"ok": False, "error": "invalid_request"}), 400
+
         gateway = app.config.get("BRIDGE_GATEWAY")
         if gateway is None:
             return jsonify({"ok": False, "error": "bridge service not wired"}), 500
 
         result = gateway.handle_inbound(payload)
+        if result.get("status") == "ignored":
+            return jsonify(
+                {
+                    "ok": True,
+                    "ignored": True,
+                    "reason": result.get("reason", "empty_inbound"),
+                }
+            )
         if result.get("status") != "ok":
             return jsonify({"ok": False, "error": result.get("error", "invalid_request")}), 400
 
