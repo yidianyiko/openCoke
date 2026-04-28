@@ -68,6 +68,10 @@ def test_supported_and_rejected_rrule_subset():
         == "FREQ=WEEKLY;BYDAY=MO,WE;INTERVAL=2"
     )
     assert validate_rrule_subset("FREQ=HOURLY") == "FREQ=HOURLY"
+    assert (
+        validate_rrule_subset("FREQ=HOURLY;BYMINUTE=9")
+        == "FREQ=HOURLY;BYMINUTE=9"
+    )
 
     with pytest.raises(RRULENotSupported):
         validate_rrule_subset("FREQ=DAILY;BYHOUR=9")
@@ -86,6 +90,21 @@ def test_hourly_schedule_uses_first_future_occurrence():
         schedule,
         now=datetime(2026, 4, 29, 2, 30, tzinfo=UTC),
     ) == datetime(2026, 4, 29, 3, 0, tzinfo=UTC)
+
+
+def test_hourly_schedule_with_byminute_uses_first_future_minute():
+    schedule = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 29, 1, 9, tzinfo=UTC),
+        local_date=date(2026, 4, 29),
+        local_time=time(10, 9),
+        timezone="Asia/Tokyo",
+        rrule="FREQ=HOURLY;BYMINUTE=9",
+    )
+
+    assert compute_initial_next_fire_at(
+        schedule,
+        now=datetime(2026, 4, 29, 2, 30, tzinfo=UTC),
+    ) == datetime(2026, 4, 29, 3, 9, tzinfo=UTC)
 
 
 def test_rejects_naive_datetimes():
@@ -182,6 +201,12 @@ def test_rejects_non_weekly_or_invalid_byday():
 
     with pytest.raises(RRULENotSupported):
         validate_rrule_subset("FREQ=WEEKLY;BYDAY=MONDAY")
+
+
+@pytest.mark.parametrize("rrule", ["FREQ=DAILY;BYMINUTE=9", "FREQ=HOURLY;BYMINUTE=60"])
+def test_rejects_invalid_byminute_usage(rrule):
+    with pytest.raises(RRULENotSupported):
+        validate_rrule_subset(rrule)
 
 
 def test_recurring_schedule_preserves_floating_local_time_across_dst():
