@@ -41,6 +41,25 @@ class FakeLockManager:
         return True, "released"
 
 
+def build_handler(output_writer):
+    conversation = {
+        "_id": "conv-1",
+        "platform": "business",
+        "chatroom_name": None,
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    context = {"conversation": conversation, "user": owner, "character": character}
+    return ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(return_value=context),
+    )
+
+
 @pytest.mark.asyncio
 async def test_handler_resolves_target_acquires_lock_writes_output_and_returns_fire_id():
     event = build_event()
@@ -76,6 +95,33 @@ async def test_handler_resolves_target_acquires_lock_writes_output_and_returns_f
     assert output_writer.call_args.kwargs["metadata"]["reminder_id"] == "rem-1"
     assert result.ok is True
     assert result.fire_id == "rem-1:2026-04-29T01:00:00+00:00"
+    assert result.output_reference == "out-1"
+
+
+@pytest.mark.asyncio
+async def test_output_writer_returning_none_returns_failed_result():
+    handler = build_handler(Mock(return_value=None))
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "OutputUnavailable"
+    assert result.output_reference is None
+
+
+@pytest.mark.asyncio
+async def test_output_writer_failed_status_returns_failed_result():
+    handler = build_handler(
+        Mock(
+            return_value={"_id": "out-1", "status": "failed", "last_error": "no route"}
+        )
+    )
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "OutputFailed"
+    assert result.error_message == "no route"
     assert result.output_reference == "out-1"
 
 

@@ -12,6 +12,7 @@ from agent.reminder.models import (
     AgentOutputTarget,
     Reminder,
     ReminderFiredEvent,
+    ReminderFireResult,
     ReminderSchedule,
 )
 from agent.reminder.schedule import compute_next_fire_after_success
@@ -120,21 +121,23 @@ class ReminderScheduler:
             agent_output_target=reminder.agent_output_target,
         )
 
-        handle = getattr(self.fire_event_handler, "handle", None)
-        if callable(handle) and "handle" in dir(type(self.fire_event_handler)):
-            result = handle(event)
-        else:
-            result = self.fire_event_handler(event)
-        if inspect.isawaitable(result):
-            result = await result
+        try:
+            result = await self._fire_event(event)
+        except Exception as exc:
+            result = ReminderFireResult(
+                ok=False,
+                fire_id=fire_id,
+                output_reference=None,
+                error_code="HandlerFailed",
+                error_message=str(exc),
+            )
 
         finished_at = _normalize_utc(self.now_provider(), "now")
         if not result.ok:
             updates = {
                 "lifecycle_state": "failed",
                 "next_fire_at": None,
-                "last_fired_at": finished_at,
-                "last_event_ack_at": None,
+                "last_fired_at": expected_next_fire_at,
                 "last_error": result.error_message
                 or result.error_code
                 or "reminder fire failed",
@@ -160,7 +163,7 @@ class ReminderScheduler:
         updates = {
             "lifecycle_state": lifecycle_state,
             "next_fire_at": next_fire_after_success,
-            "last_fired_at": finished_at,
+            "last_fired_at": expected_next_fire_at,
             "last_event_ack_at": finished_at,
             "last_error": None,
             "updated_at": finished_at,
@@ -182,6 +185,18 @@ class ReminderScheduler:
 
     def _job_id(self, reminder_id: Any) -> str:
         return f"reminder:{reminder_id}"
+
+    async def _fire_event(self, event: ReminderFiredEvent) -> ReminderFireResult:
+        handle = getattr(self.fire_event_handler, "handle", None)
+        if callable(handle) and "handle" in dir(type(self.fire_event_handler)):
+            result = handle(event)
+        else:
+            result = self.fire_event_handler(event)
+        if inspect.isawaitable(result):
+            result = await result
+        if not isinstance(result, ReminderFireResult):
+            raise RuntimeError("invalid reminder fire result")
+        return result
 
     def _reminder_id(self, reminder: Reminder | dict[str, Any]) -> str | None:
         if isinstance(reminder, Reminder):

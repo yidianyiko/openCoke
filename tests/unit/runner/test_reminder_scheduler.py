@@ -172,7 +172,7 @@ async def test_successful_one_shot_completes_reminder_and_clears_next_fire_at():
     _, _, updates = dao.atomic_apply_fire_success.call_args.args
     assert updates["lifecycle_state"] == "completed"
     assert updates["next_fire_at"] is None
-    assert updates["last_fired_at"] == finished_at
+    assert updates["last_fired_at"] == scheduled_for
     assert updates["last_event_ack_at"] == finished_at
     assert updates["last_error"] is None
     scheduler.remove_reminder.assert_called_once_with("rem-1")
@@ -230,6 +230,91 @@ async def test_failed_fire_result_marks_reminder_failed_and_clears_next_fire_at(
     _, _, updates = dao.atomic_apply_fire_failure.call_args.args
     assert updates["lifecycle_state"] == "failed"
     assert updates["next_fire_at"] is None
+    assert updates["last_fired_at"] == scheduled_for
+    assert "last_event_ack_at" not in updates
     assert updates["failed_at"] == finished_at
     assert updates["last_error"] == "output failed"
+    scheduler.remove_reminder.assert_called_once_with("rem-1")
+
+
+@pytest.mark.asyncio
+async def test_handler_exception_marks_reminder_failed_and_removes_job():
+    scheduled_for = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 4, 29, 1, 0, 3, tzinfo=UTC)
+    dao = Mock(
+        get_reminder=Mock(return_value=reminder_document(build_reminder())),
+        atomic_apply_fire_failure=Mock(return_value=True),
+    )
+
+    async def failing_handler(event):
+        raise RuntimeError("writer exploded")
+
+    scheduler = ReminderScheduler(
+        reminder_dao=dao,
+        fire_event_handler=failing_handler,
+        scheduler=Mock(),
+        now_provider=lambda: finished_at,
+    )
+    scheduler.remove_reminder = Mock()
+
+    await scheduler._execute_job("rem-1", scheduled_for)
+
+    _, _, updates = dao.atomic_apply_fire_failure.call_args.args
+    assert updates["last_fired_at"] == scheduled_for
+    assert "last_event_ack_at" not in updates
+    assert updates["last_error"] == "writer exploded"
+    scheduler.remove_reminder.assert_called_once_with("rem-1")
+
+
+@pytest.mark.asyncio
+async def test_invalid_handler_result_marks_reminder_failed_and_removes_job():
+    scheduled_for = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 4, 29, 1, 0, 3, tzinfo=UTC)
+    dao = Mock(
+        get_reminder=Mock(return_value=reminder_document(build_reminder())),
+        atomic_apply_fire_failure=Mock(return_value=True),
+    )
+    scheduler = ReminderScheduler(
+        reminder_dao=dao,
+        fire_event_handler=AsyncMock(return_value=None),
+        scheduler=Mock(),
+        now_provider=lambda: finished_at,
+    )
+    scheduler.remove_reminder = Mock()
+
+    await scheduler._execute_job("rem-1", scheduled_for)
+
+    _, _, updates = dao.atomic_apply_fire_failure.call_args.args
+    assert updates["last_fired_at"] == scheduled_for
+    assert "last_event_ack_at" not in updates
+    assert updates["last_error"] == "invalid reminder fire result"
+    scheduler.remove_reminder.assert_called_once_with("rem-1")
+
+
+@pytest.mark.asyncio
+async def test_successful_recurring_event_completes_when_count_exhausted():
+    scheduled_for = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 4, 29, 1, 0, 3, tzinfo=UTC)
+    reminder = build_reminder(
+        schedule=build_schedule(rrule="FREQ=DAILY;COUNT=1"),
+        next_fire_at=scheduled_for,
+    )
+    dao = Mock(
+        get_reminder=Mock(return_value=reminder_document(reminder)),
+        atomic_apply_fire_success=Mock(return_value=True),
+    )
+    scheduler = ReminderScheduler(
+        reminder_dao=dao,
+        fire_event_handler=AsyncMock(return_value=fire_result()),
+        scheduler=Mock(),
+        now_provider=lambda: finished_at,
+    )
+    scheduler.remove_reminder = Mock()
+
+    await scheduler._execute_job("rem-1", scheduled_for)
+
+    _, _, updates = dao.atomic_apply_fire_success.call_args.args
+    assert updates["lifecycle_state"] == "completed"
+    assert updates["next_fire_at"] is None
+    assert updates["last_fired_at"] == scheduled_for
     scheduler.remove_reminder.assert_called_once_with("rem-1")

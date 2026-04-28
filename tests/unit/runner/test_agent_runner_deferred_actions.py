@@ -3,8 +3,10 @@ import sys
 import types
 from unittest.mock import AsyncMock, Mock
 
+import pytest
 
-def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
+
+def import_agent_runner_with_stubs(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "agent.runner.agent_background_handler",
@@ -40,7 +42,11 @@ def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
     )
 
     sys.modules.pop("agent.runner.agent_runner", None)
-    agent_runner = importlib.import_module("agent.runner.agent_runner")
+    return importlib.import_module("agent.runner.agent_runner")
+
+
+def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
 
     action_dao = Mock()
     occurrence_dao = Mock()
@@ -91,42 +97,7 @@ def test_bootstrap_deferred_action_runtime_starts_single_scheduler(monkeypatch):
 
 
 def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
-    monkeypatch.setitem(
-        sys.modules,
-        "agent.runner.agent_background_handler",
-        types.SimpleNamespace(background_handler=AsyncMock()),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "agent.runner.agent_handler",
-        types.SimpleNamespace(
-            create_handler=lambda *args, **kwargs: AsyncMock(),
-            handle_message=AsyncMock(),
-        ),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "agent.runner.message_processor",
-        types.SimpleNamespace(
-            consume_stream_batch=lambda *args, **kwargs: None,
-            get_queue_mode=lambda: "poll",
-        ),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "dao.mongo",
-        types.SimpleNamespace(MongoDBBase=lambda *args, **kwargs: object()),
-    )
-    monkeypatch.setitem(
-        sys.modules,
-        "util.redis_client",
-        types.SimpleNamespace(
-            RedisClient=types.SimpleNamespace(from_config=lambda: None)
-        ),
-    )
-
-    sys.modules.pop("agent.runner.agent_runner", None)
-    agent_runner = importlib.import_module("agent.runner.agent_runner")
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
 
     reminder_dao = Mock()
     handler = Mock()
@@ -152,3 +123,85 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     set_instance.assert_called_once_with(scheduler)
     assert created["scheduler_kwargs"]["reminder_dao"] is reminder_dao
     assert created["scheduler_kwargs"]["fire_event_handler"] is handler
+
+
+@pytest.mark.asyncio
+async def test_main_cleans_up_deferred_scheduler_when_reminder_startup_fails(
+    monkeypatch,
+):
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
+
+    deferred_scheduler = Mock(shutdown=Mock())
+    set_deferred_instance = Mock()
+    set_reminder_instance = Mock()
+
+    monkeypatch.setattr(
+        agent_runner,
+        "bootstrap_deferred_action_runtime",
+        Mock(return_value=deferred_scheduler),
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "bootstrap_reminder_runtime",
+        Mock(side_effect=RuntimeError("reminder start failed")),
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "set_deferred_action_scheduler_instance",
+        set_deferred_instance,
+    )
+    monkeypatch.setattr(
+        agent_runner, "set_reminder_scheduler_instance", set_reminder_instance
+    )
+
+    with pytest.raises(RuntimeError, match="reminder start failed"):
+        await agent_runner.main()
+
+    deferred_scheduler.shutdown.assert_called_once()
+    set_deferred_instance.assert_called_once_with(None)
+    set_reminder_instance.assert_called_once_with(None)
+
+
+@pytest.mark.asyncio
+async def test_main_shutdowns_schedulers_independently_when_one_shutdown_raises(
+    monkeypatch,
+):
+    agent_runner = import_agent_runner_with_stubs(monkeypatch)
+
+    deferred_scheduler = Mock(shutdown=Mock(side_effect=RuntimeError("deferred boom")))
+    reminder_scheduler = Mock(shutdown=Mock())
+    set_deferred_instance = Mock()
+    set_reminder_instance = Mock()
+
+    async def failing_gather(*workers):
+        for worker in workers:
+            worker.close()
+        raise RuntimeError("worker stopped")
+
+    monkeypatch.setattr(
+        agent_runner,
+        "bootstrap_deferred_action_runtime",
+        Mock(return_value=deferred_scheduler),
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "bootstrap_reminder_runtime",
+        Mock(return_value=reminder_scheduler),
+    )
+    monkeypatch.setattr(agent_runner.asyncio, "gather", failing_gather)
+    monkeypatch.setattr(
+        agent_runner,
+        "set_deferred_action_scheduler_instance",
+        set_deferred_instance,
+    )
+    monkeypatch.setattr(
+        agent_runner, "set_reminder_scheduler_instance", set_reminder_instance
+    )
+
+    with pytest.raises(RuntimeError, match="worker stopped"):
+        await agent_runner.main()
+
+    deferred_scheduler.shutdown.assert_called_once()
+    reminder_scheduler.shutdown.assert_called_once()
+    set_deferred_instance.assert_called_once_with(None)
+    set_reminder_instance.assert_called_once_with(None)

@@ -81,6 +81,9 @@ class ReminderFireEventHandler:
             )
             if inspect.isawaitable(output):
                 output = await output
+            failed_result = self._failed_output_result(event, output)
+            if failed_result is not None:
+                return failed_result
             return ReminderFireResult(
                 ok=True,
                 fire_id=event.fire_id,
@@ -148,6 +151,33 @@ class ReminderFireEventHandler:
             return str(value) if value is not None else None
         value = getattr(output, "id", None)
         return str(value) if value is not None else None
+
+    def _failed_output_result(
+        self,
+        event: ReminderFiredEvent,
+        output: Any,
+    ) -> ReminderFireResult | None:
+        if output is None:
+            return self._failure(
+                event,
+                "OutputUnavailable",
+                "output writer did not return an output message",
+            )
+        if not isinstance(output, dict) or output.get("status") != "failed":
+            return None
+        error_message = (
+            output.get("last_error")
+            or output.get("failure_reason")
+            or (output.get("metadata") or {}).get("failure_reason")
+            or "output writer returned failed status"
+        )
+        return ReminderFireResult(
+            ok=False,
+            fire_id=event.fire_id,
+            output_reference=self._output_reference(output),
+            error_code="OutputFailed",
+            error_message=error_message,
+        )
 
     def _failure(
         self,

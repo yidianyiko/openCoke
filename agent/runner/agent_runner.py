@@ -125,19 +125,37 @@ async def run_background_agent():
 
 
 async def main():
-    deferred_action_scheduler = bootstrap_deferred_action_runtime()
-    reminder_scheduler = bootstrap_reminder_runtime()
-    workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
-    workers.append(run_background_agent())
-
-    logger.info(f"启动 {NUM_WORKERS} 个消息处理 worker")
+    deferred_action_scheduler = None
+    reminder_scheduler = None
     try:
+        deferred_action_scheduler = bootstrap_deferred_action_runtime()
+        reminder_scheduler = bootstrap_reminder_runtime()
+        workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
+        workers.append(run_background_agent())
+
+        logger.info(f"启动 {NUM_WORKERS} 个消息处理 worker")
         await asyncio.gather(*workers)
     finally:
-        deferred_action_scheduler.shutdown()
-        set_deferred_action_scheduler_instance(None)
-        reminder_scheduler.shutdown()
-        set_reminder_scheduler_instance(None)
+        _shutdown_runtime(
+            "deferred action scheduler",
+            deferred_action_scheduler,
+            set_deferred_action_scheduler_instance,
+        )
+        _shutdown_runtime(
+            "reminder scheduler",
+            reminder_scheduler,
+            set_reminder_scheduler_instance,
+        )
+
+
+def _shutdown_runtime(name, scheduler, clear_instance):
+    try:
+        if scheduler is not None:
+            scheduler.shutdown()
+    except Exception as exc:
+        logger.error(f"failed to shutdown {name}: {exc}")
+    finally:
+        clear_instance(None)
 
 
 if __name__ == "__main__":
