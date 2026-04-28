@@ -748,19 +748,14 @@ def combined_output_text(outputs: list[dict[str, Any]]) -> str:
 
 def explicit_reminder_request(text: str) -> bool:
     normalized = str(text or "").lower()
-    return any(
+    if any(
         keyword in normalized
-        for keyword in (
-            "提醒",
-            "remind",
-            "叫我",
-            "喊我",
-            "每天",
-            "每个小时",
-            "每周",
-            "每月",
-        )
-    )
+        for keyword in ("提醒", "remind", "闹钟", "通知我", "每天", "每个小时", "每周", "每月")
+    ):
+        return True
+    if re.search(r"(叫我|喊我)", normalized):
+        return actionable_call_me_reminder_request(normalized)
+    return False
 
 
 _ACTIONABLE_IMPLICIT_TIME_PATTERN = re.compile(
@@ -778,6 +773,23 @@ def actionable_implicit_reminder_request(text: str) -> bool:
     return bool(
         _ACTIONABLE_IMPLICIT_TIME_PATTERN.search(normalized)
         or _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN.search(normalized)
+    )
+
+
+_ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
+    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
+    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
+)
+_ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
+    r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
+)
+
+
+def actionable_call_me_reminder_request(text: str) -> bool:
+    normalized = normalize_text(text)
+    return bool(
+        _ACTIONABLE_CALL_ME_TIME_PATTERN.search(normalized)
+        or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(normalized)
     )
 
 

@@ -381,6 +381,42 @@ def test_validate_observations_does_not_require_crud_for_unschedulable_label():
     assert "no_reminder_created" not in errors
 
 
+def test_validate_observations_does_not_require_crud_for_nickname_request():
+    case = normal_eval.ReminderNormalPathCase(
+        input="叫我小凡就行了",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "小凡好！"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" not in errors
+
+
+def test_validate_observations_still_requires_crud_for_call_me_with_time():
+    case = normal_eval.ReminderNormalPathCase(
+        input="七点叫我可以么",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "可以，七点叫你。"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" in errors
+
+
 def test_validate_observations_still_requires_crud_for_implicit_time_task():
     case = normal_eval.ReminderNormalPathCase(
         input="因为我就是6点钟醒了，我还得摸一下，大概6:15开始背书",
