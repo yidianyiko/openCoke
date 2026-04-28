@@ -363,6 +363,42 @@ def test_validate_observations_requires_reminder_for_expected_reminder_intent():
     assert "no_reminder_created" in errors
 
 
+def test_validate_observations_does_not_require_crud_for_unschedulable_label():
+    case = normal_eval.ReminderNormalPathCase(
+        input="我这周一和周五是全天兼职，这两天估计要插空学习",
+        expected_intent="reminder",
+        matched_keywords=["周一", "周五", "学习"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "你这两天可以先把学习任务拆小一点。"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" not in errors
+
+
+def test_validate_observations_still_requires_crud_for_implicit_time_task():
+    case = normal_eval.ReminderNormalPathCase(
+        input="因为我就是6点钟醒了，我还得摸一下，大概6:15开始背书",
+        expected_intent="reminder",
+        matched_keywords=["点钟", "开始", "背书"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "那你6:15开始背书。"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" in errors
+
+
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",

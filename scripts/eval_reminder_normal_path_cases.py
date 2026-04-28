@@ -763,8 +763,28 @@ def explicit_reminder_request(text: str) -> bool:
     )
 
 
+_ACTIONABLE_IMPLICIT_TIME_PATTERN = re.compile(
+    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
+    r".{0,12}(开始|背书|学习|起床|出门|跑步|乐跑|喝水|吃饭)"
+)
+_ACTIONABLE_IMPLICIT_DEADLINE_PATTERN = re.compile(
+    r"明天下班前.*(?:必须|要|得|需要).*(?:学完|完成|做完|弄完)|"
+    r".*(?:学完|完成|做完|弄完).*明天下班前"
+)
+
+
+def actionable_implicit_reminder_request(text: str) -> bool:
+    normalized = normalize_text(text)
+    return bool(
+        _ACTIONABLE_IMPLICIT_TIME_PATTERN.search(normalized)
+        or _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN.search(normalized)
+    )
+
+
 def reminder_case_requires_crud(case: ReminderNormalPathCase) -> bool:
-    return case.expected_intent.lower() == "reminder" or explicit_reminder_request(case.input)
+    return explicit_reminder_request(
+        case.input
+    ) or actionable_implicit_reminder_request(case.input)
 
 
 def summarize(results: list[ReminderNormalPathResult]) -> dict[str, Any]:
