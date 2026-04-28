@@ -519,6 +519,242 @@ def test_bridge_inbound_data_url_is_redacted_from_fallback_input(monkeypatch):
     assert inbound["attachments"][0]["safeDisplayUrl"] == (
         "[inline image/png attachment: photo.png]"
     )
+    enqueue_args = str(message_gateway.enqueue.call_args.kwargs)
+    assert "data:image" not in enqueue_args
+    assert "cG5n" not in enqueue_args
+
+
+def test_bridge_inbound_over_count_attachments_returns_error(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+    attachments = [
+        {
+            "url": f"https://cdn.example.com/photo-{index}.jpg",
+            "filename": f"photo-{index}.jpg",
+            "contentType": "image/jpeg",
+        }
+        for index in range(5)
+    ]
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "too many",
+                    "attachments": attachments,
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "attachment_limit_exceeded",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_oversized_data_url_returns_error(monkeypatch):
+    from connector.clawscale_bridge.inbound_attachments import MAX_DATA_URL_BYTES
+
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+    oversized_payload = "A" * (((MAX_DATA_URL_BYTES + 1 + 2) // 3) * 4)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "too large",
+                    "attachments": [
+                        {
+                            "url": f"data:image/png;base64,{oversized_payload}",
+                            "filename": "photo.png",
+                            "contentType": "image/png",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "attachment_payload_too_large",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_top_level_reject_does_not_fallback_to_message_attachments(
+    monkeypatch,
+):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "attachments": [
+                {
+                    "url": f"https://cdn.example.com/top-{index}.jpg",
+                    "filename": f"top-{index}.jpg",
+                    "contentType": "image/jpeg",
+                }
+                for index in range(5)
+            ],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "message valid",
+                    "attachments": [
+                        {
+                            "url": "https://cdn.example.com/message.jpg",
+                            "filename": "message.jpg",
+                            "contentType": "image/jpeg",
+                        }
+                    ],
+                }
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "ok": False,
+        "error": "attachment_limit_exceeded",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_bridge_inbound_rejects_oversized_request_before_json_parse(monkeypatch):
+    import connector.clawscale_bridge.app as bridge_app
+
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+    monkeypatch.setattr(bridge_app, "MAX_BRIDGE_INBOUND_REQUEST_BYTES", 10)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        data='{"messages":[]}',
+        content_type="application/json",
+    )
+
+    assert response.status_code == 413
+    assert response.get_json() == {
+        "ok": False,
+        "error": "attachment_payload_too_large",
+    }
+    message_gateway.enqueue.assert_not_called()
+
+
+def test_normalize_inbound_attachments_drops_malformed_http_port():
+    from connector.clawscale_bridge.inbound_attachments import (
+        normalize_inbound_attachments,
+    )
+
+    result = normalize_inbound_attachments(
+        [
+            {
+                "url": "https://cdn.example.com:bad/photo.jpg",
+                "filename": "photo.jpg",
+                "contentType": "image/jpeg",
+            }
+        ]
+    )
+
+    assert result.rejected is False
+    assert result.attachments == []
+
+
+def test_normalize_inbound_attachments_preserves_ipv6_safe_display_url():
+    from connector.clawscale_bridge.inbound_attachments import (
+        normalize_inbound_attachments,
+    )
+
+    result = normalize_inbound_attachments(
+        [
+            {
+                "url": "https://[2001:db8::1]:8443/photo.jpg?token=secret#frag",
+                "filename": "photo.jpg",
+                "contentType": "image/jpeg",
+            }
+        ]
+    )
+
+    assert result.attachments[0]["safeDisplayUrl"] == (
+        "https://[2001:db8::1]:8443/photo.jpg"
+    )
+
+
+def test_bridge_inbound_ignores_non_user_last_message_attachments(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {"role": "user", "content": "caption"},
+                {
+                    "role": "assistant",
+                    "content": "assistant text",
+                    "attachments": [
+                        {
+                            "url": "https://cdn.example.com/assistant.jpg",
+                            "filename": "assistant.jpg",
+                            "contentType": "image/jpeg",
+                        }
+                    ],
+                },
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert message_gateway.enqueue.call_args.kwargs["text"] == "caption"
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert "attachments" not in inbound
+
+
+def test_bridge_inbound_uses_last_user_message_attachments_as_fallback(monkeypatch):
+    app, message_gateway, _reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [
+                {"role": "assistant", "content": "previous"},
+                {
+                    "role": "user",
+                    "content": "fallback caption",
+                    "attachments": [
+                        {
+                            "url": "https://cdn.example.com/fallback.pdf",
+                            "filename": "fallback.pdf",
+                            "contentType": "application/pdf",
+                        }
+                    ],
+                },
+            ],
+            "metadata": _trusted_metadata(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert message_gateway.enqueue.call_args.kwargs["text"] == (
+        "fallback caption\n\nAttachment: https://cdn.example.com/fallback.pdf"
+    )
 
 
 def test_bridge_inbound_invalid_attachment_only_is_ignored_after_account_validation(

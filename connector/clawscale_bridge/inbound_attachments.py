@@ -1,5 +1,4 @@
 import base64
-import json
 import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
@@ -60,15 +59,79 @@ def _sanitize_display_filename(value: str) -> str:
     return sanitized[:MAX_DISPLAY_FILENAME_LENGTH]
 
 
-def _json_footprint_bytes(value) -> int:
-    try:
-        return len(
-            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(
-                "utf-8"
-            )
-        )
-    except (TypeError, ValueError, RecursionError):
+def _add_bounded(total: int, value: int) -> int:
+    next_total = total + value
+    if next_total > MAX_ATTACHMENT_JSON_BYTES:
         return MAX_ATTACHMENT_JSON_BYTES + 1
+    return next_total
+
+
+def _json_string_footprint_bytes(value: str) -> int:
+    total = 2
+    for char in value:
+        codepoint = ord(char)
+        if codepoint <= 0x1F:
+            total = _add_bounded(total, 6)
+        elif char in {'"', "\\"}:
+            total = _add_bounded(total, 2)
+        else:
+            total = _add_bounded(total, len(char.encode("utf-8")))
+        if total > MAX_ATTACHMENT_JSON_BYTES:
+            return total
+    return total
+
+
+def _bounded_json_footprint_bytes(value, seen: set[int] | None = None) -> int:
+    if seen is None:
+        seen = set()
+
+    if value is None:
+        return 4
+    if isinstance(value, str):
+        return _json_string_footprint_bytes(value)
+    if isinstance(value, bool):
+        return 4 if value else 5
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return len(str(value).encode("utf-8"))
+
+    if not isinstance(value, (list, dict)):
+        return MAX_ATTACHMENT_JSON_BYTES + 1
+
+    object_id = id(value)
+    if object_id in seen:
+        return MAX_ATTACHMENT_JSON_BYTES + 1
+    seen.add(object_id)
+
+    total = 1
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            if index > 0:
+                total = _add_bounded(total, 1)
+            total = _add_bounded(total, _bounded_json_footprint_bytes(item, seen))
+            if total > MAX_ATTACHMENT_JSON_BYTES:
+                seen.remove(object_id)
+                return total
+        total = _add_bounded(total, 1)
+        seen.remove(object_id)
+        return total
+
+    property_count = 0
+    for key, item in value.items():
+        if not isinstance(key, str):
+            seen.remove(object_id)
+            return MAX_ATTACHMENT_JSON_BYTES + 1
+        if property_count > 0:
+            total = _add_bounded(total, 1)
+        total = _add_bounded(total, _json_string_footprint_bytes(key))
+        total = _add_bounded(total, 1)
+        total = _add_bounded(total, _bounded_json_footprint_bytes(item, seen))
+        if total > MAX_ATTACHMENT_JSON_BYTES:
+            seen.remove(object_id)
+            return total
+        property_count += 1
+    total = _add_bounded(total, 1)
+    seen.remove(object_id)
+    return total
 
 
 def _parse_data_url(value: str) -> tuple[str, int] | None:
@@ -97,12 +160,27 @@ def _parse_data_url(value: str) -> tuple[str, int] | None:
     return content_type, len(decoded)
 
 
-def _safe_http_display_url(url: str) -> str:
-    parsed = urlsplit(url)
+def _split_valid_http_url(url: str):
+    try:
+        parsed = urlsplit(url)
+        parsed_port = parsed.port
+    except ValueError:
+        return None
+
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.hostname:
+        return None
+    if len(urlunsplit(parsed)) > MAX_HTTP_URL_LENGTH:
+        return None
+    return parsed, parsed_port
+
+
+def _safe_http_display_url(parsed, parsed_port: int | None) -> str:
     hostname = parsed.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
     netloc = hostname
-    if parsed.port is not None:
-        netloc = f"{netloc}:{parsed.port}"
+    if parsed_port is not None:
+        netloc = f"{netloc}:{parsed_port}"
     return urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
 
 
@@ -119,7 +197,7 @@ def normalize_inbound_attachments(
             reason="attachment_limit_exceeded",
         )
 
-    if _json_footprint_bytes(raw_attachments) > MAX_ATTACHMENT_JSON_BYTES:
+    if _bounded_json_footprint_bytes(raw_attachments) > MAX_ATTACHMENT_JSON_BYTES:
         return NormalizeInboundAttachmentsResult(
             attachments=[],
             rejected=True,
@@ -163,9 +241,9 @@ def normalize_inbound_attachments(
                     reason="attachment_payload_too_large",
                 )
             attachment = {
-                "url": url,
+                "url": f"[inline {content_type} attachment: {display_filename}]",
                 "contentType": content_type,
-                "filename": filename,
+                "filename": display_filename,
                 "safeDisplayUrl": (
                     f"[inline {content_type} attachment: {display_filename}]"
                 ),
@@ -174,17 +252,16 @@ def normalize_inbound_attachments(
             attachments.append(attachment)
             continue
 
-        parsed = urlsplit(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        split_result = _split_valid_http_url(url)
+        if split_result is None:
             continue
-        if len(urlunsplit(parsed)) > MAX_HTTP_URL_LENGTH:
-            continue
+        parsed, parsed_port = split_result
 
         attachment = {
             "url": urlunsplit(parsed),
             "contentType": explicit_content_type or "application/octet-stream",
             "filename": filename,
-            "safeDisplayUrl": _safe_http_display_url(urlunsplit(parsed)),
+            "safeDisplayUrl": _safe_http_display_url(parsed, parsed_port),
         }
         if size is not None:
             attachment["size"] = size

@@ -13,6 +13,7 @@ from connector.clawscale_bridge.google_calendar_import_service import (
     GoogleCalendarImportService,
 )
 from connector.clawscale_bridge.inbound_attachments import (
+    MAX_ATTACHMENT_JSON_BYTES,
     format_input_with_attachments,
     normalize_inbound_attachments,
 )
@@ -23,6 +24,7 @@ from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 
 logger = logging.getLogger(__name__)
+MAX_BRIDGE_INBOUND_REQUEST_BYTES = MAX_ATTACHMENT_JSON_BYTES
 
 
 def _is_unresolved_bridge_setting(value) -> bool:
@@ -290,17 +292,20 @@ class BusinessOnlyBridgeGateway:
         inbound_payload: dict,
         latest_user_message: dict,
         last_message: dict,
-    ) -> list[dict]:
-        candidates = (
-            inbound_payload.get("attachments"),
-            latest_user_message.get("attachments"),
-            last_message.get("attachments"),
-        )
+    ):
+        candidates = [inbound_payload.get("attachments")]
+        if latest_user_message:
+            candidates.append(latest_user_message.get("attachments"))
+        if last_message.get("role") == "user" and last_message is not latest_user_message:
+            candidates.append(last_message.get("attachments"))
+
         for raw_attachments in candidates:
             result = normalize_inbound_attachments(raw_attachments)
+            if result.rejected:
+                return result
             if result.attachments:
-                return result.attachments
-        return []
+                return result
+        return normalize_inbound_attachments(None)
 
     def _normalize_inbound(self, inbound_payload: dict) -> dict:
         metadata = inbound_payload.get("metadata") or {}
@@ -313,11 +318,12 @@ class BusinessOnlyBridgeGateway:
             or last_message.get("content")
             or ""
         )
-        attachments = self._choose_attachments(
+        attachment_result = self._choose_attachments(
             inbound_payload=inbound_payload,
             latest_user_message=latest_user_message,
             last_message=last_message,
         )
+        attachments = attachment_result.attachments
 
         normalized = {
             "tenant_id": inbound_payload.get("tenant_id") or metadata.get("tenantId"),
@@ -338,6 +344,8 @@ class BusinessOnlyBridgeGateway:
             "input": format_input_with_attachments(inbound_text, attachments),
             "inbound_text": inbound_text,
             "attachments": attachments,
+            "attachments_rejected": attachment_result.rejected,
+            "attachments_rejected_reason": attachment_result.reason,
             "channel_scope": inbound_payload.get("channel_scope")
             or metadata.get("channelScope"),
             "clawscale_user_id": inbound_payload.get("clawscale_user_id")
@@ -502,6 +510,12 @@ class BusinessOnlyBridgeGateway:
             return {
                 "status": "error",
                 "error": "missing_coke_account_id",
+            }
+        if inbound.get("attachments_rejected"):
+            return {
+                "status": "error",
+                "error": inbound.get("attachments_rejected_reason")
+                or "attachment_payload_too_large",
             }
         if not inbound.get("input", "").strip() and not inbound.get("attachments"):
             return {
@@ -674,6 +688,14 @@ def create_app(testing: bool = False):
         if not ok:
             body, status = error
             return jsonify(body), status
+
+        if (
+            request.content_length is not None
+            and request.content_length > MAX_BRIDGE_INBOUND_REQUEST_BYTES
+        ):
+            return jsonify(
+                {"ok": False, "error": "attachment_payload_too_large"}
+            ), 413
 
         payload = request.get_json(force=True)
         gateway = app.config.get("BRIDGE_GATEWAY")
