@@ -63,10 +63,16 @@ class InMemoryReminderDAO:
         return results
 
     def replace_reminder(
-        self, reminder_id: str, owner_user_id: str, updates: dict
+        self,
+        reminder_id: str,
+        owner_user_id: str,
+        updates: dict,
+        lifecycle_state: str | None = None,
     ) -> bool:
         document = self.documents.get(reminder_id)
         if document is None or document["owner_user_id"] != owner_user_id:
+            return False
+        if lifecycle_state is not None and document["lifecycle_state"] != lifecycle_state:
             return False
         document.update(updates)
         return True
@@ -81,11 +87,48 @@ class InvalidIdReminderDAO(InMemoryReminderDAO):
         return super().get_reminder_for_owner(reminder_id, owner_user_id)
 
     def replace_reminder(
-        self, reminder_id: str, owner_user_id: str, updates: dict
+        self,
+        reminder_id: str,
+        owner_user_id: str,
+        updates: dict,
+        lifecycle_state: str | None = None,
     ) -> bool:
         if reminder_id == "not-an-object-id":
             raise InvalidId("not-an-object-id is not a valid ObjectId")
-        return super().replace_reminder(reminder_id, owner_user_id, updates)
+        return super().replace_reminder(
+            reminder_id,
+            owner_user_id,
+            updates,
+            lifecycle_state=lifecycle_state,
+        )
+
+
+class TerminalRaceReminderDAO(InMemoryReminderDAO):
+    def __init__(self) -> None:
+        super().__init__()
+        self.replace_attempted = False
+
+    def replace_reminder(
+        self,
+        reminder_id: str,
+        owner_user_id: str,
+        updates: dict,
+        lifecycle_state: str | None = None,
+    ) -> bool:
+        self.replace_attempted = True
+        self.documents[reminder_id].update(
+            {
+                "lifecycle_state": "completed",
+                "completed_at": NOW,
+                "next_fire_at": None,
+            }
+        )
+        return super().replace_reminder(
+            reminder_id,
+            owner_user_id,
+            updates,
+            lifecycle_state=lifecycle_state,
+        )
 
 
 def schedule(
@@ -178,6 +221,15 @@ def test_create_rejects_past_one_shot_reminders():
     scheduler.register_reminder.assert_not_called()
 
 
+def test_create_rejects_whitespace_only_title():
+    service, _, scheduler = make_service()
+
+    with pytest.raises(InvalidArgument):
+        service.create(owner_user_id="user-1", command=create_command(title="   "))
+
+    scheduler.register_reminder.assert_not_called()
+
+
 def test_list_for_user_returns_owner_scoped_reminders():
     service, _, _ = make_service()
     user_reminder = service.create(
@@ -219,6 +271,43 @@ def test_update_rejects_empty_title():
             owner_user_id="user-1",
             patch=ReminderPatch(title=""),
         )
+
+
+def test_update_rejects_whitespace_only_title():
+    service, _, _ = make_service()
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+
+    with pytest.raises(InvalidArgument):
+        service.update(
+            reminder_id=reminder.id,
+            owner_user_id="user-1",
+            patch=ReminderPatch(title="   "),
+        )
+
+
+@pytest.mark.parametrize("action", ["update", "cancel", "complete"])
+def test_mutations_use_active_write_selector_to_reject_terminal_race(action):
+    service, dao, scheduler = make_service(dao=TerminalRaceReminderDAO())
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+    scheduler.reset_mock()
+
+    with pytest.raises(InvalidArgument):
+        if action == "update":
+            service.update(
+                reminder_id=reminder.id,
+                owner_user_id="user-1",
+                patch=ReminderPatch(title="new title"),
+            )
+        elif action == "cancel":
+            service.cancel(reminder_id=reminder.id, owner_user_id="user-1")
+        else:
+            service.complete(reminder_id=reminder.id, owner_user_id="user-1")
+
+    assert dao.replace_attempted is True
+    assert dao.documents[reminder.id]["lifecycle_state"] == "completed"
+    assert dao.documents[reminder.id]["title"] == "drink water"
+    scheduler.reschedule_reminder.assert_not_called()
+    scheduler.remove_reminder.assert_not_called()
 
 
 @pytest.mark.parametrize("lifecycle_state", ["completed", "cancelled", "failed"])

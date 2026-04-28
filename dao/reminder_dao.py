@@ -66,10 +66,17 @@ class ReminderDAO:
         )
 
     def replace_reminder(
-        self, reminder_id: str, owner_user_id: str, updates: Dict
+        self,
+        reminder_id: str,
+        owner_user_id: str,
+        updates: Dict,
+        lifecycle_state: Optional[str] = None,
     ) -> bool:
+        selector: Dict = {"_id": ObjectId(reminder_id), "owner_user_id": owner_user_id}
+        if lifecycle_state is not None:
+            selector["lifecycle_state"] = lifecycle_state
         result = self.collection.update_one(
-            {"_id": ObjectId(reminder_id), "owner_user_id": owner_user_id},
+            selector,
             {"$set": updates},
         )
         return result.matched_count > 0

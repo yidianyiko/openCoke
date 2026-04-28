@@ -178,6 +178,31 @@ class TestReminderDAO:
         )
 
     @pytest.mark.unit
+    def test_replace_reminder_can_filter_by_lifecycle_state(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
+        reminder_id = ObjectId()
+        updates = {"title": "updated"}
+
+        result = reminder_dao.replace_reminder(
+            str(reminder_id),
+            "user_1",
+            updates,
+            lifecycle_state="active",
+        )
+
+        assert result is True
+        mock_collection.update_one.assert_called_once_with(
+            {
+                "_id": reminder_id,
+                "owner_user_id": "user_1",
+                "lifecycle_state": "active",
+            },
+            {"$set": updates},
+        )
+
+    @pytest.mark.unit
     def test_replace_reminder_treats_idempotent_matched_update_as_success(
         self, reminder_dao, mock_collection
     ):

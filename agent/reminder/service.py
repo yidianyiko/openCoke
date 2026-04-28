@@ -99,10 +99,15 @@ class ReminderService:
                     updates["updated_at"],
                 )
 
-        if not self.reminder_dao.replace_reminder(reminder_id, owner_user_id, updates):
-            raise ReminderNotFound(
-                "Reminder not found",
-                detail={"reminder_id": reminder_id},
+        if not self.reminder_dao.replace_reminder(
+            reminder_id,
+            owner_user_id,
+            updates,
+            lifecycle_state="active",
+        ):
+            raise InvalidArgument(
+                "Active reminder mutation was rejected",
+                detail={"reminder_id": reminder_id, "action": "update"},
             )
 
         updated = self.get(reminder_id=reminder_id, owner_user_id=owner_user_id)
@@ -124,10 +129,15 @@ class ReminderService:
             "next_fire_at": None,
             "updated_at": now,
         }
-        if not self.reminder_dao.replace_reminder(reminder_id, owner_user_id, updates):
-            raise ReminderNotFound(
-                "Reminder not found",
-                detail={"reminder_id": reminder_id},
+        if not self.reminder_dao.replace_reminder(
+            reminder_id,
+            owner_user_id,
+            updates,
+            lifecycle_state="active",
+        ):
+            raise InvalidArgument(
+                "Active reminder mutation was rejected",
+                detail={"reminder_id": reminder_id, "action": "cancel"},
             )
         self._call_scheduler("remove_reminder", reminder_id)
         return self.get(reminder_id=reminder_id, owner_user_id=owner_user_id)
@@ -142,10 +152,15 @@ class ReminderService:
             "next_fire_at": None,
             "updated_at": now,
         }
-        if not self.reminder_dao.replace_reminder(reminder_id, owner_user_id, updates):
-            raise ReminderNotFound(
-                "Reminder not found",
-                detail={"reminder_id": reminder_id},
+        if not self.reminder_dao.replace_reminder(
+            reminder_id,
+            owner_user_id,
+            updates,
+            lifecycle_state="active",
+        ):
+            raise InvalidArgument(
+                "Active reminder mutation was rejected",
+                detail={"reminder_id": reminder_id, "action": "complete"},
             )
         self._call_scheduler("remove_reminder", reminder_id)
         return self.get(reminder_id=reminder_id, owner_user_id=owner_user_id)
@@ -322,7 +337,7 @@ class ReminderService:
         self._validate_output_target(command.agent_output_target)
 
     def _validate_title(self, title: str) -> None:
-        if not title:
+        if not title or not title.strip():
             raise InvalidArgument(
                 "Reminder title must be non-empty",
                 detail={"field": "title"},
