@@ -925,16 +925,29 @@ class PrepareWorkflow:
 
         now = datetime.now(tzinfo)
         operations: list[dict[str, str | None]] = []
+        skip_match_indexes: set[int] = set()
         for index, time_match in enumerate(time_matches):
+            if index in skip_match_indexes:
+                continue
             segment_start = self._previous_clause_boundary(text, time_match.start())
             segment_end = (
                 time_matches[index + 1].start()
                 if index + 1 < len(time_matches)
                 else len(text)
             )
-            title = self._extract_simple_reminder_title_after_time(
-                text[time_match.end() : segment_end]
+
+            range_title = self._extract_range_title_after_next_time(
+                text,
+                time_matches,
+                index,
             )
+            if range_title:
+                title = range_title
+                skip_match_indexes.add(index + 1)
+            else:
+                title = self._extract_simple_reminder_title_after_time(
+                    text[time_match.end() : segment_end]
+                )
             if not title:
                 continue
 
@@ -963,6 +976,30 @@ class PrepareWorkflow:
         if operations:
             return operations
         return self._parse_deadline_reminder_creates(text, now)
+
+    def _extract_range_title_after_next_time(
+        self,
+        text: str,
+        time_matches: list[re.Match[str]],
+        index: int,
+    ) -> str:
+        if index + 1 >= len(time_matches):
+            return ""
+
+        current_match = time_matches[index]
+        next_match = time_matches[index + 1]
+        between = text[current_match.end() : next_match.start()]
+        if not re.fullmatch(r"\s*[-—–~～至到]\s*", between):
+            return ""
+
+        segment_end = (
+            time_matches[index + 2].start()
+            if index + 2 < len(time_matches)
+            else len(text)
+        )
+        return self._extract_simple_reminder_title_after_time(
+            text[next_match.end() : segment_end]
+        )
 
     def _parse_chinese_time_reminder_creates(
         self,

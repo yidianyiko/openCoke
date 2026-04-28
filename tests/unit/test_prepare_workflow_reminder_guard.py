@@ -536,6 +536,98 @@ async def test_reminder_detect_timeout_uses_simple_create_fallback(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_reminder_detect_timeout_range_fallback_uses_range_start_and_title(monkeypatch):
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    orchestrator_response = MagicMock()
+    orchestrator_response.content = MagicMock()
+    orchestrator_response.metrics = None
+    orchestrator_response.content.model_dump.return_value = {
+        "inner_monologue": "schedule reminder",
+        "need_context_retrieve": False,
+        "context_retrieve_params": {},
+        "need_reminder_detect": True,
+        "need_web_search": False,
+        "web_search_query": "",
+        "need_timezone_update": False,
+        "timezone_action": "none",
+        "timezone_value": "",
+    }
+
+    async def slow_reminder_detect(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日02时30分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+    fallback_calls = []
+
+    def fake_visible_reminder_tool(**kwargs):
+        fallback_calls.append(kwargs)
+        for operation in kwargs["operations"]:
+            append_tool_result(
+                session_state,
+                tool_name="提醒操作",
+                ok=True,
+                result_summary=f"已创建提醒：{operation['title']}",
+            )
+        return "\n".join(f"已创建提醒：{item['title']}" for item in kwargs["operations"])
+
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        prepare_workflow,
+        "visible_reminder_tool",
+        fake_visible_reminder_tool,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(side_effect=slow_reminder_detect)
+        context_retrieve_tool.return_value = {}
+
+        await workflow.run(
+            "时间安排\n6:30 起床\n7:00-9:00 数学网课\n9:10-11:30 数学练习",
+            session_state,
+        )
+
+    assert fallback_calls
+    assert fallback_calls[0]["action"] == "batch"
+    operations = fallback_calls[0]["operations"]
+    assert [(item["title"], item["trigger_at"][11:19]) for item in operations] == [
+        ("起床", "06:30:00"),
+        ("数学网课", "07:00:00"),
+        ("数学练习", "09:10:00"),
+    ]
+    assert "-" not in [item["title"] for item in operations]
+
+
+@pytest.mark.asyncio
 async def test_reminder_detect_timeout_uses_multi_create_fallback(monkeypatch):
     from agent.agno_agent.tools.tool_result import append_tool_result
     from agent.agno_agent.workflows import prepare_workflow
