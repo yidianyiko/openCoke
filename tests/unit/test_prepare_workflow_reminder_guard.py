@@ -150,6 +150,122 @@ async def test_implicit_time_task_uses_deterministic_create_before_detector(monk
 
 
 @pytest.mark.asyncio
+async def test_nickname_only_call_me_does_not_run_reminder_detector():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    orchestrator_response = MagicMock()
+    orchestrator_response.content = MagicMock()
+    orchestrator_response.metrics = None
+    orchestrator_response.content.model_dump.return_value = {
+        "inner_monologue": "用户希望被称呼为小凡",
+        "need_context_retrieve": False,
+        "context_retrieve_params": {},
+        "need_reminder_detect": False,
+        "need_web_search": False,
+        "web_search_query": "",
+        "need_timezone_update": False,
+        "timezone_action": "none",
+        "timezone_value": "",
+    }
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日02时14分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("叫我小凡就行了", session_state)
+
+    reminder_detect_agent.arun.assert_not_awaited()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
+
+
+@pytest.mark.asyncio
+async def test_call_me_with_time_runs_reminder_detector_when_orchestrator_misses_it():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    orchestrator_response = MagicMock()
+    orchestrator_response.content = MagicMock()
+    orchestrator_response.metrics = None
+    orchestrator_response.content.model_dump.return_value = {
+        "inner_monologue": "普通对话",
+        "need_context_retrieve": False,
+        "context_retrieve_params": {},
+        "need_reminder_detect": False,
+        "need_web_search": False,
+        "web_search_query": "",
+        "need_timezone_update": False,
+        "timezone_action": "none",
+        "timezone_value": "",
+    }
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日02时14分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("七点叫我可以么", session_state)
+
+    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+
+
+@pytest.mark.asyncio
 async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(monkeypatch):
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

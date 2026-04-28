@@ -106,15 +106,23 @@ _CALENDAR_IMPORT_INTENT_PATTERNS = (
     ),
 )
 _REMINDER_FIRST_PATTERNS = (
-    re.compile(r"(提醒我|叫我|到时候|闹钟)"),
+    re.compile(r"(提醒我|到时候|闹钟)"),
     re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
 )
 _EXPLICIT_REMINDER_INTENT_PATTERNS = (
-    re.compile(r"(提醒我|叫我|闹钟|通知我|别忘了提醒)"),
+    re.compile(r"(提醒我|闹钟|通知我|别忘了提醒)"),
     re.compile(
         r"\b(remind me|set a reminder|set an alarm|notify me)\b",
         re.IGNORECASE,
     ),
+)
+_CALL_ME_MARKER_PATTERN = re.compile(r"(叫我|喊我)")
+_ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
+    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
+    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
+)
+_ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
+    r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
 )
 _IMPLICIT_REMINDER_INTENT_PATTERNS = (
     re.compile(
@@ -364,7 +372,18 @@ class PrepareWorkflow:
         text = str(input_message or "").strip()
         if not text:
             return False
-        return any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
+        return any(
+            pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS
+        ) or self._looks_like_actionable_call_me_reminder(text)
+
+    def _looks_like_actionable_call_me_reminder(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not _CALL_ME_MARKER_PATTERN.search(text):
+            return False
+        return bool(
+            _ACTIONABLE_CALL_ME_TIME_PATTERN.search(text)
+            or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(text)
+        )
 
     def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
