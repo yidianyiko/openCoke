@@ -135,7 +135,8 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://clawscale:clawscale@postgres:5432/clawscale
-      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET}
+      CUSTOMER_JWT_SECRET: ${CUSTOMER_JWT_SECRET}
       HOST: 0.0.0.0
       PORT: 4041
       CORS_ORIGIN: ${CORS_ORIGIN:-https://coke.keep4oforever.com}

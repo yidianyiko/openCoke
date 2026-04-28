@@ -76,7 +76,6 @@ Historical product names are not valid namespace categories for new interfaces.
 
 ### Internal API
 
-- `/api/internal/user/wechat-channel`
 - `/api/internal/coke-bindings`
 - `/api/internal/coke-delivery`
 - `/api/internal/coke-users/provision`

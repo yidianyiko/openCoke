@@ -42,7 +42,6 @@ pip install -r requirements.txt
 - `COKE_WEB_ALLOWED_ORIGIN`：Coke 用户前端允许的浏览器来源，通常与 `DOMAIN_CLIENT` 保持一致
 - `CLAWSCALE_IDENTITY_API_KEY`：ClawScale 身份服务调用密钥
 - `CLAWSCALE_OUTBOUND_API_KEY`：ClawScale 出站服务调用密钥
-- `CLAWSCALE_WECHAT_CHANNEL_API_KEY`：ClawScale 微信通道调用密钥
 
 当前对外接口按这个契约部署和核验：
 
@@ -129,7 +128,8 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 
 生产环境至少要补齐这些变量，Coke 的邮箱链路才算真正可用：
 
-- `COKE_JWT_SECRET`：Coke 用户登录态签名密钥，和后台成员 `JWT_SECRET` 分开
+- `ADMIN_JWT_SECRET`：管理后台登录态签名密钥
+- `CUSTOMER_JWT_SECRET`：客户登录态、claim token、公开续费 checkout token 签名密钥
 - `DOMAIN_CLIENT`：邮件里的前端链接根地址，例如 `https://coke.keep4oforever.com`
 - `NEXT_PUBLIC_API_URL`：gateway web bundle 使用的公开 API 目标
 - `NEXT_PUBLIC_COKE_API_URL`：Coke 用户前端使用的公开 API 目标
@@ -144,7 +144,6 @@ ssh gcp-coke 'cd ~/coke && cp deploy/env/coke.env.example .env'
 - 这个值必须与实际 public browser origin 完全一致，域名变更或 `PUBLIC_BASE_URL` 自动更新后要立即复核
 - `CLAWSCALE_IDENTITY_API_KEY`
 - `CLAWSCALE_OUTBOUND_API_KEY`
-- `CLAWSCALE_WECHAT_CHANNEL_API_KEY`
 
 如果只配置了账号注册而没有配置邮件发送，`/api/auth/register` 仍会创建账户，
 但用户只能在 `/auth/verify-email` 页面通过“Resend verification email”完成验证。

@@ -38,8 +38,6 @@ def _set_required_bridge_settings(bridge_app, monkeypatch):
     for key, value in {
         "api_key": "local-bridge-key",
         "web_allowed_origin": "http://127.0.0.1:4040",
-        "wechat_channel_api_url": "https://wechat.local/api",
-        "wechat_channel_api_key": "wechat-secret",
         "identity_api_url": "https://identity.local",
         "identity_api_key": "identity-secret",
         "outbound_api_url": "https://gateway.local/api/outbound",

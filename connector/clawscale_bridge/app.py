@@ -47,8 +47,6 @@ def _validate_runtime_bridge_settings() -> None:
     required_names = (
         "api_key",
         "web_allowed_origin",
-        "wechat_channel_api_url",
-        "wechat_channel_api_key",
         "identity_api_url",
         "identity_api_key",
         "outbound_api_url",
