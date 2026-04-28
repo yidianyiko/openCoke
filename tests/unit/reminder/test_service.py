@@ -4,11 +4,13 @@ from datetime import UTC, date, datetime, time
 from unittest.mock import Mock
 
 import pytest
+from bson.errors import InvalidId
 
 from agent.reminder.errors import (
     InvalidArgument,
     InvalidOutputTarget,
     InvalidSchedule,
+    ReminderError,
     ReminderNotFound,
 )
 from agent.reminder.models import (
@@ -68,6 +70,22 @@ class InMemoryReminderDAO:
             return False
         document.update(updates)
         return True
+
+
+class InvalidIdReminderDAO(InMemoryReminderDAO):
+    def get_reminder_for_owner(
+        self, reminder_id: str, owner_user_id: str
+    ) -> dict | None:
+        if reminder_id == "not-an-object-id":
+            raise InvalidId("not-an-object-id is not a valid ObjectId")
+        return super().get_reminder_for_owner(reminder_id, owner_user_id)
+
+    def replace_reminder(
+        self, reminder_id: str, owner_user_id: str, updates: dict
+    ) -> bool:
+        if reminder_id == "not-an-object-id":
+            raise InvalidId("not-an-object-id is not a valid ObjectId")
+        return super().replace_reminder(reminder_id, owner_user_id, updates)
 
 
 def schedule(
@@ -191,6 +209,47 @@ def test_update_rejects_owner_mismatch_as_not_found():
         )
 
 
+def test_update_rejects_empty_title():
+    service, _, _ = make_service()
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+
+    with pytest.raises(InvalidArgument):
+        service.update(
+            reminder_id=reminder.id,
+            owner_user_id="user-1",
+            patch=ReminderPatch(title=""),
+        )
+
+
+@pytest.mark.parametrize("lifecycle_state", ["completed", "cancelled", "failed"])
+@pytest.mark.parametrize("action", ["update", "cancel", "complete"])
+def test_terminal_reminders_cannot_be_mutated(lifecycle_state, action):
+    service, dao, _ = make_service()
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+    dao.documents[reminder.id].update(
+        {
+            "lifecycle_state": lifecycle_state,
+            "next_fire_at": None,
+            "updated_at": NOW,
+        }
+    )
+    original_document = dict(dao.documents[reminder.id])
+
+    with pytest.raises(InvalidArgument):
+        if action == "update":
+            service.update(
+                reminder_id=reminder.id,
+                owner_user_id="user-1",
+                patch=ReminderPatch(title="new title"),
+            )
+        elif action == "cancel":
+            service.cancel(reminder_id=reminder.id, owner_user_id="user-1")
+        else:
+            service.complete(reminder_id=reminder.id, owner_user_id="user-1")
+
+    assert dao.documents[reminder.id] == original_document
+
+
 def test_cancel_sets_cancelled_at_and_clears_next_fire_at():
     service, dao, scheduler = make_service()
     reminder = service.create(owner_user_id="user-1", command=create_command())
@@ -260,6 +319,46 @@ def test_execute_batch_rejects_action_payload_mismatches():
 
     assert results[0].ok is False
     assert isinstance(results[0].error, InvalidArgument)
+
+
+def test_execute_batch_maps_invalid_reminder_id_to_not_found_and_continues():
+    service, _, _ = make_service(dao=InvalidIdReminderDAO())
+
+    results = service.execute_batch(
+        owner_user_id="user-1",
+        commands=[
+            ReminderCommand(
+                action="update",
+                reminder_id="not-an-object-id",
+                patch=ReminderPatch(title="new title"),
+            ),
+            ReminderCommand(action="list", query=ReminderQuery()),
+        ],
+    )
+
+    assert [result.action for result in results] == ["update", "list"]
+    assert [result.ok for result in results] == [False, True]
+    assert isinstance(results[0].error, ReminderNotFound)
+    assert results[1].reminders == []
+
+
+def test_execute_batch_maps_scheduler_hook_failure_to_reminder_error_and_continues():
+    scheduler = Mock()
+    scheduler.register_reminder.side_effect = RuntimeError("scheduler offline")
+    service, _, _ = make_service(scheduler=scheduler)
+
+    results = service.execute_batch(
+        owner_user_id="user-1",
+        commands=[
+            ReminderCommand(action="create", create=create_command(title="first")),
+            ReminderCommand(action="list", query=ReminderQuery()),
+        ],
+    )
+
+    assert [result.ok for result in results] == [False, True]
+    assert isinstance(results[0].error, ReminderError)
+    assert not isinstance(results[0].error, RuntimeError)
+    assert len(results[1].reminders) == 1
 
 
 def test_timed_update_calls_scheduler_reschedule_reminder():

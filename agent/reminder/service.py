@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from bson.errors import InvalidId
+
 from agent.reminder.errors import (
     InvalidArgument,
     InvalidOutputTarget,
@@ -81,10 +83,12 @@ class ReminderService:
         patch: ReminderPatch,
     ) -> Reminder:
         existing = self._get_document_for_owner(reminder_id, owner_user_id)
+        self._ensure_active_for_mutation(existing, action="update")
         updates: dict[str, Any] = {"updated_at": self._now()}
         schedule_changed = patch.schedule is not None
 
         if patch.title is not None:
+            self._validate_title(patch.title)
             updates["title"] = patch.title
 
         if patch.schedule is not None:
@@ -112,7 +116,8 @@ class ReminderService:
 
     def cancel(self, *, reminder_id: str, owner_user_id: str) -> Reminder:
         now = self._now()
-        self._get_document_for_owner(reminder_id, owner_user_id)
+        existing = self._get_document_for_owner(reminder_id, owner_user_id)
+        self._ensure_active_for_mutation(existing, action="cancel")
         updates = {
             "lifecycle_state": "cancelled",
             "cancelled_at": now,
@@ -129,7 +134,8 @@ class ReminderService:
 
     def complete(self, *, reminder_id: str, owner_user_id: str) -> Reminder:
         now = self._now()
-        self._get_document_for_owner(reminder_id, owner_user_id)
+        existing = self._get_document_for_owner(reminder_id, owner_user_id)
+        self._ensure_active_for_mutation(existing, action="complete")
         updates = {
             "lifecycle_state": "completed",
             "completed_at": now,
@@ -295,7 +301,15 @@ class ReminderService:
         )
 
     def _get_document_for_owner(self, reminder_id: str, owner_user_id: str) -> dict:
-        document = self.reminder_dao.get_reminder_for_owner(reminder_id, owner_user_id)
+        try:
+            document = self.reminder_dao.get_reminder_for_owner(
+                reminder_id, owner_user_id
+            )
+        except InvalidId as exc:
+            raise ReminderNotFound(
+                "Reminder not found",
+                detail={"reminder_id": reminder_id},
+            ) from exc
         if document is None:
             raise ReminderNotFound(
                 "Reminder not found",
@@ -304,12 +318,26 @@ class ReminderService:
         return document
 
     def _validate_create_command(self, command: ReminderCreateCommand) -> None:
-        if not command.title:
+        self._validate_title(command.title)
+        self._validate_output_target(command.agent_output_target)
+
+    def _validate_title(self, title: str) -> None:
+        if not title:
             raise InvalidArgument(
                 "Reminder title must be non-empty",
                 detail={"field": "title"},
             )
-        self._validate_output_target(command.agent_output_target)
+
+    def _ensure_active_for_mutation(self, document: dict, *, action: str) -> None:
+        if document["lifecycle_state"] == "active":
+            return
+        raise InvalidArgument(
+            "Terminal reminder cannot be mutated",
+            detail={
+                "action": action,
+                "lifecycle_state": document["lifecycle_state"],
+            },
+        )
 
     def _validate_output_target(self, target: AgentOutputTarget) -> None:
         if not target.conversation_id:
@@ -377,7 +405,15 @@ class ReminderService:
         method = getattr(self.scheduler, method_name, None)
         if method is None:
             return
-        method(*args)
+        try:
+            method(*args)
+        except ReminderError:
+            raise
+        except Exception as exc:
+            raise ReminderError(
+                "Reminder scheduler hook failed",
+                detail={"hook": method_name},
+            ) from exc
 
     def _now(self) -> datetime:
         return self.now_provider()
