@@ -321,6 +321,7 @@ async def test_vague_reminder_capability_question_skips_reminder_detector():
 
     reminder_detect_agent.arun.assert_not_awaited()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
+    assert "循环提醒" in result["session_state"]["direct_reply"]
 
 
 @pytest.mark.asyncio

@@ -362,6 +362,10 @@ class PrepareWorkflow:
 
         if self._looks_like_vague_reminder_capability_question(input_message):
             orchestrator["need_reminder_detect"] = False
+            session_state["direct_reply"] = (
+                "可以循环提醒。你告诉我提醒内容、开始时间和循环频率，"
+                "比如“每天晚上八点提醒我冥想”。"
+            )
             logger.info(
                 "[PrepareWorkflow] 提醒能力问句缺少可执行内容，跳过 ReminderDetectAgent"
             )

@@ -448,6 +448,37 @@ async def test_chat_workflow_directly_returns_reminder_tool_result(
 
 
 @pytest.mark.asyncio
+async def test_chat_workflow_directly_returns_prepare_direct_reply(monkeypatch):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "message_source": "user",
+        "direct_reply": "可以循环提醒。请告诉我内容和时间。",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月28日09时00分",
+                "input_messages_str": "你可以循环提醒我吗",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+    }
+
+    events = [
+        event async for event in workflow.run_stream("你可以循环提醒我吗", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert events[0]["data"]["content"] == "可以循环提醒。请告诉我内容和时间。"
+    assert workflow.agent.input is None
+
+
+@pytest.mark.asyncio
 async def test_chat_workflow_keeps_pending_reminder_notice_for_unrelated_tool_result(
     monkeypatch,
 ):

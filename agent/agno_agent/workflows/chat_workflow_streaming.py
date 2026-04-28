@@ -203,6 +203,24 @@ class StreamingChatWorkflow:
         if tool_results_context:
             logger.info("[ChatWorkflow] 添加系统操作结果上下文")
 
+        direct_reply = session_state.get("direct_reply")
+        if isinstance(direct_reply, str) and direct_reply.strip():
+            direct_reply = direct_reply.strip()
+            logger.info("[ChatWorkflow] 直接返回 PrepareWorkflow 回复")
+            yield {
+                "type": "message",
+                "data": {"type": "text", "content": direct_reply},
+            }
+            yield {
+                "type": "done",
+                "data": {
+                    "full_response": direct_reply,
+                    "total_messages": 1,
+                    "inner_monologue": "",
+                },
+            }
+            return
+
         calendar_import_reply = get_calendar_import_direct_reply(session_state)
         if calendar_import_reply:
             logger.info("[ChatWorkflow] 直接返回 Google Calendar 导入入口")
