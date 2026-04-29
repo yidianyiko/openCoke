@@ -931,6 +931,7 @@ def test_clarification_output_llm_judge_timeout_returns_false(monkeypatch):
         "CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS",
         0.01,
     )
+    monkeypatch.setattr(normal_eval, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
     monkeypatch.setattr(
         normal_eval,
         "_clarification_output_judge_agent",
@@ -1009,6 +1010,7 @@ def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
         "UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS",
         0.01,
     )
+    monkeypatch.setattr(normal_eval, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
     monkeypatch.setattr(
         normal_eval,
         "_unconfirmed_reminder_judge_agent",
@@ -1016,6 +1018,43 @@ def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
     )
 
     assert normal_eval.run_unconfirmed_reminder_judge("我会提醒你") is False
+
+
+def test_llm_judge_timeout_process_uses_spawn_by_default(monkeypatch):
+    calls = []
+
+    class FakeProcess:
+        def start(self):
+            pass
+
+        def join(self, _timeout=None):
+            pass
+
+        def is_alive(self):
+            return False
+
+    class FakeQueue:
+        def empty(self):
+            return False
+
+        def get(self):
+            return ("ok", True)
+
+    class FakeContext:
+        def Queue(self):
+            return FakeQueue()
+
+        def Process(self, **_kwargs):
+            return FakeProcess()
+
+    def fake_get_context(method):
+        calls.append(method)
+        return FakeContext()
+
+    monkeypatch.setattr(normal_eval, "get_context", fake_get_context)
+
+    assert normal_eval._run_clarification_output_judge_with_timeout("prompt") is True
+    assert calls == ["spawn"]
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():

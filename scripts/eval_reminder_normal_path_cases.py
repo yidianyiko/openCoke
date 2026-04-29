@@ -40,6 +40,9 @@ CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS = float(
         os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "90"),
     )
 )
+LLM_JUDGE_PROCESS_START_METHOD = os.environ.get(
+    "REMINDER_NORMAL_PATH_JUDGE_PROCESS_START_METHOD", "spawn"
+)
 
 
 @dataclass(frozen=True)
@@ -1175,7 +1178,7 @@ def _parse_clarification_output_judge_response(response) -> bool:
 
 def _run_clarification_output_judge_with_timeout(prompt: str) -> bool:
     timeout_seconds = max(0.01, CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS)
-    context = get_context("fork")
+    context = get_context(LLM_JUDGE_PROCESS_START_METHOD)
     queue = context.Queue()
     process = context.Process(
         target=_clarification_output_judge_worker,
@@ -1281,7 +1284,7 @@ def _parse_unconfirmed_reminder_judge_response(response) -> bool:
 
 def _run_unconfirmed_reminder_judge_with_timeout(prompt: str) -> bool:
     timeout_seconds = max(0.01, UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS)
-    context = get_context("fork")
+    context = get_context(LLM_JUDGE_PROCESS_START_METHOD)
     queue = context.Queue()
     process = context.Process(
         target=_unconfirmed_reminder_judge_worker,
