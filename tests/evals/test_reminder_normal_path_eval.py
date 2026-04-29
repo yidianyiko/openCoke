@@ -392,6 +392,28 @@ def test_validate_observations_accepts_delete_crud_without_created_reminder():
     assert errors == []
 
 
+def test_validate_observations_accepts_allowed_delete_clarification():
+    case = normal_eval.ReminderNormalPathCase(
+        input="晚上不用叫我",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_operation": "delete",
+            "allow_clarification": True,
+        },
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "你说的不用叫你是说晚上的什么提醒呀？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_accepts_cancel_target_clarification():
     case = normal_eval.ReminderNormalPathCase(
         input="晚上不用叫我",
@@ -703,7 +725,8 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[146].metadata["evaluation_expectation"] == "discussion"
     assert cases[149].metadata["evaluation_expectation"] == "clarify"
     assert cases[150].metadata["evaluation_expectation"] == "clarify"
-    assert cases[158].metadata["evaluation_expectation"] == "clarify"
+    assert cases[158].metadata["expected_operation"] == "delete"
+    assert cases[158].metadata["allow_clarification"] is True
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():

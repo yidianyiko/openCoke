@@ -163,8 +163,10 @@
       "evaluation_reason": "The user asks the agent to recommend how often to remind them, but has not confirmed a concrete cadence; the agent should ask for cadence confirmation instead of creating a reminder."
     },
     "158": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to stop evening wake-up/call reminders but does not identify a concrete reminder in the isolated case context; the agent should clarify the cancellation target instead of creating a reminder."
+      "evaluation_expectation": "crud",
+      "expected_operation": "delete",
+      "allow_clarification": true,
+      "evaluation_reason": "The user asks to stop evening wake-up/call reminders without a precise title. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder is not."
     }
   }
 }

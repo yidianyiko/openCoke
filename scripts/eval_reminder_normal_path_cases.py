@@ -102,6 +102,7 @@ def merge_case_expectation_metadata(
         "evaluation_expectation",
         "evaluation_reason",
         "expected_operation",
+        "allow_clarification",
         "expected_creates",
     ):
         if key in expectation:
@@ -533,6 +534,7 @@ def validate_observations(
     errors: list[str] = []
     expectation = case_evaluation_expectation(case)
     expected_operation = case_expected_crud_operation(case)
+    allow_crud_clarification = case_allows_crud_clarification(case)
     expected_creates = (
         expected_created_reminders_for_case(case)
         if expectation == "crud" and expected_operation == "create"
@@ -565,6 +567,9 @@ def validate_observations(
     if (
         expectation == "crud"
         and expected_operation != "create"
+        and not (
+            allow_crud_clarification and output_mentions_clarification(outputs)
+        )
         and not output_mentions_crud_ack(outputs, reminders)
     ):
         errors.append("user_output_missing_crud_ack")
@@ -576,6 +581,10 @@ def validate_observations(
 def case_expected_crud_operation(case: ReminderNormalPathCase) -> str:
     operation = str(case.metadata.get("expected_operation") or "create").strip().lower()
     return operation or "create"
+
+
+def case_allows_crud_clarification(case: ReminderNormalPathCase) -> bool:
+    return case.metadata.get("allow_clarification") is True
 
 
 def expected_created_reminders_for_case(
