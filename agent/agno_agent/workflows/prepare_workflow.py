@@ -126,6 +126,11 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_REMIND_MARKER_PATTERN = re.compile(r"提醒")
+_ACTIONABLE_REMINDER_TIME_PATTERN = re.compile(
+    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
+    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
+)
 _CALL_ME_MARKER_PATTERN = re.compile(r"(叫我|喊我)")
 _ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
     r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
@@ -368,7 +373,15 @@ class PrepareWorkflow:
             return False
         return any(
             pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS
+        ) or self._looks_like_actionable_reminder_with_time(
+            text
         ) or self._looks_like_actionable_call_me_reminder(text)
+
+    def _looks_like_actionable_reminder_with_time(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not _REMIND_MARKER_PATTERN.search(text):
+            return False
+        return bool(_ACTIONABLE_REMINDER_TIME_PATTERN.search(text))
 
     def _looks_like_actionable_call_me_reminder(self, input_message: str) -> bool:
         text = str(input_message or "").strip()

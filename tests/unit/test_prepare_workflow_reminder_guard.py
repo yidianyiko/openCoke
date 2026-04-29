@@ -361,6 +361,65 @@ async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(
 
 
 @pytest.mark.asyncio
+async def test_orchestrator_timeout_routes_time_prefixed_reminder_to_detector(
+    monkeypatch,
+):
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    async def slow_orchestrator(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日11时51分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock(side_effect=slow_orchestrator)
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run(
+            "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+            session_state,
+        )
+
+    assert result["session_state"]["prepare_orchestrator_timeout"] is True
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    reminder_detect_agent.arun.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

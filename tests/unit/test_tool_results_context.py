@@ -427,6 +427,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "帮你定" in workflow.agent.input
     assert "帮你设置" in workflow.agent.input
     assert "设置好了" in workflow.agent.input
+    assert "收到这个提醒" in workflow.agent.input
+    assert "设置的" in workflow.agent.input
     assert "订蛋糕的提醒安排上" in workflow.agent.input
     assert "only ask for the missing information" in workflow.agent.input
     assert "Do not say \"提醒你\"" in workflow.agent.input
