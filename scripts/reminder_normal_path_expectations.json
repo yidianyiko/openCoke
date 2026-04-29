@@ -209,6 +209,10 @@
     "197": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user asks the agent to remember today's task version and start hourly check-ins until 20:00; this is an actionable reminder/check-in request, not ordinary schedule discussion."
+    },
+    "198": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders."
     }
   }
 }

@@ -119,6 +119,9 @@ Rules:
   still in the future, skip past occurrences and create only future occurrences
   before the deadline. Do not ask how to catch up missed occurrences unless the
   user explicitly asks to backfill.
+- A time window plus a vague supervision request is not executable unless the
+  user gives a concrete frequency, trigger, or occurrence list. Return clarify
+  and ask for the cadence instead of creating a default reminder.
 - If the user supplies an explicit occurrence anchor or correction point for an
   interval schedule, use that anchor to enumerate the concrete one-shot
   occurrences before the deadline. Treat statements like "after X the reminder

@@ -1119,7 +1119,8 @@ class PrepareWorkflow:
                 return ReminderDetectDecision.model_validate_json(content)
             except Exception:
                 logger.warning(
-                    "[PrepareWorkflow] Unparseable ReminderDetect structured decision"
+                    "[PrepareWorkflow] Unparseable ReminderDetect structured decision: %r",
+                    content[:1000],
                 )
                 if session_state is not None:
                     session_state[
@@ -1252,6 +1253,8 @@ ReminderDetectDecision.
 - If the bounded cadence start point is in the past and the deadline is still
   future, skip past occurrences and create only future occurrences before the
   deadline. Do not ask how to catch up missed occurrences.
+- If a time window has only vague supervision cadence, return clarify and ask
+  for the concrete frequency, trigger, or occurrence list.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, return action="delete"
   and the safest target keyword from the message.
