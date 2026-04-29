@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 349,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-312c480e3a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "fe029eb9f5b789ce1549d073"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_reminder_created": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 349,
+        "input": "开始25分钟计时，计时结束后提醒我起来休息，喝水",
+        "user_id": "fe029eb9f5b789ce1549d073",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f223eee4f5cbc1cf688a54",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "no_reminder_created"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.2
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 349,
+      "input": "开始25分钟计时，计时结束后提醒我起来休息，喝水",
+      "user_id": "fe029eb9f5b789ce1549d073",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f223eee4f5cbc1cf688a54",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "no_reminder_created"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.2
+    }
+  ]
+}

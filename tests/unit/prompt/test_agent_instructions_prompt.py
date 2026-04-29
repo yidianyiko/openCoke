@@ -37,6 +37,8 @@ def test_reminder_detect_instructions_do_not_create_for_schedule_statement_only(
 
     assert "A plan or schedule statement is not enough" in instructions
     assert "七点半开始正式学习" in instructions
+    assert 'Return intent_type="clarify" with no action' in instructions
+    assert "学到下午4:30" in instructions
     assert "return time" in instructions
     assert "之后吃饭，8点回来" in instructions
 
@@ -156,6 +158,12 @@ def test_reminder_detect_retry_instructions_keep_single_create_top_level():
     assert "new_title and new_trigger_at are update-only" in (
         INSTRUCTIONS_REMINDER_DETECT_RETRY
     )
+
+
+def test_reminder_detect_retry_instructions_clarify_schedule_only_plan():
+    assert "future plan with a task and time" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "return clarify" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "ask whether they want a reminder" in INSTRUCTIONS_REMINDER_DETECT_RETRY
 
 
 def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():

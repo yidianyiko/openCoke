@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 352,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b6073a9866",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6531daa5148da196772b8fe5"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 352,
+      "input": "今天总计有效学习时间213分钟。",
+      "user_id": "6531daa5148da196772b8fe5",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f2254c195c9377eec3e515",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f225655f50cb4ba4c4fef9",
+          "expect_output_timestamp": 1777476942,
+          "handled_timestamp": 1777476942,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，213分钟！今天就接近3个半小时了，这个成绩真不错！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b6073a9866",
+            "case_index": 352,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693c240409af1bf513e836fe",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b6073a9866-case-352",
+              "business_conversation_key": "reminder-normal-b6073a9866-case-352",
+              "causal_inbound_event_id": "reminder-normal-b6073a9866-case-352-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6531daa5148da196772b8fe5"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 26.046
+    }
+  ]
+}

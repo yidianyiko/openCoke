@@ -102,8 +102,9 @@ Rules:
   do not create reminders unless the same message explicitly asks for reminders
   or supervision.
 - If the user only states a future plan with a task and time, such as
-  "七点半开始正式学习", "明天6点起床", or "今晚八点学习", do not call create.
-  Stop so the chat response can confirm whether they want a reminder.
+  "七点半开始正式学习", "明天6点起床", "今晚八点学习", or "学到下午4:30",
+  do not call create. Return intent_type="clarify" with no action and ask
+  whether they want a reminder at that stated time.
 - If the user only reports an activity, meal, return time, arrival time, class
   time, or schedule change with a bare clock time, do not call create unless
   the same message explicitly asks for a reminder/call/notification.
@@ -220,6 +221,8 @@ Field boundary:
   default time or midnight.
 - If the user explicitly asks for a reminder and gives a concrete time plus
   reminder content, create it. Resolve local times with the supplied timezone.
+- If the user only states a future plan with a task and time, return clarify
+  with no action and ask whether they want a reminder at that stated time.
 - For a single reminder create, put the create fields in top-level title and trigger_at
   and leave operations empty. new_title and new_trigger_at are update-only.
 - For multiple safe reminder clauses, use batch with flat operations.

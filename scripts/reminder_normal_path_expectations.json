@@ -375,6 +375,10 @@
     "335": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders."
+    },
+    "359": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a time-bounded study plan but does not explicitly ask for a reminder; the agent should ask whether a reminder is wanted instead of promising an uncreated reminder."
     }
   }
 }

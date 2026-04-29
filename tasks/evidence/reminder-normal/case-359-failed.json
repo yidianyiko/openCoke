@@ -1,0 +1,63 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 359,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b2b70f6806",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "5a580d2b62816358b0090194"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 359,
+        "input": "专心学到下午4：30，咱们休息。",
+        "user_id": "5a580d2b62816358b0090194",
+        "original_from_user": "693ae9de68bf5e9703e8ea69",
+        "input_message_id": "69f22672ccf3f501cf0cb245",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.201
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 359,
+      "input": "专心学到下午4：30，咱们休息。",
+      "user_id": "5a580d2b62816358b0090194",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f22672ccf3f501cf0cb245",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.201
+    }
+  ]
+}

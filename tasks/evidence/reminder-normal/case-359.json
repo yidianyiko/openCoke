@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 359,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-bdf57d10ed",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "936d94245fbe680a3dbcba8a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 359,
+      "input": "专心学到下午4：30，咱们休息。",
+      "user_id": "936d94245fbe680a3dbcba8a",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f2282963ff645ffe2506fb",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f22833b537bb39a0c6ceee",
+          "expect_output_timestamp": 1777477683,
+          "handled_timestamp": 1777477683,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你4:30休息时需要我提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bdf57d10ed",
+            "case_index": 359,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693d1b6409af1bf513e837ce",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bdf57d10ed-case-359",
+              "business_conversation_key": "reminder-normal-bdf57d10ed-case-359",
+              "causal_inbound_event_id": "reminder-normal-bdf57d10ed-case-359-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "936d94245fbe680a3dbcba8a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.019
+    }
+  ]
+}
