@@ -361,6 +361,26 @@ def _chat_response_timeout_fallback(input_message: str) -> str:
     )
 
 
+def _send_chat_response_fallback(
+    *,
+    context: dict,
+    input_message: str,
+    expect_output_timestamp: int,
+    all_multimodal_responses: list,
+) -> Tuple[Optional[dict], int]:
+    multimodal_response = {
+        "type": "text",
+        "content": _chat_response_timeout_fallback(input_message),
+    }
+    all_multimodal_responses.append(multimodal_response)
+    return _send_single_message(
+        context=context,
+        multimodal_response=multimodal_response,
+        expect_output_timestamp=expect_output_timestamp,
+        is_first=True,
+    )
+
+
 # ========== 核心消息处理函数 ==========
 
 
@@ -590,21 +610,45 @@ async def handle_message(
                         logger.warning(f"{worker_tag} 锁已丢失，跳过超时兜底回复")
                         is_lock_lost = True
                     else:
-                        multimodal_response = {
-                            "type": "text",
-                            "content": _chat_response_timeout_fallback(
-                                input_message_str
-                            ),
-                        }
-                        all_multimodal_responses.append(multimodal_response)
-                        outputmessage, expect_output_timestamp = _send_single_message(
-                            context=context,
-                            multimodal_response=multimodal_response,
-                            expect_output_timestamp=expect_output_timestamp,
-                            is_first=True,
+                        outputmessage, expect_output_timestamp = (
+                            _send_chat_response_fallback(
+                                context=context,
+                                input_message=input_message_str,
+                                expect_output_timestamp=expect_output_timestamp,
+                                all_multimodal_responses=all_multimodal_responses,
+                            )
                         )
                         if outputmessage is not None:
                             resp_messages.append(outputmessage)
+
+            if (
+                not resp_messages
+                and not is_content_blocked
+                and not is_rollback
+                and not is_lock_lost
+            ):
+                stream_error = stream_error or "chat_response_empty"
+                logger.warning(
+                    f"{worker_tag} ChatWorkflow 未产出用户可见回复，发送兜底回复"
+                )
+                if (
+                    lock_id
+                    and conversation_id
+                    and not _verify_lock_ownership(conversation_id, lock_id)
+                ):
+                    logger.warning(f"{worker_tag} 锁已丢失，跳过空流兜底回复")
+                    is_lock_lost = True
+                else:
+                    outputmessage, expect_output_timestamp = (
+                        _send_chat_response_fallback(
+                            context=context,
+                            input_message=input_message_str,
+                            expect_output_timestamp=expect_output_timestamp,
+                            all_multimodal_responses=all_multimodal_responses,
+                        )
+                    )
+                    if outputmessage is not None:
+                        resp_messages.append(outputmessage)
 
             # ========== 新增：锁丢失时标记为 rollback ==========
             if is_lock_lost:

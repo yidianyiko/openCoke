@@ -530,3 +530,107 @@ async def test_handle_message_writes_fallback_when_chat_stream_times_out(
     assert context["stream_error"] == "chat_response_timeout:0.01s"
     assert is_rollback is False
     assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
+async def test_handle_message_writes_fallback_when_chat_stream_is_empty(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.agent_hardcode_handler",
+        types.SimpleNamespace(
+            handle_hardcode=lambda *args, **kwargs: None, supported_hardcode=()
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.tool.image",
+        types.SimpleNamespace(upload_image=lambda *args, **kwargs: ""),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.tool.voice",
+        types.SimpleNamespace(character_voice=lambda *args, **kwargs: ""),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.conversation_dao",
+        types.SimpleNamespace(ConversationDAO=lambda *args, **kwargs: object()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.user_dao",
+        types.SimpleNamespace(UserDAO=_StubUserDAO),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.mongo",
+        types.SimpleNamespace(MongoDBBase=lambda *args, **kwargs: object()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.lock",
+        types.SimpleNamespace(
+            MongoDBLockManager=lambda *args, **kwargs: types.SimpleNamespace(
+                renew_lock=lambda *a, **k: None
+            )
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.message_processor",
+        types.SimpleNamespace(
+            MessageAcquirer=lambda *args, **kwargs: types.SimpleNamespace(
+                acquire=lambda: None,
+                renew_lock=lambda *a, **k: None,
+                release_lock=lambda *a, **k: None,
+            ),
+            MessageDispatcher=lambda *args, **kwargs: object(),
+            MessageFinalizer=lambda *args, **kwargs: object(),
+        ),
+    )
+
+    from agent.runner import agent_handler
+
+    async def fake_prepare_run(input_message, session_state):
+        return {"session_state": session_state}
+
+    async def fake_run_stream(input_message, session_state):
+        yield {"type": "done", "data": {"total_messages": 0}}
+
+    monkeypatch.setattr(agent_handler.prepare_workflow, "run", fake_prepare_run)
+    monkeypatch.setattr(
+        agent_handler.streaming_chat_workflow, "run_stream", fake_run_stream
+    )
+    monkeypatch.setattr(agent_handler, "is_new_message_coming_in", lambda *args: False)
+    monkeypatch.setattr(
+        agent_handler,
+        "_send_single_message",
+        lambda **kwargs: (
+            {"message": kwargs["multimodal_response"]["content"]},
+            kwargs["expect_output_timestamp"],
+        ),
+    )
+    monkeypatch.setattr(agent_handler.asyncio, "create_task", lambda coro: coro.close())
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="提醒我明天写总结",
+            message_source="user",
+            check_new_message=False,
+            worker_tag="[T]",
+            current_message_ids=[],
+        )
+    )
+
+    assert len(resp_messages) == 1
+    assert "具体时间" in resp_messages[0]["message"]
+    assert context["stream_error"] == "chat_response_empty"
+    assert context["MultiModalResponses"] == [
+        {"type": "text", "content": resp_messages[0]["message"]}
+    ]
+    assert is_rollback is False
+    assert is_content_blocked is False
