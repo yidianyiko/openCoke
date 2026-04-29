@@ -7,6 +7,10 @@
     "75": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the agent should confirm reminder intent instead of silently creating one."
+    },
+    "86": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder request gives content but no specific time; the agent should ask when to remind instead of creating a reminder with an invented time."
     }
   }
 }
