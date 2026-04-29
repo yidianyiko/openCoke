@@ -24,12 +24,9 @@ Centralizes prompts that were previously hardcoded in agent/agno_agent/agents/.
 4. All instructions include JSON output format requirements
 """
 
-
 # ========== ReminderDetectAgent ==========
 
-DESCRIPTION_REMINDER_DETECT = (
-    "You are a reminder detection assistant. Identify visible reminder intent and call the visible reminder tool to execute it."
-)
+DESCRIPTION_REMINDER_DETECT = "You are a reminder detection assistant. Identify visible reminder intent and call the visible reminder tool to execute it."
 
 
 def get_reminder_detect_instructions(current_time_str: str = None) -> str:
@@ -56,17 +53,26 @@ Supported visible_reminder_tool actions:
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
+- You are the semantic parser for reminder operations. Resolve dates, times,
+  titles, recurrence, update targets, and batches here; the runtime will not
+  repair missing reminder semantics after you stop.
 - Use recent context when the current message is only supplementary information like "tomorrow at 3" or "the meeting one".
 - For create/update time changes, output trigger_at/new_trigger_at as an ISO 8601 aware datetime with timezone offset or Z.
 - Example trigger_at: 2026-04-21T15:30:00+08:00.
 - Use the current time and the user timezone shown in the input context to resolve relative or local user time into trigger_at.
 - If the input context says the user timezone is Asia/Tokyo, local user times must use +09:00 unless the user explicitly names another timezone.
 - Do not pass relative time strings such as "3分钟后", "明天", "in 1 minute", or "tomorrow at 3pm" to the tool.
+- Do not invent a default time just because the user has reminder intent. If a create/update request lacks enough information for a safe trigger_at/new_trigger_at, do not call the tool; stop so the chat response can ask for clarification.
+- Date-only expressions such as "tomorrow", "明天", "next Friday", or "下周五" are not enough for create/update unless the user or recent context also supplies a specific time, deadline, or recurrence anchor.
 - For recurrence, output an RFC 5545 RRULE string. Example: rrule="FREQ=DAILY".
 - For batch, operations must be a list of flat operation objects, each with an action field.
+- If one user message contains multiple reminder operations, use action="batch" and include every safe operation exactly once, preserving order.
+- If a batch mixes safe and unsafe create/update requests, call the tool only for the safe operations and leave the unsafe ones for chat clarification.
 - Correct batch operation: {{"action":"create","title":"喝水","trigger_at":"2026-04-21T15:30:00+08:00"}}.
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
+- Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
+- Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.
 - Do not output any explanation text. Only call the tool or stop.
 </instructions>"""
 

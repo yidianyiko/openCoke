@@ -224,8 +224,7 @@ def _run_operation(
             ok=False,
             result_summary=summary,
             extra_notes=(
-                f"action={canonical_action}; "
-                "error_code=AmbiguousReminderKeyword"
+                f"action={canonical_action}; " "error_code=AmbiguousReminderKeyword"
             ),
         )
         return summary
@@ -329,7 +328,10 @@ def _execute_one(
             owner_user_id=context.owner_user_id,
             patch=patch,
         )
-        return f"已更新提醒：{_format_reminder_with_schedule(updated)}", patch.schedule is not None
+        return (
+            f"已更新提醒：{_format_reminder_with_schedule(updated)}",
+            patch.schedule is not None,
+        )
 
     if action == "cancel":
         target_id = _resolve_reminder_id(
@@ -557,7 +559,9 @@ def _append_failure(
         "For create/update time changes, trigger_at/new_trigger_at must be ISO "
         "8601 with an explicit timezone offset or Z, for example "
         "2026-04-28T17:58:00+09:00. Use RFC 5545 RRULE strings for recurrence, "
-        "for example FREQ=DAILY."
+        "for example FREQ=DAILY. Do not call create/update with relative dates "
+        "or ambiguous date-only requests; resolve safe absolute datetimes before "
+        "calling this tool."
     ),
 )
 def visible_reminder_tool(
