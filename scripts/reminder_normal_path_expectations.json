@@ -313,6 +313,10 @@
     "287": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "288": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded later today but gives no concrete clock time. The agent should ask for the exact time instead of inventing one."
     }
   }
 }

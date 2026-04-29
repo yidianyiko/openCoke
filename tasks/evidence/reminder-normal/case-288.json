@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 288,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8c860f8e50",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "8293c5990680ad0c589a59b9"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 288,
+      "input": "今天晚点再提醒我一下这个预定",
+      "user_id": "8293c5990680ad0c589a59b9",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f2085cd8dbe51ea7239e98",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f208688db387734dd084a7",
+          "expect_output_timestamp": 1777469544,
+          "handled_timestamp": 1777469544,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问您希望今天几点提醒您关于这个预定？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8c860f8e50",
+            "case_index": 288,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "693914c66f7a48c66293fdff",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8c860f8e50-case-288",
+              "business_conversation_key": "reminder-normal-8c860f8e50-case-288",
+              "causal_inbound_event_id": "reminder-normal-8c860f8e50-case-288-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8293c5990680ad0c589a59b9"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.022
+    }
+  ]
+}
