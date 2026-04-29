@@ -589,6 +589,49 @@ def test_explicit_occurrence_evidence_accepts_bare_hour_reminder_time():
     )
 
 
+def test_single_create_rejected_for_multi_clause_reminder_batch():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="练腹肌",
+        trigger_at="2026-04-29T19:00:00+09:00",
+        schedule_basis="one_shot",
+    )
+
+    assert (
+        workflow._validate_reminder_decision_evidence(
+            decision,
+            "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
+        )
+        == "multiple reminder clauses require batch operations, not a single create"
+    )
+
+
+def test_retry_input_includes_invalid_schedule_evidence_reason():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    retry_input = workflow._build_reminder_retry_input(
+        "你还需要在15：30提醒我吃饭；16：40提醒我洗澡",
+        {
+            "conversation": {
+                "conversation_info": {"time_str": "2026年04月29日09时50分"}
+            },
+            "user": {"timezone": "Asia/Tokyo"},
+            "prepare_reminder_detect_invalid_schedule_evidence": (
+                "multiple reminder clauses require batch operations, not a single create"
+            ),
+        },
+    )
+
+    assert "Invalid previous decision" in retry_input
+    assert "multiple reminder clauses require batch operations" in retry_input
+
+
 def test_structured_clarify_decision_appends_direct_question():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

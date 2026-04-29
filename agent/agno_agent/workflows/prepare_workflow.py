@@ -1073,6 +1073,10 @@ class PrepareWorkflow:
             current_message
         ):
             return "schedule_evidence is not present in the current message"
+        if decision.action == "create" and self._message_has_multi_clause_reminders(
+            current_message
+        ):
+            return "multiple reminder clauses require batch operations, not a single create"
         if decision.schedule_basis != "explicit_occurrences" or not evidence:
             return ""
         evidence_text = self._compact_text(evidence)
@@ -1107,6 +1111,19 @@ class PrepareWorkflow:
     def _compact_text(value: str) -> str:
         normalized = unicodedata.normalize("NFKC", str(value or "")).lower()
         return re.sub(r"\s+", "", normalized)
+
+    @classmethod
+    def _message_has_multi_clause_reminders(cls, current_message: str) -> bool:
+        text = str(current_message or "")
+        if "提醒" not in text and "叫我" not in text and "通知" not in text:
+            return False
+        clauses = [clause for clause in re.split(r"[；;\n]", text) if clause.strip()]
+        timed_clauses = [
+            clause
+            for clause in clauses
+            if re.search(r"(?<!\d)\d{1,2}\s*[:：点]\s*\d{0,2}(?!\d)", clause)
+        ]
+        return len(timed_clauses) > 1
 
     @classmethod
     def _clock_time_variants(cls, trigger_at: str) -> set[str]:
@@ -1439,11 +1456,20 @@ class PrepareWorkflow:
         )
         user = session_state.get("user", {})
         timezone = user.get("effective_timezone") or user.get("timezone") or "unknown"
+        invalid_reason = str(
+            session_state.get("prepare_reminder_detect_invalid_schedule_evidence") or ""
+        ).strip()
+        invalid_previous_decision = (
+            f"\n### Invalid previous decision\n{invalid_reason}\n"
+            if invalid_reason
+            else ""
+        )
         return f"""### 当前时间
 {time_str}
 
 ### 用户时区
 {timezone}
+{invalid_previous_decision}
 
 ### Retry Directive
 Full-context reminder detection timed out or produced invalid structured output.
