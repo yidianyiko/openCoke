@@ -717,6 +717,8 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
     )
     expected: list[ExpectedReminderCreate] = []
     for index, match in enumerate(matches):
+        if time_match_starts_range(normalized, match.end()):
+            continue
         hour = apply_day_period_to_hour(
             normalized,
             match_start=match.start(),
@@ -741,6 +743,13 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
             )
         )
     return expected
+
+
+_TIME_RANGE_SEPARATOR_AFTER_TIME = re.compile(r"^\s*(?:[-~—–]|到|至)")
+
+
+def time_match_starts_range(text: str, match_end: int) -> bool:
+    return bool(_TIME_RANGE_SEPARATOR_AFTER_TIME.search(str(text or "")[match_end:]))
 
 
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
@@ -924,6 +933,9 @@ def extract_expected_title(suffix: str) -> str:
     candidate = re.sub(
         r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate
     )
+    candidate = re.sub(
+        r"(?:请)?在?(?:上述|这些|这个|各个)?时间点?提醒我.*$", "", candidate
+    ).strip()
     candidate = re.split(r"[，,。；;！？!?\n]", candidate, maxsplit=1)[0]
     candidate = re.sub(
         r"^(?:一个是|一是|二是|三是|还有|再|去|要)+", "", candidate

@@ -1200,6 +1200,52 @@ def test_expected_created_reminders_strips_modal_reminder_prefix():
     ]
 
 
+def test_expected_created_reminders_handles_time_ranges_without_dash_titles():
+    expected = normal_eval.expected_created_reminders(
+        "这是我今天的任务 11-11：30 吃饭；11：30-13：30 看法考网课；"
+        "13：30-15：30 健身 15：30-16：40 吃饭 16：40-17：20 洗澡 "
+        "17：20-19：00 看法考网课和做题 19：00-20：00练腹 请在这些时间点提醒我学习"
+    )
+
+    assert expected == [
+        normal_eval.ExpectedReminderCreate(
+            title="吃饭",
+            local_time="11:30:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="看法考网课",
+            local_time="13:30:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="健身",
+            local_time="15:30:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="吃饭",
+            local_time="16:40:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="洗澡",
+            local_time="17:20:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="看法考网课和做题",
+            local_time="19:00:00",
+            recurring=False,
+        ),
+        normal_eval.ExpectedReminderCreate(
+            title="练腹",
+            local_time="20:00:00",
+            recurring=False,
+        ),
+    ]
+
+
 def test_validate_observations_rejects_case3_false_positive_shape():
     case = normal_eval.ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",

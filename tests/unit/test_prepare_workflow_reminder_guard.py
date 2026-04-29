@@ -418,6 +418,36 @@ def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
     )
 
 
+def test_explicit_occurrence_evidence_accepts_bare_hour_time_range_boundary():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="11-11：30 吃饭",
+        operations=[
+            {
+                "action": "create",
+                "title": "吃饭",
+                "trigger_at": "2026-04-29T11:00:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "吃饭",
+                "trigger_at": "2026-04-29T11:30:00+09:00",
+            },
+        ],
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "这是我今天的任务 11-11：30 吃饭，请在这些时间点提醒我学习",
+    )
+
+
 def test_structured_clarify_decision_appends_direct_question():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

@@ -1100,7 +1100,9 @@ class PrepareWorkflow:
             f"{hour}点{minute}分",
         }
         if minute == 0:
-            raw_variants.update({f"{hour}点", f"{hour:02d}点"})
+            raw_variants.update(
+                {f"{hour}", f"{hour:02d}", f"{hour}点", f"{hour:02d}点"}
+            )
             for daypart in cls._clock_dayparts(hour):
                 raw_variants.update(
                     {
