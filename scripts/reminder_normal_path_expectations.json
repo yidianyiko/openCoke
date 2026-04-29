@@ -297,6 +297,10 @@
     "262": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user gives a calendar date and broad day period but no concrete clock time. Without a default-time policy, the agent should ask what time that morning instead of creating a reminder."
+    },
+    "278": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks about being woken tomorrow morning but gives no concrete clock time. The agent should ask what time instead of creating a date/daypart default reminder."
     }
   }
 }
