@@ -841,11 +841,29 @@ class PrepareWorkflow:
                     session_state,
                 )
                 if retry_response is not None:
-                    self._execute_structured_reminder_decision(
+                    retry_executed = self._execute_structured_reminder_decision(
                         retry_response,
                         session_state,
                         input_message,
                     )
+                    if retry_executed:
+                        self._log_reminder_result(retry_response, session_state)
+                        return
+                    if self._append_invalid_schedule_evidence_clarification(
+                        session_state
+                    ):
+                        self._log_reminder_result(retry_response, session_state)
+                        return
+                    if session_state.pop(
+                        "prepare_reminder_detect_invalid_structured_output", False
+                    ):
+                        append_tool_result(
+                            session_state,
+                            tool_name="提醒操作",
+                            ok=False,
+                            result_summary="提醒操作失败：提醒识别输出无效，重试后仍未能完成提醒设置",
+                            extra_notes="action=detect; error_code=ReminderDetectInvalidStructuredOutput",
+                        )
                     self._log_reminder_result(retry_response, session_state)
                     return
                 if self._append_invalid_schedule_evidence_clarification(session_state):

@@ -274,6 +274,91 @@ async def test_invalid_structured_reminder_retry_failure_records_tool_result(
     )
 
 
+@pytest.mark.asyncio
+async def test_invalid_retry_schedule_evidence_appends_clarification():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    invalid_response = MagicMock()
+    invalid_response.metrics = None
+    invalid_response.tools = []
+    invalid_response.content = '{"intent_type":"clarify","action":"create"}'
+
+    retry_response = MagicMock()
+    retry_response.metrics = None
+    retry_response.tools = []
+    retry_response.content = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="19：00-20：00练腹",
+        operations=[
+            {
+                "action": "create",
+                "title": "练腹",
+                "trigger_at": "2026-04-29T19:00:00+09:00",
+            }
+        ],
+    )
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日09时47分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
+        ) as reminder_detect_retry_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_response = MagicMock()
+        orchestrator_response.metrics = None
+        orchestrator_response.content = {
+            "need_context_retrieve": False,
+            "need_reminder_detect": True,
+            "need_web_search": False,
+            "need_timezone_update": False,
+            "timezone_action": "none",
+        }
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=invalid_response)
+        reminder_detect_retry_agent.arun = AsyncMock(return_value=retry_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run(
+            "19：00-20：00练腹 请在这些时间点提醒我学习",
+            session_state,
+        )
+
+    [tool_result] = result["session_state"]["tool_results"]
+    assert tool_result == {
+        "tool_name": "提醒操作",
+        "ok": False,
+        "result_summary": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+        "extra_notes": (
+            "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
+        ),
+    }
+
+
 def test_bounded_rrule_operation_gets_deadline_until():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
