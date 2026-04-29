@@ -68,3 +68,11 @@ def test_reminder_detect_instructions_use_next_occurrence_for_past_clock_time():
     assert "If a bare clock time has already passed today" in instructions
     assert "next occurrence" in instructions
     assert "10:40提醒我思考一个问题" in instructions
+
+
+def test_reminder_detect_instructions_allow_generic_title_for_bare_time_reminders():
+    instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
+
+    assert 'title="提醒"' in instructions
+    assert "11点10分还有12点提醒我一下" in instructions
+    assert "two one-shot reminders" in instructions

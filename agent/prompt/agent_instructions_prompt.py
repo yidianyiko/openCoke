@@ -99,8 +99,11 @@ Rules:
 - Correct batch operation: {{"action":"create","title":"喝水","trigger_at":"2026-04-21T15:30:00+08:00"}}.
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
+- If the user explicitly asks to be reminded at one or more specific times but
+  gives no content, use the generic title="提醒" rather than asking for content.
 - Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
 - Example: current time 2026-04-29 11:51 Asia/Tokyo, "10:40提醒我思考一个问题" -> create a one-shot reminder at "2026-04-30T10:40:00+09:00".
+- Example: current time 2026-04-29 14:27 Asia/Tokyo, "11点10分还有12点提醒我一下" -> call batch with two one-shot reminders using title="提醒" at "2026-04-30T11:10:00+09:00" and "2026-04-30T12:00:00+09:00".
 - Example: "早上10:30提醒我看报表" -> create a one-shot reminder at the next local 10:30 morning; do not set rrule.
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.

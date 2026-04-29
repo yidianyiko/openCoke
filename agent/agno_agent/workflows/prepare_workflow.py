@@ -214,7 +214,20 @@ class PrepareWorkflow:
             return {"session_state": session_state}
 
         # Step 1: Orchestrator 决策 (1次 LLM)
-        await self._run_orchestrator(input_message, session_state)
+        if self._should_skip_orchestrator_for_explicit_reminder(
+            input_message, session_state
+        ):
+            orchestrator_result = self._get_default_orchestrator()
+            orchestrator_result["need_context_retrieve"] = False
+            orchestrator_result["need_reminder_detect"] = True
+            session_state["orchestrator"] = orchestrator_result
+            session_state["prepare_orchestrator_skipped_for_reminder"] = True
+            self._map_to_query_rewrite(session_state, orchestrator_result)
+            logger.info(
+                "[PrepareWorkflow] 显式提醒请求跳过 Orchestrator，直接进入提醒识别"
+            )
+        else:
+            await self._run_orchestrator(input_message, session_state)
 
         # 获取调度决策
         orchestrator = session_state.get("orchestrator", {})
@@ -366,6 +379,14 @@ class PrepareWorkflow:
             return True
 
         return need_reminder
+
+    def _should_skip_orchestrator_for_explicit_reminder(
+        self, input_message: str, session_state: Dict[str, Any]
+    ) -> bool:
+        message_source = session_state.get("message_source", "user")
+        if message_source == "deferred_action":
+            return False
+        return self._looks_like_explicit_reminder_intent(input_message)
 
     def _looks_like_explicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
@@ -949,6 +970,9 @@ Full-context reminder detection timed out. Decide from this current message
 using visible_reminder_tool semantics.
 - If the current user message explicitly asks for a reminder and includes a
   specific time plus reminder content, call visible_reminder_tool.
+- If the current user message explicitly asks for reminders at one or more
+  specific times but gives no content, call visible_reminder_tool with generic
+  title="提醒" for each time.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, call visible_reminder_tool
   with action="delete" and the safest target keyword from the message.
