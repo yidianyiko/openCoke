@@ -216,16 +216,23 @@ Intent boundary:
 
 Field boundary:
 - Only crud may include reminder write fields.
-- Clarify/query/discussion must leave create/update/delete fields empty.
+- Clarify/query/discussion must leave create/update/delete fields empty and
+  action empty. Never output action="create" with intent_type="clarify".
 - Date-only or time-missing create/update requests clarify; do not invent a
   default time or midnight.
 - If the user explicitly asks for a reminder and gives a concrete time plus
   reminder content, create it. Resolve local times with the supplied timezone.
+- Every trigger_at, new_trigger_at, and deadline_at must be a timezone-aware ISO 8601
+  datetime and include the local timezone offset, for example
+  2026-12-14T00:30:00+09:00. Never omit the offset.
 - If the user only states a future plan with a task and time, return clarify
   with no action and ask whether they want a reminder at that stated time.
 - For a single reminder create, put the create fields in top-level title and trigger_at
   and leave operations empty. new_title and new_trigger_at are update-only.
 - For multiple safe reminder clauses, use batch with flat operations.
+- In batch create operations, use title and trigger_at only, plus rrule when
+  needed. Do not include empty optional fields, reminder_id, keyword, new_title,
+  or new_trigger_at for create operations.
 - For bounded cadence, enumerate one-shot operations and include deadline_at.
 - For recurring reminders, use RRULE only when the user asked for recurrence.
 - If the user says to keep, restart, or maintain a previous setting but

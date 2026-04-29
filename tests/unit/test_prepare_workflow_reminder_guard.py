@@ -1864,8 +1864,14 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "top-level title and trigger_at" in retry_input
     assert "operations empty" in retry_input
     assert "new_title and new_trigger_at are update-only" in retry_input
+    assert "timezone-aware ISO 8601" in retry_input
+    assert "2026-12-14T00:30:00+09:00" in retry_input
+    assert "Never output action=\"create\"" in retry_input
+    assert 'intent_type="clarify"' in retry_input
     assert "Do not keep only the last item" in retry_input
     assert "action=create is invalid" in retry_input
+    assert "batch create operations" in retry_input
+    assert "Do not include empty optional fields" in retry_input
     assert (
         "operations count must equal the number of safe reminder clauses" in retry_input
     )
@@ -1880,6 +1886,87 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert (
         "提醒识别超时"
         not in result["session_state"]["tool_results"][0]["result_summary"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_reminder_detect_timeout_retry_invalid_evidence_appends_clarification(
+    monkeypatch,
+):
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    async def slow_reminder_detect(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    retry_response = MagicMock()
+    retry_response.metrics = None
+    retry_response.tools = []
+    retry_response.content = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="not in the current message",
+        operations=[
+            {
+                "action": "create",
+                "title": "复盘",
+                "trigger_at": "2026-12-14T00:30:00+09:00",
+            }
+        ],
+    )
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日02时30分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
+        ) as reminder_detect_retry_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        reminder_detect_agent.arun = AsyncMock(side_effect=slow_reminder_detect)
+        reminder_detect_retry_agent.arun = AsyncMock(return_value=retry_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("提醒我12月14晚上0:30复盘", session_state)
+
+    assert result["session_state"]["prepare_reminder_detect_timeout"] is True
+    assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
+    assert result["session_state"]["tool_results"][-1]["ok"] is False
+    assert "请确认具体提醒频率或每个提醒时间" in (
+        result["session_state"]["tool_results"][-1]["result_summary"]
+    )
+    assert "ReminderDetectInvalidScheduleEvidence" in (
+        result["session_state"]["tool_results"][-1]["extra_notes"]
     )
 
 

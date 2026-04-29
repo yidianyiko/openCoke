@@ -160,6 +160,26 @@ def test_reminder_detect_retry_instructions_keep_single_create_top_level():
     )
 
 
+def test_reminder_detect_retry_instructions_keep_batch_create_fields_concise():
+    assert "batch create operations" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "title and trigger_at only" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "Do not include empty optional fields" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
+def test_reminder_detect_retry_instructions_require_aware_datetimes():
+    assert "timezone-aware ISO 8601" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "include the local timezone offset" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "2026-12-14T00:30:00+09:00" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
+def test_reminder_detect_retry_instructions_keep_clarify_action_empty():
+    assert "Clarify/query/discussion must leave" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "action empty" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert 'Never output action="create" with intent_type="clarify"' in (
+        INSTRUCTIONS_REMINDER_DETECT_RETRY
+    )
+
+
 def test_reminder_detect_retry_instructions_clarify_schedule_only_plan():
     assert "future plan with a task and time" in INSTRUCTIONS_REMINDER_DETECT_RETRY
     assert "return clarify" in INSTRUCTIONS_REMINDER_DETECT_RETRY

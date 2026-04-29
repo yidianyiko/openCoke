@@ -902,11 +902,24 @@ class PrepareWorkflow:
                 session_state,
             )
             if retry_response is not None:
-                self._execute_structured_reminder_decision(
+                retry_executed = self._execute_structured_reminder_decision(
                     retry_response,
                     session_state,
                     input_message,
                 )
+                if not retry_executed:
+                    if not self._append_invalid_schedule_evidence_clarification(
+                        session_state
+                    ) and session_state.pop(
+                        "prepare_reminder_detect_invalid_structured_output", False
+                    ):
+                        append_tool_result(
+                            session_state,
+                            tool_name="提醒操作",
+                            ok=False,
+                            result_summary="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+                            extra_notes="action=detect; error_code=ReminderDetectInvalidStructuredOutput",
+                        )
                 self._log_reminder_result(retry_response, session_state)
                 return
             append_tool_result(
@@ -1566,8 +1579,12 @@ Decide from this current message and return only a structured ReminderDetectDeci
 - If the message explicitly asks for a reminder and gives concrete time plus
   reminder content, return crud create. If it asks for reminder times but no
   content, use title="提醒".
+- trigger_at/new_trigger_at/deadline_at must be timezone-aware ISO 8601
+  with local offset, for example 2026-12-14T00:30:00+09:00.
 - For a single reminder create, put the create fields in top-level title and trigger_at
   and leave operations empty. new_title and new_trigger_at are update-only.
+- Clarify/query/discussion must leave action empty. Never output action="create"
+  with intent_type="clarify".
 - Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month
   is not enough; do not resolve it to midnight.
 - For repeated interval with deadline/end/stop-after, enumerate each concrete one-shot occurrence;
@@ -1584,6 +1601,9 @@ Decide from this current message and return only a structured ReminderDetectDeci
 - Never return action="batch" with operations=[]. For multiple safe clauses,
   use one create operation for each safe clause; action=create is invalid,
   operations count must equal the number of safe reminder clauses, and Do not keep only the last item.
+- In batch create operations, use title and trigger_at only, plus rrule when
+  needed. Do not include empty optional fields, reminder_id, keyword, new_title,
+  or new_trigger_at for create operations.
 - Chinese semicolon lists may omit the repeated reminder verb after the first clause.
 - For same-message stop boundary, treat it as deadline_at, not as delete/cancel.
   If cadence started in the past, skip past occurrences and create only future occurrences.

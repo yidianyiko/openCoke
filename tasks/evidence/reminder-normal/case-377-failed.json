@@ -1,0 +1,177 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 377,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-729b60945a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "57d0cf0abad873b62f4df250"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:10>0": 1,
+      "missing_expected_reminder_title:做ai图(2小时)": 1,
+      "missing_expected_reminder_title:入睡": 1,
+      "missing_expected_reminder_title:八段锦": 1,
+      "missing_expected_reminder_title:复盘": 1,
+      "missing_expected_reminder_title:强制微休息": 1,
+      "missing_expected_reminder_title:放下手机准备睡觉": 1,
+      "missing_expected_reminder_title:画稿子(2小时)": 1,
+      "missing_expected_reminder_title:画稿子(2小时)（每小时整点活动5分钟）": 1,
+      "missing_expected_reminder_title:画稿子(3小时)（每小时整点活动5分钟）": 1,
+      "missing_expected_reminder_title:起床": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:做ai图(2小时)": 1,
+      "user_output_missing_expected_title:入睡": 1,
+      "user_output_missing_expected_title:八段锦": 1,
+      "user_output_missing_expected_title:复盘": 1,
+      "user_output_missing_expected_title:强制微休息": 1,
+      "user_output_missing_expected_title:放下手机准备睡觉": 1,
+      "user_output_missing_expected_title:画稿子(2小时)": 1,
+      "user_output_missing_expected_title:画稿子(2小时)（每小时整点活动5分钟）": 1,
+      "user_output_missing_expected_title:画稿子(3小时)（每小时整点活动5分钟）": 1,
+      "user_output_missing_expected_title:起床": 1
+    },
+    "failures": [
+      {
+        "index": 377,
+        "input": "12月14计划是：\n10：30 起床，喝杯水，温和拉伸5分钟\n吃饭45分钟\n正念语10分钟\n11：50-2：00 画稿子(2小时)，每小时整点活动5分钟\n2：00-2：30 强制微休息，八段锦或金刚功，眼保健操，远眺 (30分钟)\n2：40-4：50 画稿子(2小时)（每小时整点活动5分钟）\n4：50-5：20 八段锦，眼保健操，力量训练 (30分钟)\n吃饭\n6：30-9：30 画稿子(3小时)（每小时整点活动5分钟）\n9：40-11：40 做ai图(2小时)\n0：15放下手机准备睡觉\n1:00入睡，睡前冥想\n---------------\n我总是想玩手机，画稿子效率不高，希望偶尔提醒一下，晚上0：30复盘吧，还有提醒入睡准备，避免熬夜超过1点",
+        "user_id": "57d0cf0abad873b62f4df250",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f22f0794ef1e7a3dade899",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:10>0",
+          "missing_expected_reminder_title:起床",
+          "missing_expected_reminder_title:画稿子(2小时)",
+          "missing_expected_reminder_title:强制微休息",
+          "missing_expected_reminder_title:画稿子(2小时)（每小时整点活动5分钟）",
+          "missing_expected_reminder_title:八段锦",
+          "missing_expected_reminder_title:画稿子(3小时)（每小时整点活动5分钟）",
+          "missing_expected_reminder_title:做ai图(2小时)",
+          "missing_expected_reminder_title:放下手机准备睡觉",
+          "missing_expected_reminder_title:入睡",
+          "missing_expected_reminder_title:复盘",
+          "user_output_missing_expected_title:起床",
+          "user_output_missing_expected_title:画稿子(2小时)",
+          "user_output_missing_expected_title:强制微休息",
+          "user_output_missing_expected_title:画稿子(2小时)（每小时整点活动5分钟）",
+          "user_output_missing_expected_title:八段锦",
+          "user_output_missing_expected_title:画稿子(3小时)（每小时整点活动5分钟）",
+          "user_output_missing_expected_title:做ai图(2小时)",
+          "user_output_missing_expected_title:放下手机准备睡觉",
+          "user_output_missing_expected_title:入睡",
+          "user_output_missing_expected_title:复盘"
+        ],
+        "outputs": [
+          {
+            "_id": "69f22f7bc9edb8f10e945ef4",
+            "expect_output_timestamp": 1777479520,
+            "handled_timestamp": 1777479520,
+            "status": "pending",
+            "message_type": "text",
+            "message": "嘿，计划收到了，挺详细的嘛，看得出来你是认真想执行的",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-729b60945a",
+              "case_index": 377,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "693da8b46ae5cffb4f4719f9",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-729b60945a-case-377",
+                "business_conversation_key": "reminder-normal-729b60945a-case-377",
+                "causal_inbound_event_id": "reminder-normal-729b60945a-case-377-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "57d0cf0abad873b62f4df250"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 116.193
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 377,
+      "input": "12月14计划是：\n10：30 起床，喝杯水，温和拉伸5分钟\n吃饭45分钟\n正念语10分钟\n11：50-2：00 画稿子(2小时)，每小时整点活动5分钟\n2：00-2：30 强制微休息，八段锦或金刚功，眼保健操，远眺 (30分钟)\n2：40-4：50 画稿子(2小时)（每小时整点活动5分钟）\n4：50-5：20 八段锦，眼保健操，力量训练 (30分钟)\n吃饭\n6：30-9：30 画稿子(3小时)（每小时整点活动5分钟）\n9：40-11：40 做ai图(2小时)\n0：15放下手机准备睡觉\n1:00入睡，睡前冥想\n---------------\n我总是想玩手机，画稿子效率不高，希望偶尔提醒一下，晚上0：30复盘吧，还有提醒入睡准备，避免熬夜超过1点",
+      "user_id": "57d0cf0abad873b62f4df250",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f22f0794ef1e7a3dade899",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:10>0",
+        "missing_expected_reminder_title:起床",
+        "missing_expected_reminder_title:画稿子(2小时)",
+        "missing_expected_reminder_title:强制微休息",
+        "missing_expected_reminder_title:画稿子(2小时)（每小时整点活动5分钟）",
+        "missing_expected_reminder_title:八段锦",
+        "missing_expected_reminder_title:画稿子(3小时)（每小时整点活动5分钟）",
+        "missing_expected_reminder_title:做ai图(2小时)",
+        "missing_expected_reminder_title:放下手机准备睡觉",
+        "missing_expected_reminder_title:入睡",
+        "missing_expected_reminder_title:复盘",
+        "user_output_missing_expected_title:起床",
+        "user_output_missing_expected_title:画稿子(2小时)",
+        "user_output_missing_expected_title:强制微休息",
+        "user_output_missing_expected_title:画稿子(2小时)（每小时整点活动5分钟）",
+        "user_output_missing_expected_title:八段锦",
+        "user_output_missing_expected_title:画稿子(3小时)（每小时整点活动5分钟）",
+        "user_output_missing_expected_title:做ai图(2小时)",
+        "user_output_missing_expected_title:放下手机准备睡觉",
+        "user_output_missing_expected_title:入睡",
+        "user_output_missing_expected_title:复盘"
+      ],
+      "outputs": [
+        {
+          "_id": "69f22f7bc9edb8f10e945ef4",
+          "expect_output_timestamp": 1777479520,
+          "handled_timestamp": 1777479520,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嘿，计划收到了，挺详细的嘛，看得出来你是认真想执行的",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-729b60945a",
+            "case_index": 377,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693da8b46ae5cffb4f4719f9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-729b60945a-case-377",
+              "business_conversation_key": "reminder-normal-729b60945a-case-377",
+              "causal_inbound_event_id": "reminder-normal-729b60945a-case-377-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "57d0cf0abad873b62f4df250"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 116.193
+    }
+  ]
+}

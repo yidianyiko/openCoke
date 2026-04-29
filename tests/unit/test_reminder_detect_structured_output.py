@@ -249,6 +249,7 @@ def test_reminder_detect_agents_use_structured_decision_schema():
     assert reminder_detect_retry_agent.structured_outputs is True
     assert reminder_detect_agent.use_json_mode is False
     assert reminder_detect_retry_agent.use_json_mode is False
+    assert reminder_detect_retry_agent.model.max_tokens >= 6000
     assert len(reminder_detect_retry_agent.instructions) < (
         len(reminder_detect_agent.instructions) // 2
     )
