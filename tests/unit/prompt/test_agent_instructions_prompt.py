@@ -176,6 +176,14 @@ def test_reminder_detect_instructions_reject_empty_batch_and_vague_occurrence_ev
     assert "not enough schedule_evidence" in instructions
 
 
+def test_reminder_detect_instructions_require_every_safe_listed_reminder_operation():
+    instructions = get_reminder_detect_instructions("2026年04月29日09时50分")
+
+    assert "semicolon-separated" in instructions
+    assert "one create operation for each safe clause" in instructions
+    assert "Do not keep only the last item" in instructions
+
+
 def test_reminder_detect_instructions_keep_clarification_language():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 

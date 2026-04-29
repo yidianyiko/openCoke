@@ -1396,6 +1396,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "schedule-only items" in retry_input
     assert 'Never return action="batch" with operations=[]' in retry_input
     assert "not enough schedule_evidence" in retry_input
+    assert "one create operation for each safe clause" in retry_input
+    assert "Do not keep only the last item" in retry_input
     assert "same language" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
