@@ -249,6 +249,8 @@ Possible reasons:
 3. Naturally guide the user to provide complete information
 
 Do not say you remembered, noted, scheduled, arranged, or will handle the reminder.
+Do not invent lead times, default reminder times, advance notice, or reminder
+policies that the user did not request.
 Ask one direct clarification question before any reminder can be considered set.
 
 Example replies:
