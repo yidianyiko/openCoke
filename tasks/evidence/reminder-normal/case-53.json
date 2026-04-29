@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 53,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e4aabc8c91",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c2417a538f0baad5561c0"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 53,
+      "input": "我在思考中午是继续背书，还是I",
+      "user_id": "692c2417a538f0baad5561c0",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69f15be39bd319b8a8495356",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15bee5c027144027525ff",
+          "expect_output_timestamp": 1777425385,
+          "handled_timestamp": 1777425385,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈你这消息发一半，是背书还是“I”什么？I wanna sleep？I wanna eat？说清楚我好帮你参谋啊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e4aabc8c91",
+            "case_index": 53,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "692e63af4bf7878f041145c4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e4aabc8c91-case-53",
+              "business_conversation_key": "reminder-normal-e4aabc8c91-case-53",
+              "causal_inbound_event_id": "reminder-normal-e4aabc8c91-case-53-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c2417a538f0baad5561c0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.021
+    }
+  ]
+}

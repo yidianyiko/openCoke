@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 46,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-05e71a7099",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692dba6f64d834c3c061653b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 46,
+      "input": "周1234的晚上其余时间我想控制游戏时间，保持原有安排",
+      "user_id": "692dba6f64d834c3c061653b",
+      "original_from_user": "692dba6f64d834c3c061653b",
+      "input_message_id": "69f10dc1e11da075bea57c04",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10dc65c02714402752411",
+          "expect_output_timestamp": 1777405381,
+          "handled_timestamp": 1777405381,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗯，你是说周一到周四的晚上，除了之前安排好的时间，剩下的时间你也希望控制游戏时间对吧",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-05e71a7099",
+            "case_index": 46,
+            "original_from_user": "692dba6f64d834c3c061653b",
+            "source_id": "692dbbaa64d834c3c0616544",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-05e71a7099-case-46",
+              "business_conversation_key": "reminder-normal-05e71a7099-case-46",
+              "causal_inbound_event_id": "reminder-normal-05e71a7099-case-46-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692dba6f64d834c3c061653b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

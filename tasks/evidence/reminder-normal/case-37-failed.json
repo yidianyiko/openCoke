@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 37,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-db9eada3ae",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 37,
+        "input": "那你打算几点提醒我",
+        "user_id": "692c4430a538f0baad5561de",
+        "original_from_user": "692c4430a538f0baad5561de",
+        "input_message_id": "69f10a2824fb5168031d93e0",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f10a2f0a5aacc4ef369c90",
+            "expect_output_timestamp": 1777404463,
+            "handled_timestamp": 1777404463,
+            "status": "pending",
+            "message_type": "text",
+            "message": "- 学习Illya的文章 @ 2026-04-30T09:00:00+00:00\n- 明天提醒 @ 2026-04-29T19:24:00+00:00\n- 看Ilya的文章 @ 2026-04-29T14:00:00+00:00",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-db9eada3ae",
+              "case_index": 37,
+              "original_from_user": "692c4430a538f0baad5561de",
+              "source_id": "692d809264d834c3c06164b8",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-db9eada3ae-case-37",
+                "business_conversation_key": "reminder-normal-db9eada3ae-case-37",
+                "causal_inbound_event_id": "reminder-normal-db9eada3ae-case-37-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692c4430a538f0baad5561de"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 8.016
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 37,
+      "input": "那你打算几点提醒我",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f10a2824fb5168031d93e0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f10a2f0a5aacc4ef369c90",
+          "expect_output_timestamp": 1777404463,
+          "handled_timestamp": 1777404463,
+          "status": "pending",
+          "message_type": "text",
+          "message": "- 学习Illya的文章 @ 2026-04-30T09:00:00+00:00\n- 明天提醒 @ 2026-04-29T19:24:00+00:00\n- 看Ilya的文章 @ 2026-04-29T14:00:00+00:00",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-db9eada3ae",
+            "case_index": 37,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692d809264d834c3c06164b8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-db9eada3ae-case-37",
+              "business_conversation_key": "reminder-normal-db9eada3ae-case-37",
+              "causal_inbound_event_id": "reminder-normal-db9eada3ae-case-37-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.016
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 20,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e88de67ab7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 20,
+      "input": "你可以循环提醒我吗",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f107c90a8a99efcbf260b9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f107d1367a00f9a568e46a",
+          "expect_output_timestamp": 1777403856,
+          "handled_timestamp": 1777403856,
+          "status": "pending",
+          "message_type": "text",
+          "message": "当然可以，不过循环提醒得有个具体的内容和时间呀。你想让我提醒你做什么？比如学习、运动，还是别的？大概什么频率？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e88de67ab7",
+            "case_index": 20,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d402fa538f0baad55628c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e88de67ab7-case-20",
+              "business_conversation_key": "reminder-normal-e88de67ab7-case-20",
+              "causal_inbound_event_id": "reminder-normal-e88de67ab7-case-20-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

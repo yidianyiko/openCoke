@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 32,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2018246d34",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 32,
+      "input": "好的明天再继续提醒我",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f10989b8f09cd5a3421d27",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f109ba0a5aacc4ef369c31",
+          "expect_output_timestamp": 1777404346,
+          "handled_timestamp": 1777404346,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：明天提醒（2026-04-30 03:24）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2018246d34",
+            "case_index": 32,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692d542464d834c3c0616427",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2018246d34-case-32",
+              "business_conversation_key": "reminder-normal-2018246d34-case-32",
+              "causal_inbound_event_id": "reminder-normal-2018246d34-case-32-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f109ba0a5aacc4ef369c2e",
+          "owner_user_id": "692c4430a538f0baad5561de",
+          "title": "明天提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T19:24:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "03:24:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f109890a5aacc4ef369c26",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T19:24:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:25:46.644000+00:00",
+          "updated_at": "2026-04-28T19:25:46.644000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 49.083
+    }
+  ]
+}

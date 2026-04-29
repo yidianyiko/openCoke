@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 50,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e079805b51",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692db91164d834c3c0616539"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 50,
+      "input": "今天开始启动【戒掉李梓豪计划】",
+      "user_id": "692db91164d834c3c0616539",
+      "original_from_user": "692db91164d834c3c0616539",
+      "input_message_id": "69f15ba087440723bcf9eaf7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15ba95c027144027525bf",
+          "expect_output_timestamp": 1777425319,
+          "handled_timestamp": 1777425319,
+          "status": "pending",
+          "message_type": "text",
+          "message": "欢迎欢迎！我是 Coke，你的云监督员~以后我负责盯着你完成目标哦",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e079805b51",
+            "case_index": 50,
+            "original_from_user": "692db91164d834c3c0616539",
+            "source_id": "692e3bad4bf7878f04114563",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e079805b51-case-50",
+              "business_conversation_key": "reminder-normal-e079805b51-case-50",
+              "causal_inbound_event_id": "reminder-normal-e079805b51-case-50-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692db91164d834c3c0616539"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

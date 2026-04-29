@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 28,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-11d4627db5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4e5564d834c3c06163ea"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 28,
+      "input": "你好小姐姐，我目前在备战语言学考研，还有20天就考试了，然后我今天下午和明天上午的总目标是把现代汉语和语言学的两本资料都复习一遍，争取对资料上的每个题的小标题都能复述出来，尤其是真题考过的内容。请问我这个任务该怎么拆解呢",
+      "user_id": "692d4e5564d834c3c06163ea",
+      "original_from_user": "692d4e5564d834c3c06163ea",
+      "input_message_id": "69f10912bff198b562f52ed2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f109190a5aacc4ef369be2",
+          "expect_output_timestamp": 1777404182,
+          "handled_timestamp": 1777404182,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，考研备战，太棒了！我是Coke，你的学习监督员。既然时间紧任务重，咱们直接切入正题——先把任务拆明白。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-11d4627db5",
+            "case_index": 28,
+            "original_from_user": "692d4e5564d834c3c06163ea",
+            "source_id": "692d4e8b64d834c3c06163ec",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-11d4627db5-case-28",
+              "business_conversation_key": "reminder-normal-11d4627db5-case-28",
+              "causal_inbound_event_id": "reminder-normal-11d4627db5-case-28-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4e5564d834c3c06163ea"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.012
+    }
+  ]
+}

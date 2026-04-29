@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 17,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-aeadc74acd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d3312a538f0baad556259"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 17,
+        "input": "叫我小凡就行了",
+        "user_id": "692d3312a538f0baad556259",
+        "original_from_user": "692d3312a538f0baad556259",
+        "input_message_id": "69f103883e8c8d0d434add5e",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f103b88be408c67ce92f93",
+            "expect_output_timestamp": 1777402807,
+            "handled_timestamp": 1777402807,
+            "status": "pending",
+            "message_type": "text",
+            "message": "小凡好！我是Coke，你的云端监督员",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-aeadc74acd",
+              "case_index": 17,
+              "original_from_user": "692d3312a538f0baad556259",
+              "source_id": "692d3336a538f0baad55625c",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-aeadc74acd-case-17",
+                "business_conversation_key": "reminder-normal-aeadc74acd-case-17",
+                "causal_inbound_event_id": "reminder-normal-aeadc74acd-case-17-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692d3312a538f0baad556259"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 48.083
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 17,
+      "input": "叫我小凡就行了",
+      "user_id": "692d3312a538f0baad556259",
+      "original_from_user": "692d3312a538f0baad556259",
+      "input_message_id": "69f103883e8c8d0d434add5e",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f103b88be408c67ce92f93",
+          "expect_output_timestamp": 1777402807,
+          "handled_timestamp": 1777402807,
+          "status": "pending",
+          "message_type": "text",
+          "message": "小凡好！我是Coke，你的云端监督员",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-aeadc74acd",
+            "case_index": 17,
+            "original_from_user": "692d3312a538f0baad556259",
+            "source_id": "692d3336a538f0baad55625c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-aeadc74acd-case-17",
+              "business_conversation_key": "reminder-normal-aeadc74acd-case-17",
+              "causal_inbound_event_id": "reminder-normal-aeadc74acd-case-17-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d3312a538f0baad556259"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 48.083
+    }
+  ]
+}

@@ -1,0 +1,292 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 42,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2ea48ae0c1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d0488a538f0baad556217"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 42,
+      "input": "[太阳][太阳]12月2日计划 星期二\n8:00～8:40英语单词背诵#680个阅读高频词1-100\n8:50～10:30英语阅读技巧#阅读理论课-推荐颉斌斌理论\n10:30～12:00天文教材阅读理解#第一章\n14:00～16:00物理概念理解+题目练习#参考系和坐标系\n16:20～18:00物理概念理解+题目练习#质点运动\n19:00～20:30政治真题技巧课+背诵1#边刷边学边背\n20:40～22:00天文教材阅读理解#第2-3章\n22:00～23:00总结复盘",
+      "user_id": "692d0488a538f0baad556217",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "69f10c6d68ad5ab7bda5044a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10c7766d8adb37d8dcb00",
+          "expect_output_timestamp": 1777405047,
+          "handled_timestamp": 1777405047,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：英语单词背诵（2026-12-02 08:00）；已创建提醒：英语阅读技巧（2026-12-02 08:50）；已创建提醒：天文教材阅读理解-第1章（2026-12-02 10:30）；已创建提醒：物理概念理解-参考系和坐标系（2026-12-02 14:00）；已创建提醒：物理概念理解-质点运动（2026-12-02 16:20）；已创建提醒：政治真题技巧课+背诵（2026-12-02 19:00）；已创建提醒：天文教材阅读理解-第2-3章（2026-12-02 20:40）；已创建提醒：总结复盘（2026-12-02 22:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2ea48ae0c1",
+            "case_index": 42,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "692da80364d834c3c0616519",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2ea48ae0c1-case-42",
+              "business_conversation_key": "reminder-normal-2ea48ae0c1-case-42",
+              "causal_inbound_event_id": "reminder-normal-2ea48ae0c1-case-42-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d0488a538f0baad556217"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f10c7766d8adb37d8dcaf6",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "英语单词背诵",
+          "schedule": {
+            "anchor_at": "2026-12-02T00:00:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "08:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T00:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.246000+00:00",
+          "updated_at": "2026-04-28T19:37:27.246000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcaf7",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "英语阅读技巧",
+          "schedule": {
+            "anchor_at": "2026-12-02T00:50:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "08:50:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T00:50:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.253000+00:00",
+          "updated_at": "2026-04-28T19:37:27.253000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcaf8",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "天文教材阅读理解-第1章",
+          "schedule": {
+            "anchor_at": "2026-12-02T02:30:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "10:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T02:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.254000+00:00",
+          "updated_at": "2026-04-28T19:37:27.254000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcaf9",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "物理概念理解-参考系和坐标系",
+          "schedule": {
+            "anchor_at": "2026-12-02T06:00:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "14:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T06:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.256000+00:00",
+          "updated_at": "2026-04-28T19:37:27.256000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcafa",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "物理概念理解-质点运动",
+          "schedule": {
+            "anchor_at": "2026-12-02T08:20:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "16:20:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T08:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.257000+00:00",
+          "updated_at": "2026-04-28T19:37:27.257000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcafb",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "政治真题技巧课+背诵",
+          "schedule": {
+            "anchor_at": "2026-12-02T11:00:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.259000+00:00",
+          "updated_at": "2026-04-28T19:37:27.259000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcafc",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "天文教材阅读理解-第2-3章",
+          "schedule": {
+            "anchor_at": "2026-12-02T12:40:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "20:40:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T12:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.260000+00:00",
+          "updated_at": "2026-04-28T19:37:27.260000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c7766d8adb37d8dcafd",
+          "owner_user_id": "692d0488a538f0baad556217",
+          "title": "总结复盘",
+          "schedule": {
+            "anchor_at": "2026-12-02T14:00:00+00:00",
+            "local_date": "2026-12-02",
+            "local_time": "22:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6d66d8adb37d8dcae6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-02T14:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:27.262000+00:00",
+          "updated_at": "2026-04-28T19:37:27.262000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 11.02
+    }
+  ]
+}

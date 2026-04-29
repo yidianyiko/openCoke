@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 39,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6755d564e5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4611a538f0baad5561ea"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 39,
+      "input": "12月7号前，每天晚上八点提醒我跑步",
+      "user_id": "692c4611a538f0baad5561ea",
+      "original_from_user": "692c4611a538f0baad5561ea",
+      "input_message_id": "69f10aef694b1776e709829c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10af60a5aacc4ef369cdb",
+          "expect_output_timestamp": 1777404662,
+          "handled_timestamp": 1777404662,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：跑步（2026-04-29 20:00，循环规则 FREQ=DAILY;UNTIL=20261207T120000Z）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6755d564e5",
+            "case_index": 39,
+            "original_from_user": "692c4611a538f0baad5561ea",
+            "source_id": "692d856864d834c3c06164c7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6755d564e5-case-39",
+              "business_conversation_key": "reminder-normal-6755d564e5-case-39",
+              "causal_inbound_event_id": "reminder-normal-6755d564e5-case-39-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4611a538f0baad5561ea"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f10af60a5aacc4ef369cd8",
+          "owner_user_id": "692c4611a538f0baad5561ea",
+          "title": "跑步",
+          "schedule": {
+            "anchor_at": "2026-04-29T12:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY;UNTIL=20261207T120000Z"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10aef0a5aacc4ef369cd1",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T12:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:31:02.135000+00:00",
+          "updated_at": "2026-04-28T19:31:02.135000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.012
+    }
+  ]
+}

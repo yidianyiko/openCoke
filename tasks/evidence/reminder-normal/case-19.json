@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 19,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6ae480bfee",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 19,
+      "input": "冥想可以每个小时提醒我做一次冥想吗",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f10549d619a32f7fec5200",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1054fd0faad8f461a6c4e",
+          "expect_output_timestamp": 1777403215,
+          "handled_timestamp": 1777403215,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：做冥想（2026-04-29 04:00，循环规则 FREQ=HOURLY）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6ae480bfee",
+            "case_index": 19,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d39f3a538f0baad55627d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6ae480bfee-case-19",
+              "business_conversation_key": "reminder-normal-6ae480bfee-case-19",
+              "causal_inbound_event_id": "reminder-normal-6ae480bfee-case-19-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1054fd0faad8f461a6c4b",
+          "owner_user_id": "692d38aea538f0baad556271",
+          "title": "做冥想",
+          "schedule": {
+            "anchor_at": "2026-04-28T20:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "04:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=HOURLY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10549d0faad8f461a6c43",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-28T20:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:06:55.664000+00:00",
+          "updated_at": "2026-04-28T19:06:55.664000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

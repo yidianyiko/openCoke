@@ -1,0 +1,292 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 41,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-97a9d02dfc",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4ac79913054ccf2b90bf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 41,
+      "input": "时间安排\n6:30 起床（书桌照片证明）\n7:00-9:00  数学网课\n9:10-11:30  数学练习\n13:00-16:00  物理网课\n18:00-20:00  物理练习\n20:00-21:30  英语语法练习\n21:30-21:40  复盘\n22:30  睡觉\n网课我会发屏幕使用时间证明 不要让我浑水摸鱼啊",
+      "user_id": "692d4ac79913054ccf2b90bf",
+      "original_from_user": "692d4ac79913054ccf2b90bf",
+      "input_message_id": "69f10c5f0911596f77ba4f34",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10c6366d8adb37d8dcadf",
+          "expect_output_timestamp": 1777405027,
+          "handled_timestamp": 1777405027,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（书桌照片证明）（2026-04-29 06:30）；已创建提醒：数学网课（2026-04-29 07:00）；已创建提醒：数学练习（2026-04-29 09:10）；已创建提醒：物理网课（2026-04-29 13:00）；已创建提醒：物理练习（2026-04-29 18:00）；已创建提醒：英语语法练习（2026-04-29 20:00）；已创建提醒：复盘（2026-04-29 21:30）；已创建提醒：睡觉（2026-04-29 22:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-97a9d02dfc",
+            "case_index": 41,
+            "original_from_user": "692d4ac79913054ccf2b90bf",
+            "source_id": "692d9e3a64d834c3c061650a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-97a9d02dfc-case-41",
+              "business_conversation_key": "reminder-normal-97a9d02dfc-case-41",
+              "causal_inbound_event_id": "reminder-normal-97a9d02dfc-case-41-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4ac79913054ccf2b90bf"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f10c6366d8adb37d8dcad6",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "起床（书桌照片证明）",
+          "schedule": {
+            "anchor_at": "2026-04-28T22:30:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "06:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-28T22:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.157000+00:00",
+          "updated_at": "2026-04-28T19:37:07.157000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcad7",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "数学网课",
+          "schedule": {
+            "anchor_at": "2026-04-28T23:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "07:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-28T23:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.164000+00:00",
+          "updated_at": "2026-04-28T19:37:07.164000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcad8",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "数学练习",
+          "schedule": {
+            "anchor_at": "2026-04-29T01:10:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "09:10:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T01:10:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.165000+00:00",
+          "updated_at": "2026-04-28T19:37:07.165000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcad9",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "物理网课",
+          "schedule": {
+            "anchor_at": "2026-04-29T05:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "13:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T05:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.166000+00:00",
+          "updated_at": "2026-04-28T19:37:07.166000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcada",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "物理练习",
+          "schedule": {
+            "anchor_at": "2026-04-29T10:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.168000+00:00",
+          "updated_at": "2026-04-28T19:37:07.168000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcadb",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "英语语法练习",
+          "schedule": {
+            "anchor_at": "2026-04-29T12:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T12:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.169000+00:00",
+          "updated_at": "2026-04-28T19:37:07.169000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcadc",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "复盘",
+          "schedule": {
+            "anchor_at": "2026-04-29T13:30:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "21:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T13:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.170000+00:00",
+          "updated_at": "2026-04-28T19:37:07.170000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f10c6366d8adb37d8dcadd",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "睡觉",
+          "schedule": {
+            "anchor_at": "2026-04-29T14:30:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "22:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f10c6066d8adb37d8dcac6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T14:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:37:07.172000+00:00",
+          "updated_at": "2026-04-28T19:37:07.172000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.007
+    }
+  ]
+}

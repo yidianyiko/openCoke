@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 40,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d274b83a3c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 40,
+      "input": "我决定修改明后天的计划，不再出游博物馆，因为就像你说的，博物馆随时在，正念不会随时在",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f10afd2721c9c7794f0731",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10b010a5aacc4ef369cec",
+          "expect_output_timestamp": 1777404672,
+          "handled_timestamp": 1777404672,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这个觉悟可以啊！博物馆确实随时能去，但正念的念头可不是随时都有的",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d274b83a3c",
+            "case_index": 40,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d8f6f64d834c3c06164fe",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d274b83a3c-case-40",
+              "business_conversation_key": "reminder-normal-d274b83a3c-case-40",
+              "causal_inbound_event_id": "reminder-normal-d274b83a3c-case-40-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ]
+}

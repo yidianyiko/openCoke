@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 23,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-599563a64c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 23,
+      "input": "时间也不对啊，应该四点整点提醒",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f107f868a7025e0779dd13",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10804367a00f9a568e4a5",
+          "expect_output_timestamp": 1777403908,
+          "handled_timestamp": 1777403908,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：四点整点提醒（2026-04-29 16:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-599563a64c",
+            "case_index": 23,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d48f6a538f0baad5562ab",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-599563a64c-case-23",
+              "business_conversation_key": "reminder-normal-599563a64c-case-23",
+              "causal_inbound_event_id": "reminder-normal-599563a64c-case-23-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f10804367a00f9a568e4a2",
+          "owner_user_id": "692d38aea538f0baad556271",
+          "title": "四点整点提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T08:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "16:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f107f9367a00f9a568e492",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T08:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:18:28.604000+00:00",
+          "updated_at": "2026-04-28T19:18:28.604000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 12.022
+    }
+  ]
+}

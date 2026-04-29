@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 35,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-92d00b45fc",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d1e74a538f0baad556236"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 35,
+      "input": "我想加一个任务，在今天或者明天完成，就是完善 deck 最后一步的内容",
+      "user_id": "692d1e74a538f0baad556236",
+      "original_from_user": "692d1e74a538f0baad556236",
+      "input_message_id": "69f109db41c799d045d31d69",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10a0b0a5aacc4ef369c65",
+          "expect_output_timestamp": 1777404424,
+          "handled_timestamp": 1777404424,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗨嗨！我是Coke，你的云监督员兼进度推手！怎么称呼你呀？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-92d00b45fc",
+            "case_index": 35,
+            "original_from_user": "692d1e74a538f0baad556236",
+            "source_id": "692d7e8764d834c3c06164af",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-92d00b45fc-case-35",
+              "business_conversation_key": "reminder-normal-92d00b45fc-case-35",
+              "causal_inbound_event_id": "reminder-normal-92d00b45fc-case-35-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d1e74a538f0baad556236"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 48.084
+    }
+  ]
+}

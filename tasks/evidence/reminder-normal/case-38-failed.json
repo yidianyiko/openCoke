@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 38,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d3adedcf98",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 38,
+        "input": "怎么这样！那你到底会不会提醒我",
+        "user_id": "692c4430a538f0baad5561de",
+        "original_from_user": "692c4430a538f0baad5561de",
+        "input_message_id": "69f10aa40463f83b4980154b",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f10aab0a5aacc4ef369cb9",
+            "expect_output_timestamp": 1777404586,
+            "handled_timestamp": 1777404586,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我当然会提醒你啦！不过你刚才只说“提醒我”，但我没听到具体的时间和内容呢。是在什么时候提醒你做什么呀？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-d3adedcf98",
+              "case_index": 38,
+              "original_from_user": "692c4430a538f0baad5561de",
+              "source_id": "692d80d164d834c3c06164ba",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-d3adedcf98-case-38",
+                "business_conversation_key": "reminder-normal-d3adedcf98-case-38",
+                "causal_inbound_event_id": "reminder-normal-d3adedcf98-case-38-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692c4430a538f0baad5561de"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 8.014
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 38,
+      "input": "怎么这样！那你到底会不会提醒我",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f10aa40463f83b4980154b",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f10aab0a5aacc4ef369cb9",
+          "expect_output_timestamp": 1777404586,
+          "handled_timestamp": 1777404586,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我当然会提醒你啦！不过你刚才只说“提醒我”，但我没听到具体的时间和内容呢。是在什么时候提醒你做什么呀？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d3adedcf98",
+            "case_index": 38,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692d80d164d834c3c06164ba",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d3adedcf98-case-38",
+              "business_conversation_key": "reminder-normal-d3adedcf98-case-38",
+              "causal_inbound_event_id": "reminder-normal-d3adedcf98-case-38-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}

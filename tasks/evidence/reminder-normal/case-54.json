@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 54,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0e2e535575",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 54,
+      "input": "好的，今天冥想需要加强，刷剧锻炼跨天次的日程级的专注，目前看到第三集解说",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f15bef3b86a1eddcb39740",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15c205c02714402752616",
+          "expect_output_timestamp": 1777425392,
+          "handled_timestamp": 1777425392,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嘿，刚看完剧就有动力想继续，这种状态很棒！第四集开始更有意思了，趁热打铁继续走起？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0e2e535575",
+            "case_index": 54,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692e66d14bf7878f041145c8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0e2e535575-case-54",
+              "business_conversation_key": "reminder-normal-0e2e535575-case-54",
+              "causal_inbound_event_id": "reminder-normal-0e2e535575-case-54-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 49.087
+    }
+  ]
+}

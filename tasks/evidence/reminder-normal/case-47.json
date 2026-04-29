@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 47,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b989f61241",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 47,
+      "input": "每个整点喊我打卡吧",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f15b86d631fc61ae048a8b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15b905c02714402752586",
+          "expect_output_timestamp": 1777425296,
+          "handled_timestamp": 1777425296,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打卡（2026-04-29 10:00，循环规则 FREQ=HOURLY）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b989f61241",
+            "case_index": 47,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692e363c4bf7878f04114555",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b989f61241-case-47",
+              "business_conversation_key": "reminder-normal-b989f61241-case-47",
+              "causal_inbound_event_id": "reminder-normal-b989f61241-case-47-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f15b905c02714402752583",
+          "owner_user_id": "692d38aea538f0baad556271",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-04-29T02:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "10:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=HOURLY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15b875c0271440275257c",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T02:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:14:56.463000+00:00",
+          "updated_at": "2026-04-29T01:14:56.463000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 10.019
+    }
+  ]
+}

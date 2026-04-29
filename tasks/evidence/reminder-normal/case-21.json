@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 21,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2819b3ce1e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 21,
+      "input": "每个小时一次提醒我正念冥想",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f107dd1632fc653981165d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f107e4367a00f9a568e47c",
+          "expect_output_timestamp": 1777403876,
+          "handled_timestamp": 1777403876,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：正念冥想（2026-04-29 04:00，循环规则 FREQ=HOURLY）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2819b3ce1e",
+            "case_index": 21,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d4081a538f0baad55628d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2819b3ce1e-case-21",
+              "business_conversation_key": "reminder-normal-2819b3ce1e-case-21",
+              "causal_inbound_event_id": "reminder-normal-2819b3ce1e-case-21-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f107e4367a00f9a568e479",
+          "owner_user_id": "692d38aea538f0baad556271",
+          "title": "正念冥想",
+          "schedule": {
+            "anchor_at": "2026-04-28T20:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "04:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=HOURLY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f107dd367a00f9a568e472",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-28T20:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:17:56.468000+00:00",
+          "updated_at": "2026-04-28T19:17:56.468000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.013
+    }
+  ]
+}

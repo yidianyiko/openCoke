@@ -1,0 +1,175 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 25,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b414f33c0b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4ac79913054ccf2b90bf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "missing_expected_reminder_title:可以提醒我起床": 1,
+      "user_output_missing_expected_title:可以提醒我起床": 1
+    },
+    "failures": [
+      {
+        "index": 25,
+        "input": "明天早上6:30可以提醒我起床吗",
+        "user_id": "692d4ac79913054ccf2b90bf",
+        "original_from_user": "692d4ac79913054ccf2b90bf",
+        "input_message_id": "69f108728b2ebf60fdfe3115",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "missing_expected_reminder_title:可以提醒我起床",
+          "user_output_missing_expected_title:可以提醒我起床"
+        ],
+        "outputs": [
+          {
+            "_id": "69f108770a5aacc4ef369b95",
+            "expect_output_timestamp": 1777404023,
+            "handled_timestamp": 1777404023,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：起床（2026-04-30 06:30）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-b414f33c0b",
+              "case_index": 25,
+              "original_from_user": "692d4ac79913054ccf2b90bf",
+              "source_id": "692d4cdf64d834c3c06163e4",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-b414f33c0b-case-25",
+                "business_conversation_key": "reminder-normal-b414f33c0b-case-25",
+                "causal_inbound_event_id": "reminder-normal-b414f33c0b-case-25-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692d4ac79913054ccf2b90bf"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f108770a5aacc4ef369b92",
+            "owner_user_id": "692d4ac79913054ccf2b90bf",
+            "title": "起床",
+            "schedule": {
+              "anchor_at": "2026-04-29T22:30:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "06:30:00",
+              "timezone": "Asia/Shanghai",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f108720a5aacc4ef369b8a",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-29T22:30:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-28T19:20:23.012000+00:00",
+            "updated_at": "2026-04-28T19:20:23.012000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 5.009
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 25,
+      "input": "明天早上6:30可以提醒我起床吗",
+      "user_id": "692d4ac79913054ccf2b90bf",
+      "original_from_user": "692d4ac79913054ccf2b90bf",
+      "input_message_id": "69f108728b2ebf60fdfe3115",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "missing_expected_reminder_title:可以提醒我起床",
+        "user_output_missing_expected_title:可以提醒我起床"
+      ],
+      "outputs": [
+        {
+          "_id": "69f108770a5aacc4ef369b95",
+          "expect_output_timestamp": 1777404023,
+          "handled_timestamp": 1777404023,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（2026-04-30 06:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b414f33c0b",
+            "case_index": 25,
+            "original_from_user": "692d4ac79913054ccf2b90bf",
+            "source_id": "692d4cdf64d834c3c06163e4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b414f33c0b-case-25",
+              "business_conversation_key": "reminder-normal-b414f33c0b-case-25",
+              "causal_inbound_event_id": "reminder-normal-b414f33c0b-case-25-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4ac79913054ccf2b90bf"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f108770a5aacc4ef369b92",
+          "owner_user_id": "692d4ac79913054ccf2b90bf",
+          "title": "起床",
+          "schedule": {
+            "anchor_at": "2026-04-29T22:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "06:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f108720a5aacc4ef369b8a",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T22:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:20:23.012000+00:00",
+          "updated_at": "2026-04-28T19:20:23.012000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.009
+    }
+  ]
+}

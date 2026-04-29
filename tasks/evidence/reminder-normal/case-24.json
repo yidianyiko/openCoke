@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 24,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f148859d7c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c14aaa538f0baad5561b3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 24,
+      "input": "每小时零九分提醒我一次喝水",
+      "user_id": "692c14aaa538f0baad5561b3",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69f1086660deafbf583d7903",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1086b0a5aacc4ef369b83",
+          "expect_output_timestamp": 1777404011,
+          "handled_timestamp": 1777404011,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：喝水（2026-04-29 04:09，循环规则 FREQ=HOURLY;BYMINUTE=9）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f148859d7c",
+            "case_index": 24,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692d4c7f64d834c3c06163e2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f148859d7c-case-24",
+              "business_conversation_key": "reminder-normal-f148859d7c-case-24",
+              "causal_inbound_event_id": "reminder-normal-f148859d7c-case-24-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c14aaa538f0baad5561b3"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1086b0a5aacc4ef369b80",
+          "owner_user_id": "692c14aaa538f0baad5561b3",
+          "title": "喝水",
+          "schedule": {
+            "anchor_at": "2026-04-28T20:09:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "04:09:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=HOURLY;BYMINUTE=9"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f108660a5aacc4ef369b78",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-28T20:09:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-28T19:20:11.939000+00:00",
+          "updated_at": "2026-04-28T19:20:11.939000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.01
+    }
+  ]
+}

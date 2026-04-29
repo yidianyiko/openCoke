@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 45,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e7d1ae1e1d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c2417a538f0baad5561c0"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 45,
+      "input": "你提醒我一下",
+      "user_id": "692c2417a538f0baad5561c0",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69f10dad221573178958ee49",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f10db75c027144027523f9",
+          "expect_output_timestamp": 1777405362,
+          "handled_timestamp": 1777405362,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，你想让我提醒你什么？具体时间和内容说一下吧，不然我没办法准时喊你。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e7d1ae1e1d",
+            "case_index": 45,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "692db27864d834c3c0616531",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e7d1ae1e1d-case-45",
+              "business_conversation_key": "reminder-normal-e7d1ae1e1d-case-45",
+              "causal_inbound_event_id": "reminder-normal-e7d1ae1e1d-case-45-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c2417a538f0baad5561c0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.019
+    }
+  ]
+}

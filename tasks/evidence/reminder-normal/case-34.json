@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 34,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1fd8db3f30",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 34,
+      "input": "你会记得我的日程吗",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f109d15a4c40ff37a8a974",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f109d50a5aacc4ef369c56",
+          "expect_output_timestamp": 1777404372,
+          "handled_timestamp": 1777404372,
+          "status": "pending",
+          "message_type": "text",
+          "message": "当然会啦，我可是你的日程守护者。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1fd8db3f30",
+            "case_index": 34,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d7d7b64d834c3c06164a9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1fd8db3f30-case-34",
+              "business_conversation_key": "reminder-normal-1fd8db3f30-case-34",
+              "causal_inbound_event_id": "reminder-normal-1fd8db3f30-case-34-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.009
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 29,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-404eae98d3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4e5564d834c3c06163ea"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 29,
+      "input": "还有就是规划一下，我这今天半天和明天半天我要怎么安排我的时间才能差不多做完",
+      "user_id": "692d4e5564d834c3c06163ea",
+      "original_from_user": "692d4e5564d834c3c06163ea",
+      "input_message_id": "69f109212179847d75540e2d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1092c0a5aacc4ef369bfb",
+          "expect_output_timestamp": 1777404201,
+          "handled_timestamp": 1777404201,
+          "status": "pending",
+          "message_type": "text",
+          "message": "现在都凌晨三点多了，你还能睡会儿。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-404eae98d3",
+            "case_index": 29,
+            "original_from_user": "692d4e5564d834c3c06163ea",
+            "source_id": "692d500564d834c3c06163f9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-404eae98d3-case-29",
+              "business_conversation_key": "reminder-normal-404eae98d3-case-29",
+              "causal_inbound_event_id": "reminder-normal-404eae98d3-case-29-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4e5564d834c3c06163ea"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.021
+    }
+  ]
+}

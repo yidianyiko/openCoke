@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 55,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c4456e1788",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c2417a538f0baad5561c0"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 55,
+      "input": "一点20叫我",
+      "user_id": "692c2417a538f0baad5561c0",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69f15c21c03987c0912c1862",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15c265c02714402752627",
+          "expect_output_timestamp": 1777425446,
+          "handled_timestamp": 1777425446,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：叫我（2026-04-29 13:20）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c4456e1788",
+            "case_index": 55,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "692e6ffe4bf7878f041145e2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c4456e1788-case-55",
+              "business_conversation_key": "reminder-normal-c4456e1788-case-55",
+              "causal_inbound_event_id": "reminder-normal-c4456e1788-case-55-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c2417a538f0baad5561c0"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f15c265c02714402752624",
+          "owner_user_id": "692c2417a538f0baad5561c0",
+          "title": "叫我",
+          "schedule": {
+            "anchor_at": "2026-04-29T05:20:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "13:20:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15c215c0271440275261b",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T05:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:17:26.031000+00:00",
+          "updated_at": "2026-04-29T01:17:26.031000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.011
+    }
+  ]
+}

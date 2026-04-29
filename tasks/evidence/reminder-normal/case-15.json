@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 15,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-faeab626f6",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d0488a538f0baad556217"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 15,
+      "input": "我这周一和周五是全天兼职，这两天估计要插空学习",
+      "user_id": "692d0488a538f0baad556217",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "69f103021cc4552265cf620f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f103438be408c67ce92f70",
+          "expect_output_timestamp": 1777402671,
+          "handled_timestamp": 1777402671,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你说得对，周一和周五全天兼职确实挺累人的，趁其他时间插空学习是个好办法。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-faeab626f6",
+            "case_index": 15,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "692d0560a538f0baad55621f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-faeab626f6-case-15",
+              "business_conversation_key": "reminder-normal-faeab626f6-case-15",
+              "causal_inbound_event_id": "reminder-normal-faeab626f6-case-15-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d0488a538f0baad556217"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 65.113
+    }
+  ]
+}

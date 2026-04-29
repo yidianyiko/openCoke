@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 33,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0d085ce7dd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c2417a538f0baad5561c0"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 33,
+      "input": "6点下班",
+      "user_id": "692c2417a538f0baad5561c0",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69f109c4ef6fc0c1e9932816",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f109cb0a5aacc4ef369c42",
+          "expect_output_timestamp": 1777404359,
+          "handled_timestamp": 1777404359,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到，6点下班。现在是凌晨3点25，你是在上夜班还是刚醒？今天下班后有什么安排需要我监督的吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0d085ce7dd",
+            "case_index": 33,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "692d5f0364d834c3c0616468",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0d085ce7dd-case-33",
+              "business_conversation_key": "reminder-normal-0d085ce7dd-case-33",
+              "causal_inbound_event_id": "reminder-normal-0d085ce7dd-case-33-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c2417a538f0baad5561c0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}

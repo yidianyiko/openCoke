@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 49,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-06226cd7a4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 49,
+      "input": "刚才起床，穿衣服，报名试药，点外卖早点，刷小红书和百度热搜，计划一小时把过去五天没听的冥想课听完",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f15b996eb6e6b2bd23ecc2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15b9e5c027144027525a8",
+          "expect_output_timestamp": 1777425308,
+          "handled_timestamp": 1777425308,
+          "status": "pending",
+          "message_type": "text",
+          "message": "早上好呀，五天没听的冥想课可攒了不少呢。你打算几点开始听？我给你定个提醒，别又拖到晚上才想起来。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-06226cd7a4",
+            "case_index": 49,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692e3a814bf7878f0411455f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-06226cd7a4-case-49",
+              "business_conversation_key": "reminder-normal-06226cd7a4-case-49",
+              "causal_inbound_event_id": "reminder-normal-06226cd7a4-case-49-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.011
+    }
+  ]
+}
