@@ -114,7 +114,7 @@ def test_iter_case_batches_applies_total_limit_before_chunking():
     ]
 
 
-def test_case_input_timestamp_defaults_to_current_time_for_worker_eligibility(
+def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(
     monkeypatch,
 ):
     case = normal_eval.ReminderNormalPathCase(
@@ -125,13 +125,14 @@ def test_case_input_timestamp_defaults_to_current_time_for_worker_eligibility(
     )
     monkeypatch.setattr(normal_eval.time, "time", lambda: 1777413600)
 
-    assert (
-        normal_eval.case_input_timestamp(
-            case,
-            timezone_name="Asia/Tokyo",
-            use_case_timestamp=False,
-        )
-        == 1777413600
+    assert normal_eval.case_input_timestamp(
+        case,
+        timezone_name="Asia/Tokyo",
+        use_case_timestamp=False,
+    ) == int(
+        datetime(
+            2026, 4, 29, 17, 55, 53, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
+        ).timestamp()
     )
 
 

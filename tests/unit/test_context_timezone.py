@@ -25,7 +25,11 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
     from agent.runner.context import context_prepare
 
     user = make_minimal_user(timezone="America/New_York")
-    mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
+    mock_mongo.return_value.find_one.return_value = {
+        "relationship": {},
+        "uid": "x",
+        "cid": "y",
+    }
     dao_instance = MagicMock()
     mock_dao.return_value = dao_instance
 
@@ -33,7 +37,12 @@ def test_context_prepare_uses_stored_timezone(mock_mongo, mock_dao):
         with patch("agent.runner.context.ConversationDAO"):
             ctx = context_prepare(
                 user=user,
-                character={"_id": "c1", "name": "Coke", "platforms": {}, "user_info": {}},
+                character={
+                    "_id": "c1",
+                    "name": "Coke",
+                    "platforms": {},
+                    "user_info": {},
+                },
                 conversation={
                     "_id": "conv1",
                     "platform": "wechat",
@@ -103,8 +112,10 @@ def test_context_prepare_formats_input_messages_in_user_timezone(mock_mongo, moc
             )
 
     input_messages_str = ctx["conversation"]["conversation_info"]["input_messages_str"]
+    time_str = ctx["conversation"]["conversation_info"]["time_str"]
     assert "2026年04月29日02时13分" in input_messages_str
     assert "2026年04月29日01时13分" not in input_messages_str
+    assert "2026年04月29日02时13分" in time_str
 
 
 @patch("agent.runner.context.UserDAO")
@@ -118,7 +129,11 @@ def test_context_prepare_surfaces_canonical_timezone_state(mock_mongo, mock_dao)
         timezone_source="messaging_identity_region",
         timezone_status="system_inferred",
     )
-    mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
+    mock_mongo.return_value.find_one.return_value = {
+        "relationship": {},
+        "uid": "x",
+        "cid": "y",
+    }
     dao_instance = MagicMock()
     mock_dao.return_value = dao_instance
 
@@ -126,7 +141,12 @@ def test_context_prepare_surfaces_canonical_timezone_state(mock_mongo, mock_dao)
         with patch("agent.runner.context.ConversationDAO"):
             ctx = context_prepare(
                 user=user,
-                character={"_id": "c1", "name": "Coke", "platforms": {}, "user_info": {}},
+                character={
+                    "_id": "c1",
+                    "name": "Coke",
+                    "platforms": {},
+                    "user_info": {},
+                },
                 conversation={
                     "_id": "conv1",
                     "platform": "wechat",
@@ -148,11 +168,17 @@ def test_context_prepare_falls_back_to_default_timezone_state(mock_mongo, mock_d
     from agent.runner.context import context_prepare
 
     user = make_minimal_user(timezone=None)
-    mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
+    mock_mongo.return_value.find_one.return_value = {
+        "relationship": {},
+        "uid": "x",
+        "cid": "y",
+    }
     dao_instance = MagicMock()
     mock_dao.return_value = dao_instance
 
-    with patch("agent.runner.context.get_default_timezone", return_value=ZoneInfo("Asia/Tokyo")):
+    with patch(
+        "agent.runner.context.get_default_timezone", return_value=ZoneInfo("Asia/Tokyo")
+    ):
         with patch("agent.runner.context.get_character_prompt", return_value=None):
             with patch("agent.runner.context.ConversationDAO"):
                 ctx = context_prepare(
@@ -179,16 +205,24 @@ def test_context_prepare_falls_back_to_default_timezone_state(mock_mongo, mock_d
 
 @patch("agent.runner.context.UserDAO")
 @patch("agent.runner.context.MongoDBBase")
-def test_context_prepare_drops_invalid_stored_timezone_on_fallback(mock_mongo, mock_dao):
+def test_context_prepare_drops_invalid_stored_timezone_on_fallback(
+    mock_mongo, mock_dao
+):
     """Invalid stored timezone must not survive beside runtime fallback fields."""
     from agent.runner.context import context_prepare
 
     user = make_minimal_user(timezone="Not/AZone")
-    mock_mongo.return_value.find_one.return_value = {"relationship": {}, "uid": "x", "cid": "y"}
+    mock_mongo.return_value.find_one.return_value = {
+        "relationship": {},
+        "uid": "x",
+        "cid": "y",
+    }
     dao_instance = MagicMock()
     mock_dao.return_value = dao_instance
 
-    with patch("agent.runner.context.get_default_timezone", return_value=ZoneInfo("Asia/Tokyo")):
+    with patch(
+        "agent.runner.context.get_default_timezone", return_value=ZoneInfo("Asia/Tokyo")
+    ):
         with patch("agent.runner.context.get_character_prompt", return_value=None):
             with patch("agent.runner.context.ConversationDAO"):
                 ctx = context_prepare(

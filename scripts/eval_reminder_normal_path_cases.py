@@ -10,7 +10,7 @@ import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from multiprocessing import get_context
 from pathlib import Path
@@ -280,16 +280,48 @@ def case_input_timestamp(
     timezone_name: str,
     use_case_timestamp: bool = False,
 ) -> int:
+    now_timestamp = int(time.time())
     if not use_case_timestamp:
-        return int(time.time())
+        return fresh_case_input_timestamp(
+            case,
+            timezone_name=timezone_name,
+            now_timestamp=now_timestamp,
+        )
     raw_timestamp = str(case.metadata.get("timestamp") or "").strip()
     if not raw_timestamp:
-        return int(time.time())
+        return now_timestamp
     try:
         parsed = datetime.strptime(raw_timestamp, "%Y-%m-%d %H:%M:%S")
     except ValueError:
-        return int(time.time())
+        return now_timestamp
     return int(parsed.replace(tzinfo=ZoneInfo(timezone_name)).timestamp())
+
+
+def fresh_case_input_timestamp(
+    case: ReminderNormalPathCase,
+    *,
+    timezone_name: str,
+    now_timestamp: int,
+) -> int:
+    raw_timestamp = str(case.metadata.get("timestamp") or "").strip()
+    if not raw_timestamp:
+        return now_timestamp
+    try:
+        parsed = datetime.strptime(raw_timestamp, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return now_timestamp
+    timezone = ZoneInfo(timezone_name)
+    now_dt = datetime.fromtimestamp(now_timestamp, timezone)
+    replay_dt = now_dt.replace(
+        hour=parsed.hour,
+        minute=parsed.minute,
+        second=parsed.second,
+        microsecond=0,
+    )
+    replay_timestamp = int(replay_dt.timestamp())
+    if replay_timestamp <= now_timestamp - 11 * 3600:
+        replay_timestamp = int((replay_dt + timedelta(days=1)).timestamp())
+    return replay_timestamp
 
 
 def submit_cases(
@@ -1505,8 +1537,8 @@ def _parse_args() -> argparse.Namespace:
         "--use-case-timestamps",
         action="store_true",
         help=(
-            "Use timestamps from the corpus metadata. Disabled by default because "
-            "the real worker ignores inputmessages older than its max handle age."
+            "Use exact timestamps from the corpus metadata. Disabled by default; "
+            "normal runs replay the corpus wall-clock time on a fresh worker-eligible date."
         ),
     )
     parser.add_argument("--platform", default=None)

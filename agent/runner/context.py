@@ -182,12 +182,19 @@ def context_prepare(user, character, conversation):
     if not user_id or not character_id:
         raise ValueError("Invalid user or character ID: id/_id cannot be None")
 
-    context = {"user": user, "character": character, "conversation": conversation, "platform": conversation.get("platform", "")}
+    context = {
+        "user": user,
+        "character": character,
+        "conversation": conversation,
+        "platform": conversation.get("platform", ""),
+    }
     context["user"].setdefault("id", user_id)
     context["character"].setdefault("id", character_id)
 
     context["user"].setdefault("nickname", resolve_profile_label(user, "用户"))
-    context["character"].setdefault("nickname", resolve_profile_label(character, "角色"))
+    context["character"].setdefault(
+        "nickname", resolve_profile_label(character, "角色")
+    )
 
     timezone_context = _resolve_user_timezone_context(context["user"])
     user_tz = timezone_context.pop("zoneinfo")
@@ -251,7 +258,7 @@ def context_prepare(user, character, conversation):
         relation["relationship"]["status"] = "空闲"
 
     context["conversation"]["conversation_info"]["time_str"] = timestamp2str(
-        int(time.time()), week=True, tz=user_tz
+        int(context["input_timestamp"]), week=True, tz=user_tz
     )
 
     # 获取聊天历史
