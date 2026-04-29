@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 437,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-491025494e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "81a0500e3bc2f7900d477077"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 437,
+        "input": "开始了，不过今天的计划本来写的是3点开始画画呀",
+        "user_id": "81a0500e3bc2f7900d477077",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f2496ee0182c35a14275e1",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24980d200fd62c8b93c55",
+            "expect_output_timestamp": 1777486208,
+            "handled_timestamp": 1777486208,
+            "status": "pending",
+            "message_type": "text",
+            "message": "需要我在今天下午3点提醒你开始画画吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-491025494e",
+              "case_index": 437,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "6940fef6a6d5f2cba9a55740",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-491025494e-case-437",
+                "business_conversation_key": "reminder-normal-491025494e-case-437",
+                "causal_inbound_event_id": "reminder-normal-491025494e-case-437-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "81a0500e3bc2f7900d477077"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 18.032
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 437,
+      "input": "开始了，不过今天的计划本来写的是3点开始画画呀",
+      "user_id": "81a0500e3bc2f7900d477077",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f2496ee0182c35a14275e1",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24980d200fd62c8b93c55",
+          "expect_output_timestamp": 1777486208,
+          "handled_timestamp": 1777486208,
+          "status": "pending",
+          "message_type": "text",
+          "message": "需要我在今天下午3点提醒你开始画画吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-491025494e",
+            "case_index": 437,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "6940fef6a6d5f2cba9a55740",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-491025494e-case-437",
+              "business_conversation_key": "reminder-normal-491025494e-case-437",
+              "causal_inbound_event_id": "reminder-normal-491025494e-case-437-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "81a0500e3bc2f7900d477077"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 18.032
+    }
+  ]
+}

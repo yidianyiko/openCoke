@@ -180,6 +180,8 @@ reminders can fire without waiting for wall-clock time.
 - `case436` added a clarification expectation for a workout range/current-status
   message without explicit reminder intent. One rerun hit the chat timeout
   fallback; after PM2 restart the case passed with no reminders.
+- `case437` added a clarification expectation for a plan/status statement about
+  starting drawing at 3 PM without an explicit reminder request.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

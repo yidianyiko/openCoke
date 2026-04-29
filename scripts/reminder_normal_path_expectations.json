@@ -454,6 +454,10 @@
     "436": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a workout time range and current status but does not explicitly ask for a reminder. The agent should ask whether and when to remind instead of creating one from the range or duration."
+    },
+    "437": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user references a planned 3 PM drawing start but does not explicitly ask for a reminder. The agent should ask whether to remind instead of creating a reminder from the plan statement."
     }
   }
 }
