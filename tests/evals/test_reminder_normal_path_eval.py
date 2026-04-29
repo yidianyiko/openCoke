@@ -54,6 +54,8 @@ def test_normal_path_relation_seed_marks_eval_user_as_existing_contact():
     assert relation["cid"] == "char-1"
     assert relation["user_info"]["hobbyname"] == "reminder-e2e-user-161"
     assert relation["relationship"]["closeness"] >= 50
+    assert relation["character_info"]["status"] == "空闲"
+    assert relation["relationship"]["status"] == "空闲"
     assert "already-known" in relation["relationship"]["description"]
 
 

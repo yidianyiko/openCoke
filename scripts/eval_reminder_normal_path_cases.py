@@ -225,14 +225,14 @@ def normal_path_relation_seed(
             "longterm_purpose": "Supervise the user's goals and handle reminder CRUD requests.",
             "shortterm_purpose": "Handle the current reminder normal-path eval request directly.",
             "attitude": "focused",
-            "status": "available",
+            "status": "空闲",
         },
         "relationship": {
             "description": "already-known reminder normal-path eval contact",
             "closeness": 50,
             "trustness": 50,
             "dislike": 0,
-            "status": "available",
+            "status": "空闲",
         },
     }
 
