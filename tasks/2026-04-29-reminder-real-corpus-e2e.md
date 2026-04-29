@@ -29,13 +29,14 @@ reminders can fire without waiting for wall-clock time.
 
 ## 2026-04-29 Normal-Path Reminder Loop Status
 
-- One-case normal-path evidence is committed through `case184`.
-- The next case is `case185`; with `1892` total corpus cases, `1707` offsets
-  remain from `185` through `1891`.
-- The loop is paused for a detector/prompt/eval refactor before continuing:
-  keep ReminderDetect decisions LLM-first and structured, keep pending-reminder
-  chat guidance compact and positive, and replace the unconfirmed-reminder output
-  regex with an LLM judge boundary.
+- One-case normal-path evidence is saved through `case287`.
+- The next case is `case288`; with `1892` total corpus cases, `1604` offsets
+  remain from `288` through `1891`.
+- `case287` fixed a detector/chat handoff bug: when ReminderDetect completes
+  with a structured non-executable query/discussion decision, ChatWorkflow should
+  not inject the pending-reminder setup notice.
+- Continue with one case at a time, saving evidence and clearing logs after each
+  case.
 - Future failures must be handled in this priority order: schema field
   constraints, fixture counterexamples/classification, then LLM judge rubric.
   Do not append prohibition phrases to `CONTEXTPROMPT_提醒未执行` or expand

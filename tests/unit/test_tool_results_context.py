@@ -524,6 +524,42 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
 
 
 @pytest.mark.asyncio
+async def test_chat_workflow_skips_pending_notice_after_no_action_reminder_detect(
+    monkeypatch,
+):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "prepare_reminder_detect_no_action": True,
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日11时40分",
+                "input_messages_str": "天呐🥺你七点都没有开始提醒我欸",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+    }
+
+    events = [
+        event
+        async for event in workflow.run_stream(
+            "天呐🥺你七点都没有开始提醒我欸", session_state
+        )
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert "### System Notice: Reminder Setup Pending" not in workflow.agent.input
+
+
+@pytest.mark.asyncio
 async def test_chat_workflow_directly_returns_reminder_tool_result(
     monkeypatch,
 ):

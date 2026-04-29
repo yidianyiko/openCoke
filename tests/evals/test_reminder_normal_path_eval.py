@@ -1150,6 +1150,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[278].metadata["evaluation_expectation"] == "clarify"
     assert cases[279].metadata["evaluation_expectation"] == "query"
     assert cases[280].metadata["evaluation_expectation"] == "discussion"
+    assert cases[287].metadata["evaluation_expectation"] == "query"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
@@ -1580,7 +1581,9 @@ def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
         case,
         "handled",
         outputs=[
-            {"message": "已创建提醒：回复刘冲、Eva，约一下袁琳、浩然（2026-04-30 08:40）"}
+            {
+                "message": "已创建提醒：回复刘冲、Eva，约一下袁琳、浩然（2026-04-30 08:40）"
+            }
         ],
         reminders=reminders,
     )

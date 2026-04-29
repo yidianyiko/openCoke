@@ -997,6 +997,7 @@ class PrepareWorkflow:
             and decision.action == "list"
         )
         if not should_execute:
+            session_state["prepare_reminder_detect_no_action"] = True
             logger.debug(
                 "[PrepareWorkflow] ReminderDetect structured decision did not require execution: %s",
                 decision.intent_type,

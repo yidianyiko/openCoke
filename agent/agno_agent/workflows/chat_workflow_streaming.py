@@ -272,6 +272,7 @@ class StreamingChatWorkflow:
         if (
             need_reminder
             and message_source == "user"
+            and not session_state.get("prepare_reminder_detect_no_action")
             and not _has_reminder_tool_result(session_state)
         ):
             reminder_not_executed_context = self.userp_template_reminder_not_executed

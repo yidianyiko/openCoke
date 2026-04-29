@@ -1151,6 +1151,57 @@ async def test_call_me_with_time_runs_reminder_detector_when_orchestrator_misses
 
 
 @pytest.mark.asyncio
+async def test_reminder_status_complaint_query_marks_detect_complete_without_action():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+    reminder_response.content = ReminderDetectDecision(
+        intent_type="query",
+        action="",
+        operations=[],
+    )
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日11时40分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock()
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("天呐🥺你七点都没有开始提醒我欸", session_state)
+
+    orchestrator_agent.arun.assert_not_awaited()
+    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    assert result["session_state"]["prepare_reminder_detect_no_action"] is True
+
+
+@pytest.mark.asyncio
 async def test_vague_reminder_capability_question_uses_detector_not_direct_reply():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
