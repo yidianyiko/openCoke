@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 214,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-652a229cea",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ba0a8a4eb285691d92b4f4c3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 214,
+      "input": "还想继续休息一会",
+      "user_id": "ba0a8a4eb285691d92b4f4c3",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1dfef10dda6193e25966d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1dff2bcf5ab6571c9f399",
+          "expect_output_timestamp": 1777459185,
+          "handled_timestamp": 1777459185,
+          "status": "pending",
+          "message_type": "text",
+          "message": "休息确实舒服，我也理解。不过现在已经下午五点二十了，你今天的计划里还有任务没做吧？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-652a229cea",
+            "case_index": 214,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693546d64bf7878f04114b5c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-652a229cea-case-214",
+              "business_conversation_key": "reminder-normal-652a229cea-case-214",
+              "causal_inbound_event_id": "reminder-normal-652a229cea-case-214-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ba0a8a4eb285691d92b4f4c3"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.008
+    }
+  ]
+}
