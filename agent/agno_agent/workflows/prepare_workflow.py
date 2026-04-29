@@ -995,7 +995,10 @@ class PrepareWorkflow:
 
     def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
         rule = str(rrule or "").strip()
-        if not rule or not deadline_at:
+        if not rule:
+            return rule
+        rule = self._normalize_rrule_until(rule)
+        if not deadline_at:
             return rule
         until = self._deadline_to_rrule_until(deadline_at)
         if not until:
@@ -1045,6 +1048,38 @@ class PrepareWorkflow:
         if not replaced:
             parts.append(f"UNTIL={until}")
         return ";".join(part for part in parts if part)
+
+    @classmethod
+    def _normalize_rrule_until(cls, rrule: str) -> str:
+        parts = []
+        changed = False
+        for part in str(rrule or "").split(";"):
+            if "=" not in part or part.split("=", 1)[0].upper() != "UNTIL":
+                parts.append(part)
+                continue
+            value = part.split("=", 1)[1]
+            if re.fullmatch(r"\d{8}T\d{6}Z", value or ""):
+                parts.append(part)
+                continue
+            normalized = cls._iso_until_to_rrule_utc(value)
+            if normalized:
+                parts.append(f"UNTIL={normalized}")
+                changed = True
+            else:
+                parts.append(part)
+        if not changed:
+            return rrule
+        return ";".join(part for part in parts if part)
+
+    @staticmethod
+    def _iso_until_to_rrule_utc(value: str) -> str:
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return ""
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return ""
+        return parsed.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     @staticmethod
     def _deadline_to_rrule_until(deadline_at: str) -> str:

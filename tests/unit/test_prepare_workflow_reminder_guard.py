@@ -325,6 +325,20 @@ def test_bounded_rrule_operation_rewrites_non_utc_until():
     )
 
 
+def test_rrule_operation_normalizes_iso_until_without_deadline():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    assert (
+        workflow._bound_rrule_to_deadline(
+            "FREQ=HOURLY;UNTIL=2026-04-29T20:00:00+09:00",
+            "",
+        )
+        == "FREQ=HOURLY;UNTIL=20260429T110000Z"
+    )
+
+
 def test_bounded_rrule_operation_keeps_valid_utc_until():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
