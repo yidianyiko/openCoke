@@ -908,6 +908,9 @@ def expected_title_variants(expected: ExpectedReminderCreate) -> list[str]:
         stripped_leading_verb = strip_common_title_leading_verb(normalized_title)
         if stripped_leading_verb and stripped_leading_verb not in variants:
             variants.append(stripped_leading_verb)
+        compacted_light_connector = compact_title_light_connectors(normalized_title)
+        if compacted_light_connector and compacted_light_connector not in variants:
+            variants.append(compacted_light_connector)
     return variants
 
 
@@ -919,6 +922,12 @@ def strip_common_title_leading_verb(normalized_title: str) -> str:
     if normalized_title[0] == "来" and len(normalized_title) < 3:
         return ""
     return normalized_title[1:]
+
+
+def compact_title_light_connectors(normalized_title: str) -> str:
+    compacted = re.sub(r"(?:并|然后|再)开始", "", normalized_title)
+    compacted = re.sub(r"(?:并|然后|再)(?=[\u4e00-\u9fffA-Za-z0-9])", "", compacted)
+    return compacted if compacted != normalized_title else ""
 
 
 def _normalized_expected_title_variants(

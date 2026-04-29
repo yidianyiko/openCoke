@@ -1585,6 +1585,36 @@ def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
     assert errors == []
 
 
+def test_validate_observations_tolerates_light_connector_in_title():
+    case = normal_eval.ReminderNormalPathCase(
+        input="下午 1:50 提醒我起床并开始准备论文写作",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={},
+    )
+    reminders = [
+        {
+            "title": "起床准备论文写作",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 30, 4, 50, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "13:50:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：起床准备论文写作（2026-04-30 13:50）"}],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
 def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
     expected = normal_eval.expected_created_reminders("下午2:30提醒我起来走一走")
 
