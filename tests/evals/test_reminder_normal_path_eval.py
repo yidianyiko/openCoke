@@ -781,6 +781,25 @@ def test_clarification_output_accepts_frequency_question_wording():
     assert errors == []
 
 
+def test_clarification_output_accepts_every_how_long_wording():
+    case = normal_eval.ReminderNormalPathCase(
+        input="10点到11点写作，随时提醒我专注",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "您希望每隔多长时间提醒一次保持专注呢？"}],
+        reminders=[],
+        unconfirmed_reminder_judge=lambda text: False,
+    )
+
+    assert errors == []
+
+
 def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
     case = normal_eval.ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
