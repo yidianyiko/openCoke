@@ -23,5 +23,7 @@ def test_reminder_detect_agents_use_structured_decision_schema():
 
     assert reminder_detect_agent.output_schema is ReminderDetectDecision
     assert reminder_detect_retry_agent.output_schema is ReminderDetectDecision
-    assert reminder_detect_agent.use_json_mode is True
-    assert reminder_detect_retry_agent.use_json_mode is True
+    assert reminder_detect_agent.structured_outputs is True
+    assert reminder_detect_retry_agent.structured_outputs is True
+    assert reminder_detect_agent.use_json_mode is False
+    assert reminder_detect_retry_agent.use_json_mode is False

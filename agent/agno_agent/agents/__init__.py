@@ -128,7 +128,7 @@ reminder_detect_agent = Agent(
     tool_call_limit=1,
     instructions=get_reminder_detect_instructions(),
     output_schema=ReminderDetectDecision,
-    use_json_mode=True,
+    structured_outputs=True,
     markdown=False,
     # 上下文压缩配置
     num_history_messages=15,  # 保留最近 15 条消息
@@ -145,7 +145,7 @@ reminder_detect_retry_agent = Agent(
     tool_call_limit=1,
     instructions=get_reminder_detect_instructions(),
     output_schema=ReminderDetectDecision,
-    use_json_mode=True,
+    structured_outputs=True,
     markdown=False,
     num_history_messages=0,
     compress_tool_results=True,
