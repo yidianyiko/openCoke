@@ -79,6 +79,12 @@ Rules:
 - Do not invent a default time just because the user has reminder intent. If a create/update request lacks enough information for a safe trigger_at/new_trigger_at, do not call the tool; stop so the chat response can ask for clarification.
 - Date-only expressions such as "tomorrow", "明天", "next Friday", or "下周五" are not enough for create/update unless the user or recent context also supplies a specific time, deadline, or recurrence anchor.
 - For recurrence, output an RFC 5545 RRULE string. Example: rrule="FREQ=DAILY".
+- Only set rrule when the user explicitly asks for recurrence with words such
+  as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
+  clearly repeated interval.
+- Day-period words are not recurrence. "morning", "afternoon", "evening",
+  "早上", "上午", "下午", "晚上", and "今晚" only help resolve the local
+  time; they do not mean daily.
 - For batch, operations must be a list of flat operation objects, each with an action field.
 - If one user message contains multiple reminder operations, use action="batch" and include every safe operation exactly once, preserving order.
 - If the user asks for reminders for a habitual or general schedule, create recurring reminders only. Do not also create one-shot reminders for the same title and local time.
@@ -88,6 +94,7 @@ Rules:
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
+- Example: "早上10:30提醒我看报表" -> create a one-shot reminder at the next local 10:30 morning; do not set rrule.
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.
 - Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.

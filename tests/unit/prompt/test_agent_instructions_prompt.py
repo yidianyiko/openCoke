@@ -50,3 +50,11 @@ def test_reminder_detect_instructions_do_not_create_for_routine_description():
 
     assert "Routine descriptions are not reminder requests" in instructions
     assert "我的作息，6点半起床" in instructions
+
+
+def test_reminder_detect_instructions_do_not_infer_recurrence_from_day_period():
+    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+
+    assert "Day-period words are not recurrence" in instructions
+    assert "Only set rrule" in instructions
+    assert "早上10:30提醒我看报表" in instructions
