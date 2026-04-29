@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 219,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c6ec3eb46a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "059404c5d61a03c97d5caeb7"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 219,
+      "input": "明天提醒我换护照",
+      "user_id": "059404c5d61a03c97d5caeb7",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1e1c9c8dfc7741a19e9ad",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e1d0363b9b98472918b6",
+          "expect_output_timestamp": 1777459664,
+          "handled_timestamp": 1777459664,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明天什么时间提醒你换护照？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c6ec3eb46a",
+            "case_index": 219,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69356f544bf7878f04114b74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c6ec3eb46a-case-219",
+              "business_conversation_key": "reminder-normal-c6ec3eb46a-case-219",
+              "causal_inbound_event_id": "reminder-normal-c6ec3eb46a-case-219-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "059404c5d61a03c97d5caeb7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}
