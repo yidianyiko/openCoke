@@ -145,6 +145,10 @@
     "139": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request."
+    },
+    "145": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user discusses alarm/message wake-up difficulty without requesting a new reminder or giving actionable reminder details."
     }
   }
 }
