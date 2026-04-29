@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 257,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d32c1a1e73",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "4212875747a75eb1da7f5df3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 257,
+      "input": "好的，休息十分钟，晚上容易累，所以要规律休息",
+      "user_id": "4212875747a75eb1da7f5df3",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f1eb27ac43edf2eb755710",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1eb2dbbd0697ddf11f9db",
+          "expect_output_timestamp": 1777462057,
+          "handled_timestamp": 1777462057,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗯，休息十分钟可以，晚上确实容易犯困，规律休息是对的。要我到时候提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d32c1a1e73",
+            "case_index": 257,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6936d136fa6e02049481c86a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d32c1a1e73-case-257",
+              "business_conversation_key": "reminder-normal-d32c1a1e73-case-257",
+              "causal_inbound_event_id": "reminder-normal-d32c1a1e73-case-257-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4212875747a75eb1da7f5df3"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}
