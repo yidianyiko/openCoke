@@ -399,6 +399,10 @@
     "380": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder."
+    },
+    "388": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded before a meeting but does not specify how far in advance. Without a default lead-time policy, the agent should ask for the lead time instead of creating the reminder."
     }
   }
 }

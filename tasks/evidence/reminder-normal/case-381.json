@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 381,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d6200870a7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ba2b82028c58abfae74f1a27"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 381,
+      "input": "59分钟后再提醒休息",
+      "user_id": "ba2b82028c58abfae74f1a27",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f23359d33d63ac7989030f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2335f5f7e042740b8cbce",
+          "expect_output_timestamp": 1777480543,
+          "handled_timestamp": 1777480543,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：休息（2026-04-30 14:06）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d6200870a7",
+            "case_index": 381,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693e462f16773b825cfaa43a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d6200870a7-case-381",
+              "business_conversation_key": "reminder-normal-d6200870a7-case-381",
+              "causal_inbound_event_id": "reminder-normal-d6200870a7-case-381-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ba2b82028c58abfae74f1a27"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2335f5f7e042740b8cbcc",
+          "owner_user_id": "ba2b82028c58abfae74f1a27",
+          "title": "休息",
+          "schedule": {
+            "anchor_at": "2026-04-30T05:06:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "14:06:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f233595f7e042740b8cbc5",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T05:06:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T16:35:43.820000+00:00",
+          "updated_at": "2026-04-29T16:35:43.820000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

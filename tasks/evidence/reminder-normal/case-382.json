@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 382,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a7263c5049",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "76cbe00040367e6dd3b43a1d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 382,
+      "input": "语\n理论\n07:30 - 09:00(早晨)\n09:45 - 10:53(早晨)\n数学\n12:00 - 13:30(下午)\n14:15 - 15:28(下午)\n\n18:00 - 19:30(晚上)\n复习\n20:15 - 21:24(晚上)\n休息时间\n09:00 - 09:45\n10:53 - 12:00\n13:30 - 14:15\n15:28 - 18:00\n19:30 - 20:15",
+      "user_id": "76cbe00040367e6dd3b43a1d",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f23360bf3de42dc5326b70",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f233c75f7e042740b8cbdd",
+          "expect_output_timestamp": 1777480557,
+          "handled_timestamp": 1777480557,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a7263c5049",
+            "case_index": 382,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693e8ef916773b825cfaa486",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a7263c5049-case-382",
+              "business_conversation_key": "reminder-normal-a7263c5049-case-382",
+              "causal_inbound_event_id": "reminder-normal-a7263c5049-case-382-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "76cbe00040367e6dd3b43a1d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 103.171
+    }
+  ]
+}

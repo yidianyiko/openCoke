@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 385,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-38671c317a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9905be6b4d453ecdc4a5651a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 385,
+      "input": "现在不画了，休息一会，要用电脑做图了",
+      "user_id": "9905be6b4d453ecdc4a5651a",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f233ff5447e9917d403534",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2340b5f7e042740b8cc12",
+          "expect_output_timestamp": 1777480708,
+          "handled_timestamp": 1777480708,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，休息一下换换脑子，做图加油！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-38671c317a",
+            "case_index": 385,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693ebab6c4711b8846f903f5",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-38671c317a-case-385",
+              "business_conversation_key": "reminder-normal-38671c317a-case-385",
+              "causal_inbound_event_id": "reminder-normal-38671c317a-case-385-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9905be6b4d453ecdc4a5651a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.021
+    }
+  ]
+}

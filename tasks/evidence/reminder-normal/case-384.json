@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 384,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-47f486e01b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "593e5aecb9c5b12f81db4c88"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 384,
+      "input": "周日休息日",
+      "user_id": "593e5aecb9c5b12f81db4c88",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f233e0f6aa1f630dcf05c7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f233f25f7e042740b8cc01",
+          "expect_output_timestamp": 1777480676,
+          "handled_timestamp": 1777480676,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到收到，周日休息日记住了。那今天周四周五周六有啥安排不？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-47f486e01b",
+            "case_index": 384,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693ea94416773b825cfaa491",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-47f486e01b-case-384",
+              "business_conversation_key": "reminder-normal-47f486e01b-case-384",
+              "causal_inbound_event_id": "reminder-normal-47f486e01b-case-384-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "593e5aecb9c5b12f81db4c88"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 19.032
+    }
+  ]
+}

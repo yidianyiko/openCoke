@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 388,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-717299ef6e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "59483674021f2843bb2168b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 388,
+        "input": "明天下午五点半我有个会议，记得提前提醒我",
+        "user_id": "59483674021f2843bb2168b6",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f23462b85e414a3c8884ca",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2346c5f7e042740b8cc51",
+            "expect_output_timestamp": 1777480812,
+            "handled_timestamp": 1777480812,
+            "status": "pending",
+            "message_type": "text",
+            "message": "你想提前多久被提醒呢？比如提前15分钟、30分钟还是1小时？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-717299ef6e",
+              "case_index": 388,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "693ec90a7fad1aa21e9edbb4",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-717299ef6e-case-388",
+                "business_conversation_key": "reminder-normal-717299ef6e-case-388",
+                "causal_inbound_event_id": "reminder-normal-717299ef6e-case-388-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "59483674021f2843bb2168b6"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 11.019
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 388,
+      "input": "明天下午五点半我有个会议，记得提前提醒我",
+      "user_id": "59483674021f2843bb2168b6",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23462b85e414a3c8884ca",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2346c5f7e042740b8cc51",
+          "expect_output_timestamp": 1777480812,
+          "handled_timestamp": 1777480812,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想提前多久被提醒呢？比如提前15分钟、30分钟还是1小时？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-717299ef6e",
+            "case_index": 388,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693ec90a7fad1aa21e9edbb4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-717299ef6e-case-388",
+              "business_conversation_key": "reminder-normal-717299ef6e-case-388",
+              "causal_inbound_event_id": "reminder-normal-717299ef6e-case-388-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "59483674021f2843bb2168b6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.019
+    }
+  ]
+}
