@@ -201,6 +201,10 @@
       "expected_operation": "delete",
       "allow_clarification": true,
       "evaluation_reason": "The user asks to stop being reminded that it is time to go. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a new reminder is not."
+    },
+    "192": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request."
     }
   }
 }
