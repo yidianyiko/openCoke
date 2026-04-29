@@ -442,6 +442,10 @@
     "423": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for a reminder during the daytime but does not provide a concrete reminder time or cadence. The agent should ask for the specific time instead of creating a reminder."
+    },
+    "425": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user provides a detailed time-blocked daily plan but does not explicitly ask for reminders. The agent should ask which time points to remind about instead of creating reminders for the whole schedule."
     }
   }
 }

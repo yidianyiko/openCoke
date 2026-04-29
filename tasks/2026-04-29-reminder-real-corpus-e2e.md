@@ -163,6 +163,10 @@ reminders can fire without waiting for wall-clock time.
 - `case418` through `case422` passed without code or fixture changes.
 - `case423` added a clarification expectation for a daytime reminder request
   that lacks a concrete time or cadence.
+- `case424` passed without code or fixture changes.
+- `case425` added a clarification expectation for a detailed time-blocked daily
+  plan without an explicit reminder request. One rerun hit a clarification-judge
+  timeout; the next rerun passed.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field
