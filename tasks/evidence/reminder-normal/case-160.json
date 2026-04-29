@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 160,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-559bad29a7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692dba6f64d834c3c061653b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 160,
+      "input": "之后吃饭，8点回来",
+      "user_id": "692dba6f64d834c3c061653b",
+      "original_from_user": "692dba6f64d834c3c061653b",
+      "input_message_id": "69f1935ee8e3f6a48d5f22dd",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1937218f48fd9980e7b59",
+          "expect_output_timestamp": 1777439588,
+          "handled_timestamp": 1777439588,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，8点回来是吧，我记一下。所以你是先去吃饭，吃完饭还得回来继续干活？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-559bad29a7",
+            "case_index": 160,
+            "original_from_user": "692dba6f64d834c3c061653b",
+            "source_id": "693167a94bf7878f04114992",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-559bad29a7-case-160",
+              "business_conversation_key": "reminder-normal-559bad29a7-case-160",
+              "causal_inbound_event_id": "reminder-normal-559bad29a7-case-160-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692dba6f64d834c3c061653b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 20.037
+    }
+  ]
+}
