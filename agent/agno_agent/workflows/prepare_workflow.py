@@ -85,11 +85,11 @@ _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS = _float_env(
 )
 _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS = _float_env(
     "COKE_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
-    25.0,
+    10.0,
 )
 _PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = _float_env(
     "COKE_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
-    85.0,
+    95.0,
 )
 
 _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
@@ -1389,6 +1389,9 @@ ReminderDetectDecision.
   explicit_occurrences or explicit_cadence and copy the exact authorizing user
   wording into schedule_evidence. If the message does not contain concrete
   occurrence times or a concrete interval/frequency, return clarify.
+- Every batch create must include top-level schedule_basis and schedule_evidence
+  before operations. Omit optional empty string fields instead of outputting
+  blank reminder_id, keyword, new_title, or new_trigger_at values.
 - If an explicit occurrence list contains both past and future local times for
   today, keep the concrete future occurrences executable and leave past
   occurrences out of the create operations.

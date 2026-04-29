@@ -75,6 +75,9 @@ Rules:
 - For any batch, bounded schedule, or recurrence, fill schedule_evidence with
   the exact user wording that authorizes those occurrences. If no exact wording
   exists, return clarify instead of inventing schedule fields.
+- Every batch create must include top-level schedule_basis and schedule_evidence
+  before operations. Omit optional empty string fields instead of outputting
+  blank reminder_id, keyword, new_title, or new_trigger_at values.
 - If an explicit occurrence list contains both past and future local times for
   today, keep the concrete future occurrences executable and leave past
   occurrences out of the create operations.

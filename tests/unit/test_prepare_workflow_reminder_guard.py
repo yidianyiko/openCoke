@@ -1108,12 +1108,12 @@ async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
 def test_reminder_detect_retry_default_timeout_allows_fast_llm_budget():
     from agent.agno_agent.workflows import prepare_workflow
 
-    assert prepare_workflow._PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS <= 30.0
-    assert prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS >= 80.0
+    assert prepare_workflow._PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS <= 15.0
+    assert prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS >= 90.0
     assert (
         prepare_workflow._PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS
         + prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS
-        <= 115.0
+        <= 110.0
     )
 
 

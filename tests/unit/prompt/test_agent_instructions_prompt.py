@@ -160,6 +160,14 @@ def test_reminder_detect_instructions_keep_future_explicit_occurrences():
     assert "leave past" in instructions
 
 
+def test_reminder_detect_instructions_require_batch_schedule_basis():
+    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
+
+    assert "Every batch create must include" in instructions
+    assert "schedule_basis and schedule_evidence" in instructions
+    assert "Omit optional empty string fields" in instructions
+
+
 def test_reminder_detect_instructions_keep_clarification_language():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 
