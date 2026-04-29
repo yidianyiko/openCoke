@@ -161,6 +161,11 @@
     "150": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks the agent to recommend how often to remind them, but has not confirmed a concrete cadence; the agent should ask for cadence confirmation instead of creating a reminder."
+    },
+    "158": {
+      "evaluation_expectation": "crud",
+      "expected_operation": "delete",
+      "evaluation_reason": "The user asks to stop evening reminders; this is a cancel/delete CRUD request, so the evaluator should require a CRUD outcome message rather than a newly created reminder."
     }
   }
 }

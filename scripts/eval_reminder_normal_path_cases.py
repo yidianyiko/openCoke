@@ -101,6 +101,7 @@ def merge_case_expectation_metadata(
     for key in (
         "evaluation_expectation",
         "evaluation_reason",
+        "expected_operation",
         "expected_creates",
     ):
         if key in expectation:
@@ -531,14 +532,17 @@ def validate_observations(
 ) -> list[str]:
     errors: list[str] = []
     expectation = case_evaluation_expectation(case)
+    expected_operation = case_expected_crud_operation(case)
     expected_creates = (
-        expected_created_reminders_for_case(case) if expectation == "crud" else []
+        expected_created_reminders_for_case(case)
+        if expectation == "crud" and expected_operation == "create"
+        else []
     )
     if input_status != "handled":
         errors.append(f"input_{input_status}")
     if not outputs:
         errors.append("no_user_output")
-    if expectation == "crud" and not reminders:
+    if expectation == "crud" and expected_operation == "create" and not reminders:
         errors.append("no_reminder_created")
     if expectation in {"clarify", "capability", "discussion", "query"}:
         if reminders:
@@ -558,9 +562,20 @@ def validate_observations(
     if duplicate_reminder_keys(reminders):
         errors.append("duplicate_reminder_created")
     errors.extend(validate_expected_creates(expected_creates, reminders, outputs))
+    if (
+        expectation == "crud"
+        and expected_operation != "create"
+        and not output_mentions_crud_ack(outputs, reminders)
+    ):
+        errors.append("user_output_missing_crud_ack")
     if reminders and not output_mentions_crud_ack(outputs, reminders):
         errors.append("user_output_missing_crud_ack")
     return errors
+
+
+def case_expected_crud_operation(case: ReminderNormalPathCase) -> str:
+    operation = str(case.metadata.get("expected_operation") or "create").strip().lower()
+    return operation or "create"
 
 
 def expected_created_reminders_for_case(
@@ -872,7 +887,8 @@ def output_mentions_crud_ack(
 
     action_ack = re.search(
         r"(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成|安排).{0,12}提醒|"
-        r"提醒.{0,12}(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成|安排)",
+        r"提醒.{0,12}(已|已经|成功|失败|没有|未能|无法).{0,12}(创建|设置|新增|更新|修改|取消|删除|完成|安排)|"
+        r"(创建|设置|新增|更新|修改|取消|删除|完成|安排).{0,12}提醒.{0,12}(已|已经|成功|失败|没有|未能|无法)",
         output_text,
     )
     if action_ack:
