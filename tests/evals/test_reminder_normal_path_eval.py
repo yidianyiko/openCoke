@@ -1084,6 +1084,44 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
     assert errors == []
 
 
+def test_validate_observations_allows_light_action_prefix_title_match():
+    case = normal_eval.ReminderNormalPathCase(
+        input="16：00提醒我开始写论文文献综述（国外研究现状）",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={
+            "expected_creates": [
+                {
+                    "title": "开始写论文文献综述（国外研究现状）",
+                    "local_time": "16:00:00",
+                    "recurring": False,
+                }
+            ]
+        },
+    )
+    reminders = [
+        {
+            "title": "写论文文献综述（国外研究现状）",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 29, 7, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "16:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：写论文文献综述（国外研究现状）（2026-04-29 16:00）"}],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
 def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
     expected = normal_eval.expected_created_reminders("下午2:30提醒我起来走一走")
 
