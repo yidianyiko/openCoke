@@ -150,3 +150,9 @@ def test_reminder_detect_instructions_scope_reminder_intent_to_modified_tasks():
     assert "neighboring independent schedule item" in instructions
     assert "task time range supplies boundaries" in instructions
     assert "schedule-only items" in instructions
+
+
+def test_reminder_detect_instructions_keep_clarification_language():
+    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
+
+    assert "same language as the current" in instructions
