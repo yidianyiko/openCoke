@@ -325,6 +325,10 @@
     "294": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request."
+    },
+    "300": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a future plan with a time but does not ask to be reminded. The agent should ask whether a reminder is wanted instead of silently creating one."
     }
   }
 }

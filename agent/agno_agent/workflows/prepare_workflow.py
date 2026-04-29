@@ -249,7 +249,7 @@ class PrepareWorkflow:
             session_state["prepare_orchestrator_skipped_for_reminder"] = True
             self._map_to_query_rewrite(session_state, orchestrator_result)
             logger.info(
-                "[PrepareWorkflow] 显式提醒请求跳过 Orchestrator，直接进入提醒识别"
+                "[PrepareWorkflow] 提醒意图规则跳过 Orchestrator，直接进入提醒识别"
             )
         else:
             await self._run_orchestrator(input_message, session_state)
@@ -415,7 +415,7 @@ class PrepareWorkflow:
             return False
         if self._looks_like_reminder_stop_intent(input_message):
             session_state["prepare_reminder_intent_hint"] = "stop_or_cancel"
-        return self._looks_like_explicit_reminder_intent(input_message)
+        return self._looks_like_reminder_intent(input_message)
 
     def _looks_like_explicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
