@@ -442,6 +442,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "advance notice" in workflow.agent.input
     assert "at the stated time" in workflow.agent.input
     assert "do not suggest advance-notice offsets" in workflow.agent.input
+    assert "recommend a reminder cadence or frequency" in workflow.agent.input
+    assert "ask the user to confirm one specific cadence" in workflow.agent.input
     assert workflow.agent.input.rfind("### System Notice: Reminder Setup Pending") > (
         workflow.agent.input.rfind("## CRITICAL CONSTRAINTS")
     )

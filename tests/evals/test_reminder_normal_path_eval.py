@@ -540,6 +540,24 @@ def test_validate_observations_rejects_reminder_for_clarification_fixture():
     assert "unexpected_reminder_created" in errors
 
 
+def test_clarification_output_accepts_cadence_confirmation_question():
+    case = normal_eval.ReminderNormalPathCase(
+        input="你觉得多久提醒我一下鼓励我学习呢",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "可以先半小时一次，你想每隔多久提醒一次？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
 
