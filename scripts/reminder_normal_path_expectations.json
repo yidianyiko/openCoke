@@ -78,6 +78,20 @@
     "117": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder request has intent but no reminder content or concrete time; the agent should ask for the missing details instead of creating a reminder."
+    },
+    "122": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a long analytical task title; concise title paraphrases are acceptable.",
+      "expected_creates": [
+        {
+          "title": "查看不同价位图书毛利分布及新老用户卖书情况",
+          "title_variants": [
+            "看一下不同价位的图书贡献的毛利分布以及用户主要是卖哪些书新老用户"
+          ],
+          "local_time": "10:30:00",
+          "recurring": false
+        }
+      ]
     }
   }
 }
