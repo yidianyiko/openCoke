@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 265,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b1312d3d99",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d5e7854f25154f0b09905ae8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 265,
+      "input": "你能记住我最早说约谁在几点吗",
+      "user_id": "d5e7854f25154f0b09905ae8",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f1eefa0bd5c81fa3f44bb4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ef29a101647c6278ce83",
+          "expect_output_timestamp": 1777463079,
+          "handled_timestamp": 1777463079,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你说的是约那位学姐吧？我查了一下，你是让我在明天下午三点提醒你给学姐打电话讨论项目的事，对吧？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b1312d3d99",
+            "case_index": 265,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693715bbfa6e02049481c8a9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b1312d3d99-case-265",
+              "business_conversation_key": "reminder-normal-b1312d3d99-case-265",
+              "causal_inbound_event_id": "reminder-normal-b1312d3d99-case-265-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d5e7854f25154f0b09905ae8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 47.083
+    }
+  ]
+}
