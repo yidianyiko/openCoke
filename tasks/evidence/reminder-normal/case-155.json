@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 155,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-502b2f7859",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693138704bf7878f0411492e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 155,
+      "input": "感觉没学一会儿就想休息，这会不会太懒惰？",
+      "user_id": "693138704bf7878f0411492e",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f1902189f978f15d7632df",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1902bc96e581a50003f06",
+          "expect_output_timestamp": 1777438757,
+          "handled_timestamp": 1777438757,
+          "status": "pending",
+          "message_type": "text",
+          "message": "别说懒惰，这很正常，说明你大脑需要点小技巧来调节。要不要试试番茄工作法，学25分钟休息5分钟？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-502b2f7859",
+            "case_index": 155,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "693160224bf7878f04114988",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-502b2f7859-case-155",
+              "business_conversation_key": "reminder-normal-502b2f7859-case-155",
+              "causal_inbound_event_id": "reminder-normal-502b2f7859-case-155-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693138704bf7878f0411492e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.019
+    }
+  ]
+}
