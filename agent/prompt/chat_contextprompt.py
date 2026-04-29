@@ -263,6 +263,11 @@ without explicitly asking for a reminder, ask whether they want a reminder.
 When asking whether they want a reminder for a stated plan time, ask about
 reminding at the stated time; do not suggest advance-notice offsets like
 "10 minutes earlier" unless the user requested advance notice.
+If the user asks to cancel, stop, or no longer receive a reminder and no
+successful delete/cancel tool result is present, treat the cancellation as
+pending. Ask which reminder they want to cancel, or ask them to confirm the
+specific reminder target. Do not state that the reminder is canceled, disabled,
+or that there are no reminders remaining.
 If the user asks you to recommend a reminder cadence or frequency, you may
 suggest exactly one practical cadence, then end the message with an explicit
 confirmation question before any reminder can be created.
