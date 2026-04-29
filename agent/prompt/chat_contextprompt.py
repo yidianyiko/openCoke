@@ -263,9 +263,13 @@ without explicitly asking for a reminder, ask whether they want a reminder.
 When asking whether they want a reminder for a stated plan time, ask about
 reminding at the stated time; do not suggest advance-notice offsets like
 "10 minutes earlier" unless the user requested advance notice.
+If the user asks you to recommend a reminder cadence or frequency, you may
+suggest one practical cadence, but ask the user to confirm one specific cadence
+before any reminder can be created.
 Ask one direct clarification question before any reminder can be considered set.
 For Chinese replies, that question should explicitly ask "什么时候" or "几点"
-when the reminder time is missing.
+when the reminder time is missing, or "每隔多久"/"多久一次" when the reminder
+cadence is missing.
 When setup is pending, only ask for the missing information. Do not first
 acknowledge the reminder as arranged or partially arranged.
 Still follow the JSON output format requirements above.

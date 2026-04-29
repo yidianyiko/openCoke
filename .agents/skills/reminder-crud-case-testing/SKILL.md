@@ -49,6 +49,33 @@ Rules:
 - Do not run 32-way batches until one-case execution is stable.
 - After each code change, run the relevant tests and commit the verified change before continuing to later cases.
 
+## Drift Guardrails
+
+Do not let normal-path fixes become another case-by-case parser.
+
+- Do not add case-local `Avoid X` prompt rules as the first response to a failing case. Prefer a positive decision boundary or a smaller tool instruction that covers a class of inputs.
+- Do not add `title_variants` as the first response to a title mismatch. First check whether punctuation, quote style, whitespace, leading verbs, or semantic containment should be handled by the shared title validator.
+- Fixture `evaluation_expectation` overrides are appropriate when the case data should classify the request as CRUD, clarification, query, capability, or discussion. Keep the reason explicit.
+- After a run of case fixes, produce a drift report before continuing if prompt constraints or title aliases are growing quickly.
+
+Drift report:
+
+```bash
+python - <<'PY'
+import json, re
+from pathlib import Path
+data=json.loads(Path('scripts/reminder_normal_path_expectations.json').read_text())['cases']
+variant_cases=[k for k,v in data.items() if any(c.get('title_variants') for c in v.get('expected_creates') or [])]
+variant_count=sum(len(c.get('title_variants') or []) for v in data.values() for c in v.get('expected_creates') or [])
+print('fixture_overrides', len(data))
+print('title_variant_cases', len(variant_cases), variant_cases)
+print('title_variants', variant_count)
+for path in ['agent/prompt/agent_instructions_prompt.py','agent/prompt/chat_contextprompt.py']:
+    text=Path(path).read_text()
+    print(path, 'negative_constraints', len(re.findall(r'\\b(?:Avoid|avoid|Do not|do not|Never|never)\\b|不要|禁止', text)))
+PY
+```
+
 ## Debug Checks
 
 For a stuck or failed case, inspect the batch id from the result JSON:
