@@ -19,6 +19,7 @@ V2.4 更新：
 
 import asyncio
 import os
+import re
 import sys
 
 sys.path.append(".")
@@ -374,6 +375,47 @@ def _chat_response_timeout_fallback(
     )
 
 
+def _guard_pending_reminder_stop_response(
+    context: dict, multimodal_response: dict
+) -> dict:
+    if not _has_pending_reminder_stop_without_tool_result(context):
+        return multimodal_response
+    if multimodal_response.get("type", "text") != "text":
+        return multimodal_response
+
+    content = str(multimodal_response.get("content") or "")
+    if _mentions_reminder_stop_target_clarification(content):
+        return multimodal_response
+
+    guarded = dict(multimodal_response)
+    guarded["content"] = "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
+    return guarded
+
+
+def _has_pending_reminder_stop_without_tool_result(context: dict) -> bool:
+    if context.get("prepare_reminder_intent_hint") != "stop_or_cancel":
+        return False
+    if context.get("orchestrator", {}).get("need_reminder_detect") is not True:
+        return False
+    return not any(
+        result.get("tool_name") == "提醒操作"
+        for result in context.get("tool_results") or []
+        if isinstance(result, dict)
+    )
+
+
+def _mentions_reminder_stop_target_clarification(text: str) -> bool:
+    return bool(
+        re.search(
+            r"(哪条提醒|哪个提醒|什么提醒|哪一个提醒|哪项提醒|"
+            r"(?:取消|删除|停掉|停止|关掉).{0,16}(哪条|哪个|哪一个|什么)|"
+            r"which.{0,20}(reminder|alarm|notification))",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
 def _send_chat_response_fallback(
     *,
     context: dict,
@@ -526,6 +568,9 @@ async def handle_message(
                     ):
                         if event["type"] == "message":
                             multimodal_response = event["data"]
+                            multimodal_response = _guard_pending_reminder_stop_response(
+                                context, multimodal_response
+                            )
                             multimodal_responses_index += 1
                             all_multimodal_responses.append(multimodal_response)
                             is_sync_text_reply_message = (

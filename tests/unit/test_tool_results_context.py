@@ -116,8 +116,7 @@ def test_reminder_operation_direct_reply_joins_exact_tool_summaries():
     }
 
     assert get_reminder_operation_direct_reply(state) == (
-        "已创建提醒：喝水（2026-04-29 18:02）；"
-        "已创建提醒：吃饭（每天 18:04）"
+        "已创建提醒：喝水（2026-04-29 18:02）；" "已创建提醒：吃饭（每天 18:04）"
     )
 
 
@@ -143,7 +142,12 @@ def test_single_success_result():
 
     state = {
         "tool_results": [
-            {"tool_name": "时区更新", "ok": True, "result_summary": "已更新为纽约时间", "extra_notes": ""}
+            {
+                "tool_name": "时区更新",
+                "ok": True,
+                "result_summary": "已更新为纽约时间",
+                "extra_notes": "",
+            }
         ]
     }
     output = get_tool_results_context(state)
@@ -158,7 +162,12 @@ def test_single_failure_result():
 
     state = {
         "tool_results": [
-            {"tool_name": "提醒创建", "ok": False, "result_summary": "时间格式不正确", "extra_notes": ""}
+            {
+                "tool_name": "提醒创建",
+                "ok": False,
+                "result_summary": "时间格式不正确",
+                "extra_notes": "",
+            }
         ]
     }
     output = get_tool_results_context(state)
@@ -188,8 +197,18 @@ def test_multiple_results_all_rendered():
 
     state = {
         "tool_results": [
-            {"tool_name": "时区更新", "ok": True, "result_summary": "纽约", "extra_notes": ""},
-            {"tool_name": "提醒创建", "ok": True, "result_summary": "明天9点", "extra_notes": ""},
+            {
+                "tool_name": "时区更新",
+                "ok": True,
+                "result_summary": "纽约",
+                "extra_notes": "",
+            },
+            {
+                "tool_name": "提醒创建",
+                "ok": True,
+                "result_summary": "明天9点",
+                "extra_notes": "",
+            },
         ]
     }
     output = get_tool_results_context(state)
@@ -209,7 +228,12 @@ def test_timezone_context_stays_quiet_for_non_time_dependent_tool_results():
             "timezone_source": "web_region",
         },
         "tool_results": [
-            {"tool_name": "时区更新", "ok": True, "result_summary": "已更新为伦敦时间", "extra_notes": ""}
+            {
+                "tool_name": "时区更新",
+                "ok": True,
+                "result_summary": "已更新为伦敦时间",
+                "extra_notes": "",
+            }
         ],
     }
 
@@ -229,7 +253,12 @@ def test_timezone_context_mentions_inferred_state_for_reminder_results():
             "timezone_source": "web_region",
         },
         "tool_results": [
-            {"tool_name": "提醒操作", "ok": True, "result_summary": "明天早上9点提醒开会", "extra_notes": ""}
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "明天早上9点提醒开会",
+                "extra_notes": "",
+            }
         ],
     }
 
@@ -415,12 +444,15 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     }
 
     events = [
-        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+        event
+        async for event in workflow.run_stream("remind me tomorrow", session_state)
     ]
 
     assert events[-1]["type"] == "done"
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
-    assert "Do not assume the reminder has been set successfully" in workflow.agent.input
+    assert (
+        "Do not assume the reminder has been set successfully" in workflow.agent.input
+    )
     assert "Do not say you remembered" in workflow.agent.input
     assert "交给我" in workflow.agent.input
     assert "安排上" in workflow.agent.input
@@ -431,7 +463,7 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "设置的" in workflow.agent.input
     assert "订蛋糕的提醒安排上" in workflow.agent.input
     assert "only ask for the missing information" in workflow.agent.input
-    assert "Do not say \"提醒你\"" in workflow.agent.input
+    assert 'Do not say "提醒你"' in workflow.agent.input
     assert "plan or schedule statement" in workflow.agent.input
     assert "ask whether they want a reminder" in workflow.agent.input
     assert "even conditionally" in workflow.agent.input
@@ -453,7 +485,10 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "你想按这个频率吗" in workflow.agent.input
     assert "Keep cadence recommendations as proposals only" in workflow.agent.input
     assert "first-person promise" in workflow.agent.input
-    assert "Do not infer prior reminder agreements from retrieved history" in workflow.agent.input
+    assert (
+        "Do not infer prior reminder agreements from retrieved history"
+        in workflow.agent.input
+    )
     assert "Do not propose a specific clock time or cadence" in workflow.agent.input
     assert "status or check-in question" in workflow.agent.input
     assert "ask when or how often to check in" in workflow.agent.input
@@ -495,7 +530,8 @@ async def test_chat_workflow_directly_returns_reminder_tool_result(
     }
 
     events = [
-        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+        event
+        async for event in workflow.run_stream("remind me tomorrow", session_state)
     ]
 
     assert events[-1]["type"] == "done"
@@ -526,7 +562,8 @@ async def test_chat_workflow_directly_returns_prepare_direct_reply(monkeypatch):
     }
 
     events = [
-        event async for event in workflow.run_stream("你可以循环提醒我吗", session_state)
+        event
+        async for event in workflow.run_stream("你可以循环提醒我吗", session_state)
     ]
 
     assert events[-1]["type"] == "done"
@@ -567,7 +604,8 @@ async def test_chat_workflow_keeps_pending_reminder_notice_for_unrelated_tool_re
     }
 
     events = [
-        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+        event
+        async for event in workflow.run_stream("remind me tomorrow", session_state)
     ]
 
     assert events[-1]["type"] == "done"
@@ -606,7 +644,8 @@ async def test_chat_workflow_keeps_pending_notice_for_list_result_only(monkeypat
     }
 
     events = [
-        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+        event
+        async for event in workflow.run_stream("remind me tomorrow", session_state)
     ]
 
     assert events[-1]["type"] == "done"
