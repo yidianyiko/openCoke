@@ -847,6 +847,13 @@ class PrepareWorkflow:
                     )
                     self._log_reminder_result(retry_response, session_state)
                     return
+                append_tool_result(
+                    session_state,
+                    tool_name="提醒操作",
+                    ok=False,
+                    result_summary="提醒操作失败：提醒识别输出无效，重试后仍未能完成提醒设置",
+                    extra_notes="action=detect; error_code=ReminderDetectInvalidStructuredOutput",
+                )
             self._log_reminder_result(reminder_response, session_state)
 
         except asyncio.TimeoutError:
@@ -1117,26 +1124,30 @@ class PrepareWorkflow:
 {timezone}
 
 ### Retry Directive
-Full-context reminder detection timed out. Decide from this current message
-using visible_reminder_tool semantics.
+Full-context reminder detection timed out or produced invalid structured output.
+Decide from this current message and return only a structured
+ReminderDetectDecision.
 - If the current user message explicitly asks for a reminder and includes a
-  specific time plus reminder content, call visible_reminder_tool.
+  specific time plus reminder content, return intent_type="crud" with the
+  matching action and executable fields.
 - If the current user message explicitly asks for reminders at one or more
-  specific times but gives no content, call visible_reminder_tool with generic
+  specific times but gives no content, return create/batch with generic
   title="提醒" for each time.
-- If the current user message asks for a repeated interval with a deadline and
-  the interval cannot be represented exactly with the supported RRULE subset,
-  enumerate each one-shot occurrence in a batch. Example: current 15:07,
+- If the current user message asks for a repeated interval with a deadline,
+  end time, or stop-after point, enumerate each concrete one-shot occurrence in
+  a batch and set deadline_at. Do not use RRULE for bounded cadence. Example:
+  current 15:07,
   every 50 minutes before 18:00 means 15:57, 16:47, 17:37; do not skip the
   intermediate occurrences.
 - If the current user message asks to cancel, stop, remove, no longer receive,
-  or not be called/notified/reminded for a reminder, call visible_reminder_tool
-  with action="delete" and the safest target keyword from the message.
+  or not be called/notified/reminded for a reminder, return action="delete"
+  and the safest target keyword from the message.
   Chinese examples include "不用叫我", "不用提醒我", "别提醒我", and "取消提醒".
-- If the current user message asks to update, complete, or list reminders, call
-  visible_reminder_tool with the matching action and only the fields that are
+- If the current user message asks to update, complete, or list reminders,
+  return the matching action and only the fields that are
   safely available from the current message.
-- If required reminder details are missing or unsafe, do not call the tool.
+- If required reminder details are missing or unsafe, return intent_type="clarify"
+  with no executable reminder fields.
 - Do not answer in text.
 
 ### 当前用户消息

@@ -250,6 +250,7 @@ Reply goal:
 - If a stop/cancel target is unclear, ask which reminder should be stopped.
 - If the user asks for cadence advice, propose one practical cadence and ask for confirmation.
 - If the request asks to check on a topic but gives no trigger, ask when or how often to check in.
+- State that reminder setup has not completed yet before asking the next question.
 - Use retrieved history only as context; current-turn tool results are the source of truth for completed reminder actions.
 - Keep the reply as a clarification or proposal, not a completed reminder action.
 Still follow the JSON output format requirements above.

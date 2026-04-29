@@ -197,6 +197,78 @@ async def test_invalid_structured_reminder_decision_retries_with_fast_agent(monk
 
 
 @pytest.mark.asyncio
+async def test_invalid_structured_reminder_retry_failure_records_tool_result(monkeypatch):
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    invalid_response = MagicMock()
+    invalid_response.metrics = None
+    invalid_response.tools = []
+    invalid_response.content = '{"intent_type":"clarify","action":"create"}'
+
+    async def slow_retry(*_args, **_kwargs):
+        await asyncio.sleep(60)
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日15时51分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+        0.01,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
+        ) as reminder_detect_retry_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_response = MagicMock()
+        orchestrator_response.metrics = None
+        orchestrator_response.content = {
+            "need_context_retrieve": False,
+            "need_reminder_detect": True,
+            "need_web_search": False,
+            "need_timezone_update": False,
+            "timezone_action": "none",
+        }
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=invalid_response)
+        reminder_detect_retry_agent.arun = AsyncMock(side_effect=slow_retry)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("每小时打卡，到晚上8点", session_state)
+
+    reminder_detect_retry_agent.arun.assert_awaited_once()
+    [tool_result] = result["session_state"]["tool_results"]
+    assert tool_result["ok"] is False
+    assert (
+        tool_result["extra_notes"]
+        == "action=detect; error_code=ReminderDetectInvalidStructuredOutput"
+    )
+
+
+@pytest.mark.asyncio
 async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fast():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -867,12 +939,14 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     retry_input = reminder_detect_retry_agent.arun.await_args.kwargs["input"]
     assert "最近对话上下文" not in retry_input
     assert "当前用户消息" in retry_input
-    assert "Full-context reminder detection timed out" in retry_input
+    assert "invalid structured output" in retry_input
+    assert "ReminderDetectDecision" in retry_input
     assert "explicitly asks for a reminder" in retry_input
     assert 'action="delete"' in retry_input
     assert "不用叫我" in retry_input
     assert "asks to update, complete, or list reminders" in retry_input
-    assert "enumerate each one-shot occurrence" in retry_input
+    assert "enumerate each concrete one-shot occurrence" in retry_input
+    assert "Do not use RRULE for bounded cadence" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True

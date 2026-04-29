@@ -23,7 +23,13 @@ class ReminderOperation(BaseModel):
     new_trigger_at: str = Field(
         default="", description="Aware ISO 8601 updated trigger time."
     )
-    rrule: str = Field(default="", description="RFC 5545 RRULE.")
+    rrule: str = Field(
+        default="",
+        description=(
+            "RFC 5545 RRULE. Leave empty for bounded cadence/deadline batches; "
+            "enumerate those as one-shot operations."
+        ),
+    )
 
     @model_validator(mode="after")
     def enforce_operation_fields(self) -> "ReminderOperation":
@@ -66,7 +72,11 @@ class ReminderDetectDecision(BaseModel):
         description="Aware ISO 8601 updated trigger time; crud update only.",
     )
     rrule: str = Field(
-        default="", description="RFC 5545 RRULE; crud create/update only."
+        default="",
+        description=(
+            "RFC 5545 RRULE; crud create/update only. Leave empty for bounded "
+            "cadence/deadline requests and enumerate one-shot operations instead."
+        ),
     )
     deadline_at: str = Field(
         default="",
