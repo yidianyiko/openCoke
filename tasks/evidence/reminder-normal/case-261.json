@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 261,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8f99a6c758",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "1a8e91d596b2ff0e87e0e264"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 261,
+      "input": "明天下午2点，提醒我去见vast",
+      "user_id": "1a8e91d596b2ff0e87e0e264",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1edcd13203353ae62790d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1edd4a101647c6278ce1a",
+          "expect_output_timestamp": 1777462740,
+          "handled_timestamp": 1777462740,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：去见vast（2026-04-30 14:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8f99a6c758",
+            "case_index": 261,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "6936f3fdfa6e02049481c886",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8f99a6c758-case-261",
+              "business_conversation_key": "reminder-normal-8f99a6c758-case-261",
+              "causal_inbound_event_id": "reminder-normal-8f99a6c758-case-261-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1a8e91d596b2ff0e87e0e264"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1edd4a101647c6278ce18",
+          "owner_user_id": "1a8e91d596b2ff0e87e0e264",
+          "title": "去见vast",
+          "schedule": {
+            "anchor_at": "2026-04-30T05:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "14:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1edcea101647c6278ce0f",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T05:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:39:00.424000+00:00",
+          "updated_at": "2026-04-29T11:39:00.424000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}
