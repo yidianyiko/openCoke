@@ -143,8 +143,12 @@ class ReminderDetectDecision(BaseModel):
     def _validate_deadline_operations(self) -> None:
         if not self.deadline_at or not self.operations:
             return
+        if self.rrule:
+            raise ValueError("deadline_at batch must enumerate one-shot operations")
         deadline = _parse_aware_datetime(self.deadline_at, "deadline_at")
         for operation in self.operations:
+            if operation.rrule:
+                raise ValueError("deadline_at batch operation must not use rrule")
             if operation.action != "create" or not operation.trigger_at:
                 continue
             trigger_at = _parse_aware_datetime(
