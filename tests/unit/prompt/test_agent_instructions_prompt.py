@@ -20,3 +20,10 @@ def test_reminder_detect_instructions_reject_date_only_default_time_creation():
     assert "Do not invent a default time" in instructions
     assert "Date-only expressions" in instructions
     assert "明天继续提醒我看文章" in instructions
+
+
+def test_reminder_detect_instructions_do_not_list_for_ambiguous_create():
+    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+
+    assert "Only call list" in instructions
+    assert "Do not call list as a fallback" in instructions

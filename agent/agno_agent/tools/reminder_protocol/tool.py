@@ -561,7 +561,8 @@ def _append_failure(
         "2026-04-28T17:58:00+09:00. Use RFC 5545 RRULE strings for recurrence, "
         "for example FREQ=DAILY. Do not call create/update with relative dates "
         "or ambiguous date-only requests; resolve safe absolute datetimes before "
-        "calling this tool."
+        "calling this tool. Only call list for explicit user requests to view "
+        "existing reminders; do not use list as fallback for ambiguous creation."
     ),
 )
 def visible_reminder_tool(
