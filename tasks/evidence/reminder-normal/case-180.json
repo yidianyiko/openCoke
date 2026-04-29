@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 180,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-636f959154",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6cf1479e7386ad9fee8b54da"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 180,
+      "input": "nono 不是15:50，而是15:00提醒我看书",
+      "user_id": "6cf1479e7386ad9fee8b54da",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f19f85675941a1b19d9a70",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19f9063fb3da7d444faaf",
+          "expect_output_timestamp": 1777442704,
+          "handled_timestamp": 1777442704,
+          "status": "pending",
+          "message_type": "text",
+          "message": "更新提醒失败：keyword '看书' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-636f959154",
+            "case_index": 180,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693257084bf7878f04114a4f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-636f959154-case-180",
+              "business_conversation_key": "reminder-normal-636f959154-case-180",
+              "causal_inbound_event_id": "reminder-normal-636f959154-case-180-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6cf1479e7386ad9fee8b54da"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.022
+    }
+  ]
+}
