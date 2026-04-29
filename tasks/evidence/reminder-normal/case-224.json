@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 224,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c9974ea3f5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "06235cd70f8455bd34c53b4c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 224,
+      "input": "明天下午3:30提醒我出门打球 ",
+      "user_id": "06235cd70f8455bd34c53b4c",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1e325346fa5cdb5120306",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e32d363b9b9847291949",
+          "expect_output_timestamp": 1777460013,
+          "handled_timestamp": 1777460013,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：出门打球（2026-04-30 15:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c9974ea3f5",
+            "case_index": 224,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693577844bf7878f04114b87",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c9974ea3f5-case-224",
+              "business_conversation_key": "reminder-normal-c9974ea3f5-case-224",
+              "causal_inbound_event_id": "reminder-normal-c9974ea3f5-case-224-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "06235cd70f8455bd34c53b4c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e32d363b9b9847291947",
+          "owner_user_id": "06235cd70f8455bd34c53b4c",
+          "title": "出门打球",
+          "schedule": {
+            "anchor_at": "2026-04-30T06:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "15:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e325363b9b9847291940",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T06:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:53:33.307000+00:00",
+          "updated_at": "2026-04-29T10:53:33.307000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.017
+    }
+  ]
+}
