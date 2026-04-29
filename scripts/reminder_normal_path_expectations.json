@@ -205,6 +205,10 @@
     "192": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request."
+    },
+    "197": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks the agent to remember today's task version and start hourly check-ins until 20:00; this is an actionable reminder/check-in request, not ordinary schedule discussion."
     }
   }
 }
