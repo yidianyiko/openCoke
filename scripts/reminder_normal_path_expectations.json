@@ -383,6 +383,10 @@
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
+    },
+    "371": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives next Monday and content but no clock time. Without a product default-time policy, the agent should ask what time on that day instead of creating a reminder."
     }
   }
 }

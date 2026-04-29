@@ -1175,25 +1175,17 @@ def run_clarification_output_judge(case_input: str, output_text: str) -> bool:
 
 
 def build_clarification_output_judge_prompt(case_input: str, output_text: str) -> str:
-    return f"""Judge whether this assistant reply is a clarification for a reminder request.
+    return f"""Judge whether the assistant reply is a reminder clarification.
 
-Context:
-- The user input may mention reminders, schedules, cancellations, or ambiguous plans.
-- A clarification asks the user to provide, choose, or confirm missing information
-  needed before a reminder CRUD action can safely execute.
-- Missing information may include date, time, cadence/frequency, reminder content,
-  reminder target, whether a secondary task should also be reminded, or which
-  existing reminder to modify/cancel/complete.
-- A proposed option is still a clarification if it asks the user to confirm it.
-- Return false for pure acknowledgements, unrelated chat, capability explanations,
-  or claims/promises that the reminder will happen without further confirmation.
-- Answer with the structured schema only.
+Return true only if it asks the user for missing details or confirmation before
+a reminder create/update/cancel/complete action. Missing details can include
+date, time, cadence/frequency, reminder content, target reminder, or whether to
+set a related reminder. A proposed option is true if it asks for confirmation.
+Return false for acknowledgements, unrelated chat, capability explanations, or
+promises that a reminder is already set. Answer with the structured schema only.
 
-User input:
-{case_input}
-
-Assistant reply:
-{output_text}"""
+User: {case_input}
+Assistant: {output_text}"""
 
 
 def _parse_clarification_output_judge_response(response) -> bool:

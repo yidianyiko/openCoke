@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 371,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9b02a60a78",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "891ef9565c867603bf1d9e2f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 371,
+        "input": "帮我记着 下周一提醒我请假条",
+        "user_id": "891ef9565c867603bf1d9e2f",
+        "original_from_user": "693591bc4bf7878f04114b91",
+        "input_message_id": "69f22aa3ab9552702058190d",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f22aacc9edb8f10e945e28",
+            "expect_output_timestamp": 1777478316,
+            "handled_timestamp": 1777478316,
+            "status": "pending",
+            "message_type": "text",
+            "message": "下周一（5月4日）几时提醒你关于请假条呢？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-9b02a60a78",
+              "case_index": 371,
+              "original_from_user": "693591bc4bf7878f04114b91",
+              "source_id": "693d73393aff6aca7eceb041",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-9b02a60a78-case-371",
+                "business_conversation_key": "reminder-normal-9b02a60a78-case-371",
+                "causal_inbound_event_id": "reminder-normal-9b02a60a78-case-371-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "891ef9565c867603bf1d9e2f"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 9.016
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 371,
+      "input": "帮我记着 下周一提醒我请假条",
+      "user_id": "891ef9565c867603bf1d9e2f",
+      "original_from_user": "693591bc4bf7878f04114b91",
+      "input_message_id": "69f22aa3ab9552702058190d",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f22aacc9edb8f10e945e28",
+          "expect_output_timestamp": 1777478316,
+          "handled_timestamp": 1777478316,
+          "status": "pending",
+          "message_type": "text",
+          "message": "下周一（5月4日）几时提醒你关于请假条呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9b02a60a78",
+            "case_index": 371,
+            "original_from_user": "693591bc4bf7878f04114b91",
+            "source_id": "693d73393aff6aca7eceb041",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9b02a60a78-case-371",
+              "business_conversation_key": "reminder-normal-9b02a60a78-case-371",
+              "causal_inbound_event_id": "reminder-normal-9b02a60a78-case-371-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "891ef9565c867603bf1d9e2f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.016
+    }
+  ]
+}

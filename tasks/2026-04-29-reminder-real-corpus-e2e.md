@@ -29,9 +29,9 @@ reminders can fire without waiting for wall-clock time.
 
 ## 2026-04-29 Normal-Path Reminder Loop Status
 
-- One-case normal-path evidence is saved through `case367`.
-- The next case is `case368`; with `1892` total corpus cases, `1524` offsets
-  remain from `368` through `1891`.
+- One-case normal-path evidence is saved through `case371`.
+- The next case is `case372`; with `1892` total corpus cases, `1520` offsets
+  remain from `372` through `1891`.
 - `case287` fixed a detector/chat handoff bug: when ReminderDetect completes
   with a structured non-executable query/discussion decision, ChatWorkflow should
   not inject the pending-reminder setup notice.
@@ -101,6 +101,12 @@ reminders can fire without waiting for wall-clock time.
 - `case365` and `case366` passed without code or fixture changes.
 - `case367` added `FREQ=MINUTELY;INTERVAL=n` support for explicit unbounded
   minute-interval reminders such as `每隔10min提醒我...`.
+- `case368` and `case369` passed without code or fixture changes.
+- `case370` passed without code or fixture changes.
+- `case371` added a clarification expectation for a date-only next-Monday
+  reminder request with content but no clock time, and shortened the
+  clarification-output LLM judge prompt after repeated judge timeouts on clear
+  time-clarification replies.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

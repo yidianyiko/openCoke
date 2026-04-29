@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 370,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6697caef7a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "0ea1e8120fd98e2589d59e80"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 370,
+      "input": "今天的任务结束了",
+      "user_id": "0ea1e8120fd98e2589d59e80",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f22a4184954da8edb53964",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f22a9ec9edb8f10e945e1a",
+          "expect_output_timestamp": 1777478212,
+          "handled_timestamp": 1777478212,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6697caef7a",
+            "case_index": 370,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693d6d9a3aff6aca7eceb040",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6697caef7a-case-370",
+              "business_conversation_key": "reminder-normal-6697caef7a-case-370",
+              "causal_inbound_event_id": "reminder-normal-6697caef7a-case-370-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0ea1e8120fd98e2589d59e80"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 93.158
+    }
+  ]
+}
