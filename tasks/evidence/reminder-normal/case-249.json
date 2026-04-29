@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 249,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-eccb925ed1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "99e3563123e8f8e12cdebd90"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 249,
+      "input": "你明天下午两点半提醒我去教室公寓买高数b2的题",
+      "user_id": "99e3563123e8f8e12cdebd90",
+      "original_from_user": "693591bc4bf7878f04114b91",
+      "input_message_id": "69f1e8786d8fb0a40a99dbd9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e880d65ae1eb40c94a89",
+          "expect_output_timestamp": 1777461376,
+          "handled_timestamp": 1777461376,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：去教室公寓买高数b2的题（2026-05-01 14:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-eccb925ed1",
+            "case_index": 249,
+            "original_from_user": "693591bc4bf7878f04114b91",
+            "source_id": "6936a1f0fa6e02049481c83d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-eccb925ed1-case-249",
+              "business_conversation_key": "reminder-normal-eccb925ed1-case-249",
+              "causal_inbound_event_id": "reminder-normal-eccb925ed1-case-249-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "99e3563123e8f8e12cdebd90"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e880d65ae1eb40c94a87",
+          "owner_user_id": "99e3563123e8f8e12cdebd90",
+          "title": "去教室公寓买高数b2的题",
+          "schedule": {
+            "anchor_at": "2026-05-01T05:30:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "14:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e878d65ae1eb40c94a80",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T05:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:16:16.612000+00:00",
+          "updated_at": "2026-04-29T11:16:16.612000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}
