@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 216,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4c0aac6513",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d4a95c6bea33dc798cacbe80"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 216,
+      "input": "20:00提醒我来法考记忆和做题",
+      "user_id": "d4a95c6bea33dc798cacbe80",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1e0d12fb11b6c16c30d74",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e0d8bcf5ab6571c9f3e5",
+          "expect_output_timestamp": 1777459416,
+          "handled_timestamp": 1777459416,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：法考记忆和做题（2026-04-30 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4c0aac6513",
+            "case_index": 216,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "69355e4e4bf7878f04114b68",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4c0aac6513-case-216",
+              "business_conversation_key": "reminder-normal-4c0aac6513-case-216",
+              "causal_inbound_event_id": "reminder-normal-4c0aac6513-case-216-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d4a95c6bea33dc798cacbe80"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e0d8bcf5ab6571c9f3e3",
+          "owner_user_id": "d4a95c6bea33dc798cacbe80",
+          "title": "法考记忆和做题",
+          "schedule": {
+            "anchor_at": "2026-04-30T11:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e0d1bcf5ab6571c9f3dc",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:43:36.324000+00:00",
+          "updated_at": "2026-04-29T10:43:36.324000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.015
+    }
+  ]
+}
