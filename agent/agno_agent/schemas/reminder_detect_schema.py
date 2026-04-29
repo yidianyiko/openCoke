@@ -19,9 +19,15 @@ class ReminderOperation(BaseModel):
     trigger_at: str = Field(default="", description="Aware ISO 8601 trigger time.")
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword.")
-    new_title: str = Field(default="", description="Updated title.")
+    new_title: str = Field(
+        default="",
+        description="Updated title; update only, do not use for create.",
+    )
     new_trigger_at: str = Field(
-        default="", description="Aware ISO 8601 updated trigger time."
+        default="",
+        description=(
+            "Aware ISO 8601 updated trigger time; update only, do not use for create."
+        ),
     )
     rrule: str = Field(
         default="",

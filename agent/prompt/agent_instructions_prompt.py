@@ -145,6 +145,14 @@ Rules:
 - When the user provides an interval deadline, set deadline_at to that exclusive
   deadline and include only operations whose trigger_at is strictly before
   deadline_at.
+- If the user says to keep, restart, or maintain a previous setting but the
+  same message restates the concrete schedule, use the current message as
+  sufficient evidence; do not ask what the previous setting was.
+- For an ongoing daily window cadence with a start date, window start/end, and
+  hourly interval, return a single create using rrule="FREQ=HOURLY;BYHOUR=..."
+  with the listed local window hours, not one operation per hour. Use trigger_at
+  as the first local occurrence in the window. The create must use title and trigger_at;
+  do not use update fields.
 - If a bounded interval or cadence has a start point in the past and a deadline
   still in the future, skip past occurrences and create only future occurrences
   before the deadline. Do not ask how to catch up missed occurrences unless the
@@ -215,6 +223,14 @@ Field boundary:
 - For multiple safe reminder clauses, use batch with flat operations.
 - For bounded cadence, enumerate one-shot operations and include deadline_at.
 - For recurring reminders, use RRULE only when the user asked for recurrence.
+- If the user says to keep, restart, or maintain a previous setting but
+  restates the concrete schedule, use that current message; do not ask what the
+  previous setting was.
+- For an ongoing daily window cadence with a start date, window start/end, and
+  hourly interval, return a single create using rrule="FREQ=HOURLY;BYHOUR=..."
+  with the listed local window hours, not one operation per hour. Use trigger_at
+  as the first local occurrence in the window. The create must use title and trigger_at;
+  do not use update fields.
 - Write clarification_question in the same language as the current message.
 </instructions>"""
 

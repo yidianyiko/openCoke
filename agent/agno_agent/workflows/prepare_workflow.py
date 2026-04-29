@@ -1558,6 +1558,11 @@ Decide from this current message and return only a structured ReminderDetectDeci
 - Set schedule_basis and schedule_evidence for batch, bounded, or recurrence.
   If without concrete occurrence times or interval/frequency, clarify. References
   like "these time points" are not enough schedule_evidence.
+- Ongoing daily window cadence with start date, window start/end, and interval:
+  for an hourly interval, return a single create using
+  rrule="FREQ=HOURLY;BYHOUR=..." with the listed local window hours, not one
+  operation per hour. Use trigger_at as the first local occurrence in the window.
+  The create operation must use title and trigger_at. Do not use update fields.
 - Never return action="batch" with operations=[]. For multiple safe clauses,
   use one create operation for each safe clause; action=create is invalid,
   operations count must equal the number of safe reminder clauses, and Do not keep only the last item.

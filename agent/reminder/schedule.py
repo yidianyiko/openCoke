@@ -9,10 +9,17 @@ from agent.reminder.errors import InvalidSchedule, RRULENotSupported
 from agent.reminder.models import ReminderSchedule
 
 _SUPPORTED_FREQS = {"HOURLY", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"}
-_SUPPORTED_KEYS = {"FREQ", "COUNT", "UNTIL", "INTERVAL", "BYDAY", "BYMINUTE"}
+_SUPPORTED_KEYS = {
+    "FREQ",
+    "COUNT",
+    "UNTIL",
+    "INTERVAL",
+    "BYDAY",
+    "BYHOUR",
+    "BYMINUTE",
+}
 _SUPPORTED_BYDAY = {"MO", "TU", "WE", "TH", "FR", "SA", "SU"}
 _REJECTED_KEYS = {
-    "BYHOUR",
     "BYMONTH",
     "BYMONTHDAY",
     "BYSETPOS",
@@ -93,6 +100,14 @@ def validate_rrule_subset(rrule: str | None) -> str | None:
                 detail={"rrule": rrule},
             )
         _validate_byminute(parts["BYMINUTE"], rrule)
+
+    if "BYHOUR" in parts:
+        if freq != "HOURLY":
+            raise RRULENotSupported(
+                "BYHOUR is only supported for hourly reminder recurrence",
+                detail={"rrule": rrule},
+            )
+        _validate_byhour(parts["BYHOUR"], rrule)
 
     _validate_positive_integer(parts, "COUNT", rrule)
     _validate_positive_integer(parts, "INTERVAL", rrule)
@@ -201,6 +216,21 @@ def _validate_byminute(value: str, rrule: str) -> None:
         if not minute.isdigit() or int(minute) > 59:
             raise RRULENotSupported(
                 "Unsupported hourly BYMINUTE value",
+                detail={"rrule": rrule},
+            )
+
+
+def _validate_byhour(value: str, rrule: str) -> None:
+    hours = value.split(",")
+    if not hours:
+        raise RRULENotSupported(
+            "Unsupported hourly BYHOUR value",
+            detail={"rrule": rrule},
+        )
+    for hour in hours:
+        if not hour.isdigit() or int(hour) > 23:
+            raise RRULENotSupported(
+                "Unsupported hourly BYHOUR value",
                 detail={"rrule": rrule},
             )
 

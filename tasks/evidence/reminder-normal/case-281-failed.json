@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 281,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6b1f131f5c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "c5c311598466cf00228ee71b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_reminder_created": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 281,
+        "input": "从明天开始还是维持之前的设置：从早上7点到晚上11点，每小时提醒一次“及时完成任务，及时打卡”",
+        "user_id": "c5c311598466cf00228ee71b",
+        "original_from_user": "6934252e4bf7878f04114b07",
+        "input_message_id": "69f203aae89d90853205f798",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "no_reminder_created"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.21
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 281,
+      "input": "从明天开始还是维持之前的设置：从早上7点到晚上11点，每小时提醒一次“及时完成任务，及时打卡”",
+      "user_id": "c5c311598466cf00228ee71b",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "69f203aae89d90853205f798",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "no_reminder_created"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.21
+    }
+  ]
+}

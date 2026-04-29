@@ -1,4 +1,7 @@
-from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
+from agent.prompt.agent_instructions_prompt import (
+    INSTRUCTIONS_REMINDER_DETECT_RETRY,
+    get_reminder_detect_instructions,
+)
 
 
 def test_reminder_detect_instructions_require_aware_iso_trigger_at():
@@ -121,6 +124,29 @@ def test_reminder_detect_instructions_treat_same_message_stop_as_deadline():
     assert "20点之后不要打卡" in instructions
     assert "deadline_at for that batch" in instructions
     assert "not as delete/cancel" in instructions
+
+
+def test_reminder_detect_instructions_handle_restarted_daily_window_cadence():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
+
+    assert "restates the concrete schedule" in instructions
+    assert "previous setting" in instructions
+    assert "daily window cadence" in instructions
+    assert "FREQ=HOURLY" in instructions
+    assert "BYHOUR" in instructions
+    assert "single create" in instructions
+    assert "not one operation per hour" in instructions
+    assert "title and trigger_at" in instructions
+
+
+def test_reminder_detect_retry_instructions_handle_restarted_daily_window_cadence():
+    assert "restates the concrete schedule" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "daily window cadence" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "FREQ=HOURLY" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "BYHOUR" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "single create" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "not one operation per hour" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "title and trigger_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
 
 
 def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():

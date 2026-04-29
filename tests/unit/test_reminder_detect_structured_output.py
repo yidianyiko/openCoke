@@ -254,3 +254,13 @@ def test_reminder_detect_trigger_schema_rejects_date_only_midnight_defaults():
 
     assert "Do not use midnight" in description
     assert "date-only" in description
+
+
+def test_reminder_operation_schema_marks_update_fields_update_only():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderOperation
+
+    assert "update only" in ReminderOperation.model_fields["new_title"].description
+    assert (
+        "do not use for create"
+        in ReminderOperation.model_fields["new_trigger_at"].description
+    )
