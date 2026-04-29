@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 207,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4a244727c4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9b6fd09f128c740911588d08"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 207,
+      "input": "每个整点让我打卡直到19点",
+      "user_id": "9b6fd09f128c740911588d08",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f1c9db2d60d4fa2a9edd16",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ca1b9d34d427847817ce",
+          "expect_output_timestamp": 1777453547,
+          "handled_timestamp": 1777453547,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明白，每整点打卡直到19点。现在时间是18:05，下一个整点是19:00，所以实际上就一次打卡对吗？需要我提醒你19:00打卡吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4a244727c4",
+            "case_index": 207,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6934d32f4bf7878f04114b30",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4a244727c4-case-207",
+              "business_conversation_key": "reminder-normal-4a244727c4-case-207",
+              "causal_inbound_event_id": "reminder-normal-4a244727c4-case-207-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9b6fd09f128c740911588d08"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 65.111
+    }
+  ]
+}
