@@ -15,6 +15,10 @@
     "88": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives a day but no specific reminder time; the agent should ask what time on that day instead of acknowledging setup."
+    },
+    "91": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default."
     }
   }
 }
