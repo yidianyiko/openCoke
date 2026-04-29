@@ -763,6 +763,64 @@ def test_validate_observations_accepts_case3_expected_shape():
     assert errors == []
 
 
+def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule():
+    case = normal_eval.ReminderNormalPathCase(
+        input=(
+            "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 "
+            "下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我"
+        ),
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={
+            "expected_creates": [
+                {"title": "起床", "local_time": "07:15:00", "recurring": True},
+                {"title": "开始学习", "local_time": "08:00:00", "recurring": True},
+                {"title": "开始健身", "local_time": "13:00:00", "recurring": True},
+                {"title": "开始学习", "local_time": "16:00:00", "recurring": True},
+                {"title": "开始学习", "local_time": "20:00:00", "recurring": True},
+                {"title": "睡觉", "local_time": "23:00:00", "recurring": True},
+            ]
+        },
+    )
+    reminders = [
+        {
+            "title": title,
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 29, 9, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": local_time,
+                "timezone": "Asia/Shanghai",
+                "rrule": "FREQ=DAILY",
+            },
+        }
+        for title, local_time in [
+            ("起床", "07:15:00"),
+            ("开始学习", "08:00:00"),
+            ("开始健身", "13:00:00"),
+            ("开始学习", "16:00:00"),
+            ("开始学习", "20:00:00"),
+            ("睡觉", "23:00:00"),
+        ]
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "已创建提醒：起床（每天 07:15）；已创建提醒：开始学习（每天 08:00）；"
+                    "已创建提醒：开始健身（每天 13:00）；已创建提醒：开始学习（每天 16:00）；"
+                    "已创建提醒：开始学习（每天 20:00）；已创建提醒：睡觉（每天 23:00）"
+                )
+            }
+        ],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_rejects_user_output_recurrence_mismatch():
     case = normal_eval.ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",

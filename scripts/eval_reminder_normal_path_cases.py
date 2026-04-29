@@ -531,7 +531,7 @@ def validate_observations(
     errors: list[str] = []
     expectation = case_evaluation_expectation(case)
     expected_creates = (
-        expected_created_reminders(case.input) if expectation == "crud" else []
+        expected_created_reminders_for_case(case) if expectation == "crud" else []
     )
     if input_status != "handled":
         errors.append(f"input_{input_status}")
@@ -558,6 +558,31 @@ def validate_observations(
     if reminders and not output_mentions_crud_ack(outputs, reminders):
         errors.append("user_output_missing_crud_ack")
     return errors
+
+
+def expected_created_reminders_for_case(
+    case: ReminderNormalPathCase,
+) -> list[ExpectedReminderCreate]:
+    fixture_creates = case.metadata.get("expected_creates")
+    if isinstance(fixture_creates, list):
+        expected: list[ExpectedReminderCreate] = []
+        for item in fixture_creates:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            if not title:
+                continue
+            local_time = item.get("local_time")
+            recurring = item.get("recurring")
+            expected.append(
+                ExpectedReminderCreate(
+                    title=title,
+                    local_time=str(local_time) if local_time else None,
+                    recurring=recurring if isinstance(recurring, bool) else None,
+                )
+            )
+        return expected
+    return expected_created_reminders(case.input)
 
 
 def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
@@ -711,8 +736,17 @@ def find_matching_reminder(
     normalized_expected = normalize_expected_title(expected.title)
     for reminder in reminders:
         reminder_title = normalize_expected_title(str(reminder.get("title") or ""))
-        if reminder_title == normalized_expected:
+        if reminder_title != normalized_expected:
+            continue
+        if expected.local_time:
+            schedule = reminder.get("schedule") or {}
+            if not isinstance(schedule, dict):
+                schedule = {}
+            actual_local_time = str(schedule.get("local_time") or "")
+            if actual_local_time and actual_local_time != expected.local_time:
+                continue
             return reminder
+        return reminder
     return None
 
 

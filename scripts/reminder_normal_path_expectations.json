@@ -19,6 +19,18 @@
     "91": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default."
+    },
+    "101": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Habitual schedule wording ('我一般') asks for reminders at the listed times, so daily recurring reminders are expected.",
+      "expected_creates": [
+        {"title": "起床", "local_time": "07:15:00", "recurring": true},
+        {"title": "开始学习", "local_time": "08:00:00", "recurring": true},
+        {"title": "开始健身", "local_time": "13:00:00", "recurring": true},
+        {"title": "开始学习", "local_time": "16:00:00", "recurring": true},
+        {"title": "开始学习", "local_time": "20:00:00", "recurring": true},
+        {"title": "睡觉", "local_time": "23:00:00", "recurring": true}
+      ]
     }
   }
 }
