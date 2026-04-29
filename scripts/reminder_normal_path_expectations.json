@@ -123,6 +123,20 @@
     "130": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder."
+    },
+    "133": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The earlier class times are background schedule; the actionable reminder request is only the 19:40 reminder to start writing and reading.",
+      "expected_creates": [
+        {
+          "title": "开始写论文和看书",
+          "title_variants": [
+            "写论文和看书"
+          ],
+          "local_time": "19:40:00",
+          "recurring": false
+        }
+      ]
     }
   }
 }
