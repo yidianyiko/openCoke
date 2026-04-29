@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 258,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-bdc30cd3af",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a476076e4267c3788a1f1795"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 258,
+      "input": "可以过一会儿再提醒我吗？我现在在看电视",
+      "user_id": "a476076e4267c3788a1f1795",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f1eb8176b3804a951a94ff",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1eb91bbd0697ddf11f9f7",
+          "expect_output_timestamp": 1777462161,
+          "handled_timestamp": 1777462161,
+          "status": "pending",
+          "message_type": "text",
+          "message": "您想让我过多久之后再提醒您？请告诉我具体的时间或时长。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bdc30cd3af",
+            "case_index": 258,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "6936d36afa6e02049481c86b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bdc30cd3af-case-258",
+              "business_conversation_key": "reminder-normal-bdc30cd3af-case-258",
+              "causal_inbound_event_id": "reminder-normal-bdc30cd3af-case-258-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a476076e4267c3788a1f1795"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.028
+    }
+  ]
+}
