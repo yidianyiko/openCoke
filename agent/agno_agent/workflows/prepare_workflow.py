@@ -1009,6 +1009,8 @@ class PrepareWorkflow:
             decision.intent_type,
             decision.action,
         )
+        if decision.intent_type == "query" and decision.action == "list":
+            session_state["prepare_reminder_detect_list_query"] = True
         visible_reminder_tool.entrypoint(
             action=decision.action or None,
             title=decision.title or None,

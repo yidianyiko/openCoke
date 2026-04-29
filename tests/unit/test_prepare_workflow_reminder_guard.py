@@ -54,6 +54,7 @@ async def test_structured_reminder_detect_decision_executes_visible_tool(monkeyp
         prepare_workflow.visible_reminder_tool,
         "entrypoint",
         fake_visible_reminder_tool,
+        raising=False,
     )
 
     with (
@@ -87,6 +88,75 @@ async def test_structured_reminder_detect_decision_executes_visible_tool(monkeyp
         }
     ]
     assert result["session_state"]["tool_results"][0]["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_structured_reminder_detect_list_query_sets_direct_reply_marker(
+    monkeypatch,
+):
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+    reminder_response.content = ReminderDetectDecision(
+        intent_type="query",
+        action="list",
+    )
+
+    def fake_visible_reminder_tool(**kwargs):
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=True,
+            result_summary="暂无提醒",
+            extra_notes="action=list",
+        )
+        return "暂无提醒"
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日00时04分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow.visible_reminder_tool,
+        "entrypoint",
+        fake_visible_reminder_tool,
+        raising=False,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock()
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("今天有哪些提醒", session_state)
+
+    assert result["session_state"]["prepare_reminder_detect_list_query"] is True
+    assert result["session_state"]["tool_results"][0]["result_summary"] == "暂无提醒"
 
 
 @pytest.mark.asyncio
@@ -156,6 +226,7 @@ async def test_invalid_structured_reminder_decision_retries_with_fast_agent(
         prepare_workflow.visible_reminder_tool,
         "entrypoint",
         fake_visible_reminder_tool,
+        raising=False,
     )
 
     with (

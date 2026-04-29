@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 294,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fa4ec9dc06",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d85eb2380dac44b19500db59"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 294,
+      "input": "今天有哪些提醒",
+      "user_id": "d85eb2380dac44b19500db59",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f20bd8047909745c2b0cdd",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f20be0500d790b00cfa508",
+          "expect_output_timestamp": 1777470432,
+          "handled_timestamp": 1777470432,
+          "status": "pending",
+          "message_type": "text",
+          "message": "暂无提醒",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fa4ec9dc06",
+            "case_index": 294,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69399a0989f3b2a40e58e3fa",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fa4ec9dc06-case-294",
+              "business_conversation_key": "reminder-normal-fa4ec9dc06-case-294",
+              "causal_inbound_event_id": "reminder-normal-fa4ec9dc06-case-294-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d85eb2380dac44b19500db59"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.017
+    }
+  ]
+}

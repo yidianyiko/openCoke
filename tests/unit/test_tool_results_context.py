@@ -137,6 +137,24 @@ def test_reminder_operation_direct_reply_skips_list_results():
     assert get_reminder_operation_direct_reply(state) == ""
 
 
+def test_reminder_operation_direct_reply_returns_list_query_results():
+    from agent.prompt.chat_contextprompt import get_reminder_operation_direct_reply
+
+    state = {
+        "prepare_reminder_detect_list_query": True,
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "暂无提醒",
+                "extra_notes": "action=list",
+            }
+        ],
+    }
+
+    assert get_reminder_operation_direct_reply(state) == "暂无提醒"
+
+
 def test_reminder_operation_direct_reply_skips_detector_failures():
     from agent.prompt.chat_contextprompt import (
         get_reminder_operation_direct_reply,
@@ -754,3 +772,43 @@ async def test_chat_workflow_keeps_pending_notice_for_list_result_only(monkeypat
 
     assert events[-1]["type"] == "done"
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
+
+
+@pytest.mark.asyncio
+async def test_chat_workflow_directly_returns_list_query_result(monkeypatch):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "prepare_reminder_detect_list_query": True,
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日00时04分",
+                "input_messages_str": "今天有哪些提醒",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "暂无提醒",
+                "extra_notes": "action=list",
+            }
+        ],
+    }
+
+    events = [
+        event async for event in workflow.run_stream("今天有哪些提醒", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert events[0]["data"]["content"] == "暂无提醒"
+    assert workflow.agent.input is None

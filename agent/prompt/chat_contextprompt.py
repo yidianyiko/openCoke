@@ -542,6 +542,13 @@ def get_reminder_operation_direct_reply(session_state: dict) -> str:
             summaries.append(summary)
             continue
         action = _tool_result_action(entry)
+        if (
+            action == "list"
+            and entry.get("ok") is True
+            and session_state.get("prepare_reminder_detect_list_query")
+        ):
+            summaries.append(summary)
+            continue
         if action in {"create", "batch"} and entry.get("ok") is False:
             failed_create_summaries.append(summary)
     if failed_create_summaries and not summaries:
