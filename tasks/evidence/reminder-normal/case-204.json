@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 204,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-3da460958a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ce3375a3776d9582d742682d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 204,
+      "input": "高中学生 晚上学习  一般早上6点几点睡比较好",
+      "user_id": "ce3375a3776d9582d742682d",
+      "original_from_user": "69342d804bf7878f04114b0b",
+      "input_message_id": "69f1c7174e5819828a73ac88",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1c75b154eadc784174549",
+          "expect_output_timestamp": 1777452868,
+          "handled_timestamp": 1777452868,
+          "status": "pending",
+          "message_type": "text",
+          "message": "高中生晚上学习的话，早上6点起床，建议最晚11点半到12点之间睡，保证至少6到6个半小时的睡眠。这是你自己在用这个作息吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-3da460958a",
+            "case_index": 204,
+            "original_from_user": "69342d804bf7878f04114b0b",
+            "source_id": "69343c1b4bf7878f04114b11",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-3da460958a-case-204",
+              "business_conversation_key": "reminder-normal-3da460958a-case-204",
+              "causal_inbound_event_id": "reminder-normal-3da460958a-case-204-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ce3375a3776d9582d742682d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 68.115
+    }
+  ]
+}
