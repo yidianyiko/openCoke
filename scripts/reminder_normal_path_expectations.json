@@ -249,6 +249,10 @@
     "221": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks what time tomorrow's reminder is. This is a query about existing reminders, not a create request."
+    },
+    "222": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request."
     }
   }
 }
