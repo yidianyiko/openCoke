@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 307,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-39730aa9fe",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "8a0e8dd17178c2709f8e887b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 307,
+      "input": "开始晚上的论文写作，25分钟时候提醒我站起来休息喝水",
+      "user_id": "8a0e8dd17178c2709f8e887b",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f216a22089fd9730f1fbef",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f216aa43bf3c0b118fa276",
+          "expect_output_timestamp": 1777473194,
+          "handled_timestamp": 1777473194,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：站起来休息喝水（2026-04-30 21:14）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-39730aa9fe",
+            "case_index": 307,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693abdf3fe7d911442ed1f92",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-39730aa9fe-case-307",
+              "business_conversation_key": "reminder-normal-39730aa9fe-case-307",
+              "causal_inbound_event_id": "reminder-normal-39730aa9fe-case-307-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8a0e8dd17178c2709f8e887b"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f216aa43bf3c0b118fa274",
+          "owner_user_id": "8a0e8dd17178c2709f8e887b",
+          "title": "站起来休息喝水",
+          "schedule": {
+            "anchor_at": "2026-04-30T12:14:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "21:14:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f216a243bf3c0b118fa26d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T12:14:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T14:33:14.364000+00:00",
+          "updated_at": "2026-04-29T14:33:14.364000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

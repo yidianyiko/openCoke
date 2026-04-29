@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 309,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fed315992c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "aef48449c327c053e2b7cc8b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 309,
+        "input": "多谢 我现在还做不了 再过一阵子提醒我",
+        "user_id": "aef48449c327c053e2b7cc8b",
+        "original_from_user": "6936b2c5fa6e02049481c84e",
+        "input_message_id": "69f216d1741ef48c4aa91c64",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f216e043bf3c0b118fa296",
+            "expect_output_timestamp": 1777473248,
+            "handled_timestamp": 1777473248,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，请问大概多久后提醒你呢？比如30分钟后、1小时后，或者具体什么时间？另外，想提醒你做什么呢？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-fed315992c",
+              "case_index": 309,
+              "original_from_user": "6936b2c5fa6e02049481c84e",
+              "source_id": "693acea7fe7d911442ed1f94",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-fed315992c-case-309",
+                "business_conversation_key": "reminder-normal-fed315992c-case-309",
+                "causal_inbound_event_id": "reminder-normal-fed315992c-case-309-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "aef48449c327c053e2b7cc8b"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 15.027
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 309,
+      "input": "多谢 我现在还做不了 再过一阵子提醒我",
+      "user_id": "aef48449c327c053e2b7cc8b",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f216d1741ef48c4aa91c64",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f216e043bf3c0b118fa296",
+          "expect_output_timestamp": 1777473248,
+          "handled_timestamp": 1777473248,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，请问大概多久后提醒你呢？比如30分钟后、1小时后，或者具体什么时间？另外，想提醒你做什么呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fed315992c",
+            "case_index": 309,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693acea7fe7d911442ed1f94",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fed315992c-case-309",
+              "business_conversation_key": "reminder-normal-fed315992c-case-309",
+              "causal_inbound_event_id": "reminder-normal-fed315992c-case-309-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "aef48449c327c053e2b7cc8b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 15.027
+    }
+  ]
+}

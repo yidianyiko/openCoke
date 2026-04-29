@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 309,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-38871f8fc3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b886a9dc6e7b7738f19fb1f6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 309,
+      "input": "多谢 我现在还做不了 再过一阵子提醒我",
+      "user_id": "b886a9dc6e7b7738f19fb1f6",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f21719c86177c7c10278a6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2172343bf3c0b118fa2a4",
+          "expect_output_timestamp": 1777473315,
+          "handled_timestamp": 1777473315,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想大约过多久提醒你？比如30分钟后、1小时后，或者具体几点？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-38871f8fc3",
+            "case_index": 309,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693acea7fe7d911442ed1f94",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-38871f8fc3-case-309",
+              "business_conversation_key": "reminder-normal-38871f8fc3-case-309",
+              "causal_inbound_event_id": "reminder-normal-38871f8fc3-case-309-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b886a9dc6e7b7738f19fb1f6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.018
+    }
+  ]
+}
