@@ -384,6 +384,33 @@ def test_explicit_occurrence_evidence_must_contain_each_create_time():
     )
 
 
+def test_structured_clarify_decision_appends_direct_question():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    response = MagicMock()
+    response.content = ReminderDetectDecision(
+        intent_type="clarify",
+        clarification_question="你希望我多久提醒你一次？",
+    )
+    session_state = {"tool_results": []}
+
+    assert workflow._execute_structured_reminder_decision(
+        response,
+        session_state,
+        "10点到11点写作，提醒我专注",
+    )
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "你希望我多久提醒你一次？",
+            "extra_notes": "action=clarify; error_code=ReminderDetectClarify",
+        }
+    ]
+
+
 def test_bounded_rrule_operation_keeps_existing_count():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 

@@ -952,6 +952,16 @@ class PrepareWorkflow:
             session_state["prepare_reminder_detect_invalid_structured_output"] = True
             return False
 
+        if decision.intent_type == "clarify" and decision.clarification_question:
+            append_tool_result(
+                session_state,
+                tool_name="提醒操作",
+                ok=False,
+                result_summary=decision.clarification_question,
+                extra_notes="action=clarify; error_code=ReminderDetectClarify",
+            )
+            return True
+
         should_execute = (
             decision.intent_type == "crud"
             or decision.intent_type == "query"
