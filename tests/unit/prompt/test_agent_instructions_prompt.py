@@ -43,3 +43,10 @@ def test_reminder_detect_instructions_deduplicate_recurring_batch_creates():
     assert "Do not also create one-shot reminders" in instructions
     assert "same title and local time" in instructions
     assert "我一般7:15起床" in instructions
+
+
+def test_reminder_detect_instructions_do_not_create_for_routine_description():
+    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+
+    assert "Routine descriptions are not reminder requests" in instructions
+    assert "我的作息，6点半起床" in instructions

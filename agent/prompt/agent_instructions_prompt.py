@@ -56,6 +56,10 @@ Rules:
 - A plan or schedule statement is not enough to create a reminder. The user
   must explicitly ask to be reminded, notified, alarmed, called, checked in on,
   nudged, or otherwise supervised at that time.
+- Routine descriptions are not reminder requests. If the user only describes
+  their routine, work blocks, class schedule, sleep schedule, or planned day,
+  do not create reminders unless the same message explicitly asks for reminders
+  or supervision.
 - If the user only states a future plan with a task and time, such as
   "七点半开始正式学习", "明天6点起床", or "今晚八点学习", do not call create.
   Stop so the chat response can confirm whether they want a reminder.
@@ -85,6 +89,7 @@ Rules:
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
+- Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.
 - Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.
 - Do not output any explanation text. Only call the tool or stop.
 </instructions>"""
