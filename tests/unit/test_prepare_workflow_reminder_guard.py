@@ -268,6 +268,49 @@ async def test_invalid_structured_reminder_retry_failure_records_tool_result(mon
     )
 
 
+def test_bounded_rrule_operation_gets_deadline_until():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        deadline_at="2026-04-29T20:00:00+09:00",
+        operations=[
+            {
+                "action": "create",
+                "title": "打卡",
+                "trigger_at": "2026-04-29T16:00:00+09:00",
+                "rrule": "FREQ=HOURLY;INTERVAL=1",
+            }
+        ],
+    )
+
+    assert workflow._dump_reminder_operations(decision) == [
+        {
+            "action": "create",
+            "title": "打卡",
+            "trigger_at": "2026-04-29T16:00:00+09:00",
+            "rrule": "FREQ=HOURLY;INTERVAL=1;UNTIL=20260429T110000Z",
+        }
+    ]
+
+
+def test_bounded_rrule_operation_keeps_existing_count():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    assert (
+        workflow._bound_rrule_to_deadline(
+            "FREQ=HOURLY;COUNT=2",
+            "2026-04-29T20:00:00+09:00",
+        )
+        == "FREQ=HOURLY;COUNT=2"
+    )
+
+
 @pytest.mark.asyncio
 async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fast():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

@@ -51,23 +51,24 @@ def test_reminder_detect_schema_rejects_batch_operation_after_deadline():
         )
 
 
-def test_reminder_detect_schema_rejects_deadline_batch_rrule_operation():
+def test_reminder_detect_schema_accepts_deadline_batch_rrule_operation():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
-    with pytest.raises(ValidationError):
-        ReminderDetectDecision(
-            intent_type="crud",
-            action="batch",
-            deadline_at="2026-04-29T20:00:00+09:00",
-            operations=[
-                {
-                    "action": "create",
-                    "title": "打卡",
-                    "trigger_at": "2026-04-29T16:00:00+09:00",
-                    "rrule": "FREQ=HOURLY;INTERVAL=1",
-                }
-            ],
-        )
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        deadline_at="2026-04-29T20:00:00+09:00",
+        operations=[
+            {
+                "action": "create",
+                "title": "打卡",
+                "trigger_at": "2026-04-29T16:00:00+09:00",
+                "rrule": "FREQ=HOURLY;INTERVAL=1",
+            }
+        ],
+    )
+
+    assert decision.operations[0].rrule == "FREQ=HOURLY;INTERVAL=1"
 
 
 def test_reminder_detect_schema_accepts_batch_operation_before_deadline():

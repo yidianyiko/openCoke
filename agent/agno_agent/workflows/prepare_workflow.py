@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from agent.agno_agent.agents import (
@@ -959,7 +960,11 @@ class PrepareWorkflow:
             keyword=decision.keyword or None,
             new_title=decision.new_title or None,
             new_trigger_at=decision.new_trigger_at or None,
-            rrule=decision.rrule or None,
+            rrule=self._bound_rrule_to_deadline(
+                decision.rrule,
+                decision.deadline_at,
+            )
+            or None,
             operations=self._dump_reminder_operations(decision) or None,
         )
         return True
@@ -975,6 +980,10 @@ class PrepareWorkflow:
                 if hasattr(operation, "model_dump")
                 else dict(operation)
             )
+            item["rrule"] = self._bound_rrule_to_deadline(
+                item.get("rrule"),
+                decision.deadline_at,
+            )
             operations.append(
                 {
                     key: value
@@ -983,6 +992,34 @@ class PrepareWorkflow:
                 }
             )
         return operations
+
+    def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
+        rule = str(rrule or "").strip()
+        if not rule or not deadline_at or self._rrule_has_explicit_bound(rule):
+            return rule
+        until = self._deadline_to_rrule_until(deadline_at)
+        if not until:
+            return rule
+        return f"{rule};UNTIL={until}"
+
+    @staticmethod
+    def _rrule_has_explicit_bound(rrule: str) -> bool:
+        parts = {
+            part.split("=", 1)[0].upper()
+            for part in str(rrule or "").split(";")
+            if "=" in part
+        }
+        return bool(parts & {"UNTIL", "COUNT"})
+
+    @staticmethod
+    def _deadline_to_rrule_until(deadline_at: str) -> str:
+        try:
+            parsed = datetime.fromisoformat(str(deadline_at).replace("Z", "+00:00"))
+        except ValueError:
+            return ""
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return ""
+        return parsed.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     def _coerce_reminder_detect_decision(
         self,
