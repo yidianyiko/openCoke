@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 255,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9db7476fd8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "da4641847a06b621180fbd18"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 255,
+      "input": "今天的雅思学习完成，接下来休息10分钟，然后继续今天的论文写作任务",
+      "user_id": "da4641847a06b621180fbd18",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f1e9ddcb11ec571c3b7ac4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ea0cd65ae1eb40c94b12",
+          "expect_output_timestamp": 1777461770,
+          "handled_timestamp": 1777461770,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，雅思学习已完成！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9db7476fd8",
+            "case_index": 255,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6936c5f8fa6e02049481c868",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9db7476fd8-case-255",
+              "business_conversation_key": "reminder-normal-9db7476fd8-case-255",
+              "causal_inbound_event_id": "reminder-normal-9db7476fd8-case-255-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "da4641847a06b621180fbd18"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 48.082
+    }
+  ]
+}
