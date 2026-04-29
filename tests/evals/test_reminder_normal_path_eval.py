@@ -789,6 +789,51 @@ def test_validate_observations_accepts_case3_expected_shape():
     assert errors == []
 
 
+def test_validate_observations_normalizes_title_punctuation_and_quotes():
+    case = normal_eval.ReminderNormalPathCase(
+        input="另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={
+            "expected_creates": [
+                {
+                    "title": "思考：工作应该去做“非我不可”的事情",
+                    "title_variants": [
+                        "思考一个问题:工作应该去做“非我不可”的事情"
+                    ],
+                    "local_time": "10:40:00",
+                    "recurring": False,
+                }
+            ]
+        },
+    )
+    reminders = [
+        {
+            "title": '思考一个问题：工作应该去做"非我不可"的事情',
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 30, 1, 40, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "10:40:00",
+                "timezone": "Asia/Shanghai",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": '已创建提醒：思考一个问题：工作应该去做"非我不可"的事情（2026-04-30 10:40）'
+            }
+        ],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule():
     case = normal_eval.ReminderNormalPathCase(
         input=(

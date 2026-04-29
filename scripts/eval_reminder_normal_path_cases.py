@@ -689,8 +689,9 @@ _COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打
 def output_mentions_expected_title(
     output_text: str, expected: ExpectedReminderCreate
 ) -> bool:
+    normalized_output = normalize_expected_title(output_text)
     for variant in expected_title_variants(expected):
-        if variant in output_text:
+        if variant in normalized_output:
             return True
     return False
 
@@ -700,6 +701,7 @@ def output_segment_for_expected(
     expected: ExpectedReminderCreate,
 ) -> str:
     positions: list[int] = []
+    output_text = normalize_expected_title(output_text)
     local_time = (expected.local_time or "")[:5]
     if local_time:
         index = output_text.find(local_time)
@@ -804,7 +806,21 @@ def extract_expected_title(suffix: str) -> str:
 
 
 def normalize_expected_title(title: str) -> str:
-    return re.sub(r"\s+", "", str(title or "").strip())
+    text = str(title or "").strip().translate(_TITLE_PUNCTUATION_TRANSLATION)
+    return re.sub(r"\s+", "", text)
+
+
+_TITLE_PUNCTUATION_TRANSLATION = str.maketrans(
+    {
+        "：": ":",
+        "“": '"',
+        "”": '"',
+        "＂": '"',
+        "‘": "'",
+        "’": "'",
+        "＇": "'",
+    }
+)
 
 
 def duplicate_reminder_keys(reminders: list[dict[str, Any]]) -> set[tuple[Any, ...]]:
