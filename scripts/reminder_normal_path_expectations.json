@@ -70,6 +70,10 @@
     "112": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default."
+    },
+    "116": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user describes a schedule but does not explicitly request reminders; the agent may discuss or ask about reminder intent, but should not create reminders."
     }
   }
 }
