@@ -245,6 +245,10 @@
     "219": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
+    },
+    "221": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user asks what time tomorrow's reminder is. This is a query about existing reminders, not a create request."
     }
   }
 }
