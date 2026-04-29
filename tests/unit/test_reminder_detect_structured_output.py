@@ -221,6 +221,10 @@ def test_reminder_detect_agents_use_structured_decision_schema():
     assert reminder_detect_retry_agent.structured_outputs is True
     assert reminder_detect_agent.use_json_mode is False
     assert reminder_detect_retry_agent.use_json_mode is False
+    assert len(reminder_detect_retry_agent.instructions) < (
+        len(reminder_detect_agent.instructions) // 2
+    )
+    assert "short-context retry" in reminder_detect_retry_agent.instructions
 
 
 def test_reminder_detect_clarification_question_schema_keeps_current_language():

@@ -27,6 +27,7 @@ from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_POST_ANALYZE,
     INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_REMINDER_DETECT,
+    INSTRUCTIONS_REMINDER_DETECT_RETRY,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,13 @@ def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> st
     return INSTRUCTIONS_REMINDER_DETECT
 
 
+def get_reminder_detect_retry_instructions(
+    session_state: Dict[str, Any] = None,
+) -> str:
+    """Return compact instructions for the short-context reminder retry agent."""
+    return INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
 def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
     """
     动态渲染 OrchestratorAgent 的 system prompt
@@ -138,7 +146,7 @@ reminder_detect_retry_agent = Agent(
     name="ReminderDetectRetryAgent",
     model=create_llm_model(max_tokens=2000, role="prepare_fast"),
     description=DESCRIPTION_REMINDER_DETECT,
-    instructions=get_reminder_detect_instructions(),
+    instructions=get_reminder_detect_retry_instructions(),
     output_schema=ReminderDetectDecision,
     structured_outputs=True,
     markdown=False,
@@ -199,6 +207,7 @@ __all__ = [
     "get_chat_response_instructions",
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
+    "get_reminder_detect_retry_instructions",
     "get_orchestrator_instructions",
     "create_llm_model",
     # 预创建 Agent

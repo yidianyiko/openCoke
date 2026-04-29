@@ -1563,6 +1563,7 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "当前用户消息" in retry_input
     assert "invalid structured output" in retry_input
     assert "ReminderDetectDecision" in retry_input
+    assert len(retry_input) < 3200
     assert "explicitly asks for a reminder" in retry_input
     assert 'action="delete"' in retry_input
     assert "不用叫我" in retry_input

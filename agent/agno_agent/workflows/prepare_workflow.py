@@ -1546,71 +1546,35 @@ class PrepareWorkflow:
 
 ### Retry Directive
 Full-context reminder detection timed out or produced invalid structured output.
-Decide from this current message and return only a structured
-ReminderDetectDecision.
-- If the current user message explicitly asks for a reminder and includes a
-  specific time plus reminder content, return intent_type="crud" with the
-  matching action and executable fields.
-- If the current user message explicitly asks for reminders at one or more
-  specific times but gives no content, return create/batch with generic
-  title="提醒" for each time.
-- If the current user message asks for a repeated interval with a deadline,
-  end time, or stop-after point, enumerate each concrete one-shot occurrence in
-  a batch and set deadline_at. Do not use RRULE for bounded cadence. Example:
-  current 15:07,
-  every 50 minutes before 18:00 means 15:57, 16:47, 17:37; do not skip the
-  intermediate occurrences.
-- For any batch, bounded schedule, or recurrence, set schedule_basis to
-  explicit_occurrences or explicit_cadence and copy the exact authorizing user
-  wording into schedule_evidence. If the message does not contain concrete
-  occurrence times or a concrete interval/frequency, return clarify.
-- Every batch create must include top-level schedule_basis and schedule_evidence
-  before operations. Omit optional empty string fields instead of outputting
-  blank reminder_id, keyword, new_title, or new_trigger_at values.
-- Never return action="batch" with operations=[]. If no operation is safely
-  executable, return clarify with no executable reminder fields.
-- A calendar date, deadline date, or day-of-month without a clock time is still
-  date-only; do not resolve it to midnight. Return clarify with no executable
-  fields and ask what time on that date.
-- References like "these time points" or "上述时间" are not enough schedule_evidence
-  unless the evidence text itself includes concrete clock
-  times or a concrete interval/frequency.
-- If an explicit occurrence list contains both past and future local times for
-  today, keep the concrete future occurrences executable and leave past
-  occurrences out of the create operations.
-- If a create/batch request includes a same-message stop boundary such as
-  "after 20:00 stop checking in", treat it as deadline_at for that new batch,
-  not as delete/cancel.
-- If the bounded cadence start point is in the past and the deadline is still
-  future, skip past occurrences and create only future occurrences before the
-  deadline. Do not ask how to catch up missed occurrences.
-- If a time window has only supervision intent without concrete occurrence
-  times or a concrete interval/frequency, return clarify and ask for the
-  cadence. Do not infer numeric intervals.
-- If the current user message asks to cancel, stop, remove, no longer receive,
-  or not be called/notified/reminded for a reminder, return action="delete"
-  and the safest target keyword from the message.
-  Chinese examples include "不用叫我", "不用提醒我", "别提醒我", and "取消提醒".
-- If the current user message asks to update, complete, or list reminders,
-  return the matching action and only the fields that are
-  safely available from the current message.
-- For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. If there is more than one safe reminder clause, action=create is invalid; use action=batch, and operations count must equal the number of safe reminder clauses. Do not keep only the last item.
-- Chinese semicolon lists may omit the repeated reminder verb after the first clause; if the first clause says "提醒我" and later clauses contain concrete times plus tasks, treat those later clauses as reminder clauses too.
-- If required reminder details are missing or unsafe, return intent_type="clarify"
-  with no executable reminder fields.
-- For intent_type="clarify", write clarification_question in the same language
-  as the current user message, not the profile, prior messages, or retrieved
-  context.
-- Reminder intent only applies to the task or group it semantically modifies.
-  A neighboring independent schedule item is not a reminder target unless the
-  user explicitly says the listed items, above items, or all of them should be
-  reminded.
-- A task time range supplies boundaries, not occurrence times. If supervision
-  is requested during that range, do not create reminders at the range start or
-  end unless those endpoints are separately requested as reminder times.
-- When a message mixes a reminder request with schedule-only items, create or
-  clarify only the reminder-scoped item and leave schedule-only items alone.
-- Do not answer in text.
+Decide from this current message and return only a structured ReminderDetectDecision.
+- If the message explicitly asks for a reminder and gives concrete time plus
+  reminder content, return crud create. If it asks for reminder times but no
+  content, use title="提醒".
+- Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month
+  is not enough; do not resolve it to midnight.
+- For repeated interval with deadline/end/stop-after, enumerate each concrete one-shot occurrence;
+  current 15:07 + every 50 minutes before 18:00 -> 15:57, 16:47, 17:37.
+  Do not use RRULE for bounded cadence.
+- Set schedule_basis and schedule_evidence for batch, bounded, or recurrence.
+  If without concrete occurrence times or interval/frequency, clarify. References
+  like "these time points" are not enough schedule_evidence.
+- Never return action="batch" with operations=[]. For multiple safe clauses,
+  use one create operation for each safe clause; action=create is invalid,
+  operations count must equal the number of safe reminder clauses, and Do not keep only the last item.
+- Chinese semicolon lists may omit the repeated reminder verb after the first clause.
+- For same-message stop boundary, treat it as deadline_at, not as delete/cancel.
+  If cadence started in the past, skip past occurrences and create only future occurrences.
+- Supervision over a window without concrete occurrence/cadence: clarify and
+  Do not infer numeric intervals.
+- Cancel/stop/no-disturb existing reminder -> action="delete"; examples: 不用叫我,
+  不用提醒我, 别提醒我, 取消提醒.
+- If the message asks to update, complete, or list reminders, return that action
+  with only safe fields.
+- Reminder intent only applies to the task it semantically modifies; a
+  neighboring independent schedule item is not a target. A task time range supplies boundaries,
+  not occurrence times. Leave schedule-only items alone.
+- Missing or unsafe details -> intent_type="clarify" with no executable fields.
+  Use the same language as the current message.
 
 ### 当前用户消息
 {current_message}"""

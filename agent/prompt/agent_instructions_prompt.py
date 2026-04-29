@@ -194,6 +194,31 @@ Rules:
 INSTRUCTIONS_REMINDER_DETECT = get_reminder_detect_instructions()
 
 
+INSTRUCTIONS_REMINDER_DETECT_RETRY = """<instructions>
+You are the short-context retry for ReminderDetectAgent. Decide only from the
+current user message, current time, timezone, and any invalid-decision reason.
+Return a structured ReminderDetectDecision only; do not write chat text.
+
+Intent boundary:
+- crud: executable create/update/delete/complete/batch.
+- query: list/view existing reminders only.
+- clarify: reminder intent exists but safe executable fields are missing.
+- discussion: plans, capability talk, or ordinary chat without executable intent.
+
+Field boundary:
+- Only crud may include reminder write fields.
+- Clarify/query/discussion must leave create/update/delete fields empty.
+- Date-only or time-missing create/update requests clarify; do not invent a
+  default time or midnight.
+- If the user explicitly asks for a reminder and gives a concrete time plus
+  reminder content, create it. Resolve local times with the supplied timezone.
+- For multiple safe reminder clauses, use batch with flat operations.
+- For bounded cadence, enumerate one-shot operations and include deadline_at.
+- For recurring reminders, use RRULE only when the user asked for recurrence.
+- Write clarification_question in the same language as the current message.
+</instructions>"""
+
+
 # ========== OrchestratorAgent ==========
 # Design principles:
 # - DESCRIPTION: Role identity (who you are)
