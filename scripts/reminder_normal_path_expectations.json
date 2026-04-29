@@ -261,6 +261,10 @@
     "225": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Weekday-only reminder request gives a day and content but no clock time. Without a default-time policy, the agent should ask what time on that day."
+    },
+    "231": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."
     }
   }
 }
