@@ -66,6 +66,10 @@
       "expected_creates": [
         {"title": "出门", "local_time": "20:10:00", "recurring": false}
       ]
+    },
+    "112": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default."
     }
   }
 }
