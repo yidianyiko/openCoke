@@ -1247,14 +1247,19 @@ ReminderDetectDecision.
   current 15:07,
   every 50 minutes before 18:00 means 15:57, 16:47, 17:37; do not skip the
   intermediate occurrences.
+- For any batch, bounded schedule, or recurrence, set schedule_basis to
+  explicit_occurrences or explicit_cadence and copy the exact authorizing user
+  wording into schedule_evidence. If the message does not contain concrete
+  occurrence times or a concrete interval/frequency, return clarify.
 - If a create/batch request includes a same-message stop boundary such as
   "after 20:00 stop checking in", treat it as deadline_at for that new batch,
   not as delete/cancel.
 - If the bounded cadence start point is in the past and the deadline is still
   future, skip past occurrences and create only future occurrences before the
   deadline. Do not ask how to catch up missed occurrences.
-- If a time window has only vague supervision cadence, return clarify and ask
-  for the concrete frequency, trigger, or occurrence list.
+- If a time window has only supervision intent without concrete occurrence
+  times or a concrete interval/frequency, return clarify and ask for the
+  cadence. Do not infer numeric intervals.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, return action="delete"
   and the safest target keyword from the message.

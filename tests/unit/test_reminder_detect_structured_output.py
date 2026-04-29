@@ -58,6 +58,8 @@ def test_reminder_detect_schema_accepts_deadline_batch_rrule_operation():
         intent_type="crud",
         action="batch",
         deadline_at="2026-04-29T20:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时",
         operations=[
             {
                 "action": "create",
@@ -78,6 +80,8 @@ def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
         intent_type="crud",
         action="batch",
         deadline_at="2026-04-29T18:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每50分钟",
         operations=[
             {
                 "action": "create",
@@ -88,6 +92,77 @@ def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
     )
 
     assert decision.operations[0].trigger_at == "2026-04-29T17:37:00+09:00"
+
+
+def test_reminder_detect_schema_rejects_batch_without_schedule_basis():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:13:00+09:00",
+                },
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:23:00+09:00",
+                },
+            ],
+        )
+
+
+def test_reminder_detect_schema_rejects_non_concrete_cadence_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            schedule_basis="explicit_cadence",
+            schedule_evidence="keep me focused",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:13:00+09:00",
+                },
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:23:00+09:00",
+                },
+            ],
+        )
+
+
+def test_reminder_detect_schema_accepts_explicit_occurrence_batch():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="11点10分还有12点提醒我一下",
+        operations=[
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T11:10:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T12:00:00+09:00",
+            },
+        ],
+    )
+
+    assert decision.schedule_basis == "explicit_occurrences"
 
 
 def test_reminder_detect_agents_use_structured_decision_schema():

@@ -135,6 +135,9 @@ def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():
 def test_reminder_detect_instructions_clarify_vague_window_cadence():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 
-    assert "time window plus a vague supervision request" in instructions
-    assert "concrete frequency, trigger, or occurrence list" in instructions
-    assert "ask for the cadence" in instructions
+    assert "schedule_basis" in instructions
+    assert "schedule_evidence" in instructions
+    assert "time window plus supervision" in instructions
+    assert "interval/frequency or lists the occurrence times" in instructions
+    assert "ask for the" in instructions
+    assert "cadence" in instructions

@@ -67,6 +67,12 @@ Rules:
   in "remind Fay to study" or "提醒fay学习", the title is the name or object plus activity.
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
+- For create schedules, fill schedule_basis: one_shot for one concrete trigger,
+  explicit_occurrences when the user listed each occurrence time, or
+  explicit_cadence when the user supplied a concrete frequency or interval.
+- For any batch, bounded schedule, or recurrence, fill schedule_evidence with
+  the exact user wording that authorizes those occurrences. If no exact wording
+  exists, return clarify instead of inventing schedule fields.
 - A plan or schedule statement is not enough to create a reminder. The user
   must explicitly ask to be reminded, notified, alarmed, called, checked in on,
   nudged, or otherwise supervised at that time.
@@ -119,9 +125,10 @@ Rules:
   still in the future, skip past occurrences and create only future occurrences
   before the deadline. Do not ask how to catch up missed occurrences unless the
   user explicitly asks to backfill.
-- A time window plus a vague supervision request is not executable unless the
-  user gives a concrete frequency, trigger, or occurrence list. Return clarify
-  and ask for the cadence instead of creating a default reminder.
+- A time window plus supervision is not executable unless the user gives the
+  interval/frequency or lists the occurrence times. Do not convert general
+  supervision wording into numeric intervals; return clarify and ask for the
+  cadence.
 - If the user supplies an explicit occurrence anchor or correction point for an
   interval schedule, use that anchor to enumerate the concrete one-shot
   occurrences before the deadline. Treat statements like "after X the reminder

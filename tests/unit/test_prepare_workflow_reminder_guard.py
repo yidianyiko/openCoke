@@ -114,6 +114,8 @@ async def test_invalid_structured_reminder_decision_retries_with_fast_agent(monk
         intent_type="crud",
         action="batch",
         deadline_at="2026-04-29T20:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时",
         operations=[
             {
                 "action": "create",
@@ -277,6 +279,8 @@ def test_bounded_rrule_operation_gets_deadline_until():
         intent_type="crud",
         action="batch",
         deadline_at="2026-04-29T20:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时",
         operations=[
             {
                 "action": "create",
@@ -1032,11 +1036,14 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "asks to update, complete, or list reminders" in retry_input
     assert "enumerate each concrete one-shot occurrence" in retry_input
     assert "Do not use RRULE for bounded cadence" in retry_input
+    assert "schedule_basis" in retry_input
+    assert "schedule_evidence" in retry_input
     assert "same-message stop boundary" in retry_input
     assert "not as delete/cancel" in retry_input
     assert "skip past occurrences" in retry_input
     assert "create only future occurrences" in retry_input
-    assert "vague supervision cadence" in retry_input
+    assert "without concrete occurrence" in retry_input
+    assert "Do not infer numeric intervals" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True

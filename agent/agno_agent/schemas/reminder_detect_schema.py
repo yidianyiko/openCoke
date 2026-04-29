@@ -85,6 +85,26 @@ class ReminderDetectDecision(BaseModel):
             "When set, every create operation trigger_at must be before it."
         ),
     )
+    schedule_basis: Literal[
+        "", "one_shot", "explicit_occurrences", "explicit_cadence"
+    ] = Field(
+        default="",
+        description=(
+            "How the create schedule was authorized by the user. Use one_shot "
+            "for a single concrete trigger, explicit_occurrences when the user "
+            "listed each occurrence time, and explicit_cadence only when the "
+            "user supplied a concrete frequency or interval. Leave empty for "
+            "non-create actions."
+        ),
+    )
+    schedule_evidence: str = Field(
+        default="",
+        description=(
+            "Exact user wording that authorizes explicit_occurrences or "
+            "explicit_cadence. For cadence, this must be the concrete "
+            "frequency/interval text, not a vague supervision request."
+        ),
+    )
     operations: list[ReminderOperation] = Field(
         default_factory=list,
         description=(
@@ -121,6 +141,8 @@ class ReminderDetectDecision(BaseModel):
             "new_trigger_at",
             "rrule",
             "deadline_at",
+            "schedule_basis",
+            "schedule_evidence",
             "operations",
         )
         has_write_fields = any(bool(getattr(self, name)) for name in write_field_names)
@@ -132,6 +154,7 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError("batch action requires operations")
             if self.action == "create" and not (self.title and self.trigger_at):
                 raise ValueError("create action requires title and trigger_at")
+            self._validate_schedule_basis()
             self._validate_deadline_operations()
             return self
 
@@ -149,6 +172,46 @@ class ReminderDetectDecision(BaseModel):
             raise ValueError("clarify and discussion intents must not include action")
 
         return self
+
+    def _validate_schedule_basis(self) -> None:
+        if self.action not in {"create", "batch"}:
+            if self.schedule_basis or self.schedule_evidence:
+                raise ValueError(
+                    "schedule_basis and schedule_evidence are only for create batches"
+                )
+            return
+
+        create_operations = (
+            [operation for operation in self.operations if operation.action == "create"]
+            if self.action == "batch"
+            else []
+        )
+        has_recurring_create = bool(self.rrule) or any(
+            bool(operation.rrule) for operation in create_operations
+        )
+        requires_authorized_schedule = (
+            has_recurring_create
+            or bool(self.deadline_at)
+            or len(create_operations) > 1
+        )
+
+        if not requires_authorized_schedule:
+            return
+
+        if self.schedule_basis not in {"explicit_occurrences", "explicit_cadence"}:
+            raise ValueError(
+                "multi-occurrence or bounded create schedules require explicit schedule_basis"
+            )
+        if not self.schedule_evidence.strip():
+            raise ValueError(
+                "multi-occurrence or bounded create schedules require schedule_evidence"
+            )
+        if self.schedule_basis == "explicit_cadence" and not _looks_like_concrete_cadence(
+            self.schedule_evidence
+        ):
+            raise ValueError(
+                "explicit_cadence schedule_evidence must contain a concrete frequency or interval"
+            )
 
     def _validate_deadline_operations(self) -> None:
         if not self.deadline_at or not self.operations:
@@ -173,3 +236,37 @@ def _parse_aware_datetime(value: str, field_name: str) -> datetime:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include timezone")
     return parsed
+
+
+def _looks_like_concrete_cadence(value: str) -> bool:
+    text = str(value or "").strip().lower()
+    if not text:
+        return False
+    concrete_tokens = (
+        "every",
+        "daily",
+        "weekly",
+        "monthly",
+        "hourly",
+        "minutely",
+        "day",
+        "week",
+        "month",
+        "hour",
+        "minute",
+        "每天",
+        "每日",
+        "每周",
+        "每月",
+        "每年",
+        "每小时",
+        "每分钟",
+        "每隔",
+        "隔",
+        "一次",
+        "分钟",
+        "小时",
+    )
+    return any(char.isdigit() for char in text) or any(
+        token in text for token in concrete_tokens
+    )
