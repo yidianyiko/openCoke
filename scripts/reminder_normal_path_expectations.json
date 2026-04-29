@@ -333,6 +333,10 @@
     "304": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded after finishing articles but gives no concrete trigger time or cadence. The agent should ask when to remind instead of creating an unscheduled reminder."
+    },
+    "305": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user explicitly asks for a reminder but gives content only and no concrete trigger time. The agent should ask when to remind instead of creating an unscheduled reminder."
     }
   }
 }
