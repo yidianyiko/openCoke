@@ -1090,6 +1090,7 @@ class PrepareWorkflow:
             return set()
         hour = parsed.hour
         minute = parsed.minute
+        colloquial_hour = hour % 12 or 12
         raw_variants = {
             f"{hour}:{minute:02d}",
             f"{hour:02d}:{minute:02d}",
@@ -1100,7 +1101,35 @@ class PrepareWorkflow:
         }
         if minute == 0:
             raw_variants.update({f"{hour}点", f"{hour:02d}点"})
+            for daypart in cls._clock_dayparts(hour):
+                raw_variants.update(
+                    {
+                        f"{daypart}{colloquial_hour}点",
+                        f"{daypart}{colloquial_hour:02d}点",
+                    }
+                )
+        else:
+            for daypart in cls._clock_dayparts(hour):
+                raw_variants.update(
+                    {
+                        f"{daypart}{colloquial_hour}点{minute:02d}分",
+                        f"{daypart}{colloquial_hour}点{minute}分",
+                        f"{daypart}{colloquial_hour:02d}点{minute:02d}分",
+                    }
+                )
         return {cls._compact_text(variant) for variant in raw_variants}
+
+    @staticmethod
+    def _clock_dayparts(hour: int) -> set[str]:
+        if 0 <= hour < 6:
+            return {"凌晨"}
+        if 6 <= hour < 12:
+            return {"上午", "早上"}
+        if hour == 12:
+            return {"中午"}
+        if 13 <= hour < 18:
+            return {"下午"}
+        return {"晚上", "夜里"}
 
     def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
         rule = str(rrule or "").strip()
@@ -1360,6 +1389,9 @@ ReminderDetectDecision.
   explicit_occurrences or explicit_cadence and copy the exact authorizing user
   wording into schedule_evidence. If the message does not contain concrete
   occurrence times or a concrete interval/frequency, return clarify.
+- If an explicit occurrence list contains both past and future local times for
+  today, keep the concrete future occurrences executable and leave past
+  occurrences out of the create operations.
 - If a create/batch request includes a same-message stop boundary such as
   "after 20:00 stop checking in", treat it as deadline_at for that new batch,
   not as delete/cancel.

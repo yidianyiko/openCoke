@@ -90,7 +90,9 @@ async def test_structured_reminder_detect_decision_executes_visible_tool(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_invalid_structured_reminder_decision_retries_with_fast_agent(monkeypatch):
+async def test_invalid_structured_reminder_decision_retries_with_fast_agent(
+    monkeypatch,
+):
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.tools.tool_result import append_tool_result
     from agent.agno_agent.workflows import prepare_workflow
@@ -199,7 +201,9 @@ async def test_invalid_structured_reminder_decision_retries_with_fast_agent(monk
 
 
 @pytest.mark.asyncio
-async def test_invalid_structured_reminder_retry_failure_records_tool_result(monkeypatch):
+async def test_invalid_structured_reminder_retry_failure_records_tool_result(
+    monkeypatch,
+):
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -384,6 +388,36 @@ def test_explicit_occurrence_evidence_must_contain_each_create_time():
     )
 
 
+def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="晚上9点一次，晚上11点一次，提醒我完成学习任务打卡",
+        operations=[
+            {
+                "action": "create",
+                "title": "完成学习任务打卡",
+                "trigger_at": "2026-04-29T21:00:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "完成学习任务打卡",
+                "trigger_at": "2026-04-29T23:00:00+09:00",
+            },
+        ],
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "上午10点一次，中午12点一次，下午5点一次，晚上9点一次，晚上11点一次，提醒我完成学习任务打卡",
+    )
+
+
 def test_structured_clarify_decision_appends_direct_question():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
@@ -429,8 +463,7 @@ def test_invalid_schedule_evidence_retry_failure_appends_clarification():
             "ok": False,
             "result_summary": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
             "extra_notes": (
-                "action=clarify; "
-                "error_code=ReminderDetectInvalidScheduleEvidence"
+                "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
             ),
         }
     ]

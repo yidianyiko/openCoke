@@ -152,6 +152,14 @@ def test_reminder_detect_instructions_scope_reminder_intent_to_modified_tasks():
     assert "schedule-only items" in instructions
 
 
+def test_reminder_detect_instructions_keep_future_explicit_occurrences():
+    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
+
+    assert "explicit occurrence list contains both past and future" in instructions
+    assert "future occurrences executable" in instructions
+    assert "leave past" in instructions
+
+
 def test_reminder_detect_instructions_keep_clarification_language():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 
