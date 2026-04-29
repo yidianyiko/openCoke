@@ -445,6 +445,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "cancel, stop, or no longer receive a reminder" in workflow.agent.input
     assert "Ask which reminder they want to cancel" in workflow.agent.input
     assert "no reminders remaining" in workflow.agent.input
+    assert "哪条提醒" in workflow.agent.input
+    assert "今晚不打扰你" in workflow.agent.input
     assert "recommend a reminder cadence or frequency" in workflow.agent.input
     assert "suggest exactly one practical cadence" in workflow.agent.input
     assert "end the message with an explicit" in workflow.agent.input

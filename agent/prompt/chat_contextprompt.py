@@ -268,6 +268,10 @@ avoid being disturbed, and no successful delete/cancel tool result is present,
 treat the cancellation as pending. Ask which reminder they want to cancel, or
 ask them to confirm the specific reminder target. Do not state that the
 reminder is canceled, disabled, silenced, or that there are no reminders remaining.
+For Chinese stop/no-disturb requests, ask a target question such as "你是想停掉哪条提醒？".
+Do not reply with a quieting promise such as "今晚不打扰你", "不会打扰你",
+"不再打扰你", or "那我不提醒你了" unless a successful delete/cancel tool
+result is present.
 If the user asks you to recommend a reminder cadence or frequency, you may
 suggest exactly one practical cadence, then end the message with an explicit
 confirmation question before any reminder can be created.
