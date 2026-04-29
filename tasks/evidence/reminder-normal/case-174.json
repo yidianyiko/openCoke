@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 174,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1bfe56c467",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e0c28a56d51b0fd7f4192245"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 174,
+      "input": "我现在开始学习阅读理解，10:00截止",
+      "user_id": "e0c28a56d51b0fd7f4192245",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "69f19c98c3a3c141ca5786f3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19cc6788e46e5b6346c0d",
+          "expect_output_timestamp": 1777441989,
+          "handled_timestamp": 1777441989,
+          "status": "pending",
+          "message_type": "text",
+          "message": "阅读理解，10点截止，懂了。现在14:52，时间还挺充裕的，你打算先做几篇还是直接一口气做到10点？我帮你盯着",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1bfe56c467",
+            "case_index": 174,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "6932357a4bf7878f04114a2f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1bfe56c467-case-174",
+              "business_conversation_key": "reminder-normal-1bfe56c467-case-174",
+              "causal_inbound_event_id": "reminder-normal-1bfe56c467-case-174-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e0c28a56d51b0fd7f4192245"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 47.077
+    }
+  ]
+}
