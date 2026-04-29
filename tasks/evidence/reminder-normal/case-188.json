@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 188,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ee1c4aba1b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b03d42ba2ceb6f984dad3f05"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 188,
+      "input": "那你建议我出门散步半小时？",
+      "user_id": "b03d42ba2ceb6f984dad3f05",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f1ac7920fb3e0aecb349a2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ac957a73f948dc248f28",
+          "expect_output_timestamp": 1777446012,
+          "handled_timestamp": 1777446012,
+          "status": "pending",
+          "message_type": "text",
+          "message": "那可太好了！现在16点，阳光应该正好。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ee1c4aba1b",
+            "case_index": 188,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "6932afc14bf7878f04114a7d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ee1c4aba1b-case-188",
+              "business_conversation_key": "reminder-normal-ee1c4aba1b-case-188",
+              "causal_inbound_event_id": "reminder-normal-ee1c4aba1b-case-188-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b03d42ba2ceb6f984dad3f05"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 29.048
+    }
+  ]
+}
