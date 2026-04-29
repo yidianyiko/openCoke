@@ -520,11 +520,20 @@ def reminder_tool_result_counts_as_setup(entry: dict) -> bool:
 def get_reminder_operation_direct_reply(session_state: dict) -> str:
     """Return deterministic reminder CRUD acknowledgements from tool results."""
     results: list[dict] = session_state.get("tool_results") or []
-    summaries = [
-        str(entry.get("result_summary") or "").strip()
-        for entry in results
-        if reminder_tool_result_counts_as_setup(entry)
-    ]
+    summaries = []
+    failed_create_summaries = []
+    for entry in results:
+        summary = str(entry.get("result_summary") or "").strip()
+        if not summary:
+            continue
+        if reminder_tool_result_counts_as_setup(entry):
+            summaries.append(summary)
+            continue
+        action = _tool_result_action(entry)
+        if action in {"create", "batch"} and entry.get("ok") is False:
+            failed_create_summaries.append(summary)
+    if failed_create_summaries and not summaries:
+        return "；".join(failed_create_summaries) + "。你想改到什么时间？"
     return "；".join(summary for summary in summaries if summary)
 
 

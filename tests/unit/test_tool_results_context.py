@@ -152,7 +152,10 @@ def test_reminder_operation_direct_reply_skips_failed_create_results():
     state = {"tool_results": [failed_create]}
 
     assert reminder_tool_result_counts_as_setup(failed_create) is False
-    assert get_reminder_operation_direct_reply(state) == ""
+    assert get_reminder_operation_direct_reply(state) == (
+        "创建提醒失败：One-shot reminder schedule must be in the future。"
+        "你想改到什么时间？"
+    )
 
 
 def test_reminder_operation_direct_reply_keeps_delete_no_match_results():
