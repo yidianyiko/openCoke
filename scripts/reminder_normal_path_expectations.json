@@ -237,6 +237,10 @@
     "213": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded for tasks expressed as time ranges and refers to 'these time points'. The ranges are task boundaries, not concrete reminder trigger points, so the agent should clarify frequency or exact reminder times instead of choosing range endpoints."
+    },
+    "215": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should confirm reminder intent instead of creating one silently."
     }
   }
 }
