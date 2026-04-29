@@ -301,6 +301,10 @@
     "278": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks about being woken tomorrow morning but gives no concrete clock time. The agent should ask what time instead of creating a date/daypart default reminder."
+    },
+    "279": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."
     }
   }
 }
