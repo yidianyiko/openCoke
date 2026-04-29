@@ -949,6 +949,13 @@ Full-context reminder detection timed out. Decide from this current message
 using visible_reminder_tool semantics.
 - If the current user message explicitly asks for a reminder and includes a
   specific time plus reminder content, call visible_reminder_tool.
+- If the current user message asks to cancel, stop, remove, no longer receive,
+  or not be called/notified/reminded for a reminder, call visible_reminder_tool
+  with action="delete" and the safest target keyword from the message.
+  Chinese examples include "不用叫我", "不用提醒我", "别提醒我", and "取消提醒".
+- If the current user message asks to update, complete, or list reminders, call
+  visible_reminder_tool with the matching action and only the fields that are
+  safely available from the current message.
 - If required reminder details are missing or unsafe, do not call the tool.
 - Do not answer in text.
 
