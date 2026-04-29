@@ -851,6 +851,11 @@ class PrepareWorkflow:
                     )
                     self._log_reminder_result(retry_response, session_state)
                     return
+                if self._append_invalid_schedule_evidence_clarification(
+                    session_state
+                ):
+                    self._log_reminder_result(retry_response, session_state)
+                    return
                 append_tool_result(
                     session_state,
                     tool_name="提醒操作",
@@ -950,6 +955,9 @@ class PrepareWorkflow:
                 evidence_error,
             )
             session_state["prepare_reminder_detect_invalid_structured_output"] = True
+            session_state["prepare_reminder_detect_invalid_schedule_evidence"] = (
+                evidence_error
+            )
             return False
 
         if decision.intent_type == "clarify" and decision.clarification_question:
@@ -993,6 +1001,27 @@ class PrepareWorkflow:
             )
             or None,
             operations=self._dump_reminder_operations(decision) or None,
+        )
+        return True
+
+    def _append_invalid_schedule_evidence_clarification(
+        self,
+        session_state: Dict[str, Any],
+    ) -> bool:
+        if not session_state.pop(
+            "prepare_reminder_detect_invalid_schedule_evidence",
+            "",
+        ):
+            return False
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=False,
+            result_summary="提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+            extra_notes=(
+                "action=clarify; "
+                "error_code=ReminderDetectInvalidScheduleEvidence"
+            ),
         )
         return True
 

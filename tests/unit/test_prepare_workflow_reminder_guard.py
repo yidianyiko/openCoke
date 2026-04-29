@@ -411,6 +411,32 @@ def test_structured_clarify_decision_appends_direct_question():
     ]
 
 
+def test_invalid_schedule_evidence_retry_failure_appends_clarification():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    session_state = {
+        "prepare_reminder_detect_invalid_schedule_evidence": (
+            "schedule_evidence is not present in the current message"
+        ),
+        "tool_results": [],
+    }
+
+    assert workflow._append_invalid_schedule_evidence_clarification(session_state)
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+            "extra_notes": (
+                "action=clarify; "
+                "error_code=ReminderDetectInvalidScheduleEvidence"
+            ),
+        }
+    ]
+    assert "prepare_reminder_detect_invalid_schedule_evidence" not in session_state
+
+
 def test_bounded_rrule_operation_keeps_existing_count():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
