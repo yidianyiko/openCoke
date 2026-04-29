@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 149,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-42bac2700a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693138704bf7878f0411492e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 149,
+      "input": "那你可以，你觉得多久，你来提醒我一下，鼓励我一下，能够激励我接着往下学习呢",
+      "user_id": "693138704bf7878f0411492e",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f18d6538c73584b2ca40f6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f18d76ccdceb0188205832",
+          "expect_output_timestamp": 1777438061,
+          "handled_timestamp": 1777438061,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好问题！我建议先每半小时提醒一次，这样既不会太频繁让你分心，又能及时拽你一把。你觉得这个频率怎么样？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-42bac2700a",
+            "case_index": 149,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "693145fb4bf7878f0411495d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-42bac2700a-case-149",
+              "business_conversation_key": "reminder-normal-42bac2700a-case-149",
+              "causal_inbound_event_id": "reminder-normal-42bac2700a-case-149-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693138704bf7878f0411492e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 18.032
+    }
+  ]
+}
