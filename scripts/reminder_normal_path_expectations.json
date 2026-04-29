@@ -305,6 +305,10 @@
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "280": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user discusses how reminder delivery/acknowledgement works without asking to create, query, update, or cancel a concrete reminder."
     }
   }
 }
