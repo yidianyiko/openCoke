@@ -126,6 +126,21 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_REMINDER_STOP_INTENT_PATTERNS = (
+    re.compile(
+        r"(不用|不要|别|停止|取消|删除|关掉|停掉|不用再|不要再|别再)"
+        r".{0,12}(提醒|叫我|喊我|通知|打扰)"
+    ),
+    re.compile(r"(不要打扰|别打扰|不打扰|勿扰|免打扰)"),
+    re.compile(
+        r"\b(cancel|delete|stop|disable|turn off)\b.{0,24}\b(reminder|alarm|notification|nudges?)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(don't|do not|dont|no longer)\b.{0,24}\b(remind|notify|disturb|nudge)\b",
+        re.IGNORECASE,
+    ),
+)
 _REMIND_MARKER_PATTERN = re.compile(r"提醒")
 _ACTIONABLE_REMINDER_TIME_PATTERN = re.compile(
     r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
@@ -394,9 +409,17 @@ class PrepareWorkflow:
             return False
         return any(
             pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS
+        ) or self._looks_like_reminder_stop_intent(
+            text
         ) or self._looks_like_actionable_reminder_with_time(
             text
         ) or self._looks_like_actionable_call_me_reminder(text)
+
+    def _looks_like_reminder_stop_intent(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(pattern.search(text) for pattern in _REMINDER_STOP_INTENT_PATTERNS)
 
     def _looks_like_actionable_reminder_with_time(self, input_message: str) -> bool:
         text = str(input_message or "").strip()

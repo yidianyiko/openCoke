@@ -74,6 +74,10 @@ Rules:
   or enumerate existing reminders.
 - Do not call list as a fallback for an ambiguous create/update request. If a
   create/update request is missing a safe time or required details, stop instead.
+- Treat broad stop, cancellation, and do-not-disturb requests as reminder
+  cancellation intent, for example "不要打扰我了", "别提醒我了",
+  "stop reminding me", or "don't disturb me". If the target reminder is clear,
+  call delete with the safest keyword. If the target is not clear, do not create anything; stop so the chat response can ask which reminder to stop.
 - Use recent context when the current message is only supplementary information like "tomorrow at 3" or "the meeting one".
 - For create/update time changes, output trigger_at/new_trigger_at as an ISO 8601 aware datetime with timezone offset or Z.
 - Example trigger_at: 2026-04-21T15:30:00+08:00.

@@ -171,6 +171,12 @@
     "161": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks about being reminded of study progress but gives no concrete reminder time or cadence; the agent should ask for the missing trigger information instead of inferring one from history."
+    },
+    "168": {
+      "evaluation_expectation": "crud",
+      "expected_operation": "delete",
+      "allow_clarification": true,
+      "evaluation_reason": "The user asks not to be disturbed after ending study without a precise reminder target. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder or asking for create time/content is not."
     }
   }
 }

@@ -67,6 +67,9 @@ Do not let normal-path fixes become another case-by-case parser.
 - Do not add case-local `Avoid X` prompt rules as the first response to a failing case. Prefer a positive decision boundary or a smaller tool instruction that covers a class of inputs.
 - Do not add `title_variants` as the first response to a title mismatch. First check whether punctuation, quote style, whitespace, leading verbs, or semantic containment should be handled by the shared title validator.
 - Fixture `evaluation_expectation` overrides are appropriate when the case data should classify the request as CRUD, clarification, query, capability, or discussion. Keep the reason explicit.
+- Treat prompt changes like code changes: prefer compact positive boundaries that describe a class of inputs and expected decision, and add prompt tests for that boundary. Do not let the prompt accumulate one-case `Avoid X` clauses or narrow examples as a substitute for improving the decision boundary.
+- Treat title matching as shared evaluation policy. Add `title_variants` only when the variant is a legitimate semantic paraphrase that the shared normalizer cannot reasonably infer; otherwise improve the normalizer or expected-title rule once for the class.
+- For cancellation/stop/no-disturb requests, route the turn to ReminderDetectAgent and let the LLM decide whether to delete or clarify. Do not convert broad quieting language into a create request or ask for create time/content.
 - After a run of case fixes, produce a drift report before continuing if prompt constraints or title aliases are growing quickly.
 
 Drift report:

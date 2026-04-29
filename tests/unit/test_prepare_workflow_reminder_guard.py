@@ -52,6 +52,50 @@ async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fa
 
 
 @pytest.mark.asyncio
+async def test_no_disturb_reminder_stop_request_skips_orchestrator_and_runs_detector():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日14时27分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock()
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("今天学习结束，晚安，不要打扰我了", session_state)
+
+    orchestrator_agent.arun.assert_not_awaited()
+    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+
+
+@pytest.mark.asyncio
 async def test_explicit_reminder_request_runs_detector_when_orchestrator_misses_it():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 

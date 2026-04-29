@@ -76,3 +76,11 @@ def test_reminder_detect_instructions_allow_generic_title_for_bare_time_reminder
     assert 'title="提醒"' in instructions
     assert "11点10分还有12点提醒我一下" in instructions
     assert "two one-shot reminders" in instructions
+
+
+def test_reminder_detect_instructions_treat_no_disturb_as_cancel_intent():
+    instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
+
+    assert "do-not-disturb" in instructions
+    assert "不要打扰我了" in instructions
+    assert "do not create anything" in instructions

@@ -623,7 +623,8 @@ def validate_observations(
         expectation == "crud"
         and expected_operation != "create"
         and not (
-            allow_crud_clarification and output_mentions_clarification(outputs)
+            allow_crud_clarification
+            and output_mentions_crud_operation_clarification(outputs, expected_operation)
         )
         and not output_mentions_crud_ack(outputs, reminders)
     ):
@@ -996,6 +997,37 @@ def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
             r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢|想按)|"
             r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢|想按).{0,30}"
             r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔)",
+            output_text,
+            re.IGNORECASE,
+        )
+    )
+
+
+def output_mentions_crud_operation_clarification(
+    outputs: list[dict[str, Any]], expected_operation: str
+) -> bool:
+    if expected_operation in {"delete", "cancel", "remove"}:
+        return output_mentions_delete_target_clarification(outputs)
+    return output_mentions_clarification(outputs)
+
+
+def output_mentions_delete_target_clarification(outputs: list[dict[str, Any]]) -> bool:
+    output_text = combined_output_text(outputs)
+    if not output_text.strip():
+        return False
+    return bool(
+        re.search(
+            r"(什么提醒|哪条提醒|哪个提醒|哪一个提醒|哪项提醒|哪一个|哪个|哪条).{0,18}"
+            r"(取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)?"
+            r"|(?:取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)"
+            r".{0,24}(哪一个|哪个|哪条|什么提醒|哪项|具体哪)"
+            r"|(?:是指|你是说).{0,30}"
+            r"(?:取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)"
+            r".{0,8}吗"
+            r"|(?:取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)"
+            r".{0,30}(?:是说|是指).{0,30}吗"
+            r"|which.{0,24}(reminder|alarm|notification).{0,24}(cancel|delete|stop|disable)"
+            r"|(?:cancel|delete|stop|disable).{0,24}which.{0,24}(reminder|alarm|notification)",
             output_text,
             re.IGNORECASE,
         )
