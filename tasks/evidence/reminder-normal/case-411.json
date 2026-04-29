@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 411,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ba17868bbe",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "eea70cefb470cae61ade1d2a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 411,
+      "input": "好的，四点钟我再开始收拾行李，然后五点半开会",
+      "user_id": "eea70cefb470cae61ade1d2a",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2410facf6541a69051da9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f241188f61a861ab17e24d",
+          "expect_output_timestamp": 1777484056,
+          "handled_timestamp": 1777484056,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你需要在四点或五点半设置提醒吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ba17868bbe",
+            "case_index": 411,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693fbbfa2971a327a8e5ed45",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ba17868bbe-case-411",
+              "business_conversation_key": "reminder-normal-ba17868bbe-case-411",
+              "causal_inbound_event_id": "reminder-normal-ba17868bbe-case-411-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "eea70cefb470cae61ade1d2a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

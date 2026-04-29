@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 408,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-dadc09ab8a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "67332083f57dd2bec97036c6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 408,
+      "input": "休息一下，下午继续",
+      "user_id": "67332083f57dd2bec97036c6",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f23e8a2e67bac944e02a5e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f23e918f61a861ab17e1da",
+          "expect_output_timestamp": 1777483405,
+          "handled_timestamp": 1777483405,
+          "status": "pending",
+          "message_type": "text",
+          "message": "行，中午休息一下。下午大概几点开始？我到时候提醒你。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-dadc09ab8a",
+            "case_index": 408,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693f8b082971a327a8e5ed0a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-dadc09ab8a-case-408",
+              "business_conversation_key": "reminder-normal-dadc09ab8a-case-408",
+              "causal_inbound_event_id": "reminder-normal-dadc09ab8a-case-408-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "67332083f57dd2bec97036c6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}

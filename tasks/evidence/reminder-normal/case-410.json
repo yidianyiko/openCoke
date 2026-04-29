@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 410,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-edc1c2a650",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9cfc0b4a14cdfea0a4c5a8ab"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 410,
+      "input": "休息到4点",
+      "user_id": "9cfc0b4a14cdfea0a4c5a8ab",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f23ead6f0c2ef09693dd12",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f23eba8f61a861ab17e1f4",
+          "expect_output_timestamp": 1777483450,
+          "handled_timestamp": 1777483450,
+          "status": "pending",
+          "message_type": "text",
+          "message": "需要我在4点提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-edc1c2a650",
+            "case_index": 410,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693fbb782971a327a8e5ed42",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-edc1c2a650-case-410",
+              "business_conversation_key": "reminder-normal-edc1c2a650-case-410",
+              "causal_inbound_event_id": "reminder-normal-edc1c2a650-case-410-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9cfc0b4a14cdfea0a4c5a8ab"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.023
+    }
+  ]
+}

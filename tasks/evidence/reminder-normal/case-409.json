@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 409,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a322c75a1a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "3667fdd1155a3fbe0dfda0bd"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 409,
+      "input": "1点50分提醒起床",
+      "user_id": "3667fdd1155a3fbe0dfda0bd",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f23ea61754b6bb2236f4b7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f23eac8f61a861ab17e1e8",
+          "expect_output_timestamp": 1777483436,
+          "handled_timestamp": 1777483436,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（2026-04-30 13:50）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a322c75a1a",
+            "case_index": 409,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693f8b112971a327a8e5ed0b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a322c75a1a-case-409",
+              "business_conversation_key": "reminder-normal-a322c75a1a-case-409",
+              "causal_inbound_event_id": "reminder-normal-a322c75a1a-case-409-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "3667fdd1155a3fbe0dfda0bd"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f23eac8f61a861ab17e1e6",
+          "owner_user_id": "3667fdd1155a3fbe0dfda0bd",
+          "title": "起床",
+          "schedule": {
+            "anchor_at": "2026-04-30T04:50:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "13:50:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f23ea78f61a861ab17e1df",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T04:50:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:23:56.769000+00:00",
+          "updated_at": "2026-04-29T17:23:56.769000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.01
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 411,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-912d45ea91",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "f1e47f80a3037d704203875f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_user_output": 1,
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 411,
+        "input": "好的，四点钟我再开始收拾行李，然后五点半开会",
+        "user_id": "f1e47f80a3037d704203875f",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f2400e932e4fd43147eeaf",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.203
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 411,
+      "input": "好的，四点钟我再开始收拾行李，然后五点半开会",
+      "user_id": "f1e47f80a3037d704203875f",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2400e932e4fd43147eeaf",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.203
+    }
+  ]
+}

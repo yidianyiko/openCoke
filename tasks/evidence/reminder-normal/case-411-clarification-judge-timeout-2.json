@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 411,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2ba4aa56d8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "7271e72b01f24800d50a4a6f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 411,
+        "input": "好的，四点钟我再开始收拾行李，然后五点半开会",
+        "user_id": "7271e72b01f24800d50a4a6f",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f23f776d150addab4fe5ed",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f23f818f61a861ab17e21c",
+            "expect_output_timestamp": 1777483649,
+            "handled_timestamp": 1777483649,
+            "status": "pending",
+            "message_type": "text",
+            "message": "你想让我在四点或五半提醒你吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-2ba4aa56d8",
+              "case_index": 411,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "693fbbfa2971a327a8e5ed45",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-2ba4aa56d8-case-411",
+                "business_conversation_key": "reminder-normal-2ba4aa56d8-case-411",
+                "causal_inbound_event_id": "reminder-normal-2ba4aa56d8-case-411-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "7271e72b01f24800d50a4a6f"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.019
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 411,
+      "input": "好的，四点钟我再开始收拾行李，然后五点半开会",
+      "user_id": "7271e72b01f24800d50a4a6f",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23f776d150addab4fe5ed",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f23f818f61a861ab17e21c",
+          "expect_output_timestamp": 1777483649,
+          "handled_timestamp": 1777483649,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想让我在四点或五半提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2ba4aa56d8",
+            "case_index": 411,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693fbbfa2971a327a8e5ed45",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2ba4aa56d8-case-411",
+              "business_conversation_key": "reminder-normal-2ba4aa56d8-case-411",
+              "causal_inbound_event_id": "reminder-normal-2ba4aa56d8-case-411-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7271e72b01f24800d50a4a6f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.019
+    }
+  ]
+}
