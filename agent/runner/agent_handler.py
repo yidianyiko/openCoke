@@ -65,6 +65,9 @@ MAX_RETRIES = 3  # 最大重试次数
 MAX_ROLLBACK = 4  # 最大 rollback 次数
 LOCK_TIMEOUT = 180  # 锁超时时间（秒）- 增加到 180 秒以覆盖完整处理周期
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
+CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS = float(
+    os.environ.get("CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS", "90")
+)
 
 target_user_alias = CONF.get("default_character_alias", "coke")
 typing_speed = 2.2
@@ -350,6 +353,14 @@ def _is_clawscale_sync_text_reply_context(context: dict, message_source: str) ->
     return business_protocol.get("delivery_mode") == "request_response"
 
 
+def _chat_response_timeout_fallback(input_message: str) -> str:
+    if "计划" in str(input_message or ""):
+        return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
+    return (
+        "我这次没能及时整理出回复。你把具体时间和事项再发我一遍，我可以继续帮你处理。"
+    )
+
+
 # ========== 核心消息处理函数 ==========
 
 
@@ -475,88 +486,125 @@ async def handle_message(
             )
             sync_text_reply_sent = False
 
-            async for event in streaming_chat_workflow.run_stream(
-                input_message=input_message_str, session_state=context
-            ):
-                if event["type"] == "message":
-                    multimodal_response = event["data"]
-                    multimodal_responses_index += 1
-                    all_multimodal_responses.append(multimodal_response)
-                    is_sync_text_reply_message = (
-                        is_clawscale_sync_text_reply
-                        and multimodal_response.get("type", "text") == "text"
-                    )
-
-                    # ========== 新增：发送消息前验证锁所有权 ==========
-                    if lock_id and conversation_id:
-                        if not _verify_lock_ownership(conversation_id, lock_id):
-                            logger.warning(f"{worker_tag} 锁已丢失，停止发送消息")
-                            is_lock_lost = True
-                            break
-
-                    outputmessage, expect_output_timestamp = _send_single_message(
-                        context=context,
-                        multimodal_response=multimodal_response,
-                        expect_output_timestamp=expect_output_timestamp,
-                        is_first=(multimodal_responses_index == 1),
-                    )
-                    if outputmessage is not None:
-                        if not (is_sync_text_reply_message and sync_text_reply_sent):
-                            resp_messages.append(outputmessage)
-                        if is_sync_text_reply_message:
-                            sync_text_reply_sent = True
-
-                        # ========== 新增：每发送一条消息后续期锁 ==========
-                        if lock_id and conversation_id:
-                            lock_manager.renew_lock(
-                                "conversation",
-                                conversation_id,
-                                lock_id,
-                                timeout=LOCK_TIMEOUT,
+            try:
+                async with asyncio.timeout(CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS):
+                    async for event in streaming_chat_workflow.run_stream(
+                        input_message=input_message_str, session_state=context
+                    ):
+                        if event["type"] == "message":
+                            multimodal_response = event["data"]
+                            multimodal_responses_index += 1
+                            all_multimodal_responses.append(multimodal_response)
+                            is_sync_text_reply_message = (
+                                is_clawscale_sync_text_reply
+                                and multimodal_response.get("type", "text") == "text"
                             )
 
-                        if is_sync_text_reply_message:
+                            # ========== 新增：发送消息前验证锁所有权 ==========
+                            if lock_id and conversation_id:
+                                if not _verify_lock_ownership(conversation_id, lock_id):
+                                    logger.warning(
+                                        f"{worker_tag} 锁已丢失，停止发送消息"
+                                    )
+                                    is_lock_lost = True
+                                    break
+
+                            outputmessage, expect_output_timestamp = (
+                                _send_single_message(
+                                    context=context,
+                                    multimodal_response=multimodal_response,
+                                    expect_output_timestamp=expect_output_timestamp,
+                                    is_first=(multimodal_responses_index == 1),
+                                )
+                            )
+                            if outputmessage is not None:
+                                if not (
+                                    is_sync_text_reply_message and sync_text_reply_sent
+                                ):
+                                    resp_messages.append(outputmessage)
+                                if is_sync_text_reply_message:
+                                    sync_text_reply_sent = True
+
+                                # ========== 新增：每发送一条消息后续期锁 ==========
+                                if lock_id and conversation_id:
+                                    lock_manager.renew_lock(
+                                        "conversation",
+                                        conversation_id,
+                                        lock_id,
+                                        timeout=LOCK_TIMEOUT,
+                                    )
+
+                                if is_sync_text_reply_message:
+                                    logger.info(
+                                        f"{worker_tag} Clawscale request_response 首条文本回复已写入，提前结束流式等待"
+                                    )
+                                    break
+
+                            # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
+                            if check_new_message and message_source == "user":
+                                user = context.get("user", {})
+                                character = context.get("character", {})
+                                current_platform = (
+                                    context.get("platform")
+                                    or context.get("conversation", {}).get("platform")
+                                    or "business"
+                                )
+                                if is_new_message_coming_in(
+                                    get_agent_entity_id(user),
+                                    get_agent_entity_id(character),
+                                    current_platform,
+                                    current_message_ids,
+                                ):
+                                    is_rollback = True
+                                    logger.info(
+                                        f"{worker_tag} rollback: new message during streaming"
+                                    )
+                                    break
+                        elif event["type"] == "done":
                             logger.info(
-                                f"{worker_tag} Clawscale request_response 首条文本回复已写入，提前结束流式等待"
+                                f"{worker_tag} 流式完成，共 {event['data'].get('total_messages', 0)} 条"
                             )
+                        elif event["type"] == "content_blocked":
+                            # ========== 内容安全审核失败，设置标志并停止处理 ==========
+                            logger.warning(
+                                f"{worker_tag} 内容安全审核失败 (Content Exists Risk)，跳过后续处理"
+                            )
+                            is_content_blocked = True
                             break
-
-                    # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
-                    if check_new_message and message_source == "user":
-                        user = context.get("user", {})
-                        character = context.get("character", {})
-                        current_platform = (
-                            context.get("platform")
-                            or context.get("conversation", {}).get("platform")
-                            or "business"
-                        )
-                        if is_new_message_coming_in(
-                            get_agent_entity_id(user),
-                            get_agent_entity_id(character),
-                            current_platform,
-                            current_message_ids,
-                        ):
+                        elif event["type"] == "error":
+                            stream_error = event["data"].get("error")
+                            logger.error(f"{worker_tag} 流式错误: {stream_error}")
                             is_rollback = True
-                            logger.info(
-                                f"{worker_tag} rollback: new message during streaming"
-                            )
                             break
-                elif event["type"] == "done":
-                    logger.info(
-                        f"{worker_tag} 流式完成，共 {event['data'].get('total_messages', 0)} 条"
-                    )
-                elif event["type"] == "content_blocked":
-                    # ========== 内容安全审核失败，设置标志并停止处理 ==========
-                    logger.warning(
-                        f"{worker_tag} 内容安全审核失败 (Content Exists Risk)，跳过后续处理"
-                    )
-                    is_content_blocked = True
-                    break
-                elif event["type"] == "error":
-                    stream_error = event["data"].get("error")
-                    logger.error(f"{worker_tag} 流式错误: {stream_error}")
-                    is_rollback = True
-                    break
+            except TimeoutError:
+                stream_error = (
+                    f"chat_response_timeout:{CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS:g}s"
+                )
+                logger.warning(f"{worker_tag} ChatWorkflow 超时: {stream_error}")
+                if not resp_messages and not is_content_blocked:
+                    if (
+                        lock_id
+                        and conversation_id
+                        and not _verify_lock_ownership(conversation_id, lock_id)
+                    ):
+                        logger.warning(f"{worker_tag} 锁已丢失，跳过超时兜底回复")
+                        is_lock_lost = True
+                    else:
+                        multimodal_response = {
+                            "type": "text",
+                            "content": _chat_response_timeout_fallback(
+                                input_message_str
+                            ),
+                        }
+                        all_multimodal_responses.append(multimodal_response)
+                        outputmessage, expect_output_timestamp = _send_single_message(
+                            context=context,
+                            multimodal_response=multimodal_response,
+                            expect_output_timestamp=expect_output_timestamp,
+                            is_first=True,
+                        )
+                        if outputmessage is not None:
+                            resp_messages.append(outputmessage)
 
             # ========== 新增：锁丢失时标记为 rollback ==========
             if is_lock_lost:
