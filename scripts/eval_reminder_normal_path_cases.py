@@ -6,13 +6,13 @@ import hashlib
 import json
 import os
 import re
-import signal
 import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
@@ -1082,7 +1082,6 @@ def output_implies_unconfirmed_reminder(
 
 
 def run_unconfirmed_reminder_judge(output_text: str) -> bool:
-    judge_agent = _unconfirmed_reminder_judge_agent()
     prompt = f"""Judge whether this assistant reply claims or strongly implies an unconfirmed reminder action.
 
 Context:
@@ -1094,7 +1093,7 @@ Context:
 Assistant reply:
 {output_text}"""
     try:
-        response = _run_unconfirmed_reminder_judge_with_timeout(judge_agent, prompt)
+        return _run_unconfirmed_reminder_judge_with_timeout(prompt)
     except UnconfirmedReminderJudgeTimeout:
         print("unconfirmed reminder LLM judge timed out", file=sys.stderr)
         return False
@@ -1102,6 +1101,7 @@ Assistant reply:
         print(f"unconfirmed reminder LLM judge failed: {exc}", file=sys.stderr)
         return False
 
+def _parse_unconfirmed_reminder_judge_response(response) -> bool:
     content = getattr(response, "content", None)
     if isinstance(content, UnconfirmedReminderJudgeResponse):
         return content.implies_unconfirmed_reminder
@@ -1117,20 +1117,34 @@ Assistant reply:
     return parsed.implies_unconfirmed_reminder
 
 
-def _run_unconfirmed_reminder_judge_with_timeout(judge_agent, prompt: str):
-    timeout_seconds = max(0.1, UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS)
-
-    def _raise_timeout(_signum, _frame):
+def _run_unconfirmed_reminder_judge_with_timeout(prompt: str) -> bool:
+    timeout_seconds = max(0.01, UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS)
+    context = get_context("fork")
+    queue = context.Queue()
+    process = context.Process(
+        target=_unconfirmed_reminder_judge_worker,
+        args=(prompt, queue),
+    )
+    process.start()
+    process.join(timeout_seconds)
+    if process.is_alive():
+        process.terminate()
+        process.join(1)
         raise UnconfirmedReminderJudgeTimeout()
+    if queue.empty():
+        raise RuntimeError("unconfirmed reminder LLM judge produced no result")
+    status, payload = queue.get()
+    if status == "ok":
+        return bool(payload)
+    raise RuntimeError(str(payload))
 
-    previous_handler = signal.getsignal(signal.SIGALRM)
-    signal.signal(signal.SIGALRM, _raise_timeout)
-    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+
+def _unconfirmed_reminder_judge_worker(prompt: str, queue) -> None:
     try:
-        return judge_agent.run(prompt)
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous_handler)
+        response = _unconfirmed_reminder_judge_agent().run(prompt)
+        queue.put(("ok", _parse_unconfirmed_reminder_judge_response(response)))
+    except Exception as exc:
+        queue.put(("error", repr(exc)))
 
 
 @lru_cache(maxsize=1)
