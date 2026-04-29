@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 231,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0646f40be4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "0e13b9f4073d944b6fdfc8a8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 231,
+      "input": "谢谢闹钟",
+      "user_id": "0e13b9f4073d944b6fdfc8a8",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f1e46e10a3027209d11ddf",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e496363b9b98472919d5",
+          "expect_output_timestamp": 1777460340,
+          "handled_timestamp": 1777460340,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嘿嘿，不客气～不过我得先确认一下，刚才那个提醒是我之前安排好的吗？因为我这边看提醒设置还没走完流程呢。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0646f40be4",
+            "case_index": 231,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6935fa1e8adf4a858a3df3d4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0646f40be4-case-231",
+              "business_conversation_key": "reminder-normal-0646f40be4-case-231",
+              "causal_inbound_event_id": "reminder-normal-0646f40be4-case-231-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0e13b9f4073d944b6fdfc8a8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 40.071
+    }
+  ]
+}
