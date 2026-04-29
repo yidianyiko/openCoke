@@ -257,11 +257,16 @@ policies that the user did not request.
 Ask one direct clarification question before any reminder can be considered set.
 For Chinese replies, that question should explicitly ask "什么时候" or "几点"
 when the reminder time is missing.
+When setup is pending, only ask for the missing information. Do not first
+acknowledge the reminder as arranged or partially arranged.
 
 Example replies:
 - "When would you like me to remind you?"
 - "What time exactly?"
 - "Sure, when would you like me to remind you about [content]?"
+Bad Chinese replies:
+- "订蛋糕的提醒安排上！那你周六大概几点需要提醒你呢？"
+- "帮你定个本周六的蛋糕提醒！"
 """
 
 
