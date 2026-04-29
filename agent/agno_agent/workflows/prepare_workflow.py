@@ -1073,9 +1073,8 @@ class PrepareWorkflow:
             current_message
         ):
             return "schedule_evidence is not present in the current message"
-        if decision.action == "create" and self._message_has_multi_clause_reminders(
-            current_message
-        ):
+        multi_clause_reminder_count = self._multi_clause_reminder_count(current_message)
+        if decision.action == "create" and multi_clause_reminder_count > 1:
             return "multiple reminder clauses require batch operations, not a single create"
         if decision.schedule_basis != "explicit_occurrences" or not evidence:
             return ""
@@ -1089,6 +1088,10 @@ class PrepareWorkflow:
             if decision.action == "batch"
             else []
         )
+        if decision.action == "batch" and (
+            1 <= len(operations) < multi_clause_reminder_count
+        ):
+            return "multiple reminder clauses require every safe clause in batch operations"
         for operation in operations:
             if not any(
                 variant in evidence_text
@@ -1114,16 +1117,20 @@ class PrepareWorkflow:
 
     @classmethod
     def _message_has_multi_clause_reminders(cls, current_message: str) -> bool:
+        return cls._multi_clause_reminder_count(current_message) > 1
+
+    @staticmethod
+    def _multi_clause_reminder_count(current_message: str) -> int:
         text = str(current_message or "")
         if "提醒" not in text and "叫我" not in text and "通知" not in text:
-            return False
+            return 0
         clauses = [clause for clause in re.split(r"[；;\n]", text) if clause.strip()]
         timed_clauses = [
             clause
             for clause in clauses
             if re.search(r"(?<!\d)\d{1,2}\s*[:：点]\s*\d{0,2}(?!\d)", clause)
         ]
-        return len(timed_clauses) > 1
+        return len(timed_clauses)
 
     @classmethod
     def _clock_time_variants(cls, trigger_at: str) -> set[str]:

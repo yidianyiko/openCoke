@@ -611,6 +611,34 @@ def test_single_create_rejected_for_multi_clause_reminder_batch():
     )
 
 
+def test_partial_batch_rejected_for_multi_clause_reminder_batch():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="19：00提醒我去练腹肌",
+        operations=[
+            {
+                "action": "create",
+                "title": "练腹肌",
+                "trigger_at": "2026-04-29T19:00:00+09:00",
+            }
+        ],
+    )
+
+    assert (
+        workflow._validate_reminder_decision_evidence(
+            decision,
+            "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
+        )
+        == "multiple reminder clauses require every safe clause in batch operations"
+    )
+
+
 def test_retry_input_includes_invalid_schedule_evidence_reason():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
