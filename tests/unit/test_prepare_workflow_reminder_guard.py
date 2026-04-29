@@ -682,6 +682,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert 'action="delete"' in retry_input
     assert "不用叫我" in retry_input
     assert "asks to update, complete, or list reminders" in retry_input
+    assert "enumerate each one-shot occurrence" in retry_input
+    assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
     assert result["session_state"]["tool_results"][0]["ok"] is True

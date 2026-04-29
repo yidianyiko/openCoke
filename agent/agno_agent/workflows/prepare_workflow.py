@@ -999,6 +999,11 @@ using visible_reminder_tool semantics.
 - If the current user message explicitly asks for reminders at one or more
   specific times but gives no content, call visible_reminder_tool with generic
   title="提醒" for each time.
+- If the current user message asks for a repeated interval with a deadline and
+  the interval cannot be represented exactly with the supported RRULE subset,
+  enumerate each one-shot occurrence in a batch. Example: current 15:07,
+  every 50 minutes before 18:00 means 15:57, 16:47, 17:37; do not skip the
+  intermediate occurrences.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, call visible_reminder_tool
   with action="delete" and the safest target keyword from the message.
