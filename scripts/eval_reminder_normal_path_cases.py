@@ -319,7 +319,7 @@ def fresh_case_input_timestamp(
         microsecond=0,
     )
     replay_timestamp = int(replay_dt.timestamp())
-    if replay_timestamp <= now_timestamp - 11 * 3600:
+    if replay_timestamp <= now_timestamp:
         replay_timestamp = int((replay_dt + timedelta(days=1)).timestamp())
     return replay_timestamp
 

@@ -136,6 +136,34 @@ def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eli
     )
 
 
+def test_case_input_timestamp_rolls_passed_wall_clock_to_next_day(monkeypatch):
+    case = normal_eval.ReminderNormalPathCase(
+        input="你还需要在15：30提醒我吃饭；16：40提醒我洗澡",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={"timestamp": "2025-11-30 09:50:19"},
+    )
+    monkeypatch.setattr(
+        normal_eval.time,
+        "time",
+        lambda: int(
+            datetime(
+                2026, 4, 29, 18, 59, 13, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
+            ).timestamp()
+        ),
+    )
+
+    assert normal_eval.case_input_timestamp(
+        case,
+        timezone_name="Asia/Tokyo",
+        use_case_timestamp=False,
+    ) == int(
+        datetime(
+            2026, 4, 30, 9, 50, 19, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
+        ).timestamp()
+    )
+
+
 def test_case_input_timestamp_can_use_corpus_timestamp_when_requested():
     case = normal_eval.ReminderNormalPathCase(
         input="今天18:00提醒我喝水",
