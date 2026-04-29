@@ -415,6 +415,10 @@
     "391": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The isolated corpus case asks to remind about study-related tasks but does not provide the task schedule or concrete times in the current turn. The agent should ask for timing details instead of creating reminders."
+    },
+    "394": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a study plan with a clock time but does not explicitly ask for a reminder. The agent should ask whether to set a reminder instead of creating one."
     }
   }
 }

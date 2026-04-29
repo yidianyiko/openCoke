@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 394,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-297477a121",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d8b72aa8909115b86a5527dd"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 394,
+        "input": "10点学习",
+        "user_id": "d8b72aa8909115b86a5527dd",
+        "original_from_user": "693e8cad16773b825cfaa47e",
+        "input_message_id": "69f2383694a002e9361da796",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2383f5f7e042740b8cd0e",
+            "expect_output_timestamp": 1777481791,
+            "handled_timestamp": 1777481791,
+            "status": "pending",
+            "message_type": "text",
+            "message": "你是想在10点设置一个提醒来提醒你学习吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-297477a121",
+              "case_index": 394,
+              "original_from_user": "693e8cad16773b825cfaa47e",
+              "source_id": "693f689d2971a327a8e5ece8",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-297477a121-case-394",
+                "business_conversation_key": "reminder-normal-297477a121-case-394",
+                "causal_inbound_event_id": "reminder-normal-297477a121-case-394-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "d8b72aa8909115b86a5527dd"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 9.016
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 394,
+      "input": "10点学习",
+      "user_id": "d8b72aa8909115b86a5527dd",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f2383694a002e9361da796",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2383f5f7e042740b8cd0e",
+          "expect_output_timestamp": 1777481791,
+          "handled_timestamp": 1777481791,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你是想在10点设置一个提醒来提醒你学习吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-297477a121",
+            "case_index": 394,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693f689d2971a327a8e5ece8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-297477a121-case-394",
+              "business_conversation_key": "reminder-normal-297477a121-case-394",
+              "causal_inbound_event_id": "reminder-normal-297477a121-case-394-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d8b72aa8909115b86a5527dd"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.016
+    }
+  ]
+}

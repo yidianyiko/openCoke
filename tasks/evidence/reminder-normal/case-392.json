@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 392,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-39cbccd79f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "f1bea87cdd15666f28c9197f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 392,
+      "input": "九点提醒我准时开始写论文",
+      "user_id": "f1bea87cdd15666f28c9197f",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f2379fe627a99e30e89ad1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f237a55f7e042740b8cce5",
+          "expect_output_timestamp": 1777481637,
+          "handled_timestamp": 1777481637,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：开始写论文（2026-04-30 09:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-39cbccd79f",
+            "case_index": 392,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693f542e2971a327a8e5ecdf",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-39cbccd79f-case-392",
+              "business_conversation_key": "reminder-normal-39cbccd79f-case-392",
+              "causal_inbound_event_id": "reminder-normal-39cbccd79f-case-392-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f1bea87cdd15666f28c9197f"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f237a55f7e042740b8cce3",
+          "owner_user_id": "f1bea87cdd15666f28c9197f",
+          "title": "开始写论文",
+          "schedule": {
+            "anchor_at": "2026-04-30T00:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "09:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2379f5f7e042740b8ccdc",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T00:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T16:53:57.970000+00:00",
+          "updated_at": "2026-04-29T16:53:57.970000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.014
+    }
+  ]
+}

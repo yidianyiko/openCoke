@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 394,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-07c7a71b12",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "06a1b57792fe827ffa1ab99e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 394,
+      "input": "10点学习",
+      "user_id": "06a1b57792fe827ffa1ab99e",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f238aab0e9fadeec02b5e3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f238b45f7e042740b8cd1a",
+          "expect_output_timestamp": 1777481908,
+          "handled_timestamp": 1777481908,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想在10点设置一个提醒吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-07c7a71b12",
+            "case_index": 394,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693f689d2971a327a8e5ece8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-07c7a71b12-case-394",
+              "business_conversation_key": "reminder-normal-07c7a71b12-case-394",
+              "causal_inbound_event_id": "reminder-normal-07c7a71b12-case-394-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "06a1b57792fe827ffa1ab99e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.02
+    }
+  ]
+}
