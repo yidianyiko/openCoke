@@ -371,6 +371,10 @@
       "expected_creates": [
         {"title": "吃饭", "local_time": "16:37:00", "recurring": false}
       ]
+    },
+    "335": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders."
     }
   }
 }

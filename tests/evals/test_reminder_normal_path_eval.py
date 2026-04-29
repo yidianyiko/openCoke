@@ -1086,6 +1086,15 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():
     assert "declarative claims" in prompt
 
 
+def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
+    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+        "你不是亲口说的嘛，今晚7点要出门，我记得清清楚楚的"
+    )
+
+    assert "remembers, knows, or recalls" in prompt
+    assert "not a claimed reminder action" in prompt
+
+
 def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
 
@@ -1165,6 +1174,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[316].metadata["evaluation_expectation"] == "discussion"
     assert cases[331].metadata["evaluation_expectation"] == "clarify"
     assert cases[333].metadata["expected_creates"][0]["local_time"] == "16:37:00"
+    assert cases[335].metadata["evaluation_expectation"] == "discussion"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
