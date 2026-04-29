@@ -88,6 +88,18 @@ class ReminderDetectDecision(BaseModel):
     )
     reason: str = Field(default="", description="Brief classification rationale.")
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_intent_from_action(cls, data):
+        if not isinstance(data, dict):
+            return data
+        action = str(data.get("action") or "")
+        if action in {"create", "update", "delete", "cancel", "complete", "batch"}:
+            return {**data, "intent_type": "crud"}
+        if action == "list":
+            return {**data, "intent_type": "query"}
+        return data
+
     @model_validator(mode="after")
     def enforce_intent_field_boundaries(self) -> "ReminderDetectDecision":
         write_field_names = (

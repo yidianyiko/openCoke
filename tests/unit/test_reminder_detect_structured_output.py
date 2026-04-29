@@ -2,16 +2,17 @@ import pytest
 from pydantic import ValidationError
 
 
-def test_reminder_detect_schema_disallows_write_fields_for_clarify():
+def test_reminder_detect_schema_normalizes_write_action_to_crud():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
-    with pytest.raises(ValidationError):
-        ReminderDetectDecision(
-            intent_type="clarify",
-            action="create",
-            title="喝水",
-            trigger_at="2026-04-29T18:00:00+09:00",
-        )
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="create",
+        title="喝水",
+        trigger_at="2026-04-29T18:00:00+09:00",
+    )
+
+    assert decision.intent_type == "crud"
 
 
 def test_reminder_detect_schema_requires_batch_operations():
