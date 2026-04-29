@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 215,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-592cfdc5c8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a621e966d934e3c4486d356f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 215,
+      "input": "我想6点开始学习",
+      "user_id": "a621e966d934e3c4486d356f",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1e059bfe33a636a36c465",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e06abcf5ab6571c9f3c7",
+          "expect_output_timestamp": 1777459299,
+          "handled_timestamp": 1777459299,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好呀，6点开始学习。不过提醒还没设置好呢，需要我给你设个提醒催你上马吗",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-592cfdc5c8",
+            "case_index": 215,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693547334bf7878f04114b5d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-592cfdc5c8-case-215",
+              "business_conversation_key": "reminder-normal-592cfdc5c8-case-215",
+              "causal_inbound_event_id": "reminder-normal-592cfdc5c8-case-215-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a621e966d934e3c4486d356f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 18.031
+    }
+  ]
+}
