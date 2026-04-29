@@ -1,9 +1,34 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ReminderOperation(BaseModel):
+    """One executable operation inside a reminder batch decision."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["create", "update", "delete", "cancel", "complete", "list"] = Field(
+        description="Flat reminder operation action."
+    )
+    title: str = Field(default="", description="Create title.")
+    trigger_at: str = Field(default="", description="Aware ISO 8601 trigger time.")
+    reminder_id: str = Field(default="", description="Exact reminder id if known.")
+    keyword: str = Field(default="", description="Reminder target keyword.")
+    new_title: str = Field(default="", description="Updated title.")
+    new_trigger_at: str = Field(
+        default="", description="Aware ISO 8601 updated trigger time."
+    )
+    rrule: str = Field(default="", description="RFC 5545 RRULE.")
+
+    @model_validator(mode="after")
+    def enforce_operation_fields(self) -> "ReminderOperation":
+        if self.action == "create" and not (self.title and self.trigger_at):
+            raise ValueError("batch create operation requires title and trigger_at")
+        return self
 
 
 class ReminderDetectDecision(BaseModel):
@@ -42,9 +67,12 @@ class ReminderDetectDecision(BaseModel):
     rrule: str = Field(
         default="", description="RFC 5545 RRULE; crud create/update only."
     )
-    operations: list[dict[str, Any]] = Field(
+    operations: list[ReminderOperation] = Field(
         default_factory=list,
-        description="Flat batch reminder operations; crud batch only.",
+        description=(
+            "Flat batch reminder operations; required when action=batch. "
+            "Each create operation must include action, title, and trigger_at."
+        ),
     )
     clarification_question: str = Field(
         default="",

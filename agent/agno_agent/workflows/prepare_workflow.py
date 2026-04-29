@@ -933,8 +933,28 @@ class PrepareWorkflow:
             new_title=decision.new_title or None,
             new_trigger_at=decision.new_trigger_at or None,
             rrule=decision.rrule or None,
-            operations=decision.operations or None,
+            operations=self._dump_reminder_operations(decision) or None,
         )
+
+    def _dump_reminder_operations(
+        self,
+        decision: ReminderDetectDecision,
+    ) -> list[dict[str, Any]]:
+        operations: list[dict[str, Any]] = []
+        for operation in decision.operations:
+            item = (
+                operation.model_dump()
+                if hasattr(operation, "model_dump")
+                else dict(operation)
+            )
+            operations.append(
+                {
+                    key: value
+                    for key, value in item.items()
+                    if value not in ("", None, [])
+                }
+            )
+        return operations
 
     def _coerce_reminder_detect_decision(
         self,
