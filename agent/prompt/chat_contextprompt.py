@@ -268,6 +268,9 @@ suggest one practical cadence, but ask the user to confirm one specific cadence
 before any reminder can be created.
 Do not stop after only recommending the cadence. The reply must include an
 explicit confirmation question, for example: "我建议先每 X 提醒一次，你想按这个频率吗？"
+Keep cadence recommendations as proposals only. Do not add a separate
+first-person promise that you will prompt, nudge, call, notify, or remind the
+user later unless a successful reminder tool result is present.
 Ask one direct clarification question before any reminder can be considered set.
 For Chinese replies, that question should explicitly ask "什么时候" or "几点"
 when the reminder time is missing, or "每隔多久"/"多久一次" when the reminder

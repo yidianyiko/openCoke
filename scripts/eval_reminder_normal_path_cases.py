@@ -545,6 +545,8 @@ def validate_observations(
             errors.append("unexpected_reminder_created")
         if expectation == "clarify" and not output_mentions_clarification(outputs):
             errors.append("user_output_missing_clarification")
+        if expectation == "clarify" and output_implies_unconfirmed_reminder(outputs):
+            errors.append("user_output_implies_unconfirmed_reminder")
     for reminder in reminders:
         if (
             reminder.get("next_fire_at") is None
@@ -912,6 +914,17 @@ def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
             r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔)",
             output_text,
             re.IGNORECASE,
+        )
+    )
+
+
+def output_implies_unconfirmed_reminder(outputs: list[dict[str, Any]]) -> bool:
+    output_text = combined_output_text(outputs)
+    return bool(
+        re.search(
+            r"(?:准时|到时|到时候|到点|按时).{0,12}(?:催|叫|喊|提醒|通知)"
+            r"|(?:每隔|每\s*\d|每半|分钟|小时|半小时|一小时).{0,24}(?:催你|叫你|喊你|提醒你|通知你)",
+            output_text,
         )
     )
 
