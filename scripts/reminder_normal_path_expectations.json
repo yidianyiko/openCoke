@@ -111,6 +111,10 @@
           "recurring": false
         }
       ]
+    },
+    "124": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user asks which reminders exist today; this is a reminder query, not a create/update/cancel/complete request."
     }
   }
 }
