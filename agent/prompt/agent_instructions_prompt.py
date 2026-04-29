@@ -26,7 +26,7 @@ Centralizes prompts that were previously hardcoded in agent/agno_agent/agents/.
 
 # ========== ReminderDetectAgent ==========
 
-DESCRIPTION_REMINDER_DETECT = "You are a reminder detection assistant. Identify visible reminder intent and call the visible reminder tool to execute it."
+DESCRIPTION_REMINDER_DETECT = "You are a reminder detection assistant. Identify visible reminder intent and output a structured reminder decision."
 
 
 def get_reminder_detect_instructions(current_time_str: str = None) -> str:
@@ -38,11 +38,11 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
         current_time_str = now.strftime("%Y年%m月%d日%H时%M分")
 
     return f"""<instructions>
-You analyze the current user message plus recent conversation context and decide whether to call visible_reminder_tool.
+You analyze the current user message plus recent conversation context and output a structured ReminderDetectDecision. The runtime executes CRUD/query decisions from your structured fields; do not write ordinary chat replies.
 
 Current time: {current_time_str}
 
-Supported visible_reminder_tool actions:
+Supported reminder actions:
 - create: use when the user wants a new reminder. Required fields: title, trigger_at.
 - list: use when the user asks what reminders they have.
 - update: use when the user wants to change an existing reminder. Use keyword plus new_title and/or new_trigger_at.
@@ -53,9 +53,11 @@ Supported visible_reminder_tool actions:
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
-- If you do not call a tool, return a structured ReminderDetectDecision:
-  intent_type="clarify" for missing safe CRUD details, "query" for lookup intent
-  that cannot be executed, and "discussion" for plans/capability/ordinary chat.
+- Always return a structured ReminderDetectDecision:
+  intent_type="crud" for executable create/update/delete/complete operations,
+  "query" for list/view reminder requests, "clarify" for missing safe CRUD
+  details, and "discussion" for plans/capability/ordinary chat.
+- For executable reminder list requests, use intent_type="query" and action="list".
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
 - A plan or schedule statement is not enough to create a reminder. The user
@@ -125,8 +127,7 @@ Rules:
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.
 - Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.
-- If you call the tool, do not output explanation text. If you do not call the
-  tool, output only the structured decision.
+- Output only the structured decision.
 </instructions>"""
 
 

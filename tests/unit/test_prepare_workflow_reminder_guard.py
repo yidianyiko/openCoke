@@ -7,6 +7,89 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_structured_reminder_detect_decision_executes_visible_tool(monkeypatch):
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+    reminder_response.content = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="喝水",
+        trigger_at="2026-04-29T18:00:00+09:00",
+    )
+
+    calls = []
+
+    def fake_visible_reminder_tool(**kwargs):
+        calls.append(kwargs)
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=True,
+            result_summary="已创建提醒：喝水",
+            extra_notes="action=create",
+        )
+        return "已创建提醒：喝水"
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日14时27分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow.visible_reminder_tool,
+        "entrypoint",
+        fake_visible_reminder_tool,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock()
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("18:00提醒我喝水", session_state)
+
+    assert calls == [
+        {
+            "action": "create",
+            "title": "喝水",
+            "trigger_at": "2026-04-29T18:00:00+09:00",
+            "reminder_id": None,
+            "keyword": None,
+            "new_title": None,
+            "new_trigger_at": None,
+            "rrule": None,
+            "operations": None,
+        }
+    ]
+    assert result["session_state"]["tool_results"][0]["ok"] is True
+
+
+@pytest.mark.asyncio
 async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fast():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 

@@ -27,8 +27,10 @@ from agent.agno_agent.agents import (
     reminder_detect_agent,
     reminder_detect_retry_agent,
 )
+from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import (
     set_reminder_session_state,
+    visible_reminder_tool,
 )
 from agent.agno_agent.tools.context_retrieve_tool import context_retrieve_tool
 from agent.agno_agent.tools.calendar_import_handoff import (
@@ -824,6 +826,10 @@ class PrepareWorkflow:
                 )
 
             # 记录结果
+            self._execute_structured_reminder_decision(
+                reminder_response,
+                session_state,
+            )
             self._log_reminder_result(reminder_response, session_state)
 
         except asyncio.TimeoutError:
@@ -837,6 +843,10 @@ class PrepareWorkflow:
                 session_state,
             )
             if retry_response is not None:
+                self._execute_structured_reminder_decision(
+                    retry_response,
+                    session_state,
+                )
                 self._log_reminder_result(retry_response, session_state)
                 return
             append_tool_result(
@@ -887,6 +897,71 @@ class PrepareWorkflow:
                 workflow_name="PrepareWorkflow",
             )
         return retry_response
+
+    def _execute_structured_reminder_decision(
+        self,
+        reminder_response,
+        session_state: Dict[str, Any],
+    ) -> None:
+        decision = self._coerce_reminder_detect_decision(reminder_response)
+        if decision is None:
+            return
+
+        should_execute = (
+            decision.intent_type == "crud"
+            or decision.intent_type == "query"
+            and decision.action == "list"
+        )
+        if not should_execute:
+            logger.debug(
+                "[PrepareWorkflow] ReminderDetect structured decision did not require execution: %s",
+                decision.intent_type,
+            )
+            return
+
+        logger.debug(
+            "[PrepareWorkflow] Executing structured ReminderDetect decision: intent=%s action=%s",
+            decision.intent_type,
+            decision.action,
+        )
+        visible_reminder_tool.entrypoint(
+            action=decision.action or None,
+            title=decision.title or None,
+            trigger_at=decision.trigger_at or None,
+            reminder_id=decision.reminder_id or None,
+            keyword=decision.keyword or None,
+            new_title=decision.new_title or None,
+            new_trigger_at=decision.new_trigger_at or None,
+            rrule=decision.rrule or None,
+            operations=decision.operations or None,
+        )
+
+    def _coerce_reminder_detect_decision(
+        self,
+        reminder_response,
+    ) -> ReminderDetectDecision | None:
+        if not reminder_response:
+            return None
+        content = getattr(reminder_response, "content", None)
+        if isinstance(content, ReminderDetectDecision):
+            return content
+        if isinstance(content, dict):
+            try:
+                return ReminderDetectDecision.model_validate(content)
+            except Exception:
+                logger.warning(
+                    "[PrepareWorkflow] Invalid ReminderDetect structured decision: %s",
+                    content,
+                )
+                return None
+        if isinstance(content, str) and content.strip():
+            try:
+                return ReminderDetectDecision.model_validate_json(content)
+            except Exception:
+                logger.warning(
+                    "[PrepareWorkflow] Unparseable ReminderDetect structured decision"
+                )
+        return None
 
     def _renew_lock_if_needed(self, session_state: Dict[str, Any]) -> None:
         """如果有锁信息则续期"""

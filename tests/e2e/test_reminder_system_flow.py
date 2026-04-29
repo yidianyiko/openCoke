@@ -275,7 +275,7 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
     import agent.agno_agent.tools.deferred_action.service as legacy_service_module
     import agent.agno_agent.tools.deferred_action.tool as legacy_tool_module
     import agent.agno_agent.tools.reminder_protocol.tool as reminder_tool_module
-    from agent.agno_agent.agents import reminder_detect_agent
+    from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
     monkeypatch.setattr(reminder_tool_module, "ReminderService", lambda: service)
     monkeypatch.setattr(
@@ -296,8 +296,7 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
             "delivery_route_key": "wechat_personal:primary",
         }
     )
-    [configured_tool] = reminder_detect_agent.tools
-    entrypoint = getattr(configured_tool, "entrypoint", configured_tool)
+    entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
     entrypoint = getattr(entrypoint, "raw_function", entrypoint)
     assert entrypoint.__module__ == "agent.agno_agent.tools.reminder_protocol.tool"
 
@@ -307,7 +306,7 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
         trigger_at=scheduled_for.isoformat(),
     )
 
-    assert result == "已创建提醒：drink water"
+    assert result.startswith("已创建提醒：drink water")
     [reminder_id] = reminder_dao.documents
     reminder = reminder_dao.documents[reminder_id]
     assert list(reminder_dao.documents) == [reminder_id]

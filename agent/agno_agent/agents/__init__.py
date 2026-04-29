@@ -19,7 +19,6 @@ from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 from agent.prompt.agent_instructions_prompt import (
     DESCRIPTION_ORCHESTRATOR,
     DESCRIPTION_REMINDER_DETECT,
@@ -105,7 +104,7 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 
 # ========== 模块级预创建 Agent ==========
 
-# ReminderDetectAgent - 提醒检测，识别提醒意图并调用可见提醒工具
+# ReminderDetectAgent - 提醒检测，识别提醒意图并输出结构化提醒决策
 # Requirements: 4.2
 #
 # 设计原则（工具调用型 Agent）：
@@ -124,8 +123,6 @@ reminder_detect_agent = Agent(
     name="ReminderDetectAgent",
     model=create_llm_model(max_tokens=8000, role="prepare"),
     description=DESCRIPTION_REMINDER_DETECT,
-    tools=[visible_reminder_tool],
-    tool_call_limit=1,
     instructions=get_reminder_detect_instructions(),
     output_schema=ReminderDetectDecision,
     structured_outputs=True,
@@ -141,8 +138,6 @@ reminder_detect_retry_agent = Agent(
     name="ReminderDetectRetryAgent",
     model=create_llm_model(max_tokens=2000, role="prepare_fast"),
     description=DESCRIPTION_REMINDER_DETECT,
-    tools=[visible_reminder_tool],
-    tool_call_limit=1,
     instructions=get_reminder_detect_instructions(),
     output_schema=ReminderDetectDecision,
     structured_outputs=True,
