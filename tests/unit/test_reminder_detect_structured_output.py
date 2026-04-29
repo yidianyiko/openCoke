@@ -215,3 +215,12 @@ def test_reminder_detect_clarification_question_schema_keeps_current_language():
 
     assert "same language as the current user message" in description
     assert "not the profile, prior messages, or retrieved context" in description
+
+
+def test_reminder_detect_schedule_evidence_schema_rejects_vague_references():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    description = ReminderDetectDecision.model_fields["schedule_evidence"].description
+
+    assert "not vague references like" in description
+    assert "these time points" in description

@@ -102,7 +102,9 @@ class ReminderDetectDecision(BaseModel):
         description=(
             "Exact user wording that authorizes explicit_occurrences or "
             "explicit_cadence. For cadence, this must be the concrete "
-            "frequency/interval text, not a vague supervision request."
+            "frequency/interval text, not a vague supervision request. Use "
+            "concrete time or interval wording, not vague references like "
+            "'these time points'."
         ),
     )
     operations: list[ReminderOperation] = Field(

@@ -78,6 +78,11 @@ Rules:
 - Every batch create must include top-level schedule_basis and schedule_evidence
   before operations. Omit optional empty string fields instead of outputting
   blank reminder_id, keyword, new_title, or new_trigger_at values.
+- Never return action="batch" with operations=[]. If no operation is safely
+  executable, return clarify with no executable reminder fields.
+- References like "these time points" or "上述时间" are not enough schedule_evidence
+  unless the evidence text itself includes concrete clock
+  times or a concrete interval/frequency.
 - If an explicit occurrence list contains both past and future local times for
   today, keep the concrete future occurrences executable and leave past
   occurrences out of the create operations.
