@@ -999,6 +999,7 @@ def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
     output_text = combined_output_text(outputs)
     if re.search(
         r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
+        r"什么频率|以什么频率|"
         r"每隔多久|多久一次|多长时间一次|提醒频率|提醒间隔|"
         r"什么提醒|哪条提醒|哪个提醒|"
         r"(?:是说|你是说).{0,30}吗|"
