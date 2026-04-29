@@ -273,6 +273,10 @@
     "245": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder."
+    },
+    "247": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user complains that an expected daily reminder did not happen. This is a reminder status/diagnostic query, not a new create request."
     }
   }
 }
