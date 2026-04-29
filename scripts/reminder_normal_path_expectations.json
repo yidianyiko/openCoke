@@ -59,6 +59,13 @@
     "107": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder."
+    },
+    "109": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit reminder creation request with evening clock time.",
+      "expected_creates": [
+        {"title": "出门", "local_time": "20:10:00", "recurring": false}
+      ]
     }
   }
 }
