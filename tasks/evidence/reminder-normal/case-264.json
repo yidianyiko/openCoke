@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 264,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-24e730555a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "42accb919222fb9159172d7b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 264,
+      "input": "如果可以的话 你8:40提醒我一下回复刘冲、Eva，约一下袁琳、浩然",
+      "user_id": "42accb919222fb9159172d7b",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f1eee7b4d41e697a7ea58c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1eeefa101647c6278ce75",
+          "expect_output_timestamp": 1777463023,
+          "handled_timestamp": 1777463023,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：回复刘冲、Eva，约袁琳、浩然（2026-04-30 08:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-24e730555a",
+            "case_index": 264,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693714fdfa6e02049481c8a2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-24e730555a-case-264",
+              "business_conversation_key": "reminder-normal-24e730555a-case-264",
+              "causal_inbound_event_id": "reminder-normal-24e730555a-case-264-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "42accb919222fb9159172d7b"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1eeefa101647c6278ce73",
+          "owner_user_id": "42accb919222fb9159172d7b",
+          "title": "回复刘冲、Eva，约袁琳、浩然",
+          "schedule": {
+            "anchor_at": "2026-04-29T23:40:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "08:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1eee7a101647c6278ce6c",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T23:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:43:43.303000+00:00",
+          "updated_at": "2026-04-29T11:43:43.303000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}
