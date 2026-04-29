@@ -269,6 +269,10 @@
     "238": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time."
+    },
+    "245": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder."
     }
   }
 }
