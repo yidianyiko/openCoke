@@ -265,6 +265,10 @@
     "231": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."
+    },
+    "238": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time."
     }
   }
 }
