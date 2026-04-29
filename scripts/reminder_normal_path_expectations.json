@@ -221,6 +221,10 @@
     "200": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time."
+    },
+    "205": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time."
     }
   }
 }
