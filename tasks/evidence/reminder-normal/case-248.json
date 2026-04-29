@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 248,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-11c489b463",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "589569a81a072436a88cd86e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 248,
+      "input": "六点提醒我学习",
+      "user_id": "589569a81a072436a88cd86e",
+      "original_from_user": "69342d804bf7878f04114b0b",
+      "input_message_id": "69f1e85d5706463a28f855f9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e864d65ae1eb40c94a79",
+          "expect_output_timestamp": 1777461348,
+          "handled_timestamp": 1777461348,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：学习（2026-04-30 18:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-11c489b463",
+            "case_index": 248,
+            "original_from_user": "69342d804bf7878f04114b0b",
+            "source_id": "69369ff6fa6e02049481c83b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-11c489b463-case-248",
+              "business_conversation_key": "reminder-normal-11c489b463-case-248",
+              "causal_inbound_event_id": "reminder-normal-11c489b463-case-248-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "589569a81a072436a88cd86e"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e864d65ae1eb40c94a77",
+          "owner_user_id": "589569a81a072436a88cd86e",
+          "title": "学习",
+          "schedule": {
+            "anchor_at": "2026-04-30T09:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e85ed65ae1eb40c94a70",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T09:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:15:48.122000+00:00",
+          "updated_at": "2026-04-29T11:15:48.122000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.014
+    }
+  ]
+}
