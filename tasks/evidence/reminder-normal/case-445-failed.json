@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 445,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2a360efa9e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6b6dc9e58730b4225d6596ff"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 445,
+        "input": "你明天提醒我，需要和今天的包车司机师傅们沟通，修改时间提前",
+        "user_id": "6b6dc9e58730b4225d6596ff",
+        "original_from_user": "692fb38c4bf7878f0411476c",
+        "input_message_id": "69f24cb57d34a50b4b4f9f79",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24cbf4165c48365009216",
+            "expect_output_timestamp": 1777487039,
+            "handled_timestamp": 1777487039,
+            "status": "pending",
+            "message_type": "text",
+            "message": "请问明天什么时间提醒你和司机师傅们沟通呢？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-2a360efa9e",
+              "case_index": 445,
+              "original_from_user": "692fb38c4bf7878f0411476c",
+              "source_id": "694147b0a6d5f2cba9a5578a",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-2a360efa9e-case-445",
+                "business_conversation_key": "reminder-normal-2a360efa9e-case-445",
+                "causal_inbound_event_id": "reminder-normal-2a360efa9e-case-445-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "6b6dc9e58730b4225d6596ff"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.018
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 445,
+      "input": "你明天提醒我，需要和今天的包车司机师傅们沟通，修改时间提前",
+      "user_id": "6b6dc9e58730b4225d6596ff",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f24cb57d34a50b4b4f9f79",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24cbf4165c48365009216",
+          "expect_output_timestamp": 1777487039,
+          "handled_timestamp": 1777487039,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问明天什么时间提醒你和司机师傅们沟通呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2a360efa9e",
+            "case_index": 445,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "694147b0a6d5f2cba9a5578a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2a360efa9e-case-445",
+              "business_conversation_key": "reminder-normal-2a360efa9e-case-445",
+              "causal_inbound_event_id": "reminder-normal-2a360efa9e-case-445-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6b6dc9e58730b4225d6596ff"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.018
+    }
+  ]
+}

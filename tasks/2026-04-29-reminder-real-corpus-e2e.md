@@ -192,6 +192,8 @@ reminders can fire without waiting for wall-clock time.
   “come back/find me at 8 PM” and tightened ReminderDetect instructions for that
   reminder/contact class. Several attempts alternated between create, clarify,
   and unconfirmed chat before the prompt update and final passing rerun.
+- `case445` added a clarification expectation for a date-only “tomorrow”
+  reminder request without a clock time.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

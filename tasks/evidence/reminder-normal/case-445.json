@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 445,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6c53e77f1f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "bc7d9d3811be389021e03a70"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 445,
+      "input": "你明天提醒我，需要和今天的包车司机师傅们沟通，修改时间提前",
+      "user_id": "bc7d9d3811be389021e03a70",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f24ce61fc83242f73374ab",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f24cf14165c48365009225",
+          "expect_output_timestamp": 1777487089,
+          "handled_timestamp": 1777487089,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明天什么时间提醒你和包车司机师傅们沟通呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6c53e77f1f",
+            "case_index": 445,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "694147b0a6d5f2cba9a5578a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6c53e77f1f-case-445",
+              "business_conversation_key": "reminder-normal-6c53e77f1f-case-445",
+              "causal_inbound_event_id": "reminder-normal-6c53e77f1f-case-445-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "bc7d9d3811be389021e03a70"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.018
+    }
+  ]
+}
