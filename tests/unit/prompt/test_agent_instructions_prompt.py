@@ -34,6 +34,8 @@ def test_reminder_detect_instructions_do_not_create_for_schedule_statement_only(
 
     assert "A plan or schedule statement is not enough" in instructions
     assert "七点半开始正式学习" in instructions
+    assert "return time" in instructions
+    assert "之后吃饭，8点回来" in instructions
 
 
 def test_reminder_detect_instructions_deduplicate_recurring_batch_creates():
