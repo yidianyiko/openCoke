@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 280,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f7ab75deaf",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "c134950cdce46e2fe2aed7e8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 280,
+      "input": "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+      "user_id": "c134950cdce46e2fe2aed7e8",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "69f1f20c97b3d1219cfcd96e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1f22da101647c6278cfb5",
+          "expect_output_timestamp": 1777463825,
+          "handled_timestamp": 1777463825,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈，我可不是那种设了就不管的闹钟。我得确认你收到提醒并且真的行动了才行，不然光响不做事那有什么用呢对吧？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f7ab75deaf",
+            "case_index": 280,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "69383405fa6e02049481c91d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f7ab75deaf-case-280",
+              "business_conversation_key": "reminder-normal-f7ab75deaf-case-280",
+              "causal_inbound_event_id": "reminder-normal-f7ab75deaf-case-280-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c134950cdce46e2fe2aed7e8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 34.058
+    }
+  ]
+}
