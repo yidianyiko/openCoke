@@ -116,6 +116,23 @@ def test_reminder_detect_schema_rejects_batch_without_schedule_basis():
         )
 
 
+def test_reminder_detect_schema_rejects_single_create_batch_without_schedule_basis():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "练腹肌",
+                    "trigger_at": "2026-04-29T19:00:00+09:00",
+                }
+            ],
+        )
+
+
 def test_reminder_detect_schema_rejects_non_concrete_cadence_evidence():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

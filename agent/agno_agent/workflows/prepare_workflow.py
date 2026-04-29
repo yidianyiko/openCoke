@@ -1076,14 +1076,11 @@ class PrepareWorkflow:
         multi_clause_reminder_count = self._multi_clause_reminder_count(current_message)
         if decision.action == "create" and multi_clause_reminder_count > 1:
             return "multiple reminder clauses require batch operations, not a single create"
-        if decision.schedule_basis != "explicit_occurrences" or not evidence:
-            return ""
-        evidence_text = self._compact_text(evidence)
         operations = (
             [
                 operation
                 for operation in decision.operations
-                if operation.action == "create"
+                if self._operation_action(operation) == "create"
             ]
             if decision.action == "batch"
             else []
@@ -1092,23 +1089,40 @@ class PrepareWorkflow:
             1 <= len(operations) < multi_clause_reminder_count
         ):
             return "multiple reminder clauses require every safe clause in batch operations"
+        if decision.schedule_basis != "explicit_occurrences" or not evidence:
+            return ""
+        evidence_text = self._compact_text(evidence)
         for operation in operations:
             if not any(
                 variant in evidence_text
-                for variant in self._clock_time_variants(operation.trigger_at)
+                for variant in self._clock_time_variants(
+                    self._operation_trigger_at(operation)
+                )
             ):
                 return (
                     "explicit_occurrences evidence does not contain every create time"
                 )
             if self._clock_time_is_only_range_boundary(
                 evidence_text,
-                operation.trigger_at,
+                self._operation_trigger_at(operation),
             ):
                 return (
                     "explicit_occurrences evidence uses a time range boundary, "
                     "not a concrete reminder time"
                 )
         return ""
+
+    @staticmethod
+    def _operation_action(operation: Any) -> str:
+        if isinstance(operation, dict):
+            return str(operation.get("action") or "")
+        return str(getattr(operation, "action", "") or "")
+
+    @staticmethod
+    def _operation_trigger_at(operation: Any) -> str:
+        if isinstance(operation, dict):
+            return str(operation.get("trigger_at") or "")
+        return str(getattr(operation, "trigger_at", "") or "")
 
     @staticmethod
     def _compact_text(value: str) -> str:

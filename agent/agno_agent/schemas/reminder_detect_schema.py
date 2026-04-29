@@ -196,7 +196,9 @@ class ReminderDetectDecision(BaseModel):
             bool(operation.rrule) for operation in create_operations
         )
         requires_authorized_schedule = (
-            has_recurring_create or bool(self.deadline_at) or len(create_operations) > 1
+            has_recurring_create
+            or bool(self.deadline_at)
+            or (self.action == "batch" and bool(create_operations))
         )
 
         if not requires_authorized_schedule:
