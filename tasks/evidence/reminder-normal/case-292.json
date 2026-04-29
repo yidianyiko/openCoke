@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 292,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fac07b4dff",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a5f114bed722c0237c42e581"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 292,
+      "input": "可以呀，明天测试多线程能力，和提醒功能增强",
+      "user_id": "a5f114bed722c0237c42e581",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69f20a2274d068299ebfb8b5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f20a2ca0a475d014b232ae",
+          "expect_output_timestamp": 1777469994,
+          "handled_timestamp": 1777469994,
+          "status": "pending",
+          "message_type": "text",
+          "message": "行啊，多线程能力和提醒功能增强，听起来挺靠谱的。那你明天大概几点开始搞？要不要我提前提醒你一下？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fac07b4dff",
+            "case_index": 292,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "693997a530444b69529b581d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fac07b4dff-case-292",
+              "business_conversation_key": "reminder-normal-fac07b4dff-case-292",
+              "causal_inbound_event_id": "reminder-normal-fac07b4dff-case-292-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a5f114bed722c0237c42e581"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

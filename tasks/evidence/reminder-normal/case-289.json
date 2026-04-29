@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 289,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a6ecae359c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2b6e1d5f0aec0c6f56b56b31"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 289,
+      "input": "然后再book一个22号早上9点提醒我给医院打电话预约手术",
+      "user_id": "2b6e1d5f0aec0c6f56b56b31",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f208a189cac32ff2cc8428",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f208a98db387734dd084b7",
+          "expect_output_timestamp": 1777469609,
+          "handled_timestamp": 1777469609,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：给医院打电话预约手术（2026-05-22 09:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a6ecae359c",
+            "case_index": 289,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "693914e66f7a48c66293fe00",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a6ecae359c-case-289",
+              "business_conversation_key": "reminder-normal-a6ecae359c-case-289",
+              "causal_inbound_event_id": "reminder-normal-a6ecae359c-case-289-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2b6e1d5f0aec0c6f56b56b31"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f208a98db387734dd084b5",
+          "owner_user_id": "2b6e1d5f0aec0c6f56b56b31",
+          "title": "给医院打电话预约手术",
+          "schedule": {
+            "anchor_at": "2026-05-22T00:00:00+00:00",
+            "local_date": "2026-05-22",
+            "local_time": "09:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f208a18db387734dd084ae",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-22T00:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T13:33:29.060000+00:00",
+          "updated_at": "2026-04-29T13:33:29.060000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.015
+    }
+  ]
+}

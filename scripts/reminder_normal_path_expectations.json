@@ -317,6 +317,10 @@
     "288": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded later today but gives no concrete clock time. The agent should ask for the exact time instead of inventing one."
+    },
+    "292": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder."
     }
   }
 }

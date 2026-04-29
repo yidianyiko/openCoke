@@ -258,6 +258,16 @@ Still follow the JSON output format requirements above.
 """
 
 
+CONTEXTPROMPT_提醒无需操作 = """### System Notice: ReminderDetect No Reminder Action
+ReminderDetect completed and found no reminder operation to run for the latest message.
+
+Reply goal:
+- Reply as ordinary conversation, or ask whether the user wants a reminder.
+- Only say a reminder will happen after a successful reminder tool result is present.
+Still follow the JSON output format requirements above.
+"""
+
+
 # ========== Web Search ==========
 
 CONTEXTPROMPT_联网搜索结果 = """### Web Search Results

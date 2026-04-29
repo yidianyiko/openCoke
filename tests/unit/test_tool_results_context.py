@@ -560,6 +560,48 @@ async def test_chat_workflow_skips_pending_notice_after_no_action_reminder_detec
 
 
 @pytest.mark.asyncio
+async def test_chat_workflow_adds_no_action_reminder_context_after_discussion_detect(
+    monkeypatch,
+):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "prepare_reminder_detect_no_action": True,
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日15时54分",
+                "input_messages_str": "可以呀，明天测试多线程能力，和提醒功能增强",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+    }
+
+    events = [
+        event
+        async for event in workflow.run_stream(
+            "可以呀，明天测试多线程能力，和提醒功能增强", session_state
+        )
+    ]
+
+    assert events[-1]["type"] == "done"
+    assert (
+        "### System Notice: ReminderDetect No Reminder Action" in workflow.agent.input
+    )
+    assert (
+        "Only say a reminder will happen after a successful reminder tool result"
+        in (workflow.agent.input)
+    )
+
+
+@pytest.mark.asyncio
 async def test_chat_workflow_directly_returns_reminder_tool_result(
     monkeypatch,
 ):

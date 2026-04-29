@@ -1,0 +1,117 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 292,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-cdd2531f89",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9b3726553b736ee6eab63d9c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1,
+      "user_output_implies_unconfirmed_reminder": 1
+    },
+    "failures": [
+      {
+        "index": 292,
+        "input": "可以呀，明天测试多线程能力，和提醒功能增强",
+        "user_id": "9b3726553b736ee6eab63d9c",
+        "original_from_user": "692c14aaa538f0baad5561b3",
+        "input_message_id": "69f208ebcde6bd9681212722",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "user_output_implies_unconfirmed_reminder"
+        ],
+        "outputs": [
+          {
+            "_id": "69f208fa8db387734dd084e3",
+            "expect_output_timestamp": 1777469685,
+            "handled_timestamp": 1777469685,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好嘞，明天要测多线程和提醒增强，那我得做点准备工作。你打算明天几点开始搞？我提前提醒你，顺便帮你规划一下流程，从哪个模块先测起？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-cdd2531f89",
+              "case_index": 292,
+              "original_from_user": "692c14aaa538f0baad5561b3",
+              "source_id": "693997a530444b69529b581d",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-cdd2531f89-case-292",
+                "business_conversation_key": "reminder-normal-cdd2531f89-case-292",
+                "causal_inbound_event_id": "reminder-normal-cdd2531f89-case-292-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "9b3726553b736ee6eab63d9c"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 16.029
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 292,
+      "input": "可以呀，明天测试多线程能力，和提醒功能增强",
+      "user_id": "9b3726553b736ee6eab63d9c",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69f208ebcde6bd9681212722",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "user_output_implies_unconfirmed_reminder"
+      ],
+      "outputs": [
+        {
+          "_id": "69f208fa8db387734dd084e3",
+          "expect_output_timestamp": 1777469685,
+          "handled_timestamp": 1777469685,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，明天要测多线程和提醒增强，那我得做点准备工作。你打算明天几点开始搞？我提前提醒你，顺便帮你规划一下流程，从哪个模块先测起？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-cdd2531f89",
+            "case_index": 292,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "693997a530444b69529b581d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-cdd2531f89-case-292",
+              "business_conversation_key": "reminder-normal-cdd2531f89-case-292",
+              "causal_inbound_event_id": "reminder-normal-cdd2531f89-case-292-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9b3726553b736ee6eab63d9c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.029
+    }
+  ]
+}

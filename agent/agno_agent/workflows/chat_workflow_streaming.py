@@ -34,6 +34,7 @@ from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_当前的人物关系,
     CONTEXTPROMPT_当前目标,
     CONTEXTPROMPT_提醒未执行,
+    CONTEXTPROMPT_提醒无需操作,
     CONTEXTPROMPT_时间,
     CONTEXTPROMPT_最新聊天消息,
     CONTEXTPROMPT_最近的历史对话,
@@ -123,6 +124,7 @@ class StreamingChatWorkflow:
 
     # V2.8 新增：提醒未执行提示模板（当检测到提醒意图但工具未调用时使用）
     userp_template_reminder_not_executed = CONTEXTPROMPT_提醒未执行
+    userp_template_reminder_no_action = CONTEXTPROMPT_提醒无需操作
 
     # 消息分段注意事项模板（用于主动消息和提醒消息）
     userp_template_notice_segmentation = NOTICE_常规注意事项_分段消息
@@ -267,8 +269,16 @@ class StreamingChatWorkflow:
         # V2.8 guard：OrchestratorAgent 判断需要提醒检测，但工具未执行时，
         # 使用 CONTEXTPROMPT_提醒未执行 提示 LLM 不要假设提醒已创建
         reminder_not_executed_context = ""
+        reminder_no_action_context = ""
         orchestrator = session_state.get("orchestrator", {})
         need_reminder = orchestrator.get("need_reminder_detect", False)
+        if (
+            need_reminder
+            and message_source == "user"
+            and session_state.get("prepare_reminder_detect_no_action")
+            and not _has_reminder_tool_result(session_state)
+        ):
+            reminder_no_action_context = self.userp_template_reminder_no_action
         if (
             need_reminder
             and message_source == "user"
@@ -380,6 +390,8 @@ class StreamingChatWorkflow:
             )
             if reminder_not_executed_context:
                 rendered_userp = rendered_userp + "\n" + reminder_not_executed_context
+            if reminder_no_action_context:
+                rendered_userp = rendered_userp + "\n" + reminder_no_action_context
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message
