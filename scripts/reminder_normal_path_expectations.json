@@ -379,6 +379,10 @@
     "359": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a time-bounded study plan but does not explicitly ask for a reminder; the agent should ask whether a reminder is wanted instead of promising an uncreated reminder."
+    },
+    "364": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
     }
   }
 }

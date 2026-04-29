@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 364,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9ea17344d7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "0a0c4836bd924bb8edbbdbfb"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 364,
+        "input": "刚刚16：58分，我又开始学习了。",
+        "user_id": "0a0c4836bd924bb8edbbdbfb",
+        "original_from_user": "693ae9de68bf5e9703e8ea69",
+        "input_message_id": "69f228d58358a26953237120",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f228deb537bb39a0c6cf3c",
+            "expect_output_timestamp": 1777477853,
+            "handled_timestamp": 1777477853,
+            "status": "pending",
+            "message_type": "text",
+            "message": "那开始了快3分钟了，状态怎么样？进入节奏了吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-9ea17344d7",
+              "case_index": 364,
+              "original_from_user": "693ae9de68bf5e9703e8ea69",
+              "source_id": "693d2b7a09af1bf513e837de",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-9ea17344d7-case-364",
+                "business_conversation_key": "reminder-normal-9ea17344d7-case-364",
+                "causal_inbound_event_id": "reminder-normal-9ea17344d7-case-364-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "0a0c4836bd924bb8edbbdbfb"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.018
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 364,
+      "input": "刚刚16：58分，我又开始学习了。",
+      "user_id": "0a0c4836bd924bb8edbbdbfb",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f228d58358a26953237120",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f228deb537bb39a0c6cf3c",
+          "expect_output_timestamp": 1777477853,
+          "handled_timestamp": 1777477853,
+          "status": "pending",
+          "message_type": "text",
+          "message": "那开始了快3分钟了，状态怎么样？进入节奏了吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9ea17344d7",
+            "case_index": 364,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693d2b7a09af1bf513e837de",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9ea17344d7-case-364",
+              "business_conversation_key": "reminder-normal-9ea17344d7-case-364",
+              "causal_inbound_event_id": "reminder-normal-9ea17344d7-case-364-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0a0c4836bd924bb8edbbdbfb"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.018
+    }
+  ]
+}
