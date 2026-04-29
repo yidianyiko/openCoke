@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 175,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-80254a765c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "4bac34f2d789df9a2771d53b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 175,
+      "input": "今天上午上班",
+      "user_id": "4bac34f2d789df9a2771d53b",
+      "original_from_user": "692dba6f64d834c3c061653b",
+      "input_message_id": "69f19cd8abefd1383b12348a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19ce2788e46e5b6346c29",
+          "expect_output_timestamp": 1777442014,
+          "handled_timestamp": 1777442014,
+          "status": "pending",
+          "message_type": "text",
+          "message": "今天上午上班？现在都已经下午快3点了，这是已经上班了，还是说下午有什么安排？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-80254a765c",
+            "case_index": 175,
+            "original_from_user": "692dba6f64d834c3c061653b",
+            "source_id": "693235b94bf7878f04114a30",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-80254a765c-case-175",
+              "business_conversation_key": "reminder-normal-80254a765c-case-175",
+              "causal_inbound_event_id": "reminder-normal-80254a765c-case-175-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4bac34f2d789df9a2771d53b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.018
+    }
+  ]
+}
