@@ -337,6 +337,10 @@
     "305": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user explicitly asks for a reminder but gives content only and no concrete trigger time. The agent should ask when to remind instead of creating an unscheduled reminder."
+    },
+    "306": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives an approximate reminder time but no reminder content. The agent should ask what to remind about instead of creating a reminder with an empty or invented title."
     }
   }
 }

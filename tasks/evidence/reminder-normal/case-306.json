@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 306,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a35db0e0b1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "afa5ca0f3ea55a9de3bf4901"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 306,
+      "input": "晚一点 十点左右提醒我吧",
+      "user_id": "afa5ca0f3ea55a9de3bf4901",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "69f215f43d3e1b94155617cf",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2166843bf3c0b118fa263",
+          "expect_output_timestamp": 1777473123,
+          "handled_timestamp": 1777473123,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，提醒还没设定好。请问你要我提醒什么内容呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a35db0e0b1",
+            "case_index": 306,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693a846cfe7d911442ed1f82",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a35db0e0b1-case-306",
+              "business_conversation_key": "reminder-normal-a35db0e0b1-case-306",
+              "causal_inbound_event_id": "reminder-normal-a35db0e0b1-case-306-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "afa5ca0f3ea55a9de3bf4901"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 116.199
+    }
+  ]
+}
