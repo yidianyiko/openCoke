@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 340,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-265ecd83d4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e2ea3254dd576ad98afe1e13"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 340,
+      "input": "12月12号下午5点01提醒我早饭",
+      "user_id": "e2ea3254dd576ad98afe1e13",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2205bb9258257ceaf9ca3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f220625f50cb4ba4c4fe0f",
+          "expect_output_timestamp": 1777475682,
+          "handled_timestamp": 1777475682,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：早饭（2026-12-12 17:01）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-265ecd83d4",
+            "case_index": 340,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bd99309af1bf513e836ad",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-265ecd83d4-case-340",
+              "business_conversation_key": "reminder-normal-265ecd83d4-case-340",
+              "causal_inbound_event_id": "reminder-normal-265ecd83d4-case-340-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e2ea3254dd576ad98afe1e13"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f220625f50cb4ba4c4fe0d",
+          "owner_user_id": "e2ea3254dd576ad98afe1e13",
+          "title": "早饭",
+          "schedule": {
+            "anchor_at": "2026-12-12T08:01:00+00:00",
+            "local_date": "2026-12-12",
+            "local_time": "17:01:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2205b5f50cb4ba4c4fe06",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-12-12T08:01:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T15:14:42.375000+00:00",
+          "updated_at": "2026-04-29T15:14:42.375000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}
