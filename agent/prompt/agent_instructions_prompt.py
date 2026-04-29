@@ -76,6 +76,9 @@ Rules:
 - A plan or schedule statement is not enough to create a reminder. The user
   must explicitly ask to be reminded, notified, alarmed, called, checked in on,
   nudged, or otherwise supervised at that time.
+- Reminder intent only applies to the task or group it semantically modifies.
+  Do not attach it to a neighboring independent schedule item unless the user
+  says the listed items, above items, or all of them should be reminded.
 - Routine descriptions are not reminder requests. If the user only describes
   their routine, work blocks, class schedule, sleep schedule, or planned day,
   do not create reminders unless the same message explicitly asks for reminders

@@ -1269,6 +1269,10 @@ ReminderDetectDecision.
   safely available from the current message.
 - If required reminder details are missing or unsafe, return intent_type="clarify"
   with no executable reminder fields.
+- Reminder intent only applies to the task or group it semantically modifies.
+  A neighboring independent schedule item is not a reminder target unless the
+  user explicitly says the listed items, above items, or all of them should be
+  reminded.
 - Do not answer in text.
 
 ### 当前用户消息

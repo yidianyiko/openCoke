@@ -141,3 +141,10 @@ def test_reminder_detect_instructions_clarify_vague_window_cadence():
     assert "interval/frequency or lists the occurrence times" in instructions
     assert "ask for the" in instructions
     assert "cadence" in instructions
+
+
+def test_reminder_detect_instructions_scope_reminder_intent_to_modified_tasks():
+    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
+
+    assert "semantically modifies" in instructions
+    assert "neighboring independent schedule item" in instructions
