@@ -34,6 +34,12 @@ DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json
 UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS = float(
     os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "20")
 )
+CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS = float(
+    os.environ.get(
+        "REMINDER_NORMAL_PATH_CLARIFICATION_JUDGE_TIMEOUT_SECONDS",
+        os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "20"),
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -593,6 +599,7 @@ def validate_observations(
     outputs: list[dict[str, Any]],
     reminders: list[dict[str, Any]],
     *,
+    clarification_judge: Callable[[str, str], bool] | None = None,
     unconfirmed_reminder_judge: Callable[[str], bool] | None = None,
 ) -> list[str]:
     errors: list[str] = []
@@ -613,7 +620,11 @@ def validate_observations(
     if expectation in {"clarify", "capability", "discussion", "query"}:
         if reminders:
             errors.append("unexpected_reminder_created")
-        if expectation == "clarify" and not output_mentions_clarification(outputs):
+        if expectation == "clarify" and not output_mentions_clarification(
+            outputs,
+            case_input=case.input,
+            judge=clarification_judge,
+        ):
             errors.append("user_output_missing_clarification")
         if expectation == "clarify" and output_implies_unconfirmed_reminder(
             outputs,
@@ -995,33 +1006,16 @@ def combined_output_text(outputs: list[dict[str, Any]]) -> str:
     )
 
 
-def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
+def output_mentions_clarification(
+    outputs: list[dict[str, Any]],
+    *,
+    case_input: str = "",
+    judge: Callable[[str, str], bool] | None = None,
+) -> bool:
     output_text = combined_output_text(outputs)
-    if re.search(
-        r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
-        r"什么频率|以什么频率|"
-        r"每隔多久|每隔多长时间|多久一次|多久提醒.{0,4}一次|多长时间一次|提醒频率|提醒间隔|"
-        r"什么提醒|哪条提醒|哪个提醒|"
-        r"(?:是说|你是说).{0,30}吗|"
-        r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
-        r"(?:是指|你是说).{0,30}(?:取消|删除|不用叫|不用提醒).{0,8}吗|"
-        r"(?:取消|删除).{0,12}(?:哪一个|哪个|哪条)|"
-        r"when|what time)",
-        output_text,
-        re.IGNORECASE,
-    ):
-        return True
-
-    return bool(
-        re.search(
-            r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔).{0,30}"
-            r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢|想按)|"
-            r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢|想按).{0,30}"
-            r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔)",
-            output_text,
-            re.IGNORECASE,
-        )
-    )
+    if not output_text.strip():
+        return False
+    return bool((judge or run_clarification_output_judge)(case_input, output_text))
 
 
 def output_mentions_crud_operation_clarification(
@@ -1066,8 +1060,122 @@ class UnconfirmedReminderJudgeResponse(BaseModel):
     reason: str = Field(default="", description="Brief reason for the judgment.")
 
 
+class ClarificationOutputJudgeResponse(BaseModel):
+    is_clarification: bool = Field(
+        description=(
+            "True when the assistant asks the user to provide, choose, or confirm "
+            "missing reminder details instead of claiming the reminder is set."
+        )
+    )
+    reason: str = Field(default="", description="Brief reason for the judgment.")
+
+
 class UnconfirmedReminderJudgeTimeout(Exception):
     pass
+
+
+class ClarificationOutputJudgeTimeout(Exception):
+    pass
+
+
+def run_clarification_output_judge(case_input: str, output_text: str) -> bool:
+    prompt = build_clarification_output_judge_prompt(case_input, output_text)
+    try:
+        return _run_clarification_output_judge_with_timeout(prompt)
+    except ClarificationOutputJudgeTimeout:
+        print("clarification output LLM judge timed out", file=sys.stderr)
+        return False
+    except Exception as exc:
+        print(f"clarification output LLM judge failed: {exc}", file=sys.stderr)
+        return False
+
+
+def build_clarification_output_judge_prompt(case_input: str, output_text: str) -> str:
+    return f"""Judge whether this assistant reply is a clarification for a reminder request.
+
+Context:
+- The user input may mention reminders, schedules, cancellations, or ambiguous plans.
+- A clarification asks the user to provide, choose, or confirm missing information
+  needed before a reminder CRUD action can safely execute.
+- Missing information may include date, time, cadence/frequency, reminder content,
+  reminder target, whether a secondary task should also be reminded, or which
+  existing reminder to modify/cancel/complete.
+- A proposed option is still a clarification if it asks the user to confirm it.
+- Return false for pure acknowledgements, unrelated chat, capability explanations,
+  or claims/promises that the reminder will happen without further confirmation.
+- Answer with the structured schema only.
+
+User input:
+{case_input}
+
+Assistant reply:
+{output_text}"""
+
+
+def _parse_clarification_output_judge_response(response) -> bool:
+    content = getattr(response, "content", None)
+    if isinstance(content, ClarificationOutputJudgeResponse):
+        return content.is_clarification
+    if isinstance(content, dict):
+        return bool(content.get("is_clarification"))
+    try:
+        parsed = ClarificationOutputJudgeResponse.model_validate_json(str(content))
+    except Exception:
+        print(
+            "clarification output LLM judge returned unparsable output",
+            file=sys.stderr,
+        )
+        return False
+    return parsed.is_clarification
+
+
+def _run_clarification_output_judge_with_timeout(prompt: str) -> bool:
+    timeout_seconds = max(0.01, CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS)
+    context = get_context("fork")
+    queue = context.Queue()
+    process = context.Process(
+        target=_clarification_output_judge_worker,
+        args=(prompt, queue),
+    )
+    process.start()
+    process.join(timeout_seconds)
+    if process.is_alive():
+        process.terminate()
+        process.join(1)
+        raise ClarificationOutputJudgeTimeout()
+    if queue.empty():
+        raise RuntimeError("clarification output LLM judge produced no result")
+    status, payload = queue.get()
+    if status == "ok":
+        return bool(payload)
+    raise RuntimeError(str(payload))
+
+
+def _clarification_output_judge_worker(prompt: str, queue) -> None:
+    try:
+        response = _clarification_output_judge_agent().run(prompt)
+        queue.put(("ok", _parse_clarification_output_judge_response(response)))
+    except Exception as exc:
+        queue.put(("error", repr(exc)))
+
+
+@lru_cache(maxsize=1)
+def _clarification_output_judge_agent():
+    from agno.agent import Agent
+
+    return Agent(
+        id="reminder-normal-path-clarification-output-judge",
+        name="ReminderNormalPathClarificationOutputJudge",
+        model=_create_unconfirmed_reminder_judge_model(max_tokens=500),
+        instructions=(
+            "You are an evaluation judge. Decide only whether an assistant reply "
+            "is asking for missing information or confirmation before a reminder "
+            "CRUD action. Do not judge whether the final reminder would be correct."
+        ),
+        output_schema=ClarificationOutputJudgeResponse,
+        use_json_mode=True,
+        markdown=False,
+    )
 
 
 def output_implies_unconfirmed_reminder(

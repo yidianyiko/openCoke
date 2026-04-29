@@ -90,6 +90,10 @@ Do not let normal-path fixes become another case-by-case parser.
   must remain an LLM judge boundary, not a handwritten regex blacklist. If it is
   wrong, fix the judge rubric or fixture evidence rather than adding more regex
   phrases.
+- Clarification-output detection in the normal-path eval must also stay on an
+  LLM judge boundary. Do not grow `output_mentions_clarification` with more
+  natural-language regex phrases; fix schema constraints, fixture
+  classification/counterexamples, or the judge rubric instead.
 - Treat title matching as shared evaluation policy. Add `title_variants` only when the variant is a legitimate semantic paraphrase that the shared normalizer cannot reasonably infer; otherwise improve the normalizer or expected-title rule once for the class.
 - For cancellation/stop/no-disturb requests, route the turn to ReminderDetectAgent and let the LLM decide whether to delete or clarify. Do not convert broad quieting language into a create request or ask for create time/content.
 - Every change to `chat_contextprompt.py`, ReminderDetectAgent instructions, or

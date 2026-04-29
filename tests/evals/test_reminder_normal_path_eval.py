@@ -7,9 +7,17 @@ from bson import ObjectId
 
 from scripts import eval_reminder_normal_path_cases as normal_eval
 
+_ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE = normal_eval.run_clarification_output_judge
+
 
 @pytest.fixture(autouse=True)
-def disable_live_unconfirmed_reminder_judge(monkeypatch):
+def disable_live_reminder_eval_judges(monkeypatch):
+    def clarification_judge(_case_input, output_text):
+        return any(marker in output_text for marker in ("?", "？", "吗", "呢"))
+
+    monkeypatch.setattr(
+        normal_eval, "run_clarification_output_judge", clarification_judge
+    )
     monkeypatch.setattr(
         normal_eval, "run_unconfirmed_reminder_judge", lambda text: False
     )
@@ -838,6 +846,90 @@ def test_clarification_output_accepts_how_often_remind_you_wording():
     assert errors == []
 
 
+def test_clarification_output_accepts_llm_judged_frequency_question():
+    case = normal_eval.ReminderNormalPathCase(
+        input="我10：13-11：00要写个个人陈述，随时提醒我让我专注。11：00点个外卖",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+    calls = []
+
+    def clarification_judge(case_input, output_text):
+        calls.append((case_input, output_text))
+        return True
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {"message": "专注提醒的频率是多少呢？另外，11:00点外卖也需要设一个提醒吗？"}
+        ],
+        reminders=[],
+        clarification_judge=clarification_judge,
+        unconfirmed_reminder_judge=lambda text: False,
+    )
+
+    assert errors == []
+    assert calls == [
+        (
+            case.input,
+            "专注提醒的频率是多少呢？另外，11:00点外卖也需要设一个提醒吗？",
+        )
+    ]
+
+
+def test_clarification_output_uses_injected_llm_rejection():
+    assert (
+        normal_eval.output_mentions_clarification(
+            [{"message": "我已经安排好了。"}],
+            case_input="明天提醒我写作",
+            judge=lambda case_input, output_text: False,
+        )
+        is False
+    )
+
+
+def test_clarification_output_llm_judge_timeout_returns_false(monkeypatch):
+    class SlowJudge:
+        def run(self, _prompt):
+            import time
+
+            time.sleep(1)
+
+    monkeypatch.setattr(
+        normal_eval,
+        "CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        normal_eval,
+        "_clarification_output_judge_agent",
+        lambda: SlowJudge(),
+    )
+    monkeypatch.setattr(
+        normal_eval,
+        "run_clarification_output_judge",
+        _ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE,
+    )
+
+    assert (
+        normal_eval.run_clarification_output_judge("提醒我写作", "几点提醒你？")
+        is False
+    )
+
+
+def test_clarification_output_llm_judge_rubric_covers_missing_cadence():
+    prompt = normal_eval.build_clarification_output_judge_prompt(
+        "10点到11点写作，随时提醒我专注",
+        "专注提醒的频率是多少呢？",
+    )
+
+    assert "cadence/frequency" in prompt
+    assert "proposed option" in prompt
+    assert "structured schema" in prompt
+
+
 def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
     case = normal_eval.ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
@@ -897,8 +989,7 @@ def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
     assert normal_eval.run_unconfirmed_reminder_judge("我会提醒你") is False
 
 
-def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions(
-):
+def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():
     prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
         "多久提醒你一次？另外，点外卖需要我设置一个提醒吗？"
     )
