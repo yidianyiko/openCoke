@@ -665,6 +665,47 @@ def test_partial_batch_without_schedule_evidence_rejected_for_multi_clause_remin
     )
 
 
+def test_date_only_midnight_create_rejected_without_midnight_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="定蛋糕",
+        trigger_at="2026-12-17T00:00:00+09:00",
+        schedule_basis="one_shot",
+    )
+
+    assert (
+        workflow._validate_reminder_decision_evidence(
+            decision,
+            "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
+        )
+        == "date-only reminder requests must not default to midnight"
+    )
+
+
+def test_explicit_midnight_create_allows_midnight_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="抢票",
+        trigger_at="2026-12-17T00:00:00+09:00",
+        schedule_basis="one_shot",
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "12月17日00:00提醒我抢票",
+    )
+
+
 def test_retry_input_includes_invalid_schedule_evidence_reason():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 

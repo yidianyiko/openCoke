@@ -1084,6 +1084,11 @@ class PrepareWorkflow:
         multi_clause_reminder_count = self._multi_clause_reminder_count(current_message)
         if decision.action == "create" and multi_clause_reminder_count > 1:
             return "multiple reminder clauses require batch operations, not a single create"
+        if decision.action == "create" and self._trigger_is_midnight_without_evidence(
+            decision.trigger_at,
+            current_message,
+        ):
+            return "date-only reminder requests must not default to midnight"
         operations = (
             [
                 operation
@@ -1097,6 +1102,12 @@ class PrepareWorkflow:
             1 <= len(operations) < multi_clause_reminder_count
         ):
             return "multiple reminder clauses require every safe clause in batch operations"
+        for operation in operations:
+            if self._trigger_is_midnight_without_evidence(
+                self._operation_trigger_at(operation),
+                current_message,
+            ):
+                return "date-only reminder requests must not default to midnight"
         if decision.schedule_basis != "explicit_occurrences" or not evidence:
             return ""
         evidence_text = self._compact_text(evidence)
@@ -1131,6 +1142,28 @@ class PrepareWorkflow:
         if isinstance(operation, dict):
             return str(operation.get("trigger_at") or "")
         return str(getattr(operation, "trigger_at", "") or "")
+
+    @classmethod
+    def _trigger_is_midnight_without_evidence(
+        cls,
+        trigger_at: str,
+        current_message: str,
+    ) -> bool:
+        try:
+            parsed = datetime.fromisoformat(str(trigger_at).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if parsed.hour != 0 or parsed.minute != 0 or parsed.second != 0:
+            return False
+        return not cls._message_mentions_midnight(current_message)
+
+    @staticmethod
+    def _message_mentions_midnight(current_message: str) -> bool:
+        text = unicodedata.normalize("NFKC", str(current_message or "")).lower()
+        return bool(
+            re.search(r"(?<!\d)(?:0|00)\s*:\s*00(?!\d)", text)
+            or re.search(r"(?:零点|0点|00点|午夜|midnight)", text)
+        )
 
     @staticmethod
     def _compact_text(value: str) -> str:
