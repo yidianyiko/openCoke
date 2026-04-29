@@ -410,6 +410,24 @@ def test_validate_observations_accepts_cancel_target_clarification():
     assert errors == []
 
 
+def test_validate_observations_accepts_what_reminder_clarification():
+    case = normal_eval.ReminderNormalPathCase(
+        input="晚上不用叫我",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "你说的不用叫你是说晚上的什么提醒呀？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_does_not_require_crud_for_unschedulable_label():
     case = normal_eval.ReminderNormalPathCase(
         input="我这周一和周五是全天兼职，这两天估计要插空学习",
