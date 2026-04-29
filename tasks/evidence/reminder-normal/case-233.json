@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 233,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-76e4f1bcde",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "8186de12f6503407744fef92"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 233,
+      "input": "调整一下，今天要继续学习",
+      "user_id": "8186de12f6503407744fef92",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1e4c3179671ddc632987b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e4d8363b9b9847291a64",
+          "expect_output_timestamp": 1777460430,
+          "handled_timestamp": 1777460430,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，提醒还没设好。今天要继续学习，具体想学什么内容？打算什么时间开始？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-76e4f1bcde",
+            "case_index": 233,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "69361f448adf4a858a3df3d7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-76e4f1bcde-case-233",
+              "business_conversation_key": "reminder-normal-76e4f1bcde-case-233",
+              "causal_inbound_event_id": "reminder-normal-76e4f1bcde-case-233-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8186de12f6503407744fef92"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.036
+    }
+  ]
+}
