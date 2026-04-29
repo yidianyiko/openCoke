@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 163,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-894c7b555a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "cc2459e37212adbdad3079b8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 163,
+      "input": "今天学习内容是刑法2个视频+看书+做题",
+      "user_id": "cc2459e37212adbdad3079b8",
+      "original_from_user": "6930e40c4bf7878f041148b5",
+      "input_message_id": "69f196870572114f8f1ddac8",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f196be467948351d0a4462",
+          "expect_output_timestamp": 1777440442,
+          "handled_timestamp": 1777440442,
+          "status": "pending",
+          "message_type": "text",
+          "message": "刑法2个视频加看书做题，内容不少啊。你打算几点开始？需要我提前提醒你吗",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-894c7b555a",
+            "case_index": 163,
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "source_id": "693185b24bf7878f041149b6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-894c7b555a-case-163",
+              "business_conversation_key": "reminder-normal-894c7b555a-case-163",
+              "causal_inbound_event_id": "reminder-normal-894c7b555a-case-163-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cc2459e37212adbdad3079b8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 55.091
+    }
+  ]
+}
