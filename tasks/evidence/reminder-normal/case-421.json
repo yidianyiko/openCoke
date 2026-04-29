@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 421,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d3633e6f18",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "fe7440ead9b80752980b4679"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 421,
+      "input": "明早11点提醒我，取消gamma",
+      "user_id": "fe7440ead9b80752980b4679",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2427d40403e67419f5256",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2429a8f61a861ab17e309",
+          "expect_output_timestamp": 1777484442,
+          "handled_timestamp": 1777484442,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：提醒（2026-05-01 11:00）；取消提醒失败：keyword 'gamma' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d3633e6f18",
+            "case_index": 421,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69402eafa6d5f2cba9a556d1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d3633e6f18-case-421",
+              "business_conversation_key": "reminder-normal-d3633e6f18-case-421",
+              "causal_inbound_event_id": "reminder-normal-d3633e6f18-case-421-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "fe7440ead9b80752980b4679"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2429a8f61a861ab17e307",
+          "owner_user_id": "fe7440ead9b80752980b4679",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-05-01T02:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "11:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2427d8f61a861ab17e2fd",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T02:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:40:42.897000+00:00",
+          "updated_at": "2026-04-29T17:40:42.897000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 30.049
+    }
+  ]
+}

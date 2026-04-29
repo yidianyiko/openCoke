@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 423,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b1285ef6c7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a233d9ccc9e77b75be13a5fd"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 423,
+        "input": "需要你白天提醒我",
+        "user_id": "a233d9ccc9e77b75be13a5fd",
+        "original_from_user": "692fb38c4bf7878f0411476c",
+        "input_message_id": "69f242a5de3393b7e1ebf729",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f242ae8f61a861ab17e325",
+            "expect_output_timestamp": 1777484462,
+            "handled_timestamp": 1777484462,
+            "status": "pending",
+            "message_type": "text",
+            "message": "白天哪个具体时间需要提醒你呢？比如上午9点、下午2点等，请提供一个具体的时间。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-b1285ef6c7",
+              "case_index": 423,
+              "original_from_user": "692fb38c4bf7878f0411476c",
+              "source_id": "69403aada6d5f2cba9a556dc",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-b1285ef6c7-case-423",
+                "business_conversation_key": "reminder-normal-b1285ef6c7-case-423",
+                "causal_inbound_event_id": "reminder-normal-b1285ef6c7-case-423-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "a233d9ccc9e77b75be13a5fd"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.017
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 423,
+      "input": "需要你白天提醒我",
+      "user_id": "a233d9ccc9e77b75be13a5fd",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f242a5de3393b7e1ebf729",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f242ae8f61a861ab17e325",
+          "expect_output_timestamp": 1777484462,
+          "handled_timestamp": 1777484462,
+          "status": "pending",
+          "message_type": "text",
+          "message": "白天哪个具体时间需要提醒你呢？比如上午9点、下午2点等，请提供一个具体的时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b1285ef6c7",
+            "case_index": 423,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "69403aada6d5f2cba9a556dc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b1285ef6c7-case-423",
+              "business_conversation_key": "reminder-normal-b1285ef6c7-case-423",
+              "causal_inbound_event_id": "reminder-normal-b1285ef6c7-case-423-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a233d9ccc9e77b75be13a5fd"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 418,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-097905e3d0",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "5700e3f7af161f10fa4e2a47"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 418,
+      "input": "正在复习，今天最好看完一整本书",
+      "user_id": "5700e3f7af161f10fa4e2a47",
+      "original_from_user": "692ee3e74bf7878f041146c8",
+      "input_message_id": "69f241f154038a772a8e22af",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f242288f61a861ab17e2d7",
+          "expect_output_timestamp": 1777484318,
+          "handled_timestamp": 1777484318,
+          "status": "pending",
+          "message_type": "text",
+          "message": "9点15还在复习，挺能扛的嘛",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-097905e3d0",
+            "case_index": 418,
+            "original_from_user": "692ee3e74bf7878f041146c8",
+            "source_id": "694009ffa6d5f2cba9a556ae",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-097905e3d0-case-418",
+              "business_conversation_key": "reminder-normal-097905e3d0-case-418",
+              "causal_inbound_event_id": "reminder-normal-097905e3d0-case-418-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "5700e3f7af161f10fa4e2a47"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 56.096
+    }
+  ]
+}

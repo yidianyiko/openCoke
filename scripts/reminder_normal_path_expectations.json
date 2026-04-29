@@ -438,6 +438,10 @@
       "expected_creates": [
         {"title": "画画", "recurring": false}
       ]
+    },
+    "423": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for a reminder during the daytime but does not provide a concrete reminder time or cadence. The agent should ask for the specific time instead of creating a reminder."
     }
   }
 }

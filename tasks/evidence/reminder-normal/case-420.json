@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 420,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b6d52dfb48",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "313c2d853976f7dddf82c019"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 420,
+      "input": "请你每个周一到周五早上11点给我发消息，提醒我完成志愿者打卡",
+      "user_id": "313c2d853976f7dddf82c019",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2426fcdbd8a8a712af7bc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2427b8f61a861ab17e2f8",
+          "expect_output_timestamp": 1777484411,
+          "handled_timestamp": 1777484411,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：志愿者打卡（2026-05-01 11:00，循环规则 FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b6d52dfb48",
+            "case_index": 420,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "69402a82a6d5f2cba9a556c9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b6d52dfb48-case-420",
+              "business_conversation_key": "reminder-normal-b6d52dfb48-case-420",
+              "causal_inbound_event_id": "reminder-normal-b6d52dfb48-case-420-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "313c2d853976f7dddf82c019"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2427b8f61a861ab17e2f6",
+          "owner_user_id": "313c2d853976f7dddf82c019",
+          "title": "志愿者打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T02:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "11:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2426f8f61a861ab17e2ef",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T02:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:40:11.786000+00:00",
+          "updated_at": "2026-04-29T17:40:11.786000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 13.022
+    }
+  ]
+}
