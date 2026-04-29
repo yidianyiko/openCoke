@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 178,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-5ac7a29588",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2544f705c64ffbc8fdda14b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 178,
+      "input": "15点提醒我开始看书《问鼎》，看书50min",
+      "user_id": "2544f705c64ffbc8fdda14b6",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f19e67040dee07983b36e4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19e6e63fb3da7d444fa4f",
+          "expect_output_timestamp": 1777442414,
+          "handled_timestamp": 1777442414,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：开始看书《问鼎》（2026-04-30 15:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-5ac7a29588",
+            "case_index": 178,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693256154bf7878f04114a4a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-5ac7a29588-case-178",
+              "business_conversation_key": "reminder-normal-5ac7a29588-case-178",
+              "causal_inbound_event_id": "reminder-normal-5ac7a29588-case-178-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2544f705c64ffbc8fdda14b6"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f19e6e63fb3da7d444fa4c",
+          "owner_user_id": "2544f705c64ffbc8fdda14b6",
+          "title": "开始看书《问鼎》",
+          "schedule": {
+            "anchor_at": "2026-04-30T06:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "15:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f19e6863fb3da7d444fa41",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T06:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T06:00:14.088000+00:00",
+          "updated_at": "2026-04-29T06:00:14.088000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.012
+    }
+  ]
+}
