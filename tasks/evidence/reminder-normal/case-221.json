@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 221,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-13d74c95e4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2da76a18b336dfb4a291e786"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 221,
+      "input": " 明天的提醒是几点",
+      "user_id": "2da76a18b336dfb4a291e786",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1e22e8d8a9d1c008ac137",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e23a363b9b98472918e4",
+          "expect_output_timestamp": 1777459763,
+          "handled_timestamp": 1777459763,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我刚查了一下，目前还没有设置任何明天的提醒呀",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-13d74c95e4",
+            "case_index": 221,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69356f9d4bf7878f04114b76",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-13d74c95e4-case-221",
+              "business_conversation_key": "reminder-normal-13d74c95e4-case-221",
+              "causal_inbound_event_id": "reminder-normal-13d74c95e4-case-221-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2da76a18b336dfb4a291e786"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.022
+    }
+  ]
+}
