@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 194,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-380bfaa79b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "113480072edb779745429cd8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 194,
+      "input": "8点第一个任务完成",
+      "user_id": "113480072edb779745429cd8",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f1ae1886c102d385407ba7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ae307a73f948dc248fc1",
+          "expect_output_timestamp": 1777446435,
+          "handled_timestamp": 1777446435,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到！8点的第一个任务完成了不错不错。顺便问一下，这个任务完成得怎么样？有没有什么卡住的地方或者干脆是一口气搞定？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-380bfaa79b",
+            "case_index": 194,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69336fd44bf7878f04114ab0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-380bfaa79b-case-194",
+              "business_conversation_key": "reminder-normal-380bfaa79b-case-194",
+              "causal_inbound_event_id": "reminder-normal-380bfaa79b-case-194-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "113480072edb779745429cd8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 25.044
+    }
+  ]
+}
