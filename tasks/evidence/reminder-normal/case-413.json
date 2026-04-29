@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 413,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-86928a62ad",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d997020916be0ea7dc924e67"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 413,
+      "input": "开始新的写作，25分钟之后提醒我",
+      "user_id": "d997020916be0ea7dc924e67",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24167a5fd307d31de581f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2416e8f61a861ab17e26d",
+          "expect_output_timestamp": 1777484142,
+          "handled_timestamp": 1777484142,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：写作（2026-04-30 17:04）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-86928a62ad",
+            "case_index": 413,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693fc954a6d5f2cba9a55669",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-86928a62ad-case-413",
+              "business_conversation_key": "reminder-normal-86928a62ad-case-413",
+              "causal_inbound_event_id": "reminder-normal-86928a62ad-case-413-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d997020916be0ea7dc924e67"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2416e8f61a861ab17e26b",
+          "owner_user_id": "d997020916be0ea7dc924e67",
+          "title": "写作",
+          "schedule": {
+            "anchor_at": "2026-04-30T08:04:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "17:04:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f241678f61a861ab17e262",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T08:04:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:35:42.750000+00:00",
+          "updated_at": "2026-04-29T17:35:42.750000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}

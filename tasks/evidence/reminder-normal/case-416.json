@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 416,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8030eb22be",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "63ef789044c6589db75d3315"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 416,
+      "input": "复习一下今天学的吧复习完之后看是否学习新的内容",
+      "user_id": "63ef789044c6589db75d3315",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f241896cbd2ea366bc4526",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2418f8f61a861ab17e2a5",
+          "expect_output_timestamp": 1777484174,
+          "handled_timestamp": 1777484174,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，复习完咱们再决定要不要学新的，没问题。你现在开始复习了吗？大概需要多长时间？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8030eb22be",
+            "case_index": 416,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693fe329a6d5f2cba9a5568a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8030eb22be-case-416",
+              "business_conversation_key": "reminder-normal-8030eb22be-case-416",
+              "causal_inbound_event_id": "reminder-normal-8030eb22be-case-416-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "63ef789044c6589db75d3315"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.01
+    }
+  ]
+}

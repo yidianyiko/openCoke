@@ -1,0 +1,172 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 417,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4488a3e2eb",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9c0f43bab0ab1a8a030c444d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "unexpected_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 417,
+        "input": "画画，下个整点再叫我吧",
+        "user_id": "9c0f43bab0ab1a8a030c444d",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f24196469b84bae516c1a6",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "unexpected_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2419f8f61a861ab17e2b9",
+            "expect_output_timestamp": 1777484191,
+            "handled_timestamp": 1777484191,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：画画（2026-04-30 20:00）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-4488a3e2eb",
+              "case_index": 417,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "693feb7da6d5f2cba9a55690",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-4488a3e2eb-case-417",
+                "business_conversation_key": "reminder-normal-4488a3e2eb-case-417",
+                "causal_inbound_event_id": "reminder-normal-4488a3e2eb-case-417-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "9c0f43bab0ab1a8a030c444d"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f2419f8f61a861ab17e2b7",
+            "owner_user_id": "9c0f43bab0ab1a8a030c444d",
+            "title": "画画",
+            "schedule": {
+              "anchor_at": "2026-04-30T11:00:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "20:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f241968f61a861ab17e2ac",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T11:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T17:36:31.861000+00:00",
+            "updated_at": "2026-04-29T17:36:31.861000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 9.017
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 417,
+      "input": "画画，下个整点再叫我吧",
+      "user_id": "9c0f43bab0ab1a8a030c444d",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f24196469b84bae516c1a6",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2419f8f61a861ab17e2b9",
+          "expect_output_timestamp": 1777484191,
+          "handled_timestamp": 1777484191,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：画画（2026-04-30 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4488a3e2eb",
+            "case_index": 417,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693feb7da6d5f2cba9a55690",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4488a3e2eb-case-417",
+              "business_conversation_key": "reminder-normal-4488a3e2eb-case-417",
+              "causal_inbound_event_id": "reminder-normal-4488a3e2eb-case-417-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9c0f43bab0ab1a8a030c444d"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2419f8f61a861ab17e2b7",
+          "owner_user_id": "9c0f43bab0ab1a8a030c444d",
+          "title": "画画",
+          "schedule": {
+            "anchor_at": "2026-04-30T11:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f241968f61a861ab17e2ac",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:36:31.861000+00:00",
+          "updated_at": "2026-04-29T17:36:31.861000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 9.017
+    }
+  ]
+}

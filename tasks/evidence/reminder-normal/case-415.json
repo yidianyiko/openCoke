@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 415,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-3f57499fb3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "35d9951f468a9a8489dc1158"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 415,
+      "input": "我等会洗个澡再学习",
+      "user_id": "35d9951f468a9a8489dc1158",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f241778526935dbeeb5fb1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2417f8f61a861ab17e28d",
+          "expect_output_timestamp": 1777484153,
+          "handled_timestamp": 1777484153,
+          "status": "pending",
+          "message_type": "text",
+          "message": "洗澡没问题，清爽了学进去更快。大概要洗多久，几点能开始学？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-3f57499fb3",
+            "case_index": 415,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693fe2b0a6d5f2cba9a55689",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-3f57499fb3-case-415",
+              "business_conversation_key": "reminder-normal-3f57499fb3-case-415",
+              "causal_inbound_event_id": "reminder-normal-3f57499fb3-case-415-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "35d9951f468a9a8489dc1158"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.016
+    }
+  ]
+}

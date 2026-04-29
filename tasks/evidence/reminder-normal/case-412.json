@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 412,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c7d6818ee7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d0d81922d85cefc651592855"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 412,
+      "input": "20分钟提醒一下我，我可能会跑去玩",
+      "user_id": "d0d81922d85cefc651592855",
+      "original_from_user": "693f981d2971a327a8e5ed13",
+      "input_message_id": "69f2415aa5b8b434d8f97c46",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f241658f61a861ab17e25d",
+          "expect_output_timestamp": 1777484133,
+          "handled_timestamp": 1777484133,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：别跑去玩（2026-04-30 16:49）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c7d6818ee7",
+            "case_index": 412,
+            "original_from_user": "693f981d2971a327a8e5ed13",
+            "source_id": "693fc6cda6d5f2cba9a55668",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c7d6818ee7-case-412",
+              "business_conversation_key": "reminder-normal-c7d6818ee7-case-412",
+              "causal_inbound_event_id": "reminder-normal-c7d6818ee7-case-412-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d0d81922d85cefc651592855"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f241658f61a861ab17e25b",
+          "owner_user_id": "d0d81922d85cefc651592855",
+          "title": "别跑去玩",
+          "schedule": {
+            "anchor_at": "2026-04-30T07:49:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "16:49:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2415a8f61a861ab17e254",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T07:49:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:35:33.793000+00:00",
+          "updated_at": "2026-04-29T17:35:33.793000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 12.021
+    }
+  ]
+}

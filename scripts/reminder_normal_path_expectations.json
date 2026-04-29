@@ -431,6 +431,13 @@
     "411": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a future plan with concrete times but does not explicitly ask for a reminder. The agent should ask whether to remind at those times instead of creating reminders."
+    },
+    "417": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The phrase '下个整点再叫我' is an explicit reminder request anchored to the next whole hour, so a one-shot reminder for drawing is expected. The exact local time is run-time dependent.",
+      "expected_creates": [
+        {"title": "画画", "recurring": false}
+      ]
     }
   }
 }
