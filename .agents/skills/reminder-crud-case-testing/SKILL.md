@@ -53,6 +53,17 @@ Rules:
 
 Do not let normal-path fixes become another case-by-case parser.
 
+- LLM-first: reminder create/update/delete/complete decisions must come from
+  ReminderDetectAgent or its LLM retry path, not Python NLU.
+- Do not add deterministic Python reminder-create fallbacks, regex parsers, or
+  hard-routed reminder replies to pass a single corpus case.
+- If a detector timeout needs a fallback, use a shorter-context LLM retry that
+  can still decide to clarify or do nothing; timeout is not permission to create.
+- Date-only or time-missing create requests should clarify unless the product
+  has an explicit default-time policy.
+- Isolate eval identities by batch and case. Do not reuse corpus `from_user` as
+  the runtime `from_user`; keep it only as trace metadata so profile/memory
+  updates from one case cannot pollute another.
 - Do not add case-local `Avoid X` prompt rules as the first response to a failing case. Prefer a positive decision boundary or a smaller tool instruction that covers a class of inputs.
 - Do not add `title_variants` as the first response to a title mismatch. First check whether punctuation, quote style, whitespace, leading verbs, or semantic containment should be handled by the shared title validator.
 - Fixture `evaluation_expectation` overrides are appropriate when the case data should classify the request as CRUD, clarification, query, capability, or discussion. Keep the reason explicit.

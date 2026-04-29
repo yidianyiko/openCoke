@@ -165,6 +165,7 @@ def seed_normal_path_identities(
     cases: list[ReminderNormalPathCase],
     *,
     offset: int,
+    batch_id: str,
     character_alias: str | None = None,
 ) -> tuple[str, list[str]]:
     user_dao = UserDAO()
@@ -176,7 +177,7 @@ def seed_normal_path_identities(
     user_ids: list[str] = []
     for local_index, case in enumerate(cases):
         case_index = offset + local_index
-        user_id = normal_path_user_id(case, case_index)
+        user_id = normal_path_user_id(case, case_index, batch_id=batch_id)
         user_ids.append(user_id)
         db.characters.update_one(
             {"_id": ObjectId(user_id)},
@@ -197,12 +198,12 @@ def seed_normal_path_identities(
     return character_id, user_ids
 
 
-def normal_path_user_id(case: ReminderNormalPathCase, case_index: int) -> str:
+def normal_path_user_id(
+    case: ReminderNormalPathCase, case_index: int, *, batch_id: str
+) -> str:
     original_user = str(case.metadata.get("from_user") or "")
-    if ObjectId.is_valid(original_user):
-        return original_user
     source_id = str(case.metadata.get("source_id") or "")
-    seed = f"reminder-normal-path:{case_index}:{original_user}:{source_id}"
+    seed = f"reminder-normal-path:{batch_id}:{case_index}:{original_user}:{source_id}"
     return hashlib.md5(seed.encode("utf-8")).hexdigest()[:24]
 
 
@@ -239,7 +240,7 @@ def submit_cases(
     submitted: dict[int, dict[str, Any]] = {}
     for local_index, case in enumerate(cases):
         case_index = offset + local_index
-        user_id = normal_path_user_id(case, case_index)
+        user_id = normal_path_user_id(case, case_index, batch_id=batch_id)
         input_timestamp = case_input_timestamp(
             case,
             timezone_name=timezone_name,
@@ -1070,6 +1071,7 @@ def run_batch(
     character_id, user_ids = seed_normal_path_identities(
         cases,
         offset=offset,
+        batch_id=batch_id,
         character_alias=character_alias,
     )
     submitted = submit_cases(

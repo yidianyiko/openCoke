@@ -7,7 +7,7 @@ from bson import ObjectId
 from scripts import eval_reminder_normal_path_cases as normal_eval
 
 
-def test_normal_path_user_id_prefers_from_user_over_source_id():
+def test_normal_path_user_id_isolates_valid_original_user_by_batch_and_case():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",
         expected_intent="reminder",
@@ -18,7 +18,14 @@ def test_normal_path_user_id_prefers_from_user_over_source_id():
         },
     )
 
-    assert normal_eval.normal_path_user_id(case, 2) == "692c14e6a538f0baad5561b6"
+    first = normal_eval.normal_path_user_id(case, 2, batch_id="batch-a")
+    second = normal_eval.normal_path_user_id(case, 2, batch_id="batch-a")
+    other_batch = normal_eval.normal_path_user_id(case, 2, batch_id="batch-b")
+
+    assert first == second
+    assert first != "692c14e6a538f0baad5561b6"
+    assert other_batch != first
+    assert ObjectId.is_valid(first)
 
 
 def test_normal_path_user_id_has_deterministic_fallback_for_invalid_metadata():
@@ -29,8 +36,8 @@ def test_normal_path_user_id_has_deterministic_fallback_for_invalid_metadata():
         metadata={"source_id": "conv-a", "from_user": "user-a"},
     )
 
-    first = normal_eval.normal_path_user_id(case, 5)
-    second = normal_eval.normal_path_user_id(case, 5)
+    first = normal_eval.normal_path_user_id(case, 5, batch_id="batch-a")
+    second = normal_eval.normal_path_user_id(case, 5, batch_id="batch-a")
 
     assert first == second
     assert ObjectId.is_valid(first)
@@ -749,6 +756,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[150].metadata["evaluation_expectation"] == "clarify"
     assert cases[158].metadata["expected_operation"] == "delete"
     assert cases[158].metadata["allow_clarification"] is True
+    assert cases[161].metadata["evaluation_expectation"] == "clarify"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
