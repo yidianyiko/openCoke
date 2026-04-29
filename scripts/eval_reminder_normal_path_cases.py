@@ -37,7 +37,7 @@ UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS = float(
 CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS = float(
     os.environ.get(
         "REMINDER_NORMAL_PATH_CLARIFICATION_JUDGE_TIMEOUT_SECONDS",
-        os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "20"),
+        os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "45"),
     )
 )
 
@@ -1210,7 +1210,7 @@ def _clarification_output_judge_agent():
     return Agent(
         id="reminder-normal-path-clarification-output-judge",
         name="ReminderNormalPathClarificationOutputJudge",
-        model=_create_unconfirmed_reminder_judge_model(max_tokens=500),
+        model=_create_unconfirmed_reminder_judge_model(max_tokens=150),
         instructions=(
             "You are an evaluation judge. Decide only whether an assistant reply "
             "is asking for missing information or confirmation before a reminder "
