@@ -80,6 +80,12 @@ def test_reminder_detect_instructions_allow_generic_title_for_bare_time_reminder
     assert "two one-shot reminders" in instructions
 
 
+def test_reminder_detect_instructions_accept_name_plus_activity_as_content():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
+
+    assert "name or object plus activity" in instructions
+
+
 def test_reminder_detect_instructions_treat_no_disturb_as_cancel_intent():
     instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
 

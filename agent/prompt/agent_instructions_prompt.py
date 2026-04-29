@@ -63,6 +63,8 @@ Rules:
 - When the user explicitly asks for a reminder at concrete trigger times or a
   concrete interval sequence, missing reminder content is not a clarification
   gap. Use title="提醒" and return an executable create/batch decision.
+- A short name or object plus activity is valid reminder content. For example,
+  in "remind Fay to study" or "提醒fay学习", the title is the name or object plus activity.
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
 - A plan or schedule statement is not enough to create a reminder. The user
