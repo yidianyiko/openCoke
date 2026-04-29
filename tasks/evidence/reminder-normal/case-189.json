@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 189,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-73d41aa9ee",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "4922d6e084172f14c738bff7"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 189,
+      "input": "别再提醒我该走了",
+      "user_id": "4922d6e084172f14c738bff7",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f1ad16668ce409f900d430",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ad4f7a73f948dc248f60",
+          "expect_output_timestamp": 1777446223,
+          "handled_timestamp": 1777446223,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：keyword '该走了' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-73d41aa9ee",
+            "case_index": 189,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6932ce8d4bf7878f04114a83",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-73d41aa9ee-case-189",
+              "business_conversation_key": "reminder-normal-73d41aa9ee-case-189",
+              "causal_inbound_event_id": "reminder-normal-73d41aa9ee-case-189-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4922d6e084172f14c738bff7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 57.096
+    }
+  ]
+}
