@@ -181,6 +181,12 @@
     "176": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user describes a daily study time block but does not explicitly ask to be reminded or supervised; the agent should not create reminders from the schedule statement alone."
+    },
+    "180": {
+      "evaluation_expectation": "crud",
+      "expected_operation": "update",
+      "allow_clarification": true,
+      "evaluation_reason": "The user is correcting an earlier reminder time. In isolated evaluation there may be no existing 15:50 reminder, so an update attempt with a visible no-match result or a clarification is safe; creating a new reminder would conflate correction with creation."
     }
   }
 }
