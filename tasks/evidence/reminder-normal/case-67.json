@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 67,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1d5c921596",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 67,
+      "input": "好的！你记得llya的文章么 昨天提到的",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f15f0d4f7691095dc3fc14",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15f6b1c6f0de8345a8973",
+          "expect_output_timestamp": 1777426192,
+          "handled_timestamp": 1777426192,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把具体时间和事项再发我一遍，我可以继续帮你处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1d5c921596",
+            "case_index": 67,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692eb24a4bf7878f0411468c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1d5c921596-case-67",
+              "business_conversation_key": "reminder-normal-1d5c921596-case-67",
+              "causal_inbound_event_id": "reminder-normal-1d5c921596-case-67-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 94.168
+    }
+  ]
+}

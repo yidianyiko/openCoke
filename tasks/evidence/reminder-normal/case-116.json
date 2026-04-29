@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 116,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e62497d4d5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 116,
+      "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f17bfb4f8a062bb8eb0426",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17c065acadf50d24159da",
+          "expect_output_timestamp": 1777433601,
+          "handled_timestamp": 1777433601,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到作息安排！6:30起，上午7-12点，下午1:40起，14-18点，晚上18:30-23点，听起来挺规律的。所以你是想让我每天在这些时间点提醒你开始学习吗？比如几点需要第一个提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e62497d4d5",
+            "case_index": 116,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301daa4bf7878f0411482e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e62497d4d5-case-116",
+              "business_conversation_key": "reminder-normal-e62497d4d5-case-116",
+              "causal_inbound_event_id": "reminder-normal-e62497d4d5-case-116-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.02
+    }
+  ]
+}

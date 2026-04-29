@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 64,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-52694fea2d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c29a1a538f0baad5561c3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 64,
+      "input": "现在我要进行数学资料的编写，用一个小时，一个小时后提醒我吃饭",
+      "user_id": "692c29a1a538f0baad5561c3",
+      "original_from_user": "692c29a1a538f0baad5561c3",
+      "input_message_id": "69f15ea174f3f116ac0e0f83",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15ea61c6f0de8345a893c",
+          "expect_output_timestamp": 1777426086,
+          "handled_timestamp": 1777426086,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：吃饭（2026-04-29 10:28）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-52694fea2d",
+            "case_index": 64,
+            "original_from_user": "692c29a1a538f0baad5561c3",
+            "source_id": "692ea7294bf7878f0411467f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-52694fea2d-case-64",
+              "business_conversation_key": "reminder-normal-52694fea2d-case-64",
+              "causal_inbound_event_id": "reminder-normal-52694fea2d-case-64-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c29a1a538f0baad5561c3"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f15ea61c6f0de8345a8939",
+          "owner_user_id": "692c29a1a538f0baad5561c3",
+          "title": "吃饭",
+          "schedule": {
+            "anchor_at": "2026-04-29T02:28:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "10:28:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15ea11c6f0de8345a8927",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T02:28:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:28:06.784000+00:00",
+          "updated_at": "2026-04-29T01:28:06.784000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

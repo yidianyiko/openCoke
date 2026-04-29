@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 88,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1783babca0",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692fb38c4bf7878f0411476c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 88,
+      "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+      "user_id": "692fb38c4bf7878f0411476c",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f16f27a99d6081bc4b29dd",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16f385f22bc5ee929a1e7",
+          "expect_output_timestamp": 1777430319,
+          "handled_timestamp": 1777430319,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，订蛋糕这个事儿必须安排明白！本周六是5月2号，你大概想几点提醒你呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1783babca0",
+            "case_index": 88,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "692fbf7b4bf7878f04114783",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1783babca0-case-88",
+              "business_conversation_key": "reminder-normal-1783babca0-case-88",
+              "causal_inbound_event_id": "reminder-normal-1783babca0-case-88-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692fb38c4bf7878f0411476c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 17.029
+    }
+  ]
+}

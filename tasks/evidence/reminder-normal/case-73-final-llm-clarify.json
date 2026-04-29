@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 73,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-32a6d2d3af",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 73,
+      "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f1690617713d03fa02df14",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1691b50c5f25895961ccf",
+          "expect_output_timestamp": 1777428749,
+          "handled_timestamp": 1777428749,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好家伙，今天势头不错啊，明天继续这么猛？那明天你大概几点开始，我先记下来到点喊你",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-32a6d2d3af",
+            "case_index": 73,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692ee16e4bf7878f041146c7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-32a6d2d3af-case-73",
+              "business_conversation_key": "reminder-normal-32a6d2d3af-case-73",
+              "causal_inbound_event_id": "reminder-normal-32a6d2d3af-case-73-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.036
+    }
+  ]
+}

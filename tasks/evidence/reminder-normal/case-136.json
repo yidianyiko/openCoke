@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 136,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-eef388715d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 136,
+      "input": "周五下午提醒我 看 沼泽深处的女孩这个电影",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f186caad3669af116f04e1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f186e48e668919e7dafa16",
+          "expect_output_timestamp": 1777436368,
+          "handled_timestamp": 1777436368,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，周五下午具体几点提醒你看《沼泽深处的女孩》？给我个时间，我好安排。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-eef388715d",
+            "case_index": 136,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6930f4ad4bf7878f041148d4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-eef388715d-case-136",
+              "business_conversation_key": "reminder-normal-eef388715d-case-136",
+              "causal_inbound_event_id": "reminder-normal-eef388715d-case-136-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 27.046
+    }
+  ]
+}

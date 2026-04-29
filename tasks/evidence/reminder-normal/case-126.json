@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 126,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2c1ec859b6",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 126,
+      "input": "可是今天还有新计划",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f185119cc85508a561877f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f185458e668919e7daf90a",
+          "expect_output_timestamp": 1777435966,
+          "handled_timestamp": 1777435966,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哦？新计划说来听听，我帮你排排时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2c1ec859b6",
+            "case_index": 126,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930755a4bf7878f0411489b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2c1ec859b6-case-126",
+              "business_conversation_key": "reminder-normal-2c1ec859b6-case-126",
+              "causal_inbound_event_id": "reminder-normal-2c1ec859b6-case-126-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 53.093
+    }
+  ]
+}

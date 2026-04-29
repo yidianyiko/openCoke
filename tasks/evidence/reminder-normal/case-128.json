@@ -1,0 +1,348 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 128,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-70cacd06c4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 128,
+      "input": "10点，11点半，12点半，下午2点半，三点半，四点半，6点半，晚上9点10点11提醒我",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f1856cbeb83a184e06cc14",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1857a8e668919e7daf938",
+          "expect_output_timestamp": 1777436026,
+          "handled_timestamp": 1777436026,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：提醒（2026-04-30 10:00）；已创建提醒：提醒（2026-04-30 11:30）；已创建提醒：提醒（2026-04-30 12:30）；已创建提醒：提醒（2026-04-30 14:30）；已创建提醒：提醒（2026-04-30 15:30）；已创建提醒：提醒（2026-04-30 16:30）；已创建提醒：提醒（2026-04-30 18:30）；已创建提醒：提醒（2026-04-30 21:00）；已创建提醒：提醒（2026-04-30 22:00）；已创建提醒：提醒（2026-04-30 23:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-70cacd06c4",
+            "case_index": 128,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930e3314bf7878f041148af",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-70cacd06c4-case-128",
+              "business_conversation_key": "reminder-normal-70cacd06c4-case-128",
+              "causal_inbound_event_id": "reminder-normal-70cacd06c4-case-128-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1857a8e668919e7daf92c",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T02:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "10:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T02:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.252000+00:00",
+          "updated_at": "2026-04-29T04:13:46.252000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf92d",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T03:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "11:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T03:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.258000+00:00",
+          "updated_at": "2026-04-29T04:13:46.258000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf92e",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T04:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "12:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T04:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.260000+00:00",
+          "updated_at": "2026-04-29T04:13:46.260000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf92f",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T06:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "14:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T06:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.261000+00:00",
+          "updated_at": "2026-04-29T04:13:46.261000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf930",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T07:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "15:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T07:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.263000+00:00",
+          "updated_at": "2026-04-29T04:13:46.263000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf931",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T08:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "16:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T08:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.264000+00:00",
+          "updated_at": "2026-04-29T04:13:46.264000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf932",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T10:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "18:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T10:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.265000+00:00",
+          "updated_at": "2026-04-29T04:13:46.265000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf933",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T13:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "21:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T13:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.267000+00:00",
+          "updated_at": "2026-04-29T04:13:46.267000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf934",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T14:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "22:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T14:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.268000+00:00",
+          "updated_at": "2026-04-29T04:13:46.268000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1857a8e668919e7daf935",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T15:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "23:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1856c8e668919e7daf925",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T15:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T04:13:46.270000+00:00",
+          "updated_at": "2026-04-29T04:13:46.270000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 15.026
+    }
+  ]
+}

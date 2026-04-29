@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 97,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-36e4ca7cbb",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692f837d4bf7878f04114713"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 97,
+      "input": "明天工作任务：一是框架类采购订单更新一下，然后去财务问一下，多个进项对一个出项可不可以。二是到货验收单去跑一下流程签字。三是考勤表重新跑一下签字。四是收款合同新建，联系erp运维",
+      "user_id": "692f837d4bf7878f04114713",
+      "original_from_user": "692f837d4bf7878f04114713",
+      "input_message_id": "69f171491e4d04e6e03a6812",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17151b0b75bb324189eac",
+          "expect_output_timestamp": 1777430865,
+          "handled_timestamp": 1777430865,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我还需要提醒内容和时间，才能帮你设置提醒。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-36e4ca7cbb",
+            "case_index": 97,
+            "original_from_user": "692f837d4bf7878f04114713",
+            "source_id": "692ff5064bf7878f041147cc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-36e4ca7cbb-case-97",
+              "business_conversation_key": "reminder-normal-36e4ca7cbb-case-97",
+              "causal_inbound_event_id": "reminder-normal-36e4ca7cbb-case-97-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692f837d4bf7878f04114713"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

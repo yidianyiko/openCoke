@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 98,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0c9fa78653",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c14e6a538f0baad5561b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 98,
+      "input": " 周日晚上8点，提醒我交接2个客户",
+      "user_id": "692c14e6a538f0baad5561b6",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f17152a2011c9cda806ad5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1715ab0b75bb324189ebc",
+          "expect_output_timestamp": 1777430874,
+          "handled_timestamp": 1777430874,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：交接2个客户（2026-05-03 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0c9fa78653",
+            "case_index": 98,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692ff52b4bf7878f041147cd",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0c9fa78653-case-98",
+              "business_conversation_key": "reminder-normal-0c9fa78653-case-98",
+              "causal_inbound_event_id": "reminder-normal-0c9fa78653-case-98-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c14e6a538f0baad5561b6"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1715ab0b75bb324189eb9",
+          "owner_user_id": "692c14e6a538f0baad5561b6",
+          "title": "交接2个客户",
+          "schedule": {
+            "anchor_at": "2026-05-03T12:00:00+00:00",
+            "local_date": "2026-05-03",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17153b0b75bb324189eb0",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-03T12:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T02:47:54.483000+00:00",
+          "updated_at": "2026-04-29T02:47:54.483000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}

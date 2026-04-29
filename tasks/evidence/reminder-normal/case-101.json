@@ -1,0 +1,236 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 101,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-707346f30f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693000a24bf7878f041147e3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 101,
+      "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+      "user_id": "693000a24bf7878f041147e3",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f175ea680782dfbbcf9a0a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f175f6541bc0e5cf1462e6",
+          "expect_output_timestamp": 1777432054,
+          "handled_timestamp": 1777432054,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（每天 07:15）；已创建提醒：开始学习（每天 08:00）；已创建提醒：开始健身（每天 13:00）；已创建提醒：开始学习（每天 16:00）；已创建提醒：开始学习（每天 20:00）；已创建提醒：睡觉（每天 23:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-707346f30f",
+            "case_index": 101,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693001fc4bf7878f041147e9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-707346f30f-case-101",
+              "business_conversation_key": "reminder-normal-707346f30f-case-101",
+              "causal_inbound_event_id": "reminder-normal-707346f30f-case-101-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693000a24bf7878f041147e3"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f175f6541bc0e5cf1462de",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "起床",
+          "schedule": {
+            "anchor_at": "2026-04-28T23:15:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "07:15:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T23:15:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.092000+00:00",
+          "updated_at": "2026-04-29T03:07:34.092000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f175f6541bc0e5cf1462df",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "开始学习",
+          "schedule": {
+            "anchor_at": "2026-04-29T00:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "08:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T00:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.099000+00:00",
+          "updated_at": "2026-04-29T03:07:34.099000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f175f6541bc0e5cf1462e0",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "开始健身",
+          "schedule": {
+            "anchor_at": "2026-04-29T05:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "13:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T05:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.100000+00:00",
+          "updated_at": "2026-04-29T03:07:34.100000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f175f6541bc0e5cf1462e1",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "开始学习",
+          "schedule": {
+            "anchor_at": "2026-04-29T08:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "16:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T08:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.102000+00:00",
+          "updated_at": "2026-04-29T03:07:34.102000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f175f6541bc0e5cf1462e2",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "开始学习",
+          "schedule": {
+            "anchor_at": "2026-04-29T12:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T12:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.103000+00:00",
+          "updated_at": "2026-04-29T03:07:34.103000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f175f6541bc0e5cf1462e3",
+          "owner_user_id": "693000a24bf7878f041147e3",
+          "title": "睡觉",
+          "schedule": {
+            "anchor_at": "2026-04-29T15:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "23:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f175ea541bc0e5cf1462d2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T15:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:07:34.105000+00:00",
+          "updated_at": "2026-04-29T03:07:34.105000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 12.02
+    }
+  ]
+}

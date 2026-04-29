@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 100,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-5470c8d67a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692e41334bf7878f04114567"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 100,
+      "input": "今天感冒喽 特别特别累 打算休息一天",
+      "user_id": "692e41334bf7878f04114567",
+      "original_from_user": "692e41334bf7878f04114567",
+      "input_message_id": "69f171670a263895fcd5d6ca",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17197b0b75bb324189edf",
+          "expect_output_timestamp": 1777430932,
+          "handled_timestamp": 1777430932,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哎呀，感冒了啊，那确实难受。身体是革命的本钱，今天先好好休息吧。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-5470c8d67a",
+            "case_index": 100,
+            "original_from_user": "692e41334bf7878f04114567",
+            "source_id": "692ffcc94bf7878f041147db",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-5470c8d67a-case-100",
+              "business_conversation_key": "reminder-normal-5470c8d67a-case-100",
+              "causal_inbound_event_id": "reminder-normal-5470c8d67a-case-100-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692e41334bf7878f04114567"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 49.085
+    }
+  ]
+}

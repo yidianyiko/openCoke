@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 79,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-3daf6c25bf",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692ef7f84bf7878f041146e1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 79,
+      "input": "可是记得不是很牢，而且我今天准备背260个",
+      "user_id": "692ef7f84bf7878f041146e1",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69f16be51c115f2e7ba03ad3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16bee7daf8064dce5e93e",
+          "expect_output_timestamp": 1777429483,
+          "handled_timestamp": 1777429483,
+          "status": "pending",
+          "message_type": "text",
+          "message": "260个确实不少，得花不少功夫呢。你打算今天什么时候开始背，大概多久背完？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-3daf6c25bf",
+            "case_index": 79,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692f69a24bf7878f0411470b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-3daf6c25bf-case-79",
+              "business_conversation_key": "reminder-normal-3daf6c25bf-case-79",
+              "causal_inbound_event_id": "reminder-normal-3daf6c25bf-case-79-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692ef7f84bf7878f041146e1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.015
+    }
+  ]
+}

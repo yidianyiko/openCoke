@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 140,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-857e330c7d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692e41334bf7878f04114567"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 140,
+      "input": "今天不知道什么安排 头很痛",
+      "user_id": "692e41334bf7878f04114567",
+      "original_from_user": "692e41334bf7878f04114567",
+      "input_message_id": "69f187591b05ddefbbf01e9f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1875e8e668919e7dafa71",
+          "expect_output_timestamp": 1777436508,
+          "handled_timestamp": 1777436508,
+          "status": "pending",
+          "message_type": "text",
+          "message": "头痛就多躺会儿，别硬撑。你今天是本来就计划休息还是有事要干？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-857e330c7d",
+            "case_index": 140,
+            "original_from_user": "692e41334bf7878f04114567",
+            "source_id": "693103924bf7878f041148ea",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-857e330c7d-case-140",
+              "business_conversation_key": "reminder-normal-857e330c7d-case-140",
+              "causal_inbound_event_id": "reminder-normal-857e330c7d-case-140-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692e41334bf7878f04114567"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

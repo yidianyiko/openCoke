@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 116,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e3b843e6df",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 116,
+        "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+        "user_id": "693003594bf7878f041147f1",
+        "original_from_user": "693003594bf7878f041147f1",
+        "input_message_id": "69f17a6fd29bf52ff01870ed",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f17a7b9068053b4e42b49c",
+            "expect_output_timestamp": 1777433207,
+            "handled_timestamp": 1777433207,
+            "status": "pending",
+            "message_type": "text",
+            "message": "哇，你这个作息安排得很规律啊！是想让我按这个时间设提醒监督你执行吗？如果是的话，告诉我从哪天开始执行，我帮你安排上。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-e3b843e6df",
+              "case_index": 116,
+              "original_from_user": "693003594bf7878f041147f1",
+              "source_id": "69301daa4bf7878f0411482e",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-e3b843e6df-case-116",
+                "business_conversation_key": "reminder-normal-e3b843e6df-case-116",
+                "causal_inbound_event_id": "reminder-normal-e3b843e6df-case-116-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "693003594bf7878f041147f1"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 13.023
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 116,
+      "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f17a6fd29bf52ff01870ed",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f17a7b9068053b4e42b49c",
+          "expect_output_timestamp": 1777433207,
+          "handled_timestamp": 1777433207,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，你这个作息安排得很规律啊！是想让我按这个时间设提醒监督你执行吗？如果是的话，告诉我从哪天开始执行，我帮你安排上。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e3b843e6df",
+            "case_index": 116,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301daa4bf7878f0411482e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e3b843e6df-case-116",
+              "business_conversation_key": "reminder-normal-e3b843e6df-case-116",
+              "causal_inbound_event_id": "reminder-normal-e3b843e6df-case-116-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.023
+    }
+  ]
+}

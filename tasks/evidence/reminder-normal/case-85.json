@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 85,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9fba26d988",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 85,
+      "input": "上午徒步运动完成。复盘昨天的笔记完成，现在准备午休一下，11点钟不要给我打卡，12点钟再给我打卡，起床吃午饭",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f16c6570be6f5ef9d5125c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16c6e7daf8064dce5e9bb",
+          "expect_output_timestamp": 1777429614,
+          "handled_timestamp": 1777429614,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床吃午饭（2026-04-29 12:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9fba26d988",
+            "case_index": 85,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692f9c2a4bf7878f0411473e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9fba26d988-case-85",
+              "business_conversation_key": "reminder-normal-9fba26d988-case-85",
+              "causal_inbound_event_id": "reminder-normal-9fba26d988-case-85-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d38aea538f0baad556271"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f16c6e7daf8064dce5e9b8",
+          "owner_user_id": "692d38aea538f0baad556271",
+          "title": "起床吃午饭",
+          "schedule": {
+            "anchor_at": "2026-04-29T04:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "12:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f16c657daf8064dce5e9ab",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T04:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T02:26:54.761000+00:00",
+          "updated_at": "2026-04-29T02:26:54.761000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 10.018
+    }
+  ]
+}

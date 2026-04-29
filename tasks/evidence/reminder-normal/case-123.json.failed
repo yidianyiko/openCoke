@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 123,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-eaea2b6759",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:思考一个问题:工作应该去做“非我不可”的事情": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:思考一个问题:工作应该去做“非我不可”的事情": 1
+    },
+    "failures": [
+      {
+        "index": 123,
+        "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+        "user_id": "692c4430a538f0baad5561de",
+        "original_from_user": "692c4430a538f0baad5561de",
+        "input_message_id": "69f18051c3c3d0f19a6b4016",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:思考一个问题:工作应该去做“非我不可”的事情",
+          "user_output_missing_expected_title:思考一个问题:工作应该去做“非我不可”的事情"
+        ],
+        "outputs": [
+          {
+            "_id": "69f1805c7c708a106f8e7320",
+            "expect_output_timestamp": 1777434713,
+            "handled_timestamp": 1777434713,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，你说的10:40提醒思考这个问题，是指今天10:40吗？但现在已经是11:51了，时间已经过了啊",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-eaea2b6759",
+              "case_index": 123,
+              "original_from_user": "692c4430a538f0baad5561de",
+              "source_id": "69305f884bf7878f04114895",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-eaea2b6759-case-123",
+                "business_conversation_key": "reminder-normal-eaea2b6759-case-123",
+                "causal_inbound_event_id": "reminder-normal-eaea2b6759-case-123-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692c4430a538f0baad5561de"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 11.018
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 123,
+      "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f18051c3c3d0f19a6b4016",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:思考一个问题:工作应该去做“非我不可”的事情",
+        "user_output_missing_expected_title:思考一个问题:工作应该去做“非我不可”的事情"
+      ],
+      "outputs": [
+        {
+          "_id": "69f1805c7c708a106f8e7320",
+          "expect_output_timestamp": 1777434713,
+          "handled_timestamp": 1777434713,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，你说的10:40提醒思考这个问题，是指今天10:40吗？但现在已经是11:51了，时间已经过了啊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-eaea2b6759",
+            "case_index": 123,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "69305f884bf7878f04114895",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-eaea2b6759-case-123",
+              "business_conversation_key": "reminder-normal-eaea2b6759-case-123",
+              "causal_inbound_event_id": "reminder-normal-eaea2b6759-case-123-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.018
+    }
+  ]
+}

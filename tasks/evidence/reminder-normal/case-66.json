@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 66,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-524ac200b2",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c14aaa538f0baad5561b3"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 66,
+      "input": "晚上六点半能提醒我去健身吗",
+      "user_id": "692c14aaa538f0baad5561b3",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69f15f074b84553c658cb569",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15f0c1c6f0de8345a8962",
+          "expect_output_timestamp": 1777426188,
+          "handled_timestamp": 1777426188,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：去健身（2026-04-29 18:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-524ac200b2",
+            "case_index": 66,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692eafd54bf7878f04114683",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-524ac200b2-case-66",
+              "business_conversation_key": "reminder-normal-524ac200b2-case-66",
+              "causal_inbound_event_id": "reminder-normal-524ac200b2-case-66-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c14aaa538f0baad5561b3"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f15f0c1c6f0de8345a895f",
+          "owner_user_id": "692c14aaa538f0baad5561b3",
+          "title": "去健身",
+          "schedule": {
+            "anchor_at": "2026-04-29T10:30:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "18:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15f081c6f0de8345a8956",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T10:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:29:48.493000+00:00",
+          "updated_at": "2026-04-29T01:29:48.493000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ]
+}

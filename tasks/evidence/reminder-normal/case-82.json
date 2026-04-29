@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 82,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-057d45acd3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d0488a538f0baad556217"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 82,
+      "input": "[太阳][太阳]12月3日计划 星期三\n8:00～8:40英语单词诵#680个阅读高频词1-100\n8:50～10:30英语阅读技巧#阅读理论课-必须要推进看完\n10:30～12:00天文教材阅读理解#第3-4章\n14:00～16:00物理概念理解#网课\n16:20～18:00物理题目练习#网课对应题目\n19:00～21:00政治十页纸网课#11.9\n20:40～22:00天文教材阅读理解#第4-5章\n22:00～23:00总结复盘",
+      "user_id": "692d0488a538f0baad556217",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "69f16c37e48386b0a12b58de",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16c537daf8064dce5e984",
+          "expect_output_timestamp": 1777429569,
+          "handled_timestamp": 1777429569,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，这个计划安排得很充实啊！从早上8点到晚上11点，英语、天文、物理、政治全部覆盖了。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-057d45acd3",
+            "case_index": 82,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "692f90904bf7878f04114728",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-057d45acd3-case-82",
+              "business_conversation_key": "reminder-normal-057d45acd3-case-82",
+              "causal_inbound_event_id": "reminder-normal-057d45acd3-case-82-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d0488a538f0baad556217"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 29.051
+    }
+  ]
+}

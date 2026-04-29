@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 91,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d21ddbcdb8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c14e6a538f0baad5561b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 91,
+        "input": "提醒我下周二去杭州",
+        "user_id": "692c14e6a538f0baad5561b6",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f16f55a46cf2248b0c098e",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f16f635f22bc5ee929a21d",
+            "expect_output_timestamp": 1777430363,
+            "handled_timestamp": 1777430363,
+            "status": "pending",
+            "message_type": "text",
+            "message": "下周二就是5月5号了，你想让我什么时间提醒你去杭州？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-d21ddbcdb8",
+              "case_index": 91,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "692fc9e24bf7878f04114797",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-d21ddbcdb8-case-91",
+                "business_conversation_key": "reminder-normal-d21ddbcdb8-case-91",
+                "causal_inbound_event_id": "reminder-normal-d21ddbcdb8-case-91-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692c14e6a538f0baad5561b6"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 14.025
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 91,
+      "input": "提醒我下周二去杭州",
+      "user_id": "692c14e6a538f0baad5561b6",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f16f55a46cf2248b0c098e",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f16f635f22bc5ee929a21d",
+          "expect_output_timestamp": 1777430363,
+          "handled_timestamp": 1777430363,
+          "status": "pending",
+          "message_type": "text",
+          "message": "下周二就是5月5号了，你想让我什么时间提醒你去杭州？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d21ddbcdb8",
+            "case_index": 91,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692fc9e24bf7878f04114797",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d21ddbcdb8-case-91",
+              "business_conversation_key": "reminder-normal-d21ddbcdb8-case-91",
+              "causal_inbound_event_id": "reminder-normal-d21ddbcdb8-case-91-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c14e6a538f0baad5561b6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.025
+    }
+  ]
+}

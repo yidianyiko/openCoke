@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 117,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2e35a18d79",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 117,
+        "input": "记得按时提醒我",
+        "user_id": "693003594bf7878f041147f1",
+        "original_from_user": "693003594bf7878f041147f1",
+        "input_message_id": "69f17c26429df8c713a7075e",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f17c325acadf50d24159ec",
+            "expect_output_timestamp": 1777433645,
+            "handled_timestamp": 1777433645,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，你要提醒什么事情？大概什么时间方便？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-2e35a18d79",
+              "case_index": 117,
+              "original_from_user": "693003594bf7878f041147f1",
+              "source_id": "69301dc64bf7878f0411482f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-2e35a18d79-case-117",
+                "business_conversation_key": "reminder-normal-2e35a18d79-case-117",
+                "causal_inbound_event_id": "reminder-normal-2e35a18d79-case-117-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "693003594bf7878f041147f1"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 12.02
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 117,
+      "input": "记得按时提醒我",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f17c26429df8c713a7075e",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f17c325acadf50d24159ec",
+          "expect_output_timestamp": 1777433645,
+          "handled_timestamp": 1777433645,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，你要提醒什么事情？大概什么时间方便？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2e35a18d79",
+            "case_index": 117,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301dc64bf7878f0411482f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2e35a18d79-case-117",
+              "business_conversation_key": "reminder-normal-2e35a18d79-case-117",
+              "causal_inbound_event_id": "reminder-normal-2e35a18d79-case-117-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.02
+    }
+  ]
+}

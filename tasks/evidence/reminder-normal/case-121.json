@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 121,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6d79acf480",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693052514bf7878f0411488f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 121,
+      "input": "今天的任务差不多完成了",
+      "user_id": "693052514bf7878f0411488f",
+      "original_from_user": "693052514bf7878f0411488f",
+      "input_message_id": "69f17d125ea84f250a161753",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17d225acadf50d2415a37",
+          "expect_output_timestamp": 1777433879,
+          "handled_timestamp": 1777433879,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嘿，不错啊！上午11点多就差不多搞定了？那我得夸夸你——效率挺高嘛",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6d79acf480",
+            "case_index": 121,
+            "original_from_user": "693052514bf7878f0411488f",
+            "source_id": "693052e74bf7878f04114892",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6d79acf480-case-121",
+              "business_conversation_key": "reminder-normal-6d79acf480-case-121",
+              "causal_inbound_event_id": "reminder-normal-6d79acf480-case-121-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693052514bf7878f0411488f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.028
+    }
+  ]
+}

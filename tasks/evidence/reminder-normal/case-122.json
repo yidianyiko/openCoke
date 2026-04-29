@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 122,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-358940dbbe",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 122,
+      "input": "早上10:30提醒我看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f180360d0eba14de204383",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1803b7c708a106f8e7312",
+          "expect_output_timestamp": 1777434683,
+          "handled_timestamp": 1777434683,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：查看不同价位图书毛利分布及新老用户卖书情况（2026-04-30 10:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-358940dbbe",
+            "case_index": 122,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "69305ce34bf7878f04114894",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-358940dbbe-case-122",
+              "business_conversation_key": "reminder-normal-358940dbbe-case-122",
+              "causal_inbound_event_id": "reminder-normal-358940dbbe-case-122-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1803b7c708a106f8e730f",
+          "owner_user_id": "692c4430a538f0baad5561de",
+          "title": "查看不同价位图书毛利分布及新老用户卖书情况",
+          "schedule": {
+            "anchor_at": "2026-04-30T02:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "10:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f180367c708a106f8e7308",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T02:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:51:23.904000+00:00",
+          "updated_at": "2026-04-29T03:51:23.904000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.011
+    }
+  ]
+}

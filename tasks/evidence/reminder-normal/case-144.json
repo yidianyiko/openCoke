@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 144,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-615b119efd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "69311e944bf7878f041148f6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 144,
+      "input": "你今天还可以不定时抽查吗？",
+      "user_id": "69311e944bf7878f041148f6",
+      "original_from_user": "69311e944bf7878f041148f6",
+      "input_message_id": "69f188224e59a790d7530fbe",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f188318e668919e7dafad2",
+          "expect_output_timestamp": 1777436714,
+          "handled_timestamp": 1777436714,
+          "status": "pending",
+          "message_type": "text",
+          "message": "当然可以呀！你打算今天做什么需要我盯着？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-615b119efd",
+            "case_index": 144,
+            "original_from_user": "69311e944bf7878f041148f6",
+            "source_id": "693126be4bf7878f0411490f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-615b119efd-case-144",
+              "business_conversation_key": "reminder-normal-615b119efd-case-144",
+              "causal_inbound_event_id": "reminder-normal-615b119efd-case-144-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "69311e944bf7878f041148f6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.029
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 141,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-39a5ec34da",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c4430a538f0baad5561de"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 141,
+      "input": "哦no对不起今天学习了Prediction market的知识没来得及做数据分析",
+      "user_id": "692c4430a538f0baad5561de",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f187651547eba9ecc1b77a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f187818e668919e7dafa86",
+          "expect_output_timestamp": 1777436523,
+          "handled_timestamp": 1777436523,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈没事没事，学习也是正事儿！那数据分析你打算啥时候弄？今天还有时间吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-39a5ec34da",
+            "case_index": 141,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "693124184bf7878f04114908",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-39a5ec34da-case-141",
+              "business_conversation_key": "reminder-normal-39a5ec34da-case-141",
+              "causal_inbound_event_id": "reminder-normal-39a5ec34da-case-141-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c4430a538f0baad5561de"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 29.049
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 62,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-da885b3095",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4ac79913054ccf2b90bf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 62,
+      "input": "今天下午怎么不提醒我？",
+      "user_id": "692d4ac79913054ccf2b90bf",
+      "original_from_user": "692d4ac79913054ccf2b90bf",
+      "input_message_id": "69f15e73a82d0e4d4dab5478",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15e7e1c6f0de8345a8910",
+          "expect_output_timestamp": 1777426043,
+          "handled_timestamp": 1777426043,
+          "status": "pending",
+          "message_type": "text",
+          "message": "等等，我确认一下……现在才上午九点二十七分，今天下午的物理网课是13:00，物理练习是18:00，还没到提醒时间呢。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-da885b3095",
+            "case_index": 62,
+            "original_from_user": "692d4ac79913054ccf2b90bf",
+            "source_id": "692e96654bf7878f04114654",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-da885b3095-case-62",
+              "business_conversation_key": "reminder-normal-da885b3095-case-62",
+              "causal_inbound_event_id": "reminder-normal-da885b3095-case-62-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4ac79913054ccf2b90bf"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.021
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 75,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-de4d8c5bae",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692ef7f84bf7878f041146e1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 75,
+        "input": "七点半开始正式学习",
+        "user_id": "692ef7f84bf7878f041146e1",
+        "original_from_user": "692ef7f84bf7878f041146e1",
+        "input_message_id": "69f16942109128b93c79e192",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f1694d50c5f25895961ced",
+            "expect_output_timestamp": 1777428809,
+            "handled_timestamp": 1777428809,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，七点半开始学习。现在是上午，你打算从七点半学到几点啊？要不要我到时候提醒你？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-de4d8c5bae",
+              "case_index": 75,
+              "original_from_user": "692ef7f84bf7878f041146e1",
+              "source_id": "692ef9714bf7878f041146e8",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-de4d8c5bae-case-75",
+                "business_conversation_key": "reminder-normal-de4d8c5bae-case-75",
+                "causal_inbound_event_id": "reminder-normal-de4d8c5bae-case-75-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692ef7f84bf7878f041146e1"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 12.021
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 75,
+      "input": "七点半开始正式学习",
+      "user_id": "692ef7f84bf7878f041146e1",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69f16942109128b93c79e192",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f1694d50c5f25895961ced",
+          "expect_output_timestamp": 1777428809,
+          "handled_timestamp": 1777428809,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，七点半开始学习。现在是上午，你打算从七点半学到几点啊？要不要我到时候提醒你？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-de4d8c5bae",
+            "case_index": 75,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692ef9714bf7878f041146e8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-de4d8c5bae-case-75",
+              "business_conversation_key": "reminder-normal-de4d8c5bae-case-75",
+              "causal_inbound_event_id": "reminder-normal-de4d8c5bae-case-75-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692ef7f84bf7878f041146e1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.021
+    }
+  ]
+}

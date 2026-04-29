@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 89,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-05659b652d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692fb38c4bf7878f0411476c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 89,
+      "input": "再加一条 提醒，10号提醒我预定饼干、甜品礼盒、火腿芝士礼盒、8英寸七拼派，链接是\n#小程序://ZAZACAKERY官方/HH0xazB9jK6cj1",
+      "user_id": "692fb38c4bf7878f0411476c",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f16f43c23655a9d9b76ec4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16f4a5f22bc5ee929a1f9",
+          "expect_output_timestamp": 1777430346,
+          "handled_timestamp": 1777430346,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：预定饼干、甜品礼盒、火腿芝士礼盒、8英寸七拼派（2026-05-10 09:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-05659b652d",
+            "case_index": 89,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "692fc0254bf7878f04114786",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-05659b652d-case-89",
+              "business_conversation_key": "reminder-normal-05659b652d-case-89",
+              "causal_inbound_event_id": "reminder-normal-05659b652d-case-89-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692fb38c4bf7878f0411476c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f16f4a5f22bc5ee929a1f6",
+          "owner_user_id": "692fb38c4bf7878f0411476c",
+          "title": "预定饼干、甜品礼盒、火腿芝士礼盒、8英寸七拼派",
+          "schedule": {
+            "anchor_at": "2026-05-10T01:00:00+00:00",
+            "local_date": "2026-05-10",
+            "local_time": "09:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f16f435f22bc5ee929a1ef",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-10T01:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T02:39:06.905000+00:00",
+          "updated_at": "2026-04-29T02:39:06.905000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.015
+    }
+  ]
+}

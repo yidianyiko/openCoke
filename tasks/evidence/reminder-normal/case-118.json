@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 118,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-99f37e254f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c2f0fa538f0baad5561c6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 118,
+      "input": "不，是下午的学习",
+      "user_id": "692c2f0fa538f0baad5561c6",
+      "original_from_user": "692c2f0fa538f0baad5561c6",
+      "input_message_id": "69f17ca68b1d4bdd8551986b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17cab5acadf50d2415a09",
+          "expect_output_timestamp": 1777433769,
+          "handled_timestamp": 1777433769,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哦哦，抱歉是我搞混了。下午学习，那大概几点开始呀，要不要我到时候提醒你？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-99f37e254f",
+            "case_index": 118,
+            "original_from_user": "692c2f0fa538f0baad5561c6",
+            "source_id": "693035b54bf7878f04114866",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-99f37e254f-case-118",
+              "business_conversation_key": "reminder-normal-99f37e254f-case-118",
+              "causal_inbound_event_id": "reminder-normal-99f37e254f-case-118-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c2f0fa538f0baad5561c6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.01
+    }
+  ]
+}

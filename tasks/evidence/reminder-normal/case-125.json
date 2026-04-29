@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 125,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ef1929d7cd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692c14e6a538f0baad5561b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 125,
+      "input": "【bad case】今天有哪些提醒？",
+      "user_id": "692c14e6a538f0baad5561b6",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f18502ca74bac50474fbe2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f185098e668919e7daf8fc",
+          "expect_output_timestamp": 1777435910,
+          "handled_timestamp": 1777435910,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我看看啊，今天还有的提醒是——12点看Lady Gaga飞机票、13点给annette教授发邮件、14:30泡澡。还有明天8点准备resume发给壁画，5月1号有飞机行程，5月5号去杭州。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ef1929d7cd",
+            "case_index": 125,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69306b974bf7878f04114899",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ef1929d7cd-case-125",
+              "business_conversation_key": "reminder-normal-ef1929d7cd-case-125",
+              "causal_inbound_event_id": "reminder-normal-ef1929d7cd-case-125-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692c14e6a538f0baad5561b6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.014
+    }
+  ]
+}

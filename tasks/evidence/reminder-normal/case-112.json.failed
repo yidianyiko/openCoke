@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 112,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c85607bcd7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 112,
+        "input": "提醒我12月10号打印准考证，订酒店",
+        "user_id": "693003594bf7878f041147f1",
+        "original_from_user": "693003594bf7878f041147f1",
+        "input_message_id": "69f179a72ee284bb11f542d7",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f179ae9068053b4e42b442",
+            "expect_output_timestamp": 1777433004,
+            "handled_timestamp": 1777433004,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，12月10号打印准考证和订酒店，具体几点提醒你？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-c85607bcd7",
+              "case_index": 112,
+              "original_from_user": "693003594bf7878f041147f1",
+              "source_id": "6930129c4bf7878f0411481b",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-c85607bcd7-case-112",
+                "business_conversation_key": "reminder-normal-c85607bcd7-case-112",
+                "causal_inbound_event_id": "reminder-normal-c85607bcd7-case-112-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "693003594bf7878f041147f1"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 7.014
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 112,
+      "input": "提醒我12月10号打印准考证，订酒店",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f179a72ee284bb11f542d7",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f179ae9068053b4e42b442",
+          "expect_output_timestamp": 1777433004,
+          "handled_timestamp": 1777433004,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，12月10号打印准考证和订酒店，具体几点提醒你？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c85607bcd7",
+            "case_index": 112,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930129c4bf7878f0411481b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c85607bcd7-case-112",
+              "business_conversation_key": "reminder-normal-c85607bcd7-case-112",
+              "causal_inbound_event_id": "reminder-normal-c85607bcd7-case-112-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.014
+    }
+  ]
+}

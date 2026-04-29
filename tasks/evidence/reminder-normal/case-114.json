@@ -1,0 +1,208 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 114,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c325cd6ccc",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 114,
+      "input": "提醒时间，晚上9点，9点20，11点，12点半，1点",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f17a59cebc9368156b2a78",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17a649068053b4e42b479",
+          "expect_output_timestamp": 1777433188,
+          "handled_timestamp": 1777433188,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：提醒（2026-04-29 21:00）；已创建提醒：提醒（2026-04-29 21:20）；已创建提醒：提醒（2026-04-29 23:00）；已创建提醒：提醒（2026-04-30 00:30）；已创建提醒：提醒（2026-04-30 01:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c325cd6ccc",
+            "case_index": 114,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301ced4bf7878f0411482a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c325cd6ccc-case-114",
+              "business_conversation_key": "reminder-normal-c325cd6ccc-case-114",
+              "causal_inbound_event_id": "reminder-normal-c325cd6ccc-case-114-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f17a649068053b4e42b472",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T13:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "21:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17a599068053b4e42b469",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T13:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:26:28.668000+00:00",
+          "updated_at": "2026-04-29T03:26:28.668000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f17a649068053b4e42b473",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T13:20:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "21:20:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17a599068053b4e42b469",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T13:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:26:28.675000+00:00",
+          "updated_at": "2026-04-29T03:26:28.675000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f17a649068053b4e42b474",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T15:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "23:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17a599068053b4e42b469",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T15:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:26:28.676000+00:00",
+          "updated_at": "2026-04-29T03:26:28.676000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f17a649068053b4e42b475",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T16:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "00:30:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17a599068053b4e42b469",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T16:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:26:28.678000+00:00",
+          "updated_at": "2026-04-29T03:26:28.678000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f17a649068053b4e42b476",
+          "owner_user_id": "693003594bf7878f041147f1",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-29T17:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "01:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f17a599068053b4e42b469",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T17:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T03:26:28.679000+00:00",
+          "updated_at": "2026-04-29T03:26:28.679000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 11.02
+    }
+  ]
+}

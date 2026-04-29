@@ -1,0 +1,124 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 68,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c662d09a47",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692ea54e4bf7878f0411467c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 68,
+      "input": "我想要按时吃饭，而且要工作。今天下午已经开始工作了，晚饭吃的比较晚，7点要去健身，所以我需要在6点的时候吃饭",
+      "user_id": "692ea54e4bf7878f0411467c",
+      "original_from_user": "692ea54e4bf7878f0411467c",
+      "input_message_id": "69f15f6c79f39fd294bf84e7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f15f6e1c6f0de8345a8984",
+          "expect_output_timestamp": 1777426286,
+          "handled_timestamp": 1777426286,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：健身（2026-04-30 07:00）；已创建提醒：的时候吃饭（2026-04-30 06:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c662d09a47",
+            "case_index": 68,
+            "original_from_user": "692ea54e4bf7878f0411467c",
+            "source_id": "692eb3794bf7878f04114692",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c662d09a47-case-68",
+              "business_conversation_key": "reminder-normal-c662d09a47-case-68",
+              "causal_inbound_event_id": "reminder-normal-c662d09a47-case-68-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692ea54e4bf7878f0411467c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f15f6e1c6f0de8345a8981",
+          "owner_user_id": "692ea54e4bf7878f0411467c",
+          "title": "健身",
+          "schedule": {
+            "anchor_at": "2026-04-29T23:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "07:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15f6c1c6f0de8345a8977",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T23:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:31:26.114000+00:00",
+          "updated_at": "2026-04-29T01:31:26.114000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f15f6e1c6f0de8345a8982",
+          "owner_user_id": "692ea54e4bf7878f0411467c",
+          "title": "的时候吃饭",
+          "schedule": {
+            "anchor_at": "2026-04-29T22:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "06:00:00",
+            "timezone": "Asia/Shanghai",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f15f6c1c6f0de8345a8977",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T22:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T01:31:26.120000+00:00",
+          "updated_at": "2026-04-29T01:31:26.120000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 2.005
+    }
+  ]
+}

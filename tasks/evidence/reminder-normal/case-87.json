@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 87,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4cb51e7643",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d1e74a538f0baad556236"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 87,
+      "input": "忘了 deck 处理了一半吧，现在继续做，\n\n运营计划可能下午或者晚上再处理",
+      "user_id": "692d1e74a538f0baad556236",
+      "original_from_user": "692d1e74a538f0baad556236",
+      "input_message_id": "69f16d7fc4c076d68fdd4631",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16d973106e16810c11e05",
+          "expect_output_timestamp": 1777429895,
+          "handled_timestamp": 1777429895,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，deck继续搞起！那deck你中午前能搞定不？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4cb51e7643",
+            "case_index": 87,
+            "original_from_user": "692d1e74a538f0baad556236",
+            "source_id": "692fb6024bf7878f0411476f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4cb51e7643-case-87",
+              "business_conversation_key": "reminder-normal-4cb51e7643-case-87",
+              "causal_inbound_event_id": "reminder-normal-4cb51e7643-case-87-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d1e74a538f0baad556236"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 24.045
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 81,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-19bca95878",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692ec5554bf7878f041146a7"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 81,
+      "input": "6号考试了，其他计划就是后面几天我选课的作业要先做一下，周四周五没时间了",
+      "user_id": "692ec5554bf7878f041146a7",
+      "original_from_user": "692ec5554bf7878f041146a7",
+      "input_message_id": "69f16bfc85e4e5275e6ee8cb",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16c367daf8064dce5e96e",
+          "expect_output_timestamp": 1777429551,
+          "handled_timestamp": 1777429551,
+          "status": "pending",
+          "message_type": "text",
+          "message": "6号考试我记下了！那这两天具体怎么安排选课作业，你今天有想做什么吗",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-19bca95878",
+            "case_index": 81,
+            "original_from_user": "692ec5554bf7878f041146a7",
+            "source_id": "692f8d254bf7878f04114721",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-19bca95878-case-81",
+              "business_conversation_key": "reminder-normal-19bca95878-case-81",
+              "causal_inbound_event_id": "reminder-normal-19bca95878-case-81-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692ec5554bf7878f041146a7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 58.103
+    }
+  ]
+}

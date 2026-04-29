@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 88,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d9c3454a4f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692fb38c4bf7878f0411476c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 88,
+        "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+        "user_id": "692fb38c4bf7878f0411476c",
+        "original_from_user": "692fb38c4bf7878f0411476c",
+        "input_message_id": "69f16d985aea6b83b16b4188",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f16dc83106e16810c11e14",
+            "expect_output_timestamp": 1777429957,
+            "handled_timestamp": 1777429957,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好嘞，帮你定个本周六的蛋糕提醒！",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-d9c3454a4f",
+              "case_index": 88,
+              "original_from_user": "692fb38c4bf7878f0411476c",
+              "source_id": "692fbf7b4bf7878f04114783",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-d9c3454a4f-case-88",
+                "business_conversation_key": "reminder-normal-d9c3454a4f-case-88",
+                "causal_inbound_event_id": "reminder-normal-d9c3454a4f-case-88-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692fb38c4bf7878f0411476c"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 49.085
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 88,
+      "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+      "user_id": "692fb38c4bf7878f0411476c",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f16d985aea6b83b16b4188",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f16dc83106e16810c11e14",
+          "expect_output_timestamp": 1777429957,
+          "handled_timestamp": 1777429957,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，帮你定个本周六的蛋糕提醒！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d9c3454a4f",
+            "case_index": 88,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "692fbf7b4bf7878f04114783",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d9c3454a4f-case-88",
+              "business_conversation_key": "reminder-normal-d9c3454a4f-case-88",
+              "causal_inbound_event_id": "reminder-normal-d9c3454a4f-case-88-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692fb38c4bf7878f0411476c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 49.085
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 76,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1c1f1d3c55",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692ef7f84bf7878f041146e1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 76,
+      "input": "请给我完整的明天的学习计划",
+      "user_id": "692ef7f84bf7878f041146e1",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69f16b9b4b6607e14e22b012",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f16ba87daf8064dce5e90e",
+          "expect_output_timestamp": 1777429408,
+          "handled_timestamp": 1777429408,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，今天的具体目标是什么？你先说想完成哪几件事，我来帮你排时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1c1f1d3c55",
+            "case_index": 76,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692efc404bf7878f041146ef",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1c1f1d3c55-case-76",
+              "business_conversation_key": "reminder-normal-1c1f1d3c55-case-76",
+              "causal_inbound_event_id": "reminder-normal-1c1f1d3c55-case-76-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692ef7f84bf7878f041146e1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.023
+    }
+  ]
+}

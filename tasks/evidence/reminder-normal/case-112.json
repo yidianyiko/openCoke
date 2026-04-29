@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 112,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f3f21797ac",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 112,
+      "input": "提醒我12月10号打印准考证，订酒店",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f17a0c4454b4da38658b8a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f17a189068053b4e42b454",
+          "expect_output_timestamp": 1777433107,
+          "handled_timestamp": 1777433107,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，这也太早了吧，4月份就安排12月的事情，靠谱！不过具体是12月10号当天几点提醒你呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f3f21797ac",
+            "case_index": 112,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930129c4bf7878f0411481b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f3f21797ac-case-112",
+              "business_conversation_key": "reminder-normal-f3f21797ac-case-112",
+              "causal_inbound_event_id": "reminder-normal-f3f21797ac-case-112-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.019
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 139,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-483011a586",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693003594bf7878f041147f1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 139,
+      "input": "你十一点没有提醒我呀",
+      "user_id": "693003594bf7878f041147f1",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f187474ed93caf593b725a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f187518e668919e7dafa5d",
+          "expect_output_timestamp": 1777436494,
+          "handled_timestamp": 1777436494,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哎，我查了一下，确实没有设置十一点的提醒，是我之前没跟你确认清楚具体时间。不好意思啊！那看看是需要现在补一个提醒，还是当时那个事情已经过了？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-483011a586",
+            "case_index": 139,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693102884bf7878f041148e6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-483011a586-case-139",
+              "business_conversation_key": "reminder-normal-483011a586-case-139",
+              "causal_inbound_event_id": "reminder-normal-483011a586-case-139-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693003594bf7878f041147f1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.019
+    }
+  ]
+}
