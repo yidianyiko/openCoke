@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 237,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-cd7ef26941",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "4fe31dd506bd4e3a8cd901c7"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 237,
+      "input": "这周的任务，今天先干完 2",
+      "user_id": "4fe31dd506bd4e3a8cd901c7",
+      "original_from_user": "692d1e74a538f0baad556236",
+      "input_message_id": "69f1e56dc19a03ebf3651c0b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e578363b9b9847291abe",
+          "expect_output_timestamp": 1777460597,
+          "handled_timestamp": 1777460597,
+          "status": "pending",
+          "message_type": "text",
+          "message": "等等，你刚说的是“这周的任务，今天先干完2”，是说这周的任务今天先完成2/？还是今天先干2个？另外，提醒还没设好呢，要不要我到时候提醒你干这个活儿？想几点开始干？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-cd7ef26941",
+            "case_index": 237,
+            "original_from_user": "692d1e74a538f0baad556236",
+            "source_id": "693677fe94ff180b41ab744a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-cd7ef26941-case-237",
+              "business_conversation_key": "reminder-normal-cd7ef26941-case-237",
+              "causal_inbound_event_id": "reminder-normal-cd7ef26941-case-237-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4fe31dd506bd4e3a8cd901c7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.022
+    }
+  ]
+}
