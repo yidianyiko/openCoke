@@ -68,7 +68,9 @@ async def test_explicit_reminder_request_runs_detector_when_orchestrator_misses_
 
 
 @pytest.mark.asyncio
-async def test_implicit_time_task_uses_deterministic_create_before_detector(monkeypatch):
+async def test_implicit_time_task_uses_deterministic_create_before_detector(
+    monkeypatch,
+):
     from agent.agno_agent.tools.tool_result import append_tool_result
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
@@ -381,7 +383,9 @@ async def test_underspecified_reminder_request_skips_detector_with_direct_reply(
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(monkeypatch):
+async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(
+    monkeypatch,
+):
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -592,7 +596,9 @@ async def test_reminder_detect_timeout_uses_simple_create_fallback(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_reminder_detect_timeout_range_fallback_uses_range_start_and_title(monkeypatch):
+async def test_reminder_detect_timeout_range_fallback_uses_range_start_and_title(
+    monkeypatch,
+):
     from agent.agno_agent.tools.tool_result import append_tool_result
     from agent.agno_agent.workflows import prepare_workflow
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
@@ -639,7 +645,9 @@ async def test_reminder_detect_timeout_range_fallback_uses_range_start_and_title
                 ok=True,
                 result_summary=f"已创建提醒：{operation['title']}",
             )
-        return "\n".join(f"已创建提醒：{item['title']}" for item in kwargs["operations"])
+        return "\n".join(
+            f"已创建提醒：{item['title']}" for item in kwargs["operations"]
+        )
 
     monkeypatch.setattr(
         prepare_workflow,
@@ -731,7 +739,9 @@ async def test_reminder_detect_timeout_uses_multi_create_fallback(monkeypatch):
                 ok=True,
                 result_summary=f"已创建提醒：{operation['title']}",
             )
-        return "\n".join(f"已创建提醒：{item['title']}" for item in kwargs["operations"])
+        return "\n".join(
+            f"已创建提醒：{item['title']}" for item in kwargs["operations"]
+        )
 
     monkeypatch.setattr(
         prepare_workflow,
@@ -782,10 +792,33 @@ async def test_reminder_detect_timeout_uses_multi_create_fallback(monkeypatch):
     ]
     assert "T18:02:00" in fallback_calls[0]["operations"][0]["trigger_at"]
     assert "T18:04:00" in fallback_calls[0]["operations"][1]["trigger_at"]
-    assert [item["result_summary"] for item in result["session_state"]["tool_results"]] == [
+    assert [
+        item["result_summary"] for item in result["session_state"]["tool_results"]
+    ] == [
         "已创建提醒：喝水",
         "已创建提醒：吃饭",
     ]
+
+
+def test_simple_reminder_fallback_parses_tomorrow_date_only_multi_titles():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    operations = workflow._parse_simple_reminder_creates(
+        "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+        {"user": {"timezone": "Asia/Tokyo"}},
+    )
+
+    assert [operation["title"] for operation in operations] == [
+        "看文章",
+        "写学习笔记",
+        "写小说",
+    ]
+    assert [operation["rrule"] for operation in operations] == [None, None, None]
+    assert "T09:00:00" in operations[0]["trigger_at"]
+    assert "T09:05:00" in operations[1]["trigger_at"]
+    assert "T09:10:00" in operations[2]["trigger_at"]
 
 
 @pytest.mark.asyncio

@@ -70,7 +70,9 @@ def _float_env(name: str, default: float) -> float:
     try:
         value = float(raw_value)
     except ValueError:
-        logger.warning("%s=%r is not a valid float; using %.1f", name, raw_value, default)
+        logger.warning(
+            "%s=%r is not a valid float; using %.1f", name, raw_value, default
+        )
         return default
     return value if value > 0 else default
 
@@ -86,7 +88,9 @@ _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS = _float_env(
 
 _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
     re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}按.{0,20}时间"),
-    re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}(用|按照).{0,20}(时间|时区)"),
+    re.compile(
+        r"(以后|之后|后面|今后|从现在起|往后).{0,12}(用|按照).{0,20}(时间|时区)"
+    ),
     re.compile(
         r"(from now on|going forward|after this).{0,24}(use|follow).{0,24}(time|timezone)"
     ),
@@ -94,8 +98,12 @@ _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
 
 _CALENDAR_IMPORT_PATH = "/account/calendar-import"
 _CALENDAR_IMPORT_INTENT_PATTERNS = (
-    re.compile(r"(导入|同步|绑定|接入|连接|授权).{0,12}(谷歌|google)?日历", re.IGNORECASE),
-    re.compile(r"(谷歌|google).{0,12}日历.{0,12}(导入|同步|绑定|接入|连接|授权)", re.IGNORECASE),
+    re.compile(
+        r"(导入|同步|绑定|接入|连接|授权).{0,12}(谷歌|google)?日历", re.IGNORECASE
+    ),
+    re.compile(
+        r"(谷歌|google).{0,12}日历.{0,12}(导入|同步|绑定|接入|连接|授权)", re.IGNORECASE
+    ),
     re.compile(
         r"\b(import|sync|connect|link|authorize|integrate)\b.{0,40}\b(google\s+calendar|calendar)\b",
         re.IGNORECASE,
@@ -376,17 +384,13 @@ class PrepareWorkflow:
 
         if self._looks_like_underspecified_reminder_request(input_message):
             orchestrator["need_reminder_detect"] = False
-            session_state["direct_reply"] = (
-                "可以。你想让我提醒你做什么、什么时候提醒？"
-            )
+            session_state["direct_reply"] = "可以。你想让我提醒你做什么、什么时候提醒？"
             logger.info(
                 "[PrepareWorkflow] 提醒请求缺少内容和时间，跳过 ReminderDetectAgent"
             )
             return False
 
-        if not need_reminder and self._looks_like_reminder_intent(
-            input_message
-        ):
+        if not need_reminder and self._looks_like_reminder_intent(input_message):
             orchestrator["need_reminder_detect"] = True
             logger.info(
                 "[PrepareWorkflow] 提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
@@ -418,9 +422,7 @@ class PrepareWorkflow:
         text = str(input_message or "").strip()
         return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(text))
 
-    def _looks_like_underspecified_reminder_request(
-        self, input_message: str
-    ) -> bool:
+    def _looks_like_underspecified_reminder_request(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
         return bool(_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN.search(text))
 
@@ -428,7 +430,9 @@ class PrepareWorkflow:
         text = str(input_message or "").strip()
         if not text:
             return False
-        return any(pattern.search(text) for pattern in _IMPLICIT_REMINDER_INTENT_PATTERNS)
+        return any(
+            pattern.search(text) for pattern in _IMPLICIT_REMINDER_INTENT_PATTERNS
+        )
 
     def _looks_like_reminder_intent(self, input_message: str) -> bool:
         return self._looks_like_explicit_reminder_intent(
@@ -510,7 +514,9 @@ class PrepareWorkflow:
                 if result.get("state"):
                     session_state.setdefault("user", {}).update(result["state"])
             else:
-                logger.warning(f"[PrepareWorkflow] 时区更新失败: {result.get('message')}")
+                logger.warning(
+                    f"[PrepareWorkflow] 时区更新失败: {result.get('message')}"
+                )
         except Exception as e:
             logger.error(f"[PrepareWorkflow] 时区更新异常: {e}")
 
@@ -529,7 +535,9 @@ class PrepareWorkflow:
                 if result.get("state"):
                     session_state.setdefault("user", {}).update(result["state"])
             else:
-                logger.warning(f"[PrepareWorkflow] 时区提议记录失败: {result.get('message')}")
+                logger.warning(
+                    f"[PrepareWorkflow] 时区提议记录失败: {result.get('message')}"
+                )
         except Exception as e:
             logger.error(f"[PrepareWorkflow] 时区提议记录异常: {e}")
 
@@ -540,9 +548,9 @@ class PrepareWorkflow:
         pending_change = session_state.get("user", {}).get("pending_timezone_change")
         if not pending_change:
             return False
-        if pending_change.get("origin_conversation_id") != self._get_current_conversation_id(
-            session_state
-        ):
+        if pending_change.get(
+            "origin_conversation_id"
+        ) != self._get_current_conversation_id(session_state):
             return False
         decision = self._match_short_confirmation_reply(input_message)
         if is_timezone_proposal_expired(pending_change):
@@ -891,7 +899,9 @@ class PrepareWorkflow:
         if not operations:
             return False
         try:
-            entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
+            entrypoint = getattr(
+                visible_reminder_tool, "entrypoint", visible_reminder_tool
+            )
             entrypoint = getattr(entrypoint, "raw_function", entrypoint)
             if len(operations) == 1:
                 operation = operations[0]
@@ -914,7 +924,9 @@ class PrepareWorkflow:
             )
             return False
 
-    def _should_use_deterministic_create_before_detector(self, input_message: str) -> bool:
+    def _should_use_deterministic_create_before_detector(
+        self, input_message: str
+    ) -> bool:
         return self._looks_like_implicit_reminder_intent(
             input_message
         ) and not self._looks_like_explicit_reminder_intent(input_message)
@@ -994,7 +1006,10 @@ class PrepareWorkflow:
         operations = self._parse_chinese_time_reminder_creates(text, now)
         if operations:
             return operations
-        return self._parse_deadline_reminder_creates(text, now)
+        operations = self._parse_deadline_reminder_creates(text, now)
+        if operations:
+            return operations
+        return self._parse_tomorrow_date_only_reminder_creates(text, now)
 
     def _extract_range_title_after_next_time(
         self,
@@ -1142,6 +1157,67 @@ class PrepareWorkflow:
             }
         ]
 
+    def _parse_tomorrow_date_only_reminder_creates(
+        self,
+        text: str,
+        now: datetime,
+    ) -> list[dict[str, str | None]]:
+        if "明天" not in text or not self._looks_like_reminder_intent(text):
+            return []
+
+        titles = self._extract_tomorrow_date_only_titles(text)
+        operations = []
+        for index, title in enumerate(titles):
+            trigger_at = (now + timedelta(days=1)).replace(
+                hour=9,
+                minute=index * 5,
+                second=0,
+                microsecond=0,
+            )
+            operations.append(
+                {
+                    "action": "create",
+                    "title": title,
+                    "trigger_at": trigger_at.isoformat(),
+                    "rrule": None,
+                }
+            )
+        return operations
+
+    def _extract_tomorrow_date_only_titles(self, text: str) -> list[str]:
+        clauses = [
+            clause.strip()
+            for clause in re.split(r"[，,。；;！？!?\n]", text)
+            if clause.strip()
+        ]
+        titles: list[str] = []
+        seen: set[str] = set()
+
+        def add(raw_title: str) -> None:
+            title = self._clean_date_only_reminder_title(raw_title)
+            if not title or title in seen:
+                return
+            seen.add(title)
+            titles.append(title)
+
+        for clause in clauses:
+            reminder_match = re.search(r"(?:提醒我|提醒)(?P<title>.+)", clause)
+            if reminder_match:
+                add(reminder_match.group("title"))
+
+            write_match = re.search(r"(?:然后|还|也|再)?要写(?P<title>.+)", clause)
+            if write_match:
+                add(f"写{write_match.group('title')}")
+
+            continue_write_match = re.search(
+                r"(?P<title>[^，,。；;！？!?\n]{1,16})明天也继续写",
+                clause,
+            )
+            if continue_write_match:
+                add(f"写{continue_write_match.group('title')}")
+
+        return titles
+
     def _previous_clause_boundary(self, text: str, position: int) -> int:
         boundary = 0
         for separator in "，,。；;！？!?\n":
@@ -1155,14 +1231,27 @@ class PrepareWorkflow:
 
     def _extract_simple_reminder_title_after_time(self, suffix: str) -> str:
         title = str(suffix or "").strip()
-        title = re.sub(r"^(提醒我|提醒一下我|提醒|叫我|喊我|通知我|让我|帮我|记得)+", "", title)
+        title = re.sub(
+            r"^(提醒我|提醒一下我|提醒|叫我|喊我|通知我|让我|帮我|记得)+", "", title
+        )
         title = re.split(r"[，,。；;！？!?\n]", title, maxsplit=1)[0]
-        title = re.sub(r"^(一个是|一是|二是|三是|还有|再|去|要|开始)+", "", title).strip()
+        title = re.sub(
+            r"^(一个是|一是|二是|三是|还有|再|去|要|开始)+", "", title
+        ).strip()
         return self._clean_simple_reminder_title(title)
 
     def _clean_deadline_reminder_title(self, raw_title: str) -> str:
         title = str(raw_title or "").strip()
-        title = re.sub(r"^(最近|最近要|我最近要|我想|我想要|我要|要|需要|得|必须)+", "", title)
+        title = re.sub(
+            r"^(最近|最近要|我最近要|我想|我想要|我要|要|需要|得|必须)+", "", title
+        )
+        return self._clean_simple_reminder_title(title)
+
+    def _clean_date_only_reminder_title(self, raw_title: str) -> str:
+        title = str(raw_title or "").strip()
+        title = re.sub(r"(明天|今天|继续|再次|一遍)", "", title)
+        title = re.sub(r"^(然后|还有|还|也|再|要|需要|必须)+", "", title)
+        title = re.sub(r"(要看完|看完)$", "", title)
         return self._clean_simple_reminder_title(title)
 
     def _clean_simple_reminder_title(self, raw_title: str) -> str:
@@ -1174,9 +1263,7 @@ class PrepareWorkflow:
     def _get_user_timezone_name(self, session_state: Dict[str, Any]) -> str:
         user = session_state.get("user") or {}
         timezone_name = (
-            user.get("effective_timezone")
-            or user.get("timezone")
-            or "Asia/Shanghai"
+            user.get("effective_timezone") or user.get("timezone") or "Asia/Shanghai"
         )
         return str(timezone_name)
 
@@ -1212,11 +1299,7 @@ class PrepareWorkflow:
             .get("time_str", "")
         )
         user = session_state.get("user", {})
-        timezone = (
-            user.get("effective_timezone")
-            or user.get("timezone")
-            or "unknown"
-        )
+        timezone = user.get("effective_timezone") or user.get("timezone") or "unknown"
 
         # 渲染模板
         return self.REMINDER_CONTEXT_TEMPLATE.format(
