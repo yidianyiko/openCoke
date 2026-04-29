@@ -461,6 +461,11 @@ async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
         "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
         0.01,
     )
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+        0.01,
+    )
 
     with (
         patch(
@@ -493,7 +498,7 @@ async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
 def test_reminder_detect_retry_default_timeout_allows_fast_llm_budget():
     from agent.agno_agent.workflows import prepare_workflow
 
-    assert prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS >= 30.0
+    assert prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS >= 60.0
 
 
 @pytest.mark.asyncio
@@ -550,6 +555,11 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     monkeypatch.setattr(
         prepare_workflow,
         "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
         0.01,
     )
 
@@ -633,6 +643,11 @@ async def test_reminder_detect_timeout_does_not_create_with_local_parser(monkeyp
     monkeypatch.setattr(
         prepare_workflow,
         "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        prepare_workflow,
+        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
         0.01,
     )
     monkeypatch.setattr(
