@@ -1553,6 +1553,38 @@ def test_validate_observations_allows_light_action_prefix_title_match():
     assert errors == []
 
 
+def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
+    case = normal_eval.ReminderNormalPathCase(
+        input="如果可以的话 你8:40提醒我一下回复刘冲、Eva，约一下袁琳、浩然",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={},
+    )
+    reminders = [
+        {
+            "title": "回复刘冲、Eva，约一下袁琳、浩然",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 29, 23, 40, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "08:40:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {"message": "已创建提醒：回复刘冲、Eva，约一下袁琳、浩然（2026-04-30 08:40）"}
+        ],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
 def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
     expected = normal_eval.expected_created_reminders("下午2:30提醒我起来走一走")
 

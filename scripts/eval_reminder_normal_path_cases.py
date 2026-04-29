@@ -849,7 +849,7 @@ def validate_expected_creates(
 
 
 _COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读来")
-_COMMON_TITLE_LEADING_PREFIXES = ("开始",)
+_COMMON_TITLE_LEADING_PREFIXES = ("开始", "一下")
 
 
 def output_mentions_expected_title(
@@ -934,7 +934,10 @@ def find_matching_reminder(
     normalized_expected_variants = _normalized_expected_title_variants(expected)
     for reminder in reminders:
         reminder_title = normalize_expected_title(str(reminder.get("title") or ""))
-        if reminder_title not in normalized_expected_variants:
+        if not title_matches_expected_variants(
+            reminder_title,
+            normalized_expected_variants,
+        ):
             continue
         if expected.local_time:
             schedule = reminder.get("schedule") or {}
@@ -946,6 +949,20 @@ def find_matching_reminder(
             return reminder
         return reminder
     return None
+
+
+def title_matches_expected_variants(
+    reminder_title: str,
+    expected_variants: list[str],
+) -> bool:
+    if reminder_title in expected_variants:
+        return True
+    for variant in expected_variants:
+        if len(variant) >= 4 and (
+            variant in reminder_title or reminder_title in variant
+        ):
+            return True
+    return False
 
 
 def normalize_text(text: str) -> str:
