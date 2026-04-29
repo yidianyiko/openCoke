@@ -557,6 +557,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[122].metadata["expected_creates"][0]["recurring"] is False
     assert cases[123].metadata["expected_creates"][0]["local_time"] == "10:40:00"
     assert cases[124].metadata["evaluation_expectation"] == "query"
+    assert cases[125].metadata["evaluation_expectation"] == "query"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
