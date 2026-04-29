@@ -233,6 +233,10 @@
     "212": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user gives a reminder date before a deadline but no clock time on that date. Without a product default-time policy, the agent should ask what time on the 17th instead of creating a midnight reminder."
+    },
+    "213": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded for tasks expressed as time ranges and refers to 'these time points'. The ranges are task boundaries, not concrete reminder trigger points, so the agent should clarify frequency or exact reminder times instead of choosing range endpoints."
     }
   }
 }
