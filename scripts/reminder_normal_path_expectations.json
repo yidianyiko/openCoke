@@ -241,6 +241,10 @@
     "215": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should confirm reminder intent instead of creating one silently."
+    },
+    "219": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
     }
   }
 }

@@ -137,6 +137,24 @@ def test_reminder_operation_direct_reply_skips_list_results():
     assert get_reminder_operation_direct_reply(state) == ""
 
 
+def test_reminder_operation_direct_reply_skips_detector_failures():
+    from agent.prompt.chat_contextprompt import (
+        get_reminder_operation_direct_reply,
+        reminder_tool_result_counts_as_setup,
+    )
+
+    detect_failure = {
+        "tool_name": "提醒操作",
+        "ok": False,
+        "result_summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+        "extra_notes": "action=detect; error_code=ReminderDetectInvalidStructuredOutput",
+    }
+    state = {"tool_results": [detect_failure]}
+
+    assert reminder_tool_result_counts_as_setup(detect_failure) is False
+    assert get_reminder_operation_direct_reply(state) == ""
+
+
 def test_reminder_operation_direct_reply_skips_failed_create_results():
     from agent.prompt.chat_contextprompt import (
         get_reminder_operation_direct_reply,

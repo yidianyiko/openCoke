@@ -268,6 +268,9 @@ async def test_invalid_structured_reminder_retry_failure_records_tool_result(
     reminder_detect_retry_agent.arun.assert_awaited_once()
     [tool_result] = result["session_state"]["tool_results"]
     assert tool_result["ok"] is False
+    assert tool_result["result_summary"] == (
+        "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    )
     assert (
         tool_result["extra_notes"]
         == "action=detect; error_code=ReminderDetectInvalidStructuredOutput"

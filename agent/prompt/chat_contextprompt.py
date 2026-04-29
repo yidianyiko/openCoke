@@ -512,6 +512,8 @@ def reminder_tool_result_counts_as_setup(entry: dict) -> bool:
     action = _tool_result_action(entry)
     if action == "list":
         return False
+    if action == "detect":
+        return False
     if action in {"create", "batch"}:
         return entry.get("ok") is True
     return True
