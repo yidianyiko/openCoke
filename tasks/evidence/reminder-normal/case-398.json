@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 398,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2ed8541389",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "14a0e262bef4d50dd3c7832c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 398,
+      "input": "46的时候提醒我学习然后再进行一轮，我中午吃饭休息",
+      "user_id": "14a0e262bef4d50dd3c7832c",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f2390e51ea86a65239fe08",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2392a5f7e042740b8cd7e",
+          "expect_output_timestamp": 1777482026,
+          "handled_timestamp": 1777482026,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：学习（2026-04-30 10:46）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2ed8541389",
+            "case_index": 398,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "693f744a2971a327a8e5ecf2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2ed8541389-case-398",
+              "business_conversation_key": "reminder-normal-2ed8541389-case-398",
+              "causal_inbound_event_id": "reminder-normal-2ed8541389-case-398-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "14a0e262bef4d50dd3c7832c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2392a5f7e042740b8cd7c",
+          "owner_user_id": "14a0e262bef4d50dd3c7832c",
+          "title": "学习",
+          "schedule": {
+            "anchor_at": "2026-04-30T01:46:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "10:46:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2390e5f7e042740b8cd4f",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T01:46:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:00:26.638000+00:00",
+          "updated_at": "2026-04-29T17:00:26.638000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 29.048
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 404,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f08ceda7c4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b61793256a3c616091a5f5a8"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 404,
+        "input": "不不不，按北京时间提醒我",
+        "user_id": "b61793256a3c616091a5f5a8",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f23987ba82a6250b879a55",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f239915f7e042740b8cde9",
+            "expect_output_timestamp": 1777482129,
+            "handled_timestamp": 1777482129,
+            "status": "pending",
+            "message_type": "text",
+            "message": "请问您想提醒什么内容？另外，请提供北京时间的具体提醒时间，这样我才能为您设置提醒。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-f08ceda7c4",
+              "case_index": 404,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "693f83642971a327a8e5ed01",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-f08ceda7c4-case-404",
+                "business_conversation_key": "reminder-normal-f08ceda7c4-case-404",
+                "causal_inbound_event_id": "reminder-normal-f08ceda7c4-case-404-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "b61793256a3c616091a5f5a8"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.017
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 404,
+      "input": "不不不，按北京时间提醒我",
+      "user_id": "b61793256a3c616091a5f5a8",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23987ba82a6250b879a55",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f239915f7e042740b8cde9",
+          "expect_output_timestamp": 1777482129,
+          "handled_timestamp": 1777482129,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问您想提醒什么内容？另外，请提供北京时间的具体提醒时间，这样我才能为您设置提醒。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f08ceda7c4",
+            "case_index": 404,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693f83642971a327a8e5ed01",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f08ceda7c4-case-404",
+              "business_conversation_key": "reminder-normal-f08ceda7c4-case-404",
+              "causal_inbound_event_id": "reminder-normal-f08ceda7c4-case-404-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b61793256a3c616091a5f5a8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 397,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-225d0d4131",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ed3c02960b4359bd1762ada6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 397,
+      "input": "五分钟之后提醒我继续搞",
+      "user_id": "ed3c02960b4359bd1762ada6",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f23906b36ba81d72612eb4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2390c5f7e042740b8cd4a",
+          "expect_output_timestamp": 1777481996,
+          "handled_timestamp": 1777481996,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：继续搞（2026-04-30 10:36）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-225d0d4131",
+            "case_index": 397,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693f73022971a327a8e5ecf0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-225d0d4131-case-397",
+              "business_conversation_key": "reminder-normal-225d0d4131-case-397",
+              "causal_inbound_event_id": "reminder-normal-225d0d4131-case-397-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ed3c02960b4359bd1762ada6"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2390c5f7e042740b8cd48",
+          "owner_user_id": "ed3c02960b4359bd1762ada6",
+          "title": "继续搞",
+          "schedule": {
+            "anchor_at": "2026-04-30T01:36:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "10:36:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f239065f7e042740b8cd3f",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T01:36:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T16:59:56.411000+00:00",
+          "updated_at": "2026-04-29T16:59:56.411000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.012
+    }
+  ]
+}

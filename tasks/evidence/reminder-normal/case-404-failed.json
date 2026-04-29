@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 404,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-25b28f5da1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e06afa3557b1c422742cfa94"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 404,
+        "input": "不不不，按北京时间提醒我",
+        "user_id": "e06afa3557b1c422742cfa94",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f2395b14a0141617bc2677",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f239625f7e042740b8cddb",
+            "expect_output_timestamp": 1777482082,
+            "handled_timestamp": 1777482082,
+            "status": "pending",
+            "message_type": "text",
+            "message": "您想设置什么内容的提醒，以及在北京时间的几点提醒您呢？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-25b28f5da1",
+              "case_index": 404,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "693f83642971a327a8e5ed01",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-25b28f5da1-case-404",
+                "business_conversation_key": "reminder-normal-25b28f5da1-case-404",
+                "causal_inbound_event_id": "reminder-normal-25b28f5da1-case-404-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "e06afa3557b1c422742cfa94"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 8.015
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 404,
+      "input": "不不不，按北京时间提醒我",
+      "user_id": "e06afa3557b1c422742cfa94",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2395b14a0141617bc2677",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f239625f7e042740b8cddb",
+          "expect_output_timestamp": 1777482082,
+          "handled_timestamp": 1777482082,
+          "status": "pending",
+          "message_type": "text",
+          "message": "您想设置什么内容的提醒，以及在北京时间的几点提醒您呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-25b28f5da1",
+            "case_index": 404,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693f83642971a327a8e5ed01",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-25b28f5da1-case-404",
+              "business_conversation_key": "reminder-normal-25b28f5da1-case-404",
+              "causal_inbound_event_id": "reminder-normal-25b28f5da1-case-404-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e06afa3557b1c422742cfa94"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.015
+    }
+  ]
+}

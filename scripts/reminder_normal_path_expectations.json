@@ -419,6 +419,10 @@
     "394": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a study plan with a clock time but does not explicitly ask for a reminder. The agent should ask whether to set a reminder instead of creating one."
+    },
+    "404": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The isolated corpus case corrects the reminder timezone to Beijing time but does not include the reminder content or target time in the current turn. The agent should ask for the missing details instead of creating a reminder."
     }
   }
 }

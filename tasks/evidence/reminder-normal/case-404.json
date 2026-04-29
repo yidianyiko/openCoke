@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 404,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6daa4397d1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2942f000211e8ead094201a1"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 404,
+      "input": "不不不，按北京时间提醒我",
+      "user_id": "2942f000211e8ead094201a1",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23a024bc440b3d91308da",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f23a0c5f7e042740b8cdf7",
+          "expect_output_timestamp": 1777482252,
+          "handled_timestamp": 1777482252,
+          "status": "pending",
+          "message_type": "text",
+          "message": "您想按北京时间设置什么提醒？请提供提醒的具体时间和内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6daa4397d1",
+            "case_index": 404,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693f83642971a327a8e5ed01",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6daa4397d1-case-404",
+              "business_conversation_key": "reminder-normal-6daa4397d1-case-404",
+              "causal_inbound_event_id": "reminder-normal-6daa4397d1-case-404-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2942f000211e8ead094201a1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 11.018
+    }
+  ]
+}
