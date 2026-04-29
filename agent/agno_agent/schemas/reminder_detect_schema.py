@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -67,6 +68,13 @@ class ReminderDetectDecision(BaseModel):
     rrule: str = Field(
         default="", description="RFC 5545 RRULE; crud create/update only."
     )
+    deadline_at: str = Field(
+        default="",
+        description=(
+            "Aware ISO 8601 exclusive deadline for interval/deadline batches. "
+            "When set, every create operation trigger_at must be before it."
+        ),
+    )
     operations: list[ReminderOperation] = Field(
         default_factory=list,
         description=(
@@ -90,6 +98,7 @@ class ReminderDetectDecision(BaseModel):
             "new_title",
             "new_trigger_at",
             "rrule",
+            "deadline_at",
             "operations",
         )
         has_write_fields = any(bool(getattr(self, name)) for name in write_field_names)
@@ -101,6 +110,7 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError("batch action requires operations")
             if self.action == "create" and not (self.title and self.trigger_at):
                 raise ValueError("create action requires title and trigger_at")
+            self._validate_deadline_operations()
             return self
 
         if has_write_fields:
@@ -117,3 +127,27 @@ class ReminderDetectDecision(BaseModel):
             raise ValueError("clarify and discussion intents must not include action")
 
         return self
+
+    def _validate_deadline_operations(self) -> None:
+        if not self.deadline_at or not self.operations:
+            return
+        deadline = _parse_aware_datetime(self.deadline_at, "deadline_at")
+        for operation in self.operations:
+            if operation.action != "create" or not operation.trigger_at:
+                continue
+            trigger_at = _parse_aware_datetime(
+                operation.trigger_at,
+                "operation.trigger_at",
+            )
+            if trigger_at >= deadline:
+                raise ValueError("batch create operation must be before deadline_at")
+
+
+def _parse_aware_datetime(value: str, field_name: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be ISO 8601 datetime") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field_name} must include timezone")
+    return parsed
