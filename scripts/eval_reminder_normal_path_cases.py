@@ -894,12 +894,22 @@ def combined_output_text(outputs: list[dict[str, Any]]) -> str:
 
 def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
     output_text = combined_output_text(outputs)
+    if re.search(
+        r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
+        r"每隔多久|多久一次|多长时间一次|提醒频率|提醒间隔|"
+        r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
+        r"when|what time)",
+        output_text,
+        re.IGNORECASE,
+    ):
+        return True
+
     return bool(
         re.search(
-            r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
-            r"每隔多久|多久一次|多长时间一次|提醒频率|提醒间隔|"
-            r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
-            r"when|what time)",
+            r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔).{0,30}"
+            r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢)|"
+            r"(?:怎么样|可以吗|行吗|合适吗|确认|觉得可以|觉得呢).{0,30}"
+            r"(?:半小时|一小时|小时|分钟|每天|每周|频率|间隔|多久|多长时间|每隔)",
             output_text,
             re.IGNORECASE,
         )
