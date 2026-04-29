@@ -774,10 +774,30 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
         metadata={
             "expected_creates": [
                 {"title": "起床", "local_time": "07:15:00", "recurring": True},
-                {"title": "开始学习", "local_time": "08:00:00", "recurring": True},
-                {"title": "开始健身", "local_time": "13:00:00", "recurring": True},
-                {"title": "开始学习", "local_time": "16:00:00", "recurring": True},
-                {"title": "开始学习", "local_time": "20:00:00", "recurring": True},
+                {
+                    "title": "开始学习",
+                    "title_variants": ["早上学习"],
+                    "local_time": "08:00:00",
+                    "recurring": True,
+                },
+                {
+                    "title": "开始健身",
+                    "title_variants": ["健身"],
+                    "local_time": "13:00:00",
+                    "recurring": True,
+                },
+                {
+                    "title": "开始学习",
+                    "title_variants": ["下午学习"],
+                    "local_time": "16:00:00",
+                    "recurring": True,
+                },
+                {
+                    "title": "开始学习",
+                    "title_variants": ["晚上学习"],
+                    "local_time": "20:00:00",
+                    "recurring": True,
+                },
                 {"title": "睡觉", "local_time": "23:00:00", "recurring": True},
             ]
         },
@@ -795,10 +815,10 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
         }
         for title, local_time in [
             ("起床", "07:15:00"),
-            ("开始学习", "08:00:00"),
-            ("开始健身", "13:00:00"),
-            ("开始学习", "16:00:00"),
-            ("开始学习", "20:00:00"),
+            ("早上学习", "08:00:00"),
+            ("健身", "13:00:00"),
+            ("下午学习", "16:00:00"),
+            ("晚上学习", "20:00:00"),
             ("睡觉", "23:00:00"),
         ]
     ]
@@ -809,9 +829,9 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
         outputs=[
             {
                 "message": (
-                    "已创建提醒：起床（每天 07:15）；已创建提醒：开始学习（每天 08:00）；"
-                    "已创建提醒：开始健身（每天 13:00）；已创建提醒：开始学习（每天 16:00）；"
-                    "已创建提醒：开始学习（每天 20:00）；已创建提醒：睡觉（每天 23:00）"
+                    "已创建提醒：起床（每天 07:15）；已创建提醒：早上学习（每天 08:00）；"
+                    "已创建提醒：健身（每天 13:00）；已创建提醒：下午学习（每天 16:00）；"
+                    "已创建提醒：晚上学习（每天 20:00）；已创建提醒：睡觉（每天 23:00）"
                 )
             }
         ],

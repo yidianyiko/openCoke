@@ -63,6 +63,7 @@ class ExpectedReminderCreate:
     title: str
     local_time: str | None
     recurring: bool | None
+    title_variants: tuple[str, ...] = ()
 
 
 def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[ReminderNormalPathCase]:
@@ -574,11 +575,23 @@ def expected_created_reminders_for_case(
                 continue
             local_time = item.get("local_time")
             recurring = item.get("recurring")
+            title_variants = item.get("title_variants") or ()
+            if isinstance(title_variants, str):
+                title_variants = (title_variants,)
+            elif isinstance(title_variants, list):
+                title_variants = tuple(
+                    str(variant).strip()
+                    for variant in title_variants
+                    if str(variant).strip()
+                )
+            else:
+                title_variants = ()
             expected.append(
                 ExpectedReminderCreate(
                     title=title,
                     local_time=str(local_time) if local_time else None,
                     recurring=recurring if isinstance(recurring, bool) else None,
+                    title_variants=title_variants,
                 )
             )
         return expected
@@ -656,7 +669,7 @@ def validate_expected_creates(
 
     output_text = combined_output_text(outputs)
     for expected in expected_creates:
-        if not output_mentions_expected_title(output_text, expected.title):
+        if not output_mentions_expected_title(output_text, expected):
             errors.append(f"user_output_missing_expected_title:{expected.title}")
         output_segment = output_segment_for_expected(output_text, expected)
         if not output_segment:
@@ -673,18 +686,12 @@ def validate_expected_creates(
 _COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读")
 
 
-def output_mentions_expected_title(output_text: str, title: str) -> bool:
-    normalized_title = normalize_expected_title(title)
-    if not normalized_title:
-        return False
-    if normalized_title in output_text:
-        return True
-    if (
-        len(normalized_title) >= 2
-        and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
-        and normalized_title[1:] in output_text
-    ):
-        return True
+def output_mentions_expected_title(
+    output_text: str, expected: ExpectedReminderCreate
+) -> bool:
+    for variant in expected_title_variants(expected):
+        if variant in output_text:
+            return True
     return False
 
 
@@ -698,7 +705,7 @@ def output_segment_for_expected(
         index = output_text.find(local_time)
         if index >= 0:
             positions.append(index)
-    for variant in expected_title_variants(expected.title):
+    for variant in expected_title_variants(expected):
         index = output_text.find(variant)
         if index >= 0:
             positions.append(index)
@@ -718,25 +725,36 @@ def output_segment_for_expected(
     return output_text[start:end]
 
 
-def expected_title_variants(title: str) -> list[str]:
-    normalized_title = normalize_expected_title(title)
-    variants = [normalized_title] if normalized_title else []
-    if (
-        len(normalized_title) >= 2
-        and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
-    ):
-        variants.append(normalized_title[1:])
+def expected_title_variants(expected: ExpectedReminderCreate) -> list[str]:
+    raw_titles = (expected.title, *expected.title_variants)
+    variants: list[str] = []
+    for title in raw_titles:
+        normalized_title = normalize_expected_title(title)
+        if normalized_title and normalized_title not in variants:
+            variants.append(normalized_title)
+        if (
+            len(normalized_title) >= 2
+            and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
+            and normalized_title[1:] not in variants
+        ):
+            variants.append(normalized_title[1:])
     return variants
+
+
+def _normalized_expected_title_variants(
+    expected: ExpectedReminderCreate,
+) -> list[str]:
+    return expected_title_variants(expected)
 
 
 def find_matching_reminder(
     expected: ExpectedReminderCreate,
     reminders: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    normalized_expected = normalize_expected_title(expected.title)
+    normalized_expected_variants = _normalized_expected_title_variants(expected)
     for reminder in reminders:
         reminder_title = normalize_expected_title(str(reminder.get("title") or ""))
-        if reminder_title != normalized_expected:
+        if reminder_title not in normalized_expected_variants:
             continue
         if expected.local_time:
             schedule = reminder.get("schedule") or {}
