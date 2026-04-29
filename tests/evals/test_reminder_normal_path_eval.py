@@ -43,6 +43,20 @@ def test_normal_path_user_id_has_deterministic_fallback_for_invalid_metadata():
     assert ObjectId.is_valid(first)
 
 
+def test_normal_path_relation_seed_marks_eval_user_as_existing_contact():
+    relation = normal_eval.normal_path_relation_seed(
+        user_id="user-1",
+        character_id="char-1",
+        case_index=161,
+    )
+
+    assert relation["uid"] == "user-1"
+    assert relation["cid"] == "char-1"
+    assert relation["user_info"]["hobbyname"] == "reminder-e2e-user-161"
+    assert relation["relationship"]["closeness"] >= 50
+    assert "already-known" in relation["relationship"]["description"]
+
+
 def test_iter_case_batches_preserves_json_order_in_fixed_chunks():
     batches = list(
         normal_eval.iter_case_batches(

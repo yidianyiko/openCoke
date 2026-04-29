@@ -195,7 +195,46 @@ def seed_normal_path_identities(
             },
             upsert=True,
         )
+        db.relations.update_one(
+            {"uid": user_id, "cid": character_id},
+            {
+                "$set": normal_path_relation_seed(
+                    user_id=user_id,
+                    character_id=character_id,
+                    case_index=case_index,
+                ),
+                "$setOnInsert": {"_id": ObjectId()},
+            },
+            upsert=True,
+        )
     return character_id, user_ids
+
+
+def normal_path_relation_seed(
+    *, user_id: str, character_id: str, case_index: int
+) -> dict[str, Any]:
+    return {
+        "uid": user_id,
+        "cid": character_id,
+        "user_info": {
+            "realname": "",
+            "hobbyname": f"reminder-e2e-user-{case_index}",
+            "description": "already-known reminder normal-path eval user",
+        },
+        "character_info": {
+            "longterm_purpose": "Supervise the user's goals and handle reminder CRUD requests.",
+            "shortterm_purpose": "Handle the current reminder normal-path eval request directly.",
+            "attitude": "focused",
+            "status": "available",
+        },
+        "relationship": {
+            "description": "already-known reminder normal-path eval contact",
+            "closeness": 50,
+            "trustness": 50,
+            "dislike": 0,
+            "status": "available",
+        },
+    }
 
 
 def normal_path_user_id(
