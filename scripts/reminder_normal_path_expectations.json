@@ -253,6 +253,10 @@
     "222": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request."
+    },
+    "223": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for a daily recurring reminder with content but gives no time of day. Without a default-time policy, the agent should ask what time each day."
     }
   }
 }
