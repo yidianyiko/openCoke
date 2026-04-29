@@ -431,6 +431,12 @@ async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
     assert "提醒识别超时" in tool_result["result_summary"]
 
 
+def test_reminder_detect_retry_default_timeout_allows_fast_llm_budget():
+    from agent.agno_agent.workflows import prepare_workflow
+
+    assert prepare_workflow._PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS >= 30.0
+
+
 @pytest.mark.asyncio
 async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatch):
     from agent.agno_agent.tools.tool_result import append_tool_result
