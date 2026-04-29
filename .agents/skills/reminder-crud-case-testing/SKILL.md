@@ -101,6 +101,35 @@ Do not let normal-path fixes become another case-by-case parser.
   plus the full normal-path eval before merging or resuming the corpus loop.
 - After a run of case fixes, produce a drift report before continuing if prompt constraints or title aliases are growing quickly.
 
+## Refactor And Observability Debt
+
+These are not blockers for the one-case loop, but they are the direction for
+cleanup work when failures start repeating.
+
+- `agent/agno_agent/tools/reminder_protocol/tool.py` should stay an adapter:
+  argument validation, service call, and tool-result formatting. Keyword
+  resolution, batch dedupe, schedule parsing, and action semantics belong in
+  `ReminderService` or a domain layer under it.
+- `set_reminder_session_state`/ContextVar injection is fragile. Future reminder
+  tool refactors should move toward explicit runtime context parameters rather
+  than hidden ambient state.
+- Remove stale reminder tool directories or caches when they are no longer part
+  of the package surface, for example an empty `agent/agno_agent/tools/reminder/`.
+- If `_validate_reminder_decision_evidence` keeps growing, convert it into a
+  rule registry: each rule is a small callable with a stable reason string and
+  focused tests. Do not keep inserting unrelated `if return "..."`
+  branches into one long validator.
+- Watch for one-off Chinese phrase rules in prompts, validators, title matching,
+  and judges. If fixes start naming narrow phrases, stop and look for a schema
+  boundary, fixture classification, or semantic judge improvement that covers
+  the class.
+- Track normal-path eval quality with latency and routing metrics, not only
+  pass/fail: p95 latency, detector timeout rate, retry rate, clarification rate,
+  CRUD/clarify/query/discussion intent accuracy, and LLM judge timeout rate.
+- Use structured ReminderDetect logs as a feedback loop: sample real invalid
+  decisions and timeouts, add durable fixture counterexamples, then improve
+  schema/prompt/judge boundaries in that order.
+
 Drift report:
 
 ```bash
