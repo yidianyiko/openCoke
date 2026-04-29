@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 229,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-71e6579fca",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "8d907baff77949be96d8ad48"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 229,
+      "input": "一分钟后提醒我上床",
+      "user_id": "8d907baff77949be96d8ad48",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69f1e3e2613dbc295d18d4d6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e3e7363b9b98472919a3",
+          "expect_output_timestamp": 1777460199,
+          "handled_timestamp": 1777460199,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：上床（2026-04-30 00:34）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-71e6579fca",
+            "case_index": 229,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "6935ac676fb0588fa058304a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-71e6579fca-case-229",
+              "business_conversation_key": "reminder-normal-71e6579fca-case-229",
+              "causal_inbound_event_id": "reminder-normal-71e6579fca-case-229-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8d907baff77949be96d8ad48"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e3e7363b9b98472919a1",
+          "owner_user_id": "8d907baff77949be96d8ad48",
+          "title": "上床",
+          "schedule": {
+            "anchor_at": "2026-04-29T15:34:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "00:34:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e3e2363b9b984729199a",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T15:34:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:56:39.809000+00:00",
+          "updated_at": "2026-04-29T10:56:39.809000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.011
+    }
+  ]
+}
