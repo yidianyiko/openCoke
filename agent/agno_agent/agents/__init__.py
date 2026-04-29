@@ -121,7 +121,7 @@ def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
 reminder_detect_agent = Agent(
     id="reminder-detect-agent",
     name="ReminderDetectAgent",
-    model=create_llm_model(max_tokens=8000, role="prepare"),
+    model=create_llm_model(max_tokens=8000, role="reminder_detect"),
     description=DESCRIPTION_REMINDER_DETECT,
     instructions=get_reminder_detect_instructions(),
     output_schema=ReminderDetectDecision,

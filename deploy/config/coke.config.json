@@ -59,6 +59,13 @@
                 "base_url": "https://api.siliconflow.cn/v1",
                 "max_retries": 2
             },
+            "reminder_detect": {
+                "provider": "siliconflow",
+                "model_id": "Pro/zai-org/GLM-5.1",
+                "api_key": "${SiliconFlow_API_KEY}",
+                "base_url": "https://api.siliconflow.cn/v1",
+                "max_retries": 2
+            },
             "post_analyze": {
                 "provider": "siliconflow",
                 "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
