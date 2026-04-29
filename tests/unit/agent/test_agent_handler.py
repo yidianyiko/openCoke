@@ -93,6 +93,16 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     )
 
 
+def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner.agent_handler import _chat_response_timeout_fallback
+
+    reply = _chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
+
+    assert "具体时间和事项" not in reply
+    assert "再发" in reply
+
+
 @pytest.mark.asyncio
 async def test_handle_message_marks_stream_provider_error_for_rollback(
     monkeypatch, sample_context
@@ -875,7 +885,7 @@ async def test_handle_message_writes_fallback_when_chat_stream_is_empty(
     )
 
     assert len(resp_messages) == 1
-    assert "具体时间" in resp_messages[0]["message"]
+    assert "刚才那句" in resp_messages[0]["message"]
     assert context["stream_error"] == "chat_response_empty"
     assert context["MultiModalResponses"] == [
         {"type": "text", "content": resp_messages[0]["message"]}
