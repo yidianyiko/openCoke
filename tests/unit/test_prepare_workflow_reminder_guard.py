@@ -1499,6 +1499,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert (
         "operations count must equal the number of safe reminder clauses" in retry_input
     )
+    assert "calendar date, deadline date, or day-of-month" in retry_input
+    assert "do not resolve it to midnight" in retry_input
     assert "Chinese semicolon lists may omit the repeated reminder verb" in retry_input
     assert "same language" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input

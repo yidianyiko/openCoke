@@ -241,3 +241,12 @@ def test_reminder_detect_schedule_evidence_schema_rejects_vague_references():
 
     assert "not vague references like" in description
     assert "these time points" in description
+
+
+def test_reminder_detect_trigger_schema_rejects_date_only_midnight_defaults():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    description = ReminderDetectDecision.model_fields["trigger_at"].description
+
+    assert "Do not use midnight" in description
+    assert "date-only" in description

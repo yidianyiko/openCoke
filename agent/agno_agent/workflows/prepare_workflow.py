@@ -1525,6 +1525,9 @@ ReminderDetectDecision.
   blank reminder_id, keyword, new_title, or new_trigger_at values.
 - Never return action="batch" with operations=[]. If no operation is safely
   executable, return clarify with no executable reminder fields.
+- A calendar date, deadline date, or day-of-month without a clock time is still
+  date-only; do not resolve it to midnight. Return clarify with no executable
+  fields and ask what time on that date.
 - References like "these time points" or "上述时间" are not enough schedule_evidence
   unless the evidence text itself includes concrete clock
   times or a concrete interval/frequency.

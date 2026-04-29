@@ -62,7 +62,10 @@ class ReminderDetectDecision(BaseModel):
     title: str = Field(default="", description="Create title; crud create only.")
     trigger_at: str = Field(
         default="",
-        description="Aware ISO 8601 trigger time; crud create only.",
+        description=(
+            "Aware ISO 8601 trigger time; crud create only. Do not use midnight "
+            "as a default for date-only reminder requests."
+        ),
     )
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword for crud.")

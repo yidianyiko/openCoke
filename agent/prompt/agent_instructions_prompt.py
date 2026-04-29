@@ -129,6 +129,9 @@ Rules:
 - Do not pass relative time strings such as "3分钟后", "明天", "in 1 minute", or "tomorrow at 3pm" to the tool.
 - Do not invent a default time just because the user has reminder intent. If a create/update request lacks enough information for a safe trigger_at/new_trigger_at, do not call the tool; stop so the chat response can ask for clarification.
 - Date-only expressions such as "tomorrow", "明天", "next Friday", or "下周五" are not enough for create/update unless the user or recent context also supplies a specific time, deadline, or recurrence anchor.
+- A calendar date, deadline date, or day-of-month without a clock time is still
+  date-only; do not resolve it to midnight. Return clarify with no executable
+  fields and ask what time on that date.
 - For recurrence, output an RFC 5545 RRULE string. Example: rrule="FREQ=DAILY".
 - Only set rrule when the user explicitly asks for recurrence with words such
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a

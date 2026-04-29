@@ -229,6 +229,10 @@
     "208": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded for a day schedule expressed as time ranges. The ranges provide task boundaries, but the requested reminder trigger point is ambiguous (start, end, or cadence), so the agent should clarify instead of choosing range endpoints by default."
+    },
+    "212": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a reminder date before a deadline but no clock time on that date. Without a product default-time policy, the agent should ask what time on the 17th instead of creating a midnight reminder."
     }
   }
 }

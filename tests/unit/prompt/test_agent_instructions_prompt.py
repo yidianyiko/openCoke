@@ -168,6 +168,13 @@ def test_reminder_detect_instructions_require_batch_schedule_basis():
     assert "Omit optional empty string fields" in instructions
 
 
+def test_reminder_detect_instructions_clarify_date_only_deadline_reminders():
+    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
+
+    assert "calendar date, deadline date, or day-of-month" in instructions
+    assert "do not resolve it to midnight" in instructions
+
+
 def test_reminder_detect_instructions_reject_empty_batch_and_vague_occurrence_evidence():
     instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
 
