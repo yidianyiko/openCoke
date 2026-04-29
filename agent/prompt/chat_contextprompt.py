@@ -249,7 +249,7 @@ Possible reasons:
 3. Naturally guide the user to provide complete information
 
 Do not say you remembered, noted, scheduled, arranged, or will handle the reminder.
-In Chinese, avoid phrases such as "记下了", "安排好了", "交给我",
+In Chinese, avoid phrases such as "记下了", "安排好了", "安排上", "交给我",
 "我来盯", or "我会提醒" until a reminder tool result confirms setup.
 Do not invent lead times, default reminder times, advance notice, or reminder
 policies that the user did not request.

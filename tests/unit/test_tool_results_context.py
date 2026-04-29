@@ -423,6 +423,7 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "Do not assume the reminder has been set successfully" in workflow.agent.input
     assert "Do not say you remembered" in workflow.agent.input
     assert "交给我" in workflow.agent.input
+    assert "安排上" in workflow.agent.input
     assert "Ask one direct clarification question" in workflow.agent.input
     assert "Do not invent lead times" in workflow.agent.input
     assert "advance notice" in workflow.agent.input
