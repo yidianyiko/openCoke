@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 202,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0f948e6563",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "630c76841b171455ea515d6f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 202,
+      "input": "其实这些任务的总共需要时间，可能需要6个小时左右，但是我今天晚上只有4个小时了",
+      "user_id": "630c76841b171455ea515d6f",
+      "original_from_user": "6934184e4bf7878f04114aed",
+      "input_message_id": "69f1c5c148d1ec0c4fbd754c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1c6293dc31549ec059d02",
+          "expect_output_timestamp": 1777452495,
+          "handled_timestamp": 1777452495,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f948e6563",
+            "case_index": 202,
+            "original_from_user": "6934184e4bf7878f04114aed",
+            "source_id": "69341deb4bf7878f04114af9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f948e6563-case-202",
+              "business_conversation_key": "reminder-normal-0f948e6563-case-202",
+              "causal_inbound_event_id": "reminder-normal-0f948e6563-case-202-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "630c76841b171455ea515d6f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 104.171
+    }
+  ]
+}
