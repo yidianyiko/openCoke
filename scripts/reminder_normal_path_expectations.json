@@ -225,6 +225,10 @@
     "205": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time."
+    },
+    "208": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded for a day schedule expressed as time ranges. The ranges provide task boundaries, but the requested reminder trigger point is ambiguous (start, end, or cadence), so the agent should clarify instead of choosing range endpoints by default."
     }
   }
 }
