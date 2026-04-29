@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 173,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2959c6177d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "3182f7e4acad5cca6f3bca75"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 173,
+      "input": "现在学习英语作文句型，到9:18",
+      "user_id": "3182f7e4acad5cca6f3bca75",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "69f19c79de38a8a1090a8d35",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19c89788e46e5b6346bf9",
+          "expect_output_timestamp": 1777441923,
+          "handled_timestamp": 1777441923,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，现在开始学英语作文句型，到9:18，收到！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2959c6177d",
+            "case_index": 173,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "69322f494bf7878f04114a2b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2959c6177d-case-173",
+              "business_conversation_key": "reminder-normal-2959c6177d-case-173",
+              "causal_inbound_event_id": "reminder-normal-2959c6177d-case-173-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "3182f7e4acad5cca6f3bca75"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.027
+    }
+  ]
+}
