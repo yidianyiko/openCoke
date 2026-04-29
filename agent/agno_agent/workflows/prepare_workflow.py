@@ -20,6 +20,7 @@ import logging
 import os
 import re
 import asyncio
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -830,6 +831,7 @@ class PrepareWorkflow:
             executed = self._execute_structured_reminder_decision(
                 reminder_response,
                 session_state,
+                input_message,
             )
             if (
                 not executed
@@ -845,6 +847,7 @@ class PrepareWorkflow:
                     self._execute_structured_reminder_decision(
                         retry_response,
                         session_state,
+                        input_message,
                     )
                     self._log_reminder_result(retry_response, session_state)
                     return
@@ -871,6 +874,7 @@ class PrepareWorkflow:
                 self._execute_structured_reminder_decision(
                     retry_response,
                     session_state,
+                    input_message,
                 )
                 self._log_reminder_result(retry_response, session_state)
                 return
@@ -927,12 +931,25 @@ class PrepareWorkflow:
         self,
         reminder_response,
         session_state: Dict[str, Any],
+        current_message: str = "",
     ) -> bool:
         decision = self._coerce_reminder_detect_decision(
             reminder_response,
             session_state,
         )
         if decision is None:
+            return False
+
+        evidence_error = self._validate_reminder_decision_evidence(
+            decision,
+            current_message,
+        )
+        if evidence_error:
+            logger.warning(
+                "[PrepareWorkflow] Invalid ReminderDetect schedule evidence: %s",
+                evidence_error,
+            )
+            session_state["prepare_reminder_detect_invalid_structured_output"] = True
             return False
 
         should_execute = (
@@ -992,6 +1009,59 @@ class PrepareWorkflow:
                 }
             )
         return operations
+
+    def _validate_reminder_decision_evidence(
+        self,
+        decision: ReminderDetectDecision,
+        current_message: str,
+    ) -> str:
+        if decision.intent_type != "crud" or decision.action not in {"create", "batch"}:
+            return ""
+        evidence = str(decision.schedule_evidence or "").strip()
+        if evidence and self._compact_text(evidence) not in self._compact_text(
+            current_message
+        ):
+            return "schedule_evidence is not present in the current message"
+        if decision.schedule_basis != "explicit_occurrences" or not evidence:
+            return ""
+        evidence_text = self._compact_text(evidence)
+        operations = (
+            [operation for operation in decision.operations if operation.action == "create"]
+            if decision.action == "batch"
+            else []
+        )
+        for operation in operations:
+            if not any(
+                variant in evidence_text
+                for variant in self._clock_time_variants(operation.trigger_at)
+            ):
+                return "explicit_occurrences evidence does not contain every create time"
+        return ""
+
+    @staticmethod
+    def _compact_text(value: str) -> str:
+        normalized = unicodedata.normalize("NFKC", str(value or "")).lower()
+        return re.sub(r"\s+", "", normalized)
+
+    @classmethod
+    def _clock_time_variants(cls, trigger_at: str) -> set[str]:
+        try:
+            parsed = datetime.fromisoformat(str(trigger_at).replace("Z", "+00:00"))
+        except ValueError:
+            return set()
+        hour = parsed.hour
+        minute = parsed.minute
+        raw_variants = {
+            f"{hour}:{minute:02d}",
+            f"{hour:02d}:{minute:02d}",
+            f"{hour}：{minute:02d}",
+            f"{hour:02d}：{minute:02d}",
+            f"{hour}点{minute:02d}分",
+            f"{hour}点{minute}分",
+        }
+        if minute == 0:
+            raw_variants.update({f"{hour}点", f"{hour:02d}点"})
+        return {cls._compact_text(variant) for variant in raw_variants}
 
     def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
         rule = str(rrule or "").strip()

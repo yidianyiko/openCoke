@@ -140,6 +140,30 @@ def test_reminder_detect_schema_rejects_non_concrete_cadence_evidence():
         )
 
 
+def test_reminder_detect_schema_rejects_time_range_as_cadence_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            schedule_basis="explicit_cadence",
+            schedule_evidence="10:13-11:00",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:13:00+09:00",
+                },
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:23:00+09:00",
+                },
+            ],
+        )
+
+
 def test_reminder_detect_schema_accepts_explicit_occurrence_batch():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

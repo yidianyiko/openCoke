@@ -243,17 +243,13 @@ def _looks_like_concrete_cadence(value: str) -> bool:
     if not text:
         return False
     concrete_tokens = (
-        "every",
         "daily",
         "weekly",
         "monthly",
         "hourly",
         "minutely",
-        "day",
-        "week",
-        "month",
-        "hour",
-        "minute",
+        "once",
+        "twice",
         "每天",
         "每日",
         "每周",
@@ -262,11 +258,28 @@ def _looks_like_concrete_cadence(value: str) -> bool:
         "每小时",
         "每分钟",
         "每隔",
-        "隔",
-        "一次",
+    )
+    if any(token in text for token in concrete_tokens):
+        return True
+    interval_units = (
+        "minute",
+        "minutes",
+        "min",
+        "mins",
+        "hour",
+        "hours",
+        "day",
+        "days",
+        "week",
+        "weeks",
+        "month",
+        "months",
         "分钟",
         "小时",
+        "天",
+        "周",
+        "月",
     )
-    return any(char.isdigit() for char in text) or any(
-        token in text for token in concrete_tokens
+    return any(char.isdigit() for char in text) and any(
+        unit in text for unit in interval_units
     )

@@ -301,6 +301,89 @@ def test_bounded_rrule_operation_gets_deadline_until():
     ]
 
 
+def test_reminder_decision_evidence_must_come_from_current_message():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每10分钟",
+        operations=[
+            {
+                "action": "create",
+                "title": "写作",
+                "trigger_at": "2026-04-29T10:13:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "写作",
+                "trigger_at": "2026-04-29T10:23:00+09:00",
+            },
+        ],
+    )
+
+    assert workflow._validate_reminder_decision_evidence(
+        decision,
+        "我10：13-11：00要写个个人陈述，提醒我保持专注",
+    )
+
+
+def test_explicit_occurrence_evidence_must_contain_each_create_time():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="11点10分还有12点提醒我一下",
+        operations=[
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T11:10:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T12:00:00+09:00",
+            },
+        ],
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "11点10分还有12点提醒我一下",
+    )
+
+    hallucinated = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="11点10分还有12点提醒我一下",
+        operations=[
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T11:10:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-30T11:40:00+09:00",
+            },
+        ],
+    )
+    assert workflow._validate_reminder_decision_evidence(
+        hallucinated,
+        "11点10分还有12点提醒我一下",
+    )
+
+
 def test_bounded_rrule_operation_keeps_existing_count():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
