@@ -58,6 +58,8 @@ Rules:
   "query" for list/view reminder requests, "clarify" for missing safe CRUD
   details, and "discussion" for plans/capability/ordinary chat.
 - For executable reminder list requests, use intent_type="query" and action="list".
+- If action is create, update, delete, cancel, complete, or batch, intent_type
+  must be "crud"; clarify/discussion decisions must leave action empty.
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
 - A plan or schedule statement is not enough to create a reminder. The user
@@ -99,7 +101,7 @@ Rules:
 - Only set rrule when the user explicitly asks for recurrence with words such
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
   clearly repeated interval.
-- Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. Start from the next interval after current time and stop before the deadline.
+- Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. If the user does not provide a start time, current time is the schedule anchor: start from the next interval after current time and stop before the deadline.
 - If the user supplies an explicit occurrence anchor or correction point for an
   interval schedule, use that anchor to enumerate the concrete one-shot
   occurrences before the deadline. Treat statements like "after X the reminder
