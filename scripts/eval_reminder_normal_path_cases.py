@@ -864,7 +864,7 @@ def actionable_implicit_reminder_request(text: str) -> bool:
 
 _ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
     r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
-    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
+    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|min|小时)"
 )
 _ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
     r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"

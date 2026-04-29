@@ -604,6 +604,31 @@ def test_validate_observations_accepts_time_choice_clarification():
     assert errors == []
 
 
+def test_validate_observations_allows_min_call_me_reminder():
+    case = normal_eval.ReminderNormalPathCase(
+        input="15min后喊我！",
+        expected_intent="reminder",
+        matched_keywords=["喊我", "min"],
+        metadata={},
+    )
+    reminder = {
+        "title": "提醒",
+        "lifecycle_state": "active",
+        "next_fire_at": datetime(2026, 4, 29, 3, 0, tzinfo=timezone.utc),
+        "created_at": datetime(2026, 4, 29, 2, 45, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 4, 29, 2, 45, tzinfo=timezone.utc),
+    }
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：提醒（2026-04-29 11:00）"}],
+        reminders=[reminder],
+    )
+
+    assert "unexpected_reminder_created" not in errors
+
+
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",
