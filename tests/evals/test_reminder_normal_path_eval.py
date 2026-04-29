@@ -808,6 +808,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[176].metadata["evaluation_expectation"] == "discussion"
     assert cases[180].metadata["expected_operation"] == "update"
     assert cases[180].metadata["allow_clarification"] is True
+    assert cases[181].metadata["evaluation_expectation"] == "clarify"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():

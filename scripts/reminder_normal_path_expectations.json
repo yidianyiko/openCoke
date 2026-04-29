@@ -187,6 +187,10 @@
       "expected_operation": "update",
       "allow_clarification": true,
       "evaluation_reason": "The user is correcting an earlier reminder time. In isolated evaluation there may be no existing 15:50 reminder, so an update attempt with a visible no-match result or a clarification is safe; creating a new reminder would conflate correction with creation."
+    },
+    "181": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder."
     }
   }
 }
