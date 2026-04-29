@@ -1457,6 +1457,46 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
     assert errors == []
 
 
+def test_validate_observations_tolerates_common_leading_come_verb_in_title():
+    case = normal_eval.ReminderNormalPathCase(
+        input="20:00提醒我来法考记忆和做题",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={},
+    )
+    reminders = [
+        {
+            "title": "法考记忆和做题",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 4, 30, 11, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "20:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：法考记忆和做题（2026-04-30 20:00）"}],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
+def test_title_normalizer_keeps_short_lai_nouns_intact():
+    assert normal_eval.expected_title_variants(
+        normal_eval.ExpectedReminderCreate(
+            title="来信",
+            local_time="20:00:00",
+            recurring=False,
+        )
+    ) == ["来信"]
+
+
 def test_validate_observations_allows_light_action_prefix_title_match():
     case = normal_eval.ReminderNormalPathCase(
         input="16：00提醒我开始写论文文献综述（国外研究现状）",

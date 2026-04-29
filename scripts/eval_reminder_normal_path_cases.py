@@ -848,7 +848,7 @@ def validate_expected_creates(
     return errors
 
 
-_COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读")
+_COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读来")
 _COMMON_TITLE_LEADING_PREFIXES = ("开始",)
 
 
@@ -905,13 +905,20 @@ def expected_title_variants(expected: ExpectedReminderCreate) -> list[str]:
                 stripped = normalized_title[len(prefix) :]
                 if stripped and stripped not in variants:
                     variants.append(stripped)
-        if (
-            len(normalized_title) >= 2
-            and normalized_title[0] in _COMMON_TITLE_LEADING_VERBS
-            and normalized_title[1:] not in variants
-        ):
-            variants.append(normalized_title[1:])
+        stripped_leading_verb = strip_common_title_leading_verb(normalized_title)
+        if stripped_leading_verb and stripped_leading_verb not in variants:
+            variants.append(stripped_leading_verb)
     return variants
+
+
+def strip_common_title_leading_verb(normalized_title: str) -> str:
+    if len(normalized_title) < 2:
+        return ""
+    if normalized_title[0] not in _COMMON_TITLE_LEADING_VERBS:
+        return ""
+    if normalized_title[0] == "来" and len(normalized_title) < 3:
+        return ""
+    return normalized_title[1:]
 
 
 def _normalized_expected_title_variants(
