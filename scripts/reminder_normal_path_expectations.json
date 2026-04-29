@@ -423,6 +423,10 @@
     "404": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The isolated corpus case corrects the reminder timezone to Beijing time but does not include the reminder content or target time in the current turn. The agent should ask for the missing details instead of creating a reminder."
+    },
+    "406": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user provides a detailed time-blocked daily schedule but does not explicitly ask for reminders. The agent should ask which time points to remind about instead of creating reminders for the whole schedule."
     }
   }
 }

@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 406,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-1f51f5f8b4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "81d4cd2fd027eff7a2e8925c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 406,
+      "input": "10：30 起床，喝杯水，温和拉伸\n吃饭30分钟\n\n11：30-2：30 画稿子(3小时)，（每小时活动5分钟，眼保健操）\n\n2：30-3：00 金刚功，力量训练，眼保健操，远眺  (30分钟)\n\n3：00-6：00 画稿子(3小时)\n吃饭\n\n6：30-8：30 画创作(2小时)\n\n8：35-8：50 运动\n\n9：00-11：00 做ai图(2小时) \n\n0：20放下手机准备睡觉\n1：00入睡，睡前冥想",
+      "user_id": "81d4cd2fd027eff7a2e8925c",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f23e326e08c8c39aab6a5f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f23e3f8f61a861ab17e1bc",
+          "expect_output_timestamp": 1777483327,
+          "handled_timestamp": 1777483327,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这是一个日程安排，你需要在这些时间点设置提醒吗？比如每个活动开始时提醒你，还是只需要在某些关键时间点提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-1f51f5f8b4",
+            "case_index": 406,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693f883f2971a327a8e5ed06",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-1f51f5f8b4-case-406",
+              "business_conversation_key": "reminder-normal-1f51f5f8b4-case-406",
+              "causal_inbound_event_id": "reminder-normal-1f51f5f8b4-case-406-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "81d4cd2fd027eff7a2e8925c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.024
+    }
+  ]
+}
