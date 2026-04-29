@@ -433,6 +433,9 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "几点" in workflow.agent.input
     assert "Do not invent lead times" in workflow.agent.input
     assert "advance notice" in workflow.agent.input
+    assert workflow.agent.input.rfind("### System Notice: Reminder Setup Pending") > (
+        workflow.agent.input.rfind("## CRITICAL CONSTRAINTS")
+    )
 
 
 @pytest.mark.asyncio

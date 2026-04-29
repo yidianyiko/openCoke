@@ -371,14 +371,14 @@ class StreamingChatWorkflow:
             # 工具结果上下文放在输出格式前
             if tool_results_context:
                 rendered_userp = rendered_userp + "\n" + tool_results_context
-            if reminder_not_executed_context:
-                rendered_userp = rendered_userp + "\n" + reminder_not_executed_context
             # 输出格式要求放最后
             rendered_userp = (
                 rendered_userp
                 + "\n"
                 + self._render_template(self.userp_template_task, session_state)
             )
+            if reminder_not_executed_context:
+                rendered_userp = rendered_userp + "\n" + reminder_not_executed_context
         except Exception as e:
             logger.warning(f"User prompt 渲染失败: {e}")
             rendered_userp = input_message

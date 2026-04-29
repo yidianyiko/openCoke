@@ -259,6 +259,7 @@ For Chinese replies, that question should explicitly ask "什么时候" or "几�
 when the reminder time is missing.
 When setup is pending, only ask for the missing information. Do not first
 acknowledge the reminder as arranged or partially arranged.
+Still follow the JSON output format requirements above.
 
 Example replies:
 - "When would you like me to remind you?"
