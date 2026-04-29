@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 390,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ad4e784927",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ab02b6202334de6f0ed8d130"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 390,
+      "input": "明天任务：12.15\n\n- [ ] 7：20-7：30 起床\n- [ ] 7：30-8：00 洗漱+背法语\n- [ ] 8：00-8：20 买小笼包\n- [ ] 8：20-8：40 吃饭\n- [ ] 9：00-9：40 背法语\n- [ ] 9：40-10：30 背德语\n- [ ] 10：30-11：50 去超市\n- [ ] 12：00-12：30 发布新帖子\n- [ ] 12：30-13：30 做鸡蛋饼\n- [ ] 13：30-14：00 吃午饭\n- [ ] 14：00-14：30 午休\n- [ ] 14：30-16：30 读《置身时代的社会理论》\n- [ ] 16：45-18：00 散步\n- [ ] 18：00-18：40 做饭\n- [ ] 18：40-19：20 吃饭刷碗\n- [ ] 19：20-20：10 做简历，确定投递岗位\n- [ ] 20：10-21：00 健身\n- [ ] 21：00-21：30洗澡\n- [ ] 21：30-22：00 练吉他\n- [ ] 22：00- 休息\n",
+      "user_id": "ab02b6202334de6f0ed8d130",
+      "original_from_user": "692dbb5564d834c3c061653f",
+      "input_message_id": "69f23681d9d42365929e47cc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2368a5f7e042740b8cca9",
+          "expect_output_timestamp": 1777481354,
+          "handled_timestamp": 1777481354,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你列出了明天的任务清单，请问你需要我在这些时间点提醒你吗？如果需要，是提醒全部任务还是部分任务？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ad4e784927",
+            "case_index": 390,
+            "original_from_user": "692dbb5564d834c3c061653f",
+            "source_id": "693eeb472971a327a8e5ecd2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ad4e784927-case-390",
+              "business_conversation_key": "reminder-normal-ad4e784927-case-390",
+              "causal_inbound_event_id": "reminder-normal-ad4e784927-case-390-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ab02b6202334de6f0ed8d130"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.017
+    }
+  ]
+}

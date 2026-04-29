@@ -407,6 +407,10 @@
     "389": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user provides only lead times for advance reminders, but not the event or base event time to count back from. The agent should ask for the missing event time instead of creating reminders."
+    },
+    "390": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user provides a detailed time-blocked task list but does not explicitly request reminders. The agent should ask which tasks to remind about instead of creating reminders for every schedule item."
     }
   }
 }
