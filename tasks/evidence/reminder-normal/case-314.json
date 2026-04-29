@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 314,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6eb4af429c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "1798d55bdb2ae80965fe086e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 314,
+      "input": "明天最好能去锻炼下",
+      "user_id": "1798d55bdb2ae80965fe086e",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f21951009e2e44479cab41",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21991614a0be9febe1e8a",
+          "expect_output_timestamp": 1777473885,
+          "handled_timestamp": 1777473885,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这都快午夜了还在想着明天的锻炼，可以啊！明天大概打算什么时间去呢？要不要我到时候喊你一下？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6eb4af429c",
+            "case_index": 314,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693aea6668bf5e9703e8ea70",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6eb4af429c-case-314",
+              "business_conversation_key": "reminder-normal-6eb4af429c-case-314",
+              "causal_inbound_event_id": "reminder-normal-6eb4af429c-case-314-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1798d55bdb2ae80965fe086e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 64.108
+    }
+  ]
+}
