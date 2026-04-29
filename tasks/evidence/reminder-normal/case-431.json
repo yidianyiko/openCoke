@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 431,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-5af6b019b3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "0bbd32e787e3c11dc659f37a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 431,
+      "input": "上午的学习结束",
+      "user_id": "0bbd32e787e3c11dc659f37a",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f245ded8c21da0e3ba0613",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f245e7f0a59667d8b96b97",
+          "expect_output_timestamp": 1777485280,
+          "handled_timestamp": 1777485280,
+          "status": "pending",
+          "message_type": "text",
+          "message": "辛苦了，上午学得怎么样？感觉状态好吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-5af6b019b3",
+            "case_index": 431,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6940dd0ca6d5f2cba9a55722",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-5af6b019b3-case-431",
+              "business_conversation_key": "reminder-normal-5af6b019b3-case-431",
+              "causal_inbound_event_id": "reminder-normal-5af6b019b3-case-431-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0bbd32e787e3c11dc659f37a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.016
+    }
+  ]
+}

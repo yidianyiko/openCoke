@@ -170,6 +170,10 @@ reminders can fire without waiting for wall-clock time.
 - `case426` fixed explicit-occurrence evidence validation for colloquial
   daypart colon times such as `晚上11:30` resolving to 23:30; the rerun created
   both vitamin and magnesium reminders.
+- `case427` through `case432` passed without code or fixture changes.
+- `case433` added a discussion expectation for a nickname plus conditional
+  supervision-style request without a concrete reminder trigger. Two attempts
+  hit chat-path timeouts before a PM2 restart; the post-restart rerun passed.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

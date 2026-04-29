@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 427,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-df441f7a26",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6a6ee5f354b15b7219798376"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 427,
+      "input": "9:50提醒我休息10分钟",
+      "user_id": "6a6ee5f354b15b7219798376",
+      "original_from_user": "693e8cad16773b825cfaa47e",
+      "input_message_id": "69f245bba54a066e9f605497",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f245c1f0a59667d8b96b5c",
+          "expect_output_timestamp": 1777485249,
+          "handled_timestamp": 1777485249,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：休息10分钟（2026-04-30 09:50）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-df441f7a26",
+            "case_index": 427,
+            "original_from_user": "693e8cad16773b825cfaa47e",
+            "source_id": "6940accda6d5f2cba9a556fe",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-df441f7a26-case-427",
+              "business_conversation_key": "reminder-normal-df441f7a26-case-427",
+              "causal_inbound_event_id": "reminder-normal-df441f7a26-case-427-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6a6ee5f354b15b7219798376"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f245c1f0a59667d8b96b5a",
+          "owner_user_id": "6a6ee5f354b15b7219798376",
+          "title": "休息10分钟",
+          "schedule": {
+            "anchor_at": "2026-04-30T00:50:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "09:50:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f245bbf0a59667d8b96b53",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T00:50:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:54:09.951000+00:00",
+          "updated_at": "2026-04-29T17:54:09.951000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}

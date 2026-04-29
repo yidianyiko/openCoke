@@ -1,0 +1,63 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 433,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9b163e57e5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "53cbf645ffc7735405e39cb5"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 433,
+        "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+        "user_id": "53cbf645ffc7735405e39cb5",
+        "original_from_user": "6940e526a6d5f2cba9a55725",
+        "input_message_id": "69f2472cf1cc9f2f84198ae0",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.198
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 433,
+      "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+      "user_id": "53cbf645ffc7735405e39cb5",
+      "original_from_user": "6940e526a6d5f2cba9a55725",
+      "input_message_id": "69f2472cf1cc9f2f84198ae0",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.198
+    }
+  ]
+}

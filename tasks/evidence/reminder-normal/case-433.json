@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 433,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ff7ceb4980",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "f7b9333ec5f90148f75db9db"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 433,
+      "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+      "user_id": "f7b9333ec5f90148f75db9db",
+      "original_from_user": "6940e526a6d5f2cba9a55725",
+      "input_message_id": "69f247b96a3ada5ac4cc0436",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f247c38c3e51fea6e556e0",
+          "expect_output_timestamp": 1777485760,
+          "handled_timestamp": 1777485760,
+          "status": "pending",
+          "message_type": "text",
+          "message": "小隼好，我是可乐。你这自报家门还主动送外号的操作很到位啊，我就喜欢这么干脆的人。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ff7ceb4980",
+            "case_index": 433,
+            "original_from_user": "6940e526a6d5f2cba9a55725",
+            "source_id": "6940e526a6d5f2cba9a55726",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ff7ceb4980-case-433",
+              "business_conversation_key": "reminder-normal-ff7ceb4980-case-433",
+              "causal_inbound_event_id": "reminder-normal-ff7ceb4980-case-433-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f7b9333ec5f90148f75db9db"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

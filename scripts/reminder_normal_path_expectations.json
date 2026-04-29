@@ -446,6 +446,10 @@
     "425": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user provides a detailed time-blocked daily plan but does not explicitly ask for reminders. The agent should ask which time points to remind about instead of creating reminders for the whole schedule."
+    },
+    "433": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder."
     }
   }
 }

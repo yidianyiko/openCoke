@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 433,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c4179b86f0",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "148accebee3b6a107c30c5c2"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 433,
+        "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+        "user_id": "148accebee3b6a107c30c5c2",
+        "original_from_user": "6940e526a6d5f2cba9a55725",
+        "input_message_id": "69f2468aafdb10e5b5fca8de",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f246edf0a59667d8b96bc1",
+            "expect_output_timestamp": 1777485459,
+            "handled_timestamp": 1777485459,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-c4179b86f0",
+              "case_index": 433,
+              "original_from_user": "6940e526a6d5f2cba9a55725",
+              "source_id": "6940e526a6d5f2cba9a55726",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-c4179b86f0-case-433",
+                "business_conversation_key": "reminder-normal-c4179b86f0-case-433",
+                "causal_inbound_event_id": "reminder-normal-c4179b86f0-case-433-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "148accebee3b6a107c30c5c2"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 100.17
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 433,
+      "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+      "user_id": "148accebee3b6a107c30c5c2",
+      "original_from_user": "6940e526a6d5f2cba9a55725",
+      "input_message_id": "69f2468aafdb10e5b5fca8de",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f246edf0a59667d8b96bc1",
+          "expect_output_timestamp": 1777485459,
+          "handled_timestamp": 1777485459,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c4179b86f0",
+            "case_index": 433,
+            "original_from_user": "6940e526a6d5f2cba9a55725",
+            "source_id": "6940e526a6d5f2cba9a55726",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c4179b86f0-case-433",
+              "business_conversation_key": "reminder-normal-c4179b86f0-case-433",
+              "causal_inbound_event_id": "reminder-normal-c4179b86f0-case-433-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "148accebee3b6a107c30c5c2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 100.17
+    }
+  ]
+}
