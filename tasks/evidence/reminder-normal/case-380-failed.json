@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 380,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0429795cce",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "f500224af720e8feef75dc15"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 380,
+        "input": "有定闹钟",
+        "user_id": "f500224af720e8feef75dc15",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f232f0b21fa6349d46889f",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f232f75f7e042740b8cbb1",
+            "expect_output_timestamp": 1777480439,
+            "handled_timestamp": 1777480439,
+            "status": "pending",
+            "message_type": "text",
+            "message": "暂无提醒",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0429795cce",
+              "case_index": 380,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "693e3e2216773b825cfaa437",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0429795cce-case-380",
+                "business_conversation_key": "reminder-normal-0429795cce-case-380",
+                "causal_inbound_event_id": "reminder-normal-0429795cce-case-380-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "f500224af720e8feef75dc15"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 8.014
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 380,
+      "input": "有定闹钟",
+      "user_id": "f500224af720e8feef75dc15",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f232f0b21fa6349d46889f",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f232f75f7e042740b8cbb1",
+          "expect_output_timestamp": 1777480439,
+          "handled_timestamp": 1777480439,
+          "status": "pending",
+          "message_type": "text",
+          "message": "暂无提醒",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0429795cce",
+            "case_index": 380,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "693e3e2216773b825cfaa437",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0429795cce-case-380",
+              "business_conversation_key": "reminder-normal-0429795cce-case-380",
+              "causal_inbound_event_id": "reminder-normal-0429795cce-case-380-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f500224af720e8feef75dc15"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}

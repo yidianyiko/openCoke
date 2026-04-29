@@ -395,6 +395,10 @@
     "377": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user shares a detailed plan and asks for occasional supervision reminders, plus sleep-prep reminders, but does not clearly specify which plan items should become reminders or the cadence for occasional reminders. The safe behavior is to ask which reminders to set instead of creating every schedule item."
+    },
+    "380": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder."
     }
   }
 }

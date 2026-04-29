@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 379,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-acef601df5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "7f6cfbcd4bb88f802b063b7e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 379,
+      "input": "对！！你还记得，好感动哦",
+      "user_id": "7f6cfbcd4bb88f802b063b7e",
+      "original_from_user": "692ee3e74bf7878f041146c8",
+      "input_message_id": "69f232d618622b148fb9d3ef",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f232e35f7e042740b8cba2",
+          "expect_output_timestamp": 1777480411,
+          "handled_timestamp": 1777480411,
+          "status": "pending",
+          "message_type": "text",
+          "message": "那当然啦，我可是认真的监督伙伴，记性好是基本技能，不然怎么盯着你把任务搞定",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-acef601df5",
+            "case_index": 379,
+            "original_from_user": "692ee3e74bf7878f041146c8",
+            "source_id": "693e1bc916773b825cfaa41e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-acef601df5-case-379",
+              "business_conversation_key": "reminder-normal-acef601df5-case-379",
+              "causal_inbound_event_id": "reminder-normal-acef601df5-case-379-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7f6cfbcd4bb88f802b063b7e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.022
+    }
+  ]
+}

@@ -1180,6 +1180,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[371].metadata["evaluation_expectation"] == "clarify"
     assert cases[374].metadata["evaluation_expectation"] == "clarify"
     assert cases[377].metadata["evaluation_expectation"] == "clarify"
+    assert cases[380].metadata["evaluation_expectation"] == "query"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
