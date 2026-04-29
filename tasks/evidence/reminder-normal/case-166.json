@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 166,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fe530bba45",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b16748bf0b266d366e116f5a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 166,
+      "input": "还行，课看完了，累了，休息一会",
+      "user_id": "b16748bf0b266d366e116f5a",
+      "original_from_user": "69311e944bf7878f041148f6",
+      "input_message_id": "69f1983fce8d8cd9a4bad11d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f198476c6b9c7a807d5f90",
+          "expect_output_timestamp": 1777440834,
+          "handled_timestamp": 1777440834,
+          "status": "pending",
+          "message_type": "text",
+          "message": "课看完了？不错不错，辛苦了。那现在休息一下也行，喝口水活动活动。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fe530bba45",
+            "case_index": 166,
+            "original_from_user": "69311e944bf7878f041148f6",
+            "source_id": "69318d024bf7878f041149ca",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fe530bba45-case-166",
+              "business_conversation_key": "reminder-normal-fe530bba45-case-166",
+              "causal_inbound_event_id": "reminder-normal-fe530bba45-case-166-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b16748bf0b266d366e116f5a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.013
+    }
+  ]
+}
