@@ -215,8 +215,8 @@
       "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders."
     },
     "199": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks broadly for no reminders without naming a specific existing reminder. The safe behavior is to ask which reminder or reminder scope to stop, not to create a new reminder."
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The standalone English phrase declines reminders or opts out of reminder help without naming a specific existing reminder to cancel. In isolated evaluation it should not create a reminder or force a CRUD operation."
     }
   }
 }
