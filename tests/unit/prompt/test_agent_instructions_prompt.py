@@ -187,6 +187,7 @@ def test_reminder_detect_instructions_require_every_safe_listed_reminder_operati
         "operations count must equal the number of safe reminder clauses"
         in instructions
     )
+    assert "Chinese semicolon lists may omit the repeated reminder verb" in instructions
 
 
 def test_reminder_detect_instructions_keep_clarification_language():

@@ -1493,6 +1493,7 @@ ReminderDetectDecision.
   return the matching action and only the fields that are
   safely available from the current message.
 - For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. If there is more than one safe reminder clause, action=create is invalid; use action=batch, and operations count must equal the number of safe reminder clauses. Do not keep only the last item.
+- Chinese semicolon lists may omit the repeated reminder verb after the first clause; if the first clause says "提醒我" and later clauses contain concrete times plus tasks, treat those later clauses as reminder clauses too.
 - If required reminder details are missing or unsafe, return intent_type="clarify"
   with no executable reminder fields.
 - For intent_type="clarify", write clarification_question in the same language
