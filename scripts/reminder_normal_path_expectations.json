@@ -217,6 +217,10 @@
     "199": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The standalone English phrase declines reminders or opts out of reminder help without naming a specific existing reminder to cancel. In isolated evaluation it should not create a reminder or force a CRUD operation."
+    },
+    "200": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time."
     }
   }
 }
