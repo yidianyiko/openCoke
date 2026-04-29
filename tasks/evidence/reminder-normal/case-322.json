@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 322,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-7afc7beb6e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e963fb53f52a318a9e0eb193"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 322,
+      "input": "今天的计划是看完6，7，8，9四节网课",
+      "user_id": "e963fb53f52a318a9e0eb193",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f21bef2c98569e09c21ab3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21bfc614a0be9febe1f2d",
+          "expect_output_timestamp": 1777474554,
+          "handled_timestamp": 1777474554,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，今天火力全开啊！4节课，目标很明确嘛。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-7afc7beb6e",
+            "case_index": 322,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693b836e09af1bf513e835e3",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-7afc7beb6e-case-322",
+              "business_conversation_key": "reminder-normal-7afc7beb6e-case-322",
+              "causal_inbound_event_id": "reminder-normal-7afc7beb6e-case-322-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e963fb53f52a318a9e0eb193"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.025
+    }
+  ]
+}

@@ -360,6 +360,10 @@
     "316": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder."
+    },
+    "331": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives next Monday and content but no clock time. Without a product default-time policy, the agent should ask what time on that day instead of creating a reminder."
     }
   }
 }

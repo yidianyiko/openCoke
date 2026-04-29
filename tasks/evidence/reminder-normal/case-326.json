@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 326,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4aef00754f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "f4fbd9e82c66ae5d8224b556"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 326,
+      "input": "我在学习RL，下午要见一下雪松，我还要准备一下我的个人陈述",
+      "user_id": "f4fbd9e82c66ae5d8224b556",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f21c80626fffcad3bfb894",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21c86614a0be9febe1f70",
+          "expect_output_timestamp": 1777474692,
+          "handled_timestamp": 1777474692,
+          "status": "pending",
+          "message_type": "text",
+          "message": "喔，充实的一天！学习RL, 见雪松，还有个人陈述要准备。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4aef00754f",
+            "case_index": 326,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bafd909af1bf513e83629",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4aef00754f-case-326",
+              "business_conversation_key": "reminder-normal-4aef00754f-case-326",
+              "causal_inbound_event_id": "reminder-normal-4aef00754f-case-326-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f4fbd9e82c66ae5d8224b556"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}

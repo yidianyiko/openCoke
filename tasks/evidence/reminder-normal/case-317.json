@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 317,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ca838db59c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "030cfc468dff9a84ce657c91"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 317,
+      "input": "而且我不能一会学习一会看综艺，不然的话，我会一直想着综艺的内容。",
+      "user_id": "030cfc468dff9a84ce657c91",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f21b2149ae16b622bd3a99",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21b29614a0be9febe1ed0",
+          "expect_output_timestamp": 1777474340,
+          "handled_timestamp": 1777474340,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你说得对，专注一件事效率才高。那今晚学到这儿满意不，还是说想定个明天早上的计划？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ca838db59c",
+            "case_index": 317,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693afccb68bf5e9703e8eadc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ca838db59c-case-317",
+              "business_conversation_key": "reminder-normal-ca838db59c-case-317",
+              "causal_inbound_event_id": "reminder-normal-ca838db59c-case-317-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "030cfc468dff9a84ce657c91"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.017
+    }
+  ]
+}

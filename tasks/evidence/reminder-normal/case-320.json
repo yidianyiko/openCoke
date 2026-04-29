@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 320,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8c206debb4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "dc7b7c697807cc23ef56a1ec"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 320,
+      "input": "9点10提醒我内科横向刷题结束",
+      "user_id": "dc7b7c697807cc23ef56a1ec",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f21bc64a3e4cb4ff33ade2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21bce614a0be9febe1f0c",
+          "expect_output_timestamp": 1777474510,
+          "handled_timestamp": 1777474510,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：内科横向刷题结束（2026-04-30 09:10）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8c206debb4",
+            "case_index": 320,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693b561068bf5e9703e8eaf1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8c206debb4-case-320",
+              "business_conversation_key": "reminder-normal-8c206debb4-case-320",
+              "causal_inbound_event_id": "reminder-normal-8c206debb4-case-320-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "dc7b7c697807cc23ef56a1ec"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f21bce614a0be9febe1f0a",
+          "owner_user_id": "dc7b7c697807cc23ef56a1ec",
+          "title": "内科横向刷题结束",
+          "schedule": {
+            "anchor_at": "2026-04-30T00:10:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "09:10:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f21bc6614a0be9febe1f03",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T00:10:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T14:55:10.066000+00:00",
+          "updated_at": "2026-04-29T14:55:10.066000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.015
+    }
+  ]
+}

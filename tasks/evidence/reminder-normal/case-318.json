@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 318,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c82480f9c3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6e0d2678fa031d6f25a1edf2"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 318,
+      "input": "你再给我制定个计划，怎么戒掉手机，开始学习。",
+      "user_id": "6e0d2678fa031d6f25a1edf2",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f21b8951944513a2f0b421",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21b94614a0be9febe1ee6",
+          "expect_output_timestamp": 1777474449,
+          "handled_timestamp": 1777474449,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈，凌晨一点二十分让我给你定戒手机计划，你这觉悟可以啊！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c82480f9c3",
+            "case_index": 318,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693afd5b68bf5e9703e8eade",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c82480f9c3-case-318",
+              "business_conversation_key": "reminder-normal-c82480f9c3-case-318",
+              "causal_inbound_event_id": "reminder-normal-c82480f9c3-case-318-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6e0d2678fa031d6f25a1edf2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.022
+    }
+  ]
+}

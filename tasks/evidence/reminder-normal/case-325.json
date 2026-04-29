@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 325,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-55b651e4af",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "db23b868e1480de49a95740f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 325,
+      "input": "这是我今天的计划",
+      "user_id": "db23b868e1480de49a95740f",
+      "original_from_user": "693ba58509af1bf513e8360f",
+      "input_message_id": "69f21c48ee1d6d3d6a76a71a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21c5d614a0be9febe1f5f",
+          "expect_output_timestamp": 1777474642,
+          "handled_timestamp": 1777474642,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哟，主动汇报计划了不错～来说说吧，下午安排什么了？需要我到时候敲你一下不？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-55b651e4af",
+            "case_index": 325,
+            "original_from_user": "693ba58509af1bf513e8360f",
+            "source_id": "693ba6b009af1bf513e8361b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-55b651e4af-case-325",
+              "business_conversation_key": "reminder-normal-55b651e4af-case-325",
+              "causal_inbound_event_id": "reminder-normal-55b651e4af-case-325-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "db23b868e1480de49a95740f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 22.037
+    }
+  ]
+}

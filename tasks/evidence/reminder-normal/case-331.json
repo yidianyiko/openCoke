@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 331,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-dd6028e270",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b70b38524344b9d4b6e0a202"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 331,
+      "input": "下周一提醒我报税",
+      "user_id": "b70b38524344b9d4b6e0a202",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f21d75eb713f1311a2e23d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21d7d614a0be9febe200e",
+          "expect_output_timestamp": 1777474941,
+          "handled_timestamp": 1777474941,
+          "status": "pending",
+          "message_type": "text",
+          "message": "下周一（5月4日）几点提醒你报税？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-dd6028e270",
+            "case_index": 331,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bc48009af1bf513e83665",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-dd6028e270-case-331",
+              "business_conversation_key": "reminder-normal-dd6028e270-case-331",
+              "causal_inbound_event_id": "reminder-normal-dd6028e270-case-331-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b70b38524344b9d4b6e0a202"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.017
+    }
+  ]
+}
