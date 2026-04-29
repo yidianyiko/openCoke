@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 365,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f63f0a3c68",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "7950e8864dc1f6db74bf403f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 365,
+      "input": "下周一下午九点半提醒我打网球，室外",
+      "user_id": "7950e8864dc1f6db74bf403f",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f229a464c3c3f4e0eb12f6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f229aab537bb39a0c6cf57",
+          "expect_output_timestamp": 1777478058,
+          "handled_timestamp": 1777478058,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打网球，室外（2026-05-04 21:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f63f0a3c68",
+            "case_index": 365,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693d30ef09af1bf513e837f1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f63f0a3c68-case-365",
+              "business_conversation_key": "reminder-normal-f63f0a3c68-case-365",
+              "causal_inbound_event_id": "reminder-normal-f63f0a3c68-case-365-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7950e8864dc1f6db74bf403f"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f229aab537bb39a0c6cf55",
+          "owner_user_id": "7950e8864dc1f6db74bf403f",
+          "title": "打网球，室外",
+          "schedule": {
+            "anchor_at": "2026-05-04T12:30:00+00:00",
+            "local_date": "2026-05-04",
+            "local_time": "21:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f229a4b537bb39a0c6cf4e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-04T12:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T15:54:18.351000+00:00",
+          "updated_at": "2026-04-29T15:54:18.351000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.011
+    }
+  ]
+}
