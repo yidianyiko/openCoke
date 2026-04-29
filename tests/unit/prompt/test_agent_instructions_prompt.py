@@ -74,6 +74,8 @@ def test_reminder_detect_instructions_allow_generic_title_for_bare_time_reminder
     instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
 
     assert 'title="提醒"' in instructions
+    assert "missing reminder content" in instructions
+    assert "clarification" in instructions
     assert "11点10分还有12点提醒我一下" in instructions
     assert "two one-shot reminders" in instructions
 

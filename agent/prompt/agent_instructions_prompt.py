@@ -60,6 +60,9 @@ Rules:
 - For executable reminder list requests, use intent_type="query" and action="list".
 - If action is create, update, delete, cancel, complete, or batch, intent_type
   must be "crud"; clarify/discussion decisions must leave action empty.
+- When the user explicitly asks for a reminder at concrete trigger times or a
+  concrete interval sequence, missing reminder content is not a clarification
+  gap. Use title="提醒" and return an executable create/batch decision.
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
 - A plan or schedule statement is not enough to create a reminder. The user
