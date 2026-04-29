@@ -981,6 +981,25 @@ def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
     assert "user_output_implies_unconfirmed_reminder" in errors
 
 
+def test_discussion_output_rejects_unconfirmed_future_reminder_commitment():
+    case = normal_eval.ReminderNormalPathCase(
+        input="还想继续休息一会",
+        expected_intent="reminder",
+        matched_keywords=["一会", "休息"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "休息到几点？我到时候提醒你起来动一动。"}],
+        reminders=[],
+        unconfirmed_reminder_judge=lambda text: True,
+    )
+
+    assert "user_output_implies_unconfirmed_reminder" in errors
+
+
 def test_unconfirmed_reminder_output_judge_uses_injected_llm_decision():
     calls = []
 

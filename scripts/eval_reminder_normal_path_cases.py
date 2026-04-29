@@ -652,6 +652,11 @@ def validate_observations(
         errors.append("no_user_output")
     if expectation == "crud" and expected_operation == "create" and not reminders:
         errors.append("no_reminder_created")
+    if not reminders and output_implies_unconfirmed_reminder(
+        outputs,
+        judge=unconfirmed_reminder_judge,
+    ):
+        errors.append("user_output_implies_unconfirmed_reminder")
     if expectation in {"clarify", "capability", "discussion", "query"}:
         if reminders:
             errors.append("unexpected_reminder_created")
@@ -661,11 +666,6 @@ def validate_observations(
             judge=clarification_judge,
         ):
             errors.append("user_output_missing_clarification")
-        if expectation == "clarify" and output_implies_unconfirmed_reminder(
-            outputs,
-            judge=unconfirmed_reminder_judge,
-        ):
-            errors.append("user_output_implies_unconfirmed_reminder")
     for reminder in reminders:
         if (
             reminder.get("next_fire_at") is None
