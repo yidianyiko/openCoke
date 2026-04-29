@@ -840,6 +840,18 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
     assert errors == []
 
 
+def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
+    expected = normal_eval.expected_created_reminders("下午2:30提醒我起来走一走")
+
+    assert expected == [
+        normal_eval.ExpectedReminderCreate(
+            title="起来走一走",
+            local_time="14:30:00",
+            recurring=False,
+        )
+    ]
+
+
 def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule():
     case = normal_eval.ReminderNormalPathCase(
         input=(

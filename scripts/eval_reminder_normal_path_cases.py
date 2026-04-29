@@ -610,7 +610,11 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
     )
     expected: list[ExpectedReminderCreate] = []
     for index, match in enumerate(matches):
-        hour = int(match.group("hour"))
+        hour = apply_day_period_to_hour(
+            normalized,
+            match_start=match.start(),
+            hour=int(match.group("hour")),
+        )
         minute = int(match.group("minute"))
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
             continue
@@ -630,6 +634,16 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
             )
         )
     return expected
+
+
+_PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
+
+
+def apply_day_period_to_hour(text: str, *, match_start: int, hour: int) -> int:
+    prefix = str(text or "")[max(0, match_start - 6) : match_start]
+    if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+        return hour + 12
+    return hour
 
 
 def validate_expected_creates(
