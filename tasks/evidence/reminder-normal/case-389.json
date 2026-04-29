@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 389,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b46ffbcbe6",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "c1cfa025b0946af4a2575f73"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 389,
+      "input": "分别提前2小时，提前1小时，提前5分钟提醒我。",
+      "user_id": "c1cfa025b0946af4a2575f73",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23631674ffe4e59c23741",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2363b5f7e042740b8cc8c",
+          "expect_output_timestamp": 1777481275,
+          "handled_timestamp": 1777481275,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问您想在哪個時間點之前被提醒？（例如某個會議或事件的具體時間），這樣我才能計算提前2小時、1小時和5分鐘的提醒時間。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b46ffbcbe6",
+            "case_index": 389,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693ecf4d2971a327a8e5ecc1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b46ffbcbe6-case-389",
+              "business_conversation_key": "reminder-normal-b46ffbcbe6-case-389",
+              "causal_inbound_event_id": "reminder-normal-b46ffbcbe6-case-389-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c1cfa025b0946af4a2575f73"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

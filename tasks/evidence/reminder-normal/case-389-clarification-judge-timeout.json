@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 389,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e0efc532c3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "1f38914a3a1c9c1d8d388f2e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 389,
+        "input": "分别提前2小时，提前1小时，提前5分钟提醒我。",
+        "user_id": "1f38914a3a1c9c1d8d388f2e",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f235ba77b235f250c9e841",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f235c15f7e042740b8cc7d",
+            "expect_output_timestamp": 1777481153,
+            "handled_timestamp": 1777481153,
+            "status": "pending",
+            "message_type": "text",
+            "message": "请问提前2小时、1小时、5分钟是相对于哪个时间或事件？请提供具体的目标时间或事项，这样我才能设置提醒。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-e0efc532c3",
+              "case_index": 389,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "693ecf4d2971a327a8e5ecc1",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-e0efc532c3-case-389",
+                "business_conversation_key": "reminder-normal-e0efc532c3-case-389",
+                "causal_inbound_event_id": "reminder-normal-e0efc532c3-case-389-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "1f38914a3a1c9c1d8d388f2e"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 8.028
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 389,
+      "input": "分别提前2小时，提前1小时，提前5分钟提醒我。",
+      "user_id": "1f38914a3a1c9c1d8d388f2e",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f235ba77b235f250c9e841",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f235c15f7e042740b8cc7d",
+          "expect_output_timestamp": 1777481153,
+          "handled_timestamp": 1777481153,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问提前2小时、1小时、5分钟是相对于哪个时间或事件？请提供具体的目标时间或事项，这样我才能设置提醒。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e0efc532c3",
+            "case_index": 389,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "693ecf4d2971a327a8e5ecc1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e0efc532c3-case-389",
+              "business_conversation_key": "reminder-normal-e0efc532c3-case-389",
+              "causal_inbound_event_id": "reminder-normal-e0efc532c3-case-389-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1f38914a3a1c9c1d8d388f2e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.028
+    }
+  ]
+}

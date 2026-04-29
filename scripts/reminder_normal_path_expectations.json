@@ -403,6 +403,10 @@
     "388": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded before a meeting but does not specify how far in advance. Without a default lead-time policy, the agent should ask for the lead time instead of creating the reminder."
+    },
+    "389": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user provides only lead times for advance reminders, but not the event or base event time to count back from. The agent should ask for the missing event time instead of creating reminders."
     }
   }
 }
