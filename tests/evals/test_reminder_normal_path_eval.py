@@ -897,6 +897,17 @@ def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
     assert normal_eval.run_unconfirmed_reminder_judge("我会提醒你") is False
 
 
+def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions(
+):
+    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+        "多久提醒你一次？另外，点外卖需要我设置一个提醒吗？"
+    )
+
+    assert "whether the user wants a reminder" in prompt
+    assert "what frequency to use" in prompt
+    assert "declarative claims" in prompt
+
+
 def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
 

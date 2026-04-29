@@ -1082,16 +1082,7 @@ def output_implies_unconfirmed_reminder(
 
 
 def run_unconfirmed_reminder_judge(output_text: str) -> bool:
-    prompt = f"""Judge whether this assistant reply claims or strongly implies an unconfirmed reminder action.
-
-Context:
-- No successful reminder tool result is present.
-- A clarification or proposal is allowed.
-- A promise that the assistant will remind, notify, call, nudge, check in, or avoid disturbing the user later is not allowed.
-- Answer with the structured schema only.
-
-Assistant reply:
-{output_text}"""
+    prompt = build_unconfirmed_reminder_judge_prompt(output_text)
     try:
         return _run_unconfirmed_reminder_judge_with_timeout(prompt)
     except UnconfirmedReminderJudgeTimeout:
@@ -1100,6 +1091,25 @@ Assistant reply:
     except Exception as exc:
         print(f"unconfirmed reminder LLM judge failed: {exc}", file=sys.stderr)
         return False
+
+
+def build_unconfirmed_reminder_judge_prompt(output_text: str) -> str:
+    return f"""Judge whether this assistant reply claims or strongly implies an unconfirmed reminder action.
+
+Context:
+- No successful reminder tool result is present.
+- A clarification or proposal is allowed.
+- A question asking whether the user wants a reminder, what frequency to use,
+  or whether to set a reminder for another item is a clarification, not a
+  claimed reminder action.
+- A promise that the assistant will remind, notify, call, nudge, check in, or avoid disturbing the user later is not allowed.
+- Return true only for declarative claims or strong implications that a future
+  reminder/check-in will happen without further user confirmation.
+- Answer with the structured schema only.
+
+Assistant reply:
+{output_text}"""
+
 
 def _parse_unconfirmed_reminder_judge_response(response) -> bool:
     content = getattr(response, "content", None)
