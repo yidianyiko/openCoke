@@ -1857,6 +1857,11 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "neighboring independent schedule item" in retry_input
     assert "task time range supplies boundaries" in retry_input
     assert "schedule-only items" in retry_input
+    assert "mixes safe and unsafe" in retry_input
+    assert "execute the safe operations" in retry_input
+    assert "ambiguous time range" in retry_input
+    assert "must not block" in retry_input
+    assert "Omit ambiguous time range clauses" in retry_input
     assert 'Never return action="batch" with operations=[]' in retry_input
     assert "not enough schedule_evidence" in retry_input
     assert "one create operation for each safe clause" in retry_input
@@ -1967,6 +1972,44 @@ async def test_reminder_detect_timeout_retry_invalid_evidence_appends_clarificat
     )
     assert "ReminderDetectInvalidScheduleEvidence" in (
         result["session_state"]["tool_results"][-1]["extra_notes"]
+    )
+
+
+def test_reminder_decision_evidence_allows_dot_time_separator():
+    from agent.agno_agent.schemas.reminder_detect_schema import (
+        ReminderDetectDecision,
+        ReminderOperation,
+    )
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence=(
+            "13:00提醒我打电话咨询一下暂住证，"
+            "16:00提醒我去办理暂住证"
+        ),
+        operations=[
+            ReminderOperation(
+                action="create",
+                title="打电话咨询一下暂住证",
+                trigger_at="2026-04-30T13:00:00+09:00",
+            ),
+            ReminderOperation(
+                action="create",
+                title="去办理暂住证",
+                trigger_at="2026-04-30T16:00:00+09:00",
+            ),
+        ],
+    )
+
+    assert (
+        PrepareWorkflow()._validate_reminder_decision_evidence(
+            decision,
+            "13.00提醒我打电话咨询一下暂住证，16.00提醒我去办理暂住证。",
+        )
+        == ""
     )
 
 

@@ -233,6 +233,11 @@ Field boundary:
 - In batch create operations, use title and trigger_at only, plus rrule when
   needed. Do not include empty optional fields, reminder_id, keyword, new_title,
   or new_trigger_at for create operations.
+- If a message mixes safe and unsafe reminder clauses, execute the safe operations
+  and leave unsafe clauses for chat clarification. An ambiguous time range clause
+  must not block separate concrete-time reminder clauses.
+- Omit ambiguous time range clauses from batch operations; do not convert them
+  into start, end, or interval reminders unless the user lists those occurrences.
 - For bounded cadence, enumerate one-shot operations and include deadline_at.
 - For recurring reminders, use RRULE only when the user asked for recurrence.
 - If the user says to keep, restart, or maintain a previous setting but

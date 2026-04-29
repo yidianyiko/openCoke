@@ -1197,6 +1197,7 @@ class PrepareWorkflow:
     @staticmethod
     def _compact_text(value: str) -> str:
         normalized = unicodedata.normalize("NFKC", str(value or "")).lower()
+        normalized = re.sub(r"(?<!\d)(\d{1,2})\.(\d{2})(?!\d)", r"\1:\2", normalized)
         return re.sub(r"\s+", "", normalized)
 
     @classmethod
@@ -1574,39 +1575,42 @@ class PrepareWorkflow:
 {invalid_previous_decision}
 
 ### Retry Directive
-Full-context reminder detection timed out or produced invalid structured output.
-Decide from this current message and return only a structured ReminderDetectDecision.
-- If the message explicitly asks for a reminder and gives concrete time plus
-  reminder content, return crud create. If it asks for reminder times but no
-  content, use title="提醒".
-- trigger_at/new_trigger_at/deadline_at must be timezone-aware ISO 8601
-  with local offset, for example 2026-12-14T00:30:00+09:00.
-- For a single reminder create, put the create fields in top-level title and trigger_at
-  and leave operations empty. new_title and new_trigger_at are update-only.
-- Clarify/query/discussion must leave action empty. Never output action="create"
-  with intent_type="clarify".
+Detect timed out/invalid structured output. Return only a structured
+ReminderDetectDecision for this current message.
+- If the message explicitly asks for a reminder with concrete time and content,
+  crud create; if reminder times have no content, use title="提醒".
+- trigger_at/new_trigger_at/deadline_at: timezone-aware ISO 8601 with local
+  offset, e.g. 2026-12-14T00:30:00+09:00.
+- single reminder create: use top-level title and trigger_at; operations empty;
+  new_title and new_trigger_at are update-only.
+- Clarify/query/discussion leave action empty. Never output action="create" with
+  intent_type="clarify".
 - Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month
   is not enough; do not resolve it to midnight.
-- For repeated interval with deadline/end/stop-after, enumerate each concrete one-shot occurrence;
+- Bounded interval/deadline: enumerate each concrete one-shot occurrence;
   current 15:07 + every 50 minutes before 18:00 -> 15:57, 16:47, 17:37.
   Do not use RRULE for bounded cadence.
-- Set schedule_basis and schedule_evidence for batch, bounded, or recurrence.
-  If without concrete occurrence times or interval/frequency, clarify. References
-  like "these time points" are not enough schedule_evidence.
+- Set schedule_basis and schedule_evidence for batch/bounded/recurrence. If
+  without concrete occurrence times or interval/frequency, clarify. "these time
+  points" is not enough schedule_evidence.
 - Ongoing daily window cadence with start date, window start/end, and interval:
-  for an hourly interval, return a single create using
-  rrule="FREQ=HOURLY;BYHOUR=..." with the listed local window hours, not one
-  operation per hour. Use trigger_at as the first local occurrence in the window.
-  The create operation must use title and trigger_at. Do not use update fields.
+  for hourly interval, return a single create with
+  rrule="FREQ=HOURLY;BYHOUR=...", not one operation per hour. Use trigger_at as
+  first local occurrence; create operation uses title and trigger_at. Do not use
+  update fields.
 - Never return action="batch" with operations=[]. For multiple safe clauses,
   use one create operation for each safe clause; action=create is invalid,
   operations count must equal the number of safe reminder clauses, and Do not keep only the last item.
 - In batch create operations, use title and trigger_at only, plus rrule when
-  needed. Do not include empty optional fields, reminder_id, keyword, new_title,
-  or new_trigger_at for create operations.
+  needed. Do not include empty optional fields.
+- If a message mixes safe and unsafe reminder clauses, execute the safe operations
+  and clarify unsafe clauses. An ambiguous time range clause must not block
+  separate concrete-time reminder clauses.
+- Omit ambiguous time range clauses from batch operations; do not convert them
+  into start/end/interval reminders unless user lists occurrences.
 - Chinese semicolon lists may omit the repeated reminder verb after the first clause.
-- For same-message stop boundary, treat it as deadline_at, not as delete/cancel.
-  If cadence started in the past, skip past occurrences and create only future occurrences.
+- same-message stop boundary -> deadline_at, not as delete/cancel. If cadence
+  started in the past, skip past occurrences and create only future occurrences.
 - Supervision over a window without concrete occurrence/cadence: clarify and
   Do not infer numeric intervals.
 - Cancel/stop/no-disturb existing reminder -> action="delete"; examples: 不用叫我,

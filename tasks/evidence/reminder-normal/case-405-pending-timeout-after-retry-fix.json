@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 405,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e93c96a21a",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9b4b462d91058b60aea9f9bd"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_reminder_created": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 405,
+        "input": "13.00提醒我打电话咨询一下暂住证，16.00提醒我去办理暂住证。13.00-15.30提醒我吃饭和收拾行李",
+        "user_id": "9b4b462d91058b60aea9f9bd",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f23d2237558211edeb0cd3",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "no_reminder_created"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.203
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 405,
+      "input": "13.00提醒我打电话咨询一下暂住证，16.00提醒我去办理暂住证。13.00-15.30提醒我吃饭和收拾行李",
+      "user_id": "9b4b462d91058b60aea9f9bd",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f23d2237558211edeb0cd3",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "no_reminder_created"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.203
+    }
+  ]
+}

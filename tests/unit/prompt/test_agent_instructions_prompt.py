@@ -166,6 +166,14 @@ def test_reminder_detect_retry_instructions_keep_batch_create_fields_concise():
     assert "Do not include empty optional fields" in INSTRUCTIONS_REMINDER_DETECT_RETRY
 
 
+def test_reminder_detect_retry_instructions_keep_safe_mixed_batch_operations():
+    assert "mixes safe and unsafe" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "execute the safe operations" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "ambiguous time range" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "must not block" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "Omit ambiguous time range clauses" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
 def test_reminder_detect_retry_instructions_require_aware_datetimes():
     assert "timezone-aware ISO 8601" in INSTRUCTIONS_REMINDER_DETECT_RETRY
     assert "include the local timezone offset" in INSTRUCTIONS_REMINDER_DETECT_RETRY
