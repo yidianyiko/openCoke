@@ -587,6 +587,24 @@ def test_validate_observations_allows_clarification_for_implicit_time_task():
     assert errors == []
 
 
+def test_validate_observations_accepts_colloquial_when_clarification():
+    case = normal_eval.ReminderNormalPathCase(
+        input="到点提醒我，中间转一下我有没有摸鱼",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "好嘞，那你大概啥时候想让我提醒你转一下？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_accepts_time_choice_clarification():
     case = normal_eval.ReminderNormalPathCase(
         input="七点半开始正式学习",

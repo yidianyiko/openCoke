@@ -866,7 +866,7 @@ def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
     output_text = combined_output_text(outputs)
     return bool(
         re.search(
-            r"(几点|什么时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
+            r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
             r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
             r"when|what time)",
             output_text,
