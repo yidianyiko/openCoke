@@ -191,6 +191,10 @@
     "181": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder."
+    },
+    "187": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒."
     }
   }
 }
