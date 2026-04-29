@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 238,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-7872a8d62e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "65b6300aee38fd088285e593"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 238,
+      "input": "到了结尾时间记得提醒我",
+      "user_id": "65b6300aee38fd088285e593",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f1e5c1e24b5dbbb2f5a624",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e5c9363b9b9847291ada",
+          "expect_output_timestamp": 1777460681,
+          "handled_timestamp": 1777460681,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问你说的「结尾时间」具体是哪个时间？请提供一个具体的日期和时间，我才能为你设置提醒。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-7872a8d62e",
+            "case_index": 238,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693679b894ff180b41ab744f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-7872a8d62e-case-238",
+              "business_conversation_key": "reminder-normal-7872a8d62e-case-238",
+              "causal_inbound_event_id": "reminder-normal-7872a8d62e-case-238-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "65b6300aee38fd088285e593"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}
