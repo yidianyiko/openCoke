@@ -119,6 +119,10 @@
     "125": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks which reminders exist today, despite the bad-case prefix; this is a reminder query, not a create/update/cancel/complete request."
+    },
+    "130": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder."
     }
   }
 }
