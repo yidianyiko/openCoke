@@ -1,0 +1,124 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 434,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e1c2eb8e78",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "74cc1a5a59766fd22ba6040c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 434,
+      "input": "希望你早上6:00叫我，晚上23:30复盘",
+      "user_id": "74cc1a5a59766fd22ba6040c",
+      "original_from_user": "6940e526a6d5f2cba9a55725",
+      "input_message_id": "69f2483fc479550765e487a0",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f248538c3e51fea6e55707",
+          "expect_output_timestamp": 1777485907,
+          "handled_timestamp": 1777485907,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：叫我（2026-05-01 06:00）；已创建提醒：复盘（2026-04-30 23:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e1c2eb8e78",
+            "case_index": 434,
+            "original_from_user": "6940e526a6d5f2cba9a55725",
+            "source_id": "6940e5e4a6d5f2cba9a55729",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e1c2eb8e78-case-434",
+              "business_conversation_key": "reminder-normal-e1c2eb8e78-case-434",
+              "causal_inbound_event_id": "reminder-normal-e1c2eb8e78-case-434-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "74cc1a5a59766fd22ba6040c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f248538c3e51fea6e55704",
+          "owner_user_id": "74cc1a5a59766fd22ba6040c",
+          "title": "叫我",
+          "schedule": {
+            "anchor_at": "2026-04-30T21:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "06:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2483f8c3e51fea6e556fd",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T21:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:05:07.425000+00:00",
+          "updated_at": "2026-04-29T18:05:07.425000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f248538c3e51fea6e55705",
+          "owner_user_id": "74cc1a5a59766fd22ba6040c",
+          "title": "复盘",
+          "schedule": {
+            "anchor_at": "2026-04-30T14:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "23:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2483f8c3e51fea6e556fd",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T14:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:05:07.431000+00:00",
+          "updated_at": "2026-04-29T18:05:07.431000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 20.034
+    }
+  ]
+}

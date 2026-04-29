@@ -174,6 +174,12 @@ reminders can fire without waiting for wall-clock time.
 - `case433` added a discussion expectation for a nickname plus conditional
   supervision-style request without a concrete reminder trigger. Two attempts
   hit chat-path timeouts before a PM2 restart; the post-restart rerun passed.
+- `case434` initially hit an invalid-schedule clarification on an explicit
+  two-time request, then passed on rerun without code changes.
+- `case435` passed without code or fixture changes.
+- `case436` added a clarification expectation for a workout range/current-status
+  message without explicit reminder intent. One rerun hit the chat timeout
+  fallback; after PM2 restart the case passed with no reminders.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 436,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-ee3cbb2d4b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "4f4a9d1137a5ac15adcea78a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 436,
+        "input": "2：00-2：30运动，现在刚准备开始运动，大概20分钟",
+        "user_id": "4f4a9d1137a5ac15adcea78a",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f2489e960769b825f8a9d0",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f249008c3e51fea6e55732",
+            "expect_output_timestamp": 1777485990,
+            "handled_timestamp": 1777485990,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-ee3cbb2d4b",
+              "case_index": 436,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "6940f728a6d5f2cba9a5573b",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-ee3cbb2d4b-case-436",
+                "business_conversation_key": "reminder-normal-ee3cbb2d4b-case-436",
+                "causal_inbound_event_id": "reminder-normal-ee3cbb2d4b-case-436-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "4f4a9d1137a5ac15adcea78a"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 98.164
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 436,
+      "input": "2：00-2：30运动，现在刚准备开始运动，大概20分钟",
+      "user_id": "4f4a9d1137a5ac15adcea78a",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f2489e960769b825f8a9d0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f249008c3e51fea6e55732",
+          "expect_output_timestamp": 1777485990,
+          "handled_timestamp": 1777485990,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-ee3cbb2d4b",
+            "case_index": 436,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "6940f728a6d5f2cba9a5573b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-ee3cbb2d4b-case-436",
+              "business_conversation_key": "reminder-normal-ee3cbb2d4b-case-436",
+              "causal_inbound_event_id": "reminder-normal-ee3cbb2d4b-case-436-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4f4a9d1137a5ac15adcea78a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 98.164
+    }
+  ]
+}

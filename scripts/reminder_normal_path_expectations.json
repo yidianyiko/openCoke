@@ -450,6 +450,10 @@
     "433": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder."
+    },
+    "436": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a workout time range and current status but does not explicitly ask for a reminder. The agent should ask whether and when to remind instead of creating one from the range or duration."
     }
   }
 }

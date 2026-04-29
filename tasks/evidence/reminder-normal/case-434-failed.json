@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 434,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-7aea7b1ecb",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b138d341532fb0b129abc604"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:复盘": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:复盘": 1
+    },
+    "failures": [
+      {
+        "index": 434,
+        "input": "希望你早上6:00叫我，晚上23:30复盘",
+        "user_id": "b138d341532fb0b129abc604",
+        "original_from_user": "6940e526a6d5f2cba9a55725",
+        "input_message_id": "69f247f5fd2340f211fe47e2",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:复盘",
+          "user_output_missing_expected_title:复盘"
+        ],
+        "outputs": [
+          {
+            "_id": "69f248208c3e51fea6e556f9",
+            "expect_output_timestamp": 1777485856,
+            "handled_timestamp": 1777485856,
+            "status": "pending",
+            "message_type": "text",
+            "message": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-7aea7b1ecb",
+              "case_index": 434,
+              "original_from_user": "6940e526a6d5f2cba9a55725",
+              "source_id": "6940e5e4a6d5f2cba9a55729",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-7aea7b1ecb-case-434",
+                "business_conversation_key": "reminder-normal-7aea7b1ecb-case-434",
+                "causal_inbound_event_id": "reminder-normal-7aea7b1ecb-case-434-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "b138d341532fb0b129abc604"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 44.074
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 434,
+      "input": "希望你早上6:00叫我，晚上23:30复盘",
+      "user_id": "b138d341532fb0b129abc604",
+      "original_from_user": "6940e526a6d5f2cba9a55725",
+      "input_message_id": "69f247f5fd2340f211fe47e2",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:复盘",
+        "user_output_missing_expected_title:复盘"
+      ],
+      "outputs": [
+        {
+          "_id": "69f248208c3e51fea6e556f9",
+          "expect_output_timestamp": 1777485856,
+          "handled_timestamp": 1777485856,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-7aea7b1ecb",
+            "case_index": 434,
+            "original_from_user": "6940e526a6d5f2cba9a55725",
+            "source_id": "6940e5e4a6d5f2cba9a55729",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-7aea7b1ecb-case-434",
+              "business_conversation_key": "reminder-normal-7aea7b1ecb-case-434",
+              "causal_inbound_event_id": "reminder-normal-7aea7b1ecb-case-434-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b138d341532fb0b129abc604"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 44.074
+    }
+  ]
+}

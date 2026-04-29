@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 436,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e7b8aa1b78",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "93d9921780dc88ae0231a643"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 436,
+      "input": "2：00-2：30运动，现在刚准备开始运动，大概20分钟",
+      "user_id": "93d9921780dc88ae0231a643",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f2493b58e9c233fae67e2b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f24944d200fd62c8b93c40",
+          "expect_output_timestamp": 1777486147,
+          "handled_timestamp": 1777486147,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好嘞，2:00到2:30运动，现在刚开干，还有大概20分钟对吧？那我先不打扰你，等你结束跟我说一声，咱们确认完成",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e7b8aa1b78",
+            "case_index": 436,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "6940f728a6d5f2cba9a5573b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e7b8aa1b78-case-436",
+              "business_conversation_key": "reminder-normal-e7b8aa1b78-case-436",
+              "causal_inbound_event_id": "reminder-normal-e7b8aa1b78-case-436-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "93d9921780dc88ae0231a643"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.016
+    }
+  ]
+}

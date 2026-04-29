@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 436,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-92c4d36b4f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6075ecb533fe386dca358a80"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 436,
+        "input": "2：00-2：30运动，现在刚准备开始运动，大概20分钟",
+        "user_id": "6075ecb533fe386dca358a80",
+        "original_from_user": "693d76a43aff6aca7eceb048",
+        "input_message_id": "69f2486bfba7800c66136dba",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f248788c3e51fea6e55723",
+            "expect_output_timestamp": 1777485944,
+            "handled_timestamp": 1777485944,
+            "status": "pending",
+            "message_type": "text",
+            "message": "你有需要我在运动结束时或其他时间提醒你吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-92c4d36b4f",
+              "case_index": 436,
+              "original_from_user": "693d76a43aff6aca7eceb048",
+              "source_id": "6940f728a6d5f2cba9a5573b",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-92c4d36b4f-case-436",
+                "business_conversation_key": "reminder-normal-92c4d36b4f-case-436",
+                "causal_inbound_event_id": "reminder-normal-92c4d36b4f-case-436-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "6075ecb533fe386dca358a80"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 13.023
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 436,
+      "input": "2：00-2：30运动，现在刚准备开始运动，大概20分钟",
+      "user_id": "6075ecb533fe386dca358a80",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f2486bfba7800c66136dba",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f248788c3e51fea6e55723",
+          "expect_output_timestamp": 1777485944,
+          "handled_timestamp": 1777485944,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你有需要我在运动结束时或其他时间提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-92c4d36b4f",
+            "case_index": 436,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "6940f728a6d5f2cba9a5573b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-92c4d36b4f-case-436",
+              "business_conversation_key": "reminder-normal-92c4d36b4f-case-436",
+              "causal_inbound_event_id": "reminder-normal-92c4d36b4f-case-436-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6075ecb533fe386dca358a80"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.023
+    }
+  ]
+}
