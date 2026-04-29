@@ -94,6 +94,7 @@ def test_reminder_detect_instructions_enumerate_unsupported_interval_deadlines()
     assert "cannot represent exactly with the supported RRULE subset" in instructions
     assert "enumerate each one-shot occurrence" in instructions
     assert "current time is the schedule anchor" in instructions
+    assert "current time plus one full interval" in instructions
     assert "deadline_at" in instructions
     assert "15:57, 16:47, 17:37" in instructions
 

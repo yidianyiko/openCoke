@@ -104,7 +104,7 @@ Rules:
 - Only set rrule when the user explicitly asks for recurrence with words such
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
   clearly repeated interval.
-- Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. If the user does not provide a start time, current time is the schedule anchor: start from the next interval after current time and stop before the deadline.
+- Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. If the user does not provide a start time, current time is the schedule anchor: the first trigger is current time plus one full interval, then repeat the interval and stop before the deadline.
 - When the user provides an interval deadline, set deadline_at to that exclusive
   deadline and include only operations whose trigger_at is strictly before
   deadline_at.
