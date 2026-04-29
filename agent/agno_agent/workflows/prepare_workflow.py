@@ -1075,6 +1075,14 @@ class PrepareWorkflow:
                 return (
                     "explicit_occurrences evidence does not contain every create time"
                 )
+            if self._clock_time_is_only_range_boundary(
+                evidence_text,
+                operation.trigger_at,
+            ):
+                return (
+                    "explicit_occurrences evidence uses a time range boundary, "
+                    "not a concrete reminder time"
+                )
         return ""
 
     @staticmethod
@@ -1120,6 +1128,54 @@ class PrepareWorkflow:
                     }
                 )
         return {cls._compact_text(variant) for variant in raw_variants}
+
+    @classmethod
+    def _clock_time_is_only_range_boundary(
+        cls,
+        compact_evidence: str,
+        trigger_at: str,
+    ) -> bool:
+        variants = cls._clock_time_variants(trigger_at)
+        if not variants:
+            return False
+        found_boundary = False
+        found_standalone = False
+        for variant in sorted(variants, key=len, reverse=True):
+            start = compact_evidence.find(variant)
+            while start >= 0:
+                end = start + len(variant)
+                if not cls._is_embedded_bare_hour_match(
+                    compact_evidence,
+                    variant,
+                    start,
+                    end,
+                ):
+                    if cls._is_range_boundary_at(compact_evidence, start, end):
+                        found_boundary = True
+                    else:
+                        found_standalone = True
+                start = compact_evidence.find(variant, start + 1)
+        return found_boundary and not found_standalone
+
+    @staticmethod
+    def _is_embedded_bare_hour_match(
+        text: str,
+        variant: str,
+        start: int,
+        end: int,
+    ) -> bool:
+        if not variant.isdigit():
+            return False
+        previous_char = text[start - 1] if start > 0 else ""
+        next_char = text[end] if end < len(text) else ""
+        return previous_char in ":0123456789" or next_char in ":0123456789"
+
+    @staticmethod
+    def _is_range_boundary_at(text: str, start: int, end: int) -> bool:
+        range_separators = frozenset("-~—–到至")
+        previous_char = text[start - 1] if start > 0 else ""
+        next_char = text[end] if end < len(text) else ""
+        return previous_char in range_separators or next_char in range_separators
 
     @staticmethod
     def _clock_dayparts(hour: int) -> set[str]:

@@ -418,7 +418,7 @@ def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
     )
 
 
-def test_explicit_occurrence_evidence_accepts_bare_hour_time_range_boundary():
+def test_explicit_occurrence_evidence_rejects_time_range_boundaries():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -442,9 +442,65 @@ def test_explicit_occurrence_evidence_accepts_bare_hour_time_range_boundary():
         ],
     )
 
+    assert (
+        workflow._validate_reminder_decision_evidence(
+            decision,
+            "这是我今天的任务 11-11：30 吃饭，请在这些时间点提醒我学习",
+        )
+        == "explicit_occurrences evidence uses a time range boundary, not a concrete reminder time"
+    )
+
+
+def test_explicit_occurrence_evidence_rejects_colon_time_range_boundary():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="19：00-20：00练腹",
+        operations=[
+            {
+                "action": "create",
+                "title": "练腹",
+                "trigger_at": "2026-04-29T19:00:00+09:00",
+            }
+        ],
+    )
+
+    assert (
+        workflow._validate_reminder_decision_evidence(
+            decision,
+            "19：00-20：00练腹 请在这些时间点提醒我学习",
+        )
+        == "explicit_occurrences evidence uses a time range boundary, not a concrete reminder time"
+    )
+
+
+def test_explicit_occurrence_evidence_accepts_bare_hour_reminder_time():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="11提醒我吃饭",
+        operations=[
+            {
+                "action": "create",
+                "title": "吃饭",
+                "trigger_at": "2026-04-29T11:00:00+09:00",
+            }
+        ],
+    )
+
     assert not workflow._validate_reminder_decision_evidence(
         decision,
-        "这是我今天的任务 11-11：30 吃饭，请在这些时间点提醒我学习",
+        "今天11提醒我吃饭",
     )
 
 
