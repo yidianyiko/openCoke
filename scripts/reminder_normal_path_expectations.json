@@ -55,6 +55,10 @@
     "102": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder."
+    },
+    "107": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent should confirm reminder intent instead of creating or promising one."
     }
   }
 }
