@@ -133,6 +133,20 @@ reminder_detect_agent = Agent(
     max_tool_calls_from_history=5,  # 历史工具调用限制
 )
 
+reminder_detect_retry_agent = Agent(
+    id="reminder-detect-retry-agent",
+    name="ReminderDetectRetryAgent",
+    model=create_llm_model(max_tokens=2000, role="prepare_fast"),
+    description=DESCRIPTION_REMINDER_DETECT,
+    tools=[visible_reminder_tool],
+    tool_call_limit=1,
+    instructions=get_reminder_detect_instructions(),
+    markdown=False,
+    num_history_messages=0,
+    compress_tool_results=True,
+    max_tool_calls_from_history=0,
+)
+
 
 # OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
 # 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
@@ -189,6 +203,7 @@ __all__ = [
     "create_llm_model",
     # 预创建 Agent
     "reminder_detect_agent",
+    "reminder_detect_retry_agent",
     "orchestrator_agent",  # V2 架构核心
     "post_analyze_agent",
 ]

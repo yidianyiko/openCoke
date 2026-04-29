@@ -25,6 +25,7 @@ from typing import Any, Dict, Optional
 from agent.agno_agent.agents import (
     orchestrator_agent,
     reminder_detect_agent,
+    reminder_detect_retry_agent,
 )
 from agent.agno_agent.tools.reminder_protocol import (
     set_reminder_session_state,
@@ -82,6 +83,10 @@ _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS = _float_env(
     "COKE_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
     45.0,
 )
+_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = _float_env(
+    "COKE_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+    15.0,
+)
 
 _EXPLICIT_TIMEZONE_OVERRIDE_PATTERNS = (
     re.compile(r"(以后|之后|后面|今后|从现在起|往后).{0,12}按.{0,20}时间"),
@@ -128,12 +133,6 @@ _ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
 )
 _ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
     r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
-)
-_VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
-    r"^(你)?(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
-)
-_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN = re.compile(
-    r"^(你)?(帮我|给我)?提醒(我)?(一下|下)?[。！？!?]*$"
 )
 _IMPLICIT_REMINDER_INTENT_PATTERNS = (
     re.compile(
@@ -354,25 +353,6 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
-        if self._looks_like_vague_reminder_capability_question(input_message):
-            orchestrator["need_reminder_detect"] = False
-            session_state["direct_reply"] = (
-                "可以循环提醒。你告诉我提醒内容、开始时间和循环频率，"
-                "比如“每天晚上八点提醒我冥想”。"
-            )
-            logger.info(
-                "[PrepareWorkflow] 提醒能力问句缺少可执行内容，跳过 ReminderDetectAgent"
-            )
-            return False
-
-        if self._looks_like_underspecified_reminder_request(input_message):
-            orchestrator["need_reminder_detect"] = False
-            session_state["direct_reply"] = "可以。你想让我提醒你做什么、什么时候提醒？"
-            logger.info(
-                "[PrepareWorkflow] 提醒请求缺少内容和时间，跳过 ReminderDetectAgent"
-            )
-            return False
-
         if not need_reminder and self._looks_like_reminder_intent(input_message):
             orchestrator["need_reminder_detect"] = True
             logger.info(
@@ -398,16 +378,6 @@ class PrepareWorkflow:
             _ACTIONABLE_CALL_ME_TIME_PATTERN.search(text)
             or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(text)
         )
-
-    def _looks_like_vague_reminder_capability_question(
-        self, input_message: str
-    ) -> bool:
-        text = str(input_message or "").strip()
-        return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(text))
-
-    def _looks_like_underspecified_reminder_request(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        return bool(_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN.search(text))
 
     def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
@@ -802,6 +772,13 @@ class PrepareWorkflow:
                 _PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS,
             )
             session_state["prepare_reminder_detect_timeout"] = True
+            retry_response = await self._run_reminder_detect_retry(
+                input_message,
+                session_state,
+            )
+            if retry_response is not None:
+                self._log_reminder_result(retry_response, session_state)
+                return
             append_tool_result(
                 session_state,
                 tool_name="提醒操作",
@@ -812,6 +789,44 @@ class PrepareWorkflow:
         except Exception as e:
             logger.error(f"ReminderDetectAgent 执行失败: {e}")
             # 提醒检测失败不影响主流程
+
+    async def _run_reminder_detect_retry(
+        self,
+        input_message: str,
+        session_state: Dict[str, Any],
+    ):
+        """Retry reminder detection with short context and the fast LLM role."""
+        session_state["prepare_reminder_detect_retry_used"] = True
+        retry_input = self._build_reminder_retry_input(input_message, session_state)
+        try:
+            retry_response = await asyncio.wait_for(
+                reminder_detect_retry_agent.arun(
+                    input=retry_input,
+                    session_state=session_state,
+                ),
+                timeout=_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                "ReminderDetectRetryAgent 执行超时: timeout=%.1fs",
+                _PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS,
+            )
+            session_state["prepare_reminder_detect_retry_timeout"] = True
+            return None
+        except Exception as e:
+            logger.error(f"ReminderDetectRetryAgent 执行失败: {e}")
+            session_state["prepare_reminder_detect_retry_failed"] = True
+            return None
+
+        if retry_response and hasattr(retry_response, "metrics"):
+            usage_tracker.record_from_metrics(
+                agent_name="ReminderDetectRetryAgent",
+                metrics=retry_response.metrics,
+                user_id=str(session_state.get("user", {}).get("id", "")),
+                session_id=session_state.get("conversation_id"),
+                workflow_name="PrepareWorkflow",
+            )
+        return retry_response
 
     def _renew_lock_if_needed(self, session_state: Dict[str, Any]) -> None:
         """如果有锁信息则续期"""
@@ -899,6 +914,25 @@ class PrepareWorkflow:
             recent_chat_context=recent_chat_context,
             current_message=current_message,
         )
+
+    def _build_reminder_retry_input(
+        self, current_message: str, session_state: dict
+    ) -> str:
+        time_str = (
+            session_state.get("conversation", {})
+            .get("conversation_info", {})
+            .get("time_str", "")
+        )
+        user = session_state.get("user", {})
+        timezone = user.get("effective_timezone") or user.get("timezone") or "unknown"
+        return f"""### 当前时间
+{time_str}
+
+### 用户时区
+{timezone}
+
+### 当前用户消息
+{current_message}"""
 
     def _render_template(self, template: str, context: Dict[str, Any]) -> str:
         """渲染模板字符串"""

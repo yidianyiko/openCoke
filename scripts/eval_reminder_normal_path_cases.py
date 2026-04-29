@@ -26,6 +26,7 @@ from conf.config import CONF
 from dao.user_dao import UserDAO
 
 DEFAULT_CASES_PATH = Path("scripts/reminder_test_cases.json")
+DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json")
 
 
 @dataclass(frozen=True)
@@ -66,15 +67,44 @@ class ExpectedReminderCreate:
 
 def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[ReminderNormalPathCase]:
     data = json.loads(path.read_text(encoding="utf-8"))
+    expectations = load_case_expectations(DEFAULT_EXPECTATIONS_PATH)
     return [
         ReminderNormalPathCase(
             input=str(item["input"]),
             expected_intent=str(item.get("expected_intent", "")),
             matched_keywords=list(item.get("matched_keywords") or []),
-            metadata=dict(item.get("metadata") or {}),
+            metadata=merge_case_expectation_metadata(
+                dict(item.get("metadata") or {}),
+                expectations.get(index, {}),
+            ),
         )
-        for item in data["test_cases"]
+        for index, item in enumerate(data["test_cases"])
     ]
+
+
+def load_case_expectations(path: Path) -> dict[int, dict[str, Any]]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw_cases = data.get("cases", data)
+    return {int(index): dict(value) for index, value in raw_cases.items()}
+
+
+def merge_case_expectation_metadata(
+    metadata: dict[str, Any],
+    expectation: dict[str, Any],
+) -> dict[str, Any]:
+    if not expectation:
+        return metadata
+    merged = dict(metadata)
+    for key in (
+        "evaluation_expectation",
+        "evaluation_reason",
+        "expected_creates",
+    ):
+        if key in expectation:
+            merged[key] = expectation[key]
+    return merged
 
 
 def select_cases(
@@ -499,13 +529,21 @@ def validate_observations(
     reminders: list[dict[str, Any]],
 ) -> list[str]:
     errors: list[str] = []
-    expected_creates = expected_created_reminders(case.input)
+    expectation = case_evaluation_expectation(case)
+    expected_creates = (
+        expected_created_reminders(case.input) if expectation == "crud" else []
+    )
     if input_status != "handled":
         errors.append(f"input_{input_status}")
     if not outputs:
         errors.append("no_user_output")
-    if reminder_case_requires_crud(case) and not reminders:
+    if expectation == "crud" and not reminders:
         errors.append("no_reminder_created")
+    if expectation in {"clarify", "capability", "discussion", "query"}:
+        if reminders:
+            errors.append("unexpected_reminder_created")
+        if expectation == "clarify" and not output_mentions_clarification(outputs):
+            errors.append("user_output_missing_clarification")
     for reminder in reminders:
         if (
             reminder.get("next_fire_at") is None
@@ -772,16 +810,19 @@ def combined_output_text(outputs: list[dict[str, Any]]) -> str:
     )
 
 
+def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
+    output_text = combined_output_text(outputs)
+    return bool(
+        re.search(
+            r"(几点|什么时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|when|what time)",
+            output_text,
+            re.IGNORECASE,
+        )
+    )
+
+
 def explicit_reminder_request(text: str) -> bool:
     normalized = str(text or "").lower()
-    if vague_reminder_capability_question(normalized):
-        return False
-    if underspecified_reminder_request(normalized):
-        return False
-    if reminder_time_query(normalized):
-        return False
-    if reminder_missed_complaint(normalized):
-        return False
     if any(
         keyword in normalized
         for keyword in (
@@ -809,43 +850,6 @@ _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN = re.compile(
     r"明天下班前.*(?:必须|要|得|需要).*(?:学完|完成|做完|弄完)|"
     r".*(?:学完|完成|做完|弄完).*明天下班前"
 )
-_VAGUE_REMINDER_CAPABILITY_PATTERN = re.compile(
-    r"(?:^|[，,。；;！？!?\s]).{0,12}"
-    r"(可以|能不能|能|会不会|会).{0,8}(循环|重复|定期)?提醒我[吗么嘛]?[？?]?$"
-)
-_REMINDER_TIME_QUERY_PATTERN = re.compile(
-    r"(几点|什么时候|什么时间|何时|哪天|哪个时间).{0,12}提醒我|"
-    r"提醒我.{0,12}(几点|什么时候|什么时间|何时|哪天|哪个时间)"
-)
-_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN = re.compile(
-    r"^(你)?(帮我|给我)?提醒(我)?(一下|下)?[。！？!?]*$"
-)
-
-
-def vague_reminder_capability_question(text: str) -> bool:
-    normalized = normalize_text(text).strip()
-    return bool(_VAGUE_REMINDER_CAPABILITY_PATTERN.search(normalized))
-
-
-def reminder_time_query(text: str) -> bool:
-    normalized = normalize_text(text).strip()
-    return bool(_REMINDER_TIME_QUERY_PATTERN.search(normalized))
-
-
-_REMINDER_MISSED_COMPLAINT_PATTERN = re.compile(
-    r"(怎么|为什么|为何|咋|咋不).{0,8}(不|没|没有).{0,8}提醒我|"
-    r"(不|没|没有).{0,8}提醒我.{0,8}(怎么|为什么|为何|咋)"
-)
-
-
-def reminder_missed_complaint(text: str) -> bool:
-    normalized = normalize_text(text).strip()
-    return bool(_REMINDER_MISSED_COMPLAINT_PATTERN.search(normalized))
-
-
-def underspecified_reminder_request(text: str) -> bool:
-    normalized = normalize_text(text).strip()
-    return bool(_UNDERSPECIFIED_REMINDER_REQUEST_PATTERN.search(normalized))
 
 
 def actionable_implicit_reminder_request(text: str) -> bool:
@@ -874,9 +878,22 @@ def actionable_call_me_reminder_request(text: str) -> bool:
 
 
 def reminder_case_requires_crud(case: ReminderNormalPathCase) -> bool:
-    return explicit_reminder_request(
+    return case_evaluation_expectation(case) == "crud"
+
+
+def case_evaluation_expectation(case: ReminderNormalPathCase) -> str:
+    explicit_expectation = str(
+        case.metadata.get("evaluation_expectation")
+        or case.metadata.get("eval_expectation")
+        or ""
+    ).strip()
+    if explicit_expectation:
+        return explicit_expectation
+    if explicit_reminder_request(case.input) or actionable_implicit_reminder_request(
         case.input
-    ) or actionable_implicit_reminder_request(case.input)
+    ):
+        return "crud"
+    return "discussion"
 
 
 def summarize(results: list[ReminderNormalPathResult]) -> dict[str, Any]:

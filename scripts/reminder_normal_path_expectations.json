@@ -1,0 +1,8 @@
+{
+  "cases": {
+    "73": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
+    }
+  }
+}

@@ -376,7 +376,7 @@ def test_validate_observations_does_not_require_crud_for_unschedulable_label():
         input="我这周一和周五是全天兼职，这两天估计要插空学习",
         expected_intent="reminder",
         matched_keywords=["周一", "周五", "学习"],
-        metadata={},
+        metadata={"evaluation_expectation": "discussion"},
     )
 
     errors = normal_eval.validate_observations(
@@ -412,7 +412,7 @@ def test_validate_observations_does_not_require_crud_for_vague_capability_questi
         input="你可以循环提醒我吗",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
-        metadata={},
+        metadata={"evaluation_expectation": "capability"},
     )
 
     errors = normal_eval.validate_observations(
@@ -430,7 +430,7 @@ def test_validate_observations_does_not_require_crud_for_frustrated_capability_q
         input="怎么这样！那你到底会不会提醒我",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
-        metadata={},
+        metadata={"evaluation_expectation": "capability"},
     )
 
     errors = normal_eval.validate_observations(
@@ -448,7 +448,7 @@ def test_validate_observations_does_not_require_crud_for_missed_reminder_complai
         input="今天下午怎么不提醒我？",
         expected_intent="reminder",
         matched_keywords=["提醒我", "今天", "下午"],
-        metadata={},
+        metadata={"evaluation_expectation": "query"},
     )
 
     errors = normal_eval.validate_observations(
@@ -466,7 +466,7 @@ def test_validate_observations_does_not_require_crud_for_underspecified_reminder
         input="你提醒我一下",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
-        metadata={},
+        metadata={"evaluation_expectation": "clarify"},
     )
 
     errors = normal_eval.validate_observations(
@@ -484,7 +484,7 @@ def test_validate_observations_does_not_require_crud_for_reminder_time_query():
         input="那你打算几点提醒我",
         expected_intent="reminder",
         matched_keywords=["提醒"],
-        metadata={},
+        metadata={"evaluation_expectation": "query"},
     )
 
     errors = normal_eval.validate_observations(
@@ -495,6 +495,55 @@ def test_validate_observations_does_not_require_crud_for_reminder_time_query():
     )
 
     assert "no_reminder_created" not in errors
+
+
+def test_validate_observations_requires_fixture_for_date_only_clarification():
+    case = normal_eval.ReminderNormalPathCase(
+        input="明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+        expected_intent="reminder",
+        matched_keywords=["提醒我", "明天", "学习"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "可以，明天几点提醒你看文章、写笔记和写小说？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
+def test_validate_observations_rejects_reminder_for_clarification_fixture():
+    case = normal_eval.ReminderNormalPathCase(
+        input="明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+        expected_intent="reminder",
+        matched_keywords=["提醒我", "明天", "学习"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+    reminder = {
+        "title": "看文章",
+        "lifecycle_state": "active",
+        "next_fire_at": datetime(2026, 4, 30, 0, 0, tzinfo=timezone.utc),
+        "created_at": datetime(2026, 4, 29, 8, 0, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 4, 29, 8, 0, tzinfo=timezone.utc),
+    }
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：看文章"}],
+        reminders=[reminder],
+    )
+
+    assert "unexpected_reminder_created" in errors
+
+
+def test_load_cases_applies_normal_path_expectation_fixture():
+    cases = normal_eval.load_cases()
+
+    assert cases[73].metadata["evaluation_expectation"] == "clarify"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
