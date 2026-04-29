@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 198,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0fc69f814b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "403c0ff822efd14b7bd682c0"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 198,
+      "input": "我10：13-11：00要写个个人陈述，随时提醒我让我专注。11：00点个外卖",
+      "user_id": "403c0ff822efd14b7bd682c0",
+      "original_from_user": "692dbb5564d834c3c061653f",
+      "input_message_id": "69f1c2a1e1ba57aa64e83942",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1c2c4dcbe32a9e9c37ba1",
+          "expect_output_timestamp": 1777451716,
+          "handled_timestamp": 1777451716,
+          "status": "pending",
+          "message_type": "text",
+          "message": "10:13-11:00期间您希望多久提醒一次让您保持专注呢？比如每10分钟、每20分钟？另外，11:00点外卖是需要我提醒您吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0fc69f814b",
+            "case_index": 198,
+            "original_from_user": "692dbb5564d834c3c061653f",
+            "source_id": "693391564bf7878f04114aca",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0fc69f814b-case-198",
+              "business_conversation_key": "reminder-normal-0fc69f814b-case-198",
+              "causal_inbound_event_id": "reminder-normal-0fc69f814b-case-198-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "403c0ff822efd14b7bd682c0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 36.061
+    }
+  ]
+}
