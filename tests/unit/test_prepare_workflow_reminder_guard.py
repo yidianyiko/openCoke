@@ -1707,6 +1707,10 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert 'Never return action="batch" with operations=[]' in retry_input
     assert "not enough schedule_evidence" in retry_input
     assert "one create operation for each safe clause" in retry_input
+    assert "single reminder create" in retry_input
+    assert "top-level title and trigger_at" in retry_input
+    assert "operations empty" in retry_input
+    assert "new_title and new_trigger_at are update-only" in retry_input
     assert "Do not keep only the last item" in retry_input
     assert "action=create is invalid" in retry_input
     assert (

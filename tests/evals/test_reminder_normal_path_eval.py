@@ -1323,6 +1323,18 @@ def test_expected_created_reminders_uses_title_after_de_reminder_clause():
     ]
 
 
+def test_expected_created_reminders_strips_nominal_reminder_suffix():
+    expected = normal_eval.expected_created_reminders("唔 设置一个上午9:20 起床的提醒")
+
+    assert expected == [
+        normal_eval.ExpectedReminderCreate(
+            title="起床",
+            local_time="09:20:00",
+            recurring=False,
+        )
+    ]
+
+
 def test_expected_created_reminders_handles_time_ranges_without_dash_titles():
     expected = normal_eval.expected_created_reminders(
         "这是我今天的任务 11-11：30 吃饭；11：30-13：30 看法考网课；"

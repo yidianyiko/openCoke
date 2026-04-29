@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 295,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-44aaa8b9a1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "935902dd958b1c8849fc04cb"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:起床": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:起床": 1
+    },
+    "failures": [
+      {
+        "index": 295,
+        "input": "唔 设置一个上午9:20 起床的提醒",
+        "user_id": "935902dd958b1c8849fc04cb",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f20cd04ccca4d584a2aa5c",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:起床",
+          "user_output_missing_expected_title:起床"
+        ],
+        "outputs": [
+          {
+            "_id": "69f20cf8500d790b00cfa53c",
+            "expect_output_timestamp": 1777470709,
+            "handled_timestamp": 1777470709,
+            "status": "pending",
+            "message_type": "text",
+            "message": "收到！不过提醒还没设好哈，确认一下",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-44aaa8b9a1",
+              "case_index": 295,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "69399d7f56afe80230accde2",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-44aaa8b9a1-case-295",
+                "business_conversation_key": "reminder-normal-44aaa8b9a1-case-295",
+                "causal_inbound_event_id": "reminder-normal-44aaa8b9a1-case-295-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "935902dd958b1c8849fc04cb"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 40.069
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 295,
+      "input": "唔 设置一个上午9:20 起床的提醒",
+      "user_id": "935902dd958b1c8849fc04cb",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f20cd04ccca4d584a2aa5c",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:起床",
+        "user_output_missing_expected_title:起床"
+      ],
+      "outputs": [
+        {
+          "_id": "69f20cf8500d790b00cfa53c",
+          "expect_output_timestamp": 1777470709,
+          "handled_timestamp": 1777470709,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到！不过提醒还没设好哈，确认一下",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-44aaa8b9a1",
+            "case_index": 295,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69399d7f56afe80230accde2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-44aaa8b9a1-case-295",
+              "business_conversation_key": "reminder-normal-44aaa8b9a1-case-295",
+              "causal_inbound_event_id": "reminder-normal-44aaa8b9a1-case-295-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "935902dd958b1c8849fc04cb"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 40.069
+    }
+  ]
+}

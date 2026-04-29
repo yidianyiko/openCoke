@@ -1553,6 +1553,8 @@ Decide from this current message and return only a structured ReminderDetectDeci
 - If the message explicitly asks for a reminder and gives concrete time plus
   reminder content, return crud create. If it asks for reminder times but no
   content, use title="提醒".
+- For a single reminder create, put the create fields in top-level title and trigger_at
+  and leave operations empty. new_title and new_trigger_at are update-only.
 - Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month
   is not enough; do not resolve it to midnight.
 - For repeated interval with deadline/end/stop-after, enumerate each concrete one-shot occurrence;

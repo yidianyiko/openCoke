@@ -220,6 +220,8 @@ Field boundary:
   default time or midnight.
 - If the user explicitly asks for a reminder and gives a concrete time plus
   reminder content, create it. Resolve local times with the supplied timezone.
+- For a single reminder create, put the create fields in top-level title and trigger_at
+  and leave operations empty. new_title and new_trigger_at are update-only.
 - For multiple safe reminder clauses, use batch with flat operations.
 - For bounded cadence, enumerate one-shot operations and include deadline_at.
 - For recurring reminders, use RRULE only when the user asked for recurrence.

@@ -1,0 +1,172 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 295,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-524141b202",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "39b3c3ffece837ece9a89027"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_expected_title:起床的提醒": 1
+    },
+    "failures": [
+      {
+        "index": 295,
+        "input": "唔 设置一个上午9:20 起床的提醒",
+        "user_id": "39b3c3ffece837ece9a89027",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f20c06a1e665102e2da4ef",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_expected_title:起床的提醒"
+        ],
+        "outputs": [
+          {
+            "_id": "69f20c0d500d790b00cfa517",
+            "expect_output_timestamp": 1777470477,
+            "handled_timestamp": 1777470477,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：起床（2026-04-30 09:20）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-524141b202",
+              "case_index": 295,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "69399d7f56afe80230accde2",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-524141b202-case-295",
+                "business_conversation_key": "reminder-normal-524141b202-case-295",
+                "causal_inbound_event_id": "reminder-normal-524141b202-case-295-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "39b3c3ffece837ece9a89027"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f20c0d500d790b00cfa515",
+            "owner_user_id": "39b3c3ffece837ece9a89027",
+            "title": "起床",
+            "schedule": {
+              "anchor_at": "2026-04-30T00:20:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "09:20:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f20c06500d790b00cfa50e",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T00:20:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T13:47:57.910000+00:00",
+            "updated_at": "2026-04-29T13:47:57.910000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 8.016
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 295,
+      "input": "唔 设置一个上午9:20 起床的提醒",
+      "user_id": "39b3c3ffece837ece9a89027",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f20c06a1e665102e2da4ef",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_expected_title:起床的提醒"
+      ],
+      "outputs": [
+        {
+          "_id": "69f20c0d500d790b00cfa517",
+          "expect_output_timestamp": 1777470477,
+          "handled_timestamp": 1777470477,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（2026-04-30 09:20）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-524141b202",
+            "case_index": 295,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69399d7f56afe80230accde2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-524141b202-case-295",
+              "business_conversation_key": "reminder-normal-524141b202-case-295",
+              "causal_inbound_event_id": "reminder-normal-524141b202-case-295-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "39b3c3ffece837ece9a89027"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f20c0d500d790b00cfa515",
+          "owner_user_id": "39b3c3ffece837ece9a89027",
+          "title": "起床",
+          "schedule": {
+            "anchor_at": "2026-04-30T00:20:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "09:20:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f20c06500d790b00cfa50e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T00:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T13:47:57.910000+00:00",
+          "updated_at": "2026-04-29T13:47:57.910000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.016
+    }
+  ]
+}

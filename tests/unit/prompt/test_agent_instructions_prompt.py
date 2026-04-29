@@ -149,6 +149,15 @@ def test_reminder_detect_retry_instructions_handle_restarted_daily_window_cadenc
     assert "title and trigger_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
 
 
+def test_reminder_detect_retry_instructions_keep_single_create_top_level():
+    assert "single reminder create" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "top-level title and trigger_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "operations empty" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "new_title and new_trigger_at are update-only" in (
+        INSTRUCTIONS_REMINDER_DETECT_RETRY
+    )
+
+
 def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 
