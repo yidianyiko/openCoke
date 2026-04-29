@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 278,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f844eb8f9f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "49de89c028ff1d3c95a51f9c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 278,
+      "input": "明天早上你准备怎么叫我起床",
+      "user_id": "49de89c028ff1d3c95a51f9c",
+      "original_from_user": "69380028fa6e02049481c8f0",
+      "input_message_id": "69f1f0996a39d9d8df61533a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1f0aca101647c6278cf78",
+          "expect_output_timestamp": 1777463459,
+          "handled_timestamp": 1777463459,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好呀，明天早上你计划几点起床呀？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f844eb8f9f",
+            "case_index": 278,
+            "original_from_user": "69380028fa6e02049481c8f0",
+            "source_id": "6938304afa6e02049481c918",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f844eb8f9f-case-278",
+              "business_conversation_key": "reminder-normal-f844eb8f9f-case-278",
+              "causal_inbound_event_id": "reminder-normal-f844eb8f9f-case-278-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "49de89c028ff1d3c95a51f9c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 19.033
+    }
+  ]
+}
