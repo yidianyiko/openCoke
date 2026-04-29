@@ -957,6 +957,14 @@ class PrepareWorkflow:
         )
         if decision is None:
             return False
+        logger.info(
+            "[PrepareWorkflow] ReminderDetect decision: intent=%s action=%s operations=%d schedule_basis=%s has_schedule_evidence=%s",
+            decision.intent_type,
+            decision.action,
+            len(decision.operations or []),
+            decision.schedule_basis,
+            bool(str(decision.schedule_evidence or "").strip()),
+        )
 
         evidence_error = self._validate_reminder_decision_evidence(
             decision,
