@@ -247,6 +247,7 @@ Reply goal:
 - If only a time was supplied, ask what the reminder should be about.
 - If the user stated a time plus task but did not request a reminder, ask whether they want a reminder at that stated time.
 - If a date is known but clock time is missing, ask for the clock time.
+- If the provided trigger time has already passed and no reminder was created, ask for a new future time or date.
 - If a stop/cancel target is unclear, ask which reminder should be stopped.
 - If the user asks for cadence advice, propose one practical cadence and ask for confirmation.
 - If the request asks to check on a topic but gives no trigger, ask when or how often to check in.

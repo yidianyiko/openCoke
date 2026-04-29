@@ -496,6 +496,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "ask what the reminder should be about" in workflow.agent.input
     assert "ask whether they want a reminder" in workflow.agent.input
     assert "If a date is known but clock time is missing" in workflow.agent.input
+    assert "provided trigger time has already passed" in workflow.agent.input
+    assert "ask for a new future time or date" in workflow.agent.input
     assert "State that reminder setup has not completed yet" in workflow.agent.input
     assert "ask when or how often to check in" in workflow.agent.input
 
