@@ -92,3 +92,10 @@ def test_reminder_detect_instructions_enumerate_unsupported_interval_deadlines()
     assert "cannot represent exactly with the supported RRULE subset" in instructions
     assert "enumerate each one-shot occurrence" in instructions
     assert "15:57, 16:47, 17:37" in instructions
+
+
+def test_reminder_detect_instructions_use_user_supplied_interval_anchor():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
+
+    assert "explicit occurrence anchor" in instructions
+    assert "correction point" in instructions

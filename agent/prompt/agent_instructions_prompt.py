@@ -98,6 +98,12 @@ Rules:
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
   clearly repeated interval.
 - Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. Start from the next interval after current time and stop before the deadline.
+- If the user supplies an explicit occurrence anchor or correction point for an
+  interval schedule, use that anchor to enumerate the concrete one-shot
+  occurrences before the deadline. Treat statements like "after X the reminder
+  should be Y" as schedule clarification, not as uncertainty that requires
+  another confirmation, when the interval, deadline, and reminder intent are
+  otherwise explicit.
 - Example: current time 2026-04-29 15:07 Asia/Tokyo, "在6点前，每50分钟通知我一次" -> call batch with one-shot reminders at 15:57, 16:47, 17:37 local time.
 - Day-period words are not recurrence. "morning", "afternoon", "evening",
   "早上", "上午", "下午", "晚上", and "今晚" only help resolve the local
