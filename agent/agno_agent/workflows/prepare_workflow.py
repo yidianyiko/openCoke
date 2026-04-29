@@ -995,21 +995,56 @@ class PrepareWorkflow:
 
     def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
         rule = str(rrule or "").strip()
-        if not rule or not deadline_at or self._rrule_has_explicit_bound(rule):
+        if not rule or not deadline_at:
             return rule
         until = self._deadline_to_rrule_until(deadline_at)
         if not until:
             return rule
+        if self._rrule_has_valid_until(rule) or self._rrule_has_count(rule):
+            return rule
+        if self._rrule_has_until(rule):
+            return self._replace_rrule_until(rule, until)
         return f"{rule};UNTIL={until}"
 
     @staticmethod
-    def _rrule_has_explicit_bound(rrule: str) -> bool:
+    def _rrule_has_count(rrule: str) -> bool:
         parts = {
             part.split("=", 1)[0].upper()
             for part in str(rrule or "").split(";")
             if "=" in part
         }
-        return bool(parts & {"UNTIL", "COUNT"})
+        return "COUNT" in parts
+
+    @staticmethod
+    def _rrule_has_until(rrule: str) -> bool:
+        return any(
+            part.split("=", 1)[0].upper() == "UNTIL"
+            for part in str(rrule or "").split(";")
+            if "=" in part
+        )
+
+    @staticmethod
+    def _rrule_has_valid_until(rrule: str) -> bool:
+        return any(
+            part.split("=", 1)[0].upper() == "UNTIL"
+            and re.fullmatch(r"\d{8}T\d{6}Z", part.split("=", 1)[1] or "")
+            for part in str(rrule or "").split(";")
+            if "=" in part
+        )
+
+    @staticmethod
+    def _replace_rrule_until(rrule: str, until: str) -> str:
+        parts = []
+        replaced = False
+        for part in str(rrule or "").split(";"):
+            if "=" in part and part.split("=", 1)[0].upper() == "UNTIL":
+                parts.append(f"UNTIL={until}")
+                replaced = True
+            else:
+                parts.append(part)
+        if not replaced:
+            parts.append(f"UNTIL={until}")
+        return ";".join(part for part in parts if part)
 
     @staticmethod
     def _deadline_to_rrule_until(deadline_at: str) -> str:
