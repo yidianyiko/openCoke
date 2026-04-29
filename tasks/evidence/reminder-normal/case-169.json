@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 169,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e92f470dc1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "fa556b8a4d6a1a905d70f676"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 169,
+      "input": "我回去休息一下，23点睡觉",
+      "user_id": "fa556b8a4d6a1a905d70f676",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f19c1e952c79858978e106",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19c2b788e46e5b6346bb2",
+          "expect_output_timestamp": 1777441828,
+          "handled_timestamp": 1777441828,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，23点睡觉，需要我到时候提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e92f470dc1",
+            "case_index": 169,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693197ff4bf7878f041149f0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e92f470dc1-case-169",
+              "business_conversation_key": "reminder-normal-e92f470dc1-case-169",
+              "causal_inbound_event_id": "reminder-normal-e92f470dc1-case-169-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "fa556b8a4d6a1a905d70f676"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.024
+    }
+  ]
+}
