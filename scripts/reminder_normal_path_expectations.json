@@ -51,6 +51,10 @@
         },
         {"title": "睡觉", "local_time": "23:00:00", "recurring": true}
       ]
+    },
+    "102": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder."
     }
   }
 }
