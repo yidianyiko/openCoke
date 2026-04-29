@@ -137,6 +137,10 @@
           "recurring": false
         }
       ]
+    },
+    "136": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder."
     }
   }
 }
