@@ -166,6 +166,7 @@ def seed_normal_path_identities(
     *,
     offset: int,
     batch_id: str,
+    timezone_name: str,
     character_alias: str | None = None,
 ) -> tuple[str, list[str]]:
     user_dao = UserDAO()
@@ -182,15 +183,11 @@ def seed_normal_path_identities(
         db.characters.update_one(
             {"_id": ObjectId(user_id)},
             {
-                "$set": {
-                    "name": f"reminder-e2e-user-{case_index}",
-                    "nickname": f"reminder-e2e-user-{case_index}",
-                    "status": "normal",
-                    "user_info": {
-                        "description": "Reminder normal-path E2E user",
-                        "status": {"place": "test", "action": "chatting"},
-                    },
-                },
+                "$set": normal_path_user_seed(
+                    user_id=user_id,
+                    case_index=case_index,
+                    timezone_name=timezone_name,
+                ),
                 "$setOnInsert": {"_id": ObjectId(user_id)},
             },
             upsert=True,
@@ -208,6 +205,24 @@ def seed_normal_path_identities(
             upsert=True,
         )
     return character_id, user_ids
+
+
+def normal_path_user_seed(
+    *, user_id: str, case_index: int, timezone_name: str
+) -> dict[str, Any]:
+    return {
+        "name": f"reminder-e2e-user-{case_index}",
+        "nickname": f"reminder-e2e-user-{case_index}",
+        "status": "normal",
+        "timezone": timezone_name,
+        "effective_timezone": timezone_name,
+        "timezone_source": "reminder_normal_path_eval",
+        "timezone_status": "explicit",
+        "user_info": {
+            "description": "Reminder normal-path E2E user",
+            "status": {"place": "test", "action": "chatting"},
+        },
+    }
 
 
 def normal_path_relation_seed(
@@ -1111,6 +1126,7 @@ def run_batch(
         cases,
         offset=offset,
         batch_id=batch_id,
+        timezone_name=timezone_name,
         character_alias=character_alias,
     )
     submitted = submit_cases(

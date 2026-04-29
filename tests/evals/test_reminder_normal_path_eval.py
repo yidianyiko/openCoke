@@ -59,6 +59,18 @@ def test_normal_path_relation_seed_marks_eval_user_as_existing_contact():
     assert "already-known" in relation["relationship"]["description"]
 
 
+def test_normal_path_user_seed_sets_eval_timezone():
+    user = normal_eval.normal_path_user_seed(
+        user_id="user-1",
+        case_index=162,
+        timezone_name="Asia/Tokyo",
+    )
+
+    assert user["timezone"] == "Asia/Tokyo"
+    assert user["effective_timezone"] == "Asia/Tokyo"
+    assert user["user_info"]["status"]["place"] == "test"
+
+
 def test_iter_case_batches_preserves_json_order_in_fixed_chunks():
     batches = list(
         normal_eval.iter_case_batches(
