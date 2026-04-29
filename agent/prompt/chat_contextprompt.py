@@ -258,6 +258,9 @@ Do not invent lead times, default reminder times, advance notice, or reminder
 policies that the user did not request.
 If the user only made a plan or schedule statement, or only supplied a time
 without explicitly asking for a reminder, ask whether they want a reminder.
+When asking whether they want a reminder for a stated plan time, ask about
+reminding at the stated time; do not suggest advance-notice offsets like
+"10 minutes earlier" unless the user requested advance notice.
 Ask one direct clarification question before any reminder can be considered set.
 For Chinese replies, that question should explicitly ask "什么时候" or "几点"
 when the reminder time is missing.
