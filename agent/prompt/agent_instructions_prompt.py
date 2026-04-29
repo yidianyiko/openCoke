@@ -75,6 +75,8 @@ Rules:
 - Example trigger_at: 2026-04-21T15:30:00+08:00.
 - Use the current time and the user timezone shown in the input context to resolve relative or local user time into trigger_at.
 - If the input context says the user timezone is Asia/Tokyo, local user times must use +09:00 unless the user explicitly names another timezone.
+- If a bare clock time has already passed today and the user did not explicitly
+  say today, resolve it to the next occurrence of that local clock time.
 - Do not pass relative time strings such as "3分钟后", "明天", "in 1 minute", or "tomorrow at 3pm" to the tool.
 - Do not invent a default time just because the user has reminder intent. If a create/update request lacks enough information for a safe trigger_at/new_trigger_at, do not call the tool; stop so the chat response can ask for clarification.
 - Date-only expressions such as "tomorrow", "明天", "next Friday", or "下周五" are not enough for create/update unless the user or recent context also supplies a specific time, deadline, or recurrence anchor.
@@ -94,6 +96,7 @@ Rules:
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
+- Example: current time 2026-04-29 11:51 Asia/Tokyo, "10:40提醒我思考一个问题" -> create a one-shot reminder at "2026-04-30T10:40:00+09:00".
 - Example: "早上10:30提醒我看报表" -> create a one-shot reminder at the next local 10:30 morning; do not set rrule.
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.

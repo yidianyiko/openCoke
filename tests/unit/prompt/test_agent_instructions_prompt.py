@@ -58,3 +58,11 @@ def test_reminder_detect_instructions_do_not_infer_recurrence_from_day_period():
     assert "Day-period words are not recurrence" in instructions
     assert "Only set rrule" in instructions
     assert "早上10:30提醒我看报表" in instructions
+
+
+def test_reminder_detect_instructions_use_next_occurrence_for_past_clock_time():
+    instructions = get_reminder_detect_instructions("2026年04月29日11时51分")
+
+    assert "If a bare clock time has already passed today" in instructions
+    assert "next occurrence" in instructions
+    assert "10:40提醒我思考一个问题" in instructions
