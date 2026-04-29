@@ -1,0 +1,292 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 197,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a7eec439f3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "5c00b86a3b73087f7c8380db"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 197,
+      "input": "帮我记住今天任务，以这个版本为准\n\n15点-16点\n起床，开始帮我每小时打卡，打卡持续到20点\n跑步3公里\n\n16点到17点\n听冥想音频\n\n17点到18点\n吃晚饭\n饭后散步30分钟\n\n18点到20点\n洗漱洗澡\n手机锁调整\n冥想练习\n\n20点\n睡觉，20点之后不要打卡",
+      "user_id": "5c00b86a3b73087f7c8380db",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f1b3a34420405c03b9461c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1b3add3664a42630caeab",
+          "expect_output_timestamp": 1777447853,
+          "handled_timestamp": 1777447853,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床打卡（2026-04-29 17:00）；已创建提醒：起床打卡（2026-04-29 18:00）；已创建提醒：起床打卡（2026-04-29 19:00）；已创建提醒：起床打卡（2026-04-29 20:00）；创建提醒失败：One-shot reminder schedule must be in the future；已创建提醒：饭后散步30分钟（2026-04-29 18:00）；已创建提醒：冥想练习（2026-04-29 19:00）；创建提醒失败：One-shot reminder schedule must be in the future；已创建提醒：手机锁调整（2026-04-29 18:30）；已创建提醒：睡觉（2026-04-29 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a7eec439f3",
+            "case_index": 197,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "693383544bf7878f04114ac8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a7eec439f3-case-197",
+              "business_conversation_key": "reminder-normal-a7eec439f3-case-197",
+              "causal_inbound_event_id": "reminder-normal-a7eec439f3-case-197-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "5c00b86a3b73087f7c8380db"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1b3add3664a42630caea2",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "起床打卡",
+          "schedule": {
+            "anchor_at": "2026-04-29T08:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "17:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T08:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.126000+00:00",
+          "updated_at": "2026-04-29T07:30:53.126000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea3",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "起床打卡",
+          "schedule": {
+            "anchor_at": "2026-04-29T09:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T09:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.132000+00:00",
+          "updated_at": "2026-04-29T07:30:53.132000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea4",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "起床打卡",
+          "schedule": {
+            "anchor_at": "2026-04-29T10:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.134000+00:00",
+          "updated_at": "2026-04-29T07:30:53.134000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea5",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "起床打卡",
+          "schedule": {
+            "anchor_at": "2026-04-29T11:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.135000+00:00",
+          "updated_at": "2026-04-29T07:30:53.135000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea6",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "饭后散步30分钟",
+          "schedule": {
+            "anchor_at": "2026-04-29T09:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T09:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.136000+00:00",
+          "updated_at": "2026-04-29T07:30:53.136000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea7",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "冥想练习",
+          "schedule": {
+            "anchor_at": "2026-04-29T10:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.138000+00:00",
+          "updated_at": "2026-04-29T07:30:53.138000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea8",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "手机锁调整",
+          "schedule": {
+            "anchor_at": "2026-04-29T09:30:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "18:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T09:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.139000+00:00",
+          "updated_at": "2026-04-29T07:30:53.139000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1b3add3664a42630caea9",
+          "owner_user_id": "5c00b86a3b73087f7c8380db",
+          "title": "睡觉",
+          "schedule": {
+            "anchor_at": "2026-04-29T11:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1b3a3d3664a42630cae8e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:30:53.140000+00:00",
+          "updated_at": "2026-04-29T07:30:53.140000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 10.018
+    }
+  ]
+}
