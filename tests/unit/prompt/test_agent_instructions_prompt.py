@@ -148,3 +148,5 @@ def test_reminder_detect_instructions_scope_reminder_intent_to_modified_tasks():
 
     assert "semantically modifies" in instructions
     assert "neighboring independent schedule item" in instructions
+    assert "task time range supplies boundaries" in instructions
+    assert "schedule-only items" in instructions

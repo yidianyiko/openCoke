@@ -1273,6 +1273,11 @@ ReminderDetectDecision.
   A neighboring independent schedule item is not a reminder target unless the
   user explicitly says the listed items, above items, or all of them should be
   reminded.
+- A task time range supplies boundaries, not occurrence times. If supervision
+  is requested during that range, do not create reminders at the range start or
+  end unless those endpoints are separately requested as reminder times.
+- When a message mixes a reminder request with schedule-only items, create or
+  clarify only the reminder-scoped item and leave schedule-only items alone.
 - Do not answer in text.
 
 ### 当前用户消息

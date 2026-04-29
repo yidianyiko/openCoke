@@ -79,6 +79,11 @@ Rules:
 - Reminder intent only applies to the task or group it semantically modifies.
   Do not attach it to a neighboring independent schedule item unless the user
   says the listed items, above items, or all of them should be reminded.
+- A task time range supplies boundaries, not occurrence times. If the user asks
+  to be supervised during that range, do not create reminders at the range start
+  or end unless those endpoints are separately requested as reminder times.
+- When a message mixes a reminder request with schedule-only items, create or
+  clarify only the reminder-scoped item and leave schedule-only items alone.
 - Routine descriptions are not reminder requests. If the user only describes
   their routine, work blocks, class schedule, sleep schedule, or planned day,
   do not create reminders unless the same message explicitly asks for reminders

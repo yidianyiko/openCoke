@@ -1046,6 +1046,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "Do not infer numeric intervals" in retry_input
     assert "semantically modifies" in retry_input
     assert "neighboring independent schedule item" in retry_input
+    assert "task time range supplies boundaries" in retry_input
+    assert "schedule-only items" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
