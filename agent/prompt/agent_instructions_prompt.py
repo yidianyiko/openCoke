@@ -92,6 +92,8 @@ Rules:
 - Only set rrule when the user explicitly asks for recurrence with words such
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
   clearly repeated interval.
+- Supported recurrence is limited. If an interval request plus a deadline cannot represent exactly with the supported RRULE subset, enumerate each one-shot occurrence in a batch instead of inventing an approximate recurrence or skipping occurrences. Start from the next interval after current time and stop before the deadline.
+- Example: current time 2026-04-29 15:07 Asia/Tokyo, "在6点前，每50分钟通知我一次" -> call batch with one-shot reminders at 15:57, 16:47, 17:37 local time.
 - Day-period words are not recurrence. "morning", "afternoon", "evening",
   "早上", "上午", "下午", "晚上", and "今晚" only help resolve the local
   time; they do not mean daily.

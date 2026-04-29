@@ -84,3 +84,11 @@ def test_reminder_detect_instructions_treat_no_disturb_as_cancel_intent():
     assert "do-not-disturb" in instructions
     assert "不要打扰我了" in instructions
     assert "do not create anything" in instructions
+
+
+def test_reminder_detect_instructions_enumerate_unsupported_interval_deadlines():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
+
+    assert "cannot represent exactly with the supported RRULE subset" in instructions
+    assert "enumerate each one-shot occurrence" in instructions
+    assert "15:57, 16:47, 17:37" in instructions
