@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 316,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c091499de1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "41b26c89fae284ace8e7586d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 316,
+        "input": "八点半还没起床",
+        "user_id": "41b26c89fae284ace8e7586d",
+        "original_from_user": "693ae9de68bf5e9703e8ea69",
+        "input_message_id": "69f219db5c44d1bc865800b4",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f21a3a614a0be9febe1eb2",
+            "expect_output_timestamp": 1777474016,
+            "handled_timestamp": 1777474016,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-c091499de1",
+              "case_index": 316,
+              "original_from_user": "693ae9de68bf5e9703e8ea69",
+              "source_id": "693af77568bf5e9703e8eabb",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-c091499de1-case-316",
+                "business_conversation_key": "reminder-normal-c091499de1-case-316",
+                "causal_inbound_event_id": "reminder-normal-c091499de1-case-316-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "41b26c89fae284ace8e7586d"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 95.167
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 316,
+      "input": "八点半还没起床",
+      "user_id": "41b26c89fae284ace8e7586d",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f219db5c44d1bc865800b4",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f21a3a614a0be9febe1eb2",
+          "expect_output_timestamp": 1777474016,
+          "handled_timestamp": 1777474016,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c091499de1",
+            "case_index": 316,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693af77568bf5e9703e8eabb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c091499de1-case-316",
+              "business_conversation_key": "reminder-normal-c091499de1-case-316",
+              "causal_inbound_event_id": "reminder-normal-c091499de1-case-316-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "41b26c89fae284ace8e7586d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 95.167
+    }
+  ]
+}

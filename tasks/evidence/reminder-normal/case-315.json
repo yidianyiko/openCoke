@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 315,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-a0adb43f5f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d3ea6586114f0d5fe1469263"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 315,
+      "input": "万一我一下子学习一小时呢。",
+      "user_id": "d3ea6586114f0d5fe1469263",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f219bca48c8c7db4985961",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f219cb614a0be9febe1ea4",
+          "expect_output_timestamp": 1777473992,
+          "handled_timestamp": 1777473992,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哟，口气不小嘛。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-a0adb43f5f",
+            "case_index": 315,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693aefa568bf5e9703e8ea92",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-a0adb43f5f-case-315",
+              "business_conversation_key": "reminder-normal-a0adb43f5f-case-315",
+              "causal_inbound_event_id": "reminder-normal-a0adb43f5f-case-315-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d3ea6586114f0d5fe1469263"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.027
+    }
+  ]
+}

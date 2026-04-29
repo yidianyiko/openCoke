@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 316,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fa87096bbd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "049ef73a3eb85a1f2b581c8c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 316,
+      "input": "八点半还没起床",
+      "user_id": "049ef73a3eb85a1f2b581c8c",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "69f21a7fc2adeaca0f14e7ae",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f21ad4614a0be9febe1ebf",
+          "expect_output_timestamp": 1777474182,
+          "handled_timestamp": 1777474182,
+          "status": "pending",
+          "message_type": "text",
+          "message": "八点半还没起床？这么晚吗，是不是昨晚熬夜了？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fa87096bbd",
+            "case_index": 316,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693af77568bf5e9703e8eabb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fa87096bbd-case-316",
+              "business_conversation_key": "reminder-normal-fa87096bbd-case-316",
+              "causal_inbound_event_id": "reminder-normal-fa87096bbd-case-316-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "049ef73a3eb85a1f2b581c8c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 85.148
+    }
+  ]
+}

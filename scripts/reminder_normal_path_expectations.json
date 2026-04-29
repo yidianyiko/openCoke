@@ -356,6 +356,10 @@
     "314": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a tentative plan to exercise tomorrow but does not ask to be reminded. The agent may discuss the plan or ask whether a reminder is wanted, but should not imply a reminder will happen."
+    },
+    "316": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder."
     }
   }
 }
