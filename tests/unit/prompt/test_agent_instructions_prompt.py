@@ -156,3 +156,4 @@ def test_reminder_detect_instructions_keep_clarification_language():
     instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
 
     assert "same language as the current" in instructions
+    assert "not the profile, prior messages, or retrieved context" in instructions

@@ -833,11 +833,8 @@ class PrepareWorkflow:
                 session_state,
                 input_message,
             )
-            if (
-                not executed
-                and session_state.pop(
-                    "prepare_reminder_detect_invalid_structured_output", False
-                )
+            if not executed and session_state.pop(
+                "prepare_reminder_detect_invalid_structured_output", False
             ):
                 retry_response = await self._run_reminder_detect_retry(
                     input_message,
@@ -851,9 +848,7 @@ class PrepareWorkflow:
                     )
                     self._log_reminder_result(retry_response, session_state)
                     return
-                if self._append_invalid_schedule_evidence_clarification(
-                    session_state
-                ):
+                if self._append_invalid_schedule_evidence_clarification(session_state):
                     self._log_reminder_result(retry_response, session_state)
                     return
                 append_tool_result(
@@ -1019,8 +1014,7 @@ class PrepareWorkflow:
             ok=False,
             result_summary="提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
             extra_notes=(
-                "action=clarify; "
-                "error_code=ReminderDetectInvalidScheduleEvidence"
+                "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
             ),
         )
         return True
@@ -1065,7 +1059,11 @@ class PrepareWorkflow:
             return ""
         evidence_text = self._compact_text(evidence)
         operations = (
-            [operation for operation in decision.operations if operation.action == "create"]
+            [
+                operation
+                for operation in decision.operations
+                if operation.action == "create"
+            ]
             if decision.action == "batch"
             else []
         )
@@ -1074,7 +1072,9 @@ class PrepareWorkflow:
                 variant in evidence_text
                 for variant in self._clock_time_variants(operation.trigger_at)
             ):
-                return "explicit_occurrences evidence does not contain every create time"
+                return (
+                    "explicit_occurrences evidence does not contain every create time"
+                )
         return ""
 
     @staticmethod
@@ -1379,7 +1379,8 @@ ReminderDetectDecision.
 - If required reminder details are missing or unsafe, return intent_type="clarify"
   with no executable reminder fields.
 - For intent_type="clarify", write clarification_question in the same language
-  as the current user message.
+  as the current user message, not the profile, prior messages, or retrieved
+  context.
 - Reminder intent only applies to the task or group it semantically modifies.
   A neighboring independent schedule item is not a reminder target unless the
   user explicitly says the listed items, above items, or all of them should be

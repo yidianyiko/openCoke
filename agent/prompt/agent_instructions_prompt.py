@@ -68,7 +68,7 @@ Rules:
 - Clarify, query, and discussion decisions must leave reminder write fields
   empty. Commitment-style free text has no executable reminder fields.
 - When returning clarification_question, use the same language as the current
-  user message.
+  user message, not the profile, prior messages, or retrieved context.
 - For create schedules, fill schedule_basis: one_shot for one concrete trigger,
   explicit_occurrences when the user listed each occurrence time, or
   explicit_cadence when the user supplied a concrete frequency or interval.

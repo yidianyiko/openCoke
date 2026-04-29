@@ -114,7 +114,11 @@ class ReminderDetectDecision(BaseModel):
     )
     clarification_question: str = Field(
         default="",
-        description="Short missing-information question for clarify intent.",
+        description=(
+            "Short missing-information question for clarify intent. Use the "
+            "same language as the current user message, not the profile, prior "
+            "messages, or retrieved context."
+        ),
     )
     reason: str = Field(default="", description="Brief classification rationale.")
 
@@ -190,9 +194,7 @@ class ReminderDetectDecision(BaseModel):
             bool(operation.rrule) for operation in create_operations
         )
         requires_authorized_schedule = (
-            has_recurring_create
-            or bool(self.deadline_at)
-            or len(create_operations) > 1
+            has_recurring_create or bool(self.deadline_at) or len(create_operations) > 1
         )
 
         if not requires_authorized_schedule:
@@ -206,8 +208,9 @@ class ReminderDetectDecision(BaseModel):
             raise ValueError(
                 "multi-occurrence or bounded create schedules require schedule_evidence"
             )
-        if self.schedule_basis == "explicit_cadence" and not _looks_like_concrete_cadence(
-            self.schedule_evidence
+        if (
+            self.schedule_basis == "explicit_cadence"
+            and not _looks_like_concrete_cadence(self.schedule_evidence)
         ):
             raise ValueError(
                 "explicit_cadence schedule_evidence must contain a concrete frequency or interval"
