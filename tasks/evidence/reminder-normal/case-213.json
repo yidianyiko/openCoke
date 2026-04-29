@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 213,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fed0e61e79",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d93485f07df66bde76e4f5fc"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 213,
+      "input": " 17：20-19：00 看法考网课和做题 19：00-20：00练腹 请在这些时间点提醒我学习",
+      "user_id": "d93485f07df66bde76e4f5fc",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1de705f75895dba999131",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1dea87418ca2d28c73750",
+          "expect_output_timestamp": 1777458856,
+          "handled_timestamp": 1777458856,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fed0e61e79",
+            "case_index": 213,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "6935407f4bf7878f04114b5b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fed0e61e79-case-213",
+              "business_conversation_key": "reminder-normal-fed0e61e79-case-213",
+              "causal_inbound_event_id": "reminder-normal-fed0e61e79-case-213-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d93485f07df66bde76e4f5fc"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 57.093
+    }
+  ]
+}
