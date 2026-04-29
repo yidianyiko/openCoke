@@ -271,6 +271,8 @@ def _looks_like_concrete_cadence(value: str) -> bool:
         "每周",
         "每月",
         "每年",
+        "每晚",
+        "每夜",
         "每小时",
         "每分钟",
         "每隔",

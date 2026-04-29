@@ -1,0 +1,120 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 313,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6c0559feea",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a48f1b76cd22203be445e656"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:洗漱": 1,
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 313,
+        "input": "设置一个每晚10:30洗漱的提醒",
+        "user_id": "a48f1b76cd22203be445e656",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f217cbb73e467956f4b02a",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:洗漱"
+        ],
+        "outputs": [
+          {
+            "_id": "69f217f843bf3c0b118fa2df",
+            "expect_output_timestamp": 1777473518,
+            "handled_timestamp": 1777473518,
+            "status": "pending",
+            "message_type": "text",
+            "message": "嗯，我看到你想设置每晚10:30洗漱的提醒，但系统提示还没设置成功。你再跟我说一下，是什么时间段开始？比如从今晚就开始，还是明天开始？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-6c0559feea",
+              "case_index": 313,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "693aea5968bf5e9703e8ea6f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-6c0559feea-case-313",
+                "business_conversation_key": "reminder-normal-6c0559feea-case-313",
+                "causal_inbound_event_id": "reminder-normal-6c0559feea-case-313-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "a48f1b76cd22203be445e656"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 45.077
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 313,
+      "input": "设置一个每晚10:30洗漱的提醒",
+      "user_id": "a48f1b76cd22203be445e656",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f217cbb73e467956f4b02a",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:洗漱"
+      ],
+      "outputs": [
+        {
+          "_id": "69f217f843bf3c0b118fa2df",
+          "expect_output_timestamp": 1777473518,
+          "handled_timestamp": 1777473518,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗯，我看到你想设置每晚10:30洗漱的提醒，但系统提示还没设置成功。你再跟我说一下，是什么时间段开始？比如从今晚就开始，还是明天开始？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6c0559feea",
+            "case_index": 313,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693aea5968bf5e9703e8ea6f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6c0559feea-case-313",
+              "business_conversation_key": "reminder-normal-6c0559feea-case-313",
+              "causal_inbound_event_id": "reminder-normal-6c0559feea-case-313-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a48f1b76cd22203be445e656"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 45.077
+    }
+  ]
+}

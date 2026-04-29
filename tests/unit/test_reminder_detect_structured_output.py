@@ -73,6 +73,22 @@ def test_reminder_detect_schema_accepts_deadline_batch_rrule_operation():
     assert decision.operations[0].rrule == "FREQ=HOURLY;INTERVAL=1"
 
 
+def test_reminder_detect_schema_accepts_nightly_cadence_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="洗漱",
+        trigger_at="2026-04-30T22:30:00+09:00",
+        rrule="FREQ=DAILY;INTERVAL=1",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每晚",
+    )
+
+    assert decision.schedule_evidence == "每晚"
+
+
 def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

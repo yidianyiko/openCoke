@@ -1,0 +1,175 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 313,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f62a898d38",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a46156f595c7cdfd09fcdd04"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "missing_expected_reminder_title:洗漱": 1,
+      "user_output_unexpected_recurring:洗漱": 1
+    },
+    "failures": [
+      {
+        "index": 313,
+        "input": "设置一个每晚10:30洗漱的提醒",
+        "user_id": "a46156f595c7cdfd09fcdd04",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f21858749483819d6d2e41",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "missing_expected_reminder_title:洗漱",
+          "user_output_unexpected_recurring:洗漱"
+        ],
+        "outputs": [
+          {
+            "_id": "69f21862c6ab1dea5cedcf67",
+            "expect_output_timestamp": 1777473633,
+            "handled_timestamp": 1777473633,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：洗漱（每天 22:30）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-f62a898d38",
+              "case_index": 313,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "693aea5968bf5e9703e8ea6f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-f62a898d38-case-313",
+                "business_conversation_key": "reminder-normal-f62a898d38-case-313",
+                "causal_inbound_event_id": "reminder-normal-f62a898d38-case-313-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "a46156f595c7cdfd09fcdd04"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f21861c6ab1dea5cedcf65",
+            "owner_user_id": "a46156f595c7cdfd09fcdd04",
+            "title": "洗漱",
+            "schedule": {
+              "anchor_at": "2026-04-30T13:30:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "22:30:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": "FREQ=DAILY"
+            },
+            "agent_output_target": {
+              "conversation_id": "69f21859c6ab1dea5cedcf5d",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T13:30:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T14:40:33.985000+00:00",
+            "updated_at": "2026-04-29T14:40:33.985000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 10.019
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 313,
+      "input": "设置一个每晚10:30洗漱的提醒",
+      "user_id": "a46156f595c7cdfd09fcdd04",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f21858749483819d6d2e41",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "missing_expected_reminder_title:洗漱",
+        "user_output_unexpected_recurring:洗漱"
+      ],
+      "outputs": [
+        {
+          "_id": "69f21862c6ab1dea5cedcf67",
+          "expect_output_timestamp": 1777473633,
+          "handled_timestamp": 1777473633,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：洗漱（每天 22:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f62a898d38",
+            "case_index": 313,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693aea5968bf5e9703e8ea6f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f62a898d38-case-313",
+              "business_conversation_key": "reminder-normal-f62a898d38-case-313",
+              "causal_inbound_event_id": "reminder-normal-f62a898d38-case-313-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a46156f595c7cdfd09fcdd04"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f21861c6ab1dea5cedcf65",
+          "owner_user_id": "a46156f595c7cdfd09fcdd04",
+          "title": "洗漱",
+          "schedule": {
+            "anchor_at": "2026-04-30T13:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "22:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f21859c6ab1dea5cedcf5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T13:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T14:40:33.985000+00:00",
+          "updated_at": "2026-04-29T14:40:33.985000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 10.019
+    }
+  ]
+}

@@ -345,6 +345,13 @@
     "309": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded after an unspecified while and does not provide concrete reminder content. The agent should ask for the missing trigger and content instead of creating an unscheduled reminder."
+    },
+    "313": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",
+      "expected_creates": [
+        {"title": "洗漱", "local_time": "22:30:00", "recurring": true}
+      ]
     }
   }
 }

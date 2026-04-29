@@ -1159,6 +1159,8 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[305].metadata["evaluation_expectation"] == "clarify"
     assert cases[306].metadata["evaluation_expectation"] == "clarify"
     assert cases[309].metadata["evaluation_expectation"] == "clarify"
+    assert cases[313].metadata["expected_creates"][0]["recurring"] is True
+    assert cases[313].metadata["expected_creates"][0]["local_time"] == "22:30:00"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():

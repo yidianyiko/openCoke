@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 310,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-4a24306eaf",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "660353d89380528d0352f04f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 310,
+      "input": "好的，5分钟后提醒我继续写作",
+      "user_id": "660353d89380528d0352f04f",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f2175ab579e7c0118f9b85",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2176143bf3c0b118fa2b4",
+          "expect_output_timestamp": 1777473377,
+          "handled_timestamp": 1777473377,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：继续写作（2026-04-30 22:18）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-4a24306eaf",
+            "case_index": 310,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693ad18afe7d911442ed1f96",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-4a24306eaf-case-310",
+              "business_conversation_key": "reminder-normal-4a24306eaf-case-310",
+              "causal_inbound_event_id": "reminder-normal-4a24306eaf-case-310-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "660353d89380528d0352f04f"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2176143bf3c0b118fa2b2",
+          "owner_user_id": "660353d89380528d0352f04f",
+          "title": "继续写作",
+          "schedule": {
+            "anchor_at": "2026-04-30T13:18:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "22:18:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2175b43bf3c0b118fa2ab",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T13:18:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T14:36:17.418000+00:00",
+          "updated_at": "2026-04-29T14:36:17.418000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 7.014
+    }
+  ]
+}
