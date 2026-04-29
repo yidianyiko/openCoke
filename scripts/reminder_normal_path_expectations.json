@@ -74,6 +74,10 @@
     "116": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user describes a schedule but does not explicitly request reminders; the agent may discuss or ask about reminder intent, but should not create reminders."
+    },
+    "117": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder request has intent but no reminder content or concrete time; the agent should ask for the missing details instead of creating a reminder."
     }
   }
 }
