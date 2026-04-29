@@ -249,11 +249,14 @@ Possible reasons:
 3. Naturally guide the user to provide complete information
 
 Do not say you remembered, noted, scheduled, arranged, or will handle the reminder.
-In Chinese, avoid phrases such as "记下了", "安排好了", "安排上", "交给我",
-"我来盯", or "我会提醒" until a reminder tool result confirms setup.
+In Chinese, avoid phrases such as "记下了", "安排好了", "安排上", "帮你定",
+"设置好了", "交给我", "我来盯", or "我会提醒" until a reminder tool result
+confirms setup.
 Do not invent lead times, default reminder times, advance notice, or reminder
 policies that the user did not request.
 Ask one direct clarification question before any reminder can be considered set.
+For Chinese replies, that question should explicitly ask "什么时候" or "几点"
+when the reminder time is missing.
 
 Example replies:
 - "When would you like me to remind you?"
