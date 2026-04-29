@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 304,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-7243f9964f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "c93fe04fb18a8649e0d04185"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 304,
+        "input": "我现在要先看两篇文章，看完继续提醒我进入论文研究",
+        "user_id": "c93fe04fb18a8649e0d04185",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f213ee000004814f7ee883",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f213fa43bf3c0b118fa1f6",
+            "expect_output_timestamp": 1777472506,
+            "handled_timestamp": 1777472506,
+            "status": "pending",
+            "message_type": "text",
+            "message": "请问您大概什么时候看完文章？需要一个具体的时间点来设置提醒，比如几小时后或者今天几点？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-7243f9964f",
+              "case_index": 304,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "693a6e70fe7d911442ed1f78",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-7243f9964f-case-304",
+                "business_conversation_key": "reminder-normal-7243f9964f-case-304",
+                "causal_inbound_event_id": "reminder-normal-7243f9964f-case-304-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "c93fe04fb18a8649e0d04185"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 13.024
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 304,
+      "input": "我现在要先看两篇文章，看完继续提醒我进入论文研究",
+      "user_id": "c93fe04fb18a8649e0d04185",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f213ee000004814f7ee883",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f213fa43bf3c0b118fa1f6",
+          "expect_output_timestamp": 1777472506,
+          "handled_timestamp": 1777472506,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问您大概什么时候看完文章？需要一个具体的时间点来设置提醒，比如几小时后或者今天几点？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-7243f9964f",
+            "case_index": 304,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693a6e70fe7d911442ed1f78",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-7243f9964f-case-304",
+              "business_conversation_key": "reminder-normal-7243f9964f-case-304",
+              "causal_inbound_event_id": "reminder-normal-7243f9964f-case-304-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c93fe04fb18a8649e0d04185"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.024
+    }
+  ]
+}

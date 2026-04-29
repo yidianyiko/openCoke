@@ -329,6 +329,10 @@
     "300": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user states a future plan with a time but does not ask to be reminded. The agent should ask whether a reminder is wanted instead of silently creating one."
+    },
+    "304": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded after finishing articles but gives no concrete trigger time or cadence. The agent should ask when to remind instead of creating an unscheduled reminder."
     }
   }
 }
