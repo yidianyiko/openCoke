@@ -931,6 +931,14 @@ class PrepareWorkflow:
 ### 用户时区
 {timezone}
 
+### Retry Directive
+Full-context reminder detection timed out. Decide from this current message
+using visible_reminder_tool semantics.
+- If the current user message explicitly asks for a reminder and includes a
+  specific time plus reminder content, call visible_reminder_tool.
+- If required reminder details are missing or unsafe, do not call the tool.
+- Do not answer in text.
+
 ### 当前用户消息
 {current_message}"""
 

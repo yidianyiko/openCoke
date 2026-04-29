@@ -518,6 +518,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     retry_input = reminder_detect_retry_agent.arun.await_args.kwargs["input"]
     assert "最近对话上下文" not in retry_input
     assert "当前用户消息" in retry_input
+    assert "Full-context reminder detection timed out" in retry_input
+    assert "explicitly asks for a reminder" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
     assert result["session_state"]["tool_results"][0]["ok"] is True
