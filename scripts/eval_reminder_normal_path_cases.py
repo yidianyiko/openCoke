@@ -1002,6 +1002,9 @@ def extract_expected_title(suffix: str) -> str:
         r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate
     )
     candidate = re.sub(
+        r"^的?提醒(?:一下)?(?:我)?[，,。；;：:\s]+", "", candidate
+    ).strip()
+    candidate = re.sub(
         r"(?:请)?在?(?:上述|这些|这个|各个)?时间点?提醒我.*$", "", candidate
     ).strip()
     candidate = re.split(r"[，,。；;！？!?\n]", candidate, maxsplit=1)[0]
