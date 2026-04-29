@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 193,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-2fcc7cc3c7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "35a43799d348cdc39b4ade8f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 193,
+      "input": "提醒我8点完成第一个任务",
+      "user_id": "35a43799d348cdc39b4ade8f",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f1adf6318b9c4dc9ccfc5c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ae017a73f948dc248fb1",
+          "expect_output_timestamp": 1777446401,
+          "handled_timestamp": 1777446401,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：完成第一个任务（2026-04-29 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-2fcc7cc3c7",
+            "case_index": 193,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693357994bf7878f04114aa6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-2fcc7cc3c7-case-193",
+              "business_conversation_key": "reminder-normal-2fcc7cc3c7-case-193",
+              "causal_inbound_event_id": "reminder-normal-2fcc7cc3c7-case-193-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "35a43799d348cdc39b4ade8f"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1ae017a73f948dc248faf",
+          "owner_user_id": "35a43799d348cdc39b4ade8f",
+          "title": "完成第一个任务",
+          "schedule": {
+            "anchor_at": "2026-04-29T11:00:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1adf67a73f948dc248fa7",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T07:06:41.456000+00:00",
+          "updated_at": "2026-04-29T07:06:41.456000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 11.018
+    }
+  ]
+}
