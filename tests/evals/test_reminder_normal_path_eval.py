@@ -580,6 +580,24 @@ def test_clarification_output_accepts_proposed_cadence_confirmation():
     assert errors == []
 
 
+def test_clarification_output_accepts_cadence_adoption_question():
+    case = normal_eval.ReminderNormalPathCase(
+        input="那你建议我多久来提醒我呢？",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "我建议先每半小时提醒一次。你想按这个频率吗？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
     case = normal_eval.ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
