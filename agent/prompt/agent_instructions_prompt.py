@@ -77,11 +77,14 @@ Rules:
 - For recurrence, output an RFC 5545 RRULE string. Example: rrule="FREQ=DAILY".
 - For batch, operations must be a list of flat operation objects, each with an action field.
 - If one user message contains multiple reminder operations, use action="batch" and include every safe operation exactly once, preserving order.
+- If the user asks for reminders for a habitual or general schedule, create recurring reminders only. Do not also create one-shot reminders for the same title and local time.
+- In batch, the same title and local time pair must appear at most once. If one candidate is recurring and another is one-shot, keep only the recurring operation.
 - If a batch mixes safe and unsafe create/update requests, call the tool only for the safe operations and leave the unsafe ones for chat clarification.
 - Correct batch operation: {{"action":"create","title":"喝水","trigger_at":"2026-04-21T15:30:00+08:00"}}.
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
 - Example: current time 2026-04-29 02:30 Asia/Tokyo, "今天18:02提醒我喝水，每天18:04提醒我吃饭" -> call batch with create "喝水" at "2026-04-29T18:02:00+09:00" and create "吃饭" at "2026-04-29T18:04:00+09:00" with rrule="FREQ=DAILY".
+- Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.
 - Do not output any explanation text. Only call the tool or stop.
 </instructions>"""

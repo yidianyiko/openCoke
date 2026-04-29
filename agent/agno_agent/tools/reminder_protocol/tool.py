@@ -4,6 +4,7 @@ import contextvars
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from agno.tools import tool
 
@@ -159,8 +160,9 @@ def _execute_batch_operations(
     session_state: dict,
     operations: list[dict[str, Any]],
 ) -> str:
+    context = _derive_runtime_context(session_state)
     summaries = []
-    for operation in operations:
+    for operation in _dedupe_batch_create_operations(operations, context.timezone):
         if not isinstance(operation, dict):
             summary = "提醒操作失败：batch operation must be an object"
             append_tool_result(
@@ -187,6 +189,71 @@ def _execute_batch_operations(
             )
         )
     return "\n".join(summaries)
+
+
+def _dedupe_batch_create_operations(
+    operations: list[dict[str, Any]],
+    timezone: str,
+) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    index_by_key: dict[tuple[str, str], int] = {}
+    recurring_keys: set[tuple[str, str]] = set()
+
+    for operation in operations:
+        if not isinstance(operation, dict):
+            selected.append(operation)
+            continue
+
+        key = _batch_create_dedupe_key(operation, timezone)
+        if key is None:
+            selected.append(operation)
+            continue
+
+        rrule_value = operation.get("rrule")
+        has_rrule = (
+            isinstance(rrule_value, str) and _normalize_rrule(rrule_value) is not None
+        )
+        existing_index = index_by_key.get(key)
+        if existing_index is None:
+            index_by_key[key] = len(selected)
+            if has_rrule:
+                recurring_keys.add(key)
+            selected.append(operation)
+            continue
+
+        if has_rrule and key not in recurring_keys:
+            selected[existing_index] = operation
+            recurring_keys.add(key)
+
+    return selected
+
+
+def _batch_create_dedupe_key(
+    operation: dict[str, Any],
+    timezone: str,
+) -> tuple[str, str] | None:
+    if _canonical_action(str(operation.get("action") or "")) != "create":
+        return None
+
+    title = _normalize_batch_create_title(operation.get("title"))
+    trigger_at = str(operation.get("trigger_at") or "").strip()
+    if not title or not trigger_at:
+        return None
+
+    try:
+        anchor_at = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+        if anchor_at.tzinfo is None or anchor_at.utcoffset() is None:
+            return None
+        local_dt = anchor_at.astimezone(ZoneInfo(timezone))
+    except (ValueError, TypeError, KeyError):
+        return None
+
+    local_time = local_dt.time().replace(second=0, microsecond=0).isoformat()
+    return (title, local_time)
+
+
+def _normalize_batch_create_title(value: Any) -> str:
+    return " ".join(str(value or "").split()).casefold()
 
 
 def _run_operation(
@@ -564,6 +631,9 @@ def _append_failure(
         "calling this tool. Do not call create for a bare plan or schedule "
         "statement unless the user explicitly asks to be reminded, notified, "
         "alarmed, checked in on, nudged, or supervised. "
+        "For habitual or general schedules, create recurring reminders only; "
+        "do not also create one-shot reminders with the same title and local "
+        "time in the same batch. "
         "Only call list for explicit user requests to view "
         "existing reminders; do not use list as fallback for ambiguous creation."
     ),

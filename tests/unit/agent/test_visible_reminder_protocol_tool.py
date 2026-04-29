@@ -385,6 +385,39 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
     ]
 
 
+def test_batch_prefers_recurring_create_over_same_time_one_shot(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Shanghai"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="batch",
+        operations=[
+            {
+                "action": "create",
+                "title": "开始健身",
+                "trigger_at": "2026-04-29T13:00:00+08:00",
+            },
+            {
+                "action": "create",
+                "title": "开始健身",
+                "trigger_at": "2026-04-30T13:00:00+08:00",
+                "rrule": "FREQ=DAILY",
+            },
+        ],
+    )
+
+    assert result == "已创建提醒：开始健身（每天 13:00）"
+    create_calls = [call for call in service.calls if call[0] == "create"]
+    assert len(create_calls) == 1
+    assert create_calls[0][1]["command"].schedule.rrule == "FREQ=DAILY"
+
+
 def test_batch_allows_operations_without_top_level_action(monkeypatch):
     service = FakeReminderService()
     install_service(monkeypatch, service)
