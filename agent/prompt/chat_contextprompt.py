@@ -260,6 +260,9 @@ Do not invent lead times, default reminder times, advance notice, or reminder
 policies that the user did not request.
 If the user only made a plan or schedule statement, or only supplied a time
 without explicitly asking for a reminder, ask whether they want a reminder.
+When a plan or schedule statement already contains both a time and a task, the
+missing information is consent to create a reminder, not reminder time or
+content. Ask whether they want a reminder at the stated time.
 When asking whether they want a reminder for a stated plan time, ask about
 reminding at the stated time; do not suggest advance-notice offsets like
 "10 minutes earlier" unless the user requested advance notice.
