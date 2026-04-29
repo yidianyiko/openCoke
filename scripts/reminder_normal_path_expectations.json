@@ -149,6 +149,10 @@
     "145": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user discusses alarm/message wake-up difficulty without requesting a new reminder or giving actionable reminder details."
+    },
+    "146": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation."
     }
   }
 }
