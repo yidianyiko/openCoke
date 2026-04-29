@@ -506,6 +506,51 @@ def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
     )
 
 
+def test_explicit_occurrence_evidence_accepts_condensed_chinese_time_list():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="下午4点5点6点晚上9点半11点记得提醒我",
+        operations=[
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-29T16:00:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-29T17:00:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-29T18:00:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-29T21:30:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "提醒",
+                "trigger_at": "2026-04-29T23:00:00+09:00",
+            },
+        ],
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "下午4点5点6点晚上9点半11点记得提醒我",
+    )
+
+
 def test_explicit_occurrence_evidence_rejects_time_range_boundaries():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
