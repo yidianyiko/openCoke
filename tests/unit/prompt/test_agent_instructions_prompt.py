@@ -121,3 +121,12 @@ def test_reminder_detect_instructions_treat_same_message_stop_as_deadline():
     assert "20点之后不要打卡" in instructions
     assert "deadline_at for that batch" in instructions
     assert "not as delete/cancel" in instructions
+
+
+def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():
+    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
+
+    assert "start point in the past" in instructions
+    assert "skip past occurrences" in instructions
+    assert "create only future occurrences" in instructions
+    assert "Do not ask how to catch up" in instructions

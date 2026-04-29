@@ -1142,6 +1142,9 @@ ReminderDetectDecision.
 - If a create/batch request includes a same-message stop boundary such as
   "after 20:00 stop checking in", treat it as deadline_at for that new batch,
   not as delete/cancel.
+- If the bounded cadence start point is in the past and the deadline is still
+  future, skip past occurrences and create only future occurrences before the
+  deadline. Do not ask how to catch up missed occurrences.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, return action="delete"
   and the safest target keyword from the message.

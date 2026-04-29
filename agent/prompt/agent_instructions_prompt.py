@@ -115,6 +115,10 @@ Rules:
 - When the user provides an interval deadline, set deadline_at to that exclusive
   deadline and include only operations whose trigger_at is strictly before
   deadline_at.
+- If a bounded interval or cadence has a start point in the past and a deadline
+  still in the future, skip past occurrences and create only future occurrences
+  before the deadline. Do not ask how to catch up missed occurrences unless the
+  user explicitly asks to backfill.
 - If the user supplies an explicit occurrence anchor or correction point for an
   interval schedule, use that anchor to enumerate the concrete one-shot
   occurrences before the deadline. Treat statements like "after X the reminder
