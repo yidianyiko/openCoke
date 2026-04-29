@@ -387,6 +387,8 @@ class PrepareWorkflow:
             return False
 
         if not need_reminder and self._looks_like_reminder_intent(input_message):
+            if self._looks_like_reminder_stop_intent(input_message):
+                session_state["prepare_reminder_intent_hint"] = "stop_or_cancel"
             orchestrator["need_reminder_detect"] = True
             logger.info(
                 "[PrepareWorkflow] 提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
@@ -401,19 +403,20 @@ class PrepareWorkflow:
         message_source = session_state.get("message_source", "user")
         if message_source == "deferred_action":
             return False
+        if self._looks_like_reminder_stop_intent(input_message):
+            session_state["prepare_reminder_intent_hint"] = "stop_or_cancel"
         return self._looks_like_explicit_reminder_intent(input_message)
 
     def _looks_like_explicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
         if not text:
             return False
-        return any(
-            pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS
-        ) or self._looks_like_reminder_stop_intent(
-            text
-        ) or self._looks_like_actionable_reminder_with_time(
-            text
-        ) or self._looks_like_actionable_call_me_reminder(text)
+        return (
+            any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
+            or self._looks_like_reminder_stop_intent(text)
+            or self._looks_like_actionable_reminder_with_time(text)
+            or self._looks_like_actionable_call_me_reminder(text)
+        )
 
     def _looks_like_reminder_stop_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()

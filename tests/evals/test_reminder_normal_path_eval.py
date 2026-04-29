@@ -728,9 +728,7 @@ def test_clarification_output_accepts_proposed_cadence_confirmation():
         case,
         "handled",
         outputs=[
-            {
-                "message": "半小时一次既能保持节奏又不会太频繁，你觉得这个频率怎么样？"
-            }
+            {"message": "半小时一次既能保持节奏又不会太频繁，你觉得这个频率怎么样？"}
         ],
         reminders=[],
     )
@@ -768,9 +766,7 @@ def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
         case,
         "handled",
         outputs=[
-            {
-                "message": "我建议每30分钟提醒一次，我准时催你，你觉得这个节奏怎么样？"
-            }
+            {"message": "我建议每30分钟提醒一次，我准时催你，你觉得这个节奏怎么样？"}
         ],
         reminders=[],
     )
@@ -876,7 +872,9 @@ def test_validate_observations_accepts_time_choice_clarification():
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[{"message": "七点半？你是说今天晚上七点半开始学习，还是明天早上七点半呀？"}],
+        outputs=[
+            {"message": "七点半？你是说今天晚上七点半开始学习，还是明天早上七点半呀？"}
+        ],
         reminders=[],
     )
 
@@ -1051,9 +1049,7 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
             "expected_creates": [
                 {
                     "title": "思考：工作应该去做“非我不可”的事情",
-                    "title_variants": [
-                        "思考一个问题:工作应该去做“非我不可”的事情"
-                    ],
+                    "title_variants": ["思考一个问题:工作应该去做“非我不可”的事情"],
                     "local_time": "10:40:00",
                     "recurring": False,
                 }

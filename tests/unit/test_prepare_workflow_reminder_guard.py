@@ -93,6 +93,7 @@ async def test_no_disturb_reminder_stop_request_skips_orchestrator_and_runs_dete
     orchestrator_agent.arun.assert_not_awaited()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    assert result["session_state"]["prepare_reminder_intent_hint"] == "stop_or_cancel"
 
 
 @pytest.mark.asyncio
@@ -678,7 +679,7 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "当前用户消息" in retry_input
     assert "Full-context reminder detection timed out" in retry_input
     assert "explicitly asks for a reminder" in retry_input
-    assert "action=\"delete\"" in retry_input
+    assert 'action="delete"' in retry_input
     assert "不用叫我" in retry_input
     assert "asks to update, complete, or list reminders" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True

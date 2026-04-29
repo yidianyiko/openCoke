@@ -624,7 +624,9 @@ def validate_observations(
         and expected_operation != "create"
         and not (
             allow_crud_clarification
-            and output_mentions_crud_operation_clarification(outputs, expected_operation)
+            and output_mentions_crud_operation_clarification(
+                outputs, expected_operation
+            )
         )
         and not output_mentions_crud_ack(outputs, reminders)
     ):
@@ -978,17 +980,17 @@ def combined_output_text(outputs: list[dict[str, Any]]) -> str:
 def output_mentions_clarification(outputs: list[dict[str, Any]]) -> bool:
     output_text = combined_output_text(outputs)
     if re.search(
-            r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
-            r"每隔多久|多久一次|多长时间一次|提醒频率|提醒间隔|"
-            r"什么提醒|哪条提醒|哪个提醒|"
-            r"(?:是说|你是说).{0,30}吗|"
-            r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
-            r"(?:是指|你是说).{0,30}(?:取消|删除|不用叫|不用提醒).{0,8}吗|"
-            r"(?:取消|删除).{0,12}(?:哪一个|哪个|哪条)|"
-            r"when|what time)",
-            output_text,
-            re.IGNORECASE,
-        ):
+        r"(几点|什么时候|啥时候|什么时间|具体时间|哪天|多久后|提醒内容|提醒什么|要不要|要我|需要我|是否|"
+        r"每隔多久|多久一次|多长时间一次|提醒频率|提醒间隔|"
+        r"什么提醒|哪条提醒|哪个提醒|"
+        r"(?:是说|你是说).{0,30}吗|"
+        r"(?:今天|今晚|早上|上午|下午|晚上|明天).{0,20}还是.{0,20}(?:今天|今晚|早上|上午|下午|晚上|明天)|"
+        r"(?:是指|你是说).{0,30}(?:取消|删除|不用叫|不用提醒).{0,8}吗|"
+        r"(?:取消|删除).{0,12}(?:哪一个|哪个|哪条)|"
+        r"when|what time)",
+        output_text,
+        re.IGNORECASE,
+    ):
         return True
 
     return bool(

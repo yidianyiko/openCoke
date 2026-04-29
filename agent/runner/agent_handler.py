@@ -353,7 +353,20 @@ def _is_clawscale_sync_text_reply_context(context: dict, message_source: str) ->
     return business_protocol.get("delivery_mode") == "request_response"
 
 
-def _chat_response_timeout_fallback(input_message: str) -> str:
+def _chat_response_timeout_fallback(
+    input_message: str, context: dict | None = None
+) -> str:
+    context = context or {}
+    if (
+        context.get("prepare_reminder_intent_hint") == "stop_or_cancel"
+        and context.get("orchestrator", {}).get("need_reminder_detect") is True
+        and not any(
+            result.get("tool_name") == "提醒操作"
+            for result in context.get("tool_results") or []
+            if isinstance(result, dict)
+        )
+    ):
+        return "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
     if "计划" in str(input_message or ""):
         return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
     return (
@@ -370,7 +383,7 @@ def _send_chat_response_fallback(
 ) -> Tuple[Optional[dict], int]:
     multimodal_response = {
         "type": "text",
-        "content": _chat_response_timeout_fallback(input_message),
+        "content": _chat_response_timeout_fallback(input_message, context),
     }
     all_multimodal_responses.append(multimodal_response)
     return _send_single_message(
