@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 192,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-784072ecae",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "234110c1e4d16705bc7e460b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 192,
+      "input": "我打算明天八点前起床",
+      "user_id": "234110c1e4d16705bc7e460b",
+      "original_from_user": "6932fc1f4bf7878f04114a8f",
+      "input_message_id": "69f1adcd646a4b4601ca00c6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1ade67a73f948dc248fa0",
+          "expect_output_timestamp": 1777446365,
+          "handled_timestamp": 1777446365,
+          "status": "pending",
+          "message_type": "text",
+          "message": "打算明天八点前起床，要不要我设个提醒叫你？几点几分叫比较合适？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-784072ecae",
+            "case_index": 192,
+            "original_from_user": "6932fc1f4bf7878f04114a8f",
+            "source_id": "6932fcb64bf7878f04114a95",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-784072ecae-case-192",
+              "business_conversation_key": "reminder-normal-784072ecae-case-192",
+              "causal_inbound_event_id": "reminder-normal-784072ecae-case-192-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "234110c1e4d16705bc7e460b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 25.043
+    }
+  ]
+}
