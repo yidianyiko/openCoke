@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 150,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-d68110c7dc",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "693138704bf7878f0411492e"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 150,
+      "input": "那你建议我多久来提醒我呢？",
+      "user_id": "693138704bf7878f0411492e",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f18e345d5ef7bd3763b095",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f18e6e3e4e021e80c8ece9",
+          "expect_output_timestamp": 1777438316,
+          "handled_timestamp": 1777438316,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我建议先每半小时提醒一次，你觉得这个频率行吗",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-d68110c7dc",
+            "case_index": 150,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "6931461d4bf7878f0411495e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-d68110c7dc-case-150",
+              "business_conversation_key": "reminder-normal-d68110c7dc-case-150",
+              "causal_inbound_event_id": "reminder-normal-d68110c7dc-case-150-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "693138704bf7878f0411492e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 58.099
+    }
+  ]
+}
