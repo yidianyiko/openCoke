@@ -544,6 +544,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
 
     assert cases[73].metadata["evaluation_expectation"] == "clarify"
+    assert cases[75].metadata["evaluation_expectation"] == "clarify"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
@@ -564,22 +565,22 @@ def test_validate_observations_still_requires_crud_for_call_me_with_time():
     assert "no_reminder_created" in errors
 
 
-def test_validate_observations_still_requires_crud_for_implicit_time_task():
+def test_validate_observations_allows_clarification_for_implicit_time_task():
     case = normal_eval.ReminderNormalPathCase(
         input="因为我就是6点钟醒了，我还得摸一下，大概6:15开始背书",
         expected_intent="reminder",
         matched_keywords=["点钟", "开始", "背书"],
-        metadata={},
+        metadata={"evaluation_expectation": "clarify"},
     )
 
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[{"message": "那你6:15开始背书。"}],
+        outputs=[{"message": "要我在6:15提醒你开始背书吗？"}],
         reminders=[],
     )
 
-    assert "no_reminder_created" in errors
+    assert errors == []
 
 
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
