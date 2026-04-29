@@ -195,6 +195,12 @@
     "187": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒."
+    },
+    "189": {
+      "evaluation_expectation": "crud",
+      "expected_operation": "delete",
+      "allow_clarification": true,
+      "evaluation_reason": "The user asks to stop being reminded that it is time to go. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a new reminder is not."
     }
   }
 }
