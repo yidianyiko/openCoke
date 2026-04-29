@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 297,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-de689fdd15",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "c6dea86d85e8903ca5209d7d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 297,
+      "input": "为什么刚刚没有叫我",
+      "user_id": "c6dea86d85e8903ca5209d7d",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f20f7358f101d495063091",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f20fb7ffd7354cb48c32e2",
+          "expect_output_timestamp": 1777471392,
+          "handled_timestamp": 1777471392,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我查一下…刚刚我记得是设了提醒的呀",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-de689fdd15",
+            "case_index": 297,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693a3782fe7d911442ed1f63",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-de689fdd15-case-297",
+              "business_conversation_key": "reminder-normal-de689fdd15-case-297",
+              "causal_inbound_event_id": "reminder-normal-de689fdd15-case-297-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c6dea86d85e8903ca5209d7d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 69.115
+    }
+  ]
+}

@@ -29,9 +29,9 @@ reminders can fire without waiting for wall-clock time.
 
 ## 2026-04-29 Normal-Path Reminder Loop Status
 
-- One-case normal-path evidence is saved through `case295`.
-- The next case is `case296`; with `1892` total corpus cases, `1596` offsets
-  remain from `296` through `1891`.
+- One-case normal-path evidence is saved through `case297`.
+- The next case is `case298`; with `1892` total corpus cases, `1594` offsets
+  remain from `298` through `1891`.
 - `case287` fixed a detector/chat handoff bug: when ReminderDetect completes
   with a structured non-executable query/discussion decision, ChatWorkflow should
   not inject the pending-reminder setup notice.
@@ -47,6 +47,8 @@ reminders can fire without waiting for wall-clock time.
 - `case295` fixed shared expected-title normalization for nominal `的提醒`
   suffixes, and tightened ReminderDetectRetry guidance so single create retries
   use top-level `title`/`trigger_at` instead of update-only fields.
+- `case297` fixed reminder-status complaint routing so messages like
+  "为什么刚刚没有叫我" go through ReminderDetect without waiting on Orchestrator.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

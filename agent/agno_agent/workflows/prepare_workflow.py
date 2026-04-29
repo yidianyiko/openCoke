@@ -130,6 +130,12 @@ _EXPLICIT_REMINDER_INTENT_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_REMINDER_STATUS_COMPLAINT_PATTERNS = (
+    re.compile(
+        r"(为什么|怎么|咋|为啥)?.{0,12}(没|没有|未|忘了|漏了).{0,12}(提醒|叫我|喊我|通知)"
+    ),
+    re.compile(r"(提醒|叫我|喊我|通知).{0,12}(没|没有|未|忘了|漏了)"),
+)
 _REMINDER_STOP_INTENT_PATTERNS = (
     re.compile(
         r"(不用|不要|别|停止|取消|删除|关掉|停掉|不用再|不要再|别再)"
@@ -417,6 +423,9 @@ class PrepareWorkflow:
             return False
         return (
             any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
+            or any(
+                pattern.search(text) for pattern in _REMINDER_STATUS_COMPLAINT_PATTERNS
+            )
             or self._looks_like_reminder_stop_intent(text)
             or self._looks_like_actionable_reminder_with_time(text)
             or self._looks_like_actionable_call_me_reminder(text)
