@@ -800,6 +800,27 @@ def test_unconfirmed_reminder_output_judge_uses_injected_llm_decision():
     assert calls == ["我准时催你，你觉得这个节奏怎么样？"]
 
 
+def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
+    class SlowJudge:
+        def run(self, _prompt):
+            import time
+
+            time.sleep(1)
+
+    monkeypatch.setattr(
+        normal_eval,
+        "UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS",
+        0.01,
+    )
+    monkeypatch.setattr(
+        normal_eval,
+        "_unconfirmed_reminder_judge_agent",
+        lambda: SlowJudge(),
+    )
+
+    assert normal_eval.run_unconfirmed_reminder_judge("我会提醒你") is False
+
+
 def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
 

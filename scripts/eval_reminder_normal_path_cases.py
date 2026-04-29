@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import sys
 import time
 import uuid
@@ -30,6 +31,9 @@ from dao.user_dao import UserDAO
 
 DEFAULT_CASES_PATH = Path("scripts/reminder_test_cases.json")
 DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json")
+UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS = float(
+    os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "20")
+)
 
 
 @dataclass(frozen=True)
@@ -1061,6 +1065,10 @@ class UnconfirmedReminderJudgeResponse(BaseModel):
     reason: str = Field(default="", description="Brief reason for the judgment.")
 
 
+class UnconfirmedReminderJudgeTimeout(Exception):
+    pass
+
+
 def output_implies_unconfirmed_reminder(
     outputs: list[dict[str, Any]],
     *,
@@ -1085,7 +1093,10 @@ Context:
 Assistant reply:
 {output_text}"""
     try:
-        response = judge_agent.run(prompt)
+        response = _run_unconfirmed_reminder_judge_with_timeout(judge_agent, prompt)
+    except UnconfirmedReminderJudgeTimeout:
+        print("unconfirmed reminder LLM judge timed out", file=sys.stderr)
+        return False
     except Exception as exc:
         print(f"unconfirmed reminder LLM judge failed: {exc}", file=sys.stderr)
         return False
@@ -1103,6 +1114,22 @@ Assistant reply:
         )
         return False
     return parsed.implies_unconfirmed_reminder
+
+
+def _run_unconfirmed_reminder_judge_with_timeout(judge_agent, prompt: str):
+    timeout_seconds = max(0.1, UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS)
+
+    def _raise_timeout(_signum, _frame):
+        raise UnconfirmedReminderJudgeTimeout()
+
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        return judge_agent.run(prompt)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 @lru_cache(maxsize=1)
