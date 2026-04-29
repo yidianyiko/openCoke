@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 211,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-79a0539891",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "741c16fa4550a6a64a115942"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 211,
+      "input": "用户希望通过对话积累经验值，每等级为100exp，并希望每次对话中告知当前等级。当前等级为0级，经验值为70exp。用户希望按天记录已完成的任务，并告知目前的等级和经验值。e.g.: 已完成日常任务：xxx，xxx；已完成普通任务：xx，xx。经验值：exp，等级。用户达到33级将获得mini ai购买权。",
+      "user_id": "741c16fa4550a6a64a115942",
+      "original_from_user": "692d3874a538f0baad55626e",
+      "input_message_id": "69f1d767612a10fd5887a8ca",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1d7c4ad5123aa8fad41ca",
+          "expect_output_timestamp": 1777457002,
+          "handled_timestamp": 1777457002,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-79a0539891",
+            "case_index": 211,
+            "original_from_user": "692d3874a538f0baad55626e",
+            "source_id": "693516b14bf7878f04114b51",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-79a0539891-case-211",
+              "business_conversation_key": "reminder-normal-79a0539891-case-211",
+              "causal_inbound_event_id": "reminder-normal-79a0539891-case-211-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "741c16fa4550a6a64a115942"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 93.156
+    }
+  ]
+}
