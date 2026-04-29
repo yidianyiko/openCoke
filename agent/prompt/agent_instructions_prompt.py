@@ -166,7 +166,7 @@ Rules:
   time; they do not mean daily.
 - For batch, operations must be a list of flat operation objects, each with an action field.
 - If one user message contains multiple reminder operations, use action="batch" and include every safe operation exactly once, preserving order.
-- For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. Do not keep only the last item.
+- For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. If there is more than one safe reminder clause, action=create is invalid; use action=batch, and operations count must equal the number of safe reminder clauses. Do not keep only the last item.
 - If the user asks for reminders for a habitual or general schedule, create recurring reminders only. Do not also create one-shot reminders for the same title and local time.
 - In batch, the same title and local time pair must appear at most once. If one candidate is recurring and another is one-shot, keep only the recurring operation.
 - If a batch mixes safe and unsafe create/update requests, call the tool only for the safe operations and leave the unsafe ones for chat clarification.

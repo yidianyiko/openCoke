@@ -1492,7 +1492,7 @@ ReminderDetectDecision.
 - If the current user message asks to update, complete, or list reminders,
   return the matching action and only the fields that are
   safely available from the current message.
-- For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. Do not keep only the last item.
+- For semicolon-separated or list-style reminder requests, include one create operation for each safe clause when each clause has a concrete time plus reminder content. If there is more than one safe reminder clause, action=create is invalid; use action=batch, and operations count must equal the number of safe reminder clauses. Do not keep only the last item.
 - If required reminder details are missing or unsafe, return intent_type="clarify"
   with no executable reminder fields.
 - For intent_type="clarify", write clarification_question in the same language
