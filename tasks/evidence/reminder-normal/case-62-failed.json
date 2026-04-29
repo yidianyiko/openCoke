@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 62,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f318781b10",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d4ac79913054ccf2b90bf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 62,
+        "input": "今天下午怎么不提醒我？",
+        "user_id": "692d4ac79913054ccf2b90bf",
+        "original_from_user": "692d4ac79913054ccf2b90bf",
+        "input_message_id": "69f15e2a61daa5a86dba180f",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f15e301c6f0de8345a88f9",
+            "expect_output_timestamp": 1777425968,
+            "handled_timestamp": 1777425968,
+            "status": "pending",
+            "message_type": "text",
+            "message": "- 起床 @ 2026-04-29T22:30:00+00:00\n- 起床 @ 2026-04-29T22:30:00+00:00\n- 数学练习 @ 2026-04-29T03:30:00+00:00\n- - @ 2026-04-29T05:00:00+00:00\n- 物理网课 @ 2026-04-29T08:00:00+00:00\n- - @ 2026-04-29T10:00:00+00:00\n- 物理练习 @ 2026-04-29T12:00:00+00:00\n- - @ 2026-04-29T12:00:00+00:00\n- 英语语法练习 @ 2026-04-29T13:30:00+00:00\n- - @ 2026-04-29T13:30:00+00:00\n- 复盘 @ 2026-04-29T13:40:00+00:00\n- 睡觉 @ 2026-04-29T14:30:00+00:00\n- 物理网课 @ 2026-04-29T05:00:00+00:00\n- 物理练习 @ 2026-04-29T10:00:00+00:00\n- 英语语法练习 @ 2026-04-29T12:00:00+00:00\n- 复盘 @ 2026-04-29T13:30:00+00:00\n- 睡觉 @ 2026-04-29T14:30:00+00:00",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-f318781b10",
+              "case_index": 62,
+              "original_from_user": "692d4ac79913054ccf2b90bf",
+              "source_id": "692e96654bf7878f04114654",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-f318781b10-case-62",
+                "business_conversation_key": "reminder-normal-f318781b10-case-62",
+                "causal_inbound_event_id": "reminder-normal-f318781b10-case-62-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "692d4ac79913054ccf2b90bf"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 6.012
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 62,
+      "input": "今天下午怎么不提醒我？",
+      "user_id": "692d4ac79913054ccf2b90bf",
+      "original_from_user": "692d4ac79913054ccf2b90bf",
+      "input_message_id": "69f15e2a61daa5a86dba180f",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f15e301c6f0de8345a88f9",
+          "expect_output_timestamp": 1777425968,
+          "handled_timestamp": 1777425968,
+          "status": "pending",
+          "message_type": "text",
+          "message": "- 起床 @ 2026-04-29T22:30:00+00:00\n- 起床 @ 2026-04-29T22:30:00+00:00\n- 数学练习 @ 2026-04-29T03:30:00+00:00\n- - @ 2026-04-29T05:00:00+00:00\n- 物理网课 @ 2026-04-29T08:00:00+00:00\n- - @ 2026-04-29T10:00:00+00:00\n- 物理练习 @ 2026-04-29T12:00:00+00:00\n- - @ 2026-04-29T12:00:00+00:00\n- 英语语法练习 @ 2026-04-29T13:30:00+00:00\n- - @ 2026-04-29T13:30:00+00:00\n- 复盘 @ 2026-04-29T13:40:00+00:00\n- 睡觉 @ 2026-04-29T14:30:00+00:00\n- 物理网课 @ 2026-04-29T05:00:00+00:00\n- 物理练习 @ 2026-04-29T10:00:00+00:00\n- 英语语法练习 @ 2026-04-29T12:00:00+00:00\n- 复盘 @ 2026-04-29T13:30:00+00:00\n- 睡觉 @ 2026-04-29T14:30:00+00:00",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f318781b10",
+            "case_index": 62,
+            "original_from_user": "692d4ac79913054ccf2b90bf",
+            "source_id": "692e96654bf7878f04114654",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f318781b10-case-62",
+              "business_conversation_key": "reminder-normal-f318781b10-case-62",
+              "causal_inbound_event_id": "reminder-normal-f318781b10-case-62-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "692d4ac79913054ccf2b90bf"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.012
+    }
+  ]
+}

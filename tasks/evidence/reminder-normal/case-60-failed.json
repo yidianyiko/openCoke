@@ -1,0 +1,63 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 60,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-777de94e0c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "692d38aea538f0baad556271"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 60,
+        "input": "你还记得昨天写的计划吗",
+        "user_id": "692d38aea538f0baad556271",
+        "original_from_user": "692d38aea538f0baad556271",
+        "input_message_id": "69f15c478c81fd3312c9505e",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.204
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 60,
+      "input": "你还记得昨天写的计划吗",
+      "user_id": "692d38aea538f0baad556271",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f15c478c81fd3312c9505e",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.204
+    }
+  ]
+}
