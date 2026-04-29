@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 333,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e88da7904b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e5397e24b66ad39efd0e2379"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:吃饭": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:吃饭": 1
+    },
+    "failures": [
+      {
+        "index": 333,
+        "input": "4:37提醒我吃饭",
+        "user_id": "e5397e24b66ad39efd0e2379",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f21e3854a6af562a25d9cf",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:吃饭",
+          "user_output_missing_expected_title:吃饭"
+        ],
+        "outputs": [
+          {
+            "_id": "69f21e6c614a0be9febe204a",
+            "expect_output_timestamp": 1777475180,
+            "handled_timestamp": 1777475180,
+            "status": "pending",
+            "message_type": "text",
+            "message": "创建提醒失败：trigger_at must include a timezone offset or Z。你想改到什么时间？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-e88da7904b",
+              "case_index": 333,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "693bd3c209af1bf513e83695",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-e88da7904b-case-333",
+                "business_conversation_key": "reminder-normal-e88da7904b-case-333",
+                "causal_inbound_event_id": "reminder-normal-e88da7904b-case-333-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "e5397e24b66ad39efd0e2379"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 52.087
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 333,
+      "input": "4:37提醒我吃饭",
+      "user_id": "e5397e24b66ad39efd0e2379",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f21e3854a6af562a25d9cf",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:吃饭",
+        "user_output_missing_expected_title:吃饭"
+      ],
+      "outputs": [
+        {
+          "_id": "69f21e6c614a0be9febe204a",
+          "expect_output_timestamp": 1777475180,
+          "handled_timestamp": 1777475180,
+          "status": "pending",
+          "message_type": "text",
+          "message": "创建提醒失败：trigger_at must include a timezone offset or Z。你想改到什么时间？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-e88da7904b",
+            "case_index": 333,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bd3c209af1bf513e83695",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-e88da7904b-case-333",
+              "business_conversation_key": "reminder-normal-e88da7904b-case-333",
+              "causal_inbound_event_id": "reminder-normal-e88da7904b-case-333-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e5397e24b66ad39efd0e2379"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 52.087
+    }
+  ]
+}

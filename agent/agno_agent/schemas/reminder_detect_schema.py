@@ -169,6 +169,7 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError("batch action requires operations")
             if self.action == "create" and not (self.title and self.trigger_at):
                 raise ValueError("create action requires title and trigger_at")
+            self._validate_executable_datetimes()
             self._validate_schedule_basis()
             self._validate_deadline_operations()
             return self
@@ -187,6 +188,20 @@ class ReminderDetectDecision(BaseModel):
             raise ValueError("clarify and discussion intents must not include action")
 
         return self
+
+    def _validate_executable_datetimes(self) -> None:
+        for field_name in ("trigger_at", "new_trigger_at", "deadline_at"):
+            value = str(getattr(self, field_name) or "").strip()
+            if value:
+                _parse_aware_datetime(value, field_name)
+        for index, operation in enumerate(self.operations):
+            for field_name in ("trigger_at", "new_trigger_at"):
+                value = str(getattr(operation, field_name) or "").strip()
+                if value:
+                    _parse_aware_datetime(
+                        value,
+                        f"operations[{index}].{field_name}",
+                    )
 
     def _validate_schedule_basis(self) -> None:
         if self.action not in {"create", "batch"}:

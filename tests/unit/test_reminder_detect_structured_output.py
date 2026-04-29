@@ -15,6 +15,18 @@ def test_reminder_detect_schema_normalizes_write_action_to_crud():
     assert decision.intent_type == "crud"
 
 
+def test_reminder_detect_schema_rejects_naive_create_trigger_at():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError, match="trigger_at must include timezone"):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="create",
+            title="吃饭",
+            trigger_at="2026-04-30T16:37:00",
+        )
+
+
 def test_reminder_detect_schema_requires_batch_operations():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

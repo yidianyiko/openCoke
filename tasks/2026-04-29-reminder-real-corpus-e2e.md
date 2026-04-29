@@ -29,9 +29,9 @@ reminders can fire without waiting for wall-clock time.
 
 ## 2026-04-29 Normal-Path Reminder Loop Status
 
-- One-case normal-path evidence is saved through `case331`.
-- The next case is `case332`; with `1892` total corpus cases, `1560` offsets
-  remain from `332` through `1891`.
+- One-case normal-path evidence is saved through `case333`.
+- The next case is `case334`; with `1892` total corpus cases, `1558` offsets
+  remain from `334` through `1891`.
 - `case287` fixed a detector/chat handoff bug: when ReminderDetect completes
   with a structured non-executable query/discussion decision, ChatWorkflow should
   not inject the pending-reminder setup notice.
@@ -77,6 +77,10 @@ reminders can fire without waiting for wall-clock time.
 - `case331` added a clarification expectation for a date-only reminder request
   with content but no clock time; the runtime correctly asks what time next
   Monday instead of inventing a default.
+- `case332` passed without code or fixture changes.
+- `case333` tightened ReminderDetect structured schema validation so executable
+  datetime fields require an explicit timezone, and added an expected-create
+  fixture for the corpus-anchored late-afternoon interpretation of `4:37`.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

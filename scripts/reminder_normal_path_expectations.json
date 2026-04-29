@@ -364,6 +364,13 @@
     "331": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives next Monday and content but no clock time. Without a product default-time policy, the agent should ask what time on that day instead of creating a reminder."
+    },
+    "333": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",
+      "expected_creates": [
+        {"title": "吃饭", "local_time": "16:37:00", "recurring": false}
+      ]
     }
   }
 }
