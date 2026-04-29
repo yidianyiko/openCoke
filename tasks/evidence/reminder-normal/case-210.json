@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 210,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6e08941644",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "501771c309baee7a3ea29aef"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 210,
+      "input": "我的的每日任务如下：\n1. 洗澡：5exp\n2. 洗碗：5exp\n3. 背单词：记住多少个单词增加多少exp\n4. 记账：5exp\n5. 记录饮食：3exp",
+      "user_id": "501771c309baee7a3ea29aef",
+      "original_from_user": "692d3874a538f0baad55626e",
+      "input_message_id": "69f1d74e33070c0477c8880b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1d75bad5123aa8fad41a4",
+          "expect_output_timestamp": 1777456977,
+          "handled_timestamp": 1777456977,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到，任务列表很清晰！那我来确认一下：洗澡、洗碗、背单词、记账、记录饮食，这几个任务现在都设置好提醒了吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6e08941644",
+            "case_index": 210,
+            "original_from_user": "692d3874a538f0baad55626e",
+            "source_id": "693516a44bf7878f04114b50",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6e08941644-case-210",
+              "business_conversation_key": "reminder-normal-6e08941644-case-210",
+              "causal_inbound_event_id": "reminder-normal-6e08941644-case-210-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "501771c309baee7a3ea29aef"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.023
+    }
+  ]
+}
