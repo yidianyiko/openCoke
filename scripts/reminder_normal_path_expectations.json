@@ -141,6 +141,10 @@
     "136": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder."
+    },
+    "139": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request."
     }
   }
 }
