@@ -1,0 +1,180 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 209,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f3a0e4bab8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a731d73cac1e44a9c155fbba"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 209,
+      "input": "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
+      "user_id": "a731d73cac1e44a9c155fbba",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f1d729acea938d0f7285bf",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1d73aad5123aa8fad4190",
+          "expect_output_timestamp": 1777456954,
+          "handled_timestamp": 1777456954,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：吃饭（2026-04-30 15:30）；已创建提醒：洗澡（2026-04-30 16:40）；已创建提醒：看法考网课和做题（2026-04-30 17:20）；已创建提醒：练腹肌（2026-04-30 19:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f3a0e4bab8",
+            "case_index": 209,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "6934dd5b4bf7878f04114b34",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f3a0e4bab8-case-209",
+              "business_conversation_key": "reminder-normal-f3a0e4bab8-case-209",
+              "causal_inbound_event_id": "reminder-normal-f3a0e4bab8-case-209-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a731d73cac1e44a9c155fbba"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1d73aad5123aa8fad418b",
+          "owner_user_id": "a731d73cac1e44a9c155fbba",
+          "title": "吃饭",
+          "schedule": {
+            "anchor_at": "2026-04-30T06:30:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "15:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1d729ad5123aa8fad4184",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T06:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:02:34.674000+00:00",
+          "updated_at": "2026-04-29T10:02:34.674000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1d73aad5123aa8fad418c",
+          "owner_user_id": "a731d73cac1e44a9c155fbba",
+          "title": "洗澡",
+          "schedule": {
+            "anchor_at": "2026-04-30T07:40:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "16:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1d729ad5123aa8fad4184",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T07:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:02:34.681000+00:00",
+          "updated_at": "2026-04-29T10:02:34.681000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1d73aad5123aa8fad418d",
+          "owner_user_id": "a731d73cac1e44a9c155fbba",
+          "title": "看法考网课和做题",
+          "schedule": {
+            "anchor_at": "2026-04-30T08:20:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "17:20:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1d729ad5123aa8fad4184",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T08:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:02:34.682000+00:00",
+          "updated_at": "2026-04-29T10:02:34.682000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f1d73aad5123aa8fad418e",
+          "owner_user_id": "a731d73cac1e44a9c155fbba",
+          "title": "练腹肌",
+          "schedule": {
+            "anchor_at": "2026-04-30T10:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1d729ad5123aa8fad4184",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:02:34.684000+00:00",
+          "updated_at": "2026-04-29T10:02:34.684000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 18.032
+    }
+  ]
+}
