@@ -38,7 +38,9 @@ def test_normal_path_user_id_has_deterministic_fallback_for_invalid_metadata():
 
 def test_iter_case_batches_preserves_json_order_in_fixed_chunks():
     batches = list(
-        normal_eval.iter_case_batches(total_count=70, offset=0, limit=None, batch_size=32)
+        normal_eval.iter_case_batches(
+            total_count=70, offset=0, limit=None, batch_size=32
+        )
     )
 
     assert batches == [
@@ -50,7 +52,9 @@ def test_iter_case_batches_preserves_json_order_in_fixed_chunks():
 
 def test_iter_case_batches_applies_total_limit_before_chunking():
     batches = list(
-        normal_eval.iter_case_batches(total_count=70, offset=10, limit=33, batch_size=32)
+        normal_eval.iter_case_batches(
+            total_count=70, offset=10, limit=33, batch_size=32
+        )
     )
 
     assert batches == [
@@ -59,7 +63,9 @@ def test_iter_case_batches_applies_total_limit_before_chunking():
     ]
 
 
-def test_case_input_timestamp_defaults_to_current_time_for_worker_eligibility(monkeypatch):
+def test_case_input_timestamp_defaults_to_current_time_for_worker_eligibility(
+    monkeypatch,
+):
     case = normal_eval.ReminderNormalPathCase(
         input="今天18:00提醒我喝水",
         expected_intent="reminder",
@@ -90,7 +96,11 @@ def test_case_input_timestamp_can_use_corpus_timestamp_when_requested():
         case,
         timezone_name="Asia/Tokyo",
         use_case_timestamp=True,
-    ) == int(datetime(2025, 11, 30, 17, 55, 53, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")).timestamp())
+    ) == int(
+        datetime(
+            2025, 11, 30, 17, 55, 53, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
+        ).timestamp()
+    )
 
 
 class RecordingCollection:
@@ -275,9 +285,7 @@ def test_build_result_isolates_outputs_and_reminders_to_current_case():
                 "next_fire_at": submitted_wall_at,
                 "created_at": submitted_wall_at,
                 "updated_at": submitted_wall_at,
-                "agent_output_target": {
-                    "conversation_id": "692c14aaa538f0baad556112"
-                },
+                "agent_output_target": {"conversation_id": "692c14aaa538f0baad556112"},
             },
         ],
         conversations=[
@@ -429,6 +437,24 @@ def test_validate_observations_does_not_require_crud_for_frustrated_capability_q
         case,
         "handled",
         outputs=[{"message": "会提醒你，但需要具体时间和内容。"}],
+        reminders=[],
+    )
+
+    assert "no_reminder_created" not in errors
+
+
+def test_validate_observations_does_not_require_crud_for_missed_reminder_complaint():
+    case = normal_eval.ReminderNormalPathCase(
+        input="今天下午怎么不提醒我？",
+        expected_intent="reminder",
+        matched_keywords=["提醒我", "今天", "下午"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "我查到今天下午没有需要新建的提醒。"}],
         reminders=[],
     )
 

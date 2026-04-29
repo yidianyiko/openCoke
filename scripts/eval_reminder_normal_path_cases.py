@@ -507,7 +507,10 @@ def validate_observations(
     if reminder_case_requires_crud(case) and not reminders:
         errors.append("no_reminder_created")
     for reminder in reminders:
-        if reminder.get("next_fire_at") is None and reminder.get("lifecycle_state") == "active":
+        if (
+            reminder.get("next_fire_at") is None
+            and reminder.get("lifecycle_state") == "active"
+        ):
             errors.append("active_reminder_missing_next_fire_at")
         if not reminder.get("title"):
             errors.append("reminder_missing_title")
@@ -524,7 +527,11 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
         return []
 
     normalized = normalize_text(text)
-    matches = list(re.finditer(r"(?<!\d)(?P<hour>\d{1,2})\s*:\s*(?P<minute>\d{1,2})(?!\d)", normalized))
+    matches = list(
+        re.finditer(
+            r"(?<!\d)(?P<hour>\d{1,2})\s*:\s*(?P<minute>\d{1,2})(?!\d)", normalized
+        )
+    )
     expected: list[ExpectedReminderCreate] = []
     for index, match in enumerate(matches):
         hour = int(match.group("hour"))
@@ -532,9 +539,11 @@ def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
             continue
         segment_start = previous_clause_boundary(normalized, match.start())
-        segment_end = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
-        recurrence_segment = normalized[segment_start:match.start()]
-        title = extract_expected_title(normalized[match.end():segment_end])
+        segment_end = (
+            matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        )
+        recurrence_segment = normalized[segment_start : match.start()]
+        title = extract_expected_title(normalized[match.end() : segment_end])
         if not title:
             continue
         expected.append(
@@ -570,7 +579,11 @@ def validate_expected_creates(
         if not isinstance(schedule, dict):
             schedule = {}
         actual_local_time = str(schedule.get("local_time") or "")
-        if expected.local_time and actual_local_time and actual_local_time != expected.local_time:
+        if (
+            expected.local_time
+            and actual_local_time
+            and actual_local_time != expected.local_time
+        ):
             errors.append(f"expected_reminder_time_mismatch:{expected.title}")
         rrule = str(schedule.get("rrule") or "").strip()
         if expected.recurring is True and not rrule:
@@ -585,16 +598,16 @@ def validate_expected_creates(
         output_segment = output_segment_for_expected(output_text, expected)
         if not output_segment:
             continue
-        if expected.recurring is True and not segment_has_recurring_signal(output_segment):
+        if expected.recurring is True and not segment_has_recurring_signal(
+            output_segment
+        ):
             errors.append(f"user_output_missing_recurring:{expected.title}")
         if expected.recurring is False and segment_has_recurring_signal(output_segment):
             errors.append(f"user_output_unexpected_recurring:{expected.title}")
     return errors
 
 
-_COMMON_TITLE_LEADING_VERBS = frozenset(
-    "喝吃学背看写做跑练买拿取打出睡起读"
-)
+_COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读")
 
 
 def output_mentions_expected_title(output_text: str, title: str) -> bool:
@@ -689,9 +702,13 @@ def extract_expected_title(suffix: str) -> str:
         "",
         candidate,
     ).strip()
-    candidate = re.sub(r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate)
+    candidate = re.sub(
+        r"^(?:提醒我|提醒一下我|提醒|叫我|喊我|让我|帮我|记得|去|要)+", "", candidate
+    )
     candidate = re.split(r"[，,。；;！？!?\n]", candidate, maxsplit=1)[0]
-    candidate = re.sub(r"^(?:一个是|一是|二是|三是|还有|再|去|要)+", "", candidate).strip()
+    candidate = re.sub(
+        r"^(?:一个是|一是|二是|三是|还有|再|去|要)+", "", candidate
+    ).strip()
     candidate = re.sub(r"(?:呀|啊|哦|呢|么|吗|吧|啦|了)+$", "", candidate).strip()
     return normalize_expected_title(candidate)
 
@@ -738,11 +755,15 @@ def output_mentions_crud_ack(
     )
     if action_ack:
         return True
-    if ("安排上" in output_text or "设好" in output_text or "记好" in output_text) and "提醒" in output_text:
+    if (
+        "安排上" in output_text or "设好" in output_text or "记好" in output_text
+    ) and "提醒" in output_text:
         return True
 
     titles = [str(reminder.get("title") or "").strip() for reminder in reminders]
-    return "提醒" in output_text and any(title and title in output_text for title in titles)
+    return "提醒" in output_text and any(
+        title and title in output_text for title in titles
+    )
 
 
 def combined_output_text(outputs: list[dict[str, Any]]) -> str:
@@ -759,9 +780,20 @@ def explicit_reminder_request(text: str) -> bool:
         return False
     if reminder_time_query(normalized):
         return False
+    if reminder_missed_complaint(normalized):
+        return False
     if any(
         keyword in normalized
-        for keyword in ("提醒", "remind", "闹钟", "通知我", "每天", "每个小时", "每周", "每月")
+        for keyword in (
+            "提醒",
+            "remind",
+            "闹钟",
+            "通知我",
+            "每天",
+            "每个小时",
+            "每周",
+            "每月",
+        )
     ):
         return True
     if re.search(r"(叫我|喊我)", normalized):
@@ -798,6 +830,17 @@ def vague_reminder_capability_question(text: str) -> bool:
 def reminder_time_query(text: str) -> bool:
     normalized = normalize_text(text).strip()
     return bool(_REMINDER_TIME_QUERY_PATTERN.search(normalized))
+
+
+_REMINDER_MISSED_COMPLAINT_PATTERN = re.compile(
+    r"(怎么|为什么|为何|咋|咋不).{0,8}(不|没|没有).{0,8}提醒我|"
+    r"(不|没|没有).{0,8}提醒我.{0,8}(怎么|为什么|为何|咋)"
+)
+
+
+def reminder_missed_complaint(text: str) -> bool:
+    normalized = normalize_text(text).strip()
+    return bool(_REMINDER_MISSED_COMPLAINT_PATTERN.search(normalized))
 
 
 def underspecified_reminder_request(text: str) -> bool:
@@ -994,10 +1037,7 @@ def main() -> int:
             )
             batches.append(batch_payload)
             all_results.extend(batch_payload["results"])
-            if (
-                batch_payload["summary"]["failed"] > 0
-                and not args.continue_on_failure
-            ):
+            if batch_payload["summary"]["failed"] > 0 and not args.continue_on_failure:
                 break
         summary = summarize(
             [ReminderNormalPathResult(**result) for result in all_results]
