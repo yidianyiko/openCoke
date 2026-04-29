@@ -285,6 +285,10 @@
     "254": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "257": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user describes a short rest and routine-rest plan without asking to be reminded or supervised. The agent may acknowledge or ask whether a reminder is wanted, but should not promise or create one."
     }
   }
 }
