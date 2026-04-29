@@ -96,6 +96,20 @@
           "recurring": false
         }
       ]
+    },
+    "123": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a bare clock time that has passed today; the next local occurrence is expected.",
+      "expected_creates": [
+        {
+          "title": "思考：工作应该去做“非我不可”的事情",
+          "title_variants": [
+            "思考一个问题:工作应该去做“非我不可”的事情"
+          ],
+          "local_time": "10:40:00",
+          "recurring": false
+        }
+      ]
     }
   }
 }
