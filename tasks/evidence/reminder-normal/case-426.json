@@ -1,0 +1,124 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 426,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9ba017104c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9f8223d7d9617d4d34f503be"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 426,
+      "input": "再加个：早上11点10分提醒我吃维生素D、B、辅酶Q10。晚上大概11：30提醒我吃镁片",
+      "user_id": "9f8223d7d9617d4d34f503be",
+      "original_from_user": "693d76a43aff6aca7eceb048",
+      "input_message_id": "69f24591dabf582ad81c65cb",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f245a1f0a59667d8b96b4e",
+          "expect_output_timestamp": 1777485217,
+          "handled_timestamp": 1777485217,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：吃维生素D、B、辅酶Q10（2026-05-01 11:10）；已创建提醒：吃镁片（2026-05-01 23:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9ba017104c",
+            "case_index": 426,
+            "original_from_user": "693d76a43aff6aca7eceb048",
+            "source_id": "694041f2a6d5f2cba9a556e5",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9ba017104c-case-426",
+              "business_conversation_key": "reminder-normal-9ba017104c-case-426",
+              "causal_inbound_event_id": "reminder-normal-9ba017104c-case-426-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9f8223d7d9617d4d34f503be"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f245a1f0a59667d8b96b4b",
+          "owner_user_id": "9f8223d7d9617d4d34f503be",
+          "title": "吃维生素D、B、辅酶Q10",
+          "schedule": {
+            "anchor_at": "2026-05-01T02:10:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "11:10:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f24591f0a59667d8b96b43",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T02:10:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:53:37.965000+00:00",
+          "updated_at": "2026-04-29T17:53:37.965000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f245a1f0a59667d8b96b4c",
+          "owner_user_id": "9f8223d7d9617d4d34f503be",
+          "title": "吃镁片",
+          "schedule": {
+            "anchor_at": "2026-05-01T14:30:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "23:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f24591f0a59667d8b96b43",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T14:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T17:53:37.971000+00:00",
+          "updated_at": "2026-04-29T17:53:37.971000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 17.029
+    }
+  ]
+}

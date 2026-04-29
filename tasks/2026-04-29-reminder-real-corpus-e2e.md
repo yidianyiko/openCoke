@@ -167,6 +167,9 @@ reminders can fire without waiting for wall-clock time.
 - `case425` added a clarification expectation for a detailed time-blocked daily
   plan without an explicit reminder request. One rerun hit a clarification-judge
   timeout; the next rerun passed.
+- `case426` fixed explicit-occurrence evidence validation for colloquial
+  daypart colon times such as `晚上11:30` resolving to 23:30; the rerun created
+  both vitamin and magnesium reminders.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

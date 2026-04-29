@@ -577,6 +577,39 @@ def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
     )
 
 
+def test_explicit_occurrence_evidence_accepts_colloquial_daypart_colon_time():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence=(
+            "早上11点10分提醒我吃维生素D、B、辅酶Q10。"
+            "晚上大概11：30提醒我吃镁片"
+        ),
+        operations=[
+            {
+                "action": "create",
+                "title": "吃维生素D、B、辅酶Q10",
+                "trigger_at": "2026-12-16T11:10:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "吃镁片",
+                "trigger_at": "2026-12-16T23:30:00+09:00",
+            },
+        ],
+    )
+
+    assert not workflow._validate_reminder_decision_evidence(
+        decision,
+        "再加个：早上11点10分提醒我吃维生素D、B、辅酶Q10。晚上大概11：30提醒我吃镁片",
+    )
+
+
 def test_explicit_occurrence_evidence_accepts_condensed_chinese_time_list():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow

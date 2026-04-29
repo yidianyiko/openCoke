@@ -1248,11 +1248,27 @@ class PrepareWorkflow:
                     }
                 )
         else:
+            if hour > 12:
+                raw_variants.update(
+                    {
+                        f"{colloquial_hour}:{minute:02d}",
+                        f"{colloquial_hour:02d}:{minute:02d}",
+                        f"{colloquial_hour}：{minute:02d}",
+                        f"{colloquial_hour:02d}：{minute:02d}",
+                        f"{colloquial_hour}点{minute:02d}分",
+                        f"{colloquial_hour}点{minute}分",
+                        f"{colloquial_hour:02d}点{minute:02d}分",
+                    }
+                )
             if minute == 30:
                 raw_variants.update({f"{hour}点半", f"{colloquial_hour}点半"})
             for daypart in cls._clock_dayparts(hour):
                 raw_variants.update(
                     {
+                        f"{daypart}{colloquial_hour}:{minute:02d}",
+                        f"{daypart}{colloquial_hour:02d}:{minute:02d}",
+                        f"{daypart}{colloquial_hour}：{minute:02d}",
+                        f"{daypart}{colloquial_hour:02d}：{minute:02d}",
                         f"{daypart}{colloquial_hour}点{minute:02d}分",
                         f"{daypart}{colloquial_hour}点{minute}分",
                         f"{daypart}{colloquial_hour:02d}点{minute:02d}分",
