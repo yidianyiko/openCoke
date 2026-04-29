@@ -453,6 +453,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "first-person promise" in workflow.agent.input
     assert "Do not infer prior reminder agreements from retrieved history" in workflow.agent.input
     assert "Do not propose a specific clock time or cadence" in workflow.agent.input
+    assert "status or check-in question" in workflow.agent.input
+    assert "ask when or how often to check in" in workflow.agent.input
     assert workflow.agent.input.rfind("### System Notice: Reminder Setup Pending") > (
         workflow.agent.input.rfind("## CRITICAL CONSTRAINTS")
     )
