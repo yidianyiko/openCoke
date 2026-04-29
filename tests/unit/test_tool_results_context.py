@@ -121,6 +121,23 @@ def test_reminder_operation_direct_reply_joins_exact_tool_summaries():
     )
 
 
+def test_reminder_operation_direct_reply_skips_list_results():
+    from agent.prompt.chat_contextprompt import get_reminder_operation_direct_reply
+
+    state = {
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "- 喝水 @ 2026-04-29T18:02:00+09:00",
+                "extra_notes": "action=list",
+            }
+        ]
+    }
+
+    assert get_reminder_operation_direct_reply(state) == ""
+
+
 def test_single_success_result():
     from agent.prompt.chat_contextprompt import get_tool_results_context
 
@@ -518,4 +535,42 @@ async def test_chat_workflow_keeps_pending_reminder_notice_for_unrelated_tool_re
 
     assert events[-1]["type"] == "done"
     assert "Updated timezone" in workflow.agent.input
+    assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
+
+
+@pytest.mark.asyncio
+async def test_chat_workflow_keeps_pending_notice_for_list_result_only(monkeypatch):
+    install_chat_workflow_stubs(monkeypatch)
+    from agent.agno_agent.workflows.chat_workflow_streaming import (
+        StreamingChatWorkflow,
+    )
+
+    workflow = StreamingChatWorkflow.__new__(StreamingChatWorkflow)
+    workflow.agent = CapturingStreamingAgent()
+    session_state = {
+        "orchestrator": {"need_reminder_detect": True},
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月28日09时00分",
+                "input_messages_str": "remind me tomorrow",
+                "chat_history_str": "",
+            }
+        },
+        "context_retrieve": {},
+        "tool_results": [
+            {
+                "tool_name": "提醒操作",
+                "ok": True,
+                "result_summary": "- 喝水 @ 2026-04-29T18:02:00+09:00",
+                "extra_notes": "action=list",
+            }
+        ],
+    }
+
+    events = [
+        event async for event in workflow.run_stream("remind me tomorrow", session_state)
+    ]
+
+    assert events[-1]["type"] == "done"
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input

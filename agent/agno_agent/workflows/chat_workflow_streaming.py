@@ -49,6 +49,7 @@ from agent.prompt.chat_contextprompt import (
     get_tool_results_context,
     get_url_context,
     get_web_search_context,
+    reminder_tool_result_counts_as_setup,
 )
 from agent.prompt.chat_noticeprompt import NOTICE_常规注意事项_分段消息
 from agent.prompt.rendering import render_prompt_template
@@ -70,7 +71,7 @@ logger = logging.getLogger(__name__)
 
 def _has_reminder_tool_result(session_state: Dict[str, Any]) -> bool:
     results = session_state.get("tool_results") or []
-    return any(entry.get("tool_name") == "提醒操作" for entry in results)
+    return any(reminder_tool_result_counts_as_setup(entry) for entry in results)
 
 
 # 流式 JSON 解析说明

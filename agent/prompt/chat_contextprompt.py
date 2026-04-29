@@ -495,12 +495,25 @@ def get_calendar_import_direct_reply(session_state: dict) -> str:
     return ""
 
 
+def reminder_tool_result_counts_as_setup(entry: dict) -> bool:
+    if entry.get("tool_name") != "提醒操作":
+        return False
+    action = _tool_result_action(entry)
+    return action != "list"
+
+
 def get_reminder_operation_direct_reply(session_state: dict) -> str:
     """Return deterministic reminder CRUD acknowledgements from tool results."""
     results: list[dict] = session_state.get("tool_results") or []
     summaries = [
         str(entry.get("result_summary") or "").strip()
         for entry in results
-        if entry.get("tool_name") == "提醒操作"
+        if reminder_tool_result_counts_as_setup(entry)
     ]
     return "；".join(summary for summary in summaries if summary)
+
+
+def _tool_result_action(entry: dict) -> str:
+    extra_notes = str(entry.get("extra_notes") or "")
+    match = re.search(r"(?:^|;\s*)action=([^;]+)", extra_notes)
+    return match.group(1).strip() if match else ""
