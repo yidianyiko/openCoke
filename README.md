@@ -53,6 +53,8 @@ pytest tests/unit/ -v
 pytest tests/e2e/ -v
 zsh scripts/check
 zsh scripts/verify-surface repo-os
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
 ```
 
 ## Repository Structure
@@ -68,12 +70,16 @@ docs/exec-plans/           # canonical home for new execution plans
 docs/fitness/              # verification rulebook
 docs/fitness/coke-verification-matrix.md
                            # project-specific verification commands by surface
+docs/fitness/surfaces.yaml # machine-readable surface and review trigger map
 docs/roadmap.md            # product and platform direction
 docs/architecture.md       # runtime architecture
 docs/deploy.md             # deployment and smoke checks
 docs/clawscale_bridge.md   # bridge and channel rollout notes
 docs/superpowers/          # dated design and implementation history
 scripts/check              # repository structure verification entrypoint
+scripts/suggest-verification
+                           # diff-aware verification suggestion entrypoint
+scripts/review-trigger     # diff-aware review escalation entrypoint
 ```
 
 ## Documentation
@@ -87,6 +93,8 @@ scripts/check              # repository structure verification entrypoint
 - `docs/fitness/README.md`: verification expectations
 - `docs/fitness/coke-verification-matrix.md`: what to run for worker, bridge,
   gateway, deploy, and repo-OS changes
+- `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
+  map used by the guardrail scripts
 - `docs/exec-plans/`: canonical home for new execution plans
 - `tasks/`: task-local work state
 - `docs/superpowers/`: dated design and implementation history

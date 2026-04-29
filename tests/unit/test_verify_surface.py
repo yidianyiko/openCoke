@@ -24,6 +24,10 @@ def test_verify_surface_dry_run_prints_repo_os_and_bridge_commands():
         ".venv/bin/python -m pytest tests/unit/test_repo_os_structure.py -v"
         in result.stdout
     )
+    assert (
+        ".venv/bin/python -m pytest tests/unit/test_guardrail_scripts.py -v"
+        in result.stdout
+    )
     assert "zsh scripts/check" in result.stdout
     assert "== bridge ==" in result.stdout
     assert (

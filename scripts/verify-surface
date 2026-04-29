@@ -28,6 +28,7 @@ surface_commands() {
   case "$surface" in
     repo-os)
       print "$pytest_cmd tests/unit/test_repo_os_structure.py -v"
+      print "$pytest_cmd tests/unit/test_guardrail_scripts.py -v"
       print "zsh scripts/check"
       ;;
     worker-runtime)

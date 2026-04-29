@@ -44,3 +44,22 @@ needs a human-readable evidence list.
 Use [`coke-verification-matrix.md`](./coke-verification-matrix.md) when you
 need the repository-specific command mapping for worker, bridge, gateway, or
 deploy changes.
+
+## Coke Guardrails
+
+`surfaces.yaml` is the machine-readable surface and review-trigger contract.
+It keeps the Coke-specific boundaries close to the human-readable verification
+matrix without replacing the existing command runner.
+
+Use these helpers from the repository root:
+
+```bash
+zsh scripts/suggest-verification --base HEAD~1
+zsh scripts/review-trigger --base HEAD~1
+```
+
+- `suggest-verification` maps changed files to Coke surfaces and prints the
+  matching `scripts/verify-surface` dry-run command set.
+- `review-trigger` flags changes that should receive human review, such as
+  bridge/gateway cross-boundary changes, deployment changes, oversized diffs,
+  or non-trivial changes without `tasks/` evidence.

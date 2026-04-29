@@ -25,6 +25,7 @@ Commands:
 
 ```bash
 pytest tests/unit/test_repo_os_structure.py -v
+pytest tests/unit/test_guardrail_scripts.py -v
 zsh scripts/check
 ```
 

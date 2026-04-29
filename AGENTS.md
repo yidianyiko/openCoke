@@ -35,6 +35,8 @@ When starting work in this repository, read in this order:
 - `docs/fitness/`: verification rules and evidence model.
 - `docs/fitness/coke-verification-matrix.md`: project-specific verification
   commands by surface.
+- `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
+  map for Coke-native guardrail scripts.
 - `tasks/`: task-local work state.
 - `docs/roadmap.md`: product and platform direction.
 - `docs/architecture.md`: runtime reference for the code that exists today.
@@ -82,4 +84,6 @@ When starting work in this repository, read in this order:
 - Format: `black . && isort .`
 - Repo-OS check: `zsh scripts/check`
 - Surface verification: `zsh scripts/verify-surface <surface>`
+- Verification suggestion: `zsh scripts/suggest-verification --base HEAD~1`
+- Review escalation check: `zsh scripts/review-trigger --base HEAD~1`
 - Production deploy: `./scripts/deploy-compose-to-gcp.sh --restart`

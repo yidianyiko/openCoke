@@ -19,28 +19,42 @@ def test_repo_os_required_files_exist():
         ROOT / "docs" / "fitness" / "README.md",
         ROOT / "docs" / "fitness" / "verification-checklist.md",
         ROOT / "docs" / "fitness" / "coke-verification-matrix.md",
+        ROOT / "docs" / "fitness" / "surfaces.yaml",
         ROOT / "tasks" / "README.md",
         ROOT / "tasks" / "_template.md",
         ROOT / "scripts" / "check",
         ROOT / "scripts" / "verify-surface",
+        ROOT / "scripts" / "suggest-verification",
+        ROOT / "scripts" / "review-trigger",
+        ROOT / "scripts" / "guardrails.py",
     ]
 
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
     assert missing == []
 
 
+def test_claude_md_is_agents_md_symlink():
+    claude_path = ROOT / "CLAUDE.md"
+
+    assert claude_path.is_symlink()
+    assert claude_path.resolve() == ROOT / "AGENTS.md"
+
+
 def test_root_docs_reference_repo_os_map():
     agents_text = (ROOT / "AGENTS.md").read_text()
+    claude_text = (ROOT / "CLAUDE.md").read_text()
     readme_text = (ROOT / "README.md").read_text()
 
     for needle in [
         "docs/design-docs/index.md",
         "docs/fitness/README.md",
         "docs/fitness/coke-verification-matrix.md",
+        "docs/fitness/surfaces.yaml",
         "docs/exec-plans/",
         "tasks/",
     ]:
         assert needle in agents_text
+        assert needle in claude_text
         assert needle in readme_text
 
 

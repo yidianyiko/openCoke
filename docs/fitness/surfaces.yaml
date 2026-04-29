@@ -1,0 +1,122 @@
+schema: coke-guardrails-v1
+
+surfaces:
+  - name: worker-runtime
+    paths:
+      - agent/runner/**
+      - agent/agno_agent/workflows/**
+      - agent/agno_agent/tools/deferred_action/**
+      - agent/agno_agent/tools/reminder_protocol/**
+      - agent/prompt/**
+      - agent/reminder/**
+      - dao/reminder_dao.py
+      - dao/deferred_action_*.py
+
+  - name: bridge
+    paths:
+      - connector/clawscale_bridge/**
+
+  - name: gateway-api
+    paths:
+      - gateway/packages/api/**
+      - gateway/packages/shared/**
+
+  - name: gateway-web
+    paths:
+      - gateway/packages/web/**
+
+  - name: deploy
+    paths:
+      - docker-compose.prod.yml
+      - deploy/**
+      - scripts/deploy-*.sh
+      - scripts/test-deploy-compose-to-gcp.sh
+      - docs/deploy.md
+
+  - name: repo-os
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - README.md
+      - docs/design-docs/**
+      - docs/adr/**
+      - docs/exec-plans/**
+      - docs/fitness/**
+      - tasks/**
+      - scripts/check
+      - scripts/verify-surface
+      - scripts/suggest-verification
+      - scripts/review-trigger
+      - scripts/guardrails.py
+
+review_triggers:
+  - name: cross_boundary_bridge_gateway
+    type: cross_boundary_change
+    severity: high
+    boundaries:
+      bridge:
+        - connector/clawscale_bridge/**
+      gateway:
+        - gateway/packages/api/**
+        - gateway/packages/shared/**
+    min_boundaries: 2
+
+  - name: cross_boundary_worker_bridge
+    type: cross_boundary_change
+    severity: medium
+    boundaries:
+      worker-runtime:
+        - agent/runner/**
+        - agent/agno_agent/**
+        - agent/prompt/**
+      bridge:
+        - connector/clawscale_bridge/**
+    min_boundaries: 2
+
+  - name: sensitive_repo_os_change
+    type: changed_paths
+    severity: medium
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - docs/fitness/**
+      - docs/design-docs/**
+      - scripts/check
+      - scripts/verify-surface
+      - scripts/suggest-verification
+      - scripts/review-trigger
+      - scripts/guardrails.py
+
+  - name: deploy_surface_change
+    type: changed_paths
+    severity: high
+    paths:
+      - docker-compose.prod.yml
+      - deploy/**
+      - scripts/deploy-*.sh
+      - scripts/test-deploy-compose-to-gcp.sh
+
+  - name: oversized_change
+    type: diff_size
+    severity: medium
+    max_files: 12
+    max_added_lines: 600
+    max_deleted_lines: 400
+
+  - name: task_evidence_gap
+    type: evidence_gap
+    severity: medium
+    paths:
+      - agent/**
+      - connector/**
+      - gateway/**
+      - dao/**
+      - entity/**
+      - util/**
+      - framework/**
+      - deploy/**
+      - scripts/**
+      - docs/fitness/**
+      - docs/design-docs/**
+    evidence_paths:
+      - tasks/**

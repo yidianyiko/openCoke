@@ -21,10 +21,14 @@ typeset -a required_files=(
   "docs/fitness/README.md"
   "docs/fitness/verification-checklist.md"
   "docs/fitness/coke-verification-matrix.md"
+  "docs/fitness/surfaces.yaml"
   "tasks/README.md"
   "tasks/_template.md"
   "scripts/check"
   "scripts/verify-surface"
+  "scripts/suggest-verification"
+  "scripts/review-trigger"
+  "scripts/guardrails.py"
   "agent/runner/agent_runner.py"
   "connector/clawscale_bridge/app.py"
   "connector/clawscale_bridge/output_dispatcher.py"
@@ -53,10 +57,11 @@ for needle in \
   "docs/design-docs/index.md" \
   "docs/fitness/README.md" \
   "docs/fitness/coke-verification-matrix.md" \
+  "docs/fitness/surfaces.yaml" \
   "docs/exec-plans/" \
   "tasks/"
 do
-  if rg -q "$needle" AGENTS.md README.md; then
+  if rg -q "$needle" AGENTS.md CLAUDE.md README.md; then
     print "OK  root docs reference $needle"
   else
     print "MISS root docs reference $needle"
