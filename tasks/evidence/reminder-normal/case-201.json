@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 201,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-cf6defebd4",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "73a8836dddd64490285bfabf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 201,
+      "input": "目前在二战考研，我白天学习状态还可以，因为在图书馆，晚上回家的话，学了一天有点累加上一个人学的话，没那么自律了，晚上这几个小时就不太想浪费，怎么办",
+      "user_id": "73a8836dddd64490285bfabf",
+      "original_from_user": "6934184e4bf7878f04114aed",
+      "input_message_id": "69f1c5a9f9520396d99fc98a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1c5b83dc31549ec059cea",
+          "expect_output_timestamp": 1777452461,
+          "handled_timestamp": 1777452461,
+          "status": "pending",
+          "message_type": "text",
+          "message": "晚上学不进去太正常了，白天已经高度专注了一天，到了晚上大脑本身就处在低电量状态。别想着晚上还能跟白天一样猛学。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-cf6defebd4",
+            "case_index": 201,
+            "original_from_user": "6934184e4bf7878f04114aed",
+            "source_id": "69341ae44bf7878f04114af0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-cf6defebd4-case-201",
+              "business_conversation_key": "reminder-normal-cf6defebd4-case-201",
+              "causal_inbound_event_id": "reminder-normal-cf6defebd4-case-201-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "73a8836dddd64490285bfabf"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 15.025
+    }
+  ]
+}
