@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 253,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-bf50693450",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "23f04182e51443b74a37d8bf"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 253,
+      "input": "9:20 提醒我回家开会",
+      "user_id": "23f04182e51443b74a37d8bf",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1e94ab59b4792546e3225",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e959d65ae1eb40c94ad9",
+          "expect_output_timestamp": 1777461593,
+          "handled_timestamp": 1777461593,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：回家开会（2026-05-01 09:20）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bf50693450",
+            "case_index": 253,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "6936ba4dfa6e02049481c855",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bf50693450-case-253",
+              "business_conversation_key": "reminder-normal-bf50693450-case-253",
+              "causal_inbound_event_id": "reminder-normal-bf50693450-case-253-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "23f04182e51443b74a37d8bf"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e959d65ae1eb40c94ad7",
+          "owner_user_id": "23f04182e51443b74a37d8bf",
+          "title": "回家开会",
+          "schedule": {
+            "anchor_at": "2026-05-01T00:20:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "09:20:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e94ad65ae1eb40c94ad0",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T00:20:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:19:53.767000+00:00",
+          "updated_at": "2026-04-29T11:19:53.767000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 16.029
+    }
+  ]
+}
