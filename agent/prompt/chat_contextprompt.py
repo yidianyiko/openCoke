@@ -509,7 +509,11 @@ def reminder_tool_result_counts_as_setup(entry: dict) -> bool:
     if entry.get("tool_name") != "提醒操作":
         return False
     action = _tool_result_action(entry)
-    return action != "list"
+    if action == "list":
+        return False
+    if action in {"create", "batch"}:
+        return entry.get("ok") is True
+    return True
 
 
 def get_reminder_operation_direct_reply(session_state: dict) -> str:

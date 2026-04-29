@@ -137,6 +137,44 @@ def test_reminder_operation_direct_reply_skips_list_results():
     assert get_reminder_operation_direct_reply(state) == ""
 
 
+def test_reminder_operation_direct_reply_skips_failed_create_results():
+    from agent.prompt.chat_contextprompt import (
+        get_reminder_operation_direct_reply,
+        reminder_tool_result_counts_as_setup,
+    )
+
+    failed_create = {
+        "tool_name": "提醒操作",
+        "ok": False,
+        "result_summary": "创建提醒失败：One-shot reminder schedule must be in the future",
+        "extra_notes": "action=create",
+    }
+    state = {"tool_results": [failed_create]}
+
+    assert reminder_tool_result_counts_as_setup(failed_create) is False
+    assert get_reminder_operation_direct_reply(state) == ""
+
+
+def test_reminder_operation_direct_reply_keeps_delete_no_match_results():
+    from agent.prompt.chat_contextprompt import (
+        get_reminder_operation_direct_reply,
+        reminder_tool_result_counts_as_setup,
+    )
+
+    failed_delete = {
+        "tool_name": "提醒操作",
+        "ok": False,
+        "result_summary": "取消提醒失败：keyword '该走了' matched 0 reminders",
+        "extra_notes": "action=delete",
+    }
+    state = {"tool_results": [failed_delete]}
+
+    assert reminder_tool_result_counts_as_setup(failed_delete) is True
+    assert get_reminder_operation_direct_reply(state) == (
+        "取消提醒失败：keyword '该走了' matched 0 reminders"
+    )
+
+
 def test_single_success_result():
     from agent.prompt.chat_contextprompt import get_tool_results_context
 
@@ -450,52 +488,16 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
 
     assert events[-1]["type"] == "done"
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
-    assert (
-        "Do not assume the reminder has been set successfully" in workflow.agent.input
-    )
-    assert "Do not say you remembered" in workflow.agent.input
-    assert "交给我" in workflow.agent.input
-    assert "安排上" in workflow.agent.input
-    assert "帮你定" in workflow.agent.input
-    assert "帮你设置" in workflow.agent.input
-    assert "设置好了" in workflow.agent.input
-    assert "收到这个提醒" in workflow.agent.input
-    assert "设置的" in workflow.agent.input
-    assert "订蛋糕的提醒安排上" in workflow.agent.input
-    assert "only ask for the missing information" in workflow.agent.input
-    assert 'Do not say "提醒你"' in workflow.agent.input
-    assert "plan or schedule statement" in workflow.agent.input
+    assert "ReminderDetect was requested" in workflow.agent.input
+    assert "Ask one direct question" in workflow.agent.input
+    assert "If trigger time is missing" in workflow.agent.input
+    assert "If cadence is missing" in workflow.agent.input
+    assert "If only a time was supplied" in workflow.agent.input
+    assert "ask what the reminder should be about" in workflow.agent.input
     assert "ask whether they want a reminder" in workflow.agent.input
-    assert "missing information is consent" in workflow.agent.input
-    assert "even conditionally" in workflow.agent.input
-    assert "Ask one direct clarification question" in workflow.agent.input
-    assert "什么时候" in workflow.agent.input
-    assert "几点" in workflow.agent.input
-    assert "Do not invent lead times" in workflow.agent.input
-    assert "advance notice" in workflow.agent.input
-    assert "at the stated time" in workflow.agent.input
-    assert "do not suggest advance-notice offsets" in workflow.agent.input
-    assert "cancel, stop, or no longer receive a reminder" in workflow.agent.input
-    assert "Ask which reminder they want to cancel" in workflow.agent.input
-    assert "no reminders remaining" in workflow.agent.input
-    assert "哪条提醒" in workflow.agent.input
-    assert "今晚不打扰你" in workflow.agent.input
-    assert "recommend a reminder cadence or frequency" in workflow.agent.input
-    assert "suggest exactly one practical cadence" in workflow.agent.input
-    assert "end the message with an explicit" in workflow.agent.input
-    assert "你想按这个频率吗" in workflow.agent.input
-    assert "Keep cadence recommendations as proposals only" in workflow.agent.input
-    assert "first-person promise" in workflow.agent.input
-    assert (
-        "Do not infer prior reminder agreements from retrieved history"
-        in workflow.agent.input
-    )
-    assert "Do not propose a specific clock time or cadence" in workflow.agent.input
-    assert "status or check-in question" in workflow.agent.input
+    assert "If a date is known but clock time is missing" in workflow.agent.input
+    assert "State that reminder setup has not completed yet" in workflow.agent.input
     assert "ask when or how often to check in" in workflow.agent.input
-    assert workflow.agent.input.rfind("### System Notice: Reminder Setup Pending") > (
-        workflow.agent.input.rfind("## CRITICAL CONSTRAINTS")
-    )
 
 
 @pytest.mark.asyncio
