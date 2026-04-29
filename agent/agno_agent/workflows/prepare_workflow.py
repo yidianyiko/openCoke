@@ -900,7 +900,7 @@ class PrepareWorkflow:
                 session_state,
                 tool_name="提醒操作",
                 ok=False,
-                result_summary="提醒操作失败：提醒识别超时，未能完成提醒设置",
+                result_summary=("提醒设置还没完成。请确认具体提醒时间和提醒内容。"),
                 extra_notes="action=detect; error_code=ReminderDetectTimeout",
             )
         except Exception as e:

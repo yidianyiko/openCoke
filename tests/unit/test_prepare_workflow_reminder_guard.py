@@ -1411,7 +1411,8 @@ async def test_reminder_detect_timeout_records_failed_tool_result(monkeypatch):
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert tool_result["tool_name"] == "提醒操作"
     assert tool_result["ok"] is False
-    assert "提醒识别超时" in tool_result["result_summary"]
+    assert "提醒设置还没完成" in tool_result["result_summary"]
+    assert "具体提醒时间" in tool_result["result_summary"]
 
 
 def test_reminder_detect_retry_default_timeout_allows_fast_llm_budget():
@@ -1641,4 +1642,5 @@ async def test_reminder_detect_timeout_does_not_create_with_local_parser(monkeyp
     [tool_result] = result["session_state"]["tool_results"]
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert tool_result["ok"] is False
-    assert "提醒识别超时" in tool_result["result_summary"]
+    assert "提醒设置还没完成" in tool_result["result_summary"]
+    assert "具体提醒时间" in tool_result["result_summary"]
