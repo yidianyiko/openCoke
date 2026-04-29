@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 391,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b938a4385d",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d4b3dceaf508b1aed0410826"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 391,
+      "input": "跟学习有关的任务提醒一下就行",
+      "user_id": "d4b3dceaf508b1aed0410826",
+      "original_from_user": "692dbb5564d834c3c061653f",
+      "input_message_id": "69f2376eece6bdee19478470",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2377b5f7e042740b8ccd5",
+          "expect_output_timestamp": 1777481595,
+          "handled_timestamp": 1777481595,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想在什么时间收到关于学习任务的提醒？另外，具体是哪个学习任务呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b938a4385d",
+            "case_index": 391,
+            "original_from_user": "692dbb5564d834c3c061653f",
+            "source_id": "693eeb832971a327a8e5ecd4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b938a4385d-case-391",
+              "business_conversation_key": "reminder-normal-b938a4385d-case-391",
+              "causal_inbound_event_id": "reminder-normal-b938a4385d-case-391-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d4b3dceaf508b1aed0410826"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.023
+    }
+  ]
+}

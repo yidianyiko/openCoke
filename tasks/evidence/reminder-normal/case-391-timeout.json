@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 391,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-5ca07b4d24",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "07c8dfad4c2a9afabf501e78"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_user_output": 1,
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 391,
+        "input": "跟学习有关的任务提醒一下就行",
+        "user_id": "07c8dfad4c2a9afabf501e78",
+        "original_from_user": "692dbb5564d834c3c061653f",
+        "input_message_id": "69f236dc6e0928e7e7406043",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.203
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 391,
+      "input": "跟学习有关的任务提醒一下就行",
+      "user_id": "07c8dfad4c2a9afabf501e78",
+      "original_from_user": "692dbb5564d834c3c061653f",
+      "input_message_id": "69f236dc6e0928e7e7406043",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.203
+    }
+  ]
+}

@@ -411,6 +411,10 @@
     "390": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user provides a detailed time-blocked task list but does not explicitly request reminders. The agent should ask which tasks to remind about instead of creating reminders for every schedule item."
+    },
+    "391": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The isolated corpus case asks to remind about study-related tasks but does not provide the task schedule or concrete times in the current turn. The agent should ask for timing details instead of creating reminders."
     }
   }
 }
