@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 275,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-9a19b1257e",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "fc45ee151cb6322613cad205"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 275,
+      "input": "6:40提醒我出门",
+      "user_id": "fc45ee151cb6322613cad205",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f1effdc546d5989181cea3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1f017a101647c6278cf3d",
+          "expect_output_timestamp": 1777463319,
+          "handled_timestamp": 1777463319,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：出门（2026-05-01 06:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-9a19b1257e",
+            "case_index": 275,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "6937eb6cfa6e02049481c8ee",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-9a19b1257e-case-275",
+              "business_conversation_key": "reminder-normal-9a19b1257e-case-275",
+              "causal_inbound_event_id": "reminder-normal-9a19b1257e-case-275-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "fc45ee151cb6322613cad205"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1f017a101647c6278cf3b",
+          "owner_user_id": "fc45ee151cb6322613cad205",
+          "title": "出门",
+          "schedule": {
+            "anchor_at": "2026-04-30T21:40:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "06:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1effda101647c6278cf32",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T21:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T11:48:39.566000+00:00",
+          "updated_at": "2026-04-29T11:48:39.566000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 26.044
+    }
+  ]
+}
