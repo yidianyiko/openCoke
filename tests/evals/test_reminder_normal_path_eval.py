@@ -583,6 +583,24 @@ def test_validate_observations_allows_clarification_for_implicit_time_task():
     assert errors == []
 
 
+def test_validate_observations_accepts_time_choice_clarification():
+    case = normal_eval.ReminderNormalPathCase(
+        input="七点半开始正式学习",
+        expected_intent="reminder",
+        matched_keywords=["点半", "开始", "学习"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "七点半？你是说今天晚上七点半开始学习，还是明天早上七点半呀？"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",
