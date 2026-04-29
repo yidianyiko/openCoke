@@ -289,6 +289,10 @@
     "257": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user describes a short rest and routine-rest plan without asking to be reminded or supervised. The agent may acknowledge or ask whether a reminder is wanted, but should not promise or create one."
+    },
+    "258": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded 'after a while' without a concrete trigger time and without reminder content. The agent should ask for the missing details instead of creating a reminder."
     }
   }
 }
