@@ -91,6 +91,16 @@ def test_reminder_detect_instructions_accept_name_plus_activity_as_content():
     assert "name or object plus activity" in instructions
 
 
+def test_reminder_detect_instructions_treat_concrete_contact_time_as_reminder():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
+
+    assert "come back, find, contact, check in" in instructions
+    assert "executable reminder/contact requests" in instructions
+    assert "contact action as the title" in instructions
+    assert "come back, find, contact, check in" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "contact action as the title" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
 def test_reminder_detect_instructions_treat_no_disturb_as_cancel_intent():
     instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
 

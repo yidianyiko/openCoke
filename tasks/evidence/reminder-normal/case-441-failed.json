@@ -1,0 +1,66 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 441,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-e9dcf51831",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "71673d9cf9a4fcb90d74ae30"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 1,
+      "no_reminder_created": 1,
+      "no_user_output": 1
+    },
+    "failures": [
+      {
+        "index": 441,
+        "input": "25分钟之后提醒我站起来休息喝水",
+        "user_id": "71673d9cf9a4fcb90d74ae30",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f24a887b7d7eb50cbd6ed1",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "no_reminder_created"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 120.205
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 441,
+      "input": "25分钟之后提醒我站起来休息喝水",
+      "user_id": "71673d9cf9a4fcb90d74ae30",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24a887b7d7eb50cbd6ed1",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "no_reminder_created"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 120.205
+    }
+  ]
+}

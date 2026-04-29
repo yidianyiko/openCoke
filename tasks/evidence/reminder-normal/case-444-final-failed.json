@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 444,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c523083427",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "cbeaad5389cbe9f5411cd27d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:找我": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:找我": 1
+    },
+    "failures": [
+      {
+        "index": 444,
+        "input": "晚上 8 点再来找我，吃饭呢",
+        "user_id": "cbeaad5389cbe9f5411cd27d",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f24befed6c669fddf55ca0",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:找我",
+          "user_output_missing_expected_title:找我"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24bf8ba263b74d1461251",
+            "expect_output_timestamp": 1777486840,
+            "handled_timestamp": 1777486840,
+            "status": "pending",
+            "message_type": "text",
+            "message": "晚上8点需要我提醒你吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-c523083427",
+              "case_index": 444,
+              "original_from_user": "69367b2c94ff180b41ab7454",
+              "source_id": "69412fb5a6d5f2cba9a5577f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-c523083427-case-444",
+                "business_conversation_key": "reminder-normal-c523083427-case-444",
+                "causal_inbound_event_id": "reminder-normal-c523083427-case-444-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "cbeaad5389cbe9f5411cd27d"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 10.017
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 444,
+      "input": "晚上 8 点再来找我，吃饭呢",
+      "user_id": "cbeaad5389cbe9f5411cd27d",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24befed6c669fddf55ca0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:找我",
+        "user_output_missing_expected_title:找我"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24bf8ba263b74d1461251",
+          "expect_output_timestamp": 1777486840,
+          "handled_timestamp": 1777486840,
+          "status": "pending",
+          "message_type": "text",
+          "message": "晚上8点需要我提醒你吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c523083427",
+            "case_index": 444,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69412fb5a6d5f2cba9a5577f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c523083427-case-444",
+              "business_conversation_key": "reminder-normal-c523083427-case-444",
+              "causal_inbound_event_id": "reminder-normal-c523083427-case-444-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cbeaad5389cbe9f5411cd27d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 10.017
+    }
+  ]
+}

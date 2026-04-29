@@ -1,0 +1,123 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 444,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-367d5f4c44",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ac77f5999be0450f8aea3bc4"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:提醒": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:提醒": 1
+    },
+    "failures": [
+      {
+        "index": 444,
+        "input": "晚上 8 点再来找我，吃饭呢",
+        "user_id": "ac77f5999be0450f8aea3bc4",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f24b7b8857af19890556e0",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:提醒",
+          "user_output_missing_expected_title:提醒"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24b8ef4d69eebd533d1b0",
+            "expect_output_timestamp": 1777486733,
+            "handled_timestamp": 1777486733,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-367d5f4c44",
+              "case_index": 444,
+              "original_from_user": "69367b2c94ff180b41ab7454",
+              "source_id": "69412fb5a6d5f2cba9a5577f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-367d5f4c44-case-444",
+                "business_conversation_key": "reminder-normal-367d5f4c44-case-444",
+                "causal_inbound_event_id": "reminder-normal-367d5f4c44-case-444-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "ac77f5999be0450f8aea3bc4"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 20.034
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 444,
+      "input": "晚上 8 点再来找我，吃饭呢",
+      "user_id": "ac77f5999be0450f8aea3bc4",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24b7b8857af19890556e0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:提醒",
+        "user_output_missing_expected_title:提醒"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24b8ef4d69eebd533d1b0",
+          "expect_output_timestamp": 1777486733,
+          "handled_timestamp": 1777486733,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-367d5f4c44",
+            "case_index": 444,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69412fb5a6d5f2cba9a5577f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-367d5f4c44-case-444",
+              "business_conversation_key": "reminder-normal-367d5f4c44-case-444",
+              "causal_inbound_event_id": "reminder-normal-367d5f4c44-case-444-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ac77f5999be0450f8aea3bc4"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 20.034
+    }
+  ]
+}

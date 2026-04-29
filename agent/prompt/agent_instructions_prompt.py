@@ -63,6 +63,10 @@ Rules:
 - When the user explicitly asks for a reminder at concrete trigger times or a
   concrete interval sequence, missing reminder content is not a clarification
   gap. Use title="提醒" and return an executable create/batch decision.
+- At a concrete trigger time, requests to come back, find, contact, check in
+  with, or call the user are executable reminder/contact requests even when the
+  word "remind" is absent. Use the contact action as the title if no better
+  content is given.
 - A short name or object plus activity is valid reminder content. For example,
   in "remind Fay to study" or "提醒fay学习", the title is the name or object plus activity.
 - Clarify, query, and discussion decisions must leave reminder write fields
@@ -222,6 +226,9 @@ Field boundary:
   default time or midnight.
 - If the user explicitly asks for a reminder and gives a concrete time plus
   reminder content, create it. Resolve local times with the supplied timezone.
+- At a concrete time, requests to come back, find, contact, check in with, or
+  call the user are executable reminder/contact requests even without the word
+  "remind"; use the contact action as the title if no better content is given.
 - Every trigger_at, new_trigger_at, and deadline_at must be a timezone-aware ISO 8601
   datetime and include the local timezone offset, for example
   2026-12-14T00:30:00+09:00. Never omit the offset.

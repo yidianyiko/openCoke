@@ -182,6 +182,16 @@ reminders can fire without waiting for wall-clock time.
   fallback; after PM2 restart the case passed with no reminders.
 - `case437` added a clarification expectation for a plan/status statement about
   starting drawing at 3 PM without an explicit reminder request.
+- `case438` and `case439` passed without code or fixture changes.
+- `case440` initially hit a transient no-create failure for a five-minute
+  reminder, then passed on rerun without code changes.
+- `case441` initially timed out with the input still pending, then passed after
+  a PM2 restart.
+- `case442` and `case443` passed without code or fixture changes.
+- `case444` added a CRUD expectation for concrete-time contact requests such as
+  “come back/find me at 8 PM” and tightened ReminderDetect instructions for that
+  reminder/contact class. Several attempts alternated between create, clarify,
+  and unconfirmed chat before the prompt update and final passing rerun.
 - Continue with one case at a time, saving evidence and clearing logs after each
   case.
 - Future failures must be handled in this priority order: schema field

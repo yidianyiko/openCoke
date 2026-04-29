@@ -458,6 +458,18 @@
     "437": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user references a planned 3 PM drawing start but does not explicitly ask for a reminder. The agent should ask whether to remind instead of creating a reminder from the plan statement."
+    },
+    "444": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks the agent to come back/find them at 8 PM, which is an implicit reminder/contact request with a concrete time.",
+      "expected_creates": [
+        {
+          "title": "找我",
+          "local_time": "20:00:00",
+          "recurring": false,
+          "title_variants": ["提醒"]
+        }
+      ]
     }
   }
 }

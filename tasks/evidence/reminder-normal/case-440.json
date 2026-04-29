@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 440,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-bc058239fd",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "dcb2f749c85736a6f20beaa6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 440,
+      "input": "好的五分钟之后提醒我回来继续写作",
+      "user_id": "dcb2f749c85736a6f20beaa6",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24a75e5fe42fa5f66d910",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f24a7ad200fd62c8b93c99",
+          "expect_output_timestamp": 1777486458,
+          "handled_timestamp": 1777486458,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：回来继续写作（2026-04-30 15:41）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bc058239fd",
+            "case_index": 440,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69410c11a6d5f2cba9a55753",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bc058239fd-case-440",
+              "business_conversation_key": "reminder-normal-bc058239fd-case-440",
+              "causal_inbound_event_id": "reminder-normal-bc058239fd-case-440-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "dcb2f749c85736a6f20beaa6"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f24a7ad200fd62c8b93c97",
+          "owner_user_id": "dcb2f749c85736a6f20beaa6",
+          "title": "回来继续写作",
+          "schedule": {
+            "anchor_at": "2026-04-30T06:41:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "15:41:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f24a75d200fd62c8b93c90",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T06:41:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:14:18.526000+00:00",
+          "updated_at": "2026-04-29T18:14:18.526000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 6.011
+    }
+  ]
+}

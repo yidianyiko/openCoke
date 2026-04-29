@@ -1,0 +1,172 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 444,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-63e464e7bb",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "67f58823ff3cc56ba343516b"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "unexpected_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 444,
+        "input": "晚上 8 点再来找我，吃饭呢",
+        "user_id": "67f58823ff3cc56ba343516b",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f24b3c5feb5d24b9bb2685",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "unexpected_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24b57f4d69eebd533d1a1",
+            "expect_output_timestamp": 1777486679,
+            "handled_timestamp": 1777486679,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：提醒（2026-04-30 20:00）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-63e464e7bb",
+              "case_index": 444,
+              "original_from_user": "69367b2c94ff180b41ab7454",
+              "source_id": "69412fb5a6d5f2cba9a5577f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-63e464e7bb-case-444",
+                "business_conversation_key": "reminder-normal-63e464e7bb-case-444",
+                "causal_inbound_event_id": "reminder-normal-63e464e7bb-case-444-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "67f58823ff3cc56ba343516b"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f24b57f4d69eebd533d19f",
+            "owner_user_id": "67f58823ff3cc56ba343516b",
+            "title": "提醒",
+            "schedule": {
+              "anchor_at": "2026-04-30T11:00:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "20:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f24b3cf4d69eebd533d195",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T11:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T18:17:59.303000+00:00",
+            "updated_at": "2026-04-29T18:17:59.303000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 28.046
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 444,
+      "input": "晚上 8 点再来找我，吃饭呢",
+      "user_id": "67f58823ff3cc56ba343516b",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24b3c5feb5d24b9bb2685",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24b57f4d69eebd533d1a1",
+          "expect_output_timestamp": 1777486679,
+          "handled_timestamp": 1777486679,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：提醒（2026-04-30 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-63e464e7bb",
+            "case_index": 444,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69412fb5a6d5f2cba9a5577f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-63e464e7bb-case-444",
+              "business_conversation_key": "reminder-normal-63e464e7bb-case-444",
+              "causal_inbound_event_id": "reminder-normal-63e464e7bb-case-444-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "67f58823ff3cc56ba343516b"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f24b57f4d69eebd533d19f",
+          "owner_user_id": "67f58823ff3cc56ba343516b",
+          "title": "提醒",
+          "schedule": {
+            "anchor_at": "2026-04-30T11:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f24b3cf4d69eebd533d195",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:17:59.303000+00:00",
+          "updated_at": "2026-04-29T18:17:59.303000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 28.046
+    }
+  ]
+}

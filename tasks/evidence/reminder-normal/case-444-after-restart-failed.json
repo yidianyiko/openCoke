@@ -1,0 +1,175 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 444,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-630abb3982",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b8dd7739a538172e50dbe57f"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "missing_expected_reminder_title:提醒": 1,
+      "user_output_missing_expected_title:提醒": 1
+    },
+    "failures": [
+      {
+        "index": 444,
+        "input": "晚上 8 点再来找我，吃饭呢",
+        "user_id": "b8dd7739a538172e50dbe57f",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f24bb9ab22093753834d32",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "missing_expected_reminder_title:提醒",
+          "user_output_missing_expected_title:提醒"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24bccba263b74d1461240",
+            "expect_output_timestamp": 1777486796,
+            "handled_timestamp": 1777486796,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：找我（2026-04-30 20:00）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-630abb3982",
+              "case_index": 444,
+              "original_from_user": "69367b2c94ff180b41ab7454",
+              "source_id": "69412fb5a6d5f2cba9a5577f",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-630abb3982-case-444",
+                "business_conversation_key": "reminder-normal-630abb3982-case-444",
+                "causal_inbound_event_id": "reminder-normal-630abb3982-case-444-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "b8dd7739a538172e50dbe57f"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f24bccba263b74d146123e",
+            "owner_user_id": "b8dd7739a538172e50dbe57f",
+            "title": "找我",
+            "schedule": {
+              "anchor_at": "2026-04-30T11:00:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "20:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f24bb9ba263b74d1461233",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T11:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T18:19:56.713000+00:00",
+            "updated_at": "2026-04-29T18:19:56.713000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 20.034
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 444,
+      "input": "晚上 8 点再来找我，吃饭呢",
+      "user_id": "b8dd7739a538172e50dbe57f",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f24bb9ab22093753834d32",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "missing_expected_reminder_title:提醒",
+        "user_output_missing_expected_title:提醒"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24bccba263b74d1461240",
+          "expect_output_timestamp": 1777486796,
+          "handled_timestamp": 1777486796,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：找我（2026-04-30 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-630abb3982",
+            "case_index": 444,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69412fb5a6d5f2cba9a5577f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-630abb3982-case-444",
+              "business_conversation_key": "reminder-normal-630abb3982-case-444",
+              "causal_inbound_event_id": "reminder-normal-630abb3982-case-444-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b8dd7739a538172e50dbe57f"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f24bccba263b74d146123e",
+          "owner_user_id": "b8dd7739a538172e50dbe57f",
+          "title": "找我",
+          "schedule": {
+            "anchor_at": "2026-04-30T11:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f24bb9ba263b74d1461233",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:19:56.713000+00:00",
+          "updated_at": "2026-04-29T18:19:56.713000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 20.034
+    }
+  ]
+}

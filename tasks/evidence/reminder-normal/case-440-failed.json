@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 440,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-f61f6fae02",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "aee7bb32aecbfdd16529a162"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 440,
+        "input": "好的五分钟之后提醒我回来继续写作",
+        "user_id": "aee7bb32aecbfdd16529a162",
+        "original_from_user": "69367b2c94ff180b41ab7454",
+        "input_message_id": "69f249e82cc5e944bb558526",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f24a58d200fd62c8b93c8b",
+            "expect_output_timestamp": 1777486422,
+            "handled_timestamp": 1777486422,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的我收到啦，不过刚才尝试设提醒的时候系统没成功完成，所以还没给你定上",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-f61f6fae02",
+              "case_index": 440,
+              "original_from_user": "69367b2c94ff180b41ab7454",
+              "source_id": "69410c11a6d5f2cba9a55753",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-f61f6fae02-case-440",
+                "business_conversation_key": "reminder-normal-f61f6fae02-case-440",
+                "causal_inbound_event_id": "reminder-normal-f61f6fae02-case-440-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "aee7bb32aecbfdd16529a162"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 112.19
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 440,
+      "input": "好的五分钟之后提醒我回来继续写作",
+      "user_id": "aee7bb32aecbfdd16529a162",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "69f249e82cc5e944bb558526",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f24a58d200fd62c8b93c8b",
+          "expect_output_timestamp": 1777486422,
+          "handled_timestamp": 1777486422,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的我收到啦，不过刚才尝试设提醒的时候系统没成功完成，所以还没给你定上",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-f61f6fae02",
+            "case_index": 440,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69410c11a6d5f2cba9a55753",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-f61f6fae02-case-440",
+              "business_conversation_key": "reminder-normal-f61f6fae02-case-440",
+              "causal_inbound_event_id": "reminder-normal-f61f6fae02-case-440-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "aee7bb32aecbfdd16529a162"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 112.19
+    }
+  ]
+}
