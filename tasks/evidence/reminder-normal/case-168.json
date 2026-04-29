@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 168,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-38648acd47",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "201e158a81b3fc01e96945b6"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 168,
+      "input": "今天学习结束，晚安，不要打扰我了",
+      "user_id": "201e158a81b3fc01e96945b6",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "69f19bb567d81b236977eab1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f19c13788e46e5b6346b98",
+          "expect_output_timestamp": 1777441721,
+          "handled_timestamp": 1777441721,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-38648acd47",
+            "case_index": 168,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "693195814bf7878f041149e1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-38648acd47-case-168",
+              "business_conversation_key": "reminder-normal-38648acd47-case-168",
+              "causal_inbound_event_id": "reminder-normal-38648acd47-case-168-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "201e158a81b3fc01e96945b6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 95.158
+    }
+  ]
+}
