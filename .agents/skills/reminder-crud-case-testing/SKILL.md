@@ -64,6 +64,10 @@ Do not let normal-path fixes become another case-by-case parser.
   hard-routed reminder replies to pass a single corpus case.
 - If a detector timeout needs a fallback, use a shorter-context LLM retry that
   can still decide to clarify or do nothing; timeout is not permission to create.
+- If a detector response violates the structured schema, do not repair fields in
+  Python. Record the invalid structured output and retry with the shorter-context
+  LLM path; if retry also fails, leave the reminder unexecuted for chat
+  clarification.
 - Date-only or time-missing create requests should clarify unless the product
   has an explicit default-time policy.
 - Isolate eval identities by batch and case. Do not reuse corpus `from_user` as

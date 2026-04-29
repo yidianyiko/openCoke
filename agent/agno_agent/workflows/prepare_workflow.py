@@ -826,10 +826,27 @@ class PrepareWorkflow:
                 )
 
             # 记录结果
-            self._execute_structured_reminder_decision(
+            executed = self._execute_structured_reminder_decision(
                 reminder_response,
                 session_state,
             )
+            if (
+                not executed
+                and session_state.pop(
+                    "prepare_reminder_detect_invalid_structured_output", False
+                )
+            ):
+                retry_response = await self._run_reminder_detect_retry(
+                    input_message,
+                    session_state,
+                )
+                if retry_response is not None:
+                    self._execute_structured_reminder_decision(
+                        retry_response,
+                        session_state,
+                    )
+                    self._log_reminder_result(retry_response, session_state)
+                    return
             self._log_reminder_result(reminder_response, session_state)
 
         except asyncio.TimeoutError:
@@ -902,10 +919,13 @@ class PrepareWorkflow:
         self,
         reminder_response,
         session_state: Dict[str, Any],
-    ) -> None:
-        decision = self._coerce_reminder_detect_decision(reminder_response)
+    ) -> bool:
+        decision = self._coerce_reminder_detect_decision(
+            reminder_response,
+            session_state,
+        )
         if decision is None:
-            return
+            return False
 
         should_execute = (
             decision.intent_type == "crud"
@@ -917,7 +937,7 @@ class PrepareWorkflow:
                 "[PrepareWorkflow] ReminderDetect structured decision did not require execution: %s",
                 decision.intent_type,
             )
-            return
+            return False
 
         logger.debug(
             "[PrepareWorkflow] Executing structured ReminderDetect decision: intent=%s action=%s",
@@ -935,6 +955,7 @@ class PrepareWorkflow:
             rrule=decision.rrule or None,
             operations=self._dump_reminder_operations(decision) or None,
         )
+        return True
 
     def _dump_reminder_operations(
         self,
@@ -959,6 +980,7 @@ class PrepareWorkflow:
     def _coerce_reminder_detect_decision(
         self,
         reminder_response,
+        session_state: Dict[str, Any] | None = None,
     ) -> ReminderDetectDecision | None:
         if not reminder_response:
             return None
@@ -973,6 +995,10 @@ class PrepareWorkflow:
                     "[PrepareWorkflow] Invalid ReminderDetect structured decision: %s",
                     content,
                 )
+                if session_state is not None:
+                    session_state[
+                        "prepare_reminder_detect_invalid_structured_output"
+                    ] = True
                 return None
         if isinstance(content, str) and content.strip():
             try:
@@ -981,6 +1007,10 @@ class PrepareWorkflow:
                 logger.warning(
                     "[PrepareWorkflow] Unparseable ReminderDetect structured decision"
                 )
+                if session_state is not None:
+                    session_state[
+                        "prepare_reminder_detect_invalid_structured_output"
+                    ] = True
         return None
 
     def _renew_lock_if_needed(self, session_state: Dict[str, Any]) -> None:

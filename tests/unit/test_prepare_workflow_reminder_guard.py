@@ -90,6 +90,113 @@ async def test_structured_reminder_detect_decision_executes_visible_tool(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_invalid_structured_reminder_decision_retries_with_fast_agent(monkeypatch):
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    invalid_response = MagicMock()
+    invalid_response.metrics = None
+    invalid_response.tools = []
+    invalid_response.content = {
+        "intent_type": "clarify",
+        "action": "create",
+        "title": "打卡",
+    }
+
+    retry_response = MagicMock()
+    retry_response.metrics = None
+    retry_response.tools = []
+    retry_response.content = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        deadline_at="2026-04-29T20:00:00+09:00",
+        operations=[
+            {
+                "action": "create",
+                "title": "打卡",
+                "trigger_at": "2026-04-29T16:51:00+09:00",
+            }
+        ],
+    )
+
+    calls = []
+
+    def fake_visible_reminder_tool(**kwargs):
+        calls.append(kwargs)
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=True,
+            result_summary="已创建提醒：打卡",
+            extra_notes="action=create",
+        )
+        return "已创建提醒：打卡"
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日15时51分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow.visible_reminder_tool,
+        "entrypoint",
+        fake_visible_reminder_tool,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
+        ) as reminder_detect_retry_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_response = MagicMock()
+        orchestrator_response.metrics = None
+        orchestrator_response.content = {
+            "need_context_retrieve": False,
+            "need_reminder_detect": True,
+            "need_web_search": False,
+            "need_timezone_update": False,
+            "timezone_action": "none",
+        }
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=invalid_response)
+        reminder_detect_retry_agent.arun = AsyncMock(return_value=retry_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run("每小时打卡，到晚上8点", session_state)
+
+    reminder_detect_retry_agent.arun.assert_awaited_once()
+    assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
+    assert calls[0]["action"] == "batch"
+    assert calls[0]["operations"] == [
+        {
+            "action": "create",
+            "title": "打卡",
+            "trigger_at": "2026-04-29T16:51:00+09:00",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fast():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
