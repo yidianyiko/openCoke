@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 217,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-3c13bbbdb7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "91928a1dea17a8453d67ebc9"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 217,
+      "input": "今天不要再打卡了，我锁手机了",
+      "user_id": "91928a1dea17a8453d67ebc9",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f1e0e7375e75214695c9c1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e0f7bcf5ab6571c9f3f4",
+          "expect_output_timestamp": 1777459447,
+          "handled_timestamp": 1777459447,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：keyword '打卡' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-3c13bbbdb7",
+            "case_index": 217,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "69356bb54bf7878f04114b6e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-3c13bbbdb7-case-217",
+              "business_conversation_key": "reminder-normal-3c13bbbdb7-case-217",
+              "causal_inbound_event_id": "reminder-normal-3c13bbbdb7-case-217-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "91928a1dea17a8453d67ebc9"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.026
+    }
+  ]
+}
