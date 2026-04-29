@@ -14,6 +14,13 @@ def test_reminder_detect_schema_disallows_write_fields_for_clarify():
         )
 
 
+def test_reminder_detect_schema_requires_batch_operations():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(intent_type="crud", action="batch")
+
+
 def test_reminder_detect_agents_use_structured_decision_schema():
     from agent.agno_agent.agents import (
         reminder_detect_agent,

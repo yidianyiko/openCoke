@@ -69,6 +69,10 @@ class ReminderDetectDecision(BaseModel):
         if self.intent_type == "crud":
             if not self.action:
                 raise ValueError("crud intent requires action")
+            if self.action == "batch" and not self.operations:
+                raise ValueError("batch action requires operations")
+            if self.action == "create" and not (self.title and self.trigger_at):
+                raise ValueError("create action requires title and trigger_at")
             return self
 
         if has_write_fields:
