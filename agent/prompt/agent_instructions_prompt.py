@@ -121,6 +121,10 @@ Rules:
   should be Y" as schedule clarification, not as uncertainty that requires
   another confirmation, when the interval, deadline, and reminder intent are
   otherwise explicit.
+- In a create/batch request, a same-message stop boundary such as "after 20:00
+  stop checking in" or "20点之后不要打卡" defines the new schedule deadline.
+  Treat it as deadline_at for that batch, not as delete/cancel, unless the
+  current message is only about stopping existing reminders.
 - Example: current time 2026-04-29 15:07 Asia/Tokyo, "在6点前，每50分钟通知我一次" -> call batch with one-shot reminders at 15:57, 16:47, 17:37 local time.
 - Day-period words are not recurrence. "morning", "afternoon", "evening",
   "早上", "上午", "下午", "晚上", and "今晚" only help resolve the local

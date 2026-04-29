@@ -112,3 +112,12 @@ def test_reminder_detect_instructions_use_user_supplied_interval_anchor():
 
     assert "explicit occurrence anchor" in instructions
     assert "correction point" in instructions
+
+
+def test_reminder_detect_instructions_treat_same_message_stop_as_deadline():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
+
+    assert "same-message stop boundary" in instructions
+    assert "20点之后不要打卡" in instructions
+    assert "deadline_at for that batch" in instructions
+    assert "not as delete/cancel" in instructions

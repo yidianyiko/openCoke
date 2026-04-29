@@ -947,6 +947,8 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "asks to update, complete, or list reminders" in retry_input
     assert "enumerate each concrete one-shot occurrence" in retry_input
     assert "Do not use RRULE for bounded cadence" in retry_input
+    assert "same-message stop boundary" in retry_input
+    assert "not as delete/cancel" in retry_input
     assert "15:57, 16:47, 17:37" in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True

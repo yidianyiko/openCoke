@@ -1139,6 +1139,9 @@ ReminderDetectDecision.
   current 15:07,
   every 50 minutes before 18:00 means 15:57, 16:47, 17:37; do not skip the
   intermediate occurrences.
+- If a create/batch request includes a same-message stop boundary such as
+  "after 20:00 stop checking in", treat it as deadline_at for that new batch,
+  not as delete/cancel.
 - If the current user message asks to cancel, stop, remove, no longer receive,
   or not be called/notified/reminded for a reminder, return action="delete"
   and the safest target keyword from the message.
