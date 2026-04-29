@@ -153,6 +153,10 @@
     "146": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation."
+    },
+    "149": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder."
     }
   }
 }
