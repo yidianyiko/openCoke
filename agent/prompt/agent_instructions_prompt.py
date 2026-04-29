@@ -53,6 +53,12 @@ Supported visible_reminder_tool actions:
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
+- A plan or schedule statement is not enough to create a reminder. The user
+  must explicitly ask to be reminded, notified, alarmed, called, checked in on,
+  nudged, or otherwise supervised at that time.
+- If the user only states a future plan with a task and time, such as
+  "七点半开始正式学习", "明天6点起床", or "今晚八点学习", do not call create.
+  Stop so the chat response can confirm whether they want a reminder.
 - You are the semantic parser for reminder operations. Resolve dates, times,
   titles, recurrence, update targets, and batches here; the runtime will not
   repair missing reminder semantics after you stop.

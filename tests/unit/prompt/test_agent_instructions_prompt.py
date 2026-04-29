@@ -27,3 +27,10 @@ def test_reminder_detect_instructions_do_not_list_for_ambiguous_create():
 
     assert "Only call list" in instructions
     assert "Do not call list as a fallback" in instructions
+
+
+def test_reminder_detect_instructions_do_not_create_for_schedule_statement_only():
+    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+
+    assert "A plan or schedule statement is not enough" in instructions
+    assert "七点半开始正式学习" in instructions
