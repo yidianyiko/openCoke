@@ -404,6 +404,8 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert events[-1]["type"] == "done"
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
     assert "Do not assume the reminder has been set successfully" in workflow.agent.input
+    assert "Do not say you remembered" in workflow.agent.input
+    assert "Ask one direct clarification question" in workflow.agent.input
 
 
 @pytest.mark.asyncio
