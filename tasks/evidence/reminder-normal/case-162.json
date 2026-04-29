@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 162,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-317156a7b0",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "d1f77bd6657147719d905c13"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 162,
+      "input": "那我再学半个小时，你过来提醒我，然后我学完这半小时，我要小眯一会",
+      "user_id": "d1f77bd6657147719d905c13",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f19674fedcd867150a909a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1967c467948351d0a443e",
+          "expect_output_timestamp": 1777440380,
+          "handled_timestamp": 1777440380,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：学习半小时（2026-04-29 14:56）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-317156a7b0",
+            "case_index": 162,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "69317b9b4bf7878f041149ae",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-317156a7b0-case-162",
+              "business_conversation_key": "reminder-normal-317156a7b0-case-162",
+              "causal_inbound_event_id": "reminder-normal-317156a7b0-case-162-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d1f77bd6657147719d905c13"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1967c467948351d0a443b",
+          "owner_user_id": "d1f77bd6657147719d905c13",
+          "title": "学习半小时",
+          "schedule": {
+            "anchor_at": "2026-04-29T05:56:00+00:00",
+            "local_date": "2026-04-29",
+            "local_time": "14:56:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f19674467948351d0a442e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-29T05:56:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T05:26:20.373000+00:00",
+          "updated_at": "2026-04-29T05:26:20.373000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.014
+    }
+  ]
+}
