@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 279,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-0557b26c29",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "44a013136a8756159358a0be"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 279,
+      "input": "今天你又没有提醒我[心碎]",
+      "user_id": "44a013136a8756159358a0be",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "69f1f146d2fcdbbacb352e02",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1f17fa101647c6278cf95",
+          "expect_output_timestamp": 1777463630,
+          "handled_timestamp": 1777463630,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我翻了一下记录，确实还没有给你设置成功的提醒呢。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0557b26c29",
+            "case_index": 279,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "693833aafa6e02049481c91a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0557b26c29-case-279",
+              "business_conversation_key": "reminder-normal-0557b26c29-case-279",
+              "causal_inbound_event_id": "reminder-normal-0557b26c29-case-279-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "44a013136a8756159358a0be"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 58.098
+    }
+  ]
+}
