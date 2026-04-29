@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 200,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-20911035fa",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "119f24d15e312bdc1626447c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 200,
+      "input": "我还需要定自己party穿的衣服 你每两天提醒我一下吧",
+      "user_id": "119f24d15e312bdc1626447c",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f1c553b2b371ea7fc7389f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1c5713dc31549ec059cc4",
+          "expect_output_timestamp": 1777452390,
+          "handled_timestamp": 1777452390,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好，提醒还没设好哈。你是想从今天开始每两天提醒一次对吧？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-20911035fa",
+            "case_index": 200,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "6933cce84bf7878f04114ae4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-20911035fa-case-200",
+              "business_conversation_key": "reminder-normal-20911035fa-case-200",
+              "causal_inbound_event_id": "reminder-normal-20911035fa-case-200-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "119f24d15e312bdc1626447c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 30.052
+    }
+  ]
+}
