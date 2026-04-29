@@ -2,9 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
 from bson import ObjectId
 
 from scripts import eval_reminder_normal_path_cases as normal_eval
+
+
+@pytest.fixture(autouse=True)
+def disable_live_unconfirmed_reminder_judge(monkeypatch):
+    monkeypatch.setattr(
+        normal_eval, "run_unconfirmed_reminder_judge", lambda text: False
+    )
 
 
 def test_normal_path_user_id_isolates_valid_original_user_by_batch_and_case():
@@ -769,9 +777,27 @@ def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
             {"message": "我建议每30分钟提醒一次，我准时催你，你觉得这个节奏怎么样？"}
         ],
         reminders=[],
+        unconfirmed_reminder_judge=lambda text: True,
     )
 
     assert "user_output_implies_unconfirmed_reminder" in errors
+
+
+def test_unconfirmed_reminder_output_judge_uses_injected_llm_decision():
+    calls = []
+
+    def judge(text):
+        calls.append(text)
+        return False
+
+    assert (
+        normal_eval.output_implies_unconfirmed_reminder(
+            [{"message": "我准时催你，你觉得这个节奏怎么样？"}],
+            judge=judge,
+        )
+        is False
+    )
+    assert calls == ["我准时催你，你觉得这个节奏怎么样？"]
 
 
 def test_load_cases_applies_normal_path_expectation_fixture():
@@ -1118,7 +1144,11 @@ def test_validate_observations_allows_light_action_prefix_title_match():
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[{"message": "已创建提醒：写论文文献综述（国外研究现状）（2026-04-29 16:00）"}],
+        outputs=[
+            {
+                "message": "已创建提醒：写论文文献综述（国外研究现状）（2026-04-29 16:00）"
+            }
+        ],
         reminders=reminders,
     )
 

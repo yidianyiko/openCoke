@@ -55,6 +55,11 @@ Do not let normal-path fixes become another case-by-case parser.
 
 - LLM-first: reminder create/update/delete/complete decisions must come from
   ReminderDetectAgent or its LLM retry path, not Python NLU.
+- ReminderDetectAgent and ReminderDetectRetryAgent must keep a structured
+  intent boundary: `intent_type` is one of `crud`, `clarify`, `query`, or
+  `discussion`, and only CRUD results may carry reminder write fields. Clarify,
+  query, discussion, and commitment-style free text must have no reminder fields
+  the runtime could treat as executable.
 - Do not add deterministic Python reminder-create fallbacks, regex parsers, or
   hard-routed reminder replies to pass a single corpus case.
 - If a detector timeout needs a fallback, use a shorter-context LLM retry that
@@ -64,12 +69,28 @@ Do not let normal-path fixes become another case-by-case parser.
 - Isolate eval identities by batch and case. Do not reuse corpus `from_user` as
   the runtime `from_user`; keep it only as trace metadata so profile/memory
   updates from one case cannot pollute another.
-- Do not add case-local `Avoid X` prompt rules as the first response to a failing case. Prefer a positive decision boundary or a smaller tool instruction that covers a class of inputs.
+- Resolve failures in this order: tighten schema field constraints first, add
+  fixture counterexamples/classification second, and improve the LLM judge third.
+  Do not add case-local `Avoid X` prompt rules as the first response to a failing
+  case. Prefer a positive decision boundary or a smaller tool instruction that
+  covers a class of inputs.
 - Do not add `title_variants` as the first response to a title mismatch. First check whether punctuation, quote style, whitespace, leading verbs, or semantic containment should be handled by the shared title validator.
 - Fixture `evaluation_expectation` overrides are appropriate when the case data should classify the request as CRUD, clarification, query, capability, or discussion. Keep the reason explicit.
+- Keep `agent/prompt/chat_contextprompt.py::CONTEXTPROMPT_提醒未执行` short
+  and positive: at most 25 non-empty lines, no phrase blacklist, no cadence
+  sub-protocol. Move concrete bad phrases, counterexamples, and corpus-specific
+  expectations to `scripts/reminder_normal_path_expectations.json` or a dedicated
+  fixture.
 - Treat prompt changes like code changes: prefer compact positive boundaries that describe a class of inputs and expected decision, and add prompt tests for that boundary. Do not let the prompt accumulate one-case `Avoid X` clauses or narrow examples as a substitute for improving the decision boundary.
+- `scripts/eval_reminder_normal_path_cases.py::output_implies_unconfirmed_reminder`
+  must remain an LLM judge boundary, not a handwritten regex blacklist. If it is
+  wrong, fix the judge rubric or fixture evidence rather than adding more regex
+  phrases.
 - Treat title matching as shared evaluation policy. Add `title_variants` only when the variant is a legitimate semantic paraphrase that the shared normalizer cannot reasonably infer; otherwise improve the normalizer or expected-title rule once for the class.
 - For cancellation/stop/no-disturb requests, route the turn to ReminderDetectAgent and let the LLM decide whether to delete or clarify. Do not convert broad quieting language into a create request or ask for create time/content.
+- Every change to `chat_contextprompt.py`, ReminderDetectAgent instructions, or
+  reminder detect schemas requires `pytest tests/evals/test_reminder_normal_path_eval.py -q`
+  plus the full normal-path eval before merging or resuming the corpus loop.
 - After a run of case fixes, produce a drift report before continuing if prompt constraints or title aliases are growing quickly.
 
 Drift report:

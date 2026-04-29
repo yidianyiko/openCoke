@@ -26,3 +26,17 @@ reminders can fire without waiting for wall-clock time.
 - Sandbox smoke:
   `python scripts/eval_reminder_e2e_cases.py --limit 1 --concurrency 1 --case-timeout-seconds 5 --output /tmp/reminder-e2e-smoke-1.json`
   returns `case_timeout` and does not hang.
+
+## 2026-04-29 Normal-Path Reminder Loop Status
+
+- One-case normal-path evidence is committed through `case184`.
+- The next case is `case185`; with `1892` total corpus cases, `1707` offsets
+  remain from `185` through `1891`.
+- The loop is paused for a detector/prompt/eval refactor before continuing:
+  keep ReminderDetect decisions LLM-first and structured, keep pending-reminder
+  chat guidance compact and positive, and replace the unconfirmed-reminder output
+  regex with an LLM judge boundary.
+- Future failures must be handled in this priority order: schema field
+  constraints, fixture counterexamples/classification, then LLM judge rubric.
+  Do not append prohibition phrases to `CONTEXTPROMPT_提醒未执行` or expand
+  regex blacklists to pass a case.

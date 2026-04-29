@@ -1,0 +1,13 @@
+from agent.prompt.chat_contextprompt import CONTEXTPROMPT_提醒未执行
+
+
+def test_pending_reminder_prompt_stays_compact_and_positive():
+    non_empty_lines = [
+        line for line in CONTEXTPROMPT_提醒未执行.splitlines() if line.strip()
+    ]
+
+    assert len(non_empty_lines) <= 25
+    assert "Bad Chinese replies" not in CONTEXTPROMPT_提醒未执行
+    assert "记下了" not in CONTEXTPROMPT_提醒未执行
+    assert "安排上" not in CONTEXTPROMPT_提醒未执行
+    assert "每 X 提醒一次" not in CONTEXTPROMPT_提醒未执行

@@ -8,7 +8,6 @@ import re
 from agent.prompt.rendering import render_prompt_template
 from util.profile_util import resolve_profile_label
 
-
 _CALENDAR_IMPORT_TOOL_NAME = "日历导入入口"
 _URL_PATTERN = re.compile(
     r"https?://[^\s，。；;,)）]+|/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+"
@@ -238,74 +237,22 @@ Proactive prompts sent this round: {proactive_times}
 # V2.8: Reminder intent detected but tool not executed prompt
 # Used when OrchestratorAgent sets need_reminder_detect=True but ReminderDetectAgent did not call a tool
 CONTEXTPROMPT_提醒未执行 = """### System Notice: Reminder Setup Pending
-The user's message appears to contain reminder-setting intent, but the system has not successfully created a reminder yet.
-Possible reasons:
-- Time expression was not specific enough (e.g. "a bit later", "in a while" — vague time)
-- Missing required information (e.g. specific time or reminder content)
+ReminderDetect was requested, but no successful reminder tool result is present.
+Treat reminder setup, update, cancellation, and completion as still pending.
 
-[IMPORTANT] Do not assume the reminder has been set successfully! You should:
-1. Ask the user for a specific reminder time (if the time is unclear)
-2. Confirm the specific reminder content (if the content is unclear)
-3. Naturally guide the user to provide complete information
-
-Do not say you remembered, noted, scheduled, arranged, or will handle the reminder.
-In Chinese, avoid phrases such as "记下了", "安排好了", "安排上", "帮你定",
-"帮你设置", "设置好了", "收到这个提醒", "设置的", "交给我", "我来盯",
-or "我会提醒" until a reminder tool result confirms setup.
-Avoid those reminder-commitment phrases even conditionally or hypothetically,
-such as "如果是的话我帮你安排上".
-Do not say "提醒你", "到时候叫你", "到点喊你", or any other wording that
-promises a future reminder unless a successful reminder tool result is present.
-Do not invent lead times, default reminder times, advance notice, or reminder
-policies that the user did not request.
-If the user only made a plan or schedule statement, or only supplied a time
-without explicitly asking for a reminder, ask whether they want a reminder.
-When a plan or schedule statement already contains both a time and a task, the
-missing information is consent to create a reminder, not reminder time or
-content. Ask whether they want a reminder at the stated time.
-When asking whether they want a reminder for a stated plan time, ask about
-reminding at the stated time; do not suggest advance-notice offsets like
-"10 minutes earlier" unless the user requested advance notice.
-If the user asks to cancel, stop, or no longer receive a reminder, or asks to
-avoid being disturbed, and no successful delete/cancel tool result is present,
-treat the cancellation as pending. Ask which reminder they want to cancel, or
-ask them to confirm the specific reminder target. Do not state that the
-reminder is canceled, disabled, silenced, or that there are no reminders remaining.
-For Chinese stop/no-disturb requests, ask a target question such as "你是想停掉哪条提醒？".
-Do not reply with a quieting promise such as "今晚不打扰你", "不会打扰你",
-"不再打扰你", or "那我不提醒你了" unless a successful delete/cancel tool
-result is present.
-If the user asks you to recommend a reminder cadence or frequency, you may
-suggest exactly one practical cadence, then end the message with an explicit
-confirmation question before any reminder can be created.
-Use this structure: "我建议先每 X 提醒一次。你想按这个频率吗？"
-Keep cadence recommendations as proposals only. Do not add a separate
-first-person promise that you will prompt, nudge, call, notify, or remind the
-user later unless a successful reminder tool result is present.
-Do not infer prior reminder agreements from retrieved history, profile text,
-or relationship summaries when the current turn has no successful reminder tool
-result. Treat the current reminder setup as pending even if retrieved context
-mentions an earlier cadence or reminder plan.
-Do not propose a specific clock time or cadence when the user did not ask for a
-recommendation. Ask for the missing time, cadence, or confirmation instead.
-If the current message has reminder intent plus a status or check-in question
-about a topic, such as "how is X going", "X 怎么样", or "X 如何", treat it as a
-pending check-in reminder request with missing trigger details; ask when or how often to check in; do not answer the topic as ordinary small talk.
-Ask one direct clarification question before any reminder can be considered set.
-For Chinese replies, that question should explicitly ask "什么时候" or "几点"
-when the reminder time is missing, or "每隔多久"/"多久一次" when the reminder
-cadence is missing.
-When setup is pending, only ask for the missing information. Do not first
-acknowledge the reminder as arranged or partially arranged.
+Reply goal:
+- Ask one direct question for the missing decision or detail.
+- If trigger time is missing, ask for the exact time.
+- If cadence is missing, ask how often the user wants the check-in.
+- If only a time was supplied, ask what the reminder should be about.
+- If the user stated a time plus task but did not request a reminder, ask whether they want a reminder at that stated time.
+- If a date is known but clock time is missing, ask for the clock time.
+- If a stop/cancel target is unclear, ask which reminder should be stopped.
+- If the user asks for cadence advice, propose one practical cadence and ask for confirmation.
+- If the request asks to check on a topic but gives no trigger, ask when or how often to check in.
+- Use retrieved history only as context; current-turn tool results are the source of truth for completed reminder actions.
+- Keep the reply as a clarification or proposal, not a completed reminder action.
 Still follow the JSON output format requirements above.
-
-Example replies:
-- "When would you like me to remind you?"
-- "What time exactly?"
-- "Sure, when would you like me to remind you about [content]?"
-Bad Chinese replies:
-- "订蛋糕的提醒安排上！那你周六大概几点需要提醒你呢？"
-- "帮你定个本周六的蛋糕提醒！"
 """
 
 
@@ -392,7 +339,18 @@ def _looks_like_explicit_timezone_question(message: str) -> bool:
         return False
 
     timezone_markers = ("时区", "timezone", "time zone")
-    query_markers = ("什么", "哪个", "现在", "当前", "按", "用", "what", "which", "current", "using")
+    query_markers = (
+        "什么",
+        "哪个",
+        "现在",
+        "当前",
+        "按",
+        "用",
+        "what",
+        "which",
+        "current",
+        "using",
+    )
     return any(marker in normalized for marker in timezone_markers) and any(
         marker in normalized for marker in query_markers
     )
@@ -516,7 +474,7 @@ def get_tool_results_context(session_state: dict) -> str:
         lines.append("")
 
     lines += [
-        '[Note] The above are the results of operations automatically executed by the system. Please reply to the user naturally based on the results:',
+        "[Note] The above are the results of operations automatically executed by the system. Please reply to the user naturally based on the results:",
         '- Status "Success": Confirm the operation is complete and explain the result to the user.',
         '- Status "Failed": Explain the reason, and if necessary guide the user to provide more information or retry.',
         '- If there are "Additional notes": Reply according to the content of those notes.',

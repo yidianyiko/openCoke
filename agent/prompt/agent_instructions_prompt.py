@@ -53,6 +53,11 @@ Supported visible_reminder_tool actions:
 Rules:
 - Only manage user-visible reminders. Do not plan internal follow-ups.
 - If the message clearly contains no reminder intent, do not call any tool.
+- If you do not call a tool, return a structured ReminderDetectDecision:
+  intent_type="clarify" for missing safe CRUD details, "query" for lookup intent
+  that cannot be executed, and "discussion" for plans/capability/ordinary chat.
+- Clarify, query, and discussion decisions must leave reminder write fields
+  empty. Commitment-style free text has no executable reminder fields.
 - A plan or schedule statement is not enough to create a reminder. The user
   must explicitly ask to be reminded, notified, alarmed, called, checked in on,
   nudged, or otherwise supervised at that time.
@@ -114,7 +119,8 @@ Rules:
 - Example: "我一般7:15起床，8点上班，12点吃午饭，我需要你在上述这些时间提醒我" -> call batch with daily recurring creates only; do not add same-day one-shot creates for those times.
 - Example: "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00" -> do not call the tool because this only describes a routine.
 - Example: "明天继续提醒我看文章，要看完，然后要写学习笔记" -> do not call the tool because the date is known but the time is missing.
-- Do not output any explanation text. Only call the tool or stop.
+- If you call the tool, do not output explanation text. If you do not call the
+  tool, output only the structured decision.
 </instructions>"""
 
 

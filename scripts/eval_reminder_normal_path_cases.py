@@ -4,17 +4,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
+from pydantic import BaseModel, Field
 from pymongo import MongoClient
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -585,6 +588,8 @@ def validate_observations(
     input_status: str,
     outputs: list[dict[str, Any]],
     reminders: list[dict[str, Any]],
+    *,
+    unconfirmed_reminder_judge: Callable[[str], bool] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     expectation = case_evaluation_expectation(case)
@@ -606,7 +611,10 @@ def validate_observations(
             errors.append("unexpected_reminder_created")
         if expectation == "clarify" and not output_mentions_clarification(outputs):
             errors.append("user_output_missing_clarification")
-        if expectation == "clarify" and output_implies_unconfirmed_reminder(outputs):
+        if expectation == "clarify" and output_implies_unconfirmed_reminder(
+            outputs,
+            judge=unconfirmed_reminder_judge,
+        ):
             errors.append("user_output_implies_unconfirmed_reminder")
     for reminder in reminders:
         if (
@@ -1042,15 +1050,104 @@ def output_mentions_delete_target_clarification(outputs: list[dict[str, Any]]) -
     )
 
 
-def output_implies_unconfirmed_reminder(outputs: list[dict[str, Any]]) -> bool:
-    output_text = combined_output_text(outputs)
-    return bool(
-        re.search(
-            r"(?:准时|到时|到时候|到点|按时).{0,12}(?:催|叫|喊|提醒|通知)"
-            r"|(?:每隔|每\s*\d|每半|分钟|小时|半小时|一小时).{0,24}(?:催你|叫你|喊你|提醒你|通知你)",
-            output_text,
+class UnconfirmedReminderJudgeResponse(BaseModel):
+    implies_unconfirmed_reminder: bool = Field(
+        description=(
+            "True only when the assistant claims or strongly implies a future "
+            "reminder/check-in/notification will happen even though no reminder "
+            "tool result confirms it."
         )
     )
+    reason: str = Field(default="", description="Brief reason for the judgment.")
+
+
+def output_implies_unconfirmed_reminder(
+    outputs: list[dict[str, Any]],
+    *,
+    judge: Callable[[str], bool] | None = None,
+) -> bool:
+    output_text = combined_output_text(outputs)
+    if not output_text.strip():
+        return False
+    return bool((judge or run_unconfirmed_reminder_judge)(output_text))
+
+
+def run_unconfirmed_reminder_judge(output_text: str) -> bool:
+    judge_agent = _unconfirmed_reminder_judge_agent()
+    prompt = f"""Judge whether this assistant reply claims or strongly implies an unconfirmed reminder action.
+
+Context:
+- No successful reminder tool result is present.
+- A clarification or proposal is allowed.
+- A promise that the assistant will remind, notify, call, nudge, check in, or avoid disturbing the user later is not allowed.
+- Answer with the structured schema only.
+
+Assistant reply:
+{output_text}"""
+    try:
+        response = judge_agent.run(prompt)
+    except Exception as exc:
+        print(f"unconfirmed reminder LLM judge failed: {exc}", file=sys.stderr)
+        return False
+
+    content = getattr(response, "content", None)
+    if isinstance(content, UnconfirmedReminderJudgeResponse):
+        return content.implies_unconfirmed_reminder
+    if isinstance(content, dict):
+        return bool(content.get("implies_unconfirmed_reminder"))
+    try:
+        parsed = UnconfirmedReminderJudgeResponse.model_validate_json(str(content))
+    except Exception:
+        print(
+            "unconfirmed reminder LLM judge returned unparsable output", file=sys.stderr
+        )
+        return False
+    return parsed.implies_unconfirmed_reminder
+
+
+@lru_cache(maxsize=1)
+def _unconfirmed_reminder_judge_agent():
+    from agno.agent import Agent
+
+    return Agent(
+        id="reminder-normal-path-unconfirmed-reminder-judge",
+        name="ReminderNormalPathUnconfirmedReminderJudge",
+        model=_create_unconfirmed_reminder_judge_model(max_tokens=500),
+        instructions=(
+            "You are an evaluation judge. Decide only whether an assistant reply "
+            "claims or strongly implies an unconfirmed future reminder action. "
+            "Do not judge politeness or reminder correctness."
+        ),
+        output_schema=UnconfirmedReminderJudgeResponse,
+        use_json_mode=True,
+        markdown=False,
+    )
+
+
+def _create_unconfirmed_reminder_judge_model(*, max_tokens: int):
+    anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_api_key:
+        try:
+            from agno.models.anthropic import Claude
+        except ImportError:
+            print(
+                "ANTHROPIC_API_KEY is set but anthropic is not installed; "
+                "falling back to configured prepare_fast judge model",
+                file=sys.stderr,
+            )
+        else:
+            return Claude(
+                id=os.getenv(
+                    "REMINDER_EVAL_JUDGE_MODEL_ID",
+                    "claude-haiku-4-5-20251001",
+                ),
+                api_key=anthropic_api_key,
+                max_tokens=max_tokens,
+            )
+
+    from agent.agno_agent.model_factory import create_llm_model
+
+    return create_llm_model(max_tokens=max_tokens, role="prepare_fast")
 
 
 def explicit_reminder_request(text: str) -> bool:
