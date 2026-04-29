@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 212,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-de87ff31c8",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "ded9a5fa2172645dced25583"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 212,
+      "input": "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
+      "user_id": "ded9a5fa2172645dced25583",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f1dc4af8509d8955600e2b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1dc597418ca2d28c736c3",
+          "expect_output_timestamp": 1777458265,
+          "handled_timestamp": 1777458265,
+          "status": "pending",
+          "message_type": "text",
+          "message": "12月17号几点提醒你定蛋糕呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-de87ff31c8",
+            "case_index": 212,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "69352d5b4bf7878f04114b56",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-de87ff31c8-case-212",
+              "business_conversation_key": "reminder-normal-de87ff31c8-case-212",
+              "causal_inbound_event_id": "reminder-normal-de87ff31c8-case-212-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ded9a5fa2172645dced25583"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 15.024
+    }
+  ]
+}
