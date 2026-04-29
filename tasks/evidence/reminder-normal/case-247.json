@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 247,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8768c154c3",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "fdf0869ab13e97ce691665ce"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 247,
+      "input": "你今天咋不提醒我啦🥲昨天不是设置的每天都提醒嘛",
+      "user_id": "fdf0869ab13e97ce691665ce",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "69f1e826a9f981f54805b9b4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e847d65ae1eb40c94a69",
+          "expect_output_timestamp": 1777461296,
+          "handled_timestamp": 1777461296,
+          "status": "pending",
+          "message_type": "text",
+          "message": "诶我刚查了一下，你昨天那个每日提醒好像没成功设上。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8768c154c3",
+            "case_index": 247,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "69369fa0fa6e02049481c83a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8768c154c3-case-247",
+              "business_conversation_key": "reminder-normal-8768c154c3-case-247",
+              "causal_inbound_event_id": "reminder-normal-8768c154c3-case-247-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "fdf0869ab13e97ce691665ce"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 33.054
+    }
+  ]
+}
