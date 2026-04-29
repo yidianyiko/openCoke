@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 226,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c423c77e96",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "bdf11d7d070396bb7ad1c664"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 226,
+      "input": "你好你好，我希望你明天上午十点能提醒我给学校心理中心打电话约心理咨询",
+      "user_id": "bdf11d7d070396bb7ad1c664",
+      "original_from_user": "693591bc4bf7878f04114b91",
+      "input_message_id": "69f1e3900d266638d101b904",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e398363b9b9847291973",
+          "expect_output_timestamp": 1777460120,
+          "handled_timestamp": 1777460120,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：给学校心理中心打电话约心理咨询（2026-04-30 10:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c423c77e96",
+            "case_index": 226,
+            "original_from_user": "693591bc4bf7878f04114b91",
+            "source_id": "693591bc4bf7878f04114b92",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c423c77e96-case-226",
+              "business_conversation_key": "reminder-normal-c423c77e96-case-226",
+              "causal_inbound_event_id": "reminder-normal-c423c77e96-case-226-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "bdf11d7d070396bb7ad1c664"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f1e398363b9b9847291971",
+          "owner_user_id": "bdf11d7d070396bb7ad1c664",
+          "title": "给学校心理中心打电话约心理咨询",
+          "schedule": {
+            "anchor_at": "2026-04-30T01:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "10:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f1e390363b9b984729196a",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T01:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T10:55:20.467000+00:00",
+          "updated_at": "2026-04-29T10:55:20.467000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.016
+    }
+  ]
+}
