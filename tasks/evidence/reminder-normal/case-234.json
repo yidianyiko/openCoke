@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 234,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-b434730aff",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "a7d98f1dad5b81ee99ebd620"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 234,
+      "input": "一会儿下课",
+      "user_id": "a7d98f1dad5b81ee99ebd620",
+      "original_from_user": "693591bc4bf7878f04114b91",
+      "input_message_id": "69f1e4ee1502479d5687bc67",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f1e4f5363b9b9847291a78",
+          "expect_output_timestamp": 1777460465,
+          "handled_timestamp": 1777460465,
+          "status": "pending",
+          "message_type": "text",
+          "message": "下课了？那正好，今天还有什么计划没，要不要聊聊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-b434730aff",
+            "case_index": 234,
+            "original_from_user": "693591bc4bf7878f04114b91",
+            "source_id": "6936376b8adf4a858a3df3ea",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-b434730aff-case-234",
+              "business_conversation_key": "reminder-normal-b434730aff-case-234",
+              "causal_inbound_event_id": "reminder-normal-b434730aff-case-234-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a7d98f1dad5b81ee99ebd620"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.012
+    }
+  ]
+}
