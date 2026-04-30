@@ -41,7 +41,7 @@ class FakeLockManager:
         return True, "released"
 
 
-def build_handler(output_writer):
+def build_handler(output_writer, existing_output_lookup=None):
     conversation = {
         "_id": "conv-1",
         "platform": "business",
@@ -57,6 +57,7 @@ def build_handler(output_writer):
         lock_manager=FakeLockManager(),
         output_writer=output_writer,
         context_builder=Mock(return_value=context),
+        existing_output_lookup=existing_output_lookup,
     )
 
 
@@ -161,3 +162,51 @@ async def test_owner_mismatch_returns_failed_result_without_output():
     assert result.ok is False
     assert result.error_code == "OwnerMismatch"
     output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_replayed_fire_id_returns_existing_output_without_duplicate_write():
+    event = build_event()
+    output_writer = Mock(return_value={"_id": "out-new"})
+    existing_output_lookup = Mock(return_value={"_id": "out-existing"})
+    conversation_dao = Mock(get_conversation_by_id=Mock(return_value=None))
+    user_dao = Mock(get_user_by_id=Mock())
+    lock_manager = FakeLockManager()
+    context_builder = Mock()
+    handler = ReminderFireEventHandler(
+        conversation_dao=conversation_dao,
+        user_dao=user_dao,
+        lock_manager=lock_manager,
+        output_writer=output_writer,
+        context_builder=context_builder,
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(event)
+
+    existing_output_lookup.assert_called_once_with(event.fire_id)
+    conversation_dao.get_conversation_by_id.assert_not_called()
+    user_dao.get_user_by_id.assert_not_called()
+    assert lock_manager.acquired == []
+    context_builder.assert_not_called()
+    output_writer.assert_not_called()
+    assert result.ok is True
+    assert result.fire_id == event.fire_id
+    assert result.output_reference == "out-existing"
+    assert result.error_code is None
+    assert result.error_message is None
+
+
+@pytest.mark.asyncio
+async def test_non_replayed_fire_id_checks_lookup_once_and_writes_output():
+    event = build_event()
+    output_writer = Mock(return_value={"_id": "out-new"})
+    existing_output_lookup = Mock(return_value=None)
+    handler = build_handler(output_writer, existing_output_lookup=existing_output_lookup)
+
+    result = await handler.handle(event)
+
+    existing_output_lookup.assert_called_once_with(event.fire_id)
+    output_writer.assert_called_once()
+    assert result.ok is True
+    assert result.output_reference == "out-new"

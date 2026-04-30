@@ -21,6 +21,7 @@ class ReminderFireEventHandler:
         output_writer: Callable[..., Any] | None = None,
         context_builder: Callable[..., dict] | None = None,
         now_provider: Callable[[], datetime] | None = None,
+        existing_output_lookup: Callable[[str], Any] | None = None,
         conversation_lock_timeout: int = 120,
     ) -> None:
         self.conversation_dao = conversation_dao or ConversationDAO()
@@ -29,10 +30,21 @@ class ReminderFireEventHandler:
         self.output_writer = output_writer or send_message_via_context
         self.context_builder = context_builder or context_prepare
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
+        self.existing_output_lookup = existing_output_lookup or (lambda fire_id: None)
         self.conversation_lock_timeout = conversation_lock_timeout
 
     async def handle(self, event: ReminderFiredEvent) -> ReminderFireResult:
         conversation_id = event.agent_output_target.conversation_id
+        existing_output = self.existing_output_lookup(event.fire_id)
+        if existing_output is not None:
+            return ReminderFireResult(
+                ok=True,
+                fire_id=event.fire_id,
+                output_reference=self._output_reference(existing_output),
+                error_code=None,
+                error_message=None,
+            )
+
         conversation = self.conversation_dao.get_conversation_by_id(conversation_id)
         if not conversation:
             return self._failure(
