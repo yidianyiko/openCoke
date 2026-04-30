@@ -45,6 +45,18 @@ def test_build_default_character_payload_uses_prompt_registry():
     assert payload["user_info"]["status"] == get_character_status("qiaoyun")
 
 
+def test_coke_system_prompt_includes_poke_inspired_texting_rules():
+    prompt = get_character_prompt("qiaoyun")
+
+    assert "warm but never sycophantic" in prompt
+    assert "subtle wit" in prompt
+    assert "match the user's message length" in prompt
+    assert "Never expose workflows, tools, model routing, logs, or internal agents" in prompt
+    assert "Only promise a future reminder" in prompt
+    assert "must refuse" not in prompt
+    assert "work-related tasks" not in prompt
+
+
 def test_ensure_default_character_seeded_is_idempotent():
     user_dao = FakeUserDAO()
 
@@ -55,4 +67,3 @@ def test_ensure_default_character_seeded_is_idempotent():
     stored = user_dao.find_characters({"name": "qiaoyun"}, limit=1)[0]
     assert stored["_id"] == first_id
     assert stored["user_info"]["description"] == get_character_prompt("qiaoyun")
-
