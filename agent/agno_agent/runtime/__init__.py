@@ -18,6 +18,11 @@ from agent.agno_agent.runtime.result import (
     RuntimeErrorDisposition,
     VisibleMessage,
 )
+from agent.agno_agent.runtime.selector import (
+    RuntimeSelectionInput,
+    RuntimeVersion,
+    select_runtime,
+)
 
 __all__ = [
     "AgentInput",
@@ -28,6 +33,9 @@ __all__ = [
     "OutputDisposition",
     "ReminderFirePayload",
     "RuntimeErrorDisposition",
+    "RuntimeSelectionInput",
+    "RuntimeVersion",
+    "select_runtime",
     "TrustedCharacterContext",
     "TrustedConversationContext",
     "TrustedRelationContext",
