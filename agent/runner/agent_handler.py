@@ -75,6 +75,20 @@ typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
 
+
+def _select_agent_runtime(context: dict) -> str:
+    from agent.agno_agent.runtime.selector import RuntimeSelectionInput, select_runtime
+
+    conversation = context.get("conversation") or {}
+    customer = context.get("customer") or {}
+    return select_runtime(
+        RuntimeSelectionInput(
+            conversation_override=conversation.get("agent_runtime_version"),
+            customer_override=customer.get("agent_runtime_version"),
+        )
+    )
+
+
 # ========== DAO 实例 ==========
 conversation_dao = ConversationDAO()
 user_dao = UserDAO()

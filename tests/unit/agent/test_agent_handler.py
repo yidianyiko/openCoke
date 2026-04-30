@@ -48,6 +48,47 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "agno.models.deepseek", agno_models_deepseek)
     monkeypatch.setitem(sys.modules, "agno.models.openai", agno_models_openai)
     monkeypatch.setitem(sys.modules, "agno.models.siliconflow", agno_models_siliconflow)
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.runner.agent_hardcode_handler",
+        types.SimpleNamespace(
+            handle_hardcode=lambda *args, **kwargs: None, supported_hardcode=()
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.tool.image",
+        types.SimpleNamespace(upload_image=lambda *args, **kwargs: ""),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "agent.tool.voice",
+        types.SimpleNamespace(character_voice=lambda *args, **kwargs: ""),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.conversation_dao",
+        types.SimpleNamespace(ConversationDAO=lambda *args, **kwargs: object()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.user_dao",
+        types.SimpleNamespace(UserDAO=_StubUserDAO),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.mongo",
+        types.SimpleNamespace(MongoDBBase=lambda *args, **kwargs: object()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "dao.lock",
+        types.SimpleNamespace(
+            MongoDBLockManager=lambda *args, **kwargs: types.SimpleNamespace(
+                renew_lock=lambda *a, **k: None
+            )
+        ),
+    )
 
     apscheduler = types.ModuleType("apscheduler")
     apscheduler.__path__ = []
@@ -101,6 +142,24 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
 
     assert "具体时间和事项" not in reply
     assert "再发" in reply
+
+
+def test_agent_runtime_defaults_to_legacy(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.delenv("AGENT_RUNTIME_VERSION", raising=False)
+
+    from agent.runner import agent_handler
+
+    assert agent_handler._select_agent_runtime({}) == "legacy"
+
+
+def test_agent_runtime_env_selects_team(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.runner import agent_handler
+
+    assert agent_handler._select_agent_runtime({}) == "team"
 
 
 @pytest.mark.asyncio
