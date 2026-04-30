@@ -107,7 +107,10 @@ Every PR runs:
 - `pytest tests/unit/ -q`
 - `pytest tests/evals/test_reminder_normal_path_eval.py -q`
 - `python scripts/eval_reminder_normal_path_cases.py` (full corpus) and reports pass-rate delta plus per-class precision/recall in the PR description.
-- A PR is blocked if aggregate pass rate drops by more than 5 percentage points without an explicit re-baseline note tying the regression to a removed prompt rule.
+- A PR is blocked unless **all** of:
+  - aggregate pass rate drops by no more than 3 percentage points, **and**
+  - no individual decision class (`crud.create`, `crud.batch`, `crud.update`, `crud.delete/cancel/complete`, `crud.list`, `clarify`, `query`, `discussion`) drops by more than 10 percentage points, **and**
+  - any case whose expected behavior is being re-baselined is listed in the PR description with a one-line rationale per case.
 - `scripts/reminder_drift_report.py` is run at PR1 (baseline snapshot) and PR4 (post-rollback snapshot); intermediate PRs may include it but are not required to.
 
 Each PR is independently revertable. The order is "outside-in" (delete the layers furthest from the LLM first):
@@ -118,6 +121,12 @@ Removes `_validate_reminder_decision_evidence` and its private helpers from `pre
 
 `schedule_evidence` substring requirement is dropped. Schema-side `_looks_like_concrete_cadence` continues to enforce that cadence evidence carries a concrete frequency/interval token.
 
+**Two rules currently enforced only by the validator have no schema backstop and become LLM+eval enforced after this PR**, deliberately:
+- "midnight-without-evidence" (`_trigger_is_midnight_without_evidence` at `prepare_workflow.py:1239`) — date-only requests must clarify, not default to 00:00.
+- "multi-clause-requires-batch" (`_multi_clause_reminder_count` at `prepare_workflow.py:1271`) — semicolon/newline-separated reminder clauses must use `action=batch`, not `create`.
+
+PR1 adds dedicated per-class eval gates for these two classes (drawn from the existing corpus). PR1 is blocked if either class regresses by more than 10 percentage points; aggregate pass-rate gate per the global threshold below.
+
 Expected eval delta: small. Cases previously rescued by the validator regress to whatever the LLM decides; if LLM decides correctly they pass, otherwise they surface as work for PR3.
 
 ### PR2 — Drop the regex fast-path
@@ -126,6 +135,8 @@ Removes `_should_skip_orchestrator_for_explicit_reminder`, the regex override in
 
 Tests in `test_prepare_workflow_reminder_guard.py` for orchestrator-bypass behavior are deleted; tests for orchestrator-decided routing are kept. If Orchestrator misclassifies a real product class, the fix in this PR is in `INSTRUCTIONS_ORCHESTRATOR`. **No regex bypass may be re-added.**
 
+**Latency gate**: the bypass path currently skips the Orchestrator LLM call entirely for explicit reminder messages (`prepare_workflow.py:251`). Removing it adds a full Orchestrator hop (timeout 45 s, `prepare_workflow.py:82`) on every previously short-circuited message. PR2 must therefore measure and report end-to-end p95 latency on a representative slice of explicit-reminder messages from the corpus and is blocked if p95 exceeds the pre-PR2 baseline by more than 2 seconds. The SKILL already requires latency tracking (`.agents/skills/reminder-crud-case-testing/SKILL.md` "Refactor And Observability Debt"); PR2 establishes the baseline.
+
 Expected eval delta: small if Orchestrator is well-tuned; otherwise localized to the Orchestrator prompt.
 
 ### PR3 — Rewrite the detect prompt; unify retry
@@ -133,6 +144,10 @@ Expected eval delta: small if Orchestrator is well-tuned; otherwise localized to
 Rewrites `INSTRUCTIONS_REMINDER_DETECT` to a positive boundary (~25–30 rules). Drops `INSTRUCTIONS_REMINDER_DETECT_RETRY` as a separate constant; retry agent reuses the same instructions. The retry input template keeps the "shorter context + invalid-decision reason" affordances; the system prompt stops being two copies.
 
 Adds `agent/prompt/reminder_few_shot.json` (one canonical example per decision class, sourced from existing eval corpus) and wires it into the agent input template (not the system prompt).
+
+Audits and rewrites `CONTEXTPROMPT_提醒未执行` per "What changes in `chat_contextprompt.py`" above.
+
+**Pre-PR3 hygiene step (executed at the start of this PR, before any prompt edit)**: move every `tasks/evidence/reminder-normal/*-failed.json` and `*-rerun-failed.json` (and the `case-N-diagnose-failed.json` / `case-N-prompt-fix-failed.json` etc. variants) into `tasks/evidence/reminder-normal/_archive/`. From this point, archived failures are treated as historical artifacts only — they do not gate further fixes and are not consulted to derive new prompt rules. This closes the spec's between-PR3-and-PR4 stale-signal window.
 
 Expected eval delta: largest of the four PRs. Re-runs corpus, accepts pass-rate shifts that map onto the documented product invariants. PR description must list every case whose expectation changes and why.
 
@@ -144,7 +159,9 @@ Reads the eval corpus and classifies each case as one of:
 - **(c) duplicate of a kept case** — delete,
 - **(d) needs new expectation under new architecture** — re-annotate.
 
-Target ≤70 cases, distributed across `crud.create`, `crud.batch`, `crud.update`, `crud.delete/cancel/complete`, `crud.list`, `clarify`, `query`, `discussion`. Updates `scripts/reminder_normal_path_expectations.json`, `tests/evals/test_reminder_normal_path_eval.py`, and the matching evidence directory hygiene (archive `*-failed.json` files into `tasks/evidence/reminder-normal/_archive/` to preserve history without polluting the active set).
+Target ≤70 cases, distributed across `crud.create`, `crud.batch`, `crud.update`, `crud.delete/cancel/complete`, `crud.list`, `clarify`, `query`, `discussion`. Updates `scripts/reminder_normal_path_expectations.json` and `tests/evals/test_reminder_normal_path_eval.py`. (Evidence archive already moved at the start of PR3; PR4 only deletes index entries that pointed at re-baselined cases.)
+
+PR4 additionally inspects parallel regex-style classifiers in the eval harness itself — `scripts/eval_reminder_normal_path_cases.py` carries judge boundaries near `:1431` and `:1440` that mirror the `output_implies_unconfirmed_reminder` / `output_mentions_clarification` LLM-judge surfaces the SKILL governs. PR4 confirms those judges remain LLM-only with no regex blacklist drift; if drift is found, the fix lives in the judge rubric or fixture classification, not in additional regex.
 
 Adds `scripts/reminder_drift_report.py` (extracted from the inline snippet currently embedded in `SKILL.md`) and runs it; commits the snapshot. The drift report becomes a recommended pre-commit signal in `SKILL.md`.
 
@@ -158,7 +175,9 @@ Adds `scripts/reminder_drift_report.py` (extracted from the inline snippet curre
 ## Risks and mitigations
 
 - **R1: The few-shot fixture grows back into a prompt by another name.** Mitigation: `agent/prompt/reminder_few_shot.json` is capped at a hard line-count budget enforced by a unit test; new examples require deleting an old example.
-- **R2: Orchestrator misroutes some reminder messages once PR2 lands and that becomes visible.** Mitigation: fix in `INSTRUCTIONS_ORCHESTRATOR`. Adding a regex bypass back is forbidden; the prompt change can use the freed budget from PR3.
+- **R2: Orchestrator misroutes some reminder messages once PR2 lands and that becomes visible.** Mitigation: fix in `INSTRUCTIONS_ORCHESTRATOR`. Adding a regex bypass back is forbidden; the prompt change can use the freed budget from PR3. Hard rollback hatch: `git revert` of PR2 itself is the only mechanism; we do **not** add an environment-flag toggle because (a) it would re-introduce the very dual-pipeline drift we are removing and (b) the eval gate plus per-class floor catches misroutes before merge.
+
+- **R5: PR2 increases p95 latency for explicit-reminder messages.** Mitigation: PR2's latency gate (≤ baseline + 2 s p95). If the gate fails, the response is to tighten Orchestrator (smaller prompt, shorter context) before merging, not to restore the regex bypass.
 - **R3: Re-baselining the corpus in PR4 hides regressions if pass rate is the only metric.** Mitigation: PR4 reports per-class precision/recall (`crud` vs `clarify` vs `discussion` etc.) so a class-level shift is visible even if aggregate stays flat.
 - **R4: Drift returns after the refactor.** Mitigation: the drift report runs in CI on changes to `agent/prompt/agent_instructions_prompt.py`, `agent/agno_agent/workflows/prepare_workflow.py`, `scripts/reminder_normal_path_expectations.json`. The SKILL is updated to require the report attached to any reminder-related PR.
 
