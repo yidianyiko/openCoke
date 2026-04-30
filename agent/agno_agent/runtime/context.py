@@ -76,7 +76,34 @@ def _legacy_mapping(value: Any) -> Mapping[str, Any]:
 
 
 def _entity_id(value: Mapping[str, Any]) -> str:
-    return str(value.get("_id") or value.get("id") or "").strip()
+    return str(value.get("id") or value.get("_id") or "").strip()
+
+
+def _required_id(value: str, label: str) -> str:
+    if not value:
+        raise ValueError(f"missing {label} id")
+    return value
+
+
+def _optional_relation_id(relation: Mapping[str, Any], key: str) -> str:
+    value = relation.get(key)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _trusted_relation_id(
+    relation: Mapping[str, Any],
+    key: str,
+    trusted_id: str,
+    label: str,
+) -> str:
+    relation_id = _optional_relation_id(relation, key)
+    if not relation_id:
+        return trusted_id
+    if relation_id != trusted_id:
+        raise ValueError(f"relation {label} conflicts with trusted {label} id")
+    return relation_id
 
 
 def _nickname(value: Mapping[str, Any], fallback: str) -> str:
@@ -104,11 +131,19 @@ def build_agent_run_context(
     relation = _legacy_mapping(legacy_context.get("relation"))
     conversation_info = _legacy_mapping(conversation.get("conversation_info"))
 
-    user_id = _entity_id(user)
-    character_id = _entity_id(character)
-    conversation_id = str(
-        conversation.get("_id") or legacy_context.get("conversation_id") or ""
-    ).strip()
+    user_id = _required_id(_entity_id(user), "user")
+    character_id = _required_id(_entity_id(character), "character")
+    conversation_id = _required_id(
+        str(
+            conversation.get("id")
+            or conversation.get("_id")
+            or legacy_context.get("conversation_id")
+            or ""
+        ).strip(),
+        "conversation",
+    )
+    relation_uid = _trusted_relation_id(relation, "uid", user_id, "user")
+    relation_cid = _trusted_relation_id(relation, "cid", character_id, "character")
     platform = str(
         legacy_context.get("platform") or conversation.get("platform") or "business"
     )
@@ -134,8 +169,8 @@ def build_agent_run_context(
             metadata=_metadata_from_raw(conversation),
         ),
         relation=TrustedRelationContext(
-            uid=str(relation.get("uid") or user_id),
-            cid=str(relation.get("cid") or character_id),
+            uid=relation_uid,
+            cid=relation_cid,
             metadata=_metadata_from_raw(relation),
         ),
         platform=platform,
