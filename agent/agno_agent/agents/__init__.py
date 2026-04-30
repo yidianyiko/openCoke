@@ -27,7 +27,6 @@ from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_POST_ANALYZE,
     INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_REMINDER_DETECT,
-    INSTRUCTIONS_REMINDER_DETECT_RETRY,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,8 +90,8 @@ def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> st
 def get_reminder_detect_retry_instructions(
     session_state: Dict[str, Any] = None,
 ) -> str:
-    """Return compact instructions for the short-context reminder retry agent."""
-    return INSTRUCTIONS_REMINDER_DETECT_RETRY
+    """Return shared ReminderDetect instructions for the retry agent."""
+    return INSTRUCTIONS_REMINDER_DETECT
 
 
 def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:

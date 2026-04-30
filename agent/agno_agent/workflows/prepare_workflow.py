@@ -59,6 +59,7 @@ from agent.prompt.rendering import render_prompt_template
 from agent.prompt.chat_taskprompt import (
     TASKPROMPT_语义理解,
 )
+from agent.prompt.reminder_few_shot import format_reminder_few_shots_for_prompt
 from agent.util.message_util import messages_to_str
 
 logger = logging.getLogger(__name__)
@@ -122,63 +123,6 @@ _REMINDER_FIRST_PATTERNS = (
     re.compile(r"(提醒我|到时候|闹钟)"),
     re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
 )
-_EXPLICIT_REMINDER_INTENT_PATTERNS = (
-    re.compile(r"(提醒我|闹钟|通知我|别忘了提醒)"),
-    re.compile(
-        r"\b(remind me|set a reminder|set an alarm|notify me)\b",
-        re.IGNORECASE,
-    ),
-)
-_REMINDER_STATUS_COMPLAINT_PATTERNS = (
-    re.compile(
-        r"(为什么|怎么|咋|为啥)?.{0,12}(没|没有|未|忘了|漏了).{0,12}(提醒|叫我|喊我|通知)"
-    ),
-    re.compile(r"(提醒|叫我|喊我|通知).{0,12}(没|没有|未|忘了|漏了)"),
-)
-_REMINDER_STOP_INTENT_PATTERNS = (
-    re.compile(
-        r"(不用|不要|别|停止|取消|删除|关掉|停掉|不用再|不要再|别再)"
-        r".{0,12}(提醒|叫我|喊我|通知|打扰)"
-    ),
-    re.compile(r"(不要打扰|别打扰|不打扰|勿扰|免打扰)"),
-    re.compile(
-        r"\b(cancel|delete|stop|disable|turn off)\b.{0,24}\b(reminder|alarm|notification|nudges?)\b",
-        re.IGNORECASE,
-    ),
-    re.compile(
-        r"\b(don't|do not|dont|no longer)\b.{0,24}\b(remind|notify|disturb|nudge)\b",
-        re.IGNORECASE,
-    ),
-)
-_REMIND_MARKER_PATTERN = re.compile(r"提醒")
-_ACTIONABLE_REMINDER_TIME_PATTERN = re.compile(
-    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
-    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
-)
-_CALL_ME_MARKER_PATTERN = re.compile(r"(叫我|喊我)")
-_ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
-    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
-    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|小时)"
-)
-_ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
-    r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
-)
-_ACTIONABLE_CONTACT_TIME_PATTERN = re.compile(
-    r"(每天|每日|每晚|每夜|每周|每月).{0,18}"
-    r"(\d{1,2}\s*[:：.]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
-    r"|早上|上午|中午|下午|晚上|凌晨).{0,32}"
-    r"(询问|问问|告诉|联系|找我|来找我|检查|汇总|总结)"
-)
-_IMPLICIT_REMINDER_INTENT_PATTERNS = (
-    re.compile(
-        r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
-        r".{0,12}(开始|背书|学习|起床|出门|跑步|乐跑|喝水|吃饭)"
-    ),
-    re.compile(
-        r"(专心|学习|复习|写作|工作|背书|做题|学到|做到|写到)"
-        r".{0,16}(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
-    ),
-)
 
 
 class PrepareWorkflow:
@@ -224,6 +168,9 @@ class PrepareWorkflow:
 ### 最近对话上下文（最近5条）
 {recent_chat_context}
 
+### Reminder Few-Shot Decisions
+{few_shot_decisions}
+
 ### 当前用户消息
 {current_message}"""
 
@@ -248,20 +195,7 @@ class PrepareWorkflow:
             return {"session_state": session_state}
 
         # Step 1: Orchestrator 决策 (1次 LLM)
-        if self._should_skip_orchestrator_for_explicit_reminder(
-            input_message, session_state
-        ):
-            orchestrator_result = self._get_default_orchestrator()
-            orchestrator_result["need_context_retrieve"] = False
-            orchestrator_result["need_reminder_detect"] = True
-            session_state["orchestrator"] = orchestrator_result
-            session_state["prepare_orchestrator_skipped_for_reminder"] = True
-            self._map_to_query_rewrite(session_state, orchestrator_result)
-            logger.info(
-                "[PrepareWorkflow] 提醒意图规则跳过 Orchestrator，直接进入提醒识别"
-            )
-        else:
-            await self._run_orchestrator(input_message, session_state)
+        await self._run_orchestrator(input_message, session_state)
 
         # 获取调度决策
         orchestrator = session_state.get("orchestrator", {})
@@ -376,12 +310,6 @@ class PrepareWorkflow:
                 _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS,
             )
             orchestrator_result = self._get_default_orchestrator()
-            if self._looks_like_reminder_intent(input_message):
-                orchestrator_result["need_reminder_detect"] = True
-                logger.info(
-                    "[PrepareWorkflow] Orchestrator 超时后命中提醒意图规则，"
-                    "使用默认调度继续提醒检测"
-                )
             session_state["orchestrator"] = orchestrator_result
             session_state["prepare_orchestrator_timeout"] = True
             self._map_to_query_rewrite(session_state, orchestrator_result)
@@ -405,81 +333,7 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
-        if not need_reminder and self._looks_like_reminder_intent(input_message):
-            if self._looks_like_reminder_stop_intent(input_message):
-                session_state["prepare_reminder_intent_hint"] = "stop_or_cancel"
-            orchestrator["need_reminder_detect"] = True
-            logger.info(
-                "[PrepareWorkflow] 提醒意图命中规则，覆盖 Orchestrator need_reminder_detect=False"
-            )
-            return True
-
         return need_reminder
-
-    def _should_skip_orchestrator_for_explicit_reminder(
-        self, input_message: str, session_state: Dict[str, Any]
-    ) -> bool:
-        message_source = session_state.get("message_source", "user")
-        if message_source == "deferred_action":
-            return False
-        if self._looks_like_reminder_stop_intent(input_message):
-            session_state["prepare_reminder_intent_hint"] = "stop_or_cancel"
-        return self._looks_like_reminder_intent(input_message)
-
-    def _looks_like_explicit_reminder_intent(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not text:
-            return False
-        return (
-            any(pattern.search(text) for pattern in _EXPLICIT_REMINDER_INTENT_PATTERNS)
-            or any(
-                pattern.search(text) for pattern in _REMINDER_STATUS_COMPLAINT_PATTERNS
-            )
-            or self._looks_like_reminder_stop_intent(text)
-            or self._looks_like_actionable_reminder_with_time(text)
-            or self._looks_like_actionable_call_me_reminder(text)
-            or self._looks_like_actionable_contact_reminder(text)
-        )
-
-    def _looks_like_reminder_stop_intent(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not text:
-            return False
-        return any(pattern.search(text) for pattern in _REMINDER_STOP_INTENT_PATTERNS)
-
-    def _looks_like_actionable_reminder_with_time(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not _REMIND_MARKER_PATTERN.search(text):
-            return False
-        return bool(_ACTIONABLE_REMINDER_TIME_PATTERN.search(text))
-
-    def _looks_like_actionable_call_me_reminder(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not _CALL_ME_MARKER_PATTERN.search(text):
-            return False
-        return bool(
-            _ACTIONABLE_CALL_ME_TIME_PATTERN.search(text)
-            or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(text)
-        )
-
-    def _looks_like_actionable_contact_reminder(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not text:
-            return False
-        return bool(_ACTIONABLE_CONTACT_TIME_PATTERN.search(text))
-
-    def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
-        text = str(input_message or "").strip()
-        if not text:
-            return False
-        return any(
-            pattern.search(text) for pattern in _IMPLICIT_REMINDER_INTENT_PATTERNS
-        )
-
-    def _looks_like_reminder_intent(self, input_message: str) -> bool:
-        return self._looks_like_explicit_reminder_intent(
-            input_message
-        ) or self._looks_like_implicit_reminder_intent(input_message)
 
     def _run_context_retrieve(
         self, session_state: Dict[str, Any], need_context: bool
@@ -864,6 +718,7 @@ class PrepareWorkflow:
                 retry_response = await self._run_reminder_detect_retry(
                     input_message,
                     session_state,
+                    reason="invalid structured output",
                 )
                 if retry_response is not None:
                     retry_executed = self._execute_structured_reminder_decision(
@@ -904,6 +759,7 @@ class PrepareWorkflow:
             retry_response = await self._run_reminder_detect_retry(
                 input_message,
                 session_state,
+                reason="primary detector timed out",
             )
             if retry_response is not None:
                 retry_executed = self._execute_structured_reminder_decision(
@@ -939,10 +795,16 @@ class PrepareWorkflow:
         self,
         input_message: str,
         session_state: Dict[str, Any],
+        *,
+        reason: str,
     ):
         """Retry reminder detection with short context and the fast LLM role."""
         session_state["prepare_reminder_detect_retry_used"] = True
-        retry_input = self._build_reminder_retry_input(input_message, session_state)
+        retry_input = self._build_reminder_retry_input(
+            input_message,
+            session_state,
+            reason=reason,
+        )
         try:
             retry_response = await asyncio.wait_for(
                 reminder_detect_retry_agent.arun(
@@ -1284,11 +1146,12 @@ class PrepareWorkflow:
             time_str=time_str,
             timezone=timezone,
             recent_chat_context=recent_chat_context,
+            few_shot_decisions=format_reminder_few_shots_for_prompt(),
             current_message=current_message,
         )
 
     def _build_reminder_retry_input(
-        self, current_message: str, session_state: dict
+        self, current_message: str, session_state: dict, *, reason: str
     ) -> str:
         time_str = (
             session_state.get("conversation", {})
@@ -1304,49 +1167,13 @@ class PrepareWorkflow:
 {timezone}
 
 ### Retry
-Detect timed out/invalid structured output. Return ReminderDetectDecision.
-- If it explicitly asks for a reminder with concrete time and content,
-  crud create; if no content, use title="提醒".
-- trigger_at/new_trigger_at/deadline_at: timezone-aware ISO 8601 with local
-  offset, e.g. 2026-12-14T00:30:00+09:00.
-- single reminder create: top-level title and trigger_at; operations empty;
-  new_title and new_trigger_at are update-only.
-- Clarify/query/discussion leave action empty. Never output action="create" with
-  intent_type="clarify".
-- Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month is not enough; do not resolve it to midnight.
-- Bounded interval/deadline: enumerate each concrete one-shot occurrence
-  (15:07 + every 50 minutes before 18:00 -> 15:57, 16:47, 17:37).
-  Do not use RRULE for bounded cadence.
-- Set schedule_basis and schedule_evidence for batch/bounded/recurrence. Without
-  concrete occurrence times or interval/frequency, clarify. "these time points"
-  is not enough schedule_evidence.
-- rrule or deadline_at -> schedule_basis="explicit_cadence", not one_shot.
-- Never return action="batch" with operations=[]. For multiple safe clauses,
-  use one create operation for each safe clause; action=create is invalid,
-  operations count must equal the number of safe reminder clauses. Do not keep only the last item.
-- In batch create operations, use title and trigger_at only, plus rrule when
-  needed. Do not include empty optional fields.
-- If a message mixes safe and unsafe reminder clauses, execute the safe operations.
-  Clarify unsafe clauses. An ambiguous time range clause must not block separate
-  concrete-time reminder clauses.
-- For each clause with a concrete daily/weekly recurring clock time plus
-  check-in, contact, or summary content, create one recurring reminder. If it
-  also asks for unsupported tracking, recording, or unspecified per-plan
-  follow-up, clarify only those parts.
-- schedule_evidence must be copied from the current user's recurrence/time
-  words, not from this directive or a policy label.
-- Omit ambiguous time range clauses from batch operations; do not convert them
-  into start/end/interval reminders unless user lists occurrences.
-- Chinese semicolon lists may omit the repeated reminder verb after the first clause.
-- same-message stop boundary -> deadline_at, not as delete/cancel. If cadence
-  started in the past, skip past occurrences and create only future occurrences.
-- Supervision over a window without concrete occurrence/cadence: clarify and
-  Do not infer numeric intervals.
-- Cancel/stop/no-disturb existing reminder -> action="delete"; examples:
-  不用叫我, 不用提醒我, 别提醒我, 取消提醒.
-- If the message asks to update, complete, or list reminders, return that action.
-- Reminder intent applies to the task it semantically modifies; a neighboring independent schedule item is not a target. A task time range supplies boundaries, not occurrence times. Leave schedule-only items alone.
-- Missing/unsafe details -> intent_type="clarify", no executable fields. Use same language.
+Retry reason: {reason}
+Use the ReminderDetect system instructions already attached to this agent.
+Return only a valid ReminderDetectDecision for the current user message.
+Do not use conversation history or infer missing details from prior turns.
+For same-message listed routine times plus a reminder request, use action="batch",
+schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
+Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
 
 ### 当前用户消息
 {current_message}"""

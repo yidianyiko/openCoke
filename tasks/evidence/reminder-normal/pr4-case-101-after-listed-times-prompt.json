@@ -1,0 +1,289 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 5,
+  "limit": 1,
+  "run_all": true,
+  "batch_size": 1,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-normal-c469940339",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:6>0": 1,
+      "missing_expected_reminder_title:开始健身": 1,
+      "missing_expected_reminder_title:开始学习": 3,
+      "missing_expected_reminder_title:睡觉": 1,
+      "missing_expected_reminder_title:起床": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:开始健身": 1,
+      "user_output_missing_expected_title:开始学习": 3,
+      "user_output_missing_expected_title:睡觉": 1,
+      "user_output_missing_expected_title:起床": 1
+    },
+    "failures": [
+      {
+        "index": 101,
+        "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+        "user_id": "cb9838172072b31f8aedb051",
+        "original_from_user": "693000a24bf7878f041147e3",
+        "input_message_id": "69f3351b19ba0b69ed6e97ab",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:6>0",
+          "missing_expected_reminder_title:起床",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:开始健身",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:睡觉",
+          "user_output_missing_expected_title:起床",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:开始健身",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:睡觉"
+        ],
+        "outputs": [
+          {
+            "_id": "69f3355d4b1fa4940ae5603a",
+            "expect_output_timestamp": 1777546586,
+            "handled_timestamp": 1777546586,
+            "status": "pending",
+            "message_type": "text",
+            "message": "提醒还没设置成功。你说的这些时间是每天固定的吗？还有，每次提醒你之前需要提前多久提醒？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-c469940339-5",
+              "case_index": 101,
+              "original_from_user": "693000a24bf7878f041147e3",
+              "source_id": "693001fc4bf7878f041147e9",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-c469940339-5-case-101",
+                "business_conversation_key": "reminder-normal-c469940339-5-case-101",
+                "causal_inbound_event_id": "reminder-normal-c469940339-5-case-101-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "cb9838172072b31f8aedb051"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 66.112
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 5,
+      "limit": 1,
+      "batch_id": "reminder-normal-c469940339-5",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "cb9838172072b31f8aedb051"
+      ],
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0,
+        "by_error": {
+          "expected_reminder_count_mismatch:6>0": 1,
+          "missing_expected_reminder_title:开始健身": 1,
+          "missing_expected_reminder_title:开始学习": 3,
+          "missing_expected_reminder_title:睡觉": 1,
+          "missing_expected_reminder_title:起床": 1,
+          "no_reminder_created": 1,
+          "user_output_missing_expected_title:开始健身": 1,
+          "user_output_missing_expected_title:开始学习": 3,
+          "user_output_missing_expected_title:睡觉": 1,
+          "user_output_missing_expected_title:起床": 1
+        },
+        "failures": [
+          {
+            "index": 101,
+            "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+            "user_id": "cb9838172072b31f8aedb051",
+            "original_from_user": "693000a24bf7878f041147e3",
+            "input_message_id": "69f3351b19ba0b69ed6e97ab",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created",
+              "expected_reminder_count_mismatch:6>0",
+              "missing_expected_reminder_title:起床",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:开始健身",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:睡觉",
+              "user_output_missing_expected_title:起床",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:开始健身",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:睡觉"
+            ],
+            "outputs": [
+              {
+                "_id": "69f3355d4b1fa4940ae5603a",
+                "expect_output_timestamp": 1777546586,
+                "handled_timestamp": 1777546586,
+                "status": "pending",
+                "message_type": "text",
+                "message": "提醒还没设置成功。你说的这些时间是每天固定的吗？还有，每次提醒你之前需要提前多久提醒？",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-c469940339-5",
+                  "case_index": 101,
+                  "original_from_user": "693000a24bf7878f041147e3",
+                  "source_id": "693001fc4bf7878f041147e9",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-c469940339-5-case-101",
+                    "business_conversation_key": "reminder-normal-c469940339-5-case-101",
+                    "causal_inbound_event_id": "reminder-normal-c469940339-5-case-101-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "cb9838172072b31f8aedb051"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 66.112
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 101,
+          "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+          "user_id": "cb9838172072b31f8aedb051",
+          "original_from_user": "693000a24bf7878f041147e3",
+          "input_message_id": "69f3351b19ba0b69ed6e97ab",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:6>0",
+            "missing_expected_reminder_title:起床",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:开始健身",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:睡觉",
+            "user_output_missing_expected_title:起床",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:开始健身",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:睡觉"
+          ],
+          "outputs": [
+            {
+              "_id": "69f3355d4b1fa4940ae5603a",
+              "expect_output_timestamp": 1777546586,
+              "handled_timestamp": 1777546586,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒还没设置成功。你说的这些时间是每天固定的吗？还有，每次提醒你之前需要提前多久提醒？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-c469940339-5",
+                "case_index": 101,
+                "original_from_user": "693000a24bf7878f041147e3",
+                "source_id": "693001fc4bf7878f041147e9",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-c469940339-5-case-101",
+                  "business_conversation_key": "reminder-normal-c469940339-5-case-101",
+                  "causal_inbound_event_id": "reminder-normal-c469940339-5-case-101-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "cb9838172072b31f8aedb051"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 66.112
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 101,
+      "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+      "user_id": "cb9838172072b31f8aedb051",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f3351b19ba0b69ed6e97ab",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:6>0",
+        "missing_expected_reminder_title:起床",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:开始健身",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:睡觉",
+        "user_output_missing_expected_title:起床",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:开始健身",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:睡觉"
+      ],
+      "outputs": [
+        {
+          "_id": "69f3355d4b1fa4940ae5603a",
+          "expect_output_timestamp": 1777546586,
+          "handled_timestamp": 1777546586,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒还没设置成功。你说的这些时间是每天固定的吗？还有，每次提醒你之前需要提前多久提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c469940339-5",
+            "case_index": 101,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693001fc4bf7878f041147e9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c469940339-5-case-101",
+              "business_conversation_key": "reminder-normal-c469940339-5-case-101",
+              "causal_inbound_event_id": "reminder-normal-c469940339-5-case-101-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cb9838172072b31f8aedb051"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 66.112
+    }
+  ]
+}

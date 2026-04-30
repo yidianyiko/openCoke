@@ -1,0 +1,67 @@
+{
+  "cases": "tasks/evidence/reminder-normal/pr4-failure-rerun-cases.json",
+  "offset": 3,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-6f3156f107",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b1c0caf76581f467fb3e11fc"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 3,
+      "input": "今天学习结束，晚安，不要打扰我了",
+      "user_id": "b1c0caf76581f467fb3e11fc",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "69f2e244cf02625a5cec67d1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2e258bb1f14e41ff8203e",
+          "expect_output_timestamp": 1777525336,
+          "handled_timestamp": 1777525336,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：reminder_id or keyword is required",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-6f3156f107",
+            "case_index": 3,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "693195814bf7878f041149e1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-6f3156f107-case-3",
+              "business_conversation_key": "reminder-normal-6f3156f107-case-3",
+              "causal_inbound_event_id": "reminder-normal-6f3156f107-case-3-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b1c0caf76581f467fb3e11fc"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.037
+    }
+  ]
+}

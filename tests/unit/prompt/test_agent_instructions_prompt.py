@@ -1,313 +1,137 @@
-from agent.prompt.agent_instructions_prompt import (
-    INSTRUCTIONS_REMINDER_DETECT_RETRY,
-    get_reminder_detect_instructions,
-)
+from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
 
 
-def test_reminder_detect_instructions_require_aware_iso_trigger_at():
-    instructions = get_reminder_detect_instructions("2026年04月21日12时00分")
-
-    assert "trigger_at" in instructions
-    assert "new_trigger_at" in instructions
-    assert "2026-04-21T15:30:00+08:00" in instructions
-    assert "FREQ=DAILY" in instructions
-    assert "Do not pass relative time strings" in instructions
-    assert "trigger_time" not in instructions
-    assert "new_trigger_time" not in instructions
+def _non_empty_lines(text: str) -> list[str]:
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def test_reminder_detect_instructions_reject_date_only_default_time_creation():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+def test_reminder_detect_instructions_are_small_positive_boundary():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+    lines = _non_empty_lines(instructions)
 
-    assert "You are the semantic parser for reminder operations" in instructions
-    assert "Do not invent a default time" in instructions
-    assert "Date-only expressions" in instructions
-    assert "明天继续提醒我看文章" in instructions
-
-
-def test_reminder_detect_instructions_do_not_list_for_ambiguous_create():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
-
-    assert "Only call list" in instructions
-    assert "Do not call list as a fallback" in instructions
-
-
-def test_reminder_detect_instructions_do_not_create_for_schedule_statement_only():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
-
-    assert "A plan or schedule statement is not enough" in instructions
-    assert "七点半开始正式学习" in instructions
-    assert 'Return intent_type="clarify" with no action' in instructions
-    assert "学到下午4:30" in instructions
-    assert "return time" in instructions
-    assert "之后吃饭，8点回来" in instructions
+    assert len(lines) <= 60
+    assert "Current time: 2026年04月30日12时00分" in instructions
+    assert "create only when the user asks to be reminded" in instructions
+    assert "Date-only or time-missing reminder requests clarify" in instructions
+    assert "Bounded cadence with a deadline enumerates one-shot operations" in (
+        instructions
+    )
+    assert "Cadence with a deadline and no start uses the next future" in (
+        instructions
+    )
+    assert "Preserve all meaningful title text" in instructions
+    assert "Any decision with operations must use top-level action=\"batch\"" in (
+        instructions
+    )
+    assert "one operation per listed time" in instructions
+    assert "contacted, nudged, or supervised at a concrete time/cadence" in instructions
+    assert "A task time range is a work block" in instructions
+    assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)
+    assert "Output only the structured decision" in instructions
 
 
-def test_reminder_detect_instructions_deduplicate_recurring_batch_creates():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
+def test_reminder_detect_instructions_do_not_embed_case_examples():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
 
-    assert "habitual or general schedule" in instructions
-    assert "Do not also create one-shot reminders" in instructions
-    assert "same title and local time" in instructions
-    assert "我一般7:15起床" in instructions
-
-
-def test_reminder_detect_instructions_do_not_create_for_routine_description():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
-
-    assert "Routine descriptions are not reminder requests" in instructions
-    assert "我的作息，6点半起床" in instructions
-
-
-def test_reminder_detect_instructions_do_not_infer_recurrence_from_day_period():
-    instructions = get_reminder_detect_instructions("2026年04月29日02时30分")
-
-    assert "Day-period words are not recurrence" in instructions
-    assert "Only set rrule" in instructions
-    assert "早上10:30提醒我看报表" in instructions
+    assert "Example:" not in instructions
+    assert "->" not in instructions
+    for stale_phrase in (
+        "我8点回来",
+        "七点半开始正式学习",
+        "今晚7点上课",
+        "之后吃饭，8点回来",
+        "我的作息，6点半起床",
+        "11点10分还有12点提醒我一下",
+    ):
+        assert stale_phrase not in instructions
 
 
-def test_reminder_detect_instructions_use_next_occurrence_for_past_clock_time():
-    instructions = get_reminder_detect_instructions("2026年04月29日11时51分")
+def test_orchestrator_routes_stop_or_do_not_disturb_requests_to_reminder_detect():
+    from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_ORCHESTRATOR
 
-    assert "If a bare clock time has already passed today" in instructions
-    assert "next occurrence" in instructions
-    assert "10:40提醒我思考一个问题" in instructions
-
-
-def test_reminder_detect_instructions_allow_generic_title_for_bare_time_reminders():
-    instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
-
-    assert 'title="提醒"' in instructions
-    assert "missing reminder content" in instructions
-    assert "clarification" in instructions
-    assert "11点10分还有12点提醒我一下" in instructions
-    assert "two one-shot reminders" in instructions
-
-
-def test_reminder_detect_instructions_accept_name_plus_activity_as_content():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
-
-    assert "name or object plus activity" in instructions
-
-
-def test_reminder_detect_instructions_treat_concrete_contact_time_as_reminder():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
-
-    assert "come back, find, contact, check in" in instructions
-    assert "executable reminder/contact requests" in instructions
-    assert "contact action as the title" in instructions
-    assert "come back, find, contact, check in" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "contact action as the title" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-
-
-def test_reminder_detect_instructions_treat_no_disturb_as_cancel_intent():
-    instructions = get_reminder_detect_instructions("2026年04月29日14时27分")
-
-    assert "do-not-disturb" in instructions
-    assert "不要打扰我了" in instructions
-    assert "do not create anything" in instructions
-
-
-def test_reminder_detect_instructions_enumerate_unsupported_interval_deadlines():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
-
-    assert "bounded cadence with an end time" in instructions
-    assert "enumerate each concrete" in instructions
-    assert "one-shot occurrence" in instructions
-    assert "instead of using RRULE" in instructions
-    assert "current time is the schedule anchor" in instructions
-    assert "current time plus one full interval" in instructions
-    assert "deadline_at" in instructions
-    assert "15:57, 16:47, 17:37" in instructions
-
-
-def test_reminder_detect_instructions_require_cadence_basis_for_rrule_or_deadline():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
-
-    assert "rrule or deadline_at" in instructions
-    assert "schedule_basis=\"explicit_cadence\"" in instructions
-    assert "not one_shot" in instructions
-    assert "rrule or deadline_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "schedule_basis=\"explicit_cadence\"" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-
-
-def test_reminder_detect_instructions_use_user_supplied_interval_anchor():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
-
-    assert "explicit occurrence anchor" in instructions
-    assert "correction point" in instructions
-
-
-def test_reminder_detect_instructions_treat_same_message_stop_as_deadline():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
-
-    assert "same-message stop boundary" in instructions
-    assert "20点之后不要打卡" in instructions
-    assert "deadline_at for that batch" in instructions
-    assert "not as delete/cancel" in instructions
-
-
-def test_reminder_detect_instructions_handle_restarted_daily_window_cadence():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
-
-    assert "restates the concrete schedule" in instructions
-    assert "previous setting" in instructions
-    assert "daily window cadence" in instructions
-    assert "FREQ=HOURLY" in instructions
-    assert "BYHOUR" in instructions
-    assert "single create" in instructions
-    assert "not one operation per hour" in instructions
-    assert "title and trigger_at" in instructions
-
-
-def test_reminder_detect_retry_instructions_handle_restarted_daily_window_cadence():
-    assert "restates the concrete schedule" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "daily window cadence" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "FREQ=HOURLY" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "BYHOUR" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "single create" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "not one operation per hour" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "title and trigger_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-
-
-def test_reminder_detect_retry_instructions_keep_single_create_top_level():
-    assert "single reminder create" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "top-level title and trigger_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "operations empty" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "new_title and new_trigger_at are update-only" in (
-        INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "avoid disturbance" in INSTRUCTIONS_ORCHESTRATOR
+    assert "reminder/alarm/check-in/supervision flow" in INSTRUCTIONS_ORCHESTRATOR
+    assert "Do-not-disturb/stop language is not pure small talk" in (
+        INSTRUCTIONS_ORCHESTRATOR
     )
 
 
-def test_reminder_detect_retry_instructions_keep_batch_create_fields_concise():
-    assert "batch create operations" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "title and trigger_at only" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "Do not include empty optional fields" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+def test_reminder_detect_retry_reuses_primary_instructions():
+    from agent.agno_agent.agents import (
+        get_reminder_detect_instructions as agent_instructions,
+        get_reminder_detect_retry_instructions,
+        reminder_detect_agent,
+        reminder_detect_retry_agent,
+    )
 
-
-def test_reminder_detect_retry_instructions_keep_safe_mixed_batch_operations():
-    assert "mixes safe and unsafe" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "execute the safe operations" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "ambiguous time range" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "must not block" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "Omit ambiguous time range clauses" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-
-
-def test_reminder_detect_instructions_keep_concrete_recurring_parts_of_tracking_request():
-    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
-
-    assert "concrete daily/weekly recurring clock time" in instructions
-    assert "check-in, contact, or summary content" in instructions
-    assert "unsupported tracking, recording" in instructions
-    assert "unspecified" in instructions
-    assert "per-plan" in instructions
-    assert "follow-up" in instructions
-    assert "not from these instructions or a policy label" in instructions
-    assert "concrete daily/weekly recurring clock time" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "unsupported tracking, recording" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert get_reminder_detect_retry_instructions() == agent_instructions()
     assert (
-        "not from these instructions or a policy label"
-        in INSTRUCTIONS_REMINDER_DETECT_RETRY
+        reminder_detect_retry_agent.instructions == reminder_detect_agent.instructions
     )
 
 
-def test_reminder_detect_retry_instructions_require_aware_datetimes():
-    assert "timezone-aware ISO 8601" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "include the local timezone offset" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "2026-12-14T00:30:00+09:00" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+def test_reminder_few_shots_are_input_context_not_system_prompt():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    session_state = {
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日12时00分",
+                "chat_history": [],
+            }
+        },
+        "user": {"timezone": "Asia/Tokyo"},
+    }
+
+    reminder_input = workflow._build_reminder_input("18:00提醒我喝水", session_state)
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+
+    assert "### Reminder Few-Shot Decisions" in reminder_input
+    assert '"decision_class": "crud.create"' in reminder_input
+    assert "我一般7:15起床，23:00睡觉" in reminder_input
+    assert "早上8:00开始学习，下午13:00开始健身" not in reminder_input
+    assert "帮我记住今天任务" in reminder_input
+    assert "工作应该去做“非我不可”的事情" in reminder_input
+    assert '"decision_class": "discussion"' in reminder_input
+    assert "Reminder Few-Shot Decisions" not in instructions
 
 
-def test_reminder_detect_retry_instructions_keep_clarify_action_empty():
-    assert "Clarify/query/discussion must leave" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "action empty" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert 'Never output action="create" with intent_type="clarify"' in (
-        INSTRUCTIONS_REMINDER_DETECT_RETRY
+def test_reminder_detect_retry_input_keeps_batch_schema_constraints():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+    session_state = {
+        "conversation": {
+            "conversation_info": {"time_str": "2026年04月30日12时00分"}
+        },
+        "user": {"timezone": "Asia/Tokyo"},
+    }
+
+    retry_input = workflow._build_reminder_retry_input(
+        "我一般7:15起床，23:00睡觉。我需要你在上述这些时间提醒我",
+        session_state,
+        reason="schema validation failed",
     )
 
-
-def test_reminder_detect_retry_instructions_clarify_schedule_only_plan():
-    assert "future plan with a task and time" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "return clarify" in INSTRUCTIONS_REMINDER_DETECT_RETRY
-    assert "ask whether they want a reminder" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "For same-message listed routine times" in retry_input
+    assert "schedule_basis=\"explicit_occurrences\"" in retry_input
+    assert "one operation per listed time" in retry_input
 
 
-def test_reminder_detect_instructions_skip_past_bounded_cadence_occurrences():
-    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
+def test_reminder_few_shot_fixture_stays_small_and_representative():
+    from agent.prompt.reminder_few_shot import load_reminder_few_shots
 
-    assert "start point in the past" in instructions
-    assert "skip past occurrences" in instructions
-    assert "create only future occurrences" in instructions
-    assert "Do not ask how to catch up" in instructions
+    shots = load_reminder_few_shots()
+    classes = {shot["decision_class"] for shot in shots}
 
-
-def test_reminder_detect_instructions_clarify_vague_window_cadence():
-    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
-
-    assert "schedule_basis" in instructions
-    assert "schedule_evidence" in instructions
-    assert "time window plus supervision" in instructions
-    assert "interval/frequency or lists the occurrence times" in instructions
-    assert "ask for the" in instructions
-    assert "cadence" in instructions
-
-
-def test_reminder_detect_instructions_scope_reminder_intent_to_modified_tasks():
-    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
-
-    assert "semantically modifies" in instructions
-    assert "neighboring independent schedule item" in instructions
-    assert "task time range supplies boundaries" in instructions
-    assert "schedule-only items" in instructions
-
-
-def test_reminder_detect_instructions_keep_future_explicit_occurrences():
-    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
-
-    assert "explicit occurrence list contains both past and future" in instructions
-    assert "future occurrences executable" in instructions
-    assert "leave past" in instructions
-
-
-def test_reminder_detect_instructions_require_batch_schedule_basis():
-    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
-
-    assert "Every batch create must include" in instructions
-    assert "schedule_basis and schedule_evidence" in instructions
-    assert "Omit optional empty string fields" in instructions
-
-
-def test_reminder_detect_instructions_clarify_date_only_deadline_reminders():
-    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
-
-    assert "calendar date, deadline date, or day-of-month" in instructions
-    assert "do not resolve it to midnight" in instructions
-
-
-def test_reminder_detect_instructions_reject_empty_batch_and_vague_occurrence_evidence():
-    instructions = get_reminder_detect_instructions("2026年04月29日17时50分")
-
-    assert 'Never return action="batch" with operations=[]' in instructions
-    assert "these time points" in instructions
-    assert "not enough schedule_evidence" in instructions
-
-
-def test_reminder_detect_instructions_require_every_safe_listed_reminder_operation():
-    instructions = get_reminder_detect_instructions("2026年04月29日09时50分")
-
-    assert "semicolon-separated" in instructions
-    assert "one create operation for each safe clause" in instructions
-    assert "Do not keep only the last item" in instructions
-    assert "action=create is invalid" in instructions
-    assert (
-        "operations count must equal the number of safe reminder clauses"
-        in instructions
-    )
-    assert "Chinese semicolon lists may omit the repeated reminder verb" in instructions
-
-
-def test_reminder_detect_instructions_keep_clarification_language():
-    instructions = get_reminder_detect_instructions("2026年04月29日16时20分")
-
-    assert "same language as the current" in instructions
-    assert "not the profile, prior messages, or retrieved context" in instructions
+    assert len(shots) <= 8
+    assert classes == {
+        "crud.create",
+        "crud.batch",
+        "crud.update",
+        "crud.delete",
+        "query",
+        "clarify",
+        "discussion",
+    }

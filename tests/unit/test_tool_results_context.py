@@ -490,10 +490,10 @@ def test_reminder_detect_instructions_require_aware_iso8601_rrule_and_batch():
 
     instructions = get_reminder_detect_instructions("2026年04月28日09时00分")
 
-    assert "ISO 8601 aware datetime" in instructions
+    assert "timezone-aware ISO 8601" in instructions
     assert "RFC 5545 RRULE" in instructions
     assert "batch" in instructions
-    assert "multiple reminder operations" in instructions
+    assert "Multiple reminder operations" in instructions
 
 
 @pytest.mark.asyncio
@@ -529,16 +529,9 @@ async def test_chat_workflow_adds_pending_reminder_notice_without_tool_result(
     assert "### System Notice: Reminder Setup Pending" in workflow.agent.input
     assert "ReminderDetect was requested" in workflow.agent.input
     assert "Ask one direct question" in workflow.agent.input
-    assert "If trigger time is missing" in workflow.agent.input
-    assert "If cadence is missing" in workflow.agent.input
-    assert "If only a time was supplied" in workflow.agent.input
-    assert "ask what the reminder should be about" in workflow.agent.input
-    assert "ask whether they want a reminder" in workflow.agent.input
-    assert "If a date is known but clock time is missing" in workflow.agent.input
-    assert "provided trigger time has already passed" in workflow.agent.input
-    assert "ask for a new future time or date" in workflow.agent.input
+    assert "whatever decision or detail blocks safe reminder" in workflow.agent.input
+    assert "successful reminder tool result" in workflow.agent.input
     assert "State that reminder setup has not completed yet" in workflow.agent.input
-    assert "ask when or how often to check in" in workflow.agent.input
 
 
 @pytest.mark.asyncio
@@ -573,8 +566,9 @@ async def test_chat_workflow_skips_pending_notice_after_no_action_reminder_detec
         )
     ]
 
+    assert events[0]["data"]["content"] == "需要我帮你设置一个提醒吗？"
     assert events[-1]["type"] == "done"
-    assert "### System Notice: Reminder Setup Pending" not in workflow.agent.input
+    assert workflow.agent.input is None
 
 
 @pytest.mark.asyncio
@@ -609,14 +603,9 @@ async def test_chat_workflow_adds_no_action_reminder_context_after_discussion_de
         )
     ]
 
+    assert events[0]["data"]["content"] == "需要我帮你设置一个提醒吗？"
     assert events[-1]["type"] == "done"
-    assert (
-        "### System Notice: ReminderDetect No Reminder Action" in workflow.agent.input
-    )
-    assert (
-        "Only say a reminder will happen after a successful reminder tool result"
-        in (workflow.agent.input)
-    )
+    assert workflow.agent.input is None
 
 
 @pytest.mark.asyncio

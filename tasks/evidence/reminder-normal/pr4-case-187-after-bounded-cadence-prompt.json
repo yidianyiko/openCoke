@@ -1,0 +1,124 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 187,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c55b0c41ac",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9ef628df2191eafe6402d46a"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 187,
+      "input": "每小时打卡，到晚上8点",
+      "user_id": "9ef628df2191eafe6402d46a",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f311f992b973e2f934d5da",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f3121430eb822a1791408c",
+          "expect_output_timestamp": 1777537556,
+          "handled_timestamp": 1777537556,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打卡（2026-05-01 18:00）；已创建提醒：打卡（2026-05-01 19:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-c55b0c41ac",
+            "case_index": 187,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6932a0dc4bf7878f04114a74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-c55b0c41ac-case-187",
+              "business_conversation_key": "reminder-normal-c55b0c41ac-case-187",
+              "causal_inbound_event_id": "reminder-normal-c55b0c41ac-case-187-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9ef628df2191eafe6402d46a"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f3121430eb822a17914089",
+          "owner_user_id": "9ef628df2191eafe6402d46a",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T09:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f311f930eb822a17914081",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T09:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T08:25:56.337000+00:00",
+          "updated_at": "2026-04-30T08:25:56.337000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f3121430eb822a1791408a",
+          "owner_user_id": "9ef628df2191eafe6402d46a",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T10:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f311f930eb822a17914081",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T08:25:56.344000+00:00",
+          "updated_at": "2026-04-30T08:25:56.344000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 28.048
+    }
+  ]
+}

@@ -1,0 +1,3598 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 0,
+  "limit": null,
+  "run_all": true,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-normal-0f2e1404ea",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "summary": {
+    "total": 32,
+    "passed": 26,
+    "failed": 6,
+    "pass_rate": 0.8125,
+    "by_error": {
+      "expected_reminder_count_mismatch:6>0": 1,
+      "missing_expected_reminder_title:开始健身": 1,
+      "missing_expected_reminder_title:开始学习": 3,
+      "missing_expected_reminder_title:睡觉": 1,
+      "missing_expected_reminder_title:起床": 1,
+      "no_reminder_created": 2,
+      "unexpected_reminder_created": 1,
+      "user_output_missing_clarification": 3,
+      "user_output_missing_crud_ack": 1,
+      "user_output_missing_expected_title:开始健身": 1,
+      "user_output_missing_expected_title:开始学习": 3,
+      "user_output_missing_expected_title:睡觉": 1,
+      "user_output_missing_expected_title:起床": 1
+    },
+    "failures": [
+      {
+        "index": 73,
+        "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+        "user_id": "55ae14ff5b18c9b335ddf1bd",
+        "original_from_user": "692c4430a538f0baad5561de",
+        "input_message_id": "69f2f87117442c05da9107c3",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f87979b99b5ff9af65e9",
+            "expect_output_timestamp": 1777531001,
+            "handled_timestamp": 1777531001,
+            "status": "pending",
+            "message_type": "text",
+            "message": "明天几点提醒你看文章和写学习笔记？写小说又想几点提醒呢？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 73,
+              "original_from_user": "692c4430a538f0baad5561de",
+              "source_id": "692ee16e4bf7878f041146c7",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-73",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-73",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-73-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "55ae14ff5b18c9b335ddf1bd"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 203.065
+      },
+      {
+        "index": 88,
+        "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+        "user_id": "131f50fea1ae279ecc1d4769",
+        "original_from_user": "692fb38c4bf7878f0411476c",
+        "input_message_id": "69f2f87117442c05da9107c6",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "unexpected_reminder_created",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f88479b99b5ff9af6674",
+            "expect_output_timestamp": 1777531012,
+            "handled_timestamp": 1777531012,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe（2026-05-02 09:00）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 88,
+              "original_from_user": "692fb38c4bf7878f0411476c",
+              "source_id": "692fbf7b4bf7878f04114783",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-88",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-88",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-88-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "131f50fea1ae279ecc1d4769"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f2f88479b99b5ff9af6672",
+            "owner_user_id": "131f50fea1ae279ecc1d4769",
+            "title": "订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+            "schedule": {
+              "anchor_at": "2026-05-02T00:00:00+00:00",
+              "local_date": "2026-05-02",
+              "local_time": "09:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": null
+            },
+            "agent_output_target": {
+              "conversation_id": "69f2f87179b99b5ff9af6597",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-05-02T00:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-30T06:36:52.573000+00:00",
+            "updated_at": "2026-04-30T06:36:52.573000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 345.574
+      },
+      {
+        "index": 101,
+        "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+        "user_id": "a6fba2a3ad3912313a7346b4",
+        "original_from_user": "693000a24bf7878f041147e3",
+        "input_message_id": "69f2f87117442c05da9107c8",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:6>0",
+          "missing_expected_reminder_title:起床",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:开始健身",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:开始学习",
+          "missing_expected_reminder_title:睡觉",
+          "user_output_missing_expected_title:起床",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:开始健身",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:开始学习",
+          "user_output_missing_expected_title:睡觉"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f93e79b99b5ff9af67bc",
+            "expect_output_timestamp": 1777531128,
+            "handled_timestamp": 1777531128,
+            "status": "pending",
+            "message_type": "text",
+            "message": "提醒设置还没完成。你给了很详细的作息表，我帮你拆一下：",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 101,
+              "original_from_user": "693000a24bf7878f041147e3",
+              "source_id": "693001fc4bf7878f041147e9",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-101",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-101",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-101-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "a6fba2a3ad3912313a7346b4"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 384.107
+      },
+      {
+        "index": 168,
+        "input": "今天学习结束，晚安，不要打扰我了",
+        "user_id": "eb9683f39c4cb9999abd1acb",
+        "original_from_user": "693181994bf7878f041149af",
+        "input_message_id": "69f2f87117442c05da9107dd",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_crud_ack"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f89179b99b5ff9af66e9",
+            "expect_output_timestamp": 1777531023,
+            "handled_timestamp": 1777531023,
+            "status": "pending",
+            "message_type": "text",
+            "message": "好的，今天就到这儿。好好休息，晚安。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 168,
+              "original_from_user": "693181994bf7878f041149af",
+              "source_id": "693195814bf7878f041149e1",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-168",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-168",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-168-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "eb9683f39c4cb9999abd1acb"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 132.137
+      },
+      {
+        "index": 181,
+        "input": "我在说明一次，我需要提醒的时间是晚上的9点到12点，不是白天",
+        "user_id": "f66e84302ab794aee32576cb",
+        "original_from_user": "6930e40c4bf7878f041148b5",
+        "input_message_id": "69f2f87117442c05da9107e0",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f95b79b99b5ff9af67cb",
+            "expect_output_timestamp": 1777531137,
+            "handled_timestamp": 1777531137,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 181,
+              "original_from_user": "6930e40c4bf7878f041148b5",
+              "source_id": "693258e44bf7878f04114a51",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-181",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-181",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-181-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "f66e84302ab794aee32576cb"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 563.598
+      },
+      {
+        "index": 187,
+        "input": "每小时打卡，到晚上8点",
+        "user_id": "4b6096923f744428f423cd71",
+        "original_from_user": "692d38aea538f0baad556271",
+        "input_message_id": "69f2f87117442c05da9107e1",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2f8d079b99b5ff9af67a5",
+            "expect_output_timestamp": 1777531076,
+            "handled_timestamp": 1777531076,
+            "status": "pending",
+            "message_type": "text",
+            "message": "收到，每小时打卡到晚上8点。不过提醒还没设置成功，你是想让我帮你设个闹钟提醒你每个整点打卡吗？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-0f2e1404ea-0",
+              "case_index": 187,
+              "original_from_user": "692d38aea538f0baad556271",
+              "source_id": "6932a0dc4bf7878f04114a74",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-187",
+                "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-187",
+                "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-187-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "4b6096923f744428f423cd71"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 185.121
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 0,
+      "limit": 32,
+      "batch_id": "reminder-normal-0f2e1404ea-0",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "55ae14ff5b18c9b335ddf1bd",
+        "955f01a65fb5206b818ade1d",
+        "af87dfa5ba0e6b80a7181cbf",
+        "131f50fea1ae279ecc1d4769",
+        "b188c4787571b91fbd2e0fb0",
+        "a6fba2a3ad3912313a7346b4",
+        "a6de5deba8398cad1d4592a0",
+        "8b21e19bd5a6349a78f2071e",
+        "040e1b8ed044354224a45863",
+        "cb8144b1566f378acce78675",
+        "e8ef063652212b9b898ec185",
+        "7a8dbda8edba0fe3a1147095",
+        "81fd9ee398a9d80075945782",
+        "1f86e3d3ffba2c2c3c7fcef9",
+        "d9b89343f0410208707656e2",
+        "25c96f60981e4d246ed5faab",
+        "ca4245f797af74ae8eed857a",
+        "adb79d314a04e631e8881b36",
+        "5276e866e913dff5c914cfae",
+        "289ce03a2320120b83be1c73",
+        "25a562473cf269fc147ffd10",
+        "488e73395b5059257099ad02",
+        "69c69b8fcb837009acad6e33",
+        "ead58cc03bcd8a1b295e6b0c",
+        "8daa849e378d637a448d9de1",
+        "e42a68a93915188c4e996dad",
+        "eb9683f39c4cb9999abd1acb",
+        "42d36438ef9d0f8304694cc2",
+        "872ccc48db24c9f3e74033ad",
+        "f66e84302ab794aee32576cb",
+        "4b6096923f744428f423cd71",
+        "cf941e3059c88450e2c0a001"
+      ],
+      "summary": {
+        "total": 32,
+        "passed": 26,
+        "failed": 6,
+        "pass_rate": 0.8125,
+        "by_error": {
+          "expected_reminder_count_mismatch:6>0": 1,
+          "missing_expected_reminder_title:开始健身": 1,
+          "missing_expected_reminder_title:开始学习": 3,
+          "missing_expected_reminder_title:睡觉": 1,
+          "missing_expected_reminder_title:起床": 1,
+          "no_reminder_created": 2,
+          "unexpected_reminder_created": 1,
+          "user_output_missing_clarification": 3,
+          "user_output_missing_crud_ack": 1,
+          "user_output_missing_expected_title:开始健身": 1,
+          "user_output_missing_expected_title:开始学习": 3,
+          "user_output_missing_expected_title:睡觉": 1,
+          "user_output_missing_expected_title:起床": 1
+        },
+        "failures": [
+          {
+            "index": 73,
+            "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+            "user_id": "55ae14ff5b18c9b335ddf1bd",
+            "original_from_user": "692c4430a538f0baad5561de",
+            "input_message_id": "69f2f87117442c05da9107c3",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "user_output_missing_clarification"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f87979b99b5ff9af65e9",
+                "expect_output_timestamp": 1777531001,
+                "handled_timestamp": 1777531001,
+                "status": "pending",
+                "message_type": "text",
+                "message": "明天几点提醒你看文章和写学习笔记？写小说又想几点提醒呢？",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 73,
+                  "original_from_user": "692c4430a538f0baad5561de",
+                  "source_id": "692ee16e4bf7878f041146c7",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-73",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-73",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-73-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "55ae14ff5b18c9b335ddf1bd"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 203.065
+          },
+          {
+            "index": 88,
+            "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+            "user_id": "131f50fea1ae279ecc1d4769",
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "input_message_id": "69f2f87117442c05da9107c6",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "unexpected_reminder_created",
+              "user_output_missing_clarification"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f88479b99b5ff9af6674",
+                "expect_output_timestamp": 1777531012,
+                "handled_timestamp": 1777531012,
+                "status": "pending",
+                "message_type": "text",
+                "message": "已创建提醒：订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe（2026-05-02 09:00）",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 88,
+                  "original_from_user": "692fb38c4bf7878f0411476c",
+                  "source_id": "692fbf7b4bf7878f04114783",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-88",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-88",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-88-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "131f50fea1ae279ecc1d4769"
+              }
+            ],
+            "reminders": [
+              {
+                "_id": "69f2f88479b99b5ff9af6672",
+                "owner_user_id": "131f50fea1ae279ecc1d4769",
+                "title": "订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+                "schedule": {
+                  "anchor_at": "2026-05-02T00:00:00+00:00",
+                  "local_date": "2026-05-02",
+                  "local_time": "09:00:00",
+                  "timezone": "Asia/Tokyo",
+                  "rrule": null
+                },
+                "agent_output_target": {
+                  "conversation_id": "69f2f87179b99b5ff9af6597",
+                  "character_id": "69eeeee7e7ef890c105124bf",
+                  "route_key": null
+                },
+                "created_by_system": "agent",
+                "lifecycle_state": "active",
+                "next_fire_at": "2026-05-02T00:00:00+00:00",
+                "last_fired_at": null,
+                "last_event_ack_at": null,
+                "last_error": null,
+                "created_at": "2026-04-30T06:36:52.573000+00:00",
+                "updated_at": "2026-04-30T06:36:52.573000+00:00",
+                "completed_at": null,
+                "cancelled_at": null,
+                "failed_at": null
+              }
+            ],
+            "elapsed_seconds": 345.574
+          },
+          {
+            "index": 101,
+            "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+            "user_id": "a6fba2a3ad3912313a7346b4",
+            "original_from_user": "693000a24bf7878f041147e3",
+            "input_message_id": "69f2f87117442c05da9107c8",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created",
+              "expected_reminder_count_mismatch:6>0",
+              "missing_expected_reminder_title:起床",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:开始健身",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:开始学习",
+              "missing_expected_reminder_title:睡觉",
+              "user_output_missing_expected_title:起床",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:开始健身",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:开始学习",
+              "user_output_missing_expected_title:睡觉"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f93e79b99b5ff9af67bc",
+                "expect_output_timestamp": 1777531128,
+                "handled_timestamp": 1777531128,
+                "status": "pending",
+                "message_type": "text",
+                "message": "提醒设置还没完成。你给了很详细的作息表，我帮你拆一下：",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 101,
+                  "original_from_user": "693000a24bf7878f041147e3",
+                  "source_id": "693001fc4bf7878f041147e9",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-101",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-101",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-101-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "a6fba2a3ad3912313a7346b4"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 384.107
+          },
+          {
+            "index": 168,
+            "input": "今天学习结束，晚安，不要打扰我了",
+            "user_id": "eb9683f39c4cb9999abd1acb",
+            "original_from_user": "693181994bf7878f041149af",
+            "input_message_id": "69f2f87117442c05da9107dd",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "user_output_missing_crud_ack"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f89179b99b5ff9af66e9",
+                "expect_output_timestamp": 1777531023,
+                "handled_timestamp": 1777531023,
+                "status": "pending",
+                "message_type": "text",
+                "message": "好的，今天就到这儿。好好休息，晚安。",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 168,
+                  "original_from_user": "693181994bf7878f041149af",
+                  "source_id": "693195814bf7878f041149e1",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-168",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-168",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-168-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "eb9683f39c4cb9999abd1acb"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 132.137
+          },
+          {
+            "index": 181,
+            "input": "我在说明一次，我需要提醒的时间是晚上的9点到12点，不是白天",
+            "user_id": "f66e84302ab794aee32576cb",
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "input_message_id": "69f2f87117442c05da9107e0",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "user_output_missing_clarification"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f95b79b99b5ff9af67cb",
+                "expect_output_timestamp": 1777531137,
+                "handled_timestamp": 1777531137,
+                "status": "pending",
+                "message_type": "text",
+                "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 181,
+                  "original_from_user": "6930e40c4bf7878f041148b5",
+                  "source_id": "693258e44bf7878f04114a51",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-181",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-181",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-181-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "f66e84302ab794aee32576cb"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 563.598
+          },
+          {
+            "index": 187,
+            "input": "每小时打卡，到晚上8点",
+            "user_id": "4b6096923f744428f423cd71",
+            "original_from_user": "692d38aea538f0baad556271",
+            "input_message_id": "69f2f87117442c05da9107e1",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2f8d079b99b5ff9af67a5",
+                "expect_output_timestamp": 1777531076,
+                "handled_timestamp": 1777531076,
+                "status": "pending",
+                "message_type": "text",
+                "message": "收到，每小时打卡到晚上8点。不过提醒还没设置成功，你是想让我帮你设个闹钟提醒你每个整点打卡吗？",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-0f2e1404ea-0",
+                  "case_index": 187,
+                  "original_from_user": "692d38aea538f0baad556271",
+                  "source_id": "6932a0dc4bf7878f04114a74",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-187",
+                    "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-187",
+                    "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-187-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "4b6096923f744428f423cd71"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 185.121
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 73,
+          "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+          "user_id": "55ae14ff5b18c9b335ddf1bd",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f2f87117442c05da9107c3",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "user_output_missing_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f87979b99b5ff9af65e9",
+              "expect_output_timestamp": 1777531001,
+              "handled_timestamp": 1777531001,
+              "status": "pending",
+              "message_type": "text",
+              "message": "明天几点提醒你看文章和写学习笔记？写小说又想几点提醒呢？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 73,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "692ee16e4bf7878f041146c7",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-73",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-73",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-73-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "55ae14ff5b18c9b335ddf1bd"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 203.065
+        },
+        {
+          "index": 75,
+          "input": "七点半开始正式学习",
+          "user_id": "955f01a65fb5206b818ade1d",
+          "original_from_user": "692ef7f84bf7878f041146e1",
+          "input_message_id": "69f2f87117442c05da9107c4",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89379b99b5ff9af671b",
+              "expect_output_timestamp": 1777531021,
+              "handled_timestamp": 1777531021,
+              "status": "pending",
+              "message_type": "text",
+              "message": "好，七点半开始，现在十点三十六，还有大概九个小时。要设个提醒吗？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 75,
+                "original_from_user": "692ef7f84bf7878f041146e1",
+                "source_id": "692ef9714bf7878f041146e8",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-75",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-75",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-75-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "955f01a65fb5206b818ade1d"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 297.443
+        },
+        {
+          "index": 86,
+          "input": "可以提醒我喝水哦",
+          "user_id": "af87dfa5ba0e6b80a7181cbf",
+          "original_from_user": "692e41334bf7878f04114567",
+          "input_message_id": "69f2f87117442c05da9107c5",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f8a679b99b5ff9af6786",
+              "expect_output_timestamp": 1777531046,
+              "handled_timestamp": 1777531046,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你希望什么时候提醒你喝水呢？比如具体的时间，或者每隔多久提醒一次？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 86,
+                "original_from_user": "692e41334bf7878f04114567",
+                "source_id": "692fb0734bf7878f04114768",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-86",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-86",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-86-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "af87dfa5ba0e6b80a7181cbf"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 316.439
+        },
+        {
+          "index": 88,
+          "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+          "user_id": "131f50fea1ae279ecc1d4769",
+          "original_from_user": "692fb38c4bf7878f0411476c",
+          "input_message_id": "69f2f87117442c05da9107c6",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created",
+            "user_output_missing_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f88479b99b5ff9af6674",
+              "expect_output_timestamp": 1777531012,
+              "handled_timestamp": 1777531012,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe（2026-05-02 09:00）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 88,
+                "original_from_user": "692fb38c4bf7878f0411476c",
+                "source_id": "692fbf7b4bf7878f04114783",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-88",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-88",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-88-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "131f50fea1ae279ecc1d4769"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69f2f88479b99b5ff9af6672",
+              "owner_user_id": "131f50fea1ae279ecc1d4769",
+              "title": "订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+              "schedule": {
+                "anchor_at": "2026-05-02T00:00:00+00:00",
+                "local_date": "2026-05-02",
+                "local_time": "09:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69f2f87179b99b5ff9af6597",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-02T00:00:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-04-30T06:36:52.573000+00:00",
+              "updated_at": "2026-04-30T06:36:52.573000+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 345.574
+        },
+        {
+          "index": 91,
+          "input": "提醒我下周二去杭州",
+          "user_id": "b188c4787571b91fbd2e0fb0",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69f2f87117442c05da9107c7",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87979b99b5ff9af65e4",
+              "expect_output_timestamp": 1777531001,
+              "handled_timestamp": 1777531001,
+              "status": "pending",
+              "message_type": "text",
+              "message": "请问下周二（5月5日）几点提醒你去杭州？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 91,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "692fc9e24bf7878f04114797",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-91",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-91",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-91-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "b188c4787571b91fbd2e0fb0"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 350.843
+        },
+        {
+          "index": 101,
+          "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+          "user_id": "a6fba2a3ad3912313a7346b4",
+          "original_from_user": "693000a24bf7878f041147e3",
+          "input_message_id": "69f2f87117442c05da9107c8",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:6>0",
+            "missing_expected_reminder_title:起床",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:开始健身",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:开始学习",
+            "missing_expected_reminder_title:睡觉",
+            "user_output_missing_expected_title:起床",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:开始健身",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:开始学习",
+            "user_output_missing_expected_title:睡觉"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f93e79b99b5ff9af67bc",
+              "expect_output_timestamp": 1777531128,
+              "handled_timestamp": 1777531128,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。你给了很详细的作息表，我帮你拆一下：",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 101,
+                "original_from_user": "693000a24bf7878f041147e3",
+                "source_id": "693001fc4bf7878f041147e9",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-101",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-101",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-101-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "a6fba2a3ad3912313a7346b4"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 384.107
+        },
+        {
+          "index": 102,
+          "input": "到点提醒我，中间转一下我有没有摸鱼",
+          "user_id": "a6de5deba8398cad1d4592a0",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107c9",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89279b99b5ff9af66fe",
+              "expect_output_timestamp": 1777531026,
+              "handled_timestamp": 1777531026,
+              "status": "pending",
+              "message_type": "text",
+              "message": "请问你希望几点提醒你？另外「中间转一下」是指每隔多长时间检查一次有没有摸鱼？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 102,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "693003854bf7878f041147f3",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-102",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-102",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-102-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "a6de5deba8398cad1d4592a0"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 388.466
+        },
+        {
+          "index": 107,
+          "input": "嗯嗯计划写的4点半开始",
+          "user_id": "8b21e19bd5a6349a78f2071e",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107ca",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88279b99b5ff9af664c",
+              "expect_output_timestamp": 1777531005,
+              "handled_timestamp": 1777531005,
+              "status": "pending",
+              "message_type": "text",
+              "message": "那四点二十开始到现在，已经过一个多小时了，状态怎么样？需要我陪你盯会儿进度吗？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 107,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "693004ce4bf7878f04114801",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-107",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-107",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-107-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "8b21e19bd5a6349a78f2071e"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 398.71
+        },
+        {
+          "index": 109,
+          "input": "晚上8:10 提醒我出门",
+          "user_id": "040e1b8ed044354224a45863",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69f2f87117442c05da9107cb",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87979b99b5ff9af65ce",
+              "expect_output_timestamp": 1777531001,
+              "handled_timestamp": 1777531001,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：出门（2026-04-30 20:10）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 109,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "69300c3d4bf7878f0411480e",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-109",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-109",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-109-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "040e1b8ed044354224a45863"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69f2f87979b99b5ff9af65cc",
+              "owner_user_id": "040e1b8ed044354224a45863",
+              "title": "出门",
+              "schedule": {
+                "anchor_at": "2026-04-30T11:10:00+00:00",
+                "local_date": "2026-04-30",
+                "local_time": "20:10:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69f2f87179b99b5ff9af658f",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-04-30T11:10:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-04-30T06:36:41.221000+00:00",
+              "updated_at": "2026-04-30T06:36:41.221000+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 8.296
+        },
+        {
+          "index": 112,
+          "input": "提醒我12月10号打印准考证，订酒店",
+          "user_id": "cb8144b1566f378acce78675",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107cc",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87d79b99b5ff9af6619",
+              "expect_output_timestamp": 1777531005,
+              "handled_timestamp": 1777531005,
+              "status": "pending",
+              "message_type": "text",
+              "message": "12月10号几点提醒你打印准考证、订酒店？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 112,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "6930129c4bf7878f0411481b",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-112",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-112",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-112-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "cb8144b1566f378acce78675"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 403.255
+        },
+        {
+          "index": 116,
+          "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+          "user_id": "e8ef063652212b9b898ec185",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107cd",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88b79b99b5ff9af66be",
+              "expect_output_timestamp": 1777531016,
+              "handled_timestamp": 1777531016,
+              "status": "pending",
+              "message_type": "text",
+              "message": "收到，你这一天的安排挺清晰的。那今晚接下来是18:30到23:00的时段，现在是19:23，你已经在做事了吗？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 116,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "69301daa4bf7878f0411482e",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-116",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-116",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-116-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "e8ef063652212b9b898ec185"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 427.449
+        },
+        {
+          "index": 117,
+          "input": "记得按时提醒我",
+          "user_id": "7a8dbda8edba0fe3a1147095",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107ce",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87a79b99b5ff9af65f8",
+              "expect_output_timestamp": 1777531002,
+              "handled_timestamp": 1777531002,
+              "status": "pending",
+              "message_type": "text",
+              "message": "请问您想提醒什么内容，以及在什么时间提醒呢？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 117,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "69301dc64bf7878f0411482f",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-117",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-117",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-117-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "7a8dbda8edba0fe3a1147095"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 432.035
+        },
+        {
+          "index": 122,
+          "input": "早上10:30提醒我看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+          "user_id": "81fd9ee398a9d80075945782",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f2f87117442c05da9107cf",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87a79b99b5ff9af65ff",
+              "expect_output_timestamp": 1777531002,
+              "handled_timestamp": 1777531002,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户（2026-05-01 10:30）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 122,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "69305ce34bf7878f04114894",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-122",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-122",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-122-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "81fd9ee398a9d80075945782"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69f2f87a79b99b5ff9af65fd",
+              "owner_user_id": "81fd9ee398a9d80075945782",
+              "title": "看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+              "schedule": {
+                "anchor_at": "2026-05-01T01:30:00+00:00",
+                "local_date": "2026-05-01",
+                "local_time": "10:30:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69f2f87179b99b5ff9af659b",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-01T01:30:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-04-30T06:36:42.663000+00:00",
+              "updated_at": "2026-04-30T06:36:42.663000+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 449.434
+        },
+        {
+          "index": 123,
+          "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+          "user_id": "1f86e3d3ffba2c2c3c7fcef9",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f2f87117442c05da9107d0",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88279b99b5ff9af665c",
+              "expect_output_timestamp": 1777531010,
+              "handled_timestamp": 1777531010,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：思考一个问题：工作应该去做“非我不可”的事情（2026-05-01 10:40）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 123,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "69305f884bf7878f04114895",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-123",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-123",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-123-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "1f86e3d3ffba2c2c3c7fcef9"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69f2f88279b99b5ff9af665a",
+              "owner_user_id": "1f86e3d3ffba2c2c3c7fcef9",
+              "title": "思考一个问题：工作应该去做“非我不可”的事情",
+              "schedule": {
+                "anchor_at": "2026-05-01T01:40:00+00:00",
+                "local_date": "2026-05-01",
+                "local_time": "10:40:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69f2f87979b99b5ff9af65de",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-01T01:40:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-04-30T06:36:50.747000+00:00",
+              "updated_at": "2026-04-30T06:36:50.747000+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 449.443
+        },
+        {
+          "index": 124,
+          "input": "今天有哪些提醒？",
+          "user_id": "d9b89343f0410208707656e2",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69f2f87117442c05da9107d1",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f87979b99b5ff9af65d4",
+              "expect_output_timestamp": 1777531001,
+              "handled_timestamp": 1777531001,
+              "status": "pending",
+              "message_type": "text",
+              "message": "暂无提醒",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 124,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "69306b3c4bf7878f04114897",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-124",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-124",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-124-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "d9b89343f0410208707656e2"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 8.312
+        },
+        {
+          "index": 125,
+          "input": "【bad case】今天有哪些提醒？",
+          "user_id": "25c96f60981e4d246ed5faab",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69f2f87117442c05da9107d2",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f8d879b99b5ff9af67ab",
+              "expect_output_timestamp": 1777531006,
+              "handled_timestamp": 1777531006,
+              "status": "pending",
+              "message_type": "text",
+              "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 125,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "69306b974bf7878f04114899",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-125",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-125",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-125-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "25c96f60981e4d246ed5faab"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 449.45
+        },
+        {
+          "index": 130,
+          "input": "可以结束前五分钟提醒我一下",
+          "user_id": "ca4245f797af74ae8eed857a",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107d3",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89079b99b5ff9af66e1",
+              "expect_output_timestamp": 1777531022,
+              "handled_timestamp": 1777531022,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒还没设置成功。你说「结束」指的是哪个具体时间？比如你几点结束当前的事？我先把时间定下来。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 130,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "6930e42d4bf7878f041148b8",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-130",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-130",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-130-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "ca4245f797af74ae8eed857a"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 470.49
+        },
+        {
+          "index": 133,
+          "input": "我下午13点30上课，一直上到19：30 所以我需要你晚上19：40提醒我开始写论文和看书",
+          "user_id": "adb79d314a04e631e8881b36",
+          "original_from_user": "693000a24bf7878f041147e3",
+          "input_message_id": "69f2f87117442c05da9107d4",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88379b99b5ff9af6668",
+              "expect_output_timestamp": 1777531011,
+              "handled_timestamp": 1777531011,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：开始写论文和看书（2026-05-01 19:40）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 133,
+                "original_from_user": "693000a24bf7878f041147e3",
+                "source_id": "6930e53e4bf7878f041148bc",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-133",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-133",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-133-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "adb79d314a04e631e8881b36"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69f2f88379b99b5ff9af6666",
+              "owner_user_id": "adb79d314a04e631e8881b36",
+              "title": "开始写论文和看书",
+              "schedule": {
+                "anchor_at": "2026-05-01T10:40:00+00:00",
+                "local_date": "2026-05-01",
+                "local_time": "19:40:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69f2f87979b99b5ff9af65da",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-01T10:40:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-04-30T06:36:51.433000+00:00",
+              "updated_at": "2026-04-30T06:36:51.433000+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 29.356
+        },
+        {
+          "index": 136,
+          "input": "周五下午提醒我 看 沼泽深处的女孩这个电影",
+          "user_id": "5276e866e913dff5c914cfae",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f2f87117442c05da9107d5",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88979b99b5ff9af66ac",
+              "expect_output_timestamp": 1777531017,
+              "handled_timestamp": 1777531017,
+              "status": "pending",
+              "message_type": "text",
+              "message": "周五下午具体几点提醒你看《沼泽深处的女孩》？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 136,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "6930f4ad4bf7878f041148d4",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-136",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-136",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-136-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "5276e866e913dff5c914cfae"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 29.364
+        },
+        {
+          "index": 139,
+          "input": "你十一点没有提醒我呀",
+          "user_id": "289ce03a2320120b83be1c73",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "69f2f87117442c05da9107d6",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89f79b99b5ff9af6767",
+              "expect_output_timestamp": 1777531013,
+              "handled_timestamp": 1777531013,
+              "status": "pending",
+              "message_type": "text",
+              "message": "啊，抱歉让你以为我会提醒。我这边没看到有设置11点的提醒记录。你是之前提过想让我提醒你什么吗？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 139,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "693102884bf7878f041148e6",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-139",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-139",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-139-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "289ce03a2320120b83be1c73"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 543.558
+        },
+        {
+          "index": 145,
+          "input": "发信息似乎叫不醒我 天太冷了 闹钟都闹不醒我",
+          "user_id": "25a562473cf269fc147ffd10",
+          "original_from_user": "69311e944bf7878f041148f6",
+          "input_message_id": "69f2f87117442c05da9107d7",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88679b99b5ff9af668c",
+              "expect_output_timestamp": 1777531010,
+              "handled_timestamp": 1777531010,
+              "status": "pending",
+              "message_type": "text",
+              "message": "天冷真的是起床杀手，闹钟都沦为背景音了。要不设个提醒，到时候我再喊你一声试试",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 145,
+                "original_from_user": "69311e944bf7878f041148f6",
+                "source_id": "693127554bf7878f04114914",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-145",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-145",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-145-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "25a562473cf269fc147ffd10"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 42.139
+        },
+        {
+          "index": 146,
+          "input": "我希望可以7点起床早读",
+          "user_id": "488e73395b5059257099ad02",
+          "original_from_user": "69311e944bf7878f041148f6",
+          "input_message_id": "69f2f87117442c05da9107d8",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89f79b99b5ff9af6761",
+              "expect_output_timestamp": 1777531026,
+              "handled_timestamp": 1777531026,
+              "status": "pending",
+              "message_type": "text",
+              "message": "早起早读？这个计划不错。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 146,
+                "original_from_user": "69311e944bf7878f041148f6",
+                "source_id": "693127a44bf7878f04114916",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-146",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-146",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-146-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "488e73395b5059257099ad02"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 62.179
+        },
+        {
+          "index": 149,
+          "input": "那你可以，你觉得多久，你来提醒我一下，鼓励我一下，能够激励我接着往下学习呢",
+          "user_id": "69c69b8fcb837009acad6e33",
+          "original_from_user": "693138704bf7878f0411492e",
+          "input_message_id": "69f2f87117442c05da9107d9",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f8aa79b99b5ff9af6792",
+              "expect_output_timestamp": 1777531050,
+              "handled_timestamp": 1777531050,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你想让我多久提醒你一次呢？比如每30分钟、每小时，还是每隔两小时？另外，从什么时候开始提醒，持续到什么时候？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 149,
+                "original_from_user": "693138704bf7878f0411492e",
+                "source_id": "693145fb4bf7878f0411495d",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-149",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-149",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-149-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "69c69b8fcb837009acad6e33"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 66.534
+        },
+        {
+          "index": 150,
+          "input": "那你建议我多久来提醒我呢？",
+          "user_id": "ead58cc03bcd8a1b295e6b0c",
+          "original_from_user": "693138704bf7878f0411492e",
+          "input_message_id": "69f2f87117442c05da9107da",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f88f79b99b5ff9af66d2",
+              "expect_output_timestamp": 1777531023,
+              "handled_timestamp": 1777531023,
+              "status": "pending",
+              "message_type": "text",
+              "message": "您希望提醒的内容是什么？以及您希望在什么时间或频率收到提醒？比如每天、每小时、还是某个具体时间？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 150,
+                "original_from_user": "693138704bf7878f0411492e",
+                "source_id": "6931461d4bf7878f0411495e",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-150",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-150",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-150-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "ead58cc03bcd8a1b295e6b0c"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 95.087
+        },
+        {
+          "index": 158,
+          "input": "晚上不用叫我",
+          "user_id": "8daa849e378d637a448d9de1",
+          "original_from_user": "692c2417a538f0baad5561c0",
+          "input_message_id": "69f2f87117442c05da9107db",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89079b99b5ff9af66dd",
+              "expect_output_timestamp": 1777531024,
+              "handled_timestamp": 1777531024,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你想取消哪个晚上的提醒？能提供更具体的关键词吗，比如提醒的标题或内容？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 158,
+                "original_from_user": "692c2417a538f0baad5561c0",
+                "source_id": "693162f34bf7878f0411498d",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-158",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-158",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-158-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "8daa849e378d637a448d9de1"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 101.855
+        },
+        {
+          "index": 161,
+          "input": "提醒我学习进度如何？",
+          "user_id": "e42a68a93915188c4e996dad",
+          "original_from_user": "693138704bf7878f0411492e",
+          "input_message_id": "69f2f87117442c05da9107dc",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f8c479b99b5ff9af679b",
+              "expect_output_timestamp": 1777531050,
+              "handled_timestamp": 1777531050,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成呢，你想让我提醒你什么内容，几点提醒？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 161,
+                "original_from_user": "693138704bf7878f0411492e",
+                "source_id": "693170264bf7878f041149a0",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-161",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-161",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-161-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "e42a68a93915188c4e996dad"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 106.418
+        },
+        {
+          "index": 168,
+          "input": "今天学习结束，晚安，不要打扰我了",
+          "user_id": "eb9683f39c4cb9999abd1acb",
+          "original_from_user": "693181994bf7878f041149af",
+          "input_message_id": "69f2f87117442c05da9107dd",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "user_output_missing_crud_ack"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f89179b99b5ff9af66e9",
+              "expect_output_timestamp": 1777531023,
+              "handled_timestamp": 1777531023,
+              "status": "pending",
+              "message_type": "text",
+              "message": "好的，今天就到这儿。好好休息，晚安。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 168,
+                "original_from_user": "693181994bf7878f041149af",
+                "source_id": "693195814bf7878f041149e1",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-168",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-168",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-168-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "eb9683f39c4cb9999abd1acb"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 132.137
+        },
+        {
+          "index": 176,
+          "input": "每天学习时间为晚上9点到12点",
+          "user_id": "42d36438ef9d0f8304694cc2",
+          "original_from_user": "6930e40c4bf7878f041148b5",
+          "input_message_id": "69f2f87117442c05da9107de",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89d79b99b5ff9af6755",
+              "expect_output_timestamp": 1777531036,
+              "handled_timestamp": 1777531036,
+              "status": "pending",
+              "message_type": "text",
+              "message": "晚上9点到12点，每天固定学习时间，这个安排不错。要不要设个每天晚上的提醒，到点喊你开始",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 176,
+                "original_from_user": "6930e40c4bf7878f041148b5",
+                "source_id": "693250bd4bf7878f04114a45",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-176",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-176",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-176-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "42d36438ef9d0f8304694cc2"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 152.177
+        },
+        {
+          "index": 180,
+          "input": "nono 不是15:50，而是15:00提醒我看书",
+          "user_id": "872ccc48db24c9f3e74033ad",
+          "original_from_user": "693000a24bf7878f041147e3",
+          "input_message_id": "69f2f87117442c05da9107df",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f8a379b99b5ff9af677e",
+              "expect_output_timestamp": 1777531043,
+              "handled_timestamp": 1777531043,
+              "status": "pending",
+              "message_type": "text",
+              "message": "更新提醒失败：keyword '看书' matched 0 reminders",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 180,
+                "original_from_user": "693000a24bf7878f041147e3",
+                "source_id": "693257084bf7878f04114a4f",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-180",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-180",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-180-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "872ccc48db24c9f3e74033ad"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 156.68
+        },
+        {
+          "index": 181,
+          "input": "我在说明一次，我需要提醒的时间是晚上的9点到12点，不是白天",
+          "user_id": "f66e84302ab794aee32576cb",
+          "original_from_user": "6930e40c4bf7878f041148b5",
+          "input_message_id": "69f2f87117442c05da9107e0",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "user_output_missing_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f95b79b99b5ff9af67cb",
+              "expect_output_timestamp": 1777531137,
+              "handled_timestamp": 1777531137,
+              "status": "pending",
+              "message_type": "text",
+              "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 181,
+                "original_from_user": "6930e40c4bf7878f041148b5",
+                "source_id": "693258e44bf7878f04114a51",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-181",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-181",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-181-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "f66e84302ab794aee32576cb"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 563.598
+        },
+        {
+          "index": 187,
+          "input": "每小时打卡，到晚上8点",
+          "user_id": "4b6096923f744428f423cd71",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "69f2f87117442c05da9107e1",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2f8d079b99b5ff9af67a5",
+              "expect_output_timestamp": 1777531076,
+              "handled_timestamp": 1777531076,
+              "status": "pending",
+              "message_type": "text",
+              "message": "收到，每小时打卡到晚上8点。不过提醒还没设置成功，你是想让我帮你设个闹钟提醒你每个整点打卡吗？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 187,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "6932a0dc4bf7878f04114a74",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-187",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-187",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-187-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "4b6096923f744428f423cd71"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 185.121
+        },
+        {
+          "index": 189,
+          "input": "别再提醒我该走了",
+          "user_id": "cf941e3059c88450e2c0a001",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f2f87117442c05da9107e2",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69f2f89b79b99b5ff9af6746",
+              "expect_output_timestamp": 1777531035,
+              "handled_timestamp": 1777531035,
+              "status": "pending",
+              "message_type": "text",
+              "message": "取消提醒失败：keyword '该走了' matched 0 reminders",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-0f2e1404ea-0",
+                "case_index": 189,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "6932ce8d4bf7878f04114a83",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-189",
+                  "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-189",
+                  "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-189-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "cf941e3059c88450e2c0a001"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 197.844
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 73,
+      "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+      "user_id": "55ae14ff5b18c9b335ddf1bd",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2f87117442c05da9107c3",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f87979b99b5ff9af65e9",
+          "expect_output_timestamp": 1777531001,
+          "handled_timestamp": 1777531001,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明天几点提醒你看文章和写学习笔记？写小说又想几点提醒呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 73,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692ee16e4bf7878f041146c7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-73",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-73",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-73-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "55ae14ff5b18c9b335ddf1bd"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 203.065
+    },
+    {
+      "index": 75,
+      "input": "七点半开始正式学习",
+      "user_id": "955f01a65fb5206b818ade1d",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69f2f87117442c05da9107c4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89379b99b5ff9af671b",
+          "expect_output_timestamp": 1777531021,
+          "handled_timestamp": 1777531021,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好，七点半开始，现在十点三十六，还有大概九个小时。要设个提醒吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 75,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692ef9714bf7878f041146e8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-75",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-75",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-75-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "955f01a65fb5206b818ade1d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 297.443
+    },
+    {
+      "index": 86,
+      "input": "可以提醒我喝水哦",
+      "user_id": "af87dfa5ba0e6b80a7181cbf",
+      "original_from_user": "692e41334bf7878f04114567",
+      "input_message_id": "69f2f87117442c05da9107c5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f8a679b99b5ff9af6786",
+          "expect_output_timestamp": 1777531046,
+          "handled_timestamp": 1777531046,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你希望什么时候提醒你喝水呢？比如具体的时间，或者每隔多久提醒一次？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 86,
+            "original_from_user": "692e41334bf7878f04114567",
+            "source_id": "692fb0734bf7878f04114768",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-86",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-86",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-86-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "af87dfa5ba0e6b80a7181cbf"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 316.439
+    },
+    {
+      "index": 88,
+      "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+      "user_id": "131f50fea1ae279ecc1d4769",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f2f87117442c05da9107c6",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f88479b99b5ff9af6674",
+          "expect_output_timestamp": 1777531012,
+          "handled_timestamp": 1777531012,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe（2026-05-02 09:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 88,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "692fbf7b4bf7878f04114783",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-88",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-88",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-88-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "131f50fea1ae279ecc1d4769"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2f88479b99b5ff9af6672",
+          "owner_user_id": "131f50fea1ae279ecc1d4769",
+          "title": "订蛋糕 - #小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+          "schedule": {
+            "anchor_at": "2026-05-02T00:00:00+00:00",
+            "local_date": "2026-05-02",
+            "local_time": "09:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2f87179b99b5ff9af6597",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-02T00:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T06:36:52.573000+00:00",
+          "updated_at": "2026-04-30T06:36:52.573000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 345.574
+    },
+    {
+      "index": 91,
+      "input": "提醒我下周二去杭州",
+      "user_id": "b188c4787571b91fbd2e0fb0",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2f87117442c05da9107c7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87979b99b5ff9af65e4",
+          "expect_output_timestamp": 1777531001,
+          "handled_timestamp": 1777531001,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问下周二（5月5日）几点提醒你去杭州？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 91,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692fc9e24bf7878f04114797",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-91",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-91",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-91-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b188c4787571b91fbd2e0fb0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 350.843
+    },
+    {
+      "index": 101,
+      "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+      "user_id": "a6fba2a3ad3912313a7346b4",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f2f87117442c05da9107c8",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:6>0",
+        "missing_expected_reminder_title:起床",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:开始健身",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:开始学习",
+        "missing_expected_reminder_title:睡觉",
+        "user_output_missing_expected_title:起床",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:开始健身",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:开始学习",
+        "user_output_missing_expected_title:睡觉"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f93e79b99b5ff9af67bc",
+          "expect_output_timestamp": 1777531128,
+          "handled_timestamp": 1777531128,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。你给了很详细的作息表，我帮你拆一下：",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 101,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693001fc4bf7878f041147e9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-101",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-101",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-101-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a6fba2a3ad3912313a7346b4"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 384.107
+    },
+    {
+      "index": 102,
+      "input": "到点提醒我，中间转一下我有没有摸鱼",
+      "user_id": "a6de5deba8398cad1d4592a0",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107c9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89279b99b5ff9af66fe",
+          "expect_output_timestamp": 1777531026,
+          "handled_timestamp": 1777531026,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问你希望几点提醒你？另外「中间转一下」是指每隔多长时间检查一次有没有摸鱼？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 102,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693003854bf7878f041147f3",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-102",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-102",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-102-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a6de5deba8398cad1d4592a0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 388.466
+    },
+    {
+      "index": 107,
+      "input": "嗯嗯计划写的4点半开始",
+      "user_id": "8b21e19bd5a6349a78f2071e",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107ca",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88279b99b5ff9af664c",
+          "expect_output_timestamp": 1777531005,
+          "handled_timestamp": 1777531005,
+          "status": "pending",
+          "message_type": "text",
+          "message": "那四点二十开始到现在，已经过一个多小时了，状态怎么样？需要我陪你盯会儿进度吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 107,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693004ce4bf7878f04114801",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-107",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-107",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-107-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8b21e19bd5a6349a78f2071e"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 398.71
+    },
+    {
+      "index": 109,
+      "input": "晚上8:10 提醒我出门",
+      "user_id": "040e1b8ed044354224a45863",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2f87117442c05da9107cb",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87979b99b5ff9af65ce",
+          "expect_output_timestamp": 1777531001,
+          "handled_timestamp": 1777531001,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：出门（2026-04-30 20:10）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 109,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69300c3d4bf7878f0411480e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-109",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-109",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-109-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "040e1b8ed044354224a45863"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2f87979b99b5ff9af65cc",
+          "owner_user_id": "040e1b8ed044354224a45863",
+          "title": "出门",
+          "schedule": {
+            "anchor_at": "2026-04-30T11:10:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "20:10:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2f87179b99b5ff9af658f",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T11:10:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T06:36:41.221000+00:00",
+          "updated_at": "2026-04-30T06:36:41.221000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.296
+    },
+    {
+      "index": 112,
+      "input": "提醒我12月10号打印准考证，订酒店",
+      "user_id": "cb8144b1566f378acce78675",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107cc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87d79b99b5ff9af6619",
+          "expect_output_timestamp": 1777531005,
+          "handled_timestamp": 1777531005,
+          "status": "pending",
+          "message_type": "text",
+          "message": "12月10号几点提醒你打印准考证、订酒店？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 112,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930129c4bf7878f0411481b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-112",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-112",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-112-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cb8144b1566f378acce78675"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 403.255
+    },
+    {
+      "index": 116,
+      "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+      "user_id": "e8ef063652212b9b898ec185",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107cd",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88b79b99b5ff9af66be",
+          "expect_output_timestamp": 1777531016,
+          "handled_timestamp": 1777531016,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到，你这一天的安排挺清晰的。那今晚接下来是18:30到23:00的时段，现在是19:23，你已经在做事了吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 116,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301daa4bf7878f0411482e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-116",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-116",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-116-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e8ef063652212b9b898ec185"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 427.449
+    },
+    {
+      "index": 117,
+      "input": "记得按时提醒我",
+      "user_id": "7a8dbda8edba0fe3a1147095",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107ce",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87a79b99b5ff9af65f8",
+          "expect_output_timestamp": 1777531002,
+          "handled_timestamp": 1777531002,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问您想提醒什么内容，以及在什么时间提醒呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 117,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301dc64bf7878f0411482f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-117",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-117",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-117-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7a8dbda8edba0fe3a1147095"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 432.035
+    },
+    {
+      "index": 122,
+      "input": "早上10:30提醒我看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+      "user_id": "81fd9ee398a9d80075945782",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2f87117442c05da9107cf",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87a79b99b5ff9af65ff",
+          "expect_output_timestamp": 1777531002,
+          "handled_timestamp": 1777531002,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户（2026-05-01 10:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 122,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "69305ce34bf7878f04114894",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-122",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-122",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-122-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "81fd9ee398a9d80075945782"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2f87a79b99b5ff9af65fd",
+          "owner_user_id": "81fd9ee398a9d80075945782",
+          "title": "看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+          "schedule": {
+            "anchor_at": "2026-05-01T01:30:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "10:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2f87179b99b5ff9af659b",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T01:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T06:36:42.663000+00:00",
+          "updated_at": "2026-04-30T06:36:42.663000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 449.434
+    },
+    {
+      "index": 123,
+      "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+      "user_id": "1f86e3d3ffba2c2c3c7fcef9",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2f87117442c05da9107d0",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88279b99b5ff9af665c",
+          "expect_output_timestamp": 1777531010,
+          "handled_timestamp": 1777531010,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：思考一个问题：工作应该去做“非我不可”的事情（2026-05-01 10:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 123,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "69305f884bf7878f04114895",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-123",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-123",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-123-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1f86e3d3ffba2c2c3c7fcef9"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2f88279b99b5ff9af665a",
+          "owner_user_id": "1f86e3d3ffba2c2c3c7fcef9",
+          "title": "思考一个问题：工作应该去做“非我不可”的事情",
+          "schedule": {
+            "anchor_at": "2026-05-01T01:40:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "10:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2f87979b99b5ff9af65de",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T01:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T06:36:50.747000+00:00",
+          "updated_at": "2026-04-30T06:36:50.747000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 449.443
+    },
+    {
+      "index": 124,
+      "input": "今天有哪些提醒？",
+      "user_id": "d9b89343f0410208707656e2",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2f87117442c05da9107d1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f87979b99b5ff9af65d4",
+          "expect_output_timestamp": 1777531001,
+          "handled_timestamp": 1777531001,
+          "status": "pending",
+          "message_type": "text",
+          "message": "暂无提醒",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 124,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69306b3c4bf7878f04114897",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-124",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-124",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-124-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d9b89343f0410208707656e2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.312
+    },
+    {
+      "index": 125,
+      "input": "【bad case】今天有哪些提醒？",
+      "user_id": "25c96f60981e4d246ed5faab",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f2f87117442c05da9107d2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f8d879b99b5ff9af67ab",
+          "expect_output_timestamp": 1777531006,
+          "handled_timestamp": 1777531006,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 125,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69306b974bf7878f04114899",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-125",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-125",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-125-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "25c96f60981e4d246ed5faab"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 449.45
+    },
+    {
+      "index": 130,
+      "input": "可以结束前五分钟提醒我一下",
+      "user_id": "ca4245f797af74ae8eed857a",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107d3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89079b99b5ff9af66e1",
+          "expect_output_timestamp": 1777531022,
+          "handled_timestamp": 1777531022,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒还没设置成功。你说「结束」指的是哪个具体时间？比如你几点结束当前的事？我先把时间定下来。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 130,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930e42d4bf7878f041148b8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-130",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-130",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-130-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ca4245f797af74ae8eed857a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 470.49
+    },
+    {
+      "index": 133,
+      "input": "我下午13点30上课，一直上到19：30 所以我需要你晚上19：40提醒我开始写论文和看书",
+      "user_id": "adb79d314a04e631e8881b36",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f2f87117442c05da9107d4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88379b99b5ff9af6668",
+          "expect_output_timestamp": 1777531011,
+          "handled_timestamp": 1777531011,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：开始写论文和看书（2026-05-01 19:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 133,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "6930e53e4bf7878f041148bc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-133",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-133",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-133-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "adb79d314a04e631e8881b36"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2f88379b99b5ff9af6666",
+          "owner_user_id": "adb79d314a04e631e8881b36",
+          "title": "开始写论文和看书",
+          "schedule": {
+            "anchor_at": "2026-05-01T10:40:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "19:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2f87979b99b5ff9af65da",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T10:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T06:36:51.433000+00:00",
+          "updated_at": "2026-04-30T06:36:51.433000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 29.356
+    },
+    {
+      "index": 136,
+      "input": "周五下午提醒我 看 沼泽深处的女孩这个电影",
+      "user_id": "5276e866e913dff5c914cfae",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2f87117442c05da9107d5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88979b99b5ff9af66ac",
+          "expect_output_timestamp": 1777531017,
+          "handled_timestamp": 1777531017,
+          "status": "pending",
+          "message_type": "text",
+          "message": "周五下午具体几点提醒你看《沼泽深处的女孩》？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 136,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6930f4ad4bf7878f041148d4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-136",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-136",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-136-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "5276e866e913dff5c914cfae"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 29.364
+    },
+    {
+      "index": 139,
+      "input": "你十一点没有提醒我呀",
+      "user_id": "289ce03a2320120b83be1c73",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69f2f87117442c05da9107d6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89f79b99b5ff9af6767",
+          "expect_output_timestamp": 1777531013,
+          "handled_timestamp": 1777531013,
+          "status": "pending",
+          "message_type": "text",
+          "message": "啊，抱歉让你以为我会提醒。我这边没看到有设置11点的提醒记录。你是之前提过想让我提醒你什么吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 139,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "693102884bf7878f041148e6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-139",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-139",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-139-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "289ce03a2320120b83be1c73"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 543.558
+    },
+    {
+      "index": 145,
+      "input": "发信息似乎叫不醒我 天太冷了 闹钟都闹不醒我",
+      "user_id": "25a562473cf269fc147ffd10",
+      "original_from_user": "69311e944bf7878f041148f6",
+      "input_message_id": "69f2f87117442c05da9107d7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88679b99b5ff9af668c",
+          "expect_output_timestamp": 1777531010,
+          "handled_timestamp": 1777531010,
+          "status": "pending",
+          "message_type": "text",
+          "message": "天冷真的是起床杀手，闹钟都沦为背景音了。要不设个提醒，到时候我再喊你一声试试",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 145,
+            "original_from_user": "69311e944bf7878f041148f6",
+            "source_id": "693127554bf7878f04114914",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-145",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-145",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-145-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "25a562473cf269fc147ffd10"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 42.139
+    },
+    {
+      "index": 146,
+      "input": "我希望可以7点起床早读",
+      "user_id": "488e73395b5059257099ad02",
+      "original_from_user": "69311e944bf7878f041148f6",
+      "input_message_id": "69f2f87117442c05da9107d8",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89f79b99b5ff9af6761",
+          "expect_output_timestamp": 1777531026,
+          "handled_timestamp": 1777531026,
+          "status": "pending",
+          "message_type": "text",
+          "message": "早起早读？这个计划不错。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 146,
+            "original_from_user": "69311e944bf7878f041148f6",
+            "source_id": "693127a44bf7878f04114916",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-146",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-146",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-146-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "488e73395b5059257099ad02"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 62.179
+    },
+    {
+      "index": 149,
+      "input": "那你可以，你觉得多久，你来提醒我一下，鼓励我一下，能够激励我接着往下学习呢",
+      "user_id": "69c69b8fcb837009acad6e33",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f2f87117442c05da9107d9",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f8aa79b99b5ff9af6792",
+          "expect_output_timestamp": 1777531050,
+          "handled_timestamp": 1777531050,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想让我多久提醒你一次呢？比如每30分钟、每小时，还是每隔两小时？另外，从什么时候开始提醒，持续到什么时候？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 149,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "693145fb4bf7878f0411495d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-149",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-149",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-149-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "69c69b8fcb837009acad6e33"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 66.534
+    },
+    {
+      "index": 150,
+      "input": "那你建议我多久来提醒我呢？",
+      "user_id": "ead58cc03bcd8a1b295e6b0c",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f2f87117442c05da9107da",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f88f79b99b5ff9af66d2",
+          "expect_output_timestamp": 1777531023,
+          "handled_timestamp": 1777531023,
+          "status": "pending",
+          "message_type": "text",
+          "message": "您希望提醒的内容是什么？以及您希望在什么时间或频率收到提醒？比如每天、每小时、还是某个具体时间？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 150,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "6931461d4bf7878f0411495e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-150",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-150",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-150-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ead58cc03bcd8a1b295e6b0c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 95.087
+    },
+    {
+      "index": 158,
+      "input": "晚上不用叫我",
+      "user_id": "8daa849e378d637a448d9de1",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69f2f87117442c05da9107db",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89079b99b5ff9af66dd",
+          "expect_output_timestamp": 1777531024,
+          "handled_timestamp": 1777531024,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想取消哪个晚上的提醒？能提供更具体的关键词吗，比如提醒的标题或内容？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 158,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "693162f34bf7878f0411498d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-158",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-158",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-158-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8daa849e378d637a448d9de1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 101.855
+    },
+    {
+      "index": 161,
+      "input": "提醒我学习进度如何？",
+      "user_id": "e42a68a93915188c4e996dad",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "69f2f87117442c05da9107dc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f8c479b99b5ff9af679b",
+          "expect_output_timestamp": 1777531050,
+          "handled_timestamp": 1777531050,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成呢，你想让我提醒你什么内容，几点提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 161,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "693170264bf7878f041149a0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-161",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-161",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-161-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e42a68a93915188c4e996dad"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 106.418
+    },
+    {
+      "index": 168,
+      "input": "今天学习结束，晚安，不要打扰我了",
+      "user_id": "eb9683f39c4cb9999abd1acb",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "69f2f87117442c05da9107dd",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_crud_ack"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f89179b99b5ff9af66e9",
+          "expect_output_timestamp": 1777531023,
+          "handled_timestamp": 1777531023,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，今天就到这儿。好好休息，晚安。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 168,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "693195814bf7878f041149e1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-168",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-168",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-168-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "eb9683f39c4cb9999abd1acb"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 132.137
+    },
+    {
+      "index": 176,
+      "input": "每天学习时间为晚上9点到12点",
+      "user_id": "42d36438ef9d0f8304694cc2",
+      "original_from_user": "6930e40c4bf7878f041148b5",
+      "input_message_id": "69f2f87117442c05da9107de",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89d79b99b5ff9af6755",
+          "expect_output_timestamp": 1777531036,
+          "handled_timestamp": 1777531036,
+          "status": "pending",
+          "message_type": "text",
+          "message": "晚上9点到12点，每天固定学习时间，这个安排不错。要不要设个每天晚上的提醒，到点喊你开始",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 176,
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "source_id": "693250bd4bf7878f04114a45",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-176",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-176",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-176-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "42d36438ef9d0f8304694cc2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 152.177
+    },
+    {
+      "index": 180,
+      "input": "nono 不是15:50，而是15:00提醒我看书",
+      "user_id": "872ccc48db24c9f3e74033ad",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "69f2f87117442c05da9107df",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f8a379b99b5ff9af677e",
+          "expect_output_timestamp": 1777531043,
+          "handled_timestamp": 1777531043,
+          "status": "pending",
+          "message_type": "text",
+          "message": "更新提醒失败：keyword '看书' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 180,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693257084bf7878f04114a4f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-180",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-180",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-180-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "872ccc48db24c9f3e74033ad"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 156.68
+    },
+    {
+      "index": 181,
+      "input": "我在说明一次，我需要提醒的时间是晚上的9点到12点，不是白天",
+      "user_id": "f66e84302ab794aee32576cb",
+      "original_from_user": "6930e40c4bf7878f041148b5",
+      "input_message_id": "69f2f87117442c05da9107e0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f95b79b99b5ff9af67cb",
+          "expect_output_timestamp": 1777531137,
+          "handled_timestamp": 1777531137,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 181,
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "source_id": "693258e44bf7878f04114a51",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-181",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-181",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-181-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f66e84302ab794aee32576cb"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 563.598
+    },
+    {
+      "index": 187,
+      "input": "每小时打卡，到晚上8点",
+      "user_id": "4b6096923f744428f423cd71",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f2f87117442c05da9107e1",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2f8d079b99b5ff9af67a5",
+          "expect_output_timestamp": 1777531076,
+          "handled_timestamp": 1777531076,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到，每小时打卡到晚上8点。不过提醒还没设置成功，你是想让我帮你设个闹钟提醒你每个整点打卡吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 187,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6932a0dc4bf7878f04114a74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-187",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-187",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-187-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4b6096923f744428f423cd71"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 185.121
+    },
+    {
+      "index": 189,
+      "input": "别再提醒我该走了",
+      "user_id": "cf941e3059c88450e2c0a001",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2f87117442c05da9107e2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2f89b79b99b5ff9af6746",
+          "expect_output_timestamp": 1777531035,
+          "handled_timestamp": 1777531035,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：keyword '该走了' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-0f2e1404ea-0",
+            "case_index": 189,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6932ce8d4bf7878f04114a83",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-0f2e1404ea-0-case-189",
+              "business_conversation_key": "reminder-normal-0f2e1404ea-0-case-189",
+              "causal_inbound_event_id": "reminder-normal-0f2e1404ea-0-case-189-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cf941e3059c88450e2c0a001"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 197.844
+    }
+  ]
+}

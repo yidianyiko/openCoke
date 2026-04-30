@@ -1,0 +1,114 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 205,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-cb65394d0f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2722f921660a262402107c3d"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "user_output_missing_clarification": 1
+    },
+    "failures": [
+      {
+        "index": 205,
+        "input": "每一小时提醒我一次“及时完成任务，及时打卡”",
+        "user_id": "2722f921660a262402107c3d",
+        "original_from_user": "6934252e4bf7878f04114b07",
+        "input_message_id": "69f305f169389687ffcd0a16",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "user_output_missing_clarification"
+        ],
+        "outputs": [
+          {
+            "_id": "69f3067932c5a711cec4942e",
+            "expect_output_timestamp": 1777534495,
+            "handled_timestamp": 1777534495,
+            "status": "pending",
+            "message_type": "text",
+            "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-cb65394d0f",
+              "case_index": 205,
+              "original_from_user": "6934252e4bf7878f04114b07",
+              "source_id": "6934b6784bf7878f04114b26",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-cb65394d0f-case-205",
+                "business_conversation_key": "reminder-normal-cb65394d0f-case-205",
+                "causal_inbound_event_id": "reminder-normal-cb65394d0f-case-205-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "2722f921660a262402107c3d"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 136.229
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 205,
+      "input": "每一小时提醒我一次“及时完成任务，及时打卡”",
+      "user_id": "2722f921660a262402107c3d",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "69f305f169389687ffcd0a16",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_missing_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69f3067932c5a711cec4942e",
+          "expect_output_timestamp": 1777534495,
+          "handled_timestamp": 1777534495,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-cb65394d0f",
+            "case_index": 205,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "6934b6784bf7878f04114b26",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-cb65394d0f-case-205",
+              "business_conversation_key": "reminder-normal-cb65394d0f-case-205",
+              "causal_inbound_event_id": "reminder-normal-cb65394d0f-case-205-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2722f921660a262402107c3d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 136.229
+    }
+  ]
+}

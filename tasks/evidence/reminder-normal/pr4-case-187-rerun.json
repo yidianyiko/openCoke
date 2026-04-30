@@ -1,0 +1,264 @@
+{
+  "cases": "tasks/evidence/reminder-normal/pr4-failure-rerun-cases.json",
+  "offset": 4,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-5b964a9af5",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2d50f6aa201112f83cb0bd0c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 4,
+      "input": "每小时打卡，到晚上8点",
+      "user_id": "2d50f6aa201112f83cb0bd0c",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f2e3a6715b921b149f24ce",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2e3c8196e4d9438a8ce73",
+          "expect_output_timestamp": 1777525704,
+          "handled_timestamp": 1777525704,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打卡（2026-05-01 13:00）；已创建提醒：打卡（2026-05-01 14:00）；已创建提醒：打卡（2026-05-01 15:00）；已创建提醒：打卡（2026-05-01 16:00）；已创建提醒：打卡（2026-05-01 17:00）；已创建提醒：打卡（2026-05-01 18:00）；已创建提醒：打卡（2026-05-01 19:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-5b964a9af5",
+            "case_index": 4,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6932a0dc4bf7878f04114a74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-5b964a9af5-case-4",
+              "business_conversation_key": "reminder-normal-5b964a9af5-case-4",
+              "causal_inbound_event_id": "reminder-normal-5b964a9af5-case-4-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2d50f6aa201112f83cb0bd0c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2e3c8196e4d9438a8ce6b",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T04:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "13:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T04:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.707000+00:00",
+          "updated_at": "2026-04-30T05:08:24.707000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce6c",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T05:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "14:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T05:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.713000+00:00",
+          "updated_at": "2026-04-30T05:08:24.713000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce6d",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T06:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "15:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T06:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.714000+00:00",
+          "updated_at": "2026-04-30T05:08:24.714000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce6e",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T07:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "16:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T07:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.715000+00:00",
+          "updated_at": "2026-04-30T05:08:24.715000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce6f",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T08:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "17:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T08:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.717000+00:00",
+          "updated_at": "2026-04-30T05:08:24.717000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce70",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T09:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "18:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T09:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.718000+00:00",
+          "updated_at": "2026-04-30T05:08:24.718000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f2e3c8196e4d9438a8ce71",
+          "owner_user_id": "2d50f6aa201112f83cb0bd0c",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-01T10:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2e3a8196e4d9438a8ce5d",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T05:08:24.719000+00:00",
+          "updated_at": "2026-04-30T05:08:24.719000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 34.061
+    }
+  ]
+}

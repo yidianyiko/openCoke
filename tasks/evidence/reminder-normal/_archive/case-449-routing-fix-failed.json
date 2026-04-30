@@ -1,0 +1,129 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 449,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-348657197b",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "1f5958a04b173db6bfa92939"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:2>0": 1,
+      "missing_expected_reminder_title:告诉我今天完成了哪些任务": 1,
+      "missing_expected_reminder_title:询问我当天的规划": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:告诉我今天完成了哪些任务": 1,
+      "user_output_missing_expected_title:询问我当天的规划": 1
+    },
+    "failures": [
+      {
+        "index": 449,
+        "input": "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+        "user_id": "1f5958a04b173db6bfa92939",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f2514b84c1c23eac88200e",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:2>0",
+          "missing_expected_reminder_title:询问我当天的规划",
+          "missing_expected_reminder_title:告诉我今天完成了哪些任务",
+          "user_output_missing_expected_title:询问我当天的规划",
+          "user_output_missing_expected_title:告诉我今天完成了哪些任务"
+        ],
+        "outputs": [
+          {
+            "_id": "69f251752095a48e453f21e7",
+            "expect_output_timestamp": 1777488245,
+            "handled_timestamp": 1777488245,
+            "status": "pending",
+            "message_type": "text",
+            "message": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-348657197b",
+              "case_index": 449,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "694167b3a6d5f2cba9a557a8",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-348657197b-case-449",
+                "business_conversation_key": "reminder-normal-348657197b-case-449",
+                "causal_inbound_event_id": "reminder-normal-348657197b-case-449-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "1f5958a04b173db6bfa92939"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 42.071
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 449,
+      "input": "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+      "user_id": "1f5958a04b173db6bfa92939",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2514b84c1c23eac88200e",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:2>0",
+        "missing_expected_reminder_title:询问我当天的规划",
+        "missing_expected_reminder_title:告诉我今天完成了哪些任务",
+        "user_output_missing_expected_title:询问我当天的规划",
+        "user_output_missing_expected_title:告诉我今天完成了哪些任务"
+      ],
+      "outputs": [
+        {
+          "_id": "69f251752095a48e453f21e7",
+          "expect_output_timestamp": 1777488245,
+          "handled_timestamp": 1777488245,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-348657197b",
+            "case_index": 449,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "694167b3a6d5f2cba9a557a8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-348657197b-case-449",
+              "business_conversation_key": "reminder-normal-348657197b-case-449",
+              "causal_inbound_event_id": "reminder-normal-348657197b-case-449-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1f5958a04b173db6bfa92939"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 42.071
+    }
+  ]
+}

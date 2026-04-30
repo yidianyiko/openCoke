@@ -11,7 +11,6 @@ from typing import Any
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "docs" / "fitness" / "surfaces.yaml"
 
@@ -41,7 +40,9 @@ def load_surfaces(config: dict[str, Any]) -> list[Surface]:
         name = raw.get("name")
         paths = raw.get("paths", [])
         if isinstance(name, str) and isinstance(paths, list):
-            surfaces.append(Surface(name=name, paths=tuple(str(path) for path in paths)))
+            surfaces.append(
+                Surface(name=name, paths=tuple(str(path) for path in paths))
+            )
     return surfaces
 
 
@@ -74,7 +75,9 @@ def collect_changed_files(base: str) -> list[str]:
             text=True,
             check=False,
         )
-        files.extend(line.strip() for line in result.stdout.splitlines() if line.strip())
+        files.extend(
+            line.strip() for line in result.stdout.splitlines() if line.strip()
+        )
 
     deduped: list[str] = []
     seen: set[str] = set()
@@ -115,9 +118,14 @@ def dry_run_verify_surface(surfaces: list[str]) -> str:
     return result.stdout.rstrip()
 
 
-def collect_diff_stats(base: str) -> tuple[int, int, int]:
+def collect_diff_stats(
+    base: str, files: list[str] | None = None
+) -> tuple[int, int, int]:
+    command = ["git", "diff", "--numstat", "--diff-filter=ACMR", base]
+    if files:
+        command.extend(["--", *files])
     result = subprocess.run(
-        ["git", "diff", "--numstat", "--diff-filter=ACMR", base],
+        command,
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -143,7 +151,7 @@ def evaluate_review_triggers(
 ) -> list[ReviewMatch]:
     matches: list[ReviewMatch] = []
     triggers = config.get("review_triggers", [])
-    diff_stats = collect_diff_stats(base)
+    diff_stats = collect_diff_stats(base, files)
 
     for raw in triggers:
         if not isinstance(raw, dict):
@@ -155,22 +163,32 @@ def evaluate_review_triggers(
         if trigger_type == "changed_paths":
             paths = [str(path) for path in raw.get("paths", [])]
             reasons = tuple(
-                f"changed path: {file_path}" for file_path in files if path_matches(file_path, paths)
+                f"changed path: {file_path}"
+                for file_path in files
+                if path_matches(file_path, paths)
             )
             if reasons:
-                matches.append(ReviewMatch(name=name, severity=severity, reasons=reasons))
+                matches.append(
+                    ReviewMatch(name=name, severity=severity, reasons=reasons)
+                )
 
         elif trigger_type == "evidence_gap":
             paths = [str(path) for path in raw.get("paths", [])]
             evidence_paths = [str(path) for path in raw.get("evidence_paths", [])]
-            monitored = [file_path for file_path in files if path_matches(file_path, paths)]
-            evidence_present = any(path_matches(file_path, evidence_paths) for file_path in files)
+            monitored = [
+                file_path for file_path in files if path_matches(file_path, paths)
+            ]
+            evidence_present = any(
+                path_matches(file_path, evidence_paths) for file_path in files
+            )
             if monitored and not evidence_present:
                 reasons = tuple(
                     [f"changed path without evidence: {path}" for path in monitored]
                     + [f"expected evidence path patterns: {', '.join(evidence_paths)}"]
                 )
-                matches.append(ReviewMatch(name=name, severity=severity, reasons=reasons))
+                matches.append(
+                    ReviewMatch(name=name, severity=severity, reasons=reasons)
+                )
 
         elif trigger_type == "cross_boundary_change":
             raw_boundaries = raw.get("boundaries", {})
@@ -183,7 +201,9 @@ def evaluate_review_triggers(
                     boundary_files = [
                         file_path
                         for file_path in files
-                        if path_matches(file_path, [str(pattern) for pattern in patterns])
+                        if path_matches(
+                            file_path, [str(pattern) for pattern in patterns]
+                        )
                     ]
                     if boundary_files:
                         boundary_hits[str(boundary_name)] = boundary_files
@@ -192,7 +212,9 @@ def evaluate_review_triggers(
                     f"changed boundary {boundary}: {', '.join(boundary_files)}"
                     for boundary, boundary_files in boundary_hits.items()
                 )
-                matches.append(ReviewMatch(name=name, severity=severity, reasons=reasons))
+                matches.append(
+                    ReviewMatch(name=name, severity=severity, reasons=reasons)
+                )
 
         elif trigger_type == "diff_size":
             file_count, added_lines, deleted_lines = diff_stats
@@ -201,13 +223,21 @@ def evaluate_review_triggers(
             max_added = raw.get("max_added_lines")
             max_deleted = raw.get("max_deleted_lines")
             if isinstance(max_files, int) and file_count > max_files:
-                reasons.append(f"diff touched {file_count} files (threshold: {max_files})")
+                reasons.append(
+                    f"diff touched {file_count} files (threshold: {max_files})"
+                )
             if isinstance(max_added, int) and added_lines > max_added:
-                reasons.append(f"diff added {added_lines} lines (threshold: {max_added})")
+                reasons.append(
+                    f"diff added {added_lines} lines (threshold: {max_added})"
+                )
             if isinstance(max_deleted, int) and deleted_lines > max_deleted:
-                reasons.append(f"diff deleted {deleted_lines} lines (threshold: {max_deleted})")
+                reasons.append(
+                    f"diff deleted {deleted_lines} lines (threshold: {max_deleted})"
+                )
             if reasons:
-                matches.append(ReviewMatch(name=name, severity=severity, reasons=tuple(reasons)))
+                matches.append(
+                    ReviewMatch(name=name, severity=severity, reasons=tuple(reasons))
+                )
 
     return matches
 

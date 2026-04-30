@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 335,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-fd22aee6a1",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "359413da8a495dc1b4c1d293"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 335,
+      "input": "你怎么知道我是今晚7点出门",
+      "user_id": "359413da8a495dc1b4c1d293",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f3135d6239384ec4659880",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f3136c30eb822a179140e7",
+          "expect_output_timestamp": 1777537891,
+          "handled_timestamp": 1777537891,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你不是刚告诉我今晚7点出门吗？我刚查了下，没错呀",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-fd22aee6a1",
+            "case_index": 335,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bd71609af1bf513e836a2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-fd22aee6a1-case-335",
+              "business_conversation_key": "reminder-normal-fd22aee6a1-case-335",
+              "causal_inbound_event_id": "reminder-normal-fd22aee6a1-case-335-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "359413da8a495dc1b4c1d293"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 15.025
+    }
+  ]
+}

@@ -1,0 +1,1336 @@
+{
+  "test_cases": [
+    {
+      "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "明天",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "692ee16e4bf7878f041146c7",
+        "from_user": "692c4430a538f0baad5561de",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default.",
+        "original_case_index": 73
+      }
+    },
+    {
+      "input": "七点半开始正式学习",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "点半",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "692ef9714bf7878f041146e8",
+        "from_user": "692ef7f84bf7878f041146e1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the agent should confirm reminder intent instead of silently creating one.",
+        "original_case_index": 75
+      }
+    },
+    {
+      "input": "可以提醒我喝水哦",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "喝水"
+      ],
+      "metadata": {
+        "source_id": "692fb0734bf7878f04114768",
+        "from_user": "692e41334bf7878f04114567",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Reminder request gives content but no specific time; the agent should ask when to remind instead of creating a reminder with an invented time.",
+        "original_case_index": 86
+      }
+    },
+    {
+      "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "周六"
+      ],
+      "metadata": {
+        "source_id": "692fbf7b4bf7878f04114783",
+        "from_user": "692fb38c4bf7878f0411476c",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Date-only reminder request gives a day but no specific reminder time; the agent should ask what time on that day instead of acknowledging setup.",
+        "original_case_index": 88
+      }
+    },
+    {
+      "input": "提醒我下周二去杭州",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "下周",
+        "周二"
+      ],
+      "metadata": {
+        "source_id": "692fc9e24bf7878f04114797",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default.",
+        "original_case_index": 91
+      }
+    },
+    {
+      "input": "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "早上",
+        "下午",
+        "晚上",
+        "睡觉",
+        "起床",
+        "健身",
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693001fc4bf7878f041147e9",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "Habitual schedule wording ('我一般') asks for reminders at the listed times, so daily recurring reminders are expected.",
+        "expected_creates": [
+          {
+            "title": "起床",
+            "local_time": "07:15:00",
+            "recurring": true
+          },
+          {
+            "title": "开始学习",
+            "title_variants": [
+              "早上学习"
+            ],
+            "local_time": "08:00:00",
+            "recurring": true
+          },
+          {
+            "title": "开始健身",
+            "title_variants": [
+              "健身"
+            ],
+            "local_time": "13:00:00",
+            "recurring": true
+          },
+          {
+            "title": "开始学习",
+            "title_variants": [
+              "下午学习"
+            ],
+            "local_time": "16:00:00",
+            "recurring": true
+          },
+          {
+            "title": "开始学习",
+            "title_variants": [
+              "晚上学习"
+            ],
+            "local_time": "20:00:00",
+            "recurring": true
+          },
+          {
+            "title": "睡觉",
+            "local_time": "23:00:00",
+            "recurring": true
+          }
+        ],
+        "original_case_index": 101
+      }
+    },
+    {
+      "input": "到点提醒我，中间转一下我有没有摸鱼",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "693003854bf7878f041147f3",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder.",
+        "original_case_index": 102
+      }
+    },
+    {
+      "input": "嗯嗯计划写的4点半开始",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "点半",
+        "计划",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693004ce4bf7878f04114801",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder.",
+        "original_case_index": 107
+      }
+    },
+    {
+      "input": "晚上8:10 提醒我出门",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "晚上",
+        "出门",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "69300c3d4bf7878f0411480e",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "Explicit reminder creation request with evening clock time.",
+        "expected_creates": [
+          {
+            "title": "出门",
+            "local_time": "20:10:00",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 109
+      }
+    },
+    {
+      "input": "提醒我12月10号打印准考证，订酒店",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6930129c4bf7878f0411481b",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default.",
+        "original_case_index": 112
+      }
+    },
+    {
+      "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "下午",
+        "点半",
+        "起床",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "69301daa4bf7878f0411482e",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user describes a schedule but does not explicitly request reminders; the agent may discuss or ask about reminder intent, but should not create reminders.",
+        "original_case_index": 116
+      }
+    },
+    {
+      "input": "记得按时提醒我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "记得",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "69301dc64bf7878f0411482f",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Reminder request has intent but no reminder content or concrete time; the agent should ask for the missing details instead of creating a reminder.",
+        "original_case_index": 117
+      }
+    },
+    {
+      "input": "早上10:30提醒我看一下不同价位的图书贡献的毛利分布 以及用户主要是卖哪些书 新老用户",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "早上",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "69305ce34bf7878f04114894",
+        "from_user": "692c4430a538f0baad5561de",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "Explicit one-shot reminder request with a long analytical task title; concise title paraphrases are acceptable.",
+        "expected_creates": [
+          {
+            "title": "查看不同价位图书毛利分布及新老用户卖书情况",
+            "title_variants": [
+              "看一下不同价位的图书贡献的毛利分布-用户主要是卖哪些书新老用户",
+              "查看不同价位图书毛利分布及新老用户",
+              "查看不同价位图书毛利分布及新老用户书籍销售",
+              "查看不同价位图书毛利分布及新老用户书籍销售情况",
+              "看一下不同价位的图书贡献的毛利分布以及用户主要是卖哪些书新老用户"
+            ],
+            "local_time": "10:30:00",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 122
+      }
+    },
+    {
+      "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "69305f884bf7878f04114895",
+        "from_user": "692c4430a538f0baad5561de",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "Explicit one-shot reminder request with a bare clock time that has passed today; the next local occurrence is expected.",
+        "expected_creates": [
+          {
+            "title": "思考：工作应该去做“非我不可”的事情",
+            "title_variants": [
+              "思考一个问题:工作应该去做“非我不可”的事情",
+              "思考非我不可的工作问题"
+            ],
+            "local_time": "10:40:00",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 123
+      }
+    },
+    {
+      "input": "今天有哪些提醒？",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "69306b3c4bf7878f04114897",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks which reminders exist today; this is a reminder query, not a create/update/cancel/complete request.",
+        "original_case_index": 124
+      }
+    },
+    {
+      "input": "【bad case】今天有哪些提醒？",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "69306b974bf7878f04114899",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks which reminders exist today, despite the bad-case prefix; this is a reminder query, not a create/update/cancel/complete request.",
+        "original_case_index": 125
+      }
+    },
+    {
+      "input": "可以结束前五分钟提醒我一下",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6930e42d4bf7878f041148b8",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder.",
+        "original_case_index": 130
+      }
+    },
+    {
+      "input": "我下午13点30上课，一直上到19：30 所以我需要你晚上19：40提醒我开始写论文和看书",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "下午",
+        "晚上",
+        "上课",
+        "看书",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "6930e53e4bf7878f041148bc",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The earlier class times are background schedule; the actionable reminder request is only the 19:40 reminder to start writing and reading.",
+        "expected_creates": [
+          {
+            "title": "开始写论文和看书",
+            "title_variants": [
+              "写论文和看书"
+            ],
+            "local_time": "19:40:00",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 133
+      }
+    },
+    {
+      "input": "周五下午提醒我 看 沼泽深处的女孩这个电影",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "周五",
+        "下午"
+      ],
+      "metadata": {
+        "source_id": "6930f4ad4bf7878f041148d4",
+        "from_user": "692c4430a538f0baad5561de",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder.",
+        "original_case_index": 136
+      }
+    },
+    {
+      "input": "你十一点没有提醒我呀",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "693102884bf7878f041148e6",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request.",
+        "original_case_index": 139
+      }
+    },
+    {
+      "input": "发信息似乎叫不醒我 天太冷了 闹钟都闹不醒我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "闹钟"
+      ],
+      "metadata": {
+        "source_id": "693127554bf7878f04114914",
+        "from_user": "69311e944bf7878f041148f6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user discusses alarm/message wake-up difficulty without requesting a new reminder or giving actionable reminder details.",
+        "original_case_index": 145
+      }
+    },
+    {
+      "input": "我希望可以7点起床早读",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "起床",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693127a44bf7878f04114916",
+        "from_user": "69311e944bf7878f041148f6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation.",
+        "original_case_index": 146
+      }
+    },
+    {
+      "input": "那你可以，你觉得多久，你来提醒我一下，鼓励我一下，能够激励我接着往下学习呢",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "693145fb4bf7878f0411495d",
+        "from_user": "693138704bf7878f0411492e",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder.",
+        "original_case_index": 149
+      }
+    },
+    {
+      "input": "那你建议我多久来提醒我呢？",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6931461d4bf7878f0411495e",
+        "from_user": "693138704bf7878f0411492e",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user asks for cadence advice, not to set a confirmed reminder. Answering with a recommendation is ordinary discussion as long as no reminder is created or promised.",
+        "original_case_index": 150
+      }
+    },
+    {
+      "input": "晚上不用叫我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "叫我",
+        "晚上"
+      ],
+      "metadata": {
+        "source_id": "693162f34bf7878f0411498d",
+        "from_user": "692c2417a538f0baad5561c0",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "expected_operation": "delete",
+        "allow_clarification": true,
+        "evaluation_reason": "The user asks to stop evening wake-up/call reminders without a precise title. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder is not.",
+        "original_case_index": 158
+      }
+    },
+    {
+      "input": "提醒我学习进度如何？",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "693170264bf7878f041149a0",
+        "from_user": "693138704bf7878f0411492e",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks about being reminded of study progress but gives no concrete reminder time or cadence; the agent should ask for the missing trigger information instead of inferring one from history.",
+        "original_case_index": 161
+      }
+    },
+    {
+      "input": "今天学习结束，晚安，不要打扰我了",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "今天",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "693195814bf7878f041149e1",
+        "from_user": "693181994bf7878f041149af",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "expected_operation": "delete",
+        "allow_clarification": true,
+        "evaluation_reason": "The user asks not to be disturbed after ending study without a precise reminder target. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder or asking for create time/content is not.",
+        "original_case_index": 168
+      }
+    },
+    {
+      "input": "每天学习时间为晚上9点到12点",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "晚上",
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693250bd4bf7878f04114a45",
+        "from_user": "6930e40c4bf7878f041148b5",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user describes a daily study time block but does not explicitly ask to be reminded or supervised; the agent should not create reminders from the schedule statement alone.",
+        "original_case_index": 176
+      }
+    },
+    {
+      "input": "nono 不是15:50，而是15:00提醒我看书",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "看书",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693257084bf7878f04114a4f",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "expected_operation": "update",
+        "allow_clarification": true,
+        "evaluation_reason": "The user is correcting an earlier reminder time. In isolated evaluation there may be no existing 15:50 reminder, so an update attempt with a visible no-match result or a clarification is safe; creating a new reminder would conflate correction with creation.",
+        "original_case_index": 180
+      }
+    },
+    {
+      "input": "我在说明一次，我需要提醒的时间是晚上的9点到12点，不是白天",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "晚上",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693258e44bf7878f04114a51",
+        "from_user": "6930e40c4bf7878f041148b5",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder.",
+        "original_case_index": 181
+      }
+    },
+    {
+      "input": "每小时打卡，到晚上8点",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "晚上",
+        "打卡",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "6932a0dc4bf7878f04114a74",
+        "from_user": "692d38aea538f0baad556271",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒.",
+        "original_case_index": 187
+      }
+    },
+    {
+      "input": "别再提醒我该走了",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6932ce8d4bf7878f04114a83",
+        "from_user": "692c4430a538f0baad5561de",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "expected_operation": "delete",
+        "allow_clarification": true,
+        "evaluation_reason": "The user asks to stop being reminded that it is time to go. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a new reminder is not.",
+        "original_case_index": 189
+      }
+    },
+    {
+      "input": "我打算明天八点前起床",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "明天",
+        "起床"
+      ],
+      "metadata": {
+        "source_id": "6932fcb64bf7878f04114a95",
+        "from_user": "6932fc1f4bf7878f04114a8f",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request.",
+        "original_case_index": 192
+      }
+    },
+    {
+      "input": "帮我记住今天任务，以这个版本为准\n\n15点-16点\n起床，开始帮我每小时打卡，打卡持续到20点\n跑步3公里\n\n16点到17点\n听冥想音频\n\n17点到18点\n吃晚饭\n饭后散步30分钟\n\n18点到20点\n洗漱洗澡\n手机锁调整\n冥想练习\n\n20点\n睡觉，20点之后不要打卡",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "记住",
+        "今天",
+        "任务",
+        "打卡",
+        "睡觉",
+        "起床",
+        "跑步",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693383544bf7878f04114ac8",
+        "from_user": "692d38aea538f0baad556271",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The user asks the agent to remember today's task version and start hourly check-ins until 20:00; this is an actionable reminder/check-in request, not ordinary schedule discussion.",
+        "original_case_index": 197
+      }
+    },
+    {
+      "input": "我10：13-11：00要写个个人陈述，随时提醒我让我专注。11：00点个外卖",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693391564bf7878f04114aca",
+        "from_user": "692dbb5564d834c3c061653f",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders.",
+        "original_case_index": 198
+      }
+    },
+    {
+      "input": "All good, no reminders pls",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "remind",
+        "reminder",
+        "min"
+      ],
+      "metadata": {
+        "source_id": "6933cbed4bf7878f04114ade",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The standalone English phrase declines reminders or opts out of reminder help without naming a specific existing reminder to cancel. In isolated evaluation it should not create a reminder or force a CRUD operation.",
+        "original_case_index": 199
+      }
+    },
+    {
+      "input": "我还需要定自己party穿的衣服 你每两天提醒我一下吧",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6933cce84bf7878f04114ae4",
+        "from_user": "692fb38c4bf7878f0411476c",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time.",
+        "original_case_index": 200
+      }
+    },
+    {
+      "input": "每一小时提醒我一次“及时完成任务，及时打卡”",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "一小时",
+        "任务",
+        "打卡"
+      ],
+      "metadata": {
+        "source_id": "6934b6784bf7878f04114b26",
+        "from_user": "6934252e4bf7878f04114b07",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time.",
+        "original_case_index": 205
+      }
+    },
+    {
+      "input": "这是我今天的任务 11-11：30 吃饭；11：30-13：30 看法考网课；13：30-15：30 健身 15：30-16：40 吃饭 16：40-17：20 洗澡 17：20-19：00 看法考网课和做题 19：00-20：00练腹 请在这些时间点提醒我学习",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "今天",
+        "任务",
+        "吃饭",
+        "健身",
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "6934dcc54bf7878f04114b33",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks to be reminded for a day schedule expressed as time ranges. The ranges provide task boundaries, but the requested reminder trigger point is ambiguous (start, end, or cadence), so the agent should clarify instead of choosing range endpoints by default.",
+        "original_case_index": 208
+      }
+    },
+    {
+      "input": "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "定个",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "69352d5b4bf7878f04114b56",
+        "from_user": "692fb38c4bf7878f0411476c",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user gives a reminder date before a deadline but no clock time on that date. Without a product default-time policy, the agent should ask what time on the 17th instead of creating a midnight reminder.",
+        "original_case_index": 212
+      }
+    },
+    {
+      "input": " 17：20-19：00 看法考网课和做题 19：00-20：00练腹 请在这些时间点提醒我学习",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "6935407f4bf7878f04114b5b",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks to be reminded for tasks expressed as time ranges and refers to 'these time points'. The ranges are task boundaries, not concrete reminder trigger points, so the agent should clarify frequency or exact reminder times instead of choosing range endpoints.",
+        "original_case_index": 213
+      }
+    },
+    {
+      "input": "我想6点开始学习",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693547334bf7878f04114b5d",
+        "from_user": "693000a24bf7878f041147e3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should confirm reminder intent instead of creating one silently.",
+        "original_case_index": 215
+      }
+    },
+    {
+      "input": "明天提醒我换护照",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "明天"
+      ],
+      "metadata": {
+        "source_id": "69356f544bf7878f04114b74",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder.",
+        "original_case_index": 219
+      }
+    },
+    {
+      "input": " 明天的提醒是几点",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "明天"
+      ],
+      "metadata": {
+        "source_id": "69356f9d4bf7878f04114b76",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks what time tomorrow's reminder is. This is a query about existing reminders, not a create request.",
+        "original_case_index": 221
+      }
+    },
+    {
+      "input": "明晚8:13的提醒，是怎么设置出来的",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "69356fed4bf7878f04114b78",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request.",
+        "original_case_index": 222
+      }
+    },
+    {
+      "input": "提醒我每天打卡多邻国，学西班牙语",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "打卡"
+      ],
+      "metadata": {
+        "source_id": "693570324bf7878f04114b7b",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks for a daily recurring reminder with content but gives no time of day. Without a default-time policy, the agent should ask what time each day.",
+        "original_case_index": 223
+      }
+    },
+    {
+      "input": "周二提醒我去高铁站",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "周二"
+      ],
+      "metadata": {
+        "source_id": "693588084bf7878f04114b8d",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Weekday-only reminder request gives a day and content but no clock time. Without a default-time policy, the agent should ask what time on that day.",
+        "original_case_index": 225
+      }
+    },
+    {
+      "input": "谢谢闹钟",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "闹钟"
+      ],
+      "metadata": {
+        "source_id": "6935fa1e8adf4a858a3df3d4",
+        "from_user": "692d38aea538f0baad556271",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD.",
+        "original_case_index": 231
+      }
+    },
+    {
+      "input": "到了结尾时间记得提醒我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "记得提醒",
+        "记得",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "693679b894ff180b41ab744f",
+        "from_user": "693003594bf7878f041147f1",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time.",
+        "original_case_index": 238
+      }
+    },
+    {
+      "input": "需要你到时候提前提醒我",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "69368ac2fa6e02049481c831",
+        "from_user": "693591bc4bf7878f04114b91",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder.",
+        "original_case_index": 245
+      }
+    },
+    {
+      "input": "你今天咋不提醒我啦🥲昨天不是设置的每天都提醒嘛",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "69369fa0fa6e02049481c83a",
+        "from_user": "6934252e4bf7878f04114b07",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user complains that an expected daily reminder did not happen. This is a reminder status/diagnostic query, not a new create request.",
+        "original_case_index": 247
+      }
+    },
+    {
+      "input": "Hi Coke请你今天晚一点提醒我回复Justin",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "6936b2c5fa6e02049481c84f",
+        "from_user": "6936b2c5fa6e02049481c84e",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "clarify",
+        "evaluation_reason": "The user asks for a reminder 'later today' without a concrete clock time. The agent should ask for the exact time instead of inventing one.",
+        "original_case_index": 251
+      }
+    },
+    {
+      "input": "啊不是这个点提醒我么",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6936bb91fa6e02049481c856",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request.",
+        "original_case_index": 254
+      }
+    },
+    {
+      "input": "好的，休息十分钟，晚上容易累，所以要规律休息",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "晚上",
+        "休息"
+      ],
+      "metadata": {
+        "source_id": "6936d136fa6e02049481c86a",
+        "from_user": "69367b2c94ff180b41ab7454",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user describes a short rest and routine-rest plan without asking to be reminded or supervised. The agent may acknowledge or ask whether a reminder is wanted, but should not promise or create one.",
+        "original_case_index": 257
+      }
+    },
+    {
+      "input": "今天你又没有提醒我[心碎]",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "693833aafa6e02049481c91a",
+        "from_user": "6934252e4bf7878f04114b07",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request.",
+        "original_case_index": 279
+      }
+    },
+    {
+      "input": "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "闹钟",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "69383405fa6e02049481c91d",
+        "from_user": "6934252e4bf7878f04114b07",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user discusses how reminder delivery/acknowledgement works without asking to create, query, update, or cancel a concrete reminder.",
+        "original_case_index": 280
+      }
+    },
+    {
+      "input": "天呐🥺你七点都没有开始提醒我欸",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒"
+      ],
+      "metadata": {
+        "source_id": "6938ebc08de40b62c685be1e",
+        "from_user": "6934252e4bf7878f04114b07",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request.",
+        "original_case_index": 287
+      }
+    },
+    {
+      "input": "可以呀，明天测试多线程能力，和提醒功能增强",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "明天"
+      ],
+      "metadata": {
+        "source_id": "693997a530444b69529b581d",
+        "from_user": "692c14aaa538f0baad5561b3",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder.",
+        "original_case_index": 292
+      }
+    },
+    {
+      "input": "今天有哪些提醒",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "今天"
+      ],
+      "metadata": {
+        "source_id": "69399a0989f3b2a40e58e3fa",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request.",
+        "original_case_index": 294
+      }
+    },
+    {
+      "input": "设置一个每晚10:30洗漱的提醒",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693aea5968bf5e9703e8ea6f",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",
+        "expected_creates": [
+          {
+            "title": "洗漱",
+            "local_time": "22:30:00",
+            "recurring": true
+          }
+        ],
+        "original_case_index": 313
+      }
+    },
+    {
+      "input": "明天最好能去锻炼下",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "明天",
+        "锻炼"
+      ],
+      "metadata": {
+        "source_id": "693aea6668bf5e9703e8ea70",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user states a tentative plan to exercise tomorrow but does not ask to be reminded. The agent may discuss the plan or ask whether a reminder is wanted, but should not imply a reminder will happen.",
+        "original_case_index": 314
+      }
+    },
+    {
+      "input": "八点半还没起床",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "点半",
+        "起床"
+      ],
+      "metadata": {
+        "source_id": "693af77568bf5e9703e8eabb",
+        "from_user": "693ae9de68bf5e9703e8ea69",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder.",
+        "original_case_index": 316
+      }
+    },
+    {
+      "input": "4:37提醒我吃饭",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "提醒我",
+        "提醒",
+        "吃饭",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693bd3c209af1bf513e83695",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",
+        "expected_creates": [
+          {
+            "title": "吃饭",
+            "local_time": "16:37:00",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 333
+      }
+    },
+    {
+      "input": "你怎么知道我是今晚7点出门",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "出门",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693bd71609af1bf513e836a2",
+        "from_user": "692c14e6a538f0baad5561b6",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders.",
+        "original_case_index": 335
+      }
+    },
+    {
+      "input": "刚刚16：58分，我又开始学习了。",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "学习",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "693d2b7a09af1bf513e837de",
+        "from_user": "693ae9de68bf5e9703e8ea69",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder.",
+        "original_case_index": 364
+      }
+    },
+    {
+      "input": "有定闹钟",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "闹钟"
+      ],
+      "metadata": {
+        "source_id": "693e3e2216773b825cfaa437",
+        "from_user": "693d76a43aff6aca7eceb048",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "query",
+        "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder.",
+        "original_case_index": 380
+      }
+    },
+    {
+      "input": "画画，下个整点再叫我吧",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "叫我"
+      ],
+      "metadata": {
+        "source_id": "693feb7da6d5f2cba9a55690",
+        "from_user": "693d76a43aff6aca7eceb048",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The phrase '下个整点再叫我' is an explicit reminder request anchored to the next whole hour, so a one-shot reminder for drawing is expected. The exact local time is run-time dependent.",
+        "expected_creates": [
+          {
+            "title": "画画",
+            "recurring": false
+          }
+        ],
+        "original_case_index": 417
+      }
+    },
+    {
+      "input": "中午好呀，我是游隼，你可以叫我小隼，当我不好好学习的时候请大声叫我臭游隼",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "叫我",
+        "中午",
+        "学习"
+      ],
+      "metadata": {
+        "source_id": "6940e526a6d5f2cba9a55726",
+        "from_user": "6940e526a6d5f2cba9a55725",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "discussion",
+        "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder.",
+        "original_case_index": 433
+      }
+    },
+    {
+      "input": "晚上 8 点再来找我，吃饭呢",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "晚上",
+        "吃饭"
+      ],
+      "metadata": {
+        "source_id": "69412fb5a6d5f2cba9a5577f",
+        "from_user": "69367b2c94ff180b41ab7454",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The user asks the agent to come back/find them at 8 PM, which is an implicit reminder/contact request with a concrete time.",
+        "expected_creates": [
+          {
+            "title": "找我",
+            "local_time": "20:00:00",
+            "recurring": false,
+            "title_variants": [
+              "提醒",
+              "再来找我",
+              "再来找我吃饭呢"
+            ]
+          }
+        ],
+        "original_case_index": 444
+      }
+    },
+    {
+      "input": "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+      "expected_intent": "reminder",
+      "matched_keywords": [
+        "今天",
+        "早上",
+        "晚上",
+        "任务",
+        "时间格式"
+      ],
+      "metadata": {
+        "source_id": "694167b3a6d5f2cba9a557a8",
+        "from_user": "693ec8e57fad1aa21e9edbb2",
+        "timestamp": "2025-11-30 12:00:00",
+        "evaluation_expectation": "crud",
+        "evaluation_reason": "The request contains two concrete daily recurring reminder/contact times, 07:00 for planning and 23:00 for a completion summary. The unspecified per-plan follow-up and recording details should not block those safe recurring reminders.",
+        "expected_creates": [
+          {
+            "title": "询问我当天的规划",
+            "local_time": "07:00:00",
+            "recurring": true,
+            "title_variants": [
+              "询问当天规划",
+              "当天的规划"
+            ]
+          },
+          {
+            "title": "告诉我今天完成了哪些任务",
+            "local_time": "23:00:00",
+            "recurring": true,
+            "title_variants": [
+              "今天完成了哪些任务",
+              "完成任务汇总"
+            ]
+          }
+        ],
+        "original_case_index": 449
+      }
+    }
+  ]
+}

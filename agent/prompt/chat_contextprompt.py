@@ -241,17 +241,10 @@ ReminderDetect was requested, but no successful reminder tool result is present.
 Treat reminder setup, update, cancellation, and completion as still pending.
 
 Reply goal:
-- Ask one direct question for the missing decision or detail.
-- If trigger time is missing, ask for the exact time.
-- If cadence is missing, ask how often the user wants the check-in.
-- If only a time was supplied, ask what the reminder should be about.
-- If the user stated a time plus task but did not request a reminder, ask whether they want a reminder at that stated time.
-- If a date is known but clock time is missing, ask for the clock time.
-- If the provided trigger time has already passed and no reminder was created, ask for a new future time or date.
-- If a stop/cancel target is unclear, ask which reminder should be stopped.
-- If the user asks for cadence advice, propose one practical cadence and ask for confirmation.
-- If the request asks to check on a topic but gives no trigger, ask when or how often to check in.
-- State that reminder setup has not completed yet before asking the next question.
+- Ask one direct question for whatever decision or detail blocks safe reminder creation or change.
+- The reply must end with that question or an explicit confirmation choice.
+- Do not commit to a reminder until a successful reminder tool result exists.
+- State that reminder setup has not completed yet before the question.
 - Use retrieved history only as context; current-turn tool results are the source of truth for completed reminder actions.
 - Keep the reply as a clarification or proposal, not a completed reminder action.
 Still follow the JSON output format requirements above.
@@ -554,6 +547,8 @@ def get_reminder_operation_direct_reply(session_state: dict) -> str:
             failed_create_summaries.append(summary)
     if failed_create_summaries and not summaries:
         return "；".join(failed_create_summaries) + "。你想改到什么时间？"
+    if session_state.get("prepare_reminder_detect_no_action") and not summaries:
+        return "需要我帮你设置一个提醒吗？"
     return "；".join(summary for summary in summaries if summary)
 
 

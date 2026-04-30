@@ -1,0 +1,96 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 123,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-712422cc4c",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "2b1d6f7f9aeb3987b55df815"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 123,
+      "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+      "user_id": "2b1d6f7f9aeb3987b55df815",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f2d624ba2a2c37bc33545d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f2d63072d7c17eb6b42376",
+          "expect_output_timestamp": 1777522224,
+          "handled_timestamp": 1777522224,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：思考一个问题：工作应该去做“非我不可”的事情（2026-05-01 10:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-712422cc4c",
+            "case_index": 123,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "69305f884bf7878f04114895",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-712422cc4c-case-123",
+              "business_conversation_key": "reminder-normal-712422cc4c-case-123",
+              "causal_inbound_event_id": "reminder-normal-712422cc4c-case-123-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2b1d6f7f9aeb3987b55df815"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f2d63072d7c17eb6b42374",
+          "owner_user_id": "2b1d6f7f9aeb3987b55df815",
+          "title": "思考一个问题：工作应该去做“非我不可”的事情",
+          "schedule": {
+            "anchor_at": "2026-05-01T01:40:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "10:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69f2d62672d7c17eb6b4236a",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-01T01:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-30T04:10:24.469000+00:00",
+          "updated_at": "2026-04-30T04:10:24.469000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 13.024
+    }
+  ]
+}

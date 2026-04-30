@@ -91,7 +91,10 @@ def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[ReminderNormalPathCase]:
             expected_intent=str(item.get("expected_intent", "")),
             matched_keywords=list(item.get("matched_keywords") or []),
             metadata=merge_case_expectation_metadata(
-                dict(item.get("metadata") or {}),
+                {
+                    **dict(item.get("metadata") or {}),
+                    "_case_index": index,
+                },
                 expectations.get(index, {}),
             ),
         )
@@ -140,6 +143,23 @@ def select_cases(
             raise ValueError("limit must be >= 0")
         selected = selected[:limit]
     return selected
+
+
+def select_expectation_cases(
+    cases: list[ReminderNormalPathCase],
+) -> list[ReminderNormalPathCase]:
+    return [
+        case
+        for case in cases
+        if str(case.metadata.get("evaluation_expectation") or "").strip()
+    ]
+
+
+def runtime_case_index(case: ReminderNormalPathCase, fallback_index: int) -> int:
+    try:
+        return int(case.metadata.get("_case_index", fallback_index))
+    except (TypeError, ValueError):
+        return fallback_index
 
 
 def iter_case_batches(
@@ -193,7 +213,7 @@ def seed_normal_path_identities(
     db = user_dao.db
     user_ids: list[str] = []
     for local_index, case in enumerate(cases):
-        case_index = offset + local_index
+        case_index = runtime_case_index(case, offset + local_index)
         user_id = normal_path_user_id(case, case_index, batch_id=batch_id)
         user_ids.append(user_id)
         db.characters.update_one(
@@ -341,7 +361,7 @@ def submit_cases(
 ) -> dict[int, dict[str, Any]]:
     submitted: dict[int, dict[str, Any]] = {}
     for local_index, case in enumerate(cases):
-        case_index = offset + local_index
+        case_index = runtime_case_index(case, offset + local_index)
         user_id = normal_path_user_id(case, case_index, batch_id=batch_id)
         input_timestamp = case_input_timestamp(
             case,
@@ -741,7 +761,7 @@ def expected_created_reminders_for_case(
 
 
 def expected_created_reminders(text: str) -> list[ExpectedReminderCreate]:
-    if not explicit_reminder_request(text):
+    if not str(text or "").strip():
         return []
 
     normalized = normalize_text(text)
@@ -1120,6 +1140,7 @@ def output_mentions_delete_target_clarification(outputs: list[dict[str, Any]]) -
             r"(取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)?"
             r"|(?:取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)"
             r".{0,24}(哪一个|哪个|哪条|什么提醒|哪项|具体哪)"
+            r"|(?:取消|删除|停掉|停止|关掉).{0,30}(具体.{0,8}提醒)"
             r"|(?:是指|你是说).{0,30}"
             r"(?:取消|删除|停掉|停止|关掉|不提醒|不用提醒|不用叫|别提醒|不要打扰|别打扰)"
             r".{0,8}吗"
@@ -1389,62 +1410,6 @@ def _create_unconfirmed_reminder_judge_model(*, max_tokens: int):
     return create_llm_model(max_tokens=max_tokens, role="prepare_fast")
 
 
-def explicit_reminder_request(text: str) -> bool:
-    normalized = str(text or "").lower()
-    if any(
-        keyword in normalized
-        for keyword in (
-            "提醒",
-            "remind",
-            "闹钟",
-            "通知我",
-            "每天",
-            "每个小时",
-            "每周",
-            "每月",
-        )
-    ):
-        return True
-    if re.search(r"(叫我|喊我)", normalized):
-        return actionable_call_me_reminder_request(normalized)
-    return False
-
-
-_ACTIONABLE_IMPLICIT_TIME_PATTERN = re.compile(
-    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点)"
-    r".{0,12}(开始|背书|学习|起床|出门|跑步|乐跑|喝水|吃饭)"
-)
-_ACTIONABLE_IMPLICIT_DEADLINE_PATTERN = re.compile(
-    r"明天下班前.*(?:必须|要|得|需要).*(?:学完|完成|做完|弄完)|"
-    r".*(?:学完|完成|做完|弄完).*明天下班前"
-)
-
-
-def actionable_implicit_reminder_request(text: str) -> bool:
-    normalized = normalize_text(text)
-    return bool(
-        _ACTIONABLE_IMPLICIT_TIME_PATTERN.search(normalized)
-        or _ACTIONABLE_IMPLICIT_DEADLINE_PATTERN.search(normalized)
-    )
-
-
-_ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
-    r"(\d{1,2}\s*[:：]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
-    r"|点半|明早|明天|今天|今晚|早上|上午|中午|下午|晚上|凌晨|一会|分钟|min|小时)"
-)
-_ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
-    r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
-)
-
-
-def actionable_call_me_reminder_request(text: str) -> bool:
-    normalized = normalize_text(text)
-    return bool(
-        _ACTIONABLE_CALL_ME_TIME_PATTERN.search(normalized)
-        or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(normalized)
-    )
-
-
 def reminder_case_requires_crud(case: ReminderNormalPathCase) -> bool:
     return case_evaluation_expectation(case) == "crud"
 
@@ -1457,10 +1422,6 @@ def case_evaluation_expectation(case: ReminderNormalPathCase) -> str:
     ).strip()
     if explicit_expectation:
         return explicit_expectation
-    if explicit_reminder_request(case.input) or actionable_implicit_reminder_request(
-        case.input
-    ):
-        return "crud"
     return "discussion"
 
 
@@ -1556,7 +1517,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES_PATH)
     parser.add_argument("--offset", type=int, default=0)
-    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--run-all", action="store_true")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--continue-on-failure", action="store_true")
@@ -1601,17 +1562,18 @@ def main() -> int:
     db = client[CONF["mongodb"]["mongodb_name"]]
 
     if args.run_all:
+        run_cases = select_expectation_cases(all_cases)
         batches = []
         all_results = []
         for batch in iter_case_batches(
-            total_count=len(all_cases),
+            total_count=len(run_cases),
             offset=args.offset,
             limit=args.limit,
             batch_size=args.batch_size,
         ):
             batch_payload = run_batch(
                 db,
-                all_cases,
+                run_cases,
                 offset=batch.offset,
                 limit=batch.limit,
                 timeout_seconds=args.timeout_seconds,
@@ -1646,11 +1608,12 @@ def main() -> int:
             "results": all_results,
         }
     else:
+        single_limit = args.limit if args.limit is not None else 20
         batch_payload = run_batch(
             db,
             all_cases,
             offset=args.offset,
-            limit=args.limit,
+            limit=single_limit,
             timeout_seconds=args.timeout_seconds,
             platform=platform,
             batch_id=batch_id,
@@ -1662,7 +1625,7 @@ def main() -> int:
         payload = {
             "cases": str(args.cases),
             "offset": args.offset,
-            "limit": args.limit,
+            "limit": single_limit,
             "run_all": False,
             "batch_size": args.batch_size,
             "timeout_seconds": args.timeout_seconds,

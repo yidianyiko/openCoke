@@ -1,0 +1,234 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 449,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-44f3abf455",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b1426edebbeff694d42b4906"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "missing_expected_reminder_title:告诉我今天完成了哪些任务": 1,
+      "user_output_missing_expected_title:告诉我今天完成了哪些任务": 1,
+      "user_output_missing_expected_title:询问我当天的规划": 1
+    },
+    "failures": [
+      {
+        "index": 449,
+        "input": "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+        "user_id": "b1426edebbeff694d42b4906",
+        "original_from_user": "693ec8e57fad1aa21e9edbb2",
+        "input_message_id": "69f2520283b4016e0ed74b48",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "missing_expected_reminder_title:告诉我今天完成了哪些任务",
+          "user_output_missing_expected_title:询问我当天的规划",
+          "user_output_missing_expected_title:告诉我今天完成了哪些任务"
+        ],
+        "outputs": [
+          {
+            "_id": "69f25218791297c1248a4929",
+            "expect_output_timestamp": 1777488408,
+            "handled_timestamp": 1777488408,
+            "status": "pending",
+            "message_type": "text",
+            "message": "已创建提醒：当天规划（每天 07:00）；已创建提醒：今日完成任务总结（每天 23:00）",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-44f3abf455",
+              "case_index": 449,
+              "original_from_user": "693ec8e57fad1aa21e9edbb2",
+              "source_id": "694167b3a6d5f2cba9a557a8",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-44f3abf455-case-449",
+                "business_conversation_key": "reminder-normal-44f3abf455-case-449",
+                "causal_inbound_event_id": "reminder-normal-44f3abf455-case-449-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "b1426edebbeff694d42b4906"
+          }
+        ],
+        "reminders": [
+          {
+            "_id": "69f25218791297c1248a4926",
+            "owner_user_id": "b1426edebbeff694d42b4906",
+            "title": "当天规划",
+            "schedule": {
+              "anchor_at": "2026-04-30T22:00:00+00:00",
+              "local_date": "2026-05-01",
+              "local_time": "07:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": "FREQ=DAILY"
+            },
+            "agent_output_target": {
+              "conversation_id": "69f25202791297c1248a491e",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T22:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T18:46:48.702000+00:00",
+            "updated_at": "2026-04-29T18:46:48.702000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          },
+          {
+            "_id": "69f25218791297c1248a4927",
+            "owner_user_id": "b1426edebbeff694d42b4906",
+            "title": "今日完成任务总结",
+            "schedule": {
+              "anchor_at": "2026-04-30T14:00:00+00:00",
+              "local_date": "2026-04-30",
+              "local_time": "23:00:00",
+              "timezone": "Asia/Tokyo",
+              "rrule": "FREQ=DAILY"
+            },
+            "agent_output_target": {
+              "conversation_id": "69f25202791297c1248a491e",
+              "character_id": "69eeeee7e7ef890c105124bf",
+              "route_key": null
+            },
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "next_fire_at": "2026-04-30T14:00:00+00:00",
+            "last_fired_at": null,
+            "last_event_ack_at": null,
+            "last_error": null,
+            "created_at": "2026-04-29T18:46:48.707000+00:00",
+            "updated_at": "2026-04-29T18:46:48.707000+00:00",
+            "completed_at": null,
+            "cancelled_at": null,
+            "failed_at": null
+          }
+        ],
+        "elapsed_seconds": 23.038
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 449,
+      "input": "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+      "user_id": "b1426edebbeff694d42b4906",
+      "original_from_user": "693ec8e57fad1aa21e9edbb2",
+      "input_message_id": "69f2520283b4016e0ed74b48",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "missing_expected_reminder_title:告诉我今天完成了哪些任务",
+        "user_output_missing_expected_title:询问我当天的规划",
+        "user_output_missing_expected_title:告诉我今天完成了哪些任务"
+      ],
+      "outputs": [
+        {
+          "_id": "69f25218791297c1248a4929",
+          "expect_output_timestamp": 1777488408,
+          "handled_timestamp": 1777488408,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：当天规划（每天 07:00）；已创建提醒：今日完成任务总结（每天 23:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-44f3abf455",
+            "case_index": 449,
+            "original_from_user": "693ec8e57fad1aa21e9edbb2",
+            "source_id": "694167b3a6d5f2cba9a557a8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-44f3abf455-case-449",
+              "business_conversation_key": "reminder-normal-44f3abf455-case-449",
+              "causal_inbound_event_id": "reminder-normal-44f3abf455-case-449-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b1426edebbeff694d42b4906"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69f25218791297c1248a4926",
+          "owner_user_id": "b1426edebbeff694d42b4906",
+          "title": "当天规划",
+          "schedule": {
+            "anchor_at": "2026-04-30T22:00:00+00:00",
+            "local_date": "2026-05-01",
+            "local_time": "07:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f25202791297c1248a491e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T22:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:46:48.702000+00:00",
+          "updated_at": "2026-04-29T18:46:48.702000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69f25218791297c1248a4927",
+          "owner_user_id": "b1426edebbeff694d42b4906",
+          "title": "今日完成任务总结",
+          "schedule": {
+            "anchor_at": "2026-04-30T14:00:00+00:00",
+            "local_date": "2026-04-30",
+            "local_time": "23:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69f25202791297c1248a491e",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-04-30T14:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-04-29T18:46:48.707000+00:00",
+          "updated_at": "2026-04-29T18:46:48.707000+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 23.038
+    }
+  ]
+}

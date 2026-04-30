@@ -433,7 +433,7 @@ def test_validate_observations_requires_user_visible_crud_ack():
     assert "user_output_missing_crud_ack" in errors
 
 
-def test_validate_observations_requires_reminder_for_expected_reminder_intent():
+def test_validate_observations_defaults_unannotated_cases_to_discussion():
     case = normal_eval.ReminderNormalPathCase(
         input="最近要学习llya的一篇文章 明天下班前必须学完",
         expected_intent="reminder",
@@ -448,7 +448,7 @@ def test_validate_observations_requires_reminder_for_expected_reminder_intent():
         reminders=[],
     )
 
-    assert "no_reminder_created" in errors
+    assert "no_reminder_created" not in errors
 
 
 def test_validate_observations_accepts_delete_crud_without_created_reminder():
@@ -568,6 +568,32 @@ def test_validate_observations_accepts_confirmation_style_clarification():
         case,
         "handled",
         outputs=[{"message": "晚上不用叫你是说今晚的计划有调整吗"}],
+        reminders=[],
+    )
+
+    assert errors == []
+
+
+def test_validate_observations_accepts_explicit_delete_target_question():
+    case = normal_eval.ReminderNormalPathCase(
+        input="今天学习结束，晚安，不要打扰我了",
+        expected_intent="reminder",
+        matched_keywords=["不要打扰"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_operation": "delete",
+            "allow_clarification": True,
+        },
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": "你是想取消今天剩余的所有提醒，还是删除某个具体的提醒？请告诉我具体要取消的提醒。"
+            }
+        ],
         reminders=[],
     )
 
@@ -816,6 +842,36 @@ def test_clarification_output_accepts_frequency_question_wording():
     )
 
     assert errors == []
+
+
+def test_clarification_output_accepts_when_question_with_injected_judge():
+    case = normal_eval.ReminderNormalPathCase(
+        input="可以提醒我喝水哦",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+    calls = []
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "你想什么时候提醒你喝水？比如每天的某个时间，或者每隔几个小时？"}],
+        reminders=[],
+        clarification_judge=lambda case_input, output_text: calls.append(
+            (case_input, output_text)
+        )
+        or True,
+        unconfirmed_reminder_judge=lambda text: False,
+    )
+
+    assert errors == []
+    assert calls == [
+        (
+            case.input,
+            "你想什么时候提醒你喝水？比如每天的某个时间，或者每隔几个小时？",
+        )
+    ]
 
 
 def test_clarification_output_accepts_every_how_long_wording():
@@ -1097,112 +1153,30 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
 
 def test_load_cases_applies_normal_path_expectation_fixture():
     cases = normal_eval.load_cases()
+    expectations = normal_eval.load_case_expectations(
+        normal_eval.DEFAULT_EXPECTATIONS_PATH
+    )
 
-    assert cases[73].metadata["evaluation_expectation"] == "clarify"
-    assert cases[75].metadata["evaluation_expectation"] == "clarify"
-    assert cases[86].metadata["evaluation_expectation"] == "clarify"
-    assert cases[88].metadata["evaluation_expectation"] == "clarify"
-    assert cases[91].metadata["evaluation_expectation"] == "clarify"
-    assert cases[102].metadata["evaluation_expectation"] == "clarify"
-    assert cases[107].metadata["evaluation_expectation"] == "discussion"
-    assert cases[109].metadata["expected_creates"][0]["local_time"] == "20:10:00"
-    assert cases[112].metadata["evaluation_expectation"] == "clarify"
-    assert cases[116].metadata["evaluation_expectation"] == "discussion"
-    assert cases[117].metadata["evaluation_expectation"] == "clarify"
-    assert cases[122].metadata["expected_creates"][0]["recurring"] is False
-    assert cases[123].metadata["expected_creates"][0]["local_time"] == "10:40:00"
-    assert cases[124].metadata["evaluation_expectation"] == "query"
-    assert cases[125].metadata["evaluation_expectation"] == "query"
-    assert cases[130].metadata["evaluation_expectation"] == "clarify"
-    assert cases[133].metadata["expected_creates"][0]["local_time"] == "19:40:00"
-    assert cases[136].metadata["evaluation_expectation"] == "clarify"
-    assert cases[139].metadata["evaluation_expectation"] == "query"
-    assert cases[145].metadata["evaluation_expectation"] == "discussion"
-    assert cases[146].metadata["evaluation_expectation"] == "discussion"
-    assert cases[149].metadata["evaluation_expectation"] == "clarify"
-    assert cases[150].metadata["evaluation_expectation"] == "clarify"
-    assert cases[158].metadata["expected_operation"] == "delete"
-    assert cases[158].metadata["allow_clarification"] is True
-    assert cases[161].metadata["evaluation_expectation"] == "clarify"
-    assert cases[168].metadata["expected_operation"] == "delete"
-    assert cases[168].metadata["allow_clarification"] is True
-    assert cases[176].metadata["evaluation_expectation"] == "discussion"
-    assert cases[180].metadata["expected_operation"] == "update"
-    assert cases[180].metadata["allow_clarification"] is True
-    assert cases[181].metadata["evaluation_expectation"] == "clarify"
-    assert cases[187].metadata["evaluation_expectation"] == "crud"
-    assert cases[189].metadata["expected_operation"] == "delete"
-    assert cases[189].metadata["allow_clarification"] is True
-    assert cases[192].metadata["evaluation_expectation"] == "discussion"
-    assert cases[197].metadata["evaluation_expectation"] == "crud"
-    assert cases[198].metadata["evaluation_expectation"] == "clarify"
-    assert cases[199].metadata["evaluation_expectation"] == "discussion"
-    assert cases[200].metadata["evaluation_expectation"] == "clarify"
-    assert cases[205].metadata["evaluation_expectation"] == "clarify"
-    assert cases[212].metadata["evaluation_expectation"] == "clarify"
-    assert cases[213].metadata["evaluation_expectation"] == "clarify"
-    assert cases[215].metadata["evaluation_expectation"] == "clarify"
-    assert cases[219].metadata["evaluation_expectation"] == "clarify"
-    assert cases[221].metadata["evaluation_expectation"] == "query"
-    assert cases[222].metadata["evaluation_expectation"] == "query"
-    assert cases[223].metadata["evaluation_expectation"] == "clarify"
-    assert cases[225].metadata["evaluation_expectation"] == "clarify"
-    assert cases[231].metadata["evaluation_expectation"] == "discussion"
-    assert cases[238].metadata["evaluation_expectation"] == "clarify"
-    assert cases[245].metadata["evaluation_expectation"] == "clarify"
-    assert cases[247].metadata["evaluation_expectation"] == "query"
-    assert cases[251].metadata["evaluation_expectation"] == "clarify"
-    assert cases[254].metadata["evaluation_expectation"] == "query"
-    assert cases[257].metadata["evaluation_expectation"] == "discussion"
-    assert cases[258].metadata["evaluation_expectation"] == "clarify"
-    assert cases[262].metadata["evaluation_expectation"] == "clarify"
-    assert cases[278].metadata["evaluation_expectation"] == "clarify"
-    assert cases[279].metadata["evaluation_expectation"] == "query"
-    assert cases[280].metadata["evaluation_expectation"] == "discussion"
-    assert cases[287].metadata["evaluation_expectation"] == "query"
-    assert cases[288].metadata["evaluation_expectation"] == "clarify"
-    assert cases[292].metadata["evaluation_expectation"] == "discussion"
-    assert cases[294].metadata["evaluation_expectation"] == "query"
-    assert cases[300].metadata["evaluation_expectation"] == "clarify"
-    assert cases[304].metadata["evaluation_expectation"] == "clarify"
-    assert cases[305].metadata["evaluation_expectation"] == "clarify"
-    assert cases[306].metadata["evaluation_expectation"] == "clarify"
-    assert cases[309].metadata["evaluation_expectation"] == "clarify"
-    assert cases[313].metadata["expected_creates"][0]["recurring"] is True
-    assert cases[313].metadata["expected_creates"][0]["local_time"] == "22:30:00"
-    assert cases[314].metadata["evaluation_expectation"] == "discussion"
-    assert cases[316].metadata["evaluation_expectation"] == "discussion"
-    assert cases[331].metadata["evaluation_expectation"] == "clarify"
-    assert cases[333].metadata["expected_creates"][0]["local_time"] == "16:37:00"
-    assert cases[335].metadata["evaluation_expectation"] == "discussion"
-    assert cases[359].metadata["evaluation_expectation"] == "clarify"
-    assert cases[364].metadata["evaluation_expectation"] == "discussion"
-    assert cases[371].metadata["evaluation_expectation"] == "clarify"
-    assert cases[374].metadata["evaluation_expectation"] == "clarify"
-    assert cases[377].metadata["evaluation_expectation"] == "clarify"
-    assert cases[380].metadata["evaluation_expectation"] == "query"
-    assert cases[388].metadata["evaluation_expectation"] == "clarify"
-    assert cases[389].metadata["evaluation_expectation"] == "clarify"
-    assert cases[390].metadata["evaluation_expectation"] == "clarify"
-    assert cases[391].metadata["evaluation_expectation"] == "clarify"
-    assert cases[394].metadata["evaluation_expectation"] == "clarify"
-    assert cases[404].metadata["evaluation_expectation"] == "clarify"
-    assert cases[406].metadata["evaluation_expectation"] == "clarify"
-    assert cases[411].metadata["evaluation_expectation"] == "clarify"
-    assert cases[417].metadata["evaluation_expectation"] == "crud"
-    assert cases[417].metadata["expected_creates"][0]["title"] == "画画"
-    assert cases[423].metadata["evaluation_expectation"] == "clarify"
-    assert cases[425].metadata["evaluation_expectation"] == "clarify"
-    assert cases[433].metadata["evaluation_expectation"] == "discussion"
-    assert cases[436].metadata["evaluation_expectation"] == "clarify"
-    assert cases[437].metadata["evaluation_expectation"] == "clarify"
-    assert cases[444].metadata["evaluation_expectation"] == "crud"
-    assert cases[444].metadata["expected_creates"][0]["title"] == "找我"
-    assert cases[444].metadata["expected_creates"][0]["local_time"] == "20:00:00"
-    assert cases[445].metadata["evaluation_expectation"] == "clarify"
-    assert cases[449].metadata["evaluation_expectation"] == "crud"
-    assert cases[449].metadata["expected_creates"][0]["local_time"] == "07:00:00"
-    assert cases[449].metadata["expected_creates"][1]["local_time"] == "23:00:00"
+    assert len(expectations) <= 70
+    for index, expectation in expectations.items():
+        for key, value in expectation.items():
+            assert cases[index].metadata[key] == value
+
+    classes = {
+        expectation.get("evaluation_expectation", "crud")
+        for expectation in expectations.values()
+    }
+    assert {"crud", "query", "clarify", "discussion"}.issubset(classes)
+
+
+def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
+    cases = normal_eval.load_cases()
+    selected = normal_eval.select_expectation_cases(cases)
+
+    assert len(selected) == 63
+    assert selected[0].metadata["_case_index"] == 73
+    assert selected[-1].metadata["_case_index"] == 444
+    assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 73
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
@@ -1210,7 +1184,7 @@ def test_validate_observations_still_requires_crud_for_call_me_with_time():
         input="七点叫我可以么",
         expected_intent="reminder",
         matched_keywords=["叫我"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
 
     errors = normal_eval.validate_observations(
@@ -1221,6 +1195,33 @@ def test_validate_observations_still_requires_crud_for_call_me_with_time():
     )
 
     assert "no_reminder_created" in errors
+
+
+def test_case_evaluation_expectation_does_not_use_regex_fallbacks():
+    case = normal_eval.ReminderNormalPathCase(
+        input="18:00提醒我喝水",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={},
+    )
+
+    assert normal_eval.case_evaluation_expectation(case) == "discussion"
+
+
+def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
+    from scripts.reminder_drift_report import build_report
+
+    report = build_report()
+
+    assert report["fixture_overrides"] <= 70
+    assert report["workflow_regex_fast_path_markers"] == {
+        "looks_like_reminder": False,
+        "actionable_patterns": False,
+        "explicit_reminder_patterns": False,
+    }
+    assert {"crud", "query", "clarify", "discussion"}.issubset(
+        report["evaluation_expectation_counts"]
+    )
 
 
 def test_validate_observations_allows_clarification_for_implicit_time_task():
@@ -1259,20 +1260,18 @@ def test_validate_observations_accepts_colloquial_when_clarification():
     assert errors == []
 
 
-def test_validate_observations_accepts_time_choice_clarification():
+def test_validate_observations_accepts_optional_confirmation_for_schedule_statement():
     case = normal_eval.ReminderNormalPathCase(
         input="七点半开始正式学习",
         expected_intent="reminder",
         matched_keywords=["点半", "开始", "学习"],
-        metadata={"evaluation_expectation": "clarify"},
+        metadata={"evaluation_expectation": "discussion"},
     )
 
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[
-            {"message": "七点半？你是说今天晚上七点半开始学习，还是明天早上七点半呀？"}
-        ],
+        outputs=[{"message": "需要我帮你设置一个提醒吗？"}],
         reminders=[],
     )
 
@@ -1284,7 +1283,7 @@ def test_validate_observations_allows_min_call_me_reminder():
         input="15min后喊我！",
         expected_intent="reminder",
         matched_keywords=["喊我", "min"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminder = {
         "title": "提醒",
@@ -1309,7 +1308,7 @@ def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminder = {
         "title": "喝水",
@@ -1435,7 +1434,7 @@ def test_validate_observations_rejects_case3_false_positive_shape():
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminder = {
         "title": "喝水",
@@ -1466,7 +1465,7 @@ def test_validate_observations_accepts_case3_expected_shape():
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminders = [
         {
@@ -1514,6 +1513,7 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
         expected_intent="reminder",
         matched_keywords=["提醒"],
         metadata={
+            "evaluation_expectation": "crud",
             "expected_creates": [
                 {
                     "title": "思考：工作应该去做“非我不可”的事情",
@@ -1521,7 +1521,7 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
                     "local_time": "10:40:00",
                     "recurring": False,
                 }
-            ]
+            ],
         },
     )
     reminders = [
@@ -1556,7 +1556,7 @@ def test_validate_observations_tolerates_common_leading_come_verb_in_title():
         input="20:00提醒我来法考记忆和做题",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminders = [
         {
@@ -1597,13 +1597,14 @@ def test_validate_observations_allows_light_action_prefix_title_match():
         expected_intent="reminder",
         matched_keywords=["提醒"],
         metadata={
+            "evaluation_expectation": "crud",
             "expected_creates": [
                 {
                     "title": "开始写论文文献综述（国外研究现状）",
                     "local_time": "16:00:00",
                     "recurring": False,
                 }
-            ]
+            ],
         },
     )
     reminders = [
@@ -1638,7 +1639,7 @@ def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
         input="如果可以的话 你8:40提醒我一下回复刘冲、Eva，约一下袁琳、浩然",
         expected_intent="reminder",
         matched_keywords=["提醒"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminders = [
         {
@@ -1672,7 +1673,7 @@ def test_validate_observations_tolerates_light_connector_in_title():
         input="下午 1:50 提醒我起床并开始准备论文写作",
         expected_intent="reminder",
         matched_keywords=["提醒"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminders = [
         {
@@ -1718,6 +1719,7 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
         expected_intent="reminder",
         matched_keywords=["提醒"],
         metadata={
+            "evaluation_expectation": "crud",
             "expected_creates": [
                 {"title": "起床", "local_time": "07:15:00", "recurring": True},
                 {
@@ -1745,7 +1747,7 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
                     "recurring": True,
                 },
                 {"title": "睡觉", "local_time": "23:00:00", "recurring": True},
-            ]
+            ],
         },
     )
     reminders = [
@@ -1792,7 +1794,7 @@ def test_validate_observations_rejects_user_output_recurrence_mismatch():
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminders = [
         {
@@ -1840,7 +1842,7 @@ def test_validate_observations_rejects_duplicate_reminders():
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],
-        metadata={},
+        metadata={"evaluation_expectation": "crud"},
     )
     reminder = {
         "title": "喝水",

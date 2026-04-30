@@ -6,6 +6,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 
+def _orchestrator_response(*, need_reminder_detect=True, need_context_retrieve=False):
+    response = MagicMock()
+    response.content = MagicMock()
+    response.metrics = None
+    response.content.model_dump.return_value = {
+        "inner_monologue": "test orchestrator decision",
+        "need_context_retrieve": need_context_retrieve,
+        "context_retrieve_params": {},
+        "need_reminder_detect": need_reminder_detect,
+        "need_web_search": False,
+        "web_search_query": "",
+        "need_timezone_update": False,
+        "timezone_action": "none",
+        "timezone_value": "",
+    }
+    return response
+
+
 @pytest.mark.asyncio
 async def test_structured_reminder_detect_decision_does_not_require_substring_evidence(
     monkeypatch,
@@ -193,7 +211,9 @@ async def test_structured_reminder_detect_decision_executes_visible_tool(monkeyp
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
@@ -274,7 +294,9 @@ async def test_structured_reminder_detect_list_query_sets_direct_reply_marker(
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
@@ -588,10 +610,25 @@ def test_bounded_rrule_operation_keeps_valid_utc_until():
 
 
 @pytest.mark.asyncio
-async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fast():
+async def test_explicit_reminder_request_respects_orchestrator_false():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
+
+    orchestrator_response = MagicMock()
+    orchestrator_response.content = MagicMock()
+    orchestrator_response.metrics = None
+    orchestrator_response.content.model_dump.return_value = {
+        "inner_monologue": "普通对话",
+        "need_context_retrieve": False,
+        "context_retrieve_params": {},
+        "need_reminder_detect": False,
+        "need_web_search": False,
+        "web_search_query": "",
+        "need_timezone_update": False,
+        "timezone_action": "none",
+        "timezone_value": "",
+    }
 
     reminder_response = MagicMock()
     reminder_response.metrics = None
@@ -620,20 +657,20 @@ async def test_explicit_reminder_request_skips_orchestrator_and_runs_detector_fa
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("11点10分还有12点提醒我一下", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
-    reminder_detect_agent.arun.assert_awaited_once()
-    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    orchestrator_agent.arun.assert_awaited_once()
+    reminder_detect_agent.arun.assert_not_awaited()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
     assert result["session_state"]["orchestrator"]["need_context_retrieve"] is False
 
 
 @pytest.mark.asyncio
-async def test_no_disturb_reminder_stop_request_skips_orchestrator_and_runs_detector():
+async def test_no_disturb_reminder_stop_request_runs_detector_when_orchestrator_routes_it():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
@@ -665,20 +702,21 @@ async def test_no_disturb_reminder_stop_request_skips_orchestrator_and_runs_dete
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("今天学习结束，晚安，不要打扰我了", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
-    assert result["session_state"]["prepare_reminder_intent_hint"] == "stop_or_cancel"
 
 
 @pytest.mark.asyncio
-async def test_explicit_reminder_request_runs_detector_when_orchestrator_misses_it():
+async def test_explicit_reminder_request_does_not_run_detector_when_orchestrator_misses_it():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
@@ -734,8 +772,8 @@ async def test_explicit_reminder_request_runs_detector_when_orchestrator_misses_
             session_state,
         )
 
-    reminder_detect_agent.arun.assert_awaited_once()
-    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    reminder_detect_agent.arun.assert_not_awaited()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
 
 
 @pytest.mark.asyncio
@@ -797,7 +835,7 @@ async def test_nickname_only_call_me_does_not_run_reminder_detector():
 
 
 @pytest.mark.asyncio
-async def test_call_me_with_time_runs_reminder_detector_when_orchestrator_misses_it():
+async def test_call_me_with_time_does_not_run_detector_when_orchestrator_misses_it():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
@@ -850,12 +888,12 @@ async def test_call_me_with_time_runs_reminder_detector_when_orchestrator_misses
 
         result = await workflow.run("七点叫我可以么", session_state)
 
-    reminder_detect_agent.arun.assert_awaited_once()
-    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+    reminder_detect_agent.arun.assert_not_awaited()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
 
 
 @pytest.mark.asyncio
-async def test_recurring_contact_summary_request_skips_orchestrator_for_detector():
+async def test_recurring_contact_summary_request_runs_detector_when_orchestrator_routes_it():
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
     workflow = PrepareWorkflow()
@@ -887,7 +925,9 @@ async def test_recurring_contact_summary_request_skips_orchestrator_for_detector
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
@@ -897,7 +937,7 @@ async def test_recurring_contact_summary_request_skips_orchestrator_for_detector
             session_state,
         )
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
 
@@ -941,20 +981,22 @@ async def test_reminder_status_complaint_query_marks_detect_complete_without_act
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("天呐🥺你七点都没有开始提醒我欸", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
     assert result["session_state"]["prepare_reminder_detect_no_action"] is True
 
 
 @pytest.mark.asyncio
-async def test_reminder_status_complaint_without_time_skips_orchestrator():
+async def test_reminder_status_complaint_without_time_runs_detector_when_orchestrator_routes_it():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -992,20 +1034,22 @@ async def test_reminder_status_complaint_without_time_skips_orchestrator():
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("为什么刚刚没有叫我", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
     assert result["session_state"]["prepare_reminder_detect_no_action"] is True
 
 
 @pytest.mark.asyncio
-async def test_time_task_schedule_statement_skips_orchestrator_for_detector_boundary():
+async def test_time_task_schedule_statement_runs_detector_when_orchestrator_routes_it():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -1043,20 +1087,22 @@ async def test_time_task_schedule_statement_skips_orchestrator_for_detector_boun
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("明天下午五点出门，去找雪松吃饭", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
     assert result["session_state"]["prepare_reminder_detect_no_action"] is True
 
 
 @pytest.mark.asyncio
-async def test_time_bounded_study_plan_skips_orchestrator_for_detector_boundary():
+async def test_time_bounded_study_plan_runs_detector_when_orchestrator_routes_it():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
 
@@ -1094,13 +1140,15 @@ async def test_time_bounded_study_plan_skips_orchestrator_for_detector_boundary(
             "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
         ) as context_retrieve_tool,
     ):
-        orchestrator_agent.arun = AsyncMock()
+        orchestrator_agent.arun = AsyncMock(
+            return_value=_orchestrator_response(need_reminder_detect=True)
+        )
         reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run("专心学到下午4：30，咱们休息。", session_state)
 
-    orchestrator_agent.arun.assert_not_awaited()
+    orchestrator_agent.arun.assert_awaited_once()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
     assert result["session_state"]["prepare_reminder_detect_no_action"] is True
@@ -1225,7 +1273,7 @@ async def test_underspecified_reminder_request_uses_detector_not_direct_reply():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(
+async def test_orchestrator_timeout_uses_default_without_detector_fallback(
     monkeypatch,
 ):
     from agent.agno_agent.workflows import prepare_workflow
@@ -1235,10 +1283,6 @@ async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(
 
     async def slow_orchestrator(*_args, **_kwargs):
         await asyncio.sleep(60)
-
-    reminder_response = MagicMock()
-    reminder_response.metrics = None
-    reminder_response.tools = []
 
     session_state = {
         "message_source": "user",
@@ -1270,21 +1314,26 @@ async def test_orchestrator_timeout_still_runs_detector_for_explicit_reminder(
         ) as context_retrieve_tool,
     ):
         orchestrator_agent.arun = AsyncMock(side_effect=slow_orchestrator)
-        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        reminder_detect_agent.arun = AsyncMock()
         context_retrieve_tool.return_value = {}
 
-        result = await workflow.run(
-            "今天17:57提醒我喝水，17:58提醒我锻炼",
-            session_state,
-        )
+        result = await workflow.run("今天17:57提醒我喝水，17:58提醒我锻炼", session_state)
 
-    assert result["session_state"]["prepare_orchestrator_skipped_for_reminder"] is True
-    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
-    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["prepare_orchestrator_timeout"] is True
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
+    reminder_detect_agent.arun.assert_not_awaited()
+
+
+def test_orchestrator_timeout_budget_uses_original_llm_hop_limit():
+    from agent.agno_agent.workflows.prepare_workflow import (
+        _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS,
+    )
+
+    assert _PREPARE_ORCHESTRATOR_TIMEOUT_SECONDS == 45.0
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_timeout_routes_time_prefixed_reminder_to_detector(
+async def test_orchestrator_timeout_does_not_route_time_prefixed_reminder_to_detector(
     monkeypatch,
 ):
     from agent.agno_agent.workflows import prepare_workflow
@@ -1294,10 +1343,6 @@ async def test_orchestrator_timeout_routes_time_prefixed_reminder_to_detector(
 
     async def slow_orchestrator(*_args, **_kwargs):
         await asyncio.sleep(60)
-
-    reminder_response = MagicMock()
-    reminder_response.metrics = None
-    reminder_response.tools = []
 
     session_state = {
         "message_source": "user",
@@ -1329,7 +1374,7 @@ async def test_orchestrator_timeout_routes_time_prefixed_reminder_to_detector(
         ) as context_retrieve_tool,
     ):
         orchestrator_agent.arun = AsyncMock(side_effect=slow_orchestrator)
-        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        reminder_detect_agent.arun = AsyncMock()
         context_retrieve_tool.return_value = {}
 
         result = await workflow.run(
@@ -1337,9 +1382,9 @@ async def test_orchestrator_timeout_routes_time_prefixed_reminder_to_detector(
             session_state,
         )
 
-    assert result["session_state"]["prepare_orchestrator_skipped_for_reminder"] is True
-    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
-    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["prepare_orchestrator_timeout"] is True
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is False
+    reminder_detect_agent.arun.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1517,59 +1562,16 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     retry_input = reminder_detect_retry_agent.arun.await_args.kwargs["input"]
     assert "最近对话上下文" not in retry_input
     assert "当前用户消息" in retry_input
-    assert "invalid structured output" in retry_input
+    assert "Retry reason: primary detector timed out" in retry_input
     assert "ReminderDetectDecision" in retry_input
-    assert len(retry_input) < 3200
-    assert "explicitly asks for a reminder" in retry_input
-    assert 'action="delete"' in retry_input
-    assert "不用叫我" in retry_input
-    assert "asks to update, complete, or list reminders" in retry_input
-    assert "enumerate each concrete one-shot occurrence" in retry_input
-    assert "Do not use RRULE for bounded cadence" in retry_input
-    assert "schedule_basis" in retry_input
-    assert "schedule_evidence" in retry_input
-    assert "same-message stop boundary" in retry_input
-    assert "not as delete/cancel" in retry_input
-    assert "skip past occurrences" in retry_input
-    assert "create only future occurrences" in retry_input
-    assert "without concrete occurrence" in retry_input
-    assert "Do not infer numeric intervals" in retry_input
-    assert "semantically modifies" in retry_input
-    assert "neighboring independent schedule item" in retry_input
-    assert "task time range supplies boundaries" in retry_input
-    assert "schedule-only items" in retry_input
-    assert "mixes safe and unsafe" in retry_input
-    assert "execute the safe operations" in retry_input
-    assert "ambiguous time range" in retry_input
-    assert "must not block" in retry_input
-    assert "concrete daily/weekly recurring clock time" in retry_input
-    assert "check-in, contact, or summary content" in retry_input
-    assert "unsupported tracking, recording" in retry_input
-    assert "not from this directive or a policy label" in retry_input
-    assert "Omit ambiguous time range clauses" in retry_input
-    assert 'Never return action="batch" with operations=[]' in retry_input
-    assert "not enough schedule_evidence" in retry_input
-    assert "one create operation for each safe clause" in retry_input
-    assert "single reminder create" in retry_input
-    assert "top-level title and trigger_at" in retry_input
-    assert "operations empty" in retry_input
-    assert "new_title and new_trigger_at are update-only" in retry_input
-    assert "timezone-aware ISO 8601" in retry_input
-    assert "2026-12-14T00:30:00+09:00" in retry_input
-    assert "Never output action=\"create\"" in retry_input
-    assert 'intent_type="clarify"' in retry_input
-    assert "Do not keep only the last item" in retry_input
-    assert "action=create is invalid" in retry_input
-    assert "batch create operations" in retry_input
-    assert "Do not include empty optional fields" in retry_input
-    assert (
-        "operations count must equal the number of safe reminder clauses" in retry_input
+    assert len(retry_input) < 1400
+    assert "Use the ReminderDetect system instructions already attached to this agent" in (
+        retry_input
     )
-    assert "calendar date, deadline date, or day-of-month" in retry_input
-    assert "do not resolve it to midnight" in retry_input
-    assert "Chinese semicolon lists may omit the repeated reminder verb" in retry_input
-    assert "same language" in retry_input
-    assert "15:57, 16:47, 17:37" in retry_input
+    assert "最近对话上下文" not in retry_input
+    assert "不用叫我" not in retry_input
+    assert "15:57, 16:47, 17:37" not in retry_input
+    assert "Do not use RRULE for bounded cadence" not in retry_input
     assert result["session_state"]["prepare_reminder_detect_timeout"] is True
     assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
     assert result["session_state"]["tool_results"][0]["ok"] is True

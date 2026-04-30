@@ -138,7 +138,24 @@ class ReminderDetectDecision(BaseModel):
     def normalize_intent_from_action(cls, data):
         if not isinstance(data, dict):
             return data
+        clarification_question = str(data.get("clarification_question") or "").strip()
+        executable_field_names = (
+            "title",
+            "trigger_at",
+            "reminder_id",
+            "keyword",
+            "new_title",
+            "new_trigger_at",
+            "rrule",
+            "deadline_at",
+            "schedule_basis",
+            "schedule_evidence",
+            "operations",
+        )
+        has_executable_fields = any(bool(data.get(name)) for name in executable_field_names)
         action = str(data.get("action") or "")
+        if clarification_question and not has_executable_fields:
+            return {**data, "intent_type": "clarify", "action": ""}
         if action in {"create", "update", "delete", "cancel", "complete", "batch"}:
             return {**data, "intent_type": "crud"}
         if action == "list":

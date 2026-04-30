@@ -15,6 +15,32 @@ def test_reminder_detect_schema_normalizes_write_action_to_crud():
     assert decision.intent_type == "crud"
 
 
+def test_reminder_detect_schema_normalizes_mislabeled_clarification():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="",
+        clarification_question="结束具体是几点？",
+    )
+
+    assert decision.intent_type == "clarify"
+    assert decision.action == ""
+
+
+def test_reminder_detect_schema_drops_action_for_non_executable_clarification():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="create",
+        clarification_question="结束具体是几点？",
+    )
+
+    assert decision.intent_type == "clarify"
+    assert decision.action == ""
+
+
 def test_reminder_detect_schema_rejects_naive_create_trigger_at():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -250,10 +276,10 @@ def test_reminder_detect_agents_use_structured_decision_schema():
     assert reminder_detect_agent.use_json_mode is False
     assert reminder_detect_retry_agent.use_json_mode is False
     assert reminder_detect_retry_agent.model.max_tokens >= 6000
-    assert len(reminder_detect_retry_agent.instructions) < (
-        len(reminder_detect_agent.instructions) // 2
+    assert (
+        reminder_detect_retry_agent.instructions == reminder_detect_agent.instructions
     )
-    assert "short-context retry" in reminder_detect_retry_agent.instructions
+    assert "short-context retry" not in reminder_detect_retry_agent.instructions
 
 
 def test_reminder_detect_clarification_question_schema_keeps_current_language():

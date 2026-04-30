@@ -1,0 +1,67 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 189,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-76acd6f3b7",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "e36f7e46541419ccaf30f02c"
+  ],
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 189,
+      "input": "别再提醒我该走了",
+      "user_id": "e36f7e46541419ccaf30f02c",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f307a4f63a2632080f581c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69f307aa32c5a711cec49497",
+          "expect_output_timestamp": 1777534890,
+          "handled_timestamp": 1777534890,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：keyword '该走了' matched 0 reminders",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-76acd6f3b7",
+            "case_index": 189,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6932ce8d4bf7878f04114a83",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-76acd6f3b7-case-189",
+              "business_conversation_key": "reminder-normal-76acd6f3b7-case-189",
+              "causal_inbound_event_id": "reminder-normal-76acd6f3b7-case-189-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e36f7e46541419ccaf30f02c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.013
+    }
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "cases": "tasks/evidence/reminder-normal/pr4-failure-rerun-cases.json",
+  "offset": 4,
+  "limit": 9,
+  "run_all": true,
+  "batch_size": 1,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-normal-3bcfcb93b5",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 4,
+        "input": "每小时打卡，到晚上8点",
+        "user_id": "976d0e6e27a9ca1870a6ed2c",
+        "original_from_user": "692d38aea538f0baad556271",
+        "input_message_id": "69f2e269491eb1003cbe43a3",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created"
+        ],
+        "outputs": [
+          {
+            "_id": "69f2e2a7bb1f14e41ff8204c",
+            "expect_output_timestamp": 1777525413,
+            "handled_timestamp": 1777525413,
+            "status": "pending",
+            "message_type": "text",
+            "message": "知道了，每小时打卡，到晚上8点。",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-3bcfcb93b5-4",
+              "case_index": 4,
+              "original_from_user": "692d38aea538f0baad556271",
+              "source_id": "6932a0dc4bf7878f04114a74",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-3bcfcb93b5-4-case-4",
+                "business_conversation_key": "reminder-normal-3bcfcb93b5-4-case-4",
+                "causal_inbound_event_id": "reminder-normal-3bcfcb93b5-4-case-4-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "976d0e6e27a9ca1870a6ed2c"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 63.108
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 4,
+      "limit": 1,
+      "batch_id": "reminder-normal-3bcfcb93b5-4",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "976d0e6e27a9ca1870a6ed2c"
+      ],
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0,
+        "by_error": {
+          "no_reminder_created": 1
+        },
+        "failures": [
+          {
+            "index": 4,
+            "input": "每小时打卡，到晚上8点",
+            "user_id": "976d0e6e27a9ca1870a6ed2c",
+            "original_from_user": "692d38aea538f0baad556271",
+            "input_message_id": "69f2e269491eb1003cbe43a3",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created"
+            ],
+            "outputs": [
+              {
+                "_id": "69f2e2a7bb1f14e41ff8204c",
+                "expect_output_timestamp": 1777525413,
+                "handled_timestamp": 1777525413,
+                "status": "pending",
+                "message_type": "text",
+                "message": "知道了，每小时打卡，到晚上8点。",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-3bcfcb93b5-4",
+                  "case_index": 4,
+                  "original_from_user": "692d38aea538f0baad556271",
+                  "source_id": "6932a0dc4bf7878f04114a74",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-3bcfcb93b5-4-case-4",
+                    "business_conversation_key": "reminder-normal-3bcfcb93b5-4-case-4",
+                    "causal_inbound_event_id": "reminder-normal-3bcfcb93b5-4-case-4-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "976d0e6e27a9ca1870a6ed2c"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 63.108
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 4,
+          "input": "每小时打卡，到晚上8点",
+          "user_id": "976d0e6e27a9ca1870a6ed2c",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "69f2e269491eb1003cbe43a3",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "69f2e2a7bb1f14e41ff8204c",
+              "expect_output_timestamp": 1777525413,
+              "handled_timestamp": 1777525413,
+              "status": "pending",
+              "message_type": "text",
+              "message": "知道了，每小时打卡，到晚上8点。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-3bcfcb93b5-4",
+                "case_index": 4,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "6932a0dc4bf7878f04114a74",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-3bcfcb93b5-4-case-4",
+                  "business_conversation_key": "reminder-normal-3bcfcb93b5-4-case-4",
+                  "causal_inbound_event_id": "reminder-normal-3bcfcb93b5-4-case-4-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "976d0e6e27a9ca1870a6ed2c"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 63.108
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 4,
+      "input": "每小时打卡，到晚上8点",
+      "user_id": "976d0e6e27a9ca1870a6ed2c",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69f2e269491eb1003cbe43a3",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69f2e2a7bb1f14e41ff8204c",
+          "expect_output_timestamp": 1777525413,
+          "handled_timestamp": 1777525413,
+          "status": "pending",
+          "message_type": "text",
+          "message": "知道了，每小时打卡，到晚上8点。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-3bcfcb93b5-4",
+            "case_index": 4,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6932a0dc4bf7878f04114a74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-3bcfcb93b5-4-case-4",
+              "business_conversation_key": "reminder-normal-3bcfcb93b5-4-case-4",
+              "causal_inbound_event_id": "reminder-normal-3bcfcb93b5-4-case-4-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "976d0e6e27a9ca1870a6ed2c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 63.108
+    }
+  ]
+}

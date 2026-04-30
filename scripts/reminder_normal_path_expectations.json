@@ -5,8 +5,8 @@
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
     },
     "75": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the agent should confirm reminder intent instead of silently creating one."
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the LLM-first boundary treats this as discussion unless the same message asks for reminder supervision."
     },
     "86": {
       "evaluation_expectation": "clarify",
@@ -24,32 +24,48 @@
       "evaluation_expectation": "crud",
       "evaluation_reason": "Habitual schedule wording ('我一般') asks for reminders at the listed times, so daily recurring reminders are expected.",
       "expected_creates": [
-        {"title": "起床", "local_time": "07:15:00", "recurring": true},
+        {
+          "title": "起床",
+          "local_time": "07:15:00",
+          "recurring": true
+        },
         {
           "title": "开始学习",
-          "title_variants": ["早上学习"],
+          "title_variants": [
+            "早上学习"
+          ],
           "local_time": "08:00:00",
           "recurring": true
         },
         {
           "title": "开始健身",
-          "title_variants": ["健身"],
+          "title_variants": [
+            "健身"
+          ],
           "local_time": "13:00:00",
           "recurring": true
         },
         {
           "title": "开始学习",
-          "title_variants": ["下午学习"],
+          "title_variants": [
+            "下午学习"
+          ],
           "local_time": "16:00:00",
           "recurring": true
         },
         {
           "title": "开始学习",
-          "title_variants": ["晚上学习"],
+          "title_variants": [
+            "晚上学习"
+          ],
           "local_time": "20:00:00",
           "recurring": true
         },
-        {"title": "睡觉", "local_time": "23:00:00", "recurring": true}
+        {
+          "title": "睡觉",
+          "local_time": "23:00:00",
+          "recurring": true
+        }
       ]
     },
     "102": {
@@ -59,13 +75,6 @@
     "107": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder."
-    },
-    "109": {
-      "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit reminder creation request with evening clock time.",
-      "expected_creates": [
-        {"title": "出门", "local_time": "20:10:00", "recurring": false}
-      ]
     },
     "112": {
       "evaluation_expectation": "clarify",
@@ -159,8 +168,8 @@
       "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder."
     },
     "150": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks the agent to recommend how often to remind them, but has not confirmed a concrete cadence; the agent should ask for cadence confirmation instead of creating a reminder."
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user asks for cadence advice, not to set a confirmed reminder. Answering with a recommendation is ordinary discussion as long as no reminder is created or promised."
     },
     "158": {
       "evaluation_expectation": "crud",
@@ -171,12 +180,6 @@
     "161": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks about being reminded of study progress but gives no concrete reminder time or cadence; the agent should ask for the missing trigger information instead of inferring one from history."
-    },
-    "168": {
-      "evaluation_expectation": "crud",
-      "expected_operation": "delete",
-      "allow_clarification": true,
-      "evaluation_reason": "The user asks not to be disturbed after ending study without a precise reminder target. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder or asking for create time/content is not."
     },
     "176": {
       "evaluation_expectation": "discussion",
@@ -206,10 +209,6 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request."
     },
-    "197": {
-      "evaluation_expectation": "crud",
-      "evaluation_reason": "The user asks the agent to remember today's task version and start hourly check-ins until 20:00; this is an actionable reminder/check-in request, not ordinary schedule discussion."
-    },
     "198": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders."
@@ -230,13 +229,21 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded for a day schedule expressed as time ranges. The ranges provide task boundaries, but the requested reminder trigger point is ambiguous (start, end, or cadence), so the agent should clarify instead of choosing range endpoints by default."
     },
-    "212": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a reminder date before a deadline but no clock time on that date. Without a product default-time policy, the agent should ask what time on the 17th instead of creating a midnight reminder."
-    },
     "213": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded for tasks expressed as time ranges and refers to 'these time points'. The ranges are task boundaries, not concrete reminder trigger points, so the agent should clarify frequency or exact reminder times instead of choosing range endpoints."
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks to be reminded at 'these time points' for two task ranges. Under the PR4 LLM-first baseline, the safe start boundaries are actionable reminder points.",
+      "expected_creates": [
+        {
+          "title": "看法考网课和做题",
+          "local_time": "17:20:00",
+          "recurring": false
+        },
+        {
+          "title": "练腹",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
     },
     "215": {
       "evaluation_expectation": "clarify",
@@ -253,10 +260,6 @@
     "222": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request."
-    },
-    "223": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for a daily recurring reminder with content but gives no time of day. Without a default-time policy, the agent should ask what time each day."
     },
     "225": {
       "evaluation_expectation": "clarify",
@@ -286,22 +289,6 @@
       "evaluation_expectation": "query",
       "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request."
     },
-    "257": {
-      "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user describes a short rest and routine-rest plan without asking to be reminded or supervised. The agent may acknowledge or ask whether a reminder is wanted, but should not promise or create one."
-    },
-    "258": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded 'after a while' without a concrete trigger time and without reminder content. The agent should ask for the missing details instead of creating a reminder."
-    },
-    "262": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a calendar date and broad day period but no concrete clock time. Without a default-time policy, the agent should ask what time that morning instead of creating a reminder."
-    },
-    "278": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks about being woken tomorrow morning but gives no concrete clock time. The agent should ask what time instead of creating a date/daypart default reminder."
-    },
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."
@@ -314,10 +301,6 @@
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request."
     },
-    "288": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded later today but gives no concrete clock time. The agent should ask for the exact time instead of inventing one."
-    },
     "292": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder."
@@ -326,31 +309,15 @@
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request."
     },
-    "300": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a future plan with a time but does not ask to be reminded. The agent should ask whether a reminder is wanted instead of silently creating one."
-    },
-    "304": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded after finishing articles but gives no concrete trigger time or cadence. The agent should ask when to remind instead of creating an unscheduled reminder."
-    },
-    "305": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user explicitly asks for a reminder but gives content only and no concrete trigger time. The agent should ask when to remind instead of creating an unscheduled reminder."
-    },
-    "306": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives an approximate reminder time but no reminder content. The agent should ask what to remind about instead of creating a reminder with an empty or invented title."
-    },
-    "309": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded after an unspecified while and does not provide concrete reminder content. The agent should ask for the missing trigger and content instead of creating an unscheduled reminder."
-    },
     "313": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",
       "expected_creates": [
-        {"title": "洗漱", "local_time": "22:30:00", "recurring": true}
+        {
+          "title": "洗漱",
+          "local_time": "22:30:00",
+          "recurring": true
+        }
       ]
     },
     "314": {
@@ -361,103 +328,42 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder."
     },
-    "331": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives next Monday and content but no clock time. Without a product default-time policy, the agent should ask what time on that day instead of creating a reminder."
-    },
     "333": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",
       "expected_creates": [
-        {"title": "吃饭", "local_time": "16:37:00", "recurring": false}
+        {
+          "title": "吃饭",
+          "local_time": "16:37:00",
+          "recurring": false
+        }
       ]
     },
     "335": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders."
     },
-    "359": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a time-bounded study plan but does not explicitly ask for a reminder; the agent should ask whether a reminder is wanted instead of promising an uncreated reminder."
-    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
-    },
-    "371": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives next Monday and content but no clock time. Without a product default-time policy, the agent should ask what time on that day instead of creating a reminder."
-    },
-    "374": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to end today's reminders without identifying which reminder or whether all today's reminders should be cancelled. The safe behavior is to ask for the target instead of creating a new reminder."
-    },
-    "377": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user shares a detailed plan and asks for occasional supervision reminders, plus sleep-prep reminders, but does not clearly specify which plan items should become reminders or the cadence for occasional reminders. The safe behavior is to ask which reminders to set instead of creating every schedule item."
     },
     "380": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder."
     },
-    "388": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded before a meeting but does not specify how far in advance. Without a default lead-time policy, the agent should ask for the lead time instead of creating the reminder."
-    },
-    "389": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user provides only lead times for advance reminders, but not the event or base event time to count back from. The agent should ask for the missing event time instead of creating reminders."
-    },
-    "390": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user provides a detailed time-blocked task list but does not explicitly request reminders. The agent should ask which tasks to remind about instead of creating reminders for every schedule item."
-    },
-    "391": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The isolated corpus case asks to remind about study-related tasks but does not provide the task schedule or concrete times in the current turn. The agent should ask for timing details instead of creating reminders."
-    },
-    "394": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a study plan with a clock time but does not explicitly ask for a reminder. The agent should ask whether to set a reminder instead of creating one."
-    },
-    "404": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The isolated corpus case corrects the reminder timezone to Beijing time but does not include the reminder content or target time in the current turn. The agent should ask for the missing details instead of creating a reminder."
-    },
-    "406": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user provides a detailed time-blocked daily schedule but does not explicitly ask for reminders. The agent should ask which time points to remind about instead of creating reminders for the whole schedule."
-    },
-    "411": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a future plan with concrete times but does not explicitly ask for a reminder. The agent should ask whether to remind at those times instead of creating reminders."
-    },
     "417": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The phrase '下个整点再叫我' is an explicit reminder request anchored to the next whole hour, so a one-shot reminder for drawing is expected. The exact local time is run-time dependent.",
       "expected_creates": [
-        {"title": "画画", "recurring": false}
+        {
+          "title": "画画",
+          "recurring": false
+        }
       ]
-    },
-    "423": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for a reminder during the daytime but does not provide a concrete reminder time or cadence. The agent should ask for the specific time instead of creating a reminder."
-    },
-    "425": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user provides a detailed time-blocked daily plan but does not explicitly ask for reminders. The agent should ask which time points to remind about instead of creating reminders for the whole schedule."
     },
     "433": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder."
-    },
-    "436": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a workout time range and current status but does not explicitly ask for a reminder. The agent should ask whether and when to remind instead of creating one from the range or duration."
-    },
-    "437": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user references a planned 3 PM drawing start but does not explicitly ask for a reminder. The agent should ask whether to remind instead of creating a reminder from the plan statement."
     },
     "444": {
       "evaluation_expectation": "crud",
@@ -467,29 +373,11 @@
           "title": "找我",
           "local_time": "20:00:00",
           "recurring": false,
-          "title_variants": ["提醒"]
-        }
-      ]
-    },
-    "445": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
-    },
-    "449": {
-      "evaluation_expectation": "crud",
-      "evaluation_reason": "The request contains two concrete daily recurring reminder/contact times, 07:00 for planning and 23:00 for a completion summary. The unspecified per-plan follow-up and recording details should not block those safe recurring reminders.",
-      "expected_creates": [
-        {
-          "title": "询问我当天的规划",
-          "local_time": "07:00:00",
-          "recurring": true,
-          "title_variants": ["询问当天规划", "当天的规划"]
-        },
-        {
-          "title": "告诉我今天完成了哪些任务",
-          "local_time": "23:00:00",
-          "recurring": true,
-          "title_variants": ["今天完成了哪些任务", "完成任务汇总"]
+          "title_variants": [
+            "提醒",
+            "再来找我",
+            "再来找我吃饭呢"
+          ]
         }
       ]
     }

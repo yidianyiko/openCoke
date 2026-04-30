@@ -1,0 +1,32 @@
+{
+  "fixture_overrides": 63,
+  "evaluation_expectation_counts": {
+    "clarify": 22,
+    "crud": 13,
+    "discussion": 17,
+    "query": 11
+  },
+  "title_variant_cases": [
+    "101",
+    "122",
+    "123",
+    "133",
+    "444"
+  ],
+  "title_variants": 15,
+  "prompt_metrics": {
+    "agent/prompt/agent_instructions_prompt.py": {
+      "non_empty_lines": 235,
+      "negative_constraints": 20
+    },
+    "agent/prompt/chat_contextprompt.py": {
+      "non_empty_lines": 443,
+      "negative_constraints": 5
+    }
+  },
+  "workflow_regex_fast_path_markers": {
+    "looks_like_reminder": false,
+    "actionable_patterns": false,
+    "explicit_reminder_patterns": false
+  }
+}
