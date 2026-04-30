@@ -320,6 +320,57 @@ async def test_replay_lookup_does_not_mask_owner_mismatch():
 
 
 @pytest.mark.asyncio
+async def test_replay_lookup_does_not_mask_missing_owner():
+    existing_output_lookup = Mock(return_value={"_id": "out-existing"})
+    output_writer = Mock()
+    conversation = {
+        "_id": "conv-1",
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(return_value=None)),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(),
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "OwnerNotFound"
+    existing_output_lookup.assert_not_called()
+    output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_replay_lookup_does_not_mask_missing_character():
+    existing_output_lookup = Mock(return_value={"_id": "out-existing"})
+    output_writer = Mock()
+    conversation = {
+        "_id": "conv-1",
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, None])),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(),
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "CharacterNotFound"
+    existing_output_lookup.assert_not_called()
+    output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_replay_lookup_exception_returns_failed_result_without_output():
     event = build_event()
     output_writer = Mock()
