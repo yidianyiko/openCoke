@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
@@ -42,6 +43,25 @@ class FakeLockManager:
         return True, "released"
 
 
+class SerializingFakeLockManager(FakeLockManager):
+    def __init__(self, lock_id="lock-1"):
+        super().__init__(lock_id=lock_id)
+        self._lock = asyncio.Lock()
+
+    async def acquire_lock_async(
+        self, resource_type, resource_id, timeout=120, max_wait=1
+    ):
+        self.acquired.append((resource_type, resource_id, timeout, max_wait))
+        await asyncio.sleep(0)
+        await self._lock.acquire()
+        return self.lock_id
+
+    async def release_lock_safe_async(self, resource_type, resource_id, lock_id):
+        self.released.append((resource_type, resource_id, lock_id))
+        self._lock.release()
+        return True, "released"
+
+
 def build_handler(output_writer, existing_output_lookup=None):
     conversation = {
         "_id": "conv-1",
@@ -52,9 +72,10 @@ def build_handler(output_writer, existing_output_lookup=None):
     owner = {"_id": "user-1", "nickname": "Owner"}
     character = {"_id": "char-1", "nickname": "Assistant"}
     context = {"conversation": conversation, "user": owner, "character": character}
+    users = {"user-1": owner, "char-1": character}
     return ReminderFireEventHandler(
         conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
-        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=lambda user_id: users[user_id])),
         lock_manager=FakeLockManager(),
         output_writer=output_writer,
         context_builder=Mock(return_value=context),
@@ -213,7 +234,7 @@ async def test_replayed_fire_validates_target_then_returns_existing_output_witho
 
 
 @pytest.mark.asyncio
-async def test_non_replayed_fire_id_checks_lookup_once_and_writes_output():
+async def test_non_replayed_fire_id_checks_lookup_before_and_after_lock_then_writes_output():
     event = build_event()
     output_writer = Mock(return_value={"_id": "out-new"})
     existing_output_lookup = Mock(return_value=None)
@@ -221,10 +242,121 @@ async def test_non_replayed_fire_id_checks_lookup_once_and_writes_output():
 
     result = await handler.handle(event)
 
-    existing_output_lookup.assert_called_once_with(event)
+    assert existing_output_lookup.call_args_list == [((event,),), ((event,),)]
     output_writer.assert_called_once()
     assert result.ok is True
     assert result.output_reference == "out-new"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_same_fire_events_write_once_and_return_same_output_reference():
+    event = build_event()
+    outputs_by_fire_id = {}
+    lock_manager = SerializingFakeLockManager()
+
+    def existing_output_lookup(event):
+        return outputs_by_fire_id.get(event.fire_id)
+
+    def output_writer(*args, **kwargs):
+        output = {"_id": "out-concurrent"}
+        outputs_by_fire_id[event.fire_id] = output
+        return output
+
+    writer = Mock(side_effect=output_writer)
+    handler = build_handler(writer, existing_output_lookup=existing_output_lookup)
+    handler.lock_manager = lock_manager
+
+    first_result, second_result = await asyncio.gather(
+        handler.handle(event),
+        handler.handle(event),
+    )
+
+    assert writer.call_count == 1
+    assert first_result.ok is True
+    assert second_result.ok is True
+    assert first_result.output_reference == "out-concurrent"
+    assert second_result.output_reference == "out-concurrent"
+    assert lock_manager.acquired == [
+        ("conversation", "conv-1", 120, 1),
+        ("conversation", "conv-1", 120, 1),
+    ]
+    assert lock_manager.released == [
+        ("conversation", "conv-1", "lock-1"),
+        ("conversation", "conv-1", "lock-1"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_in_lock_replay_suppression_releases_lock_without_writing_output():
+    event = build_event()
+    lock_manager = FakeLockManager()
+    output_writer = Mock(return_value={"_id": "out-new"})
+    context_builder = Mock()
+    existing_output_lookup = Mock(
+        side_effect=[None, {"_id": "out-existing"}]
+    )
+    conversation = {
+        "_id": "conv-1",
+        "platform": "business",
+        "chatroom_name": None,
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        lock_manager=lock_manager,
+        output_writer=output_writer,
+        context_builder=context_builder,
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(event)
+
+    assert existing_output_lookup.call_args_list == [((event,),), ((event,),)]
+    context_builder.assert_not_called()
+    output_writer.assert_not_called()
+    assert lock_manager.acquired == [("conversation", "conv-1", 120, 1)]
+    assert lock_manager.released == [("conversation", "conv-1", "lock-1")]
+    assert result.ok is True
+    assert result.output_reference == "out-existing"
+
+
+@pytest.mark.asyncio
+async def test_in_lock_replay_lookup_exception_releases_lock_without_writing_output():
+    event = build_event()
+    lock_manager = FakeLockManager()
+    output_writer = Mock(return_value={"_id": "out-new"})
+    context_builder = Mock()
+    existing_output_lookup = Mock(side_effect=[None, RuntimeError("lookup failed")])
+    conversation = {
+        "_id": "conv-1",
+        "platform": "business",
+        "chatroom_name": None,
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        lock_manager=lock_manager,
+        output_writer=output_writer,
+        context_builder=context_builder,
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(event)
+
+    assert existing_output_lookup.call_args_list == [((event,),), ((event,),)]
+    context_builder.assert_not_called()
+    output_writer.assert_not_called()
+    assert lock_manager.acquired == [("conversation", "conv-1", 120, 1)]
+    assert lock_manager.released == [("conversation", "conv-1", "lock-1")]
+    assert result.ok is False
+    assert result.error_code == "ReplayLookupFailed"
+    assert result.output_reference is None
 
 
 @pytest.mark.asyncio

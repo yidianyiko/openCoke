@@ -82,6 +82,21 @@ class ReminderFireEventHandler:
             )
 
         try:
+            try:
+                existing_output = self.existing_output_lookup(event)
+            except Exception:
+                return self._failure(
+                    event, "ReplayLookupFailed", "reminder replay lookup failed"
+                )
+            if existing_output is not None:
+                return ReminderFireResult(
+                    ok=True,
+                    fire_id=event.fire_id,
+                    output_reference=self._output_reference(existing_output),
+                    error_code=None,
+                    error_message=None,
+                )
+
             context = self.context_builder(owner, character, conversation)
             if isinstance(context, dict):
                 context.setdefault("message_source", "deferred_action")
