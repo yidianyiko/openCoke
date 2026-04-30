@@ -1,8 +1,18 @@
 from datetime import UTC, datetime, timedelta
+from dataclasses import FrozenInstanceError
 from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
+from agent.agno_agent.adapters.deferred_action_result import (
+    DeferredActionFireResult,
+    map_agent_result_to_deferred_status,
+)
+from agent.agno_agent.runtime import (
+    AgentRunResult,
+    OutputDisposition,
+    RuntimeErrorDisposition,
+)
 from agent.runner import deferred_action_executor as executor_module
 
 
@@ -414,3 +424,96 @@ class TestDeferredActionExecutor:
         assert call.kwargs["updates"]["next_run_at"] is None
         scheduler.remove_action.assert_called_once_with("action-1")
         scheduler.reschedule_action.assert_not_called()
+
+
+def build_agent_result(*, output_disposition, error_disposition=None):
+    return AgentRunResult(
+        visible_messages=[],
+        post_analyze_input=None,
+        tool_results=[],
+        metrics={},
+        trace={},
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
+    )
+
+
+def test_deferred_action_mapper_maps_success_and_preserves_output_refs():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(
+            status="ok",
+            output_references=["message:1", "tool:2"],
+        )
+    )
+
+    mapped = map_agent_result_to_deferred_status(result)
+
+    assert mapped == DeferredActionFireResult(
+        status="succeeded",
+        output_references=("message:1", "tool:2"),
+        retryable=False,
+    )
+
+
+def test_deferred_action_mapper_maps_empty_output_to_retryable_no_output():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(status="empty"),
+    )
+
+    mapped = map_agent_result_to_deferred_status(result)
+
+    assert mapped.status == "no_output"
+    assert mapped.output_references == ()
+    assert mapped.retryable is True
+    assert mapped.error_code is None
+    assert mapped.error_message is None
+
+
+def test_deferred_action_mapper_maps_rollback_to_retryable_rollback():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(
+            status="rollback",
+            output_references=["rollback:1"],
+        )
+    )
+
+    mapped = map_agent_result_to_deferred_status(result)
+
+    assert mapped.status == "rollback"
+    assert mapped.output_references == ("rollback:1",)
+    assert mapped.retryable is True
+
+
+def test_deferred_action_mapper_preserves_runtime_error_details_for_fallback():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(status="fallback"),
+        error_disposition=RuntimeErrorDisposition(
+            code="agent_timeout",
+            retryable=False,
+            user_visible_fallback="I need more time.",
+        ),
+    )
+
+    mapped = map_agent_result_to_deferred_status(result)
+
+    assert mapped.status == "failed"
+    assert mapped.retryable is False
+    assert mapped.error_code == "agent_timeout"
+    assert mapped.error_message == "I need more time."
+
+
+def test_deferred_action_mapper_freezes_output_references_after_mapping():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(
+            status="ok",
+            output_references=["message:1"],
+        )
+    )
+
+    mapped = map_agent_result_to_deferred_status(result)
+
+    assert mapped.output_references == ("message:1",)
+    with pytest.raises(FrozenInstanceError):
+        mapped.output_references = ("message:2",)
+    with pytest.raises(AttributeError):
+        mapped.output_references.append("message:2")
