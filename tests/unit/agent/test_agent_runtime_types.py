@@ -159,6 +159,11 @@ def test_sequence_fields_are_immutable_after_construction():
         result.visible_messages.append(VisibleMessage(message_type="text", content="Nope"))
 
 
+def test_user_turn_payload_rejects_string_message_id_sequence():
+    with pytest.raises(TypeError, match="str, bytes, or bytearray"):
+        UserTurnPayload(current_message_ids="msg-1")
+
+
 def test_metadata_mappings_are_read_only_after_construction():
     payload = UserTurnPayload(metadata={"outer": {"inner": "value"}})
     result = AgentRunResult(

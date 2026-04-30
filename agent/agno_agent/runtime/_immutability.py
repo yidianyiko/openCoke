@@ -24,4 +24,9 @@ def freeze_mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def freeze_sequence(value: Sequence[_T]) -> tuple[_T, ...]:
+    if isinstance(value, (str, bytes, bytearray)):
+        raise TypeError(
+            "freeze_sequence() rejects str, bytes, or bytearray inputs; "
+            "pass a list or tuple instead"
+        )
     return tuple(freeze_value(item) for item in value)
