@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from agent.reminder.models import AgentOutputTarget, ReminderFiredEvent
+import agent.runner.reminder_event_handler as reminder_event_handler
 from agent.runner.reminder_event_handler import ReminderFireEventHandler
 
 
@@ -57,7 +58,7 @@ def build_handler(output_writer, existing_output_lookup=None):
         lock_manager=FakeLockManager(),
         output_writer=output_writer,
         context_builder=Mock(return_value=context),
-        existing_output_lookup=existing_output_lookup,
+        existing_output_lookup=existing_output_lookup or Mock(return_value=None),
     )
 
 
@@ -83,6 +84,7 @@ async def test_handler_resolves_target_acquires_lock_writes_output_and_returns_f
         lock_manager=lock_manager,
         output_writer=output_writer,
         context_builder=context_builder,
+        existing_output_lookup=Mock(return_value=None),
     )
 
     result = await handler.handle(event)
@@ -134,6 +136,7 @@ async def test_missing_conversation_returns_failed_result():
         lock_manager=FakeLockManager(),
         output_writer=Mock(),
         context_builder=Mock(),
+        existing_output_lookup=Mock(return_value={"_id": "out-existing"}),
     )
 
     result = await handler.handle(build_event())
@@ -155,6 +158,7 @@ async def test_owner_mismatch_returns_failed_result_without_output():
         lock_manager=FakeLockManager(),
         output_writer=output_writer,
         context_builder=Mock(),
+        existing_output_lookup=Mock(return_value={"_id": "out-existing"}),
     )
 
     result = await handler.handle(build_event())
@@ -165,12 +169,20 @@ async def test_owner_mismatch_returns_failed_result_without_output():
 
 
 @pytest.mark.asyncio
-async def test_replayed_fire_id_returns_existing_output_without_duplicate_write():
+async def test_replayed_fire_validates_target_then_returns_existing_output_without_duplicate_write():
     event = build_event()
     output_writer = Mock(return_value={"_id": "out-new"})
     existing_output_lookup = Mock(return_value={"_id": "out-existing"})
-    conversation_dao = Mock(get_conversation_by_id=Mock(return_value=None))
-    user_dao = Mock(get_user_by_id=Mock())
+    conversation = {
+        "_id": "conv-1",
+        "platform": "business",
+        "chatroom_name": None,
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    conversation_dao = Mock(get_conversation_by_id=Mock(return_value=conversation))
+    user_dao = Mock(get_user_by_id=Mock(side_effect=[owner, character]))
     lock_manager = FakeLockManager()
     context_builder = Mock()
     handler = ReminderFireEventHandler(
@@ -184,9 +196,12 @@ async def test_replayed_fire_id_returns_existing_output_without_duplicate_write(
 
     result = await handler.handle(event)
 
-    existing_output_lookup.assert_called_once_with(event.fire_id)
-    conversation_dao.get_conversation_by_id.assert_not_called()
-    user_dao.get_user_by_id.assert_not_called()
+    conversation_dao.get_conversation_by_id.assert_called_once_with("conv-1")
+    assert user_dao.get_user_by_id.call_args_list == [
+        (("user-1",),),
+        (("char-1",),),
+    ]
+    existing_output_lookup.assert_called_once_with(event)
     assert lock_manager.acquired == []
     context_builder.assert_not_called()
     output_writer.assert_not_called()
@@ -206,7 +221,116 @@ async def test_non_replayed_fire_id_checks_lookup_once_and_writes_output():
 
     result = await handler.handle(event)
 
-    existing_output_lookup.assert_called_once_with(event.fire_id)
+    existing_output_lookup.assert_called_once_with(event)
     output_writer.assert_called_once()
     assert result.ok is True
     assert result.output_reference == "out-new"
+
+
+@pytest.mark.asyncio
+async def test_default_lookup_queries_outputmessages_with_event_metadata(monkeypatch):
+    event = build_event()
+    queries = []
+
+    class FakeMongo:
+        def find_one(self, collection_name, query):
+            queries.append((collection_name, query))
+            return {"_id": "out-existing"}
+
+    monkeypatch.setattr(reminder_event_handler, "MongoDBBase", lambda: FakeMongo())
+
+    conversation = {
+        "_id": "conv-1",
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    lock_manager = FakeLockManager()
+    output_writer = Mock()
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        lock_manager=lock_manager,
+        output_writer=output_writer,
+        context_builder=Mock(),
+    )
+
+    result = await handler.handle(event)
+
+    assert queries == [
+        (
+            "outputmessages",
+            {
+                "metadata.fire_id": event.fire_id,
+                "metadata.reminder_id": event.reminder_id,
+                "metadata.event_type": event.event_type,
+            },
+        )
+    ]
+    assert result.ok is True
+    assert result.output_reference == "out-existing"
+    assert lock_manager.acquired == []
+    output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_replay_lookup_does_not_mask_missing_conversation():
+    existing_output_lookup = Mock(return_value={"_id": "out-existing"})
+    output_writer = Mock()
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=None)),
+        user_dao=Mock(),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(),
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "ConversationNotFound"
+    existing_output_lookup.assert_not_called()
+    output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_replay_lookup_does_not_mask_owner_mismatch():
+    existing_output_lookup = Mock(return_value={"_id": "out-existing"})
+    output_writer = Mock()
+    conversation = {
+        "_id": "conv-1",
+        "talkers": [{"db_user_id": "someone-else"}, {"db_user_id": "char-1"}],
+    }
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(return_value={"_id": "user-1"})),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(),
+        existing_output_lookup=existing_output_lookup,
+    )
+
+    result = await handler.handle(build_event())
+
+    assert result.ok is False
+    assert result.error_code == "OwnerMismatch"
+    existing_output_lookup.assert_not_called()
+    output_writer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_replay_lookup_exception_returns_failed_result_without_output():
+    event = build_event()
+    output_writer = Mock()
+    existing_output_lookup = Mock(side_effect=RuntimeError("database password leaked"))
+    handler = build_handler(output_writer, existing_output_lookup=existing_output_lookup)
+
+    result = await handler.handle(event)
+
+    existing_output_lookup.assert_called_once_with(event)
+    output_writer.assert_not_called()
+    assert result.ok is False
+    assert result.error_code == "ReplayLookupFailed"
+    assert result.error_message == "reminder replay lookup failed"
+    assert result.output_reference is None

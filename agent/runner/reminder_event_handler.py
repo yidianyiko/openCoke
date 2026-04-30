@@ -9,6 +9,7 @@ from agent.runner.context import context_prepare
 from agent.util.message_util import send_message_via_context
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
+from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 
 
@@ -21,7 +22,7 @@ class ReminderFireEventHandler:
         output_writer: Callable[..., Any] | None = None,
         context_builder: Callable[..., dict] | None = None,
         now_provider: Callable[[], datetime] | None = None,
-        existing_output_lookup: Callable[[str], Any] | None = None,
+        existing_output_lookup: Callable[[ReminderFiredEvent], Any] | None = None,
         conversation_lock_timeout: int = 120,
     ) -> None:
         self.conversation_dao = conversation_dao or ConversationDAO()
@@ -30,20 +31,11 @@ class ReminderFireEventHandler:
         self.output_writer = output_writer or send_message_via_context
         self.context_builder = context_builder or context_prepare
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
-        self.existing_output_lookup = existing_output_lookup or (lambda fire_id: None)
+        self.existing_output_lookup = existing_output_lookup or self._find_existing_output
         self.conversation_lock_timeout = conversation_lock_timeout
 
     async def handle(self, event: ReminderFiredEvent) -> ReminderFireResult:
         conversation_id = event.agent_output_target.conversation_id
-        existing_output = self.existing_output_lookup(event.fire_id)
-        if existing_output is not None:
-            return ReminderFireResult(
-                ok=True,
-                fire_id=event.fire_id,
-                output_reference=self._output_reference(existing_output),
-                error_code=None,
-                error_message=None,
-            )
 
         conversation = self.conversation_dao.get_conversation_by_id(conversation_id)
         if not conversation:
@@ -66,6 +58,21 @@ class ReminderFireEventHandler:
         if not character:
             return self._failure(
                 event, "CharacterNotFound", "reminder character not found"
+            )
+
+        try:
+            existing_output = self.existing_output_lookup(event)
+        except Exception:
+            return self._failure(
+                event, "ReplayLookupFailed", "reminder replay lookup failed"
+            )
+        if existing_output is not None:
+            return ReminderFireResult(
+                ok=True,
+                fire_id=event.fire_id,
+                output_reference=self._output_reference(existing_output),
+                error_code=None,
+                error_message=None,
             )
 
         lock_id = await self._acquire_conversation_lock(conversation_id)
@@ -107,6 +114,16 @@ class ReminderFireEventHandler:
             return self._failure(event, "OutputFailed", str(exc))
         finally:
             await self._release_conversation_lock(conversation_id, lock_id)
+
+    def _find_existing_output(self, event: ReminderFiredEvent) -> Any:
+        return MongoDBBase().find_one(
+            "outputmessages",
+            {
+                "metadata.fire_id": event.fire_id,
+                "metadata.reminder_id": event.reminder_id,
+                "metadata.event_type": event.event_type,
+            },
+        )
 
     def _conversation_includes_owner(
         self, conversation: dict[str, Any], owner_user_id: str
