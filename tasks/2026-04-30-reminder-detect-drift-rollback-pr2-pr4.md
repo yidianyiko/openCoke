@@ -1,5 +1,27 @@
 # Reminder Detect Drift Rollback PR2-PR4
 
+Status: closed early on 2026-05-01 after commit `f40db06`.
+
+Closure decision:
+
+- Stop this spec at the rollback baseline rather than continuing toward full
+  reminder reliability.
+- Do not keep chasing PR4 full-corpus green inside this task.
+- Future reminder work should open a smaller spec for one concrete boundary,
+  such as runtime timeout/retry behavior or representative eval-set design.
+
+Committed baseline:
+
+- `f40db06 Finalize reminder drift rollback baseline`
+
+Known residuals:
+
+- The archived PR4 live corpus evidence is not a full-green result.
+- `scripts/review-trigger --base HEAD` required human review because the change
+  touched `scripts/guardrails.py` and exceeded size thresholds.
+- These residuals are recorded as scope limits, not reasons to keep this spec
+  open.
+
 ## PR2 routing rollback
 
 - Removed PrepareWorkflow reminder regex fast-path and timeout fallback routing.

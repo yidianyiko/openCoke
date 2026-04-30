@@ -1,8 +1,9 @@
 # Coke Agent Runtime Redesign
 
-**Status:** draft for review
+**Status:** closed early; not approved for implementation
 **Original date:** 2026-04-30
 **Rewritten:** 2026-05-01
+**Closed:** 2026-05-01
 **Surfaces:** `agent/agno_agent/`, `agent/runner/agent_handler.py`,
 `agent/runner/reminder_event_handler.py`,
 `agent/runner/deferred_action_executor.py`, `agent/prompt/`
@@ -22,6 +23,23 @@ storage schema, persona migration to `agno.skills`, Phase 2 TOB ingress
 - Anthropic "Building effective agents" and "Writing effective tools"
 - OpenAI practical agent guide
 - LangGraph durable execution documentation
+
+## Closure Note
+
+This spec is intentionally ended early. It should be treated as design research
+and a possible future reference, not as an active execution plan.
+
+Do not continue implementation from this document as-is. If Coke later resumes
+agent-runtime replacement work, open a new smaller spec with a fresh scope,
+explicit acceptance criteria, and current verification evidence.
+
+Known reason for closure:
+
+- the active work had drifted beyond the reminder-detect rollback baseline
+- the remaining problems are runtime reliability and eval-scope questions, not a
+  single coherent Agent Team implementation task
+- continuing this spec would encourage a broad rewrite before the smaller
+  reminder/runtime risks are bounded
 
 ## Summary
 
@@ -211,10 +229,19 @@ Mongo inputmessages / runtime events
 |  Capability ports / members                    |
 |  - ContextPort                                 |
 |  - ReminderIntentMember                        |
-|  - ReminderCommandExecutor                     |
 |  - SearchPort                                  |
 |  - TimezonePort                                |
 |  - URLContextPort                              |
++-----------------------+------------------------+
+                        |
+                        | IntentAndDraftResult
+                        v
++------------------------------------------------+
+| Post-Team Deterministic Adapters               |
+|                                                |
+| - ReminderCommandExecutor                      |
+| - DeferredActionFireResult mapper              |
+| - output disposition mapper                    |
 +-----------------------+------------------------+
                         |
                         | AgentRunResult
@@ -289,16 +316,16 @@ class AgentInput:
     ]
     conversation_id: str
     text: str | None
-    payload: dict
+    payload: UserTurnPayload | ReminderFirePayload | DeferredActionPayload | dict
     occurred_at: datetime
 
 
 @dataclass
 class AgentRunContext:
-    user: dict
-    character: dict
-    conversation: dict
-    relation: dict
+    user: TrustedUserContext
+    character: TrustedCharacterContext
+    conversation: TrustedConversationContext
+    relation: TrustedRelationContext
     platform: str
     recent_chat_history: str
     current_time: datetime
@@ -307,13 +334,35 @@ class AgentRunContext:
 
 @dataclass
 class AgentRunResult:
-    visible_messages: list[dict]
+    visible_messages: list[VisibleMessage]
     post_analyze_input: dict | None
-    tool_results: list[dict]
+    tool_results: list[CapabilityResult]
     metrics: dict
     trace: dict
     content_blocked: bool = False
     rollback: bool = False
+
+
+@dataclass
+class VisibleMessage:
+    message_type: Literal["text", "voice", "photo"]
+    content: str
+    emotion: str | None = None
+    metadata: dict | None = None
+
+
+@dataclass
+class RuntimeErrorDisposition:
+    code: str
+    retryable: bool
+    user_visible_fallback: str | None
+
+
+@dataclass
+class OutputDisposition:
+    status: Literal["ok", "empty", "content_blocked", "rollback", "failed"]
+    output_references: list[str]
+    error: RuntimeErrorDisposition | None = None
 ```
 
 `AgentInput` replaces the old `message_source` string plus ad hoc
@@ -335,7 +384,7 @@ Leader responsibilities:
 - hold the Coke persona and texting style
 - decide whether a capability is needed
 - delegate to narrow members when model judgment is useful
-- call typed ports when deterministic tool execution is enough
+- request typed capability results through the runtime wrapper
 - synthesize all capability results into the final user-visible message
 - hide internal tool/member names from the user
 
@@ -348,6 +397,7 @@ Leader non-responsibilities:
 - own conversation locks
 - own rollback decisions
 - persist runtime state
+- call durable write adapters directly
 
 Model requirement:
 
@@ -372,6 +422,20 @@ The default rule:
 Use an Agno member only when natural-language judgment or synthesis is required.
 Use a deterministic port when the task is stable, typed, or side-effectful.
 ```
+
+Durable write adapters are not exposed as Agno Team tools. In particular,
+`ReminderCommandExecutor` is a post-Team adapter:
+
+```text
+Leader / ReminderIntentMember
+    -> ReminderDetectDecision
+    -> AgentRuntime validates the decision
+    -> ReminderCommandExecutor executes through Reminder System
+    -> leader receives a typed command result for final wording
+```
+
+This prevents model-selected Team tools from becoming the guard around durable
+reminder writes.
 
 #### ContextPort
 
@@ -444,7 +508,9 @@ Responsibilities:
 - preserve `reminder_created_with_time`-equivalent semantics for PostAnalyze
   suppression
 
-It is a Python adapter, not an Agno member.
+It is a Python adapter, not an Agno member. It must not be registered in
+`Team.tools`, exposed through `delegate_task_to_member`, or callable by model
+`tool_choice=auto`.
 
 #### SearchPort
 
@@ -513,6 +579,20 @@ ReminderFiredEvent -> Leader renders reminder copy
 That mode must be feature-gated separately because it adds LLM latency and
 failure modes to the reminder delivery path.
 
+Fired-event idempotency must be decided before B.3 exits. The Reminder System
+design already allows a crash after output but before post-event persistence,
+which can replay the same `fire_id`.
+
+V1 must choose one of these policies explicitly:
+
+- accept duplicate visible reminder output on replay, document it as a known V1
+  limitation, and keep the Reminder System state transition simple
+- or suppress duplicate output at the Agent System output boundary by checking
+  prior `outputmessages.metadata.fire_id`
+
+The preferred policy is duplicate suppression by `fire_id`, with a replay test
+that calls the handler twice with the same fired event.
+
 ## Deferred Action Flow
 
 `deferred_actions` remains separate from the new Reminder System.
@@ -532,6 +612,37 @@ The executor still owns:
 
 The Agent Runtime owns only the generated output for actions that require
 natural-language generation.
+
+`DeferredActionExecutor` needs an explicit result contract before B.3:
+
+```python
+@dataclass
+class DeferredActionFireResult:
+    status: Literal[
+        "succeeded",
+        "failed",
+        "skipped",
+        "content_blocked",
+        "rollback",
+        "no_output",
+    ]
+    output_references: list[str]
+    retryable: bool
+    error_code: str | None = None
+    error_message: str | None = None
+```
+
+Mapping rules:
+
+- `succeeded`: at least one output was committed and no rollback/blocking
+  occurred.
+- `content_blocked`: map to failed occurrence unless product policy explicitly
+  decides to skip.
+- `rollback`: do not mark succeeded; retry or reschedule according to executor
+  policy.
+- `no_output`: retryable failure unless deterministic skip rules apply.
+- partial output with later error: preserve output references and mark according
+  to whether the executor can safely retry without duplicate user-visible text.
 
 ## State Model
 
@@ -559,6 +670,17 @@ AgentRunResult
 
 Agno `Team.session_state` may exist inside `AgentWorkState`, but it is not the
 durable Coke context and is not the cross-layer contract.
+
+Team construction invariants:
+
+- no Agno persistent DB for Team session state in this phase
+- `add_session_state_to_context=False` unless a specific eval proves it is needed
+- `enable_agentic_state=False`
+- `cache_session=False`
+- no trusted owner, conversation route, reminder target, lock id, or output id is
+  stored in cross-run Agno state
+- tests must prove a second run cannot inherit trusted routing data from the
+  previous run through Team state
 
 Keys that disappear as contracts:
 
@@ -619,6 +741,22 @@ explicit test/eval override
 The old draft's phrase "per-conversation via env" is invalid and must not be
 implemented.
 
+## Reminder System Compatibility
+
+This spec supersedes the Agent System runtime-flow subsection of
+`docs/superpowers/specs/2026-04-28-reminder-system-design.md`, where it still
+describes the old `OrchestratorAgent -> ReminderDetectAgent ->
+visible_reminder_tool -> ChatWorkflow` sequence and explicitly made replacement
+of that flow a non-goal for the Reminder System V1 scope.
+
+It does not supersede the Reminder System ownership boundary:
+
+- Reminder System still owns reminder state, schedule semantics, lifecycle, and
+  fired-event emission.
+- Agent System still owns natural-language understanding and user-visible output.
+- Agent System still must not write Mongo reminder documents directly.
+- Reminder System still must not call an LLM or write chat output directly.
+
 ## File Layout
 
 New:
@@ -638,10 +776,15 @@ agent/agno_agent/capabilities/
   __init__.py
   context_port.py
   reminder_intent.py
-  reminder_executor.py
   search_port.py
   timezone_port.py
   url_context_port.py
+
+agent/agno_agent/adapters/
+  __init__.py
+  reminder_command_executor.py
+  deferred_action_result.py
+  output_disposition.py
 
 agent/agno_agent/prompts/
   manager.py
@@ -692,21 +835,23 @@ Verification:
 
 ```bash
 pytest tests/unit/agent/ -v
-pytest tests/unit/runner/test_agent_handler.py -v
+pytest tests/unit/agent/test_agent_handler.py -v
 ```
 
 ### Phase B.1 - Capability Ports Behind Legacy Flow
 
 Behavior should remain equivalent.
 
-- Extract deterministic ports from `PrepareWorkflow` helpers:
-  - context
-  - reminder executor
-  - search
-  - timezone
-  - URL context
+- Extract deterministic ports from `PrepareWorkflow` helpers one at a time:
+  - B.1a: context
+  - B.1b: reminder executor
+  - B.1c: search
+  - B.1d: timezone
+  - B.1e: URL context
 - Keep old `PrepareWorkflow` calling those ports.
-- Reminder eval baseline must stay unchanged.
+- Each port extraction needs fixture or golden-output equivalence tests for the
+  affected user-visible behavior.
+- Reminder eval baseline must stay unchanged after B.1b and at B.1 exit.
 
 Verification:
 
@@ -724,7 +869,9 @@ Introduce `AGENT_RUNTIME_VERSION=team` for user turns.
 - Leader generates final visible response.
 - ContextPort supplies typed context bundle.
 - ReminderIntentMember emits `ReminderDetectDecision`.
-- ReminderCommandExecutor executes decisions.
+- Runtime adapter validates decisions and calls `ReminderCommandExecutor`
+  outside the Team.
+- Leader receives the typed reminder command result for final wording.
 - Streaming adapter emits only user-visible leader output.
 - Legacy remains default.
 
@@ -733,6 +880,9 @@ Exit gate:
 - team path matches or beats frozen legacy reminder eval baseline
 - user-turn E2E passes on team runtime
 - p50/p95 latency is measured and accepted
+- sync first-text, rollback/new-message interruption, timeout fallback,
+  timezone proposal/update, URL context, calendar-import entry surfacing, and
+  empty-output fallback have named acceptance tests
 
 Verification:
 
@@ -749,6 +899,9 @@ Move runtime events to typed inputs.
 - `ReminderFiredEvent` maps to `AgentInput("reminder.fire")`.
 - Deterministic reminder renderer is default.
 - Proactive deferred actions map to `AgentInput("deferred_action.fire")`.
+- `DeferredActionFireResult` maps runtime outcomes to occurrence success,
+  retry, skip, or failure.
+- fired reminder replay by `fire_id` is tested according to the chosen V1 policy.
 - Existing action lease and occurrence behavior stays in
   `DeferredActionExecutor`.
 
@@ -758,6 +911,7 @@ Verification:
 pytest tests/unit/runner/test_reminder_event_handler.py -v
 pytest tests/unit/runner/test_deferred_action_executor.py -v
 pytest tests/e2e/test_reminder_system_flow.py -v
+pytest tests/unit/agent/test_agent_handler.py -v
 ```
 
 Manual smoke:
@@ -823,7 +977,8 @@ Streaming:
 
 2. **Reminder side-effect drift**
    - If reminder writes move too close to LLM control, evals can regress.
-   - Mitigation: `ReminderIntentMember` only decides; executor writes.
+   - Mitigation: `ReminderIntentMember` only decides; runtime adapter executes
+     after Team completion and the executor is never registered as a Team tool.
 
 3. **Context under-retrieval**
    - A fully autonomous memory agent may skip context current prompts rely on.
@@ -840,7 +995,8 @@ Streaming:
 
 6. **Deferred-action semantic mismatch**
    - Deferred follow-up and visible reminder actions are different concepts.
-   - Mitigation: separate `AgentInput` variants and preserve executor policy.
+   - Mitigation: separate `AgentInput` variants, define
+     `DeferredActionFireResult`, and preserve executor policy.
 
 ## Decision Rules
 
@@ -880,10 +1036,12 @@ runner shell
             -> Leader
             -> ContextPort
             -> ReminderIntentMember
-            -> ReminderCommandExecutor
             -> SearchPort
             -> TimezonePort
             -> URLContextPort
+       -> Post-Team deterministic adapters
+            -> ReminderCommandExecutor
+            -> DeferredActionFireResult mapper
        -> AgentRunResult
   -> runner output boundary
   -> PostAnalyzeWorkflow
