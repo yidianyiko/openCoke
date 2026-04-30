@@ -89,6 +89,23 @@ def _select_agent_runtime(context: dict) -> str:
     )
 
 
+async def _run_agent_runtime(
+    *,
+    context: dict,
+    input_message_str: str,
+    message_source: str,
+    metadata: Optional[Dict[str, Any]],
+):
+    from agent.agno_agent.runtime.team_runtime import run_team_runtime
+
+    return await run_team_runtime(
+        context=context,
+        input_message_str=input_message_str,
+        message_source=message_source,
+        metadata=metadata,
+    )
+
+
 # ========== DAO 实例 ==========
 conversation_dao = ConversationDAO()
 user_dao = UserDAO()
@@ -524,6 +541,43 @@ async def handle_message(
     is_content_blocked = False  # 内容安全审核失败标志
 
     try:
+        if _select_agent_runtime(context) == "team":
+            logger.info(f"{worker_tag} AgentRuntime Team 开始")
+            result = await _run_agent_runtime(
+                context=context,
+                input_message_str=input_message_str,
+                message_source=message_source,
+                metadata=metadata,
+            )
+
+            expect_output_timestamp = int(time.time())
+            all_multimodal_responses = []
+            for visible_message in result.visible_messages:
+                multimodal_response = {
+                    "type": visible_message.message_type,
+                    "content": visible_message.content,
+                    "metadata": dict(visible_message.metadata),
+                }
+                all_multimodal_responses.append(multimodal_response)
+                outputmessage, expect_output_timestamp = _send_single_message(
+                    context=context,
+                    multimodal_response=multimodal_response,
+                    expect_output_timestamp=expect_output_timestamp,
+                    is_first=(len(all_multimodal_responses) == 1),
+                )
+                if outputmessage is not None:
+                    resp_messages.append(outputmessage)
+
+            context["MultiModalResponses"] = all_multimodal_responses
+            is_rollback = result.output_disposition.status == "rollback"
+            is_content_blocked = False
+            logger.info(
+                f"{worker_tag} AgentRuntime Team 完成 "
+                f"(visible_messages={len(result.visible_messages)}, "
+                f"status={result.output_disposition.status})"
+            )
+            return resp_messages, context, is_rollback, is_content_blocked
+
         # ========== Phase 1: PrepareWorkflow ==========
         logger.info(
             f"{worker_tag} Phase 1: PrepareWorkflow 开始 (source={message_source})"

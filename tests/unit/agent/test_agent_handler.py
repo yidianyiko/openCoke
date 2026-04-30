@@ -163,6 +163,91 @@ def test_agent_runtime_env_selects_team(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_handle_message_team_runtime_uses_agent_runtime(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    async def fake_run_agent_runtime(**kwargs):
+        assert kwargs["context"] is sample_context
+        assert kwargs["input_message_str"] == "你好"
+        assert kwargs["message_source"] == "user"
+        assert kwargs["metadata"] == {"request_id": "req-1"}
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(
+                    message_type="text",
+                    content="Team reply",
+                    metadata={"source": "team"},
+                )
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    async def fail_prepare_run(input_message, session_state):
+        raise AssertionError("PrepareWorkflow should not run on team path")
+
+    async def fail_run_stream(input_message, session_state):
+        raise AssertionError("StreamingChatWorkflow should not run on team path")
+        yield
+
+    sent = []
+
+    def fake_send_single_message(**kwargs):
+        sent.append(kwargs["multimodal_response"])
+        return {"message": kwargs["multimodal_response"]["content"]}, (
+            kwargs["expect_output_timestamp"]
+        )
+
+    create_task_calls = []
+
+    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(agent_handler.prepare_workflow, "run", fail_prepare_run)
+    monkeypatch.setattr(
+        agent_handler.streaming_chat_workflow, "run_stream", fail_run_stream
+    )
+    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(
+        agent_handler.asyncio,
+        "create_task",
+        lambda coro: create_task_calls.append(coro),
+    )
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            metadata={"request_id": "req-1"},
+            check_new_message=False,
+            worker_tag="[T]",
+            current_message_ids=[],
+        )
+    )
+
+    assert resp_messages == [{"message": "Team reply"}]
+    assert sent == [
+        {"type": "text", "content": "Team reply", "metadata": {"source": "team"}}
+    ]
+    assert context is sample_context
+    assert is_rollback is False
+    assert is_content_blocked is False
+    assert create_task_calls == []
+
+
+@pytest.mark.asyncio
 async def test_handle_message_marks_stream_provider_error_for_rollback(
     monkeypatch, sample_context
 ):
