@@ -502,6 +502,18 @@ def test_deferred_action_mapper_preserves_runtime_error_details_for_fallback():
     assert mapped.error_message == "I need more time."
 
 
+def test_deferred_action_mapper_rejects_unknown_output_status():
+    result = build_agent_result(
+        output_disposition=OutputDisposition(status="future_status"),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Unsupported output disposition status: future_status",
+    ):
+        map_agent_result_to_deferred_status(result)
+
+
 def test_deferred_action_mapper_freezes_output_references_after_mapping():
     result = build_agent_result(
         output_disposition=OutputDisposition(

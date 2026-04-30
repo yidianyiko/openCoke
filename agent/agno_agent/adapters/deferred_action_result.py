@@ -49,10 +49,8 @@ def map_agent_result_to_deferred_status(
     if output_disposition.status == "fallback":
         return _failed_from_runtime_error(result)
 
-    return DeferredActionFireResult(
-        status="failed",
-        retryable=True,
-        error_code="agent_runtime_failed",
+    raise ValueError(
+        f"Unsupported output disposition status: {output_disposition.status}"
     )
 
 
