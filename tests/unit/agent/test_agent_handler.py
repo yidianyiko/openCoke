@@ -14,6 +14,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     agno = types.ModuleType("agno")
     agno.__path__ = []
     agno_agent = types.ModuleType("agno.agent")
+    agno_team = types.ModuleType("agno.team")
     agno_models = types.ModuleType("agno.models")
     agno_models.__path__ = []
     agno_tools = types.ModuleType("agno.tools")
@@ -22,6 +23,10 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     agno_models_siliconflow = types.ModuleType("agno.models.siliconflow")
 
     class _Agent:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class _Team:
         def __init__(self, *args, **kwargs):
             pass
 
@@ -36,6 +41,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         return _decorate
 
     agno_agent.Agent = _Agent
+    agno_team.Team = _Team
     agno_tools.tool = _tool_decorator
     agno_models_deepseek.DeepSeek = _Model
     agno_models_openai.OpenAIChat = _Model
@@ -43,6 +49,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agno", agno)
     monkeypatch.setitem(sys.modules, "agno.agent", agno_agent)
+    monkeypatch.setitem(sys.modules, "agno.team", agno_team)
     monkeypatch.setitem(sys.modules, "agno.models", agno_models)
     monkeypatch.setitem(sys.modules, "agno.tools", agno_tools)
     monkeypatch.setitem(sys.modules, "agno.models.deepseek", agno_models_deepseek)
@@ -245,6 +252,205 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
     assert is_rollback is False
     assert is_content_blocked is False
     assert create_task_calls == []
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_empty_skeleton_uses_chat_fallback(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.runner import agent_handler
+
+    sent_fallbacks = []
+
+    def fake_send_chat_response_fallback(**kwargs):
+        sent_fallbacks.append(kwargs)
+        return {"message": "fallback reply"}, kwargs["expect_output_timestamp"]
+
+    monkeypatch.setattr(
+        agent_handler, "_send_chat_response_fallback", fake_send_chat_response_fallback
+    )
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            check_new_message=False,
+            worker_tag="[T]",
+            current_message_ids=[],
+        )
+    )
+
+    assert resp_messages == [{"message": "fallback reply"}]
+    assert sent_fallbacks[0]["context"] is sample_context
+    assert sent_fallbacks[0]["input_message"] == "你好"
+    assert sent_fallbacks[0]["all_multimodal_responses"] == []
+    assert context["MultiModalResponses"] == []
+    assert is_rollback is False
+    assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_rolls_back_before_runtime_on_new_message(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.runner import agent_handler
+
+    async def fail_run_agent_runtime(**kwargs):
+        raise AssertionError("Team runtime should not run when a newer message exists")
+
+    sent = []
+
+    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fail_run_agent_runtime)
+    monkeypatch.setattr(
+        agent_handler, "_send_single_message", lambda **kwargs: sent.append(kwargs)
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "is_new_message_coming_in",
+        lambda u_id, c_id, platform, current_message_ids: True,
+    )
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            check_new_message=True,
+            worker_tag="[T]",
+            current_message_ids=["msg-1"],
+        )
+    )
+
+    assert resp_messages == []
+    assert context is sample_context
+    assert is_rollback is True
+    assert is_content_blocked is False
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    async def fake_run_agent_runtime(**kwargs):
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="Team reply")
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    sent = []
+
+    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: False)
+    monkeypatch.setattr(
+        agent_handler, "_send_single_message", lambda **kwargs: sent.append(kwargs)
+    )
+
+    resp_messages, _, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            check_new_message=False,
+            worker_tag="[T]",
+            lock_id="lock-1",
+            conversation_id="conversation-1",
+            current_message_ids=[],
+        )
+    )
+
+    assert resp_messages == []
+    assert is_rollback is True
+    assert is_content_blocked is False
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    calls = []
+
+    async def fake_run_agent_runtime(**kwargs):
+        calls.append("runtime")
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="Team reply")
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    def fake_renew_lock(*args, **kwargs):
+        calls.append(("renew", args, kwargs))
+
+    def fake_send_single_message(**kwargs):
+        calls.append("send")
+        return {"message": kwargs["multimodal_response"]["content"]}, (
+            kwargs["expect_output_timestamp"]
+        )
+
+    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(agent_handler.lock_manager, "renew_lock", fake_renew_lock)
+    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+
+    resp_messages, _, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            check_new_message=False,
+            worker_tag="[T]",
+            lock_id="lock-1",
+            conversation_id="conversation-1",
+            current_message_ids=[],
+        )
+    )
+
+    assert resp_messages == [{"message": "Team reply"}]
+    assert calls[0][0] == "renew"
+    assert calls[0][1] == ("conversation", "conversation-1", "lock-1")
+    assert calls[0][2] == {"timeout": agent_handler.LOCK_TIMEOUT}
+    assert calls[1:] == ["runtime", "send"]
+    assert is_rollback is False
+    assert is_content_blocked is False
 
 
 @pytest.mark.asyncio

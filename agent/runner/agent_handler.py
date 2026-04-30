@@ -542,6 +542,31 @@ async def handle_message(
 
     try:
         if _select_agent_runtime(context) == "team":
+            if check_new_message and message_source == "user":
+                user = context.get("user", {})
+                character = context.get("character", {})
+                current_platform = (
+                    context.get("platform")
+                    or context.get("conversation", {}).get("platform")
+                    or "business"
+                )
+                if is_new_message_coming_in(
+                    get_agent_entity_id(user),
+                    get_agent_entity_id(character),
+                    current_platform,
+                    current_message_ids,
+                ):
+                    logger.info(
+                        f"{worker_tag} rollback: new message before team runtime"
+                    )
+                    return resp_messages, context, True, False
+
+            if lock_id and conversation_id:
+                lock_manager.renew_lock(
+                    "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
+                )
+                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
+
             logger.info(f"{worker_tag} AgentRuntime Team 开始")
             result = await _run_agent_runtime(
                 context=context,
@@ -552,12 +577,25 @@ async def handle_message(
 
             expect_output_timestamp = int(time.time())
             all_multimodal_responses = []
+
+            if result.output_disposition.status == "rollback":
+                logger.info(f"{worker_tag} AgentRuntime Team rollback")
+                context["MultiModalResponses"] = all_multimodal_responses
+                return resp_messages, context, True, False
+
             for visible_message in result.visible_messages:
                 multimodal_response = {
                     "type": visible_message.message_type,
                     "content": visible_message.content,
                     "metadata": dict(visible_message.metadata),
                 }
+
+                if lock_id and conversation_id:
+                    if not _verify_lock_ownership(conversation_id, lock_id):
+                        logger.warning(f"{worker_tag} 锁已丢失，停止发送 Team 消息")
+                        context["MultiModalResponses"] = all_multimodal_responses
+                        return resp_messages, context, True, False
+
                 all_multimodal_responses.append(multimodal_response)
                 outputmessage, expect_output_timestamp = _send_single_message(
                     context=context,
@@ -568,8 +606,33 @@ async def handle_message(
                 if outputmessage is not None:
                     resp_messages.append(outputmessage)
 
+            if (
+                not resp_messages
+                and not result.visible_messages
+                and result.output_disposition.status == "empty"
+            ):
+                logger.warning(
+                    f"{worker_tag} AgentRuntime Team 未产出用户可见回复，发送兜底回复"
+                )
+                if (
+                    lock_id
+                    and conversation_id
+                    and not _verify_lock_ownership(conversation_id, lock_id)
+                ):
+                    logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    return resp_messages, context, True, False
+
+                outputmessage, expect_output_timestamp = _send_chat_response_fallback(
+                    context=context,
+                    input_message=input_message_str,
+                    expect_output_timestamp=expect_output_timestamp,
+                    all_multimodal_responses=all_multimodal_responses,
+                )
+                if outputmessage is not None:
+                    resp_messages.append(outputmessage)
+
             context["MultiModalResponses"] = all_multimodal_responses
-            is_rollback = result.output_disposition.status == "rollback"
             is_content_blocked = False
             logger.info(
                 f"{worker_tag} AgentRuntime Team 完成 "
