@@ -67,3 +67,83 @@ class AgentRunContext:
             "runtime_metadata",
             freeze_mapping(self.runtime_metadata),
         )
+
+
+def _legacy_mapping(value: Any) -> Mapping[str, Any]:
+    if isinstance(value, Mapping):
+        return value
+    return {}
+
+
+def _entity_id(value: Mapping[str, Any]) -> str:
+    return str(value.get("_id") or value.get("id") or "").strip()
+
+
+def _nickname(value: Mapping[str, Any], fallback: str) -> str:
+    return str(
+        value.get("display_name")
+        or value.get("nickname")
+        or value.get("name")
+        or fallback
+    )
+
+
+def _metadata_from_raw(raw: Mapping[str, Any]) -> dict[str, Any]:
+    return {"raw": raw} if raw else {}
+
+
+def build_agent_run_context(
+    legacy_context: dict[str, Any],
+    *,
+    current_time: datetime,
+    runtime_metadata: dict[str, Any] | None = None,
+) -> AgentRunContext:
+    user = _legacy_mapping(legacy_context.get("user"))
+    character = _legacy_mapping(legacy_context.get("character"))
+    conversation = _legacy_mapping(legacy_context.get("conversation"))
+    relation = _legacy_mapping(legacy_context.get("relation"))
+    conversation_info = _legacy_mapping(conversation.get("conversation_info"))
+
+    user_id = _entity_id(user)
+    character_id = _entity_id(character)
+    conversation_id = str(
+        conversation.get("_id") or legacy_context.get("conversation_id") or ""
+    ).strip()
+    platform = str(
+        legacy_context.get("platform") or conversation.get("platform") or "business"
+    )
+
+    return AgentRunContext(
+        user=TrustedUserContext(
+            id=user_id,
+            nickname=_nickname(user, "User"),
+            timezone=str(
+                user.get("effective_timezone") or user.get("timezone") or "UTC"
+            ),
+            metadata=_metadata_from_raw(user),
+        ),
+        character=TrustedCharacterContext(
+            id=character_id,
+            nickname=_nickname(character, "Coke"),
+            metadata=_metadata_from_raw(character),
+        ),
+        conversation=TrustedConversationContext(
+            id=conversation_id,
+            platform=platform,
+            route_key=conversation.get("route_key"),
+            metadata=_metadata_from_raw(conversation),
+        ),
+        relation=TrustedRelationContext(
+            uid=str(relation.get("uid") or user_id),
+            cid=str(relation.get("cid") or character_id),
+            metadata=_metadata_from_raw(relation),
+        ),
+        platform=platform,
+        recent_chat_history=str(
+            legacy_context.get("recent_chat_history")
+            or conversation_info.get("chat_history_str")
+            or ""
+        ),
+        current_time=current_time,
+        runtime_metadata=runtime_metadata or {},
+    )
