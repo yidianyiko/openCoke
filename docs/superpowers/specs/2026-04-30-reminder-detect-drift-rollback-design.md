@@ -41,7 +41,7 @@ These behaviors must survive the refactor. They become the implicit contract the
 4. Broad cancel / do-not-disturb → `crud.delete` if target identifiable, otherwise `clarify`. Never `create`.
 5. Mixed safe/unsafe clauses in one message → execute the safe ones, clarify the unsafe ones. No all-or-nothing.
 6. Habitual schedule statements paired with explicit reminder/supervision intent → recurring reminder. Without that intent → `discussion`.
-7. Pure activity statements without "remind/notify/call me" semantics → no `create`. Conservative call: keep this rule, expressed as a single positive boundary in the prompt; **do not** enumerate negative phrase exemplars in the prompt itself. Flagged for product review at PR3.
+7. Reminder creation requires explicit user request. The LLM is the sole judge of intent; the prompt expresses this as a single positive boundary ("create only when the user asks to be reminded/notified/alarmed/called/checked-in") and **does not** enumerate the activity-statement counterexamples that previously lived inline. Eval cases that depended on the old enumeration are re-baselined in PR4 (product decision recorded 2026-04-30: aggressive route).
 8. ISO 8601 trigger times must be timezone-aware; offset must match user timezone unless the user explicitly named another.
 9. `schedule_evidence` is **no longer required to be a substring of the user message**. The substring-equality requirement is dropped (product decision recorded 2026-04-30). Schema continues to require `schedule_evidence` to carry a concrete cadence/time token via the existing `_looks_like_concrete_cadence` check.
 
@@ -81,6 +81,13 @@ Reminder DAO + Scheduler              unchanged
 - `INSTRUCTIONS_REMINDER_DETECT` is rewritten as a positive boundary, target ≤60 lines (≈25–30 rules at 1–2 lines each), covering schema fields, intent boundary, cadence/RRULE rules, batch/operation rules, trigger_at format, and the nine product invariants above. **No** inline negative phrase strings. **No** "Example: ... -> ..." lines in the prompt body.
 - `INSTRUCTIONS_REMINDER_DETECT_RETRY` is removed as a separate constant. Retry uses the same `INSTRUCTIONS_REMINDER_DETECT`; differences live in the *input template* (shorter context, optional invalid-decision reason).
 - A new `agent/prompt/reminder_few_shot.json` fixture holds the canonical examples that previously lived inline (one example per decision class, drawn from cases the eval corpus already validates). The agent injects them into its input as few-shot, not into the system prompt.
+
+### What changes in `agent/prompt/chat_contextprompt.py`
+
+In scope as part of PR3 (product decision recorded 2026-04-30: include the `CONTEXTPROMPT_提醒未执行` audit in this rollback):
+
+- `CONTEXTPROMPT_提醒未执行` (currently 19 non-empty lines, under the SKILL's 25-line cap, but already showing the same "If X is missing, ask Y" enumeration pattern that drives drift). Rewrite as a positive boundary: state the rule once ("ask one direct question for whatever decision or detail blocks safe reminder creation; do not commit to a reminder until a successful tool result exists"), drop the per-missing-field enumeration. Target ≤15 non-empty lines.
+- `CONTEXTPROMPT_提醒无需操作` is already short and positive — left as is.
 
 ### What changes in the eval corpus
 
@@ -157,7 +164,7 @@ Adds `scripts/reminder_drift_report.py` (extracted from the inline snippet curre
 
 ## Open questions
 
-- **OQ1**: Should `agent/prompt/chat_contextprompt.py::CONTEXTPROMPT_提醒未执行` be re-audited for the SKILL's 25-line cap as part of this rollback? Current file is 563 lines total but the cap applies only to that one constant. Tentative answer: out of scope; track separately. Confirm at spec review.
+- **OQ1**: ~~`CONTEXTPROMPT_提醒未执行` audit scope.~~ **Resolved 2026-04-30**: in scope for PR3; see "What changes in `chat_contextprompt.py`".
 - **OQ2**: Should `agent/runner/reminder_scheduler.py::misfire_grace_time=None` policy be revisited? Out of scope; this rollback does not touch the fire path.
 - **OQ3**: PR3 introduces `agent/prompt/reminder_few_shot.json`. Should the few-shot live in code (committed) or be loaded from a fixture path discoverable at runtime? Tentative: committed JSON next to the prompt module; revisit if it grows.
 
@@ -165,6 +172,7 @@ Adds `scripts/reminder_drift_report.py` (extracted from the inline snippet curre
 
 - `prepare_workflow.py` returns to ≤ ~700 lines (orchestrator + context + url + timezone + reminder dispatcher only; no Python NLU).
 - `INSTRUCTIONS_REMINDER_DETECT` is the single detect prompt; ≤ 60 lines of rules; no inline example strings.
+- `CONTEXTPROMPT_提醒未执行` ≤ 15 non-empty lines, positive boundary, no per-missing-field enumeration.
 - `tests/unit/test_prepare_workflow_reminder_guard.py` ≤ 600 lines, all remaining tests cover preserved behavior.
 - `scripts/reminder_normal_path_expectations.json` ≤ 70 cases with class-level coverage table in PR4.
 - `tasks/evidence/reminder-normal/` retry artifacts are not the basis of new fixes after PR3 lands; future failures resolve via prompt + fixture only.
