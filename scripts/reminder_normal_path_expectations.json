@@ -474,6 +474,24 @@
     "445": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
+    },
+    "449": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The request contains two concrete daily recurring reminder/contact times, 07:00 for planning and 23:00 for a completion summary. The unspecified per-plan follow-up and recording details should not block those safe recurring reminders.",
+      "expected_creates": [
+        {
+          "title": "询问我当天的规划",
+          "local_time": "07:00:00",
+          "recurring": true,
+          "title_variants": ["询问当天规划", "当天的规划"]
+        },
+        {
+          "title": "告诉我今天完成了哪些任务",
+          "local_time": "23:00:00",
+          "recurring": true,
+          "title_variants": ["今天完成了哪些任务", "完成任务汇总"]
+        }
+      ]
     }
   }
 }

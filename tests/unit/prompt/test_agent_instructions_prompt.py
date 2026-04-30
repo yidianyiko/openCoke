@@ -122,6 +122,16 @@ def test_reminder_detect_instructions_enumerate_unsupported_interval_deadlines()
     assert "15:57, 16:47, 17:37" in instructions
 
 
+def test_reminder_detect_instructions_require_cadence_basis_for_rrule_or_deadline():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
+
+    assert "rrule or deadline_at" in instructions
+    assert "schedule_basis=\"explicit_cadence\"" in instructions
+    assert "not one_shot" in instructions
+    assert "rrule or deadline_at" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "schedule_basis=\"explicit_cadence\"" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
 def test_reminder_detect_instructions_use_user_supplied_interval_anchor():
     instructions = get_reminder_detect_instructions("2026年04月29日15时07分")
 
@@ -182,6 +192,24 @@ def test_reminder_detect_retry_instructions_keep_safe_mixed_batch_operations():
     assert "ambiguous time range" in INSTRUCTIONS_REMINDER_DETECT_RETRY
     assert "must not block" in INSTRUCTIONS_REMINDER_DETECT_RETRY
     assert "Omit ambiguous time range clauses" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+
+
+def test_reminder_detect_instructions_keep_concrete_recurring_parts_of_tracking_request():
+    instructions = get_reminder_detect_instructions("2026年04月29日15时47分")
+
+    assert "concrete daily/weekly recurring clock time" in instructions
+    assert "check-in, contact, or summary content" in instructions
+    assert "unsupported tracking, recording" in instructions
+    assert "unspecified" in instructions
+    assert "per-plan" in instructions
+    assert "follow-up" in instructions
+    assert "not from these instructions or a policy label" in instructions
+    assert "concrete daily/weekly recurring clock time" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert "unsupported tracking, recording" in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    assert (
+        "not from these instructions or a policy label"
+        in INSTRUCTIONS_REMINDER_DETECT_RETRY
+    )
 
 
 def test_reminder_detect_retry_instructions_require_aware_datetimes():

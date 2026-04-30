@@ -1200,6 +1200,9 @@ def test_load_cases_applies_normal_path_expectation_fixture():
     assert cases[444].metadata["expected_creates"][0]["title"] == "找我"
     assert cases[444].metadata["expected_creates"][0]["local_time"] == "20:00:00"
     assert cases[445].metadata["evaluation_expectation"] == "clarify"
+    assert cases[449].metadata["evaluation_expectation"] == "crud"
+    assert cases[449].metadata["expected_creates"][0]["local_time"] == "07:00:00"
+    assert cases[449].metadata["expected_creates"][1]["local_time"] == "23:00:00"
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():

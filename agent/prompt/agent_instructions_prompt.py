@@ -141,6 +141,8 @@ Rules:
 - Only set rrule when the user explicitly asks for recurrence with words such
   as every day, daily, 每天, 每日, every week, 每周, every month, 每月, or a
   clearly repeated interval.
+- Any create decision with rrule or deadline_at must set
+  schedule_basis="explicit_cadence", not one_shot.
 - Supported recurrence is limited. For a bounded cadence with an end time,
   deadline, "until", or "after that stop" instruction, enumerate each concrete
   one-shot occurrence in a batch instead of using RRULE. If the user does not
@@ -187,6 +189,13 @@ Rules:
 - If the user asks for reminders for a habitual or general schedule, create recurring reminders only. Do not also create one-shot reminders for the same title and local time.
 - In batch, the same title and local time pair must appear at most once. If one candidate is recurring and another is one-shot, keep only the recurring operation.
 - If a batch mixes safe and unsafe create/update requests, call the tool only for the safe operations and leave the unsafe ones for chat clarification.
+- For each clause with a concrete daily/weekly recurring clock time plus
+  check-in, contact, or summary content, create one recurring reminder. If the
+  same message also asks for unsupported tracking, recording, or unspecified
+  per-plan follow-up times, leave only those unsupported or unspecified parts
+  for chat clarification.
+- schedule_evidence must be copied from the current user's recurrence/time
+  words, not from these instructions or a policy label.
 - Correct batch operation: {{"action":"create","title":"喝水","trigger_at":"2026-04-21T15:30:00+08:00"}}.
 - Never output nested operation objects like {{"create":{{"title":"喝水"}}}}.
 - Prefer concise titles. Example: "remind me to drink water in 30 minutes" -> title="drink water".
@@ -243,6 +252,15 @@ Field boundary:
 - If a message mixes safe and unsafe reminder clauses, execute the safe operations
   and leave unsafe clauses for chat clarification. An ambiguous time range clause
   must not block separate concrete-time reminder clauses.
+- For each clause with a concrete daily/weekly recurring clock time plus
+  check-in, contact, or summary content, create one recurring reminder. If the
+  same message also asks for unsupported tracking, recording, or unspecified
+  per-plan follow-up times, leave only those unsupported or unspecified parts
+  for chat clarification.
+- schedule_evidence must be copied from the current user's recurrence/time
+  words, not from these instructions or a policy label.
+- Any create decision with rrule or deadline_at must set
+  schedule_basis="explicit_cadence", not one_shot.
 - Omit ambiguous time range clauses from batch operations; do not convert them
   into start, end, or interval reminders unless the user lists those occurrences.
 - For bounded cadence, enumerate one-shot operations and include deadline_at.

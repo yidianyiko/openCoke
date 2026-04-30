@@ -7,6 +7,131 @@ import pytest
 
 
 @pytest.mark.asyncio
+async def test_structured_reminder_detect_decision_does_not_require_substring_evidence(
+    monkeypatch,
+):
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    from agent.agno_agent.tools.tool_result import append_tool_result
+    from agent.agno_agent.workflows import prepare_workflow
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+    reminder_response.content = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每10分钟",
+        operations=[
+            {
+                "action": "create",
+                "title": "写作",
+                "trigger_at": "2026-04-29T10:13:00+09:00",
+            },
+            {
+                "action": "create",
+                "title": "写作",
+                "trigger_at": "2026-04-29T10:23:00+09:00",
+            },
+        ],
+    )
+
+    calls = []
+
+    def fake_visible_reminder_tool(**kwargs):
+        calls.append(kwargs)
+        append_tool_result(
+            session_state,
+            tool_name="提醒操作",
+            ok=True,
+            result_summary="已创建提醒：写作",
+            extra_notes="action=batch",
+        )
+        return "已创建提醒：写作"
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月29日10时00分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    monkeypatch.setattr(
+        prepare_workflow.visible_reminder_tool,
+        "entrypoint",
+        fake_visible_reminder_tool,
+        raising=False,
+    )
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
+        ) as reminder_detect_retry_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_response = MagicMock()
+        orchestrator_response.metrics = None
+        orchestrator_response.content = {
+            "need_context_retrieve": False,
+            "need_reminder_detect": True,
+            "need_web_search": False,
+            "need_timezone_update": False,
+            "timezone_action": "none",
+        }
+        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        reminder_detect_retry_agent.arun = AsyncMock(return_value=None)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run(
+            "我10：13-11：00要写个个人陈述，提醒我保持专注",
+            session_state,
+        )
+
+    assert calls == [
+        {
+            "action": "batch",
+            "title": None,
+            "trigger_at": None,
+            "reminder_id": None,
+            "keyword": None,
+            "new_title": None,
+            "new_trigger_at": None,
+            "rrule": None,
+            "operations": [
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:13:00+09:00",
+                },
+                {
+                    "action": "create",
+                    "title": "写作",
+                    "trigger_at": "2026-04-29T10:23:00+09:00",
+                },
+            ],
+        }
+    ]
+    assert result["session_state"]["tool_results"][0]["ok"] is True
+
+
+@pytest.mark.asyncio
 async def test_structured_reminder_detect_decision_executes_visible_tool(monkeypatch):
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.tools.tool_result import append_tool_result
@@ -348,91 +473,6 @@ async def test_invalid_structured_reminder_retry_failure_records_tool_result(
     )
 
 
-@pytest.mark.asyncio
-async def test_invalid_retry_schedule_evidence_appends_clarification():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-
-    invalid_response = MagicMock()
-    invalid_response.metrics = None
-    invalid_response.tools = []
-    invalid_response.content = '{"intent_type":"clarify","action":"create"}'
-
-    retry_response = MagicMock()
-    retry_response.metrics = None
-    retry_response.tools = []
-    retry_response.content = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="19：00-20：00练腹",
-        operations=[
-            {
-                "action": "create",
-                "title": "练腹",
-                "trigger_at": "2026-04-29T19:00:00+09:00",
-            }
-        ],
-    )
-
-    session_state = {
-        "message_source": "user",
-        "conversation": {
-            "conversation_info": {
-                "time_str": "2026年04月29日09时47分",
-                "chat_history": [],
-            }
-        },
-        "character": {"_id": "char-1"},
-        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
-    }
-
-    with (
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
-        ) as orchestrator_agent,
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
-        ) as reminder_detect_agent,
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
-        ) as reminder_detect_retry_agent,
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
-        ) as context_retrieve_tool,
-    ):
-        orchestrator_response = MagicMock()
-        orchestrator_response.metrics = None
-        orchestrator_response.content = {
-            "need_context_retrieve": False,
-            "need_reminder_detect": True,
-            "need_web_search": False,
-            "need_timezone_update": False,
-            "timezone_action": "none",
-        }
-        orchestrator_agent.arun = AsyncMock(return_value=orchestrator_response)
-        reminder_detect_agent.arun = AsyncMock(return_value=invalid_response)
-        reminder_detect_retry_agent.arun = AsyncMock(return_value=retry_response)
-        context_retrieve_tool.return_value = {}
-
-        result = await workflow.run(
-            "19：00-20：00练腹 请在这些时间点提醒我学习",
-            session_state,
-        )
-
-    [tool_result] = result["session_state"]["tool_results"]
-    assert tool_result == {
-        "tool_name": "提醒操作",
-        "ok": False,
-        "result_summary": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
-        "extra_notes": (
-            "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
-        ),
-    }
-
-
 def test_bounded_rrule_operation_gets_deadline_until():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
@@ -464,421 +504,6 @@ def test_bounded_rrule_operation_gets_deadline_until():
     ]
 
 
-def test_reminder_decision_evidence_must_come_from_current_message():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_cadence",
-        schedule_evidence="每10分钟",
-        operations=[
-            {
-                "action": "create",
-                "title": "写作",
-                "trigger_at": "2026-04-29T10:13:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "写作",
-                "trigger_at": "2026-04-29T10:23:00+09:00",
-            },
-        ],
-    )
-
-    assert workflow._validate_reminder_decision_evidence(
-        decision,
-        "我10：13-11：00要写个个人陈述，提醒我保持专注",
-    )
-
-
-def test_explicit_occurrence_evidence_must_contain_each_create_time():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="11点10分还有12点提醒我一下",
-        operations=[
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-30T11:10:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-30T12:00:00+09:00",
-            },
-        ],
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "11点10分还有12点提醒我一下",
-    )
-
-    hallucinated = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="11点10分还有12点提醒我一下",
-        operations=[
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-30T11:10:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-30T11:40:00+09:00",
-            },
-        ],
-    )
-    assert workflow._validate_reminder_decision_evidence(
-        hallucinated,
-        "11点10分还有12点提醒我一下",
-    )
-
-
-def test_explicit_occurrence_evidence_accepts_chinese_daypart_times():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="晚上9点一次，晚上11点一次，提醒我完成学习任务打卡",
-        operations=[
-            {
-                "action": "create",
-                "title": "完成学习任务打卡",
-                "trigger_at": "2026-04-29T21:00:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "完成学习任务打卡",
-                "trigger_at": "2026-04-29T23:00:00+09:00",
-            },
-        ],
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "上午10点一次，中午12点一次，下午5点一次，晚上9点一次，晚上11点一次，提醒我完成学习任务打卡",
-    )
-
-
-def test_explicit_occurrence_evidence_accepts_colloquial_daypart_colon_time():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence=(
-            "早上11点10分提醒我吃维生素D、B、辅酶Q10。"
-            "晚上大概11：30提醒我吃镁片"
-        ),
-        operations=[
-            {
-                "action": "create",
-                "title": "吃维生素D、B、辅酶Q10",
-                "trigger_at": "2026-12-16T11:10:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "吃镁片",
-                "trigger_at": "2026-12-16T23:30:00+09:00",
-            },
-        ],
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "再加个：早上11点10分提醒我吃维生素D、B、辅酶Q10。晚上大概11：30提醒我吃镁片",
-    )
-
-
-def test_explicit_occurrence_evidence_accepts_condensed_chinese_time_list():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="下午4点5点6点晚上9点半11点记得提醒我",
-        operations=[
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-29T16:00:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-29T17:00:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-29T18:00:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-29T21:30:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "提醒",
-                "trigger_at": "2026-04-29T23:00:00+09:00",
-            },
-        ],
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "下午4点5点6点晚上9点半11点记得提醒我",
-    )
-
-
-def test_explicit_occurrence_evidence_rejects_time_range_boundaries():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="11-11：30 吃饭",
-        operations=[
-            {
-                "action": "create",
-                "title": "吃饭",
-                "trigger_at": "2026-04-29T11:00:00+09:00",
-            },
-            {
-                "action": "create",
-                "title": "吃饭",
-                "trigger_at": "2026-04-29T11:30:00+09:00",
-            },
-        ],
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "这是我今天的任务 11-11：30 吃饭，请在这些时间点提醒我学习",
-        )
-        == "explicit_occurrences evidence uses a time range boundary, not a concrete reminder time"
-    )
-
-
-def test_explicit_occurrence_evidence_rejects_colon_time_range_boundary():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="19：00-20：00练腹",
-        operations=[
-            {
-                "action": "create",
-                "title": "练腹",
-                "trigger_at": "2026-04-29T19:00:00+09:00",
-            }
-        ],
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "19：00-20：00练腹 请在这些时间点提醒我学习",
-        )
-        == "explicit_occurrences evidence uses a time range boundary, not a concrete reminder time"
-    )
-
-
-def test_explicit_occurrence_evidence_accepts_bare_hour_reminder_time():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="11提醒我吃饭",
-        operations=[
-            {
-                "action": "create",
-                "title": "吃饭",
-                "trigger_at": "2026-04-29T11:00:00+09:00",
-            }
-        ],
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "今天11提醒我吃饭",
-    )
-
-
-def test_single_create_rejected_for_multi_clause_reminder_batch():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="create",
-        title="练腹肌",
-        trigger_at="2026-04-29T19:00:00+09:00",
-        schedule_basis="one_shot",
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
-        )
-        == "multiple reminder clauses require batch operations, not a single create"
-    )
-
-
-def test_partial_batch_rejected_for_multi_clause_reminder_batch():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="19：00提醒我去练腹肌",
-        operations=[
-            {
-                "action": "create",
-                "title": "练腹肌",
-                "trigger_at": "2026-04-29T19:00:00+09:00",
-            }
-        ],
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
-        )
-        == "multiple reminder clauses require every safe clause in batch operations"
-    )
-
-
-def test_partial_batch_without_schedule_evidence_rejected_for_multi_clause_reminder():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision.model_construct(
-        intent_type="crud",
-        action="batch",
-        operations=[
-            {
-                "action": "create",
-                "title": "练腹肌",
-                "trigger_at": "2026-04-29T19:00:00+09:00",
-            }
-        ],
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "你还需要在15：30提醒我吃饭；16：40提醒我洗澡；17：20提醒我看法考网课和做题；19：00提醒我去练腹肌",
-        )
-        == "multiple reminder clauses require every safe clause in batch operations"
-    )
-
-
-def test_date_only_midnight_create_rejected_without_midnight_evidence():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="create",
-        title="定蛋糕",
-        trigger_at="2026-12-17T00:00:00+09:00",
-        schedule_basis="one_shot",
-    )
-
-    assert (
-        workflow._validate_reminder_decision_evidence(
-            decision,
-            "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
-        )
-        == "date-only reminder requests must not default to midnight"
-    )
-
-
-def test_explicit_midnight_create_allows_midnight_evidence():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="create",
-        title="抢票",
-        trigger_at="2026-12-17T00:00:00+09:00",
-        schedule_basis="one_shot",
-    )
-
-    assert not workflow._validate_reminder_decision_evidence(
-        decision,
-        "12月17日00:00提醒我抢票",
-    )
-
-
-def test_retry_input_includes_invalid_schedule_evidence_reason():
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    retry_input = workflow._build_reminder_retry_input(
-        "你还需要在15：30提醒我吃饭；16：40提醒我洗澡",
-        {
-            "conversation": {
-                "conversation_info": {"time_str": "2026年04月29日09时50分"}
-            },
-            "user": {"timezone": "Asia/Tokyo"},
-            "prepare_reminder_detect_invalid_schedule_evidence": (
-                "multiple reminder clauses require batch operations, not a single create"
-            ),
-        },
-    )
-
-    assert "Invalid previous decision" in retry_input
-    assert "multiple reminder clauses require batch operations" in retry_input
-
-
 def test_structured_clarify_decision_appends_direct_question():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
     from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
@@ -904,31 +529,6 @@ def test_structured_clarify_decision_appends_direct_question():
             "extra_notes": "action=clarify; error_code=ReminderDetectClarify",
         }
     ]
-
-
-def test_invalid_schedule_evidence_retry_failure_appends_clarification():
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-    session_state = {
-        "prepare_reminder_detect_invalid_schedule_evidence": (
-            "schedule_evidence is not present in the current message"
-        ),
-        "tool_results": [],
-    }
-
-    assert workflow._append_invalid_schedule_evidence_clarification(session_state)
-    assert session_state["tool_results"] == [
-        {
-            "tool_name": "提醒操作",
-            "ok": False,
-            "result_summary": "提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
-            "extra_notes": (
-                "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
-            ),
-        }
-    ]
-    assert "prepare_reminder_detect_invalid_schedule_evidence" not in session_state
 
 
 def test_bounded_rrule_operation_keeps_existing_count():
@@ -1250,6 +850,54 @@ async def test_call_me_with_time_runs_reminder_detector_when_orchestrator_misses
 
         result = await workflow.run("七点叫我可以么", session_state)
 
+    reminder_detect_agent.arun.assert_awaited_once()
+    assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
+
+
+@pytest.mark.asyncio
+async def test_recurring_contact_summary_request_skips_orchestrator_for_detector():
+    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+
+    workflow = PrepareWorkflow()
+
+    reminder_response = MagicMock()
+    reminder_response.metrics = None
+    reminder_response.tools = []
+
+    session_state = {
+        "message_source": "user",
+        "conversation": {
+            "conversation_info": {
+                "time_str": "2026年04月30日22时07分",
+                "chat_history": [],
+            }
+        },
+        "character": {"_id": "char-1"},
+        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+    }
+
+    with (
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.orchestrator_agent"
+        ) as orchestrator_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
+        ) as reminder_detect_agent,
+        patch(
+            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
+        ) as context_retrieve_tool,
+    ):
+        orchestrator_agent.arun = AsyncMock()
+        reminder_detect_agent.arun = AsyncMock(return_value=reminder_response)
+        context_retrieve_tool.return_value = {}
+
+        result = await workflow.run(
+            "你能每天早上7点询问我当天的规划吗？并且按规划时间问问我完成的怎么样了，"
+            "我完成之后你也记录一下。最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+            session_state,
+        )
+
+    orchestrator_agent.arun.assert_not_awaited()
     reminder_detect_agent.arun.assert_awaited_once()
     assert result["session_state"]["orchestrator"]["need_reminder_detect"] is True
 
@@ -1894,6 +1542,10 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert "execute the safe operations" in retry_input
     assert "ambiguous time range" in retry_input
     assert "must not block" in retry_input
+    assert "concrete daily/weekly recurring clock time" in retry_input
+    assert "check-in, contact, or summary content" in retry_input
+    assert "unsupported tracking, recording" in retry_input
+    assert "not from this directive or a policy label" in retry_input
     assert "Omit ambiguous time range clauses" in retry_input
     assert 'Never return action="batch" with operations=[]' in retry_input
     assert "not enough schedule_evidence" in retry_input
@@ -1924,125 +1576,6 @@ async def test_reminder_detect_timeout_retries_with_short_context_llm(monkeypatc
     assert (
         "提醒识别超时"
         not in result["session_state"]["tool_results"][0]["result_summary"]
-    )
-
-
-@pytest.mark.asyncio
-async def test_reminder_detect_timeout_retry_invalid_evidence_appends_clarification(
-    monkeypatch,
-):
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    from agent.agno_agent.workflows import prepare_workflow
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    workflow = PrepareWorkflow()
-
-    async def slow_reminder_detect(*_args, **_kwargs):
-        await asyncio.sleep(60)
-
-    retry_response = MagicMock()
-    retry_response.metrics = None
-    retry_response.tools = []
-    retry_response.content = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="not in the current message",
-        operations=[
-            {
-                "action": "create",
-                "title": "复盘",
-                "trigger_at": "2026-12-14T00:30:00+09:00",
-            }
-        ],
-    )
-
-    session_state = {
-        "message_source": "user",
-        "conversation": {
-            "conversation_info": {
-                "time_str": "2026年04月29日02时30分",
-                "chat_history": [],
-            }
-        },
-        "character": {"_id": "char-1"},
-        "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
-    }
-
-    monkeypatch.setattr(
-        prepare_workflow,
-        "_PREPARE_REMINDER_DETECT_TIMEOUT_SECONDS",
-        0.01,
-    )
-    monkeypatch.setattr(
-        prepare_workflow,
-        "_PREPARE_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
-        0.01,
-    )
-
-    with (
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_agent"
-        ) as reminder_detect_agent,
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.reminder_detect_retry_agent"
-        ) as reminder_detect_retry_agent,
-        patch(
-            "agent.agno_agent.workflows.prepare_workflow.context_retrieve_tool"
-        ) as context_retrieve_tool,
-    ):
-        reminder_detect_agent.arun = AsyncMock(side_effect=slow_reminder_detect)
-        reminder_detect_retry_agent.arun = AsyncMock(return_value=retry_response)
-        context_retrieve_tool.return_value = {}
-
-        result = await workflow.run("提醒我12月14晚上0:30复盘", session_state)
-
-    assert result["session_state"]["prepare_reminder_detect_timeout"] is True
-    assert result["session_state"]["prepare_reminder_detect_retry_used"] is True
-    assert result["session_state"]["tool_results"][-1]["ok"] is False
-    assert "请确认具体提醒频率或每个提醒时间" in (
-        result["session_state"]["tool_results"][-1]["result_summary"]
-    )
-    assert "ReminderDetectInvalidScheduleEvidence" in (
-        result["session_state"]["tool_results"][-1]["extra_notes"]
-    )
-
-
-def test_reminder_decision_evidence_allows_dot_time_separator():
-    from agent.agno_agent.schemas.reminder_detect_schema import (
-        ReminderDetectDecision,
-        ReminderOperation,
-    )
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
-
-    decision = ReminderDetectDecision(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence=(
-            "13:00提醒我打电话咨询一下暂住证，"
-            "16:00提醒我去办理暂住证"
-        ),
-        operations=[
-            ReminderOperation(
-                action="create",
-                title="打电话咨询一下暂住证",
-                trigger_at="2026-04-30T13:00:00+09:00",
-            ),
-            ReminderOperation(
-                action="create",
-                title="去办理暂住证",
-                trigger_at="2026-04-30T16:00:00+09:00",
-            ),
-        ],
-    )
-
-    assert (
-        PrepareWorkflow()._validate_reminder_decision_evidence(
-            decision,
-            "13.00提醒我打电话咨询一下暂住证，16.00提醒我去办理暂住证。",
-        )
-        == ""
     )
 
 

@@ -20,7 +20,6 @@ import logging
 import os
 import re
 import asyncio
-import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -163,6 +162,12 @@ _ACTIONABLE_CALL_ME_TIME_PATTERN = re.compile(
 )
 _ACTIONABLE_CALL_ME_TASK_PATTERN = re.compile(
     r"(起床|出门|离开|吃药|吃饭|睡觉|背书|学习|打卡|工作)"
+)
+_ACTIONABLE_CONTACT_TIME_PATTERN = re.compile(
+    r"(每天|每日|每晚|每夜|每周|每月).{0,18}"
+    r"(\d{1,2}\s*[:：.]\s*[0-5]\d|[零〇一二两三四五六七八九十\d]{1,3}点"
+    r"|早上|上午|中午|下午|晚上|凌晨).{0,32}"
+    r"(询问|问问|告诉|联系|找我|来找我|检查|汇总|总结)"
 )
 _IMPLICIT_REMINDER_INTENT_PATTERNS = (
     re.compile(
@@ -433,6 +438,7 @@ class PrepareWorkflow:
             or self._looks_like_reminder_stop_intent(text)
             or self._looks_like_actionable_reminder_with_time(text)
             or self._looks_like_actionable_call_me_reminder(text)
+            or self._looks_like_actionable_contact_reminder(text)
         )
 
     def _looks_like_reminder_stop_intent(self, input_message: str) -> bool:
@@ -455,6 +461,12 @@ class PrepareWorkflow:
             _ACTIONABLE_CALL_ME_TIME_PATTERN.search(text)
             or _ACTIONABLE_CALL_ME_TASK_PATTERN.search(text)
         )
+
+    def _looks_like_actionable_contact_reminder(self, input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return bool(_ACTIONABLE_CONTACT_TIME_PATTERN.search(text))
 
     def _looks_like_implicit_reminder_intent(self, input_message: str) -> bool:
         text = str(input_message or "").strip()
@@ -862,11 +874,6 @@ class PrepareWorkflow:
                     if retry_executed:
                         self._log_reminder_result(retry_response, session_state)
                         return
-                    if self._append_invalid_schedule_evidence_clarification(
-                        session_state
-                    ):
-                        self._log_reminder_result(retry_response, session_state)
-                        return
                     if session_state.pop(
                         "prepare_reminder_detect_invalid_structured_output", False
                     ):
@@ -877,9 +884,6 @@ class PrepareWorkflow:
                             result_summary="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
                             extra_notes="action=detect; error_code=ReminderDetectInvalidStructuredOutput",
                         )
-                    self._log_reminder_result(retry_response, session_state)
-                    return
-                if self._append_invalid_schedule_evidence_clarification(session_state):
                     self._log_reminder_result(retry_response, session_state)
                     return
                 append_tool_result(
@@ -908,9 +912,7 @@ class PrepareWorkflow:
                     input_message,
                 )
                 if not retry_executed:
-                    if not self._append_invalid_schedule_evidence_clarification(
-                        session_state
-                    ) and session_state.pop(
+                    if session_state.pop(
                         "prepare_reminder_detect_invalid_structured_output", False
                     ):
                         append_tool_result(
@@ -992,21 +994,6 @@ class PrepareWorkflow:
             bool(str(decision.schedule_evidence or "").strip()),
         )
 
-        evidence_error = self._validate_reminder_decision_evidence(
-            decision,
-            current_message,
-        )
-        if evidence_error:
-            logger.warning(
-                "[PrepareWorkflow] Invalid ReminderDetect schedule evidence: %s",
-                evidence_error,
-            )
-            session_state["prepare_reminder_detect_invalid_structured_output"] = True
-            session_state["prepare_reminder_detect_invalid_schedule_evidence"] = (
-                evidence_error
-            )
-            return False
-
         if decision.intent_type == "clarify" and decision.clarification_question:
             append_tool_result(
                 session_state,
@@ -1054,26 +1041,6 @@ class PrepareWorkflow:
         )
         return True
 
-    def _append_invalid_schedule_evidence_clarification(
-        self,
-        session_state: Dict[str, Any],
-    ) -> bool:
-        if not session_state.pop(
-            "prepare_reminder_detect_invalid_schedule_evidence",
-            "",
-        ):
-            return False
-        append_tool_result(
-            session_state,
-            tool_name="提醒操作",
-            ok=False,
-            result_summary="提醒设置还没完成：请确认具体提醒频率或每个提醒时间。",
-            extra_notes=(
-                "action=clarify; " "error_code=ReminderDetectInvalidScheduleEvidence"
-            ),
-        )
-        return True
-
     def _dump_reminder_operations(
         self,
         decision: ReminderDetectDecision,
@@ -1097,251 +1064,6 @@ class PrepareWorkflow:
                 }
             )
         return operations
-
-    def _validate_reminder_decision_evidence(
-        self,
-        decision: ReminderDetectDecision,
-        current_message: str,
-    ) -> str:
-        if decision.intent_type != "crud" or decision.action not in {"create", "batch"}:
-            return ""
-        evidence = str(decision.schedule_evidence or "").strip()
-        if evidence and self._compact_text(evidence) not in self._compact_text(
-            current_message
-        ):
-            return "schedule_evidence is not present in the current message"
-        multi_clause_reminder_count = self._multi_clause_reminder_count(current_message)
-        if decision.action == "create" and multi_clause_reminder_count > 1:
-            return "multiple reminder clauses require batch operations, not a single create"
-        if decision.action == "create" and self._trigger_is_midnight_without_evidence(
-            decision.trigger_at,
-            current_message,
-        ):
-            return "date-only reminder requests must not default to midnight"
-        operations = (
-            [
-                operation
-                for operation in decision.operations
-                if self._operation_action(operation) == "create"
-            ]
-            if decision.action == "batch"
-            else []
-        )
-        if decision.action == "batch" and (
-            1 <= len(operations) < multi_clause_reminder_count
-        ):
-            return "multiple reminder clauses require every safe clause in batch operations"
-        for operation in operations:
-            if self._trigger_is_midnight_without_evidence(
-                self._operation_trigger_at(operation),
-                current_message,
-            ):
-                return "date-only reminder requests must not default to midnight"
-        if decision.schedule_basis != "explicit_occurrences" or not evidence:
-            return ""
-        evidence_text = self._compact_text(evidence)
-        for operation in operations:
-            if not any(
-                variant in evidence_text
-                for variant in self._clock_time_variants(
-                    self._operation_trigger_at(operation)
-                )
-            ):
-                return (
-                    "explicit_occurrences evidence does not contain every create time"
-                )
-            if self._clock_time_is_only_range_boundary(
-                evidence_text,
-                self._operation_trigger_at(operation),
-            ):
-                return (
-                    "explicit_occurrences evidence uses a time range boundary, "
-                    "not a concrete reminder time"
-                )
-        return ""
-
-    @staticmethod
-    def _operation_action(operation: Any) -> str:
-        if isinstance(operation, dict):
-            return str(operation.get("action") or "")
-        return str(getattr(operation, "action", "") or "")
-
-    @staticmethod
-    def _operation_trigger_at(operation: Any) -> str:
-        if isinstance(operation, dict):
-            return str(operation.get("trigger_at") or "")
-        return str(getattr(operation, "trigger_at", "") or "")
-
-    @classmethod
-    def _trigger_is_midnight_without_evidence(
-        cls,
-        trigger_at: str,
-        current_message: str,
-    ) -> bool:
-        try:
-            parsed = datetime.fromisoformat(str(trigger_at).replace("Z", "+00:00"))
-        except ValueError:
-            return False
-        if parsed.hour != 0 or parsed.minute != 0 or parsed.second != 0:
-            return False
-        return not cls._message_mentions_midnight(current_message)
-
-    @staticmethod
-    def _message_mentions_midnight(current_message: str) -> bool:
-        text = unicodedata.normalize("NFKC", str(current_message or "")).lower()
-        return bool(
-            re.search(r"(?<!\d)(?:0|00)\s*:\s*00(?!\d)", text)
-            or re.search(r"(?:零点|0点|00点|午夜|midnight)", text)
-        )
-
-    @staticmethod
-    def _compact_text(value: str) -> str:
-        normalized = unicodedata.normalize("NFKC", str(value or "")).lower()
-        normalized = re.sub(r"(?<!\d)(\d{1,2})\.(\d{2})(?!\d)", r"\1:\2", normalized)
-        return re.sub(r"\s+", "", normalized)
-
-    @classmethod
-    def _message_has_multi_clause_reminders(cls, current_message: str) -> bool:
-        return cls._multi_clause_reminder_count(current_message) > 1
-
-    @staticmethod
-    def _multi_clause_reminder_count(current_message: str) -> int:
-        text = str(current_message or "")
-        if "提醒" not in text and "叫我" not in text and "通知" not in text:
-            return 0
-        clauses = [clause for clause in re.split(r"[；;\n]", text) if clause.strip()]
-        timed_clauses = [
-            clause
-            for clause in clauses
-            if re.search(r"(?<!\d)\d{1,2}\s*[:：点]\s*\d{0,2}(?!\d)", clause)
-        ]
-        return len(timed_clauses)
-
-    @classmethod
-    def _clock_time_variants(cls, trigger_at: str) -> set[str]:
-        try:
-            parsed = datetime.fromisoformat(str(trigger_at).replace("Z", "+00:00"))
-        except ValueError:
-            return set()
-        hour = parsed.hour
-        minute = parsed.minute
-        colloquial_hour = hour % 12 or 12
-        raw_variants = {
-            f"{hour}:{minute:02d}",
-            f"{hour:02d}:{minute:02d}",
-            f"{hour}：{minute:02d}",
-            f"{hour:02d}：{minute:02d}",
-            f"{hour}点{minute:02d}分",
-            f"{hour}点{minute}分",
-        }
-        if minute == 0:
-            raw_variants.update(
-                {f"{hour}", f"{hour:02d}", f"{hour}点", f"{hour:02d}点"}
-            )
-            if hour > 12:
-                raw_variants.update({f"{colloquial_hour}", f"{colloquial_hour}点"})
-            for daypart in cls._clock_dayparts(hour):
-                raw_variants.update(
-                    {
-                        f"{daypart}{colloquial_hour}点",
-                        f"{daypart}{colloquial_hour:02d}点",
-                    }
-                )
-        else:
-            if hour > 12:
-                raw_variants.update(
-                    {
-                        f"{colloquial_hour}:{minute:02d}",
-                        f"{colloquial_hour:02d}:{minute:02d}",
-                        f"{colloquial_hour}：{minute:02d}",
-                        f"{colloquial_hour:02d}：{minute:02d}",
-                        f"{colloquial_hour}点{minute:02d}分",
-                        f"{colloquial_hour}点{minute}分",
-                        f"{colloquial_hour:02d}点{minute:02d}分",
-                    }
-                )
-            if minute == 30:
-                raw_variants.update({f"{hour}点半", f"{colloquial_hour}点半"})
-            for daypart in cls._clock_dayparts(hour):
-                raw_variants.update(
-                    {
-                        f"{daypart}{colloquial_hour}:{minute:02d}",
-                        f"{daypart}{colloquial_hour:02d}:{minute:02d}",
-                        f"{daypart}{colloquial_hour}：{minute:02d}",
-                        f"{daypart}{colloquial_hour:02d}：{minute:02d}",
-                        f"{daypart}{colloquial_hour}点{minute:02d}分",
-                        f"{daypart}{colloquial_hour}点{minute}分",
-                        f"{daypart}{colloquial_hour:02d}点{minute:02d}分",
-                    }
-                )
-                if minute == 30:
-                    raw_variants.update(
-                        {
-                            f"{daypart}{colloquial_hour}点半",
-                            f"{daypart}{colloquial_hour:02d}点半",
-                        }
-                    )
-        return {cls._compact_text(variant) for variant in raw_variants}
-
-    @classmethod
-    def _clock_time_is_only_range_boundary(
-        cls,
-        compact_evidence: str,
-        trigger_at: str,
-    ) -> bool:
-        variants = cls._clock_time_variants(trigger_at)
-        if not variants:
-            return False
-        found_boundary = False
-        found_standalone = False
-        for variant in sorted(variants, key=len, reverse=True):
-            start = compact_evidence.find(variant)
-            while start >= 0:
-                end = start + len(variant)
-                if not cls._is_embedded_bare_hour_match(
-                    compact_evidence,
-                    variant,
-                    start,
-                    end,
-                ):
-                    if cls._is_range_boundary_at(compact_evidence, start, end):
-                        found_boundary = True
-                    else:
-                        found_standalone = True
-                start = compact_evidence.find(variant, start + 1)
-        return found_boundary and not found_standalone
-
-    @staticmethod
-    def _is_embedded_bare_hour_match(
-        text: str,
-        variant: str,
-        start: int,
-        end: int,
-    ) -> bool:
-        if not variant.isdigit():
-            return False
-        previous_char = text[start - 1] if start > 0 else ""
-        next_char = text[end] if end < len(text) else ""
-        return previous_char in ":0123456789" or next_char in ":0123456789"
-
-    @staticmethod
-    def _is_range_boundary_at(text: str, start: int, end: int) -> bool:
-        range_separators = frozenset("-~—–到至")
-        previous_char = text[start - 1] if start > 0 else ""
-        next_char = text[end] if end < len(text) else ""
-        return previous_char in range_separators or next_char in range_separators
-
-    @staticmethod
-    def _clock_dayparts(hour: int) -> set[str]:
-        if 0 <= hour < 6:
-            return {"凌晨"}
-        if 6 <= hour < 12:
-            return {"上午", "早上"}
-        if hour == 12:
-            return {"中午"}
-        if 13 <= hour < 18:
-            return {"下午"}
-        return {"晚上", "夜里"}
 
     def _bound_rrule_to_deadline(self, rrule: str | None, deadline_at: str) -> str:
         rule = str(rrule or "").strip()
@@ -1575,53 +1297,44 @@ class PrepareWorkflow:
         )
         user = session_state.get("user", {})
         timezone = user.get("effective_timezone") or user.get("timezone") or "unknown"
-        invalid_reason = str(
-            session_state.get("prepare_reminder_detect_invalid_schedule_evidence") or ""
-        ).strip()
-        invalid_previous_decision = (
-            f"\n### Invalid previous decision\n{invalid_reason}\n"
-            if invalid_reason
-            else ""
-        )
-        return f"""### 当前时间
+        return f"""### Time
 {time_str}
 
-### 用户时区
+### TZ
 {timezone}
-{invalid_previous_decision}
 
-### Retry Directive
-Detect timed out/invalid structured output. Return only a structured
-ReminderDetectDecision for this current message.
-- If the message explicitly asks for a reminder with concrete time and content,
-  crud create; if reminder times have no content, use title="提醒".
+### Retry
+Detect timed out/invalid structured output. Return ReminderDetectDecision.
+- If it explicitly asks for a reminder with concrete time and content,
+  crud create; if no content, use title="提醒".
 - trigger_at/new_trigger_at/deadline_at: timezone-aware ISO 8601 with local
   offset, e.g. 2026-12-14T00:30:00+09:00.
-- single reminder create: use top-level title and trigger_at; operations empty;
+- single reminder create: top-level title and trigger_at; operations empty;
   new_title and new_trigger_at are update-only.
 - Clarify/query/discussion leave action empty. Never output action="create" with
   intent_type="clarify".
-- Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month
-  is not enough; do not resolve it to midnight.
-- Bounded interval/deadline: enumerate each concrete one-shot occurrence;
-  current 15:07 + every 50 minutes before 18:00 -> 15:57, 16:47, 17:37.
+- Date-only or missing-time create/update requests clarify. A calendar date, deadline date, or day-of-month is not enough; do not resolve it to midnight.
+- Bounded interval/deadline: enumerate each concrete one-shot occurrence
+  (15:07 + every 50 minutes before 18:00 -> 15:57, 16:47, 17:37).
   Do not use RRULE for bounded cadence.
-- Set schedule_basis and schedule_evidence for batch/bounded/recurrence. If
-  without concrete occurrence times or interval/frequency, clarify. "these time
-  points" is not enough schedule_evidence.
-- Ongoing daily window cadence with start date, window start/end, and interval:
-  for hourly interval, return a single create with
-  rrule="FREQ=HOURLY;BYHOUR=...", not one operation per hour. Use trigger_at as
-  first local occurrence; create operation uses title and trigger_at. Do not use
-  update fields.
+- Set schedule_basis and schedule_evidence for batch/bounded/recurrence. Without
+  concrete occurrence times or interval/frequency, clarify. "these time points"
+  is not enough schedule_evidence.
+- rrule or deadline_at -> schedule_basis="explicit_cadence", not one_shot.
 - Never return action="batch" with operations=[]. For multiple safe clauses,
   use one create operation for each safe clause; action=create is invalid,
-  operations count must equal the number of safe reminder clauses, and Do not keep only the last item.
+  operations count must equal the number of safe reminder clauses. Do not keep only the last item.
 - In batch create operations, use title and trigger_at only, plus rrule when
   needed. Do not include empty optional fields.
-- If a message mixes safe and unsafe reminder clauses, execute the safe operations
-  and clarify unsafe clauses. An ambiguous time range clause must not block
-  separate concrete-time reminder clauses.
+- If a message mixes safe and unsafe reminder clauses, execute the safe operations.
+  Clarify unsafe clauses. An ambiguous time range clause must not block separate
+  concrete-time reminder clauses.
+- For each clause with a concrete daily/weekly recurring clock time plus
+  check-in, contact, or summary content, create one recurring reminder. If it
+  also asks for unsupported tracking, recording, or unspecified per-plan
+  follow-up, clarify only those parts.
+- schedule_evidence must be copied from the current user's recurrence/time
+  words, not from this directive or a policy label.
 - Omit ambiguous time range clauses from batch operations; do not convert them
   into start/end/interval reminders unless user lists occurrences.
 - Chinese semicolon lists may omit the repeated reminder verb after the first clause.
@@ -1629,15 +1342,11 @@ ReminderDetectDecision for this current message.
   started in the past, skip past occurrences and create only future occurrences.
 - Supervision over a window without concrete occurrence/cadence: clarify and
   Do not infer numeric intervals.
-- Cancel/stop/no-disturb existing reminder -> action="delete"; examples: 不用叫我,
-  不用提醒我, 别提醒我, 取消提醒.
-- If the message asks to update, complete, or list reminders, return that action
-  with only safe fields.
-- Reminder intent only applies to the task it semantically modifies; a
-  neighboring independent schedule item is not a target. A task time range supplies boundaries,
-  not occurrence times. Leave schedule-only items alone.
-- Missing or unsafe details -> intent_type="clarify" with no executable fields.
-  Use the same language as the current message.
+- Cancel/stop/no-disturb existing reminder -> action="delete"; examples:
+  不用叫我, 不用提醒我, 别提醒我, 取消提醒.
+- If the message asks to update, complete, or list reminders, return that action.
+- Reminder intent applies to the task it semantically modifies; a neighboring independent schedule item is not a target. A task time range supplies boundaries, not occurrence times. Leave schedule-only items alone.
+- Missing/unsafe details -> intent_type="clarify", no executable fields. Use same language.
 
 ### 当前用户消息
 {current_message}"""
