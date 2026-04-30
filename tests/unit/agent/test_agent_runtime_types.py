@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+import pytest
+
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
     TrustedCharacterContext,
@@ -32,7 +34,7 @@ def test_user_turn_input_is_explicit():
     )
 
     assert event.input_type == "user.turn"
-    assert event.payload.current_message_ids == ["msg-1"]
+    assert event.payload.current_message_ids == ("msg-1",)
     assert event.payload.check_new_message is True
 
 
@@ -117,7 +119,7 @@ def test_run_result_has_output_contract_fields():
     assert result.metrics["latency_ms"] == 12
     assert result.trace["runtime"] == "team"
     assert result.output_disposition.status == "ok"
-    assert result.output_disposition.output_references == ["out-1"]
+    assert result.output_disposition.output_references == ("out-1",)
 
 
 def test_runtime_error_disposition_expresses_error_handling():
@@ -132,12 +134,84 @@ def test_runtime_error_disposition_expresses_error_handling():
     assert error.user_visible_fallback == "I need a moment. Please try again."
 
 
-def test_default_metadata_collections_are_not_shared():
-    first = UserTurnPayload()
-    second = UserTurnPayload()
+def test_sequence_fields_are_immutable_after_construction():
+    payload = UserTurnPayload(current_message_ids=["msg-1"])
+    disposition = OutputDisposition(status="ok", output_references=["out-1"])
+    result = AgentRunResult(
+        visible_messages=[VisibleMessage(message_type="text", content="Done")],
+        post_analyze_input=None,
+        tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
+        metrics={},
+        trace={},
+        output_disposition=disposition,
+    )
 
-    first.metadata["k"] = "v"
-    first.current_message_ids.append("msg-1")
+    assert payload.current_message_ids == ("msg-1",)
+    assert disposition.output_references == ("out-1",)
+    assert isinstance(result.visible_messages, tuple)
+    assert isinstance(result.tool_results, tuple)
 
-    assert second.metadata == {}
-    assert second.current_message_ids == []
+    with pytest.raises(AttributeError):
+        payload.current_message_ids.append("msg-2")
+    with pytest.raises(AttributeError):
+        disposition.output_references.append("out-2")
+    with pytest.raises(AttributeError):
+        result.visible_messages.append(VisibleMessage(message_type="text", content="Nope"))
+
+
+def test_metadata_mappings_are_read_only_after_construction():
+    payload = UserTurnPayload(metadata={"outer": {"inner": "value"}})
+    result = AgentRunResult(
+        visible_messages=[VisibleMessage(message_type="text", content="Done")],
+        post_analyze_input={"messages": ["msg-1"]},
+        tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
+        metrics={"latency_ms": 12},
+        trace={"runtime": "team"},
+        output_disposition=OutputDisposition(status="ok"),
+    )
+
+    assert payload.metadata["outer"]["inner"] == "value"
+    assert result.post_analyze_input["messages"] == ("msg-1",)
+
+    with pytest.raises(TypeError):
+        payload.metadata["new"] = "value"
+    with pytest.raises(TypeError):
+        payload.metadata["outer"]["inner"] = "changed"
+    with pytest.raises(TypeError):
+        result.metrics["latency_ms"] = 13
+    with pytest.raises(TypeError):
+        result.trace["runtime"] = "other"
+    with pytest.raises(TypeError):
+        result.tool_results[0].content["id"] = "r2"
+
+
+@pytest.mark.parametrize(
+    ("input_type", "payload"),
+    [
+        ("user.turn", DeferredActionPayload(
+            action_id="action-1",
+            kind="follow_up",
+            scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+            revision=1,
+            prompt="Follow up.",
+        )),
+        ("reminder.fired", UserTurnPayload()),
+        ("deferred_action.fire", ReminderFirePayload(
+            fire_id="rem-1:2026-05-01T01:00:00+00:00",
+            reminder_id="rem-1",
+            title="drink water",
+            scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+        )),
+    ],
+)
+def test_agent_input_rejects_mismatched_input_type_and_payload(input_type, payload):
+    scheduled_for = datetime(2026, 5, 1, 1, 0, tzinfo=UTC)
+
+    with pytest.raises((TypeError, ValueError)):
+        AgentInput(
+            input_type=input_type,
+            conversation_id="conv-1",
+            text="wrong payload",
+            payload=payload,
+            occurred_at=scheduled_for,
+        )
