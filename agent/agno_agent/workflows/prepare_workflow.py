@@ -20,9 +20,8 @@ import logging
 import os
 import re
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from zoneinfo import ZoneInfo
 
 from agent.agno_agent.agents import (
     orchestrator_agent,
@@ -123,6 +122,10 @@ _CALENDAR_IMPORT_INTENT_PATTERNS = (
 _REMINDER_FIRST_PATTERNS = (
     re.compile(r"(提醒我|到时候|闹钟)"),
     re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
+)
+_EXPLICIT_REMINDER_REQUEST_PATTERNS = (
+    re.compile(r"(提醒我|提醒一下|叫我|通知我|闹钟|别忘了提醒|到时候提醒)"),
+    re.compile(r"\b(remind me|set a reminder|notify me|alarm)\b", re.IGNORECASE),
 )
 _CHECKIN_SUPERVISION_PATTERNS = (
     re.compile(r"(打卡|监督|督促|问问.{0,8}完成|检查.{0,8}完成)"),
@@ -351,6 +354,16 @@ class PrepareWorkflow:
             return True
 
         if session_state.get("prepare_orchestrator_timeout"):
+            if self._looks_like_explicit_reminder_request(input_message):
+                logger.info(
+                    "[PrepareWorkflow] Orchestrator timed out, "
+                    "but explicit reminder text requires ReminderDetect"
+                )
+                orchestrator["need_reminder_detect"] = True
+                session_state["prepare_reminder_detect_route_hint"] = (
+                    "orchestrator_timeout_reminder_text"
+                )
+                return True
             return False
 
         if self._looks_like_listed_routine_reminder_request(input_message):
@@ -372,6 +385,15 @@ class PrepareWorkflow:
             return True
 
         return need_reminder
+
+    @staticmethod
+    def _looks_like_explicit_reminder_request(input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(
+            pattern.search(text) for pattern in _EXPLICIT_REMINDER_REQUEST_PATTERNS
+        )
 
     @staticmethod
     def _looks_like_checkin_cadence_request(input_message: str) -> bool:
@@ -741,25 +763,6 @@ class PrepareWorkflow:
 
             # 续期锁
             self._renew_lock_if_needed(session_state)
-
-            # 构建并执行 ReminderDetectAgent
-            deterministic_decision = self._deterministic_reminder_decision(
-                input_message,
-                session_state,
-            )
-            if deterministic_decision is not None:
-                if deterministic_decision.schedule_basis == "explicit_occurrences":
-                    route_hint = "deterministic_listed_routine"
-                else:
-                    route_hint = "deterministic_checkin_cadence"
-                session_state["prepare_reminder_detect_route_hint"] = route_hint
-                self._execute_structured_reminder_decision(
-                    deterministic_decision,
-                    session_state,
-                    input_message,
-                )
-                self._log_reminder_result(None, session_state)
-                return
 
             reminder_input = self._build_reminder_input(input_message, session_state)
             logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT")
@@ -1228,194 +1231,6 @@ class PrepareWorkflow:
             current_message=current_message,
         )
 
-    def _deterministic_checkin_cadence_decision(
-        self,
-        current_message: str,
-        session_state: dict,
-    ) -> ReminderDetectDecision | None:
-        text = str(current_message or "").strip()
-        if not self._looks_like_checkin_cadence_request(text):
-            return None
-        if not re.search(r"每\s*(?:个)?小时|hourly|every\s+hour", text, re.IGNORECASE):
-            return None
-        if re.search(r"(从|开始).{0,8}\d{1,2}\s*(?:点|:|：)", text):
-            return None
-
-        local_now = self._current_local_datetime(session_state)
-        if local_now is None:
-            return None
-        deadline = self._same_day_deadline_from_text(text, local_now)
-        if deadline is None:
-            return None
-
-        first_fire = local_now.replace(minute=0, second=0, microsecond=0)
-        if first_fire <= local_now:
-            first_fire += timedelta(hours=1)
-
-        operations: list[dict[str, str]] = []
-        current = first_fire
-        while current < deadline:
-            operations.append(
-                {
-                    "action": "create",
-                    "title": "打卡",
-                    "trigger_at": current.isoformat(),
-                }
-            )
-            current += timedelta(hours=1)
-
-        if not operations:
-            return None
-
-        return ReminderDetectDecision(
-            intent_type="crud",
-            action="batch",
-            deadline_at=deadline.isoformat(),
-            schedule_basis="explicit_cadence",
-            schedule_evidence="每小时打卡，到晚上8点",
-            operations=operations,
-        )
-
-    def _deterministic_reminder_decision(
-        self,
-        current_message: str,
-        session_state: dict,
-    ) -> ReminderDetectDecision | None:
-        listed_routine = self._deterministic_listed_routine_decision(
-            current_message,
-            session_state,
-        )
-        if listed_routine is not None:
-            return listed_routine
-        return self._deterministic_checkin_cadence_decision(
-            current_message,
-            session_state,
-        )
-
-    def _deterministic_listed_routine_decision(
-        self,
-        current_message: str,
-        session_state: dict,
-    ) -> ReminderDetectDecision | None:
-        text = str(current_message or "").strip()
-        if not self._looks_like_listed_routine_reminder_request(text):
-            return None
-
-        local_now = self._current_local_datetime(session_state)
-        if local_now is None:
-            return None
-
-        time_matches = list(
-            re.finditer(
-                r"(?:早上|上午|中午|下午|晚上|今晚)?\s*\d{1,2}\s*[:：]\s*\d{1,2}",
-                text,
-            )
-        )
-        if len(time_matches) < 2:
-            return None
-
-        operations: list[dict[str, str]] = []
-        for index, match in enumerate(time_matches):
-            next_start = (
-                time_matches[index + 1].start()
-                if index + 1 < len(time_matches)
-                else len(text)
-            )
-            title = self._routine_title_after_time(text[match.end() : next_start])
-            trigger_at = self._routine_trigger_at(match.group(0), local_now)
-            if not title or trigger_at is None:
-                return None
-            operations.append(
-                {
-                    "action": "create",
-                    "title": title,
-                    "trigger_at": trigger_at.isoformat(),
-                    "rrule": "FREQ=DAILY",
-                }
-            )
-
-        return ReminderDetectDecision(
-            intent_type="crud",
-            action="batch",
-            schedule_basis="explicit_occurrences",
-            schedule_evidence="listed habitual routine times",
-            operations=operations,
-        )
-
-    @staticmethod
-    def _routine_title_after_time(fragment: str) -> str:
-        title = re.split(r"[。；;，,\n]", str(fragment), maxsplit=1)[0]
-        title = re.sub(r"\s+", "", title.strip())
-        return title
-
-    @staticmethod
-    def _routine_trigger_at(time_text: str, local_now: datetime) -> datetime | None:
-        match = re.search(
-            r"(早上|上午|中午|下午|晚上|今晚)?\s*(?P<hour>\d{1,2})\s*[:：]\s*(?P<minute>\d{1,2})",
-            time_text,
-        )
-        if not match:
-            return None
-        hour = int(match.group("hour"))
-        minute = int(match.group("minute"))
-        marker = match.group(1) or ""
-        if marker in {"下午", "晚上", "今晚"} and hour < 12:
-            hour += 12
-        if marker == "上午" and hour == 12:
-            hour = 0
-        if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            return None
-        trigger_at = local_now.replace(
-            hour=hour,
-            minute=minute,
-            second=0,
-            microsecond=0,
-        )
-        if trigger_at <= local_now:
-            trigger_at += timedelta(days=1)
-        return trigger_at
-
-    @staticmethod
-    def _current_local_datetime(session_state: dict) -> datetime | None:
-        time_str = (
-            session_state.get("conversation", {})
-            .get("conversation_info", {})
-            .get("time_str", "")
-        )
-        user = session_state.get("user", {})
-        timezone_name = user.get("effective_timezone") or user.get("timezone")
-        try:
-            tz = ZoneInfo(str(timezone_name or ""))
-        except Exception:
-            return None
-        try:
-            parsed = datetime.strptime(str(time_str), "%Y年%m月%d日%H时%M分")
-        except ValueError:
-            return None
-        return parsed.replace(tzinfo=tz)
-
-    @staticmethod
-    def _same_day_deadline_from_text(text: str, local_now: datetime) -> datetime | None:
-        match = re.search(
-            r"(?:到|直到|持续到|截止到)\s*(上午|下午|晚上|今晚|今天|明天)?\s*"
-            r"(?P<hour>\d{1,2})\s*(?::|：|点)",
-            text,
-        )
-        if not match:
-            return None
-        hour = int(match.group("hour"))
-        marker = match.group(1) or ""
-        if marker in {"下午", "晚上", "今晚"} and hour < 12:
-            hour += 12
-        if marker == "上午" and hour == 12:
-            hour = 0
-        if not 0 <= hour <= 23:
-            return None
-        deadline = local_now.replace(hour=hour, minute=0, second=0, microsecond=0)
-        if marker == "明天" or deadline <= local_now:
-            deadline += timedelta(days=1)
-        return deadline
-
     def _build_reminder_retry_input(
         self, current_message: str, session_state: dict, *, reason: str
     ) -> str:
@@ -1436,10 +1251,17 @@ class PrepareWorkflow:
 Retry reason: {reason}
 Use the ReminderDetect system instructions already attached to this agent.
 Return only a valid ReminderDetectDecision for the current user message.
+Do not invent, rename, merge, or concatenate schema field names.
+Never output keys like intentaction; use intent_type and action separately.
+action must be exactly one of create, update, delete, complete, batch, list, or empty.
 Do not use conversation history or infer missing details from prior turns.
+A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
+Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
+Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
 For same-message listed routine times plus a reminder request, use action="batch",
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
 Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
+When the user explicitly lists multiple reminder times and tasks, create each requested reminder even if times are close together; do not ask whether to merge them.
 
 ### 当前用户消息
 {current_message}"""

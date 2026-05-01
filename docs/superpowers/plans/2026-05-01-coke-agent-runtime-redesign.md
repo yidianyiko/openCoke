@@ -8,6 +8,14 @@
 
 **Tech Stack:** Python 3.12, pytest, Agno 2.5.9, Mongo-backed DAO layer, existing runner/reminder/deferred-action services, current PM2/local runtime for smoke tests.
 
+**Status 2026-05-02:** Completed through the safe B.2 entry point described at
+the end of this plan. The typed runtime boundary, runtime selector, Team
+skeleton gate, deterministic adapters, replay/idempotency guards, and
+verification evidence are in place. B.2 Team Runtime Implementation, B.3
+Runtime Event Migration, and B.4 Cutover And Deletion remain intentionally
+separate follow-up plans; do not treat this plan as authorizing deletion of
+`PrepareWorkflow`, `StreamingChatWorkflow`, or `OrchestratorAgent`.
+
 ---
 
 ## Scope And Execution Notes

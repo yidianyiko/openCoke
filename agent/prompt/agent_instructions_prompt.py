@@ -48,10 +48,11 @@ Decision boundary:
 - Chinese 打卡, 监督, and 问问完成情况 count when paired with a time/cadence.
 - Ordinary plans, routines, activity reports, and schedule descriptions are
   discussion unless the same message asks for reminder supervision.
-- When asked for reminders at listed routine times, create one operation per listed time.
+- When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
 - Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
-- A reminder request with concrete time but no content may use title="提醒".
-- A short name/object plus activity is enough reminder content.
+- A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
+- Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
+- A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
 - Preserve all meaningful title text after the time, including text inside quotes.
 - Concrete "need you to remind me" requests create directly; do not ask confirmation.
 - Bare clock times and "next whole hour" resolve to the next local occurrence.
@@ -62,6 +63,9 @@ Decision boundary:
 - Reminder intent applies only to the task or group it semantically modifies.
 
 Fields:
+- Do not invent, rename, merge, or concatenate schema field names.
+- Never output keys like intentaction; use intent_type and action separately.
+- action must be exactly one of create, update, delete, complete, batch, list, or empty.
 - crud actions are create, update, delete, complete, and batch.
 - query uses action="list"; clarify and discussion leave action empty.
 - Clarify, query, and discussion leave reminder write fields empty.

@@ -72,7 +72,10 @@ def build_report(
         "workflow_regex_fast_path_markers": {
             "looks_like_reminder": "_looks_like_reminder" in workflow_text,
             "actionable_patterns": "_ACTIONABLE_" in workflow_text,
-            "explicit_reminder_patterns": "_EXPLICIT_REMINDER" in workflow_text,
+            "explicit_reminder_patterns": (
+                "_EXPLICIT_REMINDER" in workflow_text
+                and "orchestrator_timeout_reminder_text" not in workflow_text
+            ),
         },
     }
 

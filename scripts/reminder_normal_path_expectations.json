@@ -6,11 +6,35 @@
     },
     "1": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit multi-create reminder request with casual suffixes on the reminder titles."
+      "evaluation_reason": "Explicit multi-create reminder request with casual suffixes on the reminder titles.",
+      "expected_creates": [
+        {
+          "title": "喝水",
+          "title_variants": [
+            "喝水呀"
+          ],
+          "local_time": "17:57:00",
+          "recurring": false
+        },
+        {
+          "title": "锻炼",
+          "title_variants": [
+            "锻炼呀"
+          ],
+          "local_time": "17:58:00",
+          "recurring": true
+        }
+      ]
     },
     "2": {
-      "evaluation_expectation": "discussion",
-      "evaluation_reason": "Explicit reminder request, but this baseline accepts a safe retry/fallback response when Prepare times out before reminder detection; it must not claim setup without a reminder record."
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit reminder request with a concrete local time and title; recurrence is not asserted because the source wording is noisy.",
+      "expected_creates": [
+        {
+          "title": "学英语",
+          "local_time": "18:00:00"
+        }
+      ]
     },
     "3": {
       "evaluation_expectation": "crud",
