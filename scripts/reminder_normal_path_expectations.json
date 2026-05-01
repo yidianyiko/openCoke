@@ -1,5 +1,49 @@
 {
   "cases": {
+    "0": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit multi-create reminder request with one one-shot time and one daily recurring time."
+    },
+    "1": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit multi-create reminder request with casual suffixes on the reminder titles."
+    },
+    "2": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "Explicit reminder request, but this baseline accepts a safe retry/fallback response when Prepare times out before reminder detection; it must not claim setup without a reminder record."
+    },
+    "3": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit multi-create reminder request with one one-shot reminder and one daily recurring reminder."
+    },
+    "4": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title."
+    },
+    "5": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a reminder time but no reminder content; the agent should ask what to remind about instead of creating a generic reminder."
+    },
+    "6": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request using a Chinese period-of-day time expression."
+    },
+    "7": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit English relative-time reminder request."
+    },
+    "13": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request using an English 8pm time expression."
+    },
+    "14": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title."
+    },
+    "18": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete start time and title."
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

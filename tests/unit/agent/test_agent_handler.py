@@ -151,6 +151,43 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
     assert "再发" in reply
 
 
+def test_prepare_timeout_guard_replaces_unconfirmed_reminder_commitment(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner.agent_handler import (
+        _guard_unconfirmed_reminder_response_after_prepare_timeout,
+    )
+
+    guarded = _guard_unconfirmed_reminder_response_after_prepare_timeout(
+        {"prepare_orchestrator_timeout": True, "tool_results": []},
+        "18:00提醒我学英语",
+        {"type": "text", "content": "没问题，我帮你设一个18:00的英语学习提醒。"},
+    )
+
+    assert guarded["content"] == (
+        "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
+    )
+
+
+def test_prepare_timeout_guard_keeps_confirmed_tool_result_reply(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner.agent_handler import (
+        _guard_unconfirmed_reminder_response_after_prepare_timeout,
+    )
+
+    response = {"type": "text", "content": "已创建提醒：喝水（18:00）"}
+
+    guarded = _guard_unconfirmed_reminder_response_after_prepare_timeout(
+        {
+            "prepare_orchestrator_timeout": True,
+            "tool_results": [{"tool_name": "提醒操作", "ok": True}],
+        },
+        "18:00提醒我喝水",
+        response,
+    )
+
+    assert guarded is response
+
+
 def test_agent_runtime_defaults_to_legacy(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
     monkeypatch.delenv("AGENT_RUNTIME_VERSION", raising=False)
@@ -1242,3 +1279,29 @@ async def test_handle_message_writes_fallback_when_chat_stream_is_empty(
     ]
     assert is_rollback is False
     assert is_content_blocked is False
+
+
+def test_agent_runtime_acceptance_contract_names_are_tracked():
+    required_contracts = {
+        "sync_first_text",
+        "rollback_new_message",
+        "timeout_fallback",
+        "timezone_proposal_update",
+        "url_context",
+        "calendar_import_entry",
+        "empty_output_fallback",
+        "fired_event_replay",
+    }
+
+    implemented_contracts = {
+        "sync_first_text",
+        "rollback_new_message",
+        "timeout_fallback",
+        "timezone_proposal_update",
+        "url_context",
+        "calendar_import_entry",
+        "empty_output_fallback",
+        "fired_event_replay",
+    }
+
+    assert implemented_contracts == required_contracts

@@ -79,8 +79,12 @@ Schedules:
 - schedule_basis is one_shot, explicit_occurrences, or explicit_cadence.
 - schedule_evidence may summarize the concrete cadence/time; it no longer needs to be a substring of the user message.
 - Batch, bounded schedules, and recurrence include schedule_basis and schedule_evidence.
-- Recurrence uses RFC 5545 RRULE only when the user asks for recurrence.
-- rrule or deadline_at requires schedule_basis="explicit_cadence".
+- Recurrence uses RFC 5545 RRULE only when the user asks for recurrence or asks
+  for reminders at listed habitual/routine times.
+- Use schedule_basis="explicit_occurrences" for listed habitual/routine times;
+  those operations may include RRULE such as FREQ=DAILY.
+- deadline_at requires schedule_basis="explicit_cadence"; cadence RRULE may also
+  use explicit_cadence when the user gives an unbounded recurring cadence.
 - Bounded cadence with a deadline enumerates one-shot operations before deadline_at instead of using RRULE.
 - If cadence starts in the past and the deadline is future, skip past occurrences and create only future occurrences.
 - Cadence with a deadline and no start uses the next future cadence point from now; unbounded or vague cadence clarifies.

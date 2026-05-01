@@ -421,6 +421,36 @@ def _guard_pending_reminder_stop_response(
     return guarded
 
 
+def _guard_unconfirmed_reminder_response_after_prepare_timeout(
+    context: dict, input_message: str, multimodal_response: dict
+) -> dict:
+    if context.get("prepare_orchestrator_timeout") is not True:
+        return multimodal_response
+    if multimodal_response.get("type", "text") != "text":
+        return multimodal_response
+    if any(
+        result.get("tool_name") == "提醒操作"
+        for result in context.get("tool_results") or []
+        if isinstance(result, dict)
+    ):
+        return multimodal_response
+    if not re.search(
+        r"(提醒|叫我|通知|闹钟|\bremind\b|\balarm\b)", str(input_message), re.I
+    ):
+        return multimodal_response
+
+    content = str(multimodal_response.get("content") or "")
+    if not re.search(
+        r"(帮你|我来|我会|我给你|已经|已).{0,16}(设|设置|创建|记|提醒|安排)",
+        content,
+    ):
+        return multimodal_response
+
+    guarded = dict(multimodal_response)
+    guarded["content"] = _chat_response_timeout_fallback(input_message, context)
+    return guarded
+
+
 def _has_pending_reminder_stop_without_tool_result(context: dict) -> bool:
     if context.get("prepare_reminder_intent_hint") != "stop_or_cancel":
         return False
@@ -699,6 +729,9 @@ async def handle_message(
                             multimodal_response = event["data"]
                             multimodal_response = _guard_pending_reminder_stop_response(
                                 context, multimodal_response
+                            )
+                            multimodal_response = _guard_unconfirmed_reminder_response_after_prepare_timeout(
+                                context, input_message_str, multimodal_response
                             )
                             multimodal_responses_index += 1
                             all_multimodal_responses.append(multimodal_response)

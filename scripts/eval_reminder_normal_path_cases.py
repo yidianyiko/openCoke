@@ -676,7 +676,11 @@ def validate_observations(
         outputs,
         judge=unconfirmed_reminder_judge,
     ):
-        errors.append("user_output_implies_unconfirmed_reminder")
+        if not output_is_pure_reminder_clarification(
+            outputs,
+            case_input=case.input,
+        ):
+            errors.append("user_output_implies_unconfirmed_reminder")
     if expectation in {"clarify", "capability", "discussion", "query"}:
         if reminders:
             errors.append("unexpected_reminder_created")
@@ -1119,7 +1123,67 @@ def output_mentions_clarification(
     output_text = combined_output_text(outputs)
     if not output_text.strip():
         return False
+    if judge is None and deterministic_output_mentions_clarification(
+        case_input, output_text
+    ):
+        return True
     return bool((judge or run_clarification_output_judge)(case_input, output_text))
+
+
+def deterministic_output_mentions_clarification(
+    case_input: str, output_text: str
+) -> bool:
+    """Recognize clear reminder clarification replies without an LLM judge."""
+    normalized = output_text.strip()
+    if not normalized:
+        return False
+    if re.search(
+        r"(已创建提醒|提醒(已经|已)?(设好|设置好了|安排好了)|已经安排好了)", normalized
+    ):
+        return False
+
+    asks_question = bool(
+        re.search(
+            r"[?？]|请问|告诉我|确认|你希望|你想|想要|要不要|是否|还是|几点|"
+            r"什么时间|什么内容|哪天|哪条|哪个|多久|多频繁|频率|提前多久|怎么样|对吗",
+            normalized,
+        )
+    )
+    if not asks_question:
+        return False
+
+    reminder_detail = bool(
+        re.search(
+            r"提醒|时间|几点|日期|哪天|什么时候|频率|多频繁|多久|每小时|每天|"
+            r"结束|开始|提前|内容|事情|具体|取消|删除|停止|关掉",
+            normalized,
+        )
+    )
+    user_requested_reminder = bool(re.search(r"提醒|叫|通知|remind", case_input, re.I))
+    return reminder_detail or user_requested_reminder
+
+
+def output_is_pure_reminder_clarification(
+    outputs: list[dict[str, Any]],
+    *,
+    case_input: str = "",
+) -> bool:
+    output_text = combined_output_text(outputs)
+    if not deterministic_output_mentions_clarification(case_input, output_text):
+        return False
+    return not bool(
+        re.search(
+            r"已创建提醒|"
+            r"提醒(已经|已)?(设好|设置好了|安排好了)|"
+            r"已经安排好了|"
+            r"我(会|准时|到时候|按时).{0,12}(提醒|通知|叫|喊|催|call|nudge)|"
+            r"(到时候|准时|按时).{0,12}(提醒|通知|叫|喊|催)|"
+            r"帮你(设|设置|安排|记).{0,12}提醒|"
+            r"(记下|记好了|记好|安排上|设好)",
+            output_text,
+            re.IGNORECASE,
+        )
+    )
 
 
 def output_mentions_crud_operation_clarification(
@@ -1457,6 +1521,7 @@ def run_batch(
     timezone_name: str,
     use_case_timestamp: bool,
     transport: str,
+    serial: bool = True,
 ) -> dict[str, Any]:
     cases = select_cases(all_cases, offset=offset, limit=limit)
     character_id, user_ids = seed_normal_path_identities(
@@ -1466,24 +1531,51 @@ def run_batch(
         timezone_name=timezone_name,
         character_alias=character_alias,
     )
-    submitted = submit_cases(
-        db,
-        cases,
-        offset=offset,
-        character_id=character_id,
-        platform=platform,
-        batch_id=batch_id,
-        timezone_name=timezone_name,
-        use_case_timestamp=use_case_timestamp,
-        transport=transport,
-    )
-    results = collect_results(
-        db,
-        submitted,
-        character_id=character_id,
-        platform=platform,
-        timeout_seconds=timeout_seconds,
-    )
+    if serial:
+        submitted: dict[int, dict[str, Any]] = {}
+        results: list[ReminderNormalPathResult] = []
+        for local_index, case in enumerate(cases):
+            case_offset = offset + local_index
+            case_submitted = submit_cases(
+                db,
+                [case],
+                offset=case_offset,
+                character_id=character_id,
+                platform=platform,
+                batch_id=batch_id,
+                timezone_name=timezone_name,
+                use_case_timestamp=use_case_timestamp,
+                transport=transport,
+            )
+            submitted.update(case_submitted)
+            results.extend(
+                collect_results(
+                    db,
+                    case_submitted,
+                    character_id=character_id,
+                    platform=platform,
+                    timeout_seconds=timeout_seconds,
+                )
+            )
+    else:
+        submitted = submit_cases(
+            db,
+            cases,
+            offset=offset,
+            character_id=character_id,
+            platform=platform,
+            batch_id=batch_id,
+            timezone_name=timezone_name,
+            use_case_timestamp=use_case_timestamp,
+            transport=transport,
+        )
+        results = collect_results(
+            db,
+            submitted,
+            character_id=character_id,
+            platform=platform,
+            timeout_seconds=timeout_seconds,
+        )
     return {
         "offset": offset,
         "limit": limit,
@@ -1491,6 +1583,7 @@ def run_batch(
         "platform": platform,
         "character_id": character_id,
         "user_ids": user_ids,
+        "serial": serial,
         "summary": summarize(results),
         "results": [asdict(result) for result in results],
     }
@@ -1521,6 +1614,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--run-all", action="store_true")
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--continue-on-failure", action="store_true")
+    parser.add_argument(
+        "--parallel-submit",
+        action="store_true",
+        help=(
+            "Submit all cases in a batch before collecting results. By default, "
+            "cases run serially so the normal single-worker PM2 runtime is not "
+            "measured as input_pending/no_user_output queue starvation."
+        ),
+    )
     parser.add_argument("--timeout-seconds", type=float, default=180)
     parser.add_argument(
         "--case-timeout-seconds",
@@ -1547,6 +1649,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--character-alias", default=None)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
+
+
+def default_evidence_path(*, run_id: str) -> Path:
+    safe_run_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", run_id).strip("-")
+    return Path("tasks/evidence/reminder-normal") / f"{safe_run_id}.json"
 
 
 def main() -> int:
@@ -1583,6 +1690,7 @@ def main() -> int:
                 timezone_name=args.timezone,
                 use_case_timestamp=args.use_case_timestamps,
                 transport=args.transport,
+                serial=not args.parallel_submit,
             )
             batches.append(batch_payload)
             all_results.extend(batch_payload["results"])
@@ -1603,6 +1711,7 @@ def main() -> int:
             "run_id": run_id,
             "platform": platform,
             "transport": args.transport,
+            "serial": not args.parallel_submit,
             "summary": summary,
             "batches": batches,
             "results": all_results,
@@ -1621,6 +1730,7 @@ def main() -> int:
             timezone_name=args.timezone,
             use_case_timestamp=args.use_case_timestamps,
             transport=args.transport,
+            serial=not args.parallel_submit,
         )
         payload = {
             "cases": str(args.cases),
@@ -1635,9 +1745,9 @@ def main() -> int:
             **batch_payload,
         }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text + "\n", encoding="utf-8")
+    output_path = args.output or default_evidence_path(run_id=run_id)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(text + "\n", encoding="utf-8")
     print(text)
     return 0 if payload["summary"]["failed"] == 0 else 1
 

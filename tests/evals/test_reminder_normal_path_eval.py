@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from bson import ObjectId
@@ -112,6 +113,76 @@ def test_iter_case_batches_applies_total_limit_before_chunking():
         normal_eval.CaseBatch(offset=10, limit=32),
         normal_eval.CaseBatch(offset=42, limit=1),
     ]
+
+
+def test_default_evidence_path_sanitizes_run_id():
+    assert normal_eval.default_evidence_path(run_id="batch/id:1").as_posix() == (
+        "tasks/evidence/reminder-normal/batch-id-1.json"
+    )
+
+
+def test_main_writes_default_evidence_and_uses_serial_batches(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    class FakeClient:
+        admin = SimpleNamespace(command=lambda _command: None)
+
+        def __getitem__(self, _name):
+            return object()
+
+    captured = {}
+
+    def fake_run_batch(**kwargs):
+        captured["serial"] = kwargs["serial"]
+        return {
+            "offset": kwargs["offset"],
+            "limit": kwargs["limit"],
+            "batch_id": kwargs["batch_id"],
+            "platform": kwargs["platform"],
+            "character_id": "char-1",
+            "user_ids": [],
+            "serial": kwargs["serial"],
+            "summary": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "pass_rate": 0,
+                "by_error": {},
+                "failures": [],
+            },
+            "results": [],
+        }
+
+    monkeypatch.setattr(
+        normal_eval,
+        "_parse_args",
+        lambda: SimpleNamespace(
+            cases=normal_eval.DEFAULT_CASES_PATH,
+            offset=0,
+            limit=1,
+            run_all=False,
+            batch_size=32,
+            continue_on_failure=False,
+            parallel_submit=False,
+            timeout_seconds=180,
+            timezone="Asia/Tokyo",
+            use_case_timestamps=False,
+            platform=None,
+            transport="business-clawscale",
+            batch_id="unit evidence",
+            character_alias=None,
+            output=None,
+        ),
+    )
+    monkeypatch.setattr(normal_eval, "load_cases", lambda _path: [])
+    monkeypatch.setattr(normal_eval, "mongo_client", lambda: FakeClient())
+    monkeypatch.setattr(
+        normal_eval, "run_batch", lambda *args, **kwargs: fake_run_batch(**kwargs)
+    )
+
+    assert normal_eval.main() == 0
+    assert captured["serial"] is True
+    assert (tmp_path / "tasks/evidence/reminder-normal/unit-evidence.json").exists()
 
 
 def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(
@@ -856,7 +927,11 @@ def test_clarification_output_accepts_when_question_with_injected_judge():
     errors = normal_eval.validate_observations(
         case,
         "handled",
-        outputs=[{"message": "你想什么时候提醒你喝水？比如每天的某个时间，或者每隔几个小时？"}],
+        outputs=[
+            {
+                "message": "你想什么时候提醒你喝水？比如每天的某个时间，或者每隔几个小时？"
+            }
+        ],
         reminders=[],
         clarification_judge=lambda case_input, output_text: calls.append(
             (case_input, output_text)
@@ -975,6 +1050,48 @@ def test_clarification_output_uses_injected_llm_rejection():
     )
 
 
+@pytest.mark.parametrize(
+    ("case_input", "output_text"),
+    [
+        ("明天继续提醒我看文章", "明天几点提醒你看文章和写小说呢？"),
+        ("可以提醒我喝水哦", "请问要在什么时间提醒你喝水呢？"),
+        ("本周六订蛋糕提醒", "我得先确认一下，本周六你打算什么时间去订蛋糕？"),
+        (
+            "提醒我学习进度如何？",
+            "您希望我何时提醒您检查学习进度？例如一个具体的时间或日期。",
+        ),
+        (
+            "随时提醒我让我专注",
+            "你说10:13到11:00写个人陈述，想要多频繁提醒你？",
+        ),
+        (
+            "你觉得多久提醒我一下鼓励我学习呢",
+            "如果五点二十五开始提醒你怎么样？",
+        ),
+    ],
+)
+def test_clarification_output_uses_deterministic_fallback_for_clear_questions(
+    case_input, output_text
+):
+    assert (
+        normal_eval.output_mentions_clarification(
+            [{"message": output_text}],
+            case_input=case_input,
+        )
+        is True
+    )
+
+
+def test_clarification_output_deterministic_fallback_rejects_setup_claim():
+    assert (
+        normal_eval.output_mentions_clarification(
+            [{"message": "已创建提醒：写作（明天 10:00）"}],
+            case_input="明天提醒我写作",
+        )
+        is False
+    )
+
+
 def test_clarification_output_llm_judge_timeout_returns_false(monkeypatch):
     class SlowJudge:
         def run(self, _prompt):
@@ -1054,6 +1171,25 @@ def test_discussion_output_rejects_unconfirmed_future_reminder_commitment():
     )
 
     assert "user_output_implies_unconfirmed_reminder" in errors
+
+
+def test_clarification_question_is_not_treated_as_unconfirmed_reminder_commitment():
+    case = normal_eval.ReminderNormalPathCase(
+        input="晚上10点提醒我",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={"evaluation_expectation": "clarify"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "晚上十点提醒你是吧，想让我提醒你做什么事？"}],
+        reminders=[],
+        unconfirmed_reminder_judge=lambda text: True,
+    )
+
+    assert errors == []
 
 
 def test_unconfirmed_reminder_output_judge_uses_injected_llm_decision():
@@ -1157,7 +1293,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 70
+    assert len(expectations) <= 80
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1173,10 +1309,10 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 63
-    assert selected[0].metadata["_case_index"] == 73
+    assert len(selected) == 74
+    assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
-    assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 73
+    assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
@@ -1213,7 +1349,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 70
+    assert report["fixture_overrides"] <= 80
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
