@@ -1,0 +1,318 @@
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from agent.agno_agent.adapters import ReminderCommandExecutor
+from agent.agno_agent.runtime.context import (
+    AgentRunContext,
+    TrustedCharacterContext,
+    TrustedConversationContext,
+    TrustedRelationContext,
+    TrustedUserContext,
+)
+from agent.agno_agent.schemas.reminder_detect_schema import (
+    ReminderDetectDecision,
+    ReminderOperation,
+)
+from agent.reminder.models import (
+    AgentOutputTarget,
+    Reminder,
+    ReminderCreateCommand,
+    ReminderQuery,
+    ReminderSchedule,
+)
+
+
+def _run_context() -> AgentRunContext:
+    return AgentRunContext(
+        user=TrustedUserContext(
+            id="user-1",
+            nickname="User",
+            timezone="Asia/Tokyo",
+        ),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1",
+            platform="business",
+            route_key="route-1",
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: remind me to hydrate",
+        current_time=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+    )
+
+
+def _schedule(anchor_at: datetime | None = None) -> ReminderSchedule:
+    anchor_at = anchor_at or datetime(2026, 5, 1, 0, 30, tzinfo=UTC)
+    return ReminderSchedule(
+        anchor_at=anchor_at,
+        local_date=anchor_at.date(),
+        local_time=anchor_at.time().replace(tzinfo=None),
+        timezone="Asia/Tokyo",
+        rrule=None,
+    )
+
+
+def _reminder(
+    *,
+    reminder_id: str = "rem-1",
+    owner_user_id: str = "user-1",
+    title: str = "hydrate",
+    reminder_schedule: ReminderSchedule | None = None,
+    target: AgentOutputTarget | None = None,
+) -> Reminder:
+    now = datetime(2026, 5, 1, 1, 0, tzinfo=UTC)
+    return Reminder(
+        id=reminder_id,
+        owner_user_id=owner_user_id,
+        title=title,
+        schedule=reminder_schedule or _schedule(),
+        agent_output_target=target
+        or AgentOutputTarget(
+            conversation_id="conv-1",
+            character_id="char-1",
+            route_key="route-1",
+        ),
+        created_by_system="agent",
+        lifecycle_state="active",
+        next_fire_at=now,
+        last_fired_at=None,
+        last_event_ack_at=None,
+        last_error=None,
+        created_at=now,
+        updated_at=now,
+        completed_at=None,
+        cancelled_at=None,
+        failed_at=None,
+    )
+
+
+class FakeReminderService:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def create(
+        self,
+        *,
+        owner_user_id: str,
+        command: ReminderCreateCommand,
+    ) -> Reminder:
+        self.calls.append(
+            ("create", {"owner_user_id": owner_user_id, "command": command})
+        )
+        return _reminder(
+            owner_user_id=owner_user_id,
+            title=command.title,
+            reminder_schedule=command.schedule,
+            target=command.agent_output_target,
+        )
+
+    def list_for_user(
+        self,
+        *,
+        owner_user_id: str,
+        query: ReminderQuery,
+    ) -> list[Reminder]:
+        self.calls.append(
+            ("list_for_user", {"owner_user_id": owner_user_id, "query": query})
+        )
+        return []
+
+
+def _visible_reminder_raw_function():
+    from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
+
+    entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
+    return getattr(entrypoint, "raw_function", entrypoint)
+
+
+def test_success_calls_tool_once_with_decision_fields_and_session_state():
+    calls = []
+    session_states = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return "Reminder created."
+
+    def set_session_state(session_state):
+        session_states.append(session_state)
+
+    decision = SimpleNamespace(
+        action="create",
+        title="hydrate",
+        trigger_at="2026-05-01T09:00:00+09:00",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=set_session_state,
+    ).execute(
+        decision,
+        _run_context(),
+    )
+
+    assert result.name == "reminder"
+    assert result.ok is True
+    assert result.content == {
+        "summary": "Reminder created.",
+        "owner_user_id": "user-1",
+        "conversation_id": "conv-1",
+    }
+    assert calls == [
+        {
+            "action": "create",
+            "title": "hydrate",
+            "trigger_at": "2026-05-01T09:00:00+09:00",
+            "reminder_id": None,
+            "keyword": None,
+            "new_title": None,
+            "new_trigger_at": None,
+            "rrule": None,
+            "operations": None,
+        }
+    ]
+    assert session_states == [
+        {
+            "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+            "character": {"id": "char-1"},
+            "conversation": {"id": "conv-1", "route_key": "route-1"},
+            "platform": "business",
+            "route_key": "route-1",
+            "delivery_route_key": "route-1",
+        }
+    ]
+
+
+def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return "Reminder updated."
+
+    decision = {
+        "action": "update",
+        "reminder_id": "rem-1",
+        "keyword": "hydrate",
+        "new_title": "drink water",
+        "new_trigger_at": "2026-05-01T10:00:00+09:00",
+        "rrule": "FREQ=DAILY",
+        "operations": [],
+    }
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(
+        decision,
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "Reminder updated."
+    assert calls[0]["action"] == "update"
+    assert calls[0]["title"] is None
+    assert calls[0]["reminder_id"] == "rem-1"
+    assert calls[0]["keyword"] == "hydrate"
+    assert calls[0]["new_title"] == "drink water"
+    assert calls[0]["new_trigger_at"] == "2026-05-01T10:00:00+09:00"
+    assert calls[0]["rrule"] == "FREQ=DAILY"
+    assert calls[0]["operations"] is None
+
+
+def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import agent.agno_agent.tools.reminder_protocol.tool as tool_module
+
+    service = FakeReminderService()
+    monkeypatch.setattr(tool_module, "ReminderService", lambda: service)
+
+    result = ReminderCommandExecutor(_visible_reminder_raw_function()).execute(
+        SimpleNamespace(
+            action="create",
+            title="hydrate",
+            trigger_at="2026-05-01T09:00:00+09:00",
+        ),
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：hydrate（2026-05-01 09:00）"
+    [create_call] = service.calls
+    assert create_call[0] == "create"
+    assert create_call[1]["owner_user_id"] == "user-1"
+    command = create_call[1]["command"]
+    assert command.schedule.timezone == "Asia/Tokyo"
+    assert command.agent_output_target == AgentOutputTarget(
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key="route-1",
+    )
+
+
+def test_batch_operations_from_reminder_detect_decision_are_dicts():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return "Reminder created."
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="remind me at 9",
+        operations=[
+            ReminderOperation(
+                action="create",
+                title="hydrate",
+                trigger_at="2026-05-01T09:00:00+09:00",
+            )
+        ],
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.ok is True
+    assert calls[0]["operations"] == [
+        {
+            "action": "create",
+            "title": "hydrate",
+            "trigger_at": "2026-05-01T09:00:00+09:00",
+            "reminder_id": "",
+            "keyword": "",
+            "new_title": "",
+            "new_trigger_at": "",
+            "rrule": "",
+        }
+    ]
+
+
+def test_failure_returns_capability_error_without_raising():
+    def tool_entrypoint(**kwargs):
+        raise RuntimeError("reminder store unavailable")
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(
+        {"action": "create", "title": "hydrate"},
+        _run_context(),
+    )
+
+    assert result.name == "reminder"
+    assert result.ok is False
+    assert result.content == {}
+    assert result.error == "ReminderCommandExecutorError"
+    assert result.metadata == {
+        "error_type": "RuntimeError",
+        "message": "adapter failed",
+    }
+    assert "reminder store unavailable" not in str(result.metadata)

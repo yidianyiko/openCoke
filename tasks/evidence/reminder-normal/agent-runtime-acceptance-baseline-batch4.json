@@ -1,0 +1,326 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 0,
+  "limit": null,
+  "run_all": true,
+  "batch_size": 4,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-normal-cf57565985",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "summary": {
+    "total": 4,
+    "passed": 0,
+    "failed": 4,
+    "pass_rate": 0.0,
+    "by_error": {
+      "input_pending": 4,
+      "no_user_output": 4,
+      "user_output_missing_clarification": 3
+    },
+    "failures": [
+      {
+        "index": 73,
+        "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+        "user_id": "091edf4c470e415dd565dfef",
+        "original_from_user": "692c4430a538f0baad5561de",
+        "input_message_id": "69f428a7c5c244b0c1c04f13",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 180.969
+      },
+      {
+        "index": 75,
+        "input": "七点半开始正式学习",
+        "user_id": "ee470354233b58d81933560e",
+        "original_from_user": "692ef7f84bf7878f041146e1",
+        "input_message_id": "69f428a7c5c244b0c1c04f14",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 180.982
+      },
+      {
+        "index": 86,
+        "input": "可以提醒我喝水哦",
+        "user_id": "c4eaa697df323fdaa49c5932",
+        "original_from_user": "692e41334bf7878f04114567",
+        "input_message_id": "69f428a7c5c244b0c1c04f15",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 180.994
+      },
+      {
+        "index": 88,
+        "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+        "user_id": "e2d1d3b6b8ba35a163cd0b2c",
+        "original_from_user": "692fb38c4bf7878f0411476c",
+        "input_message_id": "69f428a7c5c244b0c1c04f16",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "user_output_missing_clarification"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 181.005
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 0,
+      "limit": 4,
+      "batch_id": "reminder-normal-cf57565985-0",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "091edf4c470e415dd565dfef",
+        "ee470354233b58d81933560e",
+        "c4eaa697df323fdaa49c5932",
+        "e2d1d3b6b8ba35a163cd0b2c"
+      ],
+      "summary": {
+        "total": 4,
+        "passed": 0,
+        "failed": 4,
+        "pass_rate": 0.0,
+        "by_error": {
+          "input_pending": 4,
+          "no_user_output": 4,
+          "user_output_missing_clarification": 3
+        },
+        "failures": [
+          {
+            "index": 73,
+            "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+            "user_id": "091edf4c470e415dd565dfef",
+            "original_from_user": "692c4430a538f0baad5561de",
+            "input_message_id": "69f428a7c5c244b0c1c04f13",
+            "input_status": "pending",
+            "passed": false,
+            "errors": [
+              "input_pending",
+              "no_user_output",
+              "user_output_missing_clarification"
+            ],
+            "outputs": [],
+            "reminders": [],
+            "elapsed_seconds": 180.969
+          },
+          {
+            "index": 75,
+            "input": "七点半开始正式学习",
+            "user_id": "ee470354233b58d81933560e",
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "input_message_id": "69f428a7c5c244b0c1c04f14",
+            "input_status": "pending",
+            "passed": false,
+            "errors": [
+              "input_pending",
+              "no_user_output"
+            ],
+            "outputs": [],
+            "reminders": [],
+            "elapsed_seconds": 180.982
+          },
+          {
+            "index": 86,
+            "input": "可以提醒我喝水哦",
+            "user_id": "c4eaa697df323fdaa49c5932",
+            "original_from_user": "692e41334bf7878f04114567",
+            "input_message_id": "69f428a7c5c244b0c1c04f15",
+            "input_status": "pending",
+            "passed": false,
+            "errors": [
+              "input_pending",
+              "no_user_output",
+              "user_output_missing_clarification"
+            ],
+            "outputs": [],
+            "reminders": [],
+            "elapsed_seconds": 180.994
+          },
+          {
+            "index": 88,
+            "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+            "user_id": "e2d1d3b6b8ba35a163cd0b2c",
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "input_message_id": "69f428a7c5c244b0c1c04f16",
+            "input_status": "pending",
+            "passed": false,
+            "errors": [
+              "input_pending",
+              "no_user_output",
+              "user_output_missing_clarification"
+            ],
+            "outputs": [],
+            "reminders": [],
+            "elapsed_seconds": 181.005
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 73,
+          "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+          "user_id": "091edf4c470e415dd565dfef",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69f428a7c5c244b0c1c04f13",
+          "input_status": "pending",
+          "passed": false,
+          "errors": [
+            "input_pending",
+            "no_user_output",
+            "user_output_missing_clarification"
+          ],
+          "outputs": [],
+          "reminders": [],
+          "elapsed_seconds": 180.969
+        },
+        {
+          "index": 75,
+          "input": "七点半开始正式学习",
+          "user_id": "ee470354233b58d81933560e",
+          "original_from_user": "692ef7f84bf7878f041146e1",
+          "input_message_id": "69f428a7c5c244b0c1c04f14",
+          "input_status": "pending",
+          "passed": false,
+          "errors": [
+            "input_pending",
+            "no_user_output"
+          ],
+          "outputs": [],
+          "reminders": [],
+          "elapsed_seconds": 180.982
+        },
+        {
+          "index": 86,
+          "input": "可以提醒我喝水哦",
+          "user_id": "c4eaa697df323fdaa49c5932",
+          "original_from_user": "692e41334bf7878f04114567",
+          "input_message_id": "69f428a7c5c244b0c1c04f15",
+          "input_status": "pending",
+          "passed": false,
+          "errors": [
+            "input_pending",
+            "no_user_output",
+            "user_output_missing_clarification"
+          ],
+          "outputs": [],
+          "reminders": [],
+          "elapsed_seconds": 180.994
+        },
+        {
+          "index": 88,
+          "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+          "user_id": "e2d1d3b6b8ba35a163cd0b2c",
+          "original_from_user": "692fb38c4bf7878f0411476c",
+          "input_message_id": "69f428a7c5c244b0c1c04f16",
+          "input_status": "pending",
+          "passed": false,
+          "errors": [
+            "input_pending",
+            "no_user_output",
+            "user_output_missing_clarification"
+          ],
+          "outputs": [],
+          "reminders": [],
+          "elapsed_seconds": 181.005
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 73,
+      "input": "明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
+      "user_id": "091edf4c470e415dd565dfef",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69f428a7c5c244b0c1c04f13",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 180.969
+    },
+    {
+      "index": 75,
+      "input": "七点半开始正式学习",
+      "user_id": "ee470354233b58d81933560e",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69f428a7c5c244b0c1c04f14",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 180.982
+    },
+    {
+      "index": 86,
+      "input": "可以提醒我喝水哦",
+      "user_id": "c4eaa697df323fdaa49c5932",
+      "original_from_user": "692e41334bf7878f04114567",
+      "input_message_id": "69f428a7c5c244b0c1c04f15",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 180.994
+    },
+    {
+      "index": 88,
+      "input": "帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://LycheeCAKEIFlower/1BHTbl5TMfu1doe",
+      "user_id": "e2d1d3b6b8ba35a163cd0b2c",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "69f428a7c5c244b0c1c04f16",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "user_output_missing_clarification"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 181.005
+    }
+  ]
+}

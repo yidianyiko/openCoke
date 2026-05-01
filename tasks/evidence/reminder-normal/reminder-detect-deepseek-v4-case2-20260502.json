@@ -1,0 +1,233 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 2,
+  "limit": 1,
+  "run_all": true,
+  "batch_size": 32,
+  "timeout_seconds": 140.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-detect-deepseek-v4-case2-20260502",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:1>0": 1,
+      "missing_expected_reminder_title:学英语": 1,
+      "no_reminder_created": 1
+    },
+    "failures": [
+      {
+        "index": 2,
+        "input": "你可以没太难18:00 提醒我学英语么",
+        "user_id": "c1ed85b17b97877a9eeac1cf",
+        "original_from_user": "692c14e6a538f0baad5561b6",
+        "input_message_id": "69f4e86f2ca05c93c835bcce",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:1>0",
+          "missing_expected_reminder_title:学英语"
+        ],
+        "outputs": [
+          {
+            "_id": "69f4e87c3a5aaa8f9e77e8ed",
+            "expect_output_timestamp": 1777657980,
+            "handled_timestamp": 1777657980,
+            "status": "pending",
+            "message_type": "text",
+            "message": "请明确提醒内容，例如“学英语”还是其他？",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-detect-deepseek-v4-case2-20260502-2",
+              "case_index": 2,
+              "original_from_user": "692c14e6a538f0baad5561b6",
+              "source_id": "692c1546a538f0baad5561bb",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                "business_conversation_key": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                "causal_inbound_event_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "c1ed85b17b97877a9eeac1cf"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 14.026
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 2,
+      "limit": 1,
+      "batch_id": "reminder-detect-deepseek-v4-case2-20260502-2",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "c1ed85b17b97877a9eeac1cf"
+      ],
+      "serial": true,
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0,
+        "by_error": {
+          "expected_reminder_count_mismatch:1>0": 1,
+          "missing_expected_reminder_title:学英语": 1,
+          "no_reminder_created": 1
+        },
+        "failures": [
+          {
+            "index": 2,
+            "input": "你可以没太难18:00 提醒我学英语么",
+            "user_id": "c1ed85b17b97877a9eeac1cf",
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "input_message_id": "69f4e86f2ca05c93c835bcce",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created",
+              "expected_reminder_count_mismatch:1>0",
+              "missing_expected_reminder_title:学英语"
+            ],
+            "outputs": [
+              {
+                "_id": "69f4e87c3a5aaa8f9e77e8ed",
+                "expect_output_timestamp": 1777657980,
+                "handled_timestamp": 1777657980,
+                "status": "pending",
+                "message_type": "text",
+                "message": "请明确提醒内容，例如“学英语”还是其他？",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-detect-deepseek-v4-case2-20260502-2",
+                  "case_index": 2,
+                  "original_from_user": "692c14e6a538f0baad5561b6",
+                  "source_id": "692c1546a538f0baad5561bb",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                    "business_conversation_key": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                    "causal_inbound_event_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "c1ed85b17b97877a9eeac1cf"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 14.026
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 2,
+          "input": "你可以没太难18:00 提醒我学英语么",
+          "user_id": "c1ed85b17b97877a9eeac1cf",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69f4e86f2ca05c93c835bcce",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:1>0",
+            "missing_expected_reminder_title:学英语"
+          ],
+          "outputs": [
+            {
+              "_id": "69f4e87c3a5aaa8f9e77e8ed",
+              "expect_output_timestamp": 1777657980,
+              "handled_timestamp": 1777657980,
+              "status": "pending",
+              "message_type": "text",
+              "message": "请明确提醒内容，例如“学英语”还是其他？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-detect-deepseek-v4-case2-20260502-2",
+                "case_index": 2,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "692c1546a538f0baad5561bb",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                  "business_conversation_key": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+                  "causal_inbound_event_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "c1ed85b17b97877a9eeac1cf"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 14.026
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 2,
+      "input": "你可以没太难18:00 提醒我学英语么",
+      "user_id": "c1ed85b17b97877a9eeac1cf",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69f4e86f2ca05c93c835bcce",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:学英语"
+      ],
+      "outputs": [
+        {
+          "_id": "69f4e87c3a5aaa8f9e77e8ed",
+          "expect_output_timestamp": 1777657980,
+          "handled_timestamp": 1777657980,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请明确提醒内容，例如“学英语”还是其他？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-detect-deepseek-v4-case2-20260502-2",
+            "case_index": 2,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692c1546a538f0baad5561bb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+              "business_conversation_key": "reminder-detect-deepseek-v4-case2-20260502-2-case-2",
+              "causal_inbound_event_id": "reminder-detect-deepseek-v4-case2-20260502-2-case-2-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c1ed85b17b97877a9eeac1cf"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 14.026
+    }
+  ]
+}

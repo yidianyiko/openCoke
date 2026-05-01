@@ -123,6 +123,23 @@ _REMINDER_FIRST_PATTERNS = (
     re.compile(r"(提醒我|到时候|闹钟)"),
     re.compile(r"\b(remind me|set a reminder|alarm)\b", re.IGNORECASE),
 )
+_EXPLICIT_REMINDER_REQUEST_PATTERNS = (
+    re.compile(r"(提醒我|提醒一下|叫我|通知我|闹钟|别忘了提醒|到时候提醒)"),
+    re.compile(r"\b(remind me|set a reminder|notify me|alarm)\b", re.IGNORECASE),
+)
+_CHECKIN_SUPERVISION_PATTERNS = (
+    re.compile(r"(打卡|监督|督促|问问.{0,8}完成|检查.{0,8}完成)"),
+    re.compile(r"\b(check[- ]?in|nudge|supervise)\b", re.IGNORECASE),
+)
+_CHECKIN_CADENCE_PATTERNS = (
+    re.compile(
+        r"(每\s*(?:\d+\s*)?(?:分钟|小时|天|周|月)|每个小时|每天|每日|每晚|每周|每月|每隔)"
+    ),
+    re.compile(
+        r"(到|直到|持续到|截止到).{0,12}(?:上午|下午|晚上|今晚|今天|明天)?\s*\d{1,2}\s*(?:点|:|：)"
+    ),
+    re.compile(r"\b(?:every|hourly|daily|weekly|until)\b", re.IGNORECASE),
+)
 
 
 class PrepareWorkflow:
@@ -333,7 +350,70 @@ class PrepareWorkflow:
             logger.info(f"系统消息 (source={message_source})，跳过提醒检测")
             return False
 
+        if need_reminder:
+            return True
+
+        if session_state.get("prepare_orchestrator_timeout"):
+            if self._looks_like_explicit_reminder_request(input_message):
+                logger.info(
+                    "[PrepareWorkflow] Orchestrator timed out, "
+                    "but explicit reminder text requires ReminderDetect"
+                )
+                orchestrator["need_reminder_detect"] = True
+                session_state["prepare_reminder_detect_route_hint"] = (
+                    "orchestrator_timeout_reminder_text"
+                )
+                return True
+            return False
+
+        if self._looks_like_listed_routine_reminder_request(input_message):
+            logger.info(
+                "[PrepareWorkflow] Orchestrator skipped reminder detection, "
+                "but listed routine reminder hint requires ReminderDetect"
+            )
+            orchestrator["need_reminder_detect"] = True
+            session_state["prepare_reminder_detect_route_hint"] = "listed_routine"
+            return True
+
+        if self._looks_like_checkin_cadence_request(input_message):
+            logger.info(
+                "[PrepareWorkflow] Orchestrator skipped reminder detection, "
+                "but check-in cadence hint requires ReminderDetect"
+            )
+            orchestrator["need_reminder_detect"] = True
+            session_state["prepare_reminder_detect_route_hint"] = "checkin_cadence"
+            return True
+
         return need_reminder
+
+    @staticmethod
+    def _looks_like_explicit_reminder_request(input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(
+            pattern.search(text) for pattern in _EXPLICIT_REMINDER_REQUEST_PATTERNS
+        )
+
+    @staticmethod
+    def _looks_like_checkin_cadence_request(input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return any(
+            pattern.search(text) for pattern in _CHECKIN_SUPERVISION_PATTERNS
+        ) and any(pattern.search(text) for pattern in _CHECKIN_CADENCE_PATTERNS)
+
+    @staticmethod
+    def _looks_like_listed_routine_reminder_request(input_message: str) -> bool:
+        text = str(input_message or "").strip()
+        if not text:
+            return False
+        return bool(
+            re.search(r"(我一般|通常|每天).{0,120}(提醒我|需要你.{0,6}提醒)", text)
+            and re.search(r"(上述|这些|以上).{0,8}时间.{0,8}提醒", text)
+            and len(re.findall(r"\d{1,2}\s*[:：]\s*\d{1,2}", text)) >= 2
+        )
 
     def _run_context_retrieve(
         self, session_state: Dict[str, Any], need_context: bool
@@ -684,7 +764,6 @@ class PrepareWorkflow:
             # 续期锁
             self._renew_lock_if_needed(session_state)
 
-            # 构建并执行 ReminderDetectAgent
             reminder_input = self._build_reminder_input(input_message, session_state)
             logger.debug(f"[PrepareWorkflow] ReminderDetectAgent LLM INPUT")
 
@@ -1032,6 +1111,8 @@ class PrepareWorkflow:
     ) -> ReminderDetectDecision | None:
         if not reminder_response:
             return None
+        if isinstance(reminder_response, ReminderDetectDecision):
+            return reminder_response
         content = getattr(reminder_response, "content", None)
         if isinstance(content, ReminderDetectDecision):
             return content
@@ -1170,10 +1251,17 @@ class PrepareWorkflow:
 Retry reason: {reason}
 Use the ReminderDetect system instructions already attached to this agent.
 Return only a valid ReminderDetectDecision for the current user message.
+Do not invent, rename, merge, or concatenate schema field names.
+Never output keys like intentaction; use intent_type and action separately.
+action must be exactly one of create, update, delete, complete, batch, list, or empty.
 Do not use conversation history or infer missing details from prior turns.
+A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
+Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
+Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
 For same-message listed routine times plus a reminder request, use action="batch",
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
 Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
+When the user explicitly lists multiple reminder times and tasks, create each requested reminder even if times are close together; do not ask whether to merge them.
 
 ### 当前用户消息
 {current_message}"""

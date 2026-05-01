@@ -16,6 +16,7 @@ _AGNO_AGENT_ROOT = _PROJECT_ROOT / "agent" / "agno_agent"
 _AGNO_AGENT_WORKFLOWS_ROOT = _AGNO_AGENT_ROOT / "workflows"
 _AGNO_AGENT_TOOLS_ROOT = _AGNO_AGENT_ROOT / "tools"
 _AGNO_AGENT_UTILS_ROOT = _AGNO_AGENT_ROOT / "utils"
+_AGNO_AGENT_SCHEMAS_ROOT = _AGNO_AGENT_ROOT / "schemas"
 
 
 def _make_package(name: str, path: Path | None = None) -> types.ModuleType:
@@ -74,15 +75,41 @@ def _ensure_prepare_workflow_loaded() -> None:
         _make_package("agent.agno_agent.tools", _AGNO_AGENT_TOOLS_ROOT)
     if "agent.agno_agent.utils" not in sys.modules:
         _make_package("agent.agno_agent.utils", _AGNO_AGENT_UTILS_ROOT)
+    if "agent.agno_agent.schemas" not in sys.modules:
+        _make_package("agent.agno_agent.schemas", _AGNO_AGENT_SCHEMAS_ROOT)
     if "agent.prompt" not in sys.modules:
         _make_package("agent.prompt", _PROJECT_ROOT / "agent" / "prompt")
     if "agent.util" not in sys.modules:
         _make_package("agent.util", _PROJECT_ROOT / "agent" / "util")
 
     if "agent.agno_agent.agents" not in sys.modules:
+        _load_module_by_path(
+            "agent.agno_agent.schemas.reminder_detect_schema",
+            "agent/agno_agent/schemas/reminder_detect_schema.py",
+        )
+        reminder_schema_mod = sys.modules[
+            "agent.agno_agent.schemas.reminder_detect_schema"
+        ]
         agents_mod = types.ModuleType("agent.agno_agent.agents")
         agents_mod.orchestrator_agent = types.SimpleNamespace(arun=AsyncMock())
-        agents_mod.reminder_detect_agent = types.SimpleNamespace(arun=AsyncMock())
+        agents_mod.reminder_detect_agent = types.SimpleNamespace(
+            arun=AsyncMock(),
+            output_schema=reminder_schema_mod.ReminderDetectDecision,
+            tools=[],
+            structured_outputs=True,
+            use_json_mode=False,
+            model=types.SimpleNamespace(max_tokens=6000),
+            instructions="ReminderDetect instructions",
+        )
+        agents_mod.reminder_detect_retry_agent = types.SimpleNamespace(
+            arun=AsyncMock(),
+            output_schema=reminder_schema_mod.ReminderDetectDecision,
+            tools=[],
+            structured_outputs=True,
+            use_json_mode=False,
+            model=types.SimpleNamespace(max_tokens=6000),
+            instructions="ReminderDetect instructions",
+        )
         sys.modules["agent.agno_agent.agents"] = agents_mod
         sys.modules["agent.agno_agent"].agents = agents_mod
 
@@ -92,12 +119,10 @@ def _ensure_prepare_workflow_loaded() -> None:
         sys.modules["agent.agno_agent.tools.context_retrieve_tool"] = context_mod
         sys.modules["agent.agno_agent.tools"].context_retrieve_tool = context_mod
 
-    if "agent.agno_agent.tools.url_reader" not in sys.modules:
-        url_mod = types.ModuleType("agent.agno_agent.tools.url_reader")
-        url_mod.extract_urls_content = lambda _message: []
-        url_mod.format_url_context = lambda _items: ""
-        sys.modules["agent.agno_agent.tools.url_reader"] = url_mod
-        sys.modules["agent.agno_agent.tools"].url_reader = url_mod
+    _load_module_by_path(
+        "agent.agno_agent.tools.url_reader",
+        "agent/agno_agent/tools/url_reader.py",
+    )
 
     if "agent.agno_agent.tools.web_search_tool" not in sys.modules:
         web_mod = types.ModuleType("agent.agno_agent.tools.web_search_tool")
@@ -121,17 +146,17 @@ def _ensure_prepare_workflow_loaded() -> None:
         sys.modules["agent.prompt.rendering"] = rendering_mod
         sys.modules["agent.prompt"].rendering = rendering_mod
 
-    if "agent.prompt.chat_taskprompt" not in sys.modules:
-        taskprompt_mod = types.ModuleType("agent.prompt.chat_taskprompt")
-        taskprompt_mod.TASKPROMPT_语义理解 = ""
-        sys.modules["agent.prompt.chat_taskprompt"] = taskprompt_mod
-        sys.modules["agent.prompt"].chat_taskprompt = taskprompt_mod
+    _load_module_by_path(
+        "agent.prompt.chat_taskprompt",
+        "agent/prompt/chat_taskprompt.py",
+    )
 
     if "agent.util.message_util" not in sys.modules:
         message_util_mod = types.ModuleType("agent.util.message_util")
         message_util_mod.messages_to_str = lambda messages: "\n".join(
             str(message) for message in messages
         )
+        message_util_mod.send_message_via_context = lambda *args, **kwargs: {}
         sys.modules["agent.util.message_util"] = message_util_mod
         sys.modules["agent.util"].message_util = message_util_mod
 
@@ -162,6 +187,12 @@ def _ensure_prepare_workflow_loaded() -> None:
         "agent.agno_agent.workflows.prepare_workflow",
         "agent/agno_agent/workflows/prepare_workflow.py",
     )
+    workflows_mod = sys.modules["agent.agno_agent.workflows"]
+    workflows_mod.PrepareWorkflow = sys.modules[
+        "agent.agno_agent.workflows.prepare_workflow"
+    ].PrepareWorkflow
+    workflows_mod.StreamingChatWorkflow = type("StreamingChatWorkflow", (), {})
+    workflows_mod.PostAnalyzeWorkflow = type("PostAnalyzeWorkflow", (), {})
 
 
 _ensure_prepare_workflow_loaded()

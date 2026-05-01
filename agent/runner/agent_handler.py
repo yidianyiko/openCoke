@@ -75,6 +75,37 @@ typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
 
+
+def _select_agent_runtime(context: dict) -> str:
+    from agent.agno_agent.runtime.selector import RuntimeSelectionInput, select_runtime
+
+    conversation = context.get("conversation") or {}
+    customer = context.get("customer") or {}
+    return select_runtime(
+        RuntimeSelectionInput(
+            conversation_override=conversation.get("agent_runtime_version"),
+            customer_override=customer.get("agent_runtime_version"),
+        )
+    )
+
+
+async def _run_agent_runtime(
+    *,
+    context: dict,
+    input_message_str: str,
+    message_source: str,
+    metadata: Optional[Dict[str, Any]],
+):
+    from agent.agno_agent.runtime.team_runtime import run_team_runtime
+
+    return await run_team_runtime(
+        context=context,
+        input_message_str=input_message_str,
+        message_source=message_source,
+        metadata=metadata,
+    )
+
+
 # ========== DAO 实例 ==========
 conversation_dao = ConversationDAO()
 user_dao = UserDAO()
@@ -390,6 +421,36 @@ def _guard_pending_reminder_stop_response(
     return guarded
 
 
+def _guard_unconfirmed_reminder_response_after_prepare_timeout(
+    context: dict, input_message: str, multimodal_response: dict
+) -> dict:
+    if context.get("prepare_orchestrator_timeout") is not True:
+        return multimodal_response
+    if multimodal_response.get("type", "text") != "text":
+        return multimodal_response
+    if any(
+        result.get("tool_name") == "提醒操作"
+        for result in context.get("tool_results") or []
+        if isinstance(result, dict)
+    ):
+        return multimodal_response
+    if not re.search(
+        r"(提醒|叫我|通知|闹钟|\bremind\b|\balarm\b)", str(input_message), re.I
+    ):
+        return multimodal_response
+
+    content = str(multimodal_response.get("content") or "")
+    if not re.search(
+        r"(帮你|我来|我会|我给你|已经|已).{0,16}(设|设置|创建|记|提醒|安排)",
+        content,
+    ):
+        return multimodal_response
+
+    guarded = dict(multimodal_response)
+    guarded["content"] = _chat_response_timeout_fallback(input_message, context)
+    return guarded
+
+
 def _has_pending_reminder_stop_without_tool_result(context: dict) -> bool:
     if context.get("prepare_reminder_intent_hint") != "stop_or_cancel":
         return False
@@ -510,6 +571,106 @@ async def handle_message(
     is_content_blocked = False  # 内容安全审核失败标志
 
     try:
+        if _select_agent_runtime(context) == "team":
+            if check_new_message and message_source == "user":
+                user = context.get("user", {})
+                character = context.get("character", {})
+                current_platform = (
+                    context.get("platform")
+                    or context.get("conversation", {}).get("platform")
+                    or "business"
+                )
+                if is_new_message_coming_in(
+                    get_agent_entity_id(user),
+                    get_agent_entity_id(character),
+                    current_platform,
+                    current_message_ids,
+                ):
+                    logger.info(
+                        f"{worker_tag} rollback: new message before team runtime"
+                    )
+                    return resp_messages, context, True, False
+
+            if lock_id and conversation_id:
+                lock_manager.renew_lock(
+                    "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
+                )
+                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
+
+            logger.info(f"{worker_tag} AgentRuntime Team 开始")
+            result = await _run_agent_runtime(
+                context=context,
+                input_message_str=input_message_str,
+                message_source=message_source,
+                metadata=metadata,
+            )
+
+            expect_output_timestamp = int(time.time())
+            all_multimodal_responses = []
+
+            if result.output_disposition.status == "rollback":
+                logger.info(f"{worker_tag} AgentRuntime Team rollback")
+                context["MultiModalResponses"] = all_multimodal_responses
+                return resp_messages, context, True, False
+
+            for visible_message in result.visible_messages:
+                multimodal_response = {
+                    "type": visible_message.message_type,
+                    "content": visible_message.content,
+                    "metadata": dict(visible_message.metadata),
+                }
+
+                if lock_id and conversation_id:
+                    if not _verify_lock_ownership(conversation_id, lock_id):
+                        logger.warning(f"{worker_tag} 锁已丢失，停止发送 Team 消息")
+                        context["MultiModalResponses"] = all_multimodal_responses
+                        return resp_messages, context, True, False
+
+                all_multimodal_responses.append(multimodal_response)
+                outputmessage, expect_output_timestamp = _send_single_message(
+                    context=context,
+                    multimodal_response=multimodal_response,
+                    expect_output_timestamp=expect_output_timestamp,
+                    is_first=(len(all_multimodal_responses) == 1),
+                )
+                if outputmessage is not None:
+                    resp_messages.append(outputmessage)
+
+            if (
+                not resp_messages
+                and not result.visible_messages
+                and result.output_disposition.status == "empty"
+            ):
+                logger.warning(
+                    f"{worker_tag} AgentRuntime Team 未产出用户可见回复，发送兜底回复"
+                )
+                if (
+                    lock_id
+                    and conversation_id
+                    and not _verify_lock_ownership(conversation_id, lock_id)
+                ):
+                    logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    return resp_messages, context, True, False
+
+                outputmessage, expect_output_timestamp = _send_chat_response_fallback(
+                    context=context,
+                    input_message=input_message_str,
+                    expect_output_timestamp=expect_output_timestamp,
+                    all_multimodal_responses=all_multimodal_responses,
+                )
+                if outputmessage is not None:
+                    resp_messages.append(outputmessage)
+
+            context["MultiModalResponses"] = all_multimodal_responses
+            is_content_blocked = False
+            logger.info(
+                f"{worker_tag} AgentRuntime Team 完成 "
+                f"(visible_messages={len(result.visible_messages)}, "
+                f"status={result.output_disposition.status})"
+            )
+            return resp_messages, context, is_rollback, is_content_blocked
+
         # ========== Phase 1: PrepareWorkflow ==========
         logger.info(
             f"{worker_tag} Phase 1: PrepareWorkflow 开始 (source={message_source})"
@@ -568,6 +729,9 @@ async def handle_message(
                             multimodal_response = event["data"]
                             multimodal_response = _guard_pending_reminder_stop_response(
                                 context, multimodal_response
+                            )
+                            multimodal_response = _guard_unconfirmed_reminder_response_after_prepare_timeout(
+                                context, input_message_str, multimodal_response
                             )
                             multimodal_responses_index += 1
                             all_multimodal_responses.append(multimodal_response)
