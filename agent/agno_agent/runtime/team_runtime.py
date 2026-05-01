@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from agno.team import Team
-
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     OutputDisposition,
@@ -11,7 +9,9 @@ from agent.agno_agent.runtime.result import (
 )
 
 
-def create_manager_team(*, model: Any, members: list[Any]) -> Team:
+def create_manager_team(*, model: Any, members: list[Any]) -> Any:
+    from agno.team import Team
+
     return Team(
         name="CokeManagerTeam",
         model=model,
