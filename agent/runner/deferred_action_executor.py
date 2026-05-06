@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import inspect
 import uuid
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 
 from agent.agno_agent.adapters import (
     DeferredActionFireResult,
     map_agent_result_to_deferred_status,
+    with_output_references,
 )
 from agent.agno_agent.runtime.result import AgentRunResult
 from agent.runner import deferred_action_policy as policy
@@ -276,15 +276,10 @@ class DeferredActionExecutor:
         ):
             return DeferredActionFireResult(status="no_output", retryable=True)
 
-        updated_result = replace(
+        updated_result = with_output_references(
             runtime_result,
-            output_disposition=replace(
-                runtime_result.output_disposition,
-                output_references=tuple(
-                    runtime_result.output_disposition.output_references
-                )
-                + tuple(output_references),
-            ),
+            tuple(runtime_result.output_disposition.output_references)
+            + tuple(output_references),
         )
         return map_agent_result_to_deferred_status(updated_result)
 
