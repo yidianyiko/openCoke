@@ -923,7 +923,7 @@ git commit -m "feat(agent): add deterministic team capability ports"
 - Modify: `agent/agno_agent/runtime/team_runtime.py`
 - Test: `tests/unit/agent/test_team_runtime_execution.py`
 
-- [ ] **Step 1: Write failing Team runtime execution tests**
+- [x] **Step 1: Write failing Team runtime execution tests**
 
 Create `tests/unit/agent/test_team_runtime_execution.py`:
 
@@ -1055,7 +1055,7 @@ async def test_run_team_runtime_empty_output_returns_empty_disposition(monkeypat
     assert result.error_disposition.code == "team_runtime_empty_output"
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -1065,7 +1065,7 @@ pytest tests/unit/agent/test_team_runtime_execution.py -v
 
 Expected: FAIL because current `run_team_runtime()` returns `team_runtime_empty_skeleton`.
 
-- [ ] **Step 3: Implement Team runtime with parsed requests**
+- [x] **Step 3: Implement Team runtime with parsed requests**
 
 Replace `agent/agno_agent/runtime/team_runtime.py` with an implementation that preserves the existing `create_manager_team(model=object(), members=[])` call compatibility and adds `instructions` plus capability execution. The implementation must:
 
@@ -1093,7 +1093,7 @@ async def run_team_runtime(
 ) -> AgentRunResult:
 ```
 
-- [ ] **Step 4: Verify Team runtime and construction invariants**
+- [x] **Step 4: Verify Team runtime and construction invariants**
 
 Run:
 
@@ -1108,7 +1108,7 @@ pytest tests/unit/agent/test_team_runtime_execution.py \
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
