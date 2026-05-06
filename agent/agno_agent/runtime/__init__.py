@@ -18,6 +18,10 @@ from agent.agno_agent.runtime.result import (
     RuntimeErrorDisposition,
     VisibleMessage,
 )
+from agent.agno_agent.runtime.event_adapter import (
+    run_agent_runtime_event,
+    run_deferred_action_runtime_event,
+)
 from agent.agno_agent.runtime.selector import (
     RuntimeSelectionInput,
     RuntimeVersion,
@@ -35,6 +39,8 @@ __all__ = [
     "RuntimeErrorDisposition",
     "RuntimeSelectionInput",
     "RuntimeVersion",
+    "run_agent_runtime_event",
+    "run_deferred_action_runtime_event",
     "select_runtime",
     "TrustedCharacterContext",
     "TrustedConversationContext",

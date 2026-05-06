@@ -1127,7 +1127,7 @@ git commit -m "feat(agent): execute parsed team capability requests"
 - Modify: `agent/runner/agent_handler.py`
 - Test: `tests/unit/agent/test_agent_handler.py`
 
-- [ ] **Step 1: Add handler test for typed user turn**
+- [x] **Step 1: Add handler test for typed user turn**
 
 Append to `tests/unit/agent/test_agent_handler.py`:
 
@@ -1221,7 +1221,7 @@ async def test_handle_message_team_runtime_schedules_post_analyze(monkeypatch, s
     scheduled[0].close()
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -1231,7 +1231,7 @@ pytest tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_
 
 Expected: FAIL because `_run_agent_runtime_event` does not exist.
 
-- [ ] **Step 3: Implement event adapter**
+- [x] **Step 3: Implement event adapter**
 
 Create `agent/agno_agent/runtime/event_adapter.py`:
 
@@ -1291,7 +1291,7 @@ async def run_deferred_action_runtime_event(
 
 Modify `agent/agno_agent/runtime/__init__.py` to export `run_agent_runtime_event` and `run_deferred_action_runtime_event`.
 
-- [ ] **Step 4: Modify handler Team branch**
+- [x] **Step 4: Modify handler Team branch**
 
 In `agent/runner/agent_handler.py`, add `_run_agent_runtime_event()` that imports and calls `run_agent_runtime_event()`. In the Team branch, build:
 
@@ -1329,7 +1329,7 @@ if result.post_analyze_input is not None:
     )
 ```
 
-- [ ] **Step 5: Verify handler Team branch**
+- [x] **Step 5: Verify handler Team branch**
 
 Run:
 
@@ -1342,7 +1342,7 @@ pytest tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_
 
 Expected: PASS. Rename the empty-skeleton test to `test_handle_message_team_runtime_empty_output_uses_chat_fallback` in the same patch if its assertion now checks `team_runtime_empty_output`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 

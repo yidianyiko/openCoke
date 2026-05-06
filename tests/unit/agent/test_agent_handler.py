@@ -220,9 +220,11 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
     )
     from agent.runner import agent_handler
 
-    async def fake_run_agent_runtime(**kwargs):
+    async def fake_run_agent_runtime_event(**kwargs):
+        agent_input = kwargs["agent_input"]
         assert kwargs["context"] is sample_context
-        assert kwargs["input_message_str"] == "你好"
+        assert agent_input.input_type == "user.turn"
+        assert agent_input.text == "你好"
         assert kwargs["message_source"] == "user"
         assert kwargs["metadata"] == {"request_id": "req-1"}
         return AgentRunResult(
@@ -257,7 +259,11 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
 
     create_task_calls = []
 
-    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
     monkeypatch.setattr(agent_handler.prepare_workflow, "run", fail_prepare_run)
     monkeypatch.setattr(
         agent_handler.streaming_chat_workflow, "run_stream", fail_run_stream
@@ -299,13 +305,37 @@ async def test_handle_message_team_runtime_empty_skeleton_uses_chat_fallback(
     monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
 
     from agent.runner import agent_handler
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        RuntimeErrorDisposition,
+    )
 
     sent_fallbacks = []
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        return AgentRunResult(
+            visible_messages=[],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team", "status": "empty"},
+            output_disposition=OutputDisposition(status="empty"),
+            error_disposition=RuntimeErrorDisposition(
+                code="team_runtime_empty_output",
+                retryable=True,
+            ),
+        )
 
     def fake_send_chat_response_fallback(**kwargs):
         sent_fallbacks.append(kwargs)
         return {"message": "fallback reply"}, kwargs["expect_output_timestamp"]
 
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
     monkeypatch.setattr(
         agent_handler, "_send_chat_response_fallback", fake_send_chat_response_fallback
     )
@@ -328,6 +358,120 @@ async def test_handle_message_team_runtime_empty_skeleton_uses_chat_fallback(
     assert context["MultiModalResponses"] == []
     assert is_rollback is False
     assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_passes_typed_user_turn(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    captured = {}
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        captured.update(kwargs)
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="team reply")
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "_send_single_message",
+        lambda **kwargs: ({"_id": "out-1"}, kwargs["expect_output_timestamp"]),
+    )
+
+    await agent_handler.handle_message(
+        context=sample_context,
+        input_message_str="hello",
+        message_source="user",
+        metadata={"request_id": "req-1"},
+        check_new_message=False,
+        worker_tag="[T]",
+        current_message_ids=["msg-1"],
+    )
+
+    agent_input = captured["agent_input"]
+    assert agent_input.input_type == "user.turn"
+    assert agent_input.text == "hello"
+    assert agent_input.payload.current_message_ids == ("msg-1",)
+    assert captured["context"] is sample_context
+
+
+@pytest.mark.asyncio
+async def test_handle_message_team_runtime_schedules_post_analyze(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    scheduled = []
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="team reply")
+            ],
+            post_analyze_input={"input_message": "hello", "message_source": "user"},
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "_send_single_message",
+        lambda **kwargs: ({"_id": "out-1"}, kwargs["expect_output_timestamp"]),
+    )
+    monkeypatch.setattr(
+        agent_handler.asyncio,
+        "create_task",
+        lambda coro: scheduled.append(coro),
+    )
+
+    await agent_handler.handle_message(
+        context=sample_context,
+        input_message_str="hello",
+        message_source="user",
+        metadata={},
+        check_new_message=False,
+        worker_tag="[T]",
+    )
+
+    assert scheduled
+    scheduled[0].close()
 
 
 @pytest.mark.asyncio
@@ -386,7 +530,7 @@ async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send
     )
     from agent.runner import agent_handler
 
-    async def fake_run_agent_runtime(**kwargs):
+    async def fake_run_agent_runtime_event(**kwargs):
         return AgentRunResult(
             visible_messages=[
                 VisibleMessage(message_type="text", content="Team reply")
@@ -400,7 +544,11 @@ async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send
 
     sent = []
 
-    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: False)
     monkeypatch.setattr(
         agent_handler, "_send_single_message", lambda **kwargs: sent.append(kwargs)
@@ -441,7 +589,7 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
 
     calls = []
 
-    async def fake_run_agent_runtime(**kwargs):
+    async def fake_run_agent_runtime_event(**kwargs):
         calls.append("runtime")
         return AgentRunResult(
             visible_messages=[
@@ -463,7 +611,11 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
             kwargs["expect_output_timestamp"]
         )
 
-    monkeypatch.setattr(agent_handler, "_run_agent_runtime", fake_run_agent_runtime)
+    monkeypatch.setattr(
+        agent_handler,
+        "_run_agent_runtime_event",
+        fake_run_agent_runtime_event,
+    )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
     monkeypatch.setattr(agent_handler.lock_manager, "renew_lock", fake_renew_lock)
     monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
