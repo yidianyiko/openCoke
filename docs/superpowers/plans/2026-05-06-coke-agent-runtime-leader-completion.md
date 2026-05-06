@@ -2169,3 +2169,11 @@ Review history:
 
 - Team behavior parity suite: PASS on 2026-05-06.
 - Legacy-adjacent regression suite: PASS on 2026-05-06.
+
+## Reminder Eval Blocker
+
+- Team one-case reminder smoke: BLOCKED on 2026-05-06.
+- Command: `AGENT_RUNTIME_VERSION=team python scripts/eval_reminder_normal_path_cases.py --offset 0 --limit 1 --case-timeout-seconds 180 --output artifacts/evidence/reminder-normal/team-smoke.json`.
+- Exit status: 1.
+- Failure category: local MongoDB unavailable before eval execution; `pymongo.errors.ServerSelectionTimeoutError` for `127.0.0.1:27017`.
+- Cutover status: stopped before default runtime cutover, per Task 10 gate.
