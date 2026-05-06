@@ -1360,7 +1360,7 @@ git commit -m "feat(agent): route team user turns through typed runtime input"
 - Modify: `agent/runner/agent_runner.py`
 - Test: `tests/unit/runner/test_typed_runtime_events.py`
 
-- [ ] **Step 1: Write typed reminder fire test**
+- [x] **Step 1: Write typed reminder fire test**
 
 Create `tests/unit/runner/test_typed_runtime_events.py`:
 
@@ -1439,7 +1439,7 @@ async def test_reminder_event_handler_can_route_through_typed_runtime():
     assert captured["context"]["message_source"] == "deferred_action"
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -1449,7 +1449,7 @@ pytest tests/unit/runner/test_typed_runtime_events.py::test_reminder_event_handl
 
 Expected: FAIL because `ReminderFireEventHandler` has no `runtime_event_handler`.
 
-- [ ] **Step 3: Implement optional typed route**
+- [x] **Step 3: Implement optional typed route**
 
 Modify `ReminderFireEventHandler.__init__()` to accept and store `runtime_event_handler: Callable[..., Any] | None = None`.
 
@@ -1488,7 +1488,7 @@ from agent.agno_agent.runtime import run_agent_runtime_event
 handler = ReminderFireEventHandler(runtime_event_handler=run_agent_runtime_event)
 ```
 
-- [ ] **Step 4: Verify reminder handler behavior**
+- [x] **Step 4: Verify reminder handler behavior**
 
 Run:
 
@@ -1498,7 +1498,7 @@ pytest tests/unit/runner/test_typed_runtime_events.py tests/unit/runner/test_rem
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from agent.agno_agent.runtime import run_agent_runtime_event
 from agent.runner.deferred_action_executor import DeferredActionExecutor
 from agent.runner.deferred_action_scheduler import (
     DeferredActionScheduler,
@@ -79,7 +80,7 @@ def bootstrap_reminder_runtime():
         return existing
 
     reminder_dao = ReminderDAO()
-    handler = ReminderFireEventHandler()
+    handler = ReminderFireEventHandler(runtime_event_handler=run_agent_runtime_event)
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
         fire_event_handler=handler,
