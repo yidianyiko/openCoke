@@ -2164,3 +2164,8 @@ Review history:
 
 - Worker-runtime baseline: PASS on 2026-05-06.
 - Legacy behavior baseline: PASS on 2026-05-06.
+
+## Team Parity Evidence
+
+- Team behavior parity suite: PASS on 2026-05-06.
+- Legacy-adjacent regression suite: PASS on 2026-05-06.
