@@ -298,7 +298,7 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_empty_skeleton_uses_chat_fallback(
+async def test_handle_message_team_runtime_empty_output_uses_chat_fallback(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)

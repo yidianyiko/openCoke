@@ -1742,7 +1742,7 @@ git commit -m "feat(agent): add runtime output disposition adapter"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-05-06-coke-agent-runtime-leader-completion.md`
 
-- [ ] **Step 1: Collect exact parity test node IDs**
+- [x] **Step 1: Collect exact parity test node IDs**
 
 Run:
 
@@ -1762,7 +1762,7 @@ pytest --collect-only -q \
 
 Expected: all ten node IDs are collected. If any node is missing, stop and add the missing behavior test before cutover.
 
-- [ ] **Step 2: Run exact Team parity suite**
+- [x] **Step 2: Run exact Team parity suite**
 
 Run:
 
@@ -1782,7 +1782,7 @@ AGENT_RUNTIME_VERSION=team pytest -v \
 
 Expected: PASS.
 
-- [ ] **Step 3: Run legacy-adjacent suites as regression comparison**
+- [x] **Step 3: Run legacy-adjacent suites as regression comparison**
 
 Run:
 
@@ -1795,7 +1795,7 @@ pytest tests/unit/test_prepare_workflow_timezone.py \
 
 Expected: PASS. These are not sufficient for cutover by themselves; they only prove the old path still works.
 
-- [ ] **Step 4: Record parity evidence**
+- [x] **Step 4: Record parity evidence**
 
 Run:
 
@@ -1807,7 +1807,7 @@ Run:
 } >> docs/superpowers/plans/2026-05-06-coke-agent-runtime-leader-completion.md
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
@@ -1815,6 +1815,13 @@ Run:
 git add docs/superpowers/plans/2026-05-06-coke-agent-runtime-leader-completion.md
 git commit -m "test(agent): record behavior-backed team parity"
 ```
+
+---
+
+## Team Parity Evidence
+
+- Team behavior parity suite: PASS on 2026-05-07 with command `AGENT_RUNTIME_VERSION=team pytest -v tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_uses_agent_runtime tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_rolls_back_before_runtime_on_new_message tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_empty_output_uses_chat_fallback tests/unit/agent/test_team_runtime_execution.py::test_run_team_runtime_invokes_team_and_executes_requested_capability tests/unit/runner/test_typed_runtime_events.py::test_reminder_event_handler_can_route_through_typed_runtime tests/unit/runner/test_deferred_action_executor.py::test_executor_consumes_deferred_action_fire_result_success tests/unit/agent/test_team_runtime_parity.py::test_timezone_port_returns_capability_result tests/unit/agent/test_team_runtime_parity.py::test_url_context_port_is_explicitly_not_a_durable_writer tests/unit/agent/test_team_runtime_parity.py::test_calendar_import_port_returns_capability_result tests/unit/agent/test_agent_handler.py::test_handle_message_team_runtime_schedules_post_analyze` (10 passed).
+- Legacy-adjacent regression suite: PASS on 2026-05-07 with command `pytest tests/unit/test_prepare_workflow_timezone.py tests/unit/test_prepare_workflow_web_search.py tests/unit/agent/test_chat_workflow_calendar_import.py tests/unit/test_url_reader.py -v` (29 passed).
 
 ---
 
