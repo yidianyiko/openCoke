@@ -16,7 +16,7 @@ Each kind of knowledge should have one default home:
 - durable workflow decisions: `docs/adr/`
 - active execution plans: `docs/exec-plans/`
 - verification rules: `docs/fitness/`
-- task-local work state: `tasks/`
+- generated verification evidence: `artifacts/evidence/`
 - dated design and implementation history: `docs/superpowers/`
 - product direction and runtime docs: `docs/roadmap.md`,
   `docs/architecture.md`, `docs/deploy.md`, `docs/clawscale_bridge.md`
@@ -37,17 +37,18 @@ counts as complete without requiring chat reconstruction.
 "Looks right" is not a completion signal. Completion requires fresh evidence:
 tests, checks, smoke commands, or reviewed outputs.
 
-## 6. Task And Plan State Should Survive The Session
+## 6. Plans And Evidence Should Survive The Session
 
-Non-trivial work should leave behind task-local state and, when needed, an
-execution plan in repo-local files.
+Non-trivial work should leave behind a durable execution plan when needed and
+fresh verification evidence when generated. Ephemeral task notes should not
+accumulate as first-class repository history.
 
 ## 7. Keep Product Docs Separate From Repo-OS Docs
 
 `docs/roadmap.md`, `docs/architecture.md`, and `docs/deploy.md` describe what
 Coke is and how it runs. `docs/design-docs/`, `docs/adr/`, `docs/fitness/`,
-`docs/exec-plans/`, and `tasks/` describe how work on the repository should be
-run.
+`docs/exec-plans/`, and `artifacts/evidence/` describe how work on the
+repository should be run and verified.
 
 ## 8. Start With Minimal Structure That Improves Real Work
 

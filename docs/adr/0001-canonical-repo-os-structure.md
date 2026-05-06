@@ -1,6 +1,6 @@
 # ADR 0001: Adopt A Canonical Repo OS Structure
 
-- Status: Accepted
+- Status: Superseded by ADR 0002 for task-local work state
 - Date: 2026-04-20
 
 ## Context
@@ -49,3 +49,9 @@ At the same time:
   `docs/superpowers` history; that is intentional.
 - A later migration may move or archive selected `docs/superpowers` artifacts,
   but only with a dedicated task and explicit mapping.
+
+## Supersession
+
+ADR 0002 retires `tasks/` as a canonical repo-OS directory. Durable plans now
+belong in `docs/exec-plans/` or `docs/superpowers/plans/`, durable decisions in
+`docs/adr/`, and generated evidence in `artifacts/evidence/`.

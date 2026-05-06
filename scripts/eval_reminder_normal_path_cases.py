@@ -1653,7 +1653,7 @@ def _parse_args() -> argparse.Namespace:
 
 def default_evidence_path(*, run_id: str) -> Path:
     safe_run_id = re.sub(r"[^A-Za-z0-9_.-]+", "-", run_id).strip("-")
-    return Path("tasks/evidence/reminder-normal") / f"{safe_run_id}.json"
+    return Path("artifacts/evidence/reminder-normal") / f"{safe_run_id}.json"
 
 
 def main() -> int:

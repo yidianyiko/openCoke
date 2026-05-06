@@ -42,7 +42,7 @@ surfaces:
       - docs/adr/**
       - docs/exec-plans/**
       - docs/fitness/**
-      - tasks/**
+      - artifacts/evidence/**
       - scripts/check
       - scripts/verify-surface
       - scripts/suggest-verification
@@ -103,7 +103,7 @@ review_triggers:
     max_added_lines: 600
     max_deleted_lines: 400
 
-  - name: task_evidence_gap
+  - name: evidence_gap
     type: evidence_gap
     severity: medium
     paths:
@@ -119,4 +119,4 @@ review_triggers:
       - docs/fitness/**
       - docs/design-docs/**
     evidence_paths:
-      - tasks/**
+      - artifacts/evidence/**

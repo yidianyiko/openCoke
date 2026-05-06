@@ -14,14 +14,13 @@ def test_repo_os_required_files_exist():
         ROOT / "docs" / "adr" / "README.md",
         ROOT / "docs" / "adr" / "_template.md",
         ROOT / "docs" / "adr" / "0001-canonical-repo-os-structure.md",
+        ROOT / "docs" / "adr" / "0002-retire-tasks-directory.md",
         ROOT / "docs" / "exec-plans" / "README.md",
         ROOT / "docs" / "exec-plans" / "_template.md",
         ROOT / "docs" / "fitness" / "README.md",
         ROOT / "docs" / "fitness" / "verification-checklist.md",
         ROOT / "docs" / "fitness" / "coke-verification-matrix.md",
         ROOT / "docs" / "fitness" / "surfaces.yaml",
-        ROOT / "tasks" / "README.md",
-        ROOT / "tasks" / "_template.md",
         ROOT / "scripts" / "check",
         ROOT / "scripts" / "verify-surface",
         ROOT / "scripts" / "suggest-verification",
@@ -51,7 +50,7 @@ def test_root_docs_reference_repo_os_map():
         "docs/fitness/coke-verification-matrix.md",
         "docs/fitness/surfaces.yaml",
         "docs/exec-plans/",
-        "tasks/",
+        "artifacts/evidence/",
     ]:
         assert needle in agents_text
         assert needle in claude_text

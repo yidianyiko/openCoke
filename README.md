@@ -61,7 +61,6 @@ zsh scripts/review-trigger --base HEAD~1
 
 ```
 AGENTS.md                  # routing layer for agents
-tasks/                     # task-local work state
 docs/design-docs/          # durable repository workflow intent
 docs/design-docs/coke-working-contract.md
                            # Coke-specific work surfaces and planning contract
@@ -71,6 +70,7 @@ docs/fitness/              # verification rulebook
 docs/fitness/coke-verification-matrix.md
                            # project-specific verification commands by surface
 docs/fitness/surfaces.yaml # machine-readable surface and review trigger map
+artifacts/evidence/        # generated verification and eval evidence
 docs/roadmap.md            # product and platform direction
 docs/architecture.md       # runtime architecture
 docs/deploy.md             # deployment and smoke checks
@@ -96,5 +96,5 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
 - `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
   map used by the guardrail scripts
 - `docs/exec-plans/`: canonical home for new execution plans
-- `tasks/`: task-local work state
+- `artifacts/evidence/`: generated verification and eval evidence
 - `docs/superpowers/`: dated design and implementation history

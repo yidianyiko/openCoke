@@ -16,14 +16,13 @@ typeset -a required_files=(
   "docs/adr/README.md"
   "docs/adr/_template.md"
   "docs/adr/0001-canonical-repo-os-structure.md"
+  "docs/adr/0002-retire-tasks-directory.md"
   "docs/exec-plans/README.md"
   "docs/exec-plans/_template.md"
   "docs/fitness/README.md"
   "docs/fitness/verification-checklist.md"
   "docs/fitness/coke-verification-matrix.md"
   "docs/fitness/surfaces.yaml"
-  "tasks/README.md"
-  "tasks/_template.md"
   "scripts/check"
   "scripts/verify-surface"
   "scripts/suggest-verification"
@@ -59,7 +58,7 @@ for needle in \
   "docs/fitness/coke-verification-matrix.md" \
   "docs/fitness/surfaces.yaml" \
   "docs/exec-plans/" \
-  "tasks/"
+  "artifacts/evidence/"
 do
   if rg -q "$needle" AGENTS.md CLAUDE.md README.md; then
     print "OK  root docs reference $needle"

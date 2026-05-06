@@ -236,19 +236,25 @@ def _reminder_service(
     )
 
 
-def _event_handler(output_writer: Mock) -> ReminderFireEventHandler:
+def _event_handler(
+    output_writer: Mock,
+    *,
+    existing_output_lookup: Mock | None = None,
+) -> ReminderFireEventHandler:
     conversation = {
         "_id": "conv-1",
         "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
     }
     owner = {"_id": "user-1", "nickname": "Owner"}
     character = {"_id": "char-1", "nickname": "Assistant"}
+    existing_output_lookup = existing_output_lookup or Mock(return_value=None)
     return ReminderFireEventHandler(
         conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
         user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
         lock_manager=FakeLockManager(),
         output_writer=output_writer,
         context_builder=Mock(return_value={"conversation": conversation}),
+        existing_output_lookup=existing_output_lookup,
     )
 
 
@@ -371,9 +377,13 @@ async def test_one_shot_fired_event_enters_agent_handler_and_completes_reminder(
     fired_at = datetime(2026, 4, 29, 1, 0, 2, tzinfo=UTC)
     reminder_dao = InMemoryReminderDAO()
     output_writer = Mock(return_value={"_id": "out-1"})
+    existing_output_lookup = Mock(return_value=None)
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=_event_handler(output_writer),
+        fire_event_handler=_event_handler(
+            output_writer,
+            existing_output_lookup=existing_output_lookup,
+        ),
         scheduler=RecordingSchedulerBackend(),
         now_provider=lambda: fired_at,
     )
@@ -394,6 +404,7 @@ async def test_one_shot_fired_event_enters_agent_handler_and_completes_reminder(
     assert stored["next_fire_at"] is None
     assert stored["last_fired_at"] == scheduled_for
     assert stored["last_event_ack_at"] == fired_at
+    assert existing_output_lookup.call_count == 2
     output_writer.assert_called_once()
     assert output_writer.call_args.args[1] == "提醒：stand up"
     assert output_writer.call_args.kwargs["metadata"]["reminder_id"] == reminder.id

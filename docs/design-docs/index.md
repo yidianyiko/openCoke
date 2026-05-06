@@ -26,7 +26,8 @@ store different kinds of knowledge:
 - [`../exec-plans/`](../exec-plans/README.md): new execution plans for active
   multi-step work.
 - [`../fitness/`](../fitness/README.md): verification rules and evidence model.
-- [`../../tasks/`](../../tasks/README.md): task-local work state.
+- [`../../artifacts/evidence/`](../../artifacts/evidence/): generated
+  verification and eval evidence.
 
 ## Domain And History Docs
 

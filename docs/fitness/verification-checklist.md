@@ -12,9 +12,9 @@ runtime behavior.
 
 ## Workflow
 
-- task file exists for non-trivial work
 - execution plan exists when the work is multi-step or risky
 - canonical docs were updated for workflow changes
+- generated evidence is stored under `artifacts/evidence/`
 
 ## Runtime
 

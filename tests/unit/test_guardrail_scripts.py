@@ -47,7 +47,7 @@ def test_suggest_verification_deduplicates_and_orders_surfaces_by_config():
     assert "zsh scripts/verify-surface gateway-web repo-os" in result.stdout
 
 
-def test_review_trigger_flags_cross_boundary_and_missing_task_evidence():
+def test_review_trigger_flags_cross_boundary_and_missing_evidence():
     result = run_script(
         "scripts/review-trigger",
         "--files",
@@ -59,16 +59,16 @@ def test_review_trigger_flags_cross_boundary_and_missing_task_evidence():
     assert result.returncode == 1, result.stdout + result.stderr
     assert "human_review_required: yes" in result.stdout
     assert "cross_boundary_bridge_gateway" in result.stdout
-    assert "task_evidence_gap" in result.stdout
+    assert "evidence_gap" in result.stdout
 
 
-def test_review_trigger_accepts_task_evidence_for_nontrivial_changes():
+def test_review_trigger_accepts_evidence_for_nontrivial_changes():
     result = run_script(
         "scripts/review-trigger",
         "--files",
         "agent/runner/message_processor.py",
         "--files",
-        "tasks/2026-04-29-coke-native-guardrails.md",
+        "artifacts/evidence/2026-04-29-coke-native-guardrails.md",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr

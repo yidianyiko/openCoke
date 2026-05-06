@@ -15,7 +15,7 @@ When starting work in this repository, read in this order:
 5. `docs/fitness/README.md` for verification expectations.
 6. `docs/design-docs/coke-working-contract.md` for Coke-specific work surfaces.
 7. `docs/fitness/coke-verification-matrix.md` for surface-to-command mapping.
-8. Task-specific files in `tasks/`, `docs/exec-plans/`, or
+8. Task-specific design or execution context in `docs/exec-plans/` or
    `docs/superpowers/`.
 9. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
    bridge behavior, or operational flows.
@@ -37,7 +37,7 @@ When starting work in this repository, read in this order:
   commands by surface.
 - `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
   map for Coke-native guardrail scripts.
-- `tasks/`: task-local work state.
+- `artifacts/evidence/`: generated verification and eval evidence.
 - `docs/roadmap.md`: product and platform direction.
 - `docs/architecture.md`: runtime reference for the code that exists today.
 - `docs/deploy.md`: operational deployment and smoke-check instructions.
@@ -49,8 +49,7 @@ When starting work in this repository, read in this order:
 
 - Keep this file as a routing layer, not a knowledge dump.
 - Put durable repository workflow rules in `docs/design-docs/` or `docs/adr/`.
-- Put new execution plans in `docs/exec-plans/` and task-local state in
-  `tasks/`.
+- Put new execution plans in `docs/exec-plans/`.
 - Keep product, architecture, deployment, and bridge details in their domain
   docs.
 - Preserve existing `docs/superpowers/` history unless a dedicated migration
@@ -58,7 +57,6 @@ When starting work in this repository, read in this order:
 
 ## Delivery Rules
 
-- Every non-trivial task should have a task file in `tasks/`.
 - Multi-step, risky, cross-cutting, or multi-session work should also have an
   execution plan in `docs/exec-plans/`.
 - Prefer small, reviewable changes over broad speculative rewrites.

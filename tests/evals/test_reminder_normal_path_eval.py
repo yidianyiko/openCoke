@@ -117,7 +117,7 @@ def test_iter_case_batches_applies_total_limit_before_chunking():
 
 def test_default_evidence_path_sanitizes_run_id():
     assert normal_eval.default_evidence_path(run_id="batch/id:1").as_posix() == (
-        "tasks/evidence/reminder-normal/batch-id-1.json"
+        "artifacts/evidence/reminder-normal/batch-id-1.json"
     )
 
 
@@ -182,7 +182,9 @@ def test_main_writes_default_evidence_and_uses_serial_batches(monkeypatch, tmp_p
 
     assert normal_eval.main() == 0
     assert captured["serial"] is True
-    assert (tmp_path / "tasks/evidence/reminder-normal/unit-evidence.json").exists()
+    assert (
+        tmp_path / "artifacts/evidence/reminder-normal/unit-evidence.json"
+    ).exists()
 
 
 def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(

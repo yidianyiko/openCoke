@@ -16,9 +16,9 @@ Use the smallest useful layer for the task:
    - templates are present
 
 2. **Workflow checks**
-   - task artifact exists when work is non-trivial
    - execution plan exists when the work is multi-step or risky
    - canonical docs were updated when workflow rules changed
+   - generated evidence uses the `artifacts/evidence/` path
 
 3. **Implementation checks**
    - unit tests
@@ -62,4 +62,4 @@ zsh scripts/review-trigger --base HEAD~1
   matching `scripts/verify-surface` dry-run command set.
 - `review-trigger` flags changes that should receive human review, such as
   bridge/gateway cross-boundary changes, deployment changes, oversized diffs,
-  or non-trivial changes without `tasks/` evidence.
+  or non-trivial changes without generated evidence.

@@ -18,13 +18,12 @@ These rules govern day-to-day repository work in `coke`.
 
 ## Delivery Rules
 
-1. Every non-trivial task should have a task file in `tasks/`.
-2. Multi-step, risky, cross-cutting, or multi-session work should also have an
+1. Multi-step, risky, cross-cutting, or multi-session work should have an
    execution plan in `docs/exec-plans/`.
-3. If a workflow rule changes, update the canonical docs in the same change.
-4. Prefer the smallest implementation that improves repeatability or reduces
+2. If a workflow rule changes, update the canonical docs in the same change.
+3. Prefer the smallest implementation that improves repeatability or reduces
    operator ambiguity.
-5. Use isolated git worktrees when concurrent implementation is real.
+4. Use isolated git worktrees when concurrent implementation is real.
 
 ## Validation Rules
 

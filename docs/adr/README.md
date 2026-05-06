@@ -21,6 +21,9 @@ Do not write an ADR for routine task-specific implementation choices.
 - [`0001-canonical-repo-os-structure.md`](./0001-canonical-repo-os-structure.md):
   adopt a canonical repo-OS skeleton for Coke while preserving
   `docs/superpowers` history.
+- [`0002-retire-tasks-directory.md`](./0002-retire-tasks-directory.md):
+  retire `tasks/` and move generated verification evidence under
+  `artifacts/evidence/`.
 
 ## Template
 

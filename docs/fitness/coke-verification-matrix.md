@@ -18,7 +18,7 @@ Use when changing:
 
 - `AGENTS.md`, `CLAUDE.md`, `README.md`
 - `docs/design-docs/`, `docs/adr/`, `docs/fitness/`, `docs/exec-plans/`,
-  `tasks/`
+- `artifacts/evidence/`
 - `scripts/check`
 
 Commands:

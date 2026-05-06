@@ -78,9 +78,9 @@ Use this surface when the change affects:
 
 For non-trivial work:
 
-- task-local state goes in `tasks/`
 - new multi-step plans go in `docs/exec-plans/`
 - durable repository workflow rules go in `docs/design-docs/` or `docs/adr/`
+- generated verification evidence goes in `artifacts/evidence/`
 - historical design and implementation context remains in
   `docs/superpowers/specs/` and `docs/superpowers/plans/`
 
