@@ -443,7 +443,7 @@ git commit -m "feat(agent): define manager prompt command contract"
 - Test: `tests/unit/agent/test_reminder_intent_capability.py`
 - Test: `tests/unit/agent/test_team_runtime_parity.py`
 
-- [ ] **Step 1: Write failing reminder capability tests**
+- [x] **Step 1: Write failing reminder capability tests**
 
 Create `tests/unit/agent/test_reminder_intent_capability.py`:
 
@@ -522,7 +522,7 @@ async def test_reminder_intent_port_returns_noop_for_non_reminder():
     assert result.content["action"] == "none"
 ```
 
-- [ ] **Step 2: Write failing parity-port smoke tests**
+- [x] **Step 2: Write failing parity-port smoke tests**
 
 Create `tests/unit/agent/test_team_runtime_parity.py`:
 
@@ -586,7 +586,7 @@ def test_calendar_import_port_returns_capability_result():
     assert result.content["status"] == "queued"
 ```
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run:
 
@@ -596,7 +596,7 @@ pytest tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test
 
 Expected: FAIL with missing modules.
 
-- [ ] **Step 4: Implement ports**
+- [x] **Step 4: Implement ports**
 
 Create `agent/agno_agent/prompts/reminder_intent.py`:
 
@@ -896,7 +896,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 5: Verify GREEN or stop on missing legacy helper imports**
+- [x] **Step 5: Verify GREEN or stop on missing legacy helper imports**
 
 Run:
 
@@ -906,7 +906,7 @@ pytest tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test
 
 Expected: PASS. The default imports must resolve to existing helpers: `extract_urls_content`, `format_url_context`, `set_user_timezone`, `store_timezone_proposal`, `consume_timezone_confirmation`, and `create_calendar_import_handoff_link`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
