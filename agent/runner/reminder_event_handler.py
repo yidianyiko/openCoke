@@ -23,6 +23,7 @@ class ReminderFireEventHandler:
         context_builder: Callable[..., dict] | None = None,
         now_provider: Callable[[], datetime] | None = None,
         existing_output_lookup: Callable[[ReminderFiredEvent], Any] | None = None,
+        runtime_event_handler: Callable[..., Any] | None = None,
         conversation_lock_timeout: int = 120,
     ) -> None:
         self.conversation_dao = conversation_dao or ConversationDAO()
@@ -32,6 +33,7 @@ class ReminderFireEventHandler:
         self.context_builder = context_builder or context_prepare
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
         self.existing_output_lookup = existing_output_lookup or self._find_existing_output
+        self.runtime_event_handler = runtime_event_handler
         self.conversation_lock_timeout = conversation_lock_timeout
 
     async def handle(self, event: ReminderFiredEvent) -> ReminderFireResult:
@@ -100,6 +102,9 @@ class ReminderFireEventHandler:
             context = self.context_builder(owner, character, conversation)
             if isinstance(context, dict):
                 context.setdefault("message_source", "deferred_action")
+            if self.runtime_event_handler is not None:
+                return await self._handle_with_typed_runtime(event, context)
+
             output = self.output_writer(
                 context,
                 f"提醒：{event.title}",
@@ -129,6 +134,78 @@ class ReminderFireEventHandler:
             return self._failure(event, "OutputFailed", str(exc))
         finally:
             await self._release_conversation_lock(conversation_id, lock_id)
+
+    async def _handle_with_typed_runtime(
+        self,
+        event: ReminderFiredEvent,
+        context: dict,
+    ) -> ReminderFireResult:
+        from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload
+
+        event_metadata = {
+            "event_type": event.event_type,
+            "event_id": event.event_id,
+            "fire_id": event.fire_id,
+            "reminder_id": event.reminder_id,
+            "scheduled_for": event.scheduled_for.isoformat(),
+            "fire_at": event.fire_at.isoformat(),
+        }
+        agent_input = AgentInput(
+            input_type="reminder.fired",
+            conversation_id=event.agent_output_target.conversation_id,
+            text=f"提醒：{event.title}",
+            payload=ReminderFirePayload(
+                fire_id=event.fire_id,
+                reminder_id=event.reminder_id,
+                title=event.title,
+                scheduled_for=event.scheduled_for,
+                metadata=event_metadata,
+            ),
+            occurred_at=event.fire_at,
+            metadata={
+                "owner_user_id": event.owner_user_id,
+                "character_id": event.agent_output_target.character_id,
+                **event_metadata,
+            },
+        )
+        runtime_result = self.runtime_event_handler(
+            agent_input=agent_input,
+            context=context,
+            message_source="reminder",
+            metadata=event_metadata,
+        )
+        if inspect.isawaitable(runtime_result):
+            runtime_result = await runtime_result
+
+        output_reference = None
+        for visible_message in runtime_result.visible_messages:
+            output = self.output_writer(
+                context,
+                visible_message.content,
+                message_type=visible_message.message_type,
+                metadata={**event_metadata, **dict(visible_message.metadata)},
+            )
+            if inspect.isawaitable(output):
+                output = await output
+            failed_result = self._failed_output_result(event, output)
+            if failed_result is not None:
+                return failed_result
+            if output_reference is None:
+                output_reference = self._output_reference(output)
+
+        if output_reference is None:
+            return self._failure(
+                event,
+                "OutputUnavailable",
+                "runtime produced no reminder output",
+            )
+        return ReminderFireResult(
+            ok=True,
+            fire_id=event.fire_id,
+            output_reference=output_reference,
+            error_code=None,
+            error_message=None,
+        )
 
     def _find_existing_output(self, event: ReminderFiredEvent) -> Any:
         return MongoDBBase().find_one(
