@@ -1651,7 +1651,7 @@ git commit -m "feat(agent): consume typed deferred action fire results"
 - Modify: `agent/agno_agent/adapters/__init__.py`
 - Test: `tests/unit/agent/test_output_disposition_adapter.py`
 
-- [ ] **Step 1: Write adapter test**
+- [x] **Step 1: Write adapter test**
 
 Create `tests/unit/agent/test_output_disposition_adapter.py`:
 
@@ -1677,7 +1677,7 @@ def test_output_disposition_records_output_references():
     assert updated.output_disposition.output_references == ("out-1",)
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -1687,7 +1687,7 @@ pytest tests/unit/agent/test_output_disposition_adapter.py -v
 
 Expected: FAIL with missing module.
 
-- [ ] **Step 3: Implement adapter and exports**
+- [x] **Step 3: Implement adapter and exports**
 
 Create `agent/agno_agent/adapters/output_disposition.py`:
 
@@ -1716,7 +1716,7 @@ def with_output_references(
 
 Modify `agent/agno_agent/adapters/__init__.py` to export `with_output_references`, `DeferredActionFireResult`, `map_agent_result_to_deferred_status`, and `ReminderCommandExecutor`.
 
-- [ ] **Step 4: Verify GREEN**
+- [x] **Step 4: Verify GREEN**
 
 Run:
 
@@ -1726,7 +1726,7 @@ pytest tests/unit/agent/test_output_disposition_adapter.py tests/unit/agent/test
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
