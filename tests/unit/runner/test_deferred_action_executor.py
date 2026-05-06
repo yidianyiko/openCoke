@@ -109,9 +109,13 @@ class TestDeferredActionExecutor:
             ),
             scheduler=Mock(remove_action=Mock()),
             lock_manager=lock_manager,
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+            ),
             user_dao=Mock(
-                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+                )
             ),
             handle_message_fn=handle_message,
             context_builder=Mock(return_value=build_context()),
@@ -173,7 +177,9 @@ class TestDeferredActionExecutor:
         handle_message.assert_not_called()
         action_dao.release_action_lease.assert_called_once_with("action-1", ANY)
 
-    async def test_first_claim_is_not_treated_as_duplicate_when_mongo_truncates_millis(self):
+    async def test_first_claim_is_not_treated_as_duplicate_when_mongo_truncates_millis(
+        self,
+    ):
         now = datetime(2026, 4, 21, 9, 0, 0, 123456, tzinfo=UTC)
         action = build_action()
         action_dao = Mock(
@@ -187,7 +193,9 @@ class TestDeferredActionExecutor:
                     "trigger_key": "action:action-1:2026-04-21T09:00:00+00:00",
                     "status": "claimed",
                     "attempt_count": 1,
-                    "last_started_at": datetime(2026, 4, 21, 9, 0, 0, 123000, tzinfo=UTC),
+                    "last_started_at": datetime(
+                        2026, 4, 21, 9, 0, 0, 123000, tzinfo=UTC
+                    ),
                 }
             ),
             mark_occurrence_succeeded=Mock(),
@@ -202,9 +210,13 @@ class TestDeferredActionExecutor:
                 acquire_lock_async=AsyncMock(return_value="lock-1"),
                 release_lock_safe_async=AsyncMock(),
             ),
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+            ),
             user_dao=Mock(
-                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+                )
             ),
             handle_message_fn=handle_message,
             context_builder=Mock(return_value=build_context()),
@@ -221,7 +233,9 @@ class TestDeferredActionExecutor:
         handle_message.assert_awaited_once()
         occurrence_dao.mark_occurrence_succeeded.assert_called_once()
 
-    async def test_success_path_updates_lifecycle_and_reschedules_recurring_actions(self):
+    async def test_success_path_updates_lifecycle_and_reschedules_recurring_actions(
+        self,
+    ):
         now = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
         action = build_action(rrule="FREQ=DAILY")
         action_dao = Mock(
@@ -249,11 +263,17 @@ class TestDeferredActionExecutor:
                 acquire_lock_async=AsyncMock(return_value="lock-1"),
                 release_lock_safe_async=AsyncMock(),
             ),
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
-            user_dao=Mock(
-                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
             ),
-            handle_message_fn=AsyncMock(return_value=([], build_context(), False, False)),
+            user_dao=Mock(
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+                )
+            ),
+            handle_message_fn=AsyncMock(
+                return_value=([], build_context(), False, False)
+            ),
             context_builder=Mock(return_value=build_context()),
             now_provider=lambda: now,
         )
@@ -275,7 +295,9 @@ class TestDeferredActionExecutor:
         scheduler.reschedule_action.assert_called_once()
         scheduler.remove_action.assert_not_called()
 
-    async def test_build_context_recovers_synthetic_business_user_from_conversation_talkers(self):
+    async def test_build_context_recovers_synthetic_business_user_from_conversation_talkers(
+        self,
+    ):
         action = build_action(
             user_id="ck_synthetic_user",
             character_id="char-1",
@@ -295,12 +317,16 @@ class TestDeferredActionExecutor:
             occurrence_dao=Mock(),
             scheduler=Mock(),
             lock_manager=Mock(),
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value=conversation)
+            ),
             user_dao=Mock(
                 get_user_by_id=Mock(
-                    side_effect=lambda user_id: None
-                    if user_id == "ck_synthetic_user"
-                    else {"_id": "char-1", "nickname": "qiaoyun"}
+                    side_effect=lambda user_id: (
+                        None
+                        if user_id == "ck_synthetic_user"
+                        else {"_id": "char-1", "nickname": "qiaoyun"}
+                    )
                 )
             ),
             handle_message_fn=AsyncMock(),
@@ -348,9 +374,13 @@ class TestDeferredActionExecutor:
                 acquire_lock_async=AsyncMock(return_value="lock-1"),
                 release_lock_safe_async=AsyncMock(),
             ),
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+            ),
             user_dao=Mock(
-                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+                )
             ),
             handle_message_fn=AsyncMock(side_effect=RuntimeError("send failed")),
             context_builder=Mock(return_value=build_context()),
@@ -404,9 +434,13 @@ class TestDeferredActionExecutor:
                 acquire_lock_async=AsyncMock(return_value="lock-1"),
                 release_lock_safe_async=AsyncMock(),
             ),
-            conversation_dao=Mock(get_conversation_by_id=Mock(return_value={"_id": "conv-1"})),
+            conversation_dao=Mock(
+                get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+            ),
             user_dao=Mock(
-                get_user_by_id=Mock(side_effect=lambda user_id: {"_id": user_id, "nickname": user_id})
+                get_user_by_id=Mock(
+                    side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+                )
             ),
             handle_message_fn=AsyncMock(side_effect=RuntimeError("boom")),
             context_builder=Mock(return_value=build_context()),
@@ -424,6 +458,81 @@ class TestDeferredActionExecutor:
         assert call.kwargs["updates"]["next_run_at"] is None
         scheduler.remove_action.assert_called_once_with("action-1")
         scheduler.reschedule_action.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_executor_consumes_deferred_action_fire_result_success():
+    from agent.agno_agent.runtime.result import VisibleMessage
+
+    now = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+    action = build_action(kind="follow_up")
+    action_dao = Mock(
+        get_action=Mock(return_value=action),
+        claim_action_lease=Mock(return_value=True),
+        update_action=Mock(return_value=True),
+    )
+    occurrence_dao = Mock(
+        claim_or_get_occurrence=Mock(
+            return_value={
+                "trigger_key": "action:action-1:2026-04-21T09:00:00+00:00",
+                "status": "claimed",
+                "attempt_count": 1,
+                "last_started_at": now,
+            }
+        ),
+        mark_occurrence_succeeded=Mock(),
+    )
+    scheduler = Mock(remove_action=Mock(), reschedule_action=Mock())
+    lock_manager = Mock(
+        acquire_lock_async=AsyncMock(return_value="lock-1"),
+        release_lock_safe_async=AsyncMock(),
+    )
+
+    async def runtime_fire_handler(**kwargs):
+        agent_input = kwargs["agent_input"]
+        assert agent_input.input_type == "deferred_action.fire"
+        assert agent_input.payload.action_id == str(action["_id"])
+        return AgentRunResult(
+            visible_messages=[VisibleMessage(message_type="text", content="follow up")],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    output_writer = Mock(return_value={"_id": "out-1"})
+
+    executor = executor_module.DeferredActionExecutor(
+        action_dao=action_dao,
+        occurrence_dao=occurrence_dao,
+        scheduler=scheduler,
+        lock_manager=lock_manager,
+        conversation_dao=Mock(
+            get_conversation_by_id=Mock(return_value={"_id": "conv-1"})
+        ),
+        user_dao=Mock(
+            get_user_by_id=Mock(
+                side_effect=lambda user_id: {"_id": user_id, "nickname": user_id}
+            )
+        ),
+        context_builder=Mock(return_value=build_context()),
+        now_provider=lambda: now,
+        runtime_fire_handler=runtime_fire_handler,
+        output_writer=output_writer,
+    )
+
+    result = await executor.execute_due_action(
+        action_id=str(action["_id"]),
+        scheduled_for=action["next_run_at"],
+        revision=action["revision"],
+    )
+
+    assert result == "succeeded"
+    output_writer.assert_called_once()
+    assert output_writer.call_args.kwargs["message"] == "follow up"
+    output_context = output_writer.call_args.args[0]
+    assert output_context["message_source"] == "deferred_action"
 
 
 def build_agent_result(*, output_disposition, error_disposition=None):

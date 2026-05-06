@@ -1516,7 +1516,7 @@ git commit -m "feat(agent): route reminder fires through typed runtime input"
 - Modify: `agent/runner/agent_runner.py`
 - Test: `tests/unit/runner/test_deferred_action_executor.py`
 
-- [ ] **Step 1: Add deferred action runtime result test**
+- [x] **Step 1: Add deferred action runtime result test**
 
 Append to `tests/unit/runner/test_deferred_action_executor.py`:
 
@@ -1570,7 +1570,7 @@ async def test_executor_consumes_deferred_action_fire_result_success():
     assert output_context["message_source"] == "deferred_action"
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -1580,7 +1580,7 @@ pytest tests/unit/runner/test_deferred_action_executor.py::test_executor_consume
 
 Expected: FAIL because `DeferredActionExecutor` has no `runtime_fire_handler`.
 
-- [ ] **Step 3: Implement runtime fire handler**
+- [x] **Step 3: Implement runtime fire handler**
 
 Modify `DeferredActionExecutor.__init__()` to accept and store:
 
@@ -1623,7 +1623,7 @@ executor = DeferredActionExecutor(
 )
 ```
 
-- [ ] **Step 4: Verify deferred-action suites**
+- [x] **Step 4: Verify deferred-action suites**
 
 Run:
 
@@ -1633,7 +1633,7 @@ pytest tests/unit/runner/test_deferred_action_executor.py tests/e2e/test_deferre
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
