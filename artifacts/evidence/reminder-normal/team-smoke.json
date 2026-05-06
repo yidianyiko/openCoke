@@ -1,0 +1,82 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 0,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-c013775907",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "b28763cdce6afaa15fd5b3e6"
+  ],
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1,
+    "pass_rate": 0.0,
+    "by_error": {
+      "expected_reminder_count_mismatch:2>0": 1,
+      "input_pending": 1,
+      "missing_expected_reminder_title:喝水": 1,
+      "missing_expected_reminder_title:锻炼": 1,
+      "no_reminder_created": 1,
+      "no_user_output": 1,
+      "user_output_missing_expected_title:喝水": 1,
+      "user_output_missing_expected_title:锻炼": 1
+    },
+    "failures": [
+      {
+        "index": 0,
+        "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+        "user_id": "b28763cdce6afaa15fd5b3e6",
+        "original_from_user": "692c14aaa538f0baad5561b3",
+        "input_message_id": "69fb48c41d9752f417a18c21",
+        "input_status": "pending",
+        "passed": false,
+        "errors": [
+          "input_pending",
+          "no_user_output",
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:2>0",
+          "missing_expected_reminder_title:喝水",
+          "missing_expected_reminder_title:锻炼",
+          "user_output_missing_expected_title:喝水",
+          "user_output_missing_expected_title:锻炼"
+        ],
+        "outputs": [],
+        "reminders": [],
+        "elapsed_seconds": 180.33
+      }
+    ]
+  },
+  "results": [
+    {
+      "index": 0,
+      "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+      "user_id": "b28763cdce6afaa15fd5b3e6",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69fb48c41d9752f417a18c21",
+      "input_status": "pending",
+      "passed": false,
+      "errors": [
+        "input_pending",
+        "no_user_output",
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:2>0",
+        "missing_expected_reminder_title:喝水",
+        "missing_expected_reminder_title:锻炼",
+        "user_output_missing_expected_title:喝水",
+        "user_output_missing_expected_title:锻炼"
+      ],
+      "outputs": [],
+      "reminders": [],
+      "elapsed_seconds": 180.33
+    }
+  ]
+}

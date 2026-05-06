@@ -19,6 +19,7 @@ from agent.agno_agent.runtime.context import build_agent_run_context
 from agent.agno_agent.runtime.plan_parser import parse_team_plan
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
+    CapabilityResult,
     OutputDisposition,
     RuntimeErrorDisposition,
     VisibleMessage,
@@ -60,12 +61,31 @@ async def _maybe_await(value: Any) -> Any:
 
 
 async def _collect_team_events(events: Any) -> list[Any]:
+    if inspect.isawaitable(events):
+        response = await events
+        content = getattr(response, "content", None)
+        if isinstance(content, str):
+            return [{"event": "TeamRunContent", "content": content}]
+        return [response]
     if hasattr(events, "__aiter__"):
         collected = []
         async for event in events:
             collected.append(event)
         return collected
     return list(events)
+
+
+def _visible_text_from_capability_results(
+    tool_results: list[CapabilityResult],
+) -> str | None:
+    summaries = []
+    for result in tool_results:
+        summary = result.content.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            summaries.append(summary.strip())
+    if not summaries:
+        return None
+    return "\n".join(summaries)
 
 
 async def run_team_runtime(
@@ -115,9 +135,12 @@ async def run_team_runtime(
         tool_results.append(result)
         executed_request_names.append(request.name)
 
+    visible_text = plan.response_text or _visible_text_from_capability_results(
+        tool_results
+    )
     visible_messages = (
-        (VisibleMessage(message_type="text", content=plan.response_text),)
-        if plan.response_text
+        (VisibleMessage(message_type="text", content=visible_text),)
+        if visible_text
         else ()
     )
     if visible_messages or tool_results:

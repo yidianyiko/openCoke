@@ -2177,3 +2177,16 @@ Review history:
 - Exit status: 1.
 - Failure category: local MongoDB unavailable before eval execution; `pymongo.errors.ServerSelectionTimeoutError` for `127.0.0.1:27017`.
 - Cutover status: stopped before default runtime cutover, per Task 10 gate.
+
+## Reminder Eval Follow-Up
+
+- Fixed confirmed Team runtime bugs found while retrying Task 10:
+  - Agno `Team.arun()` coroutine `RunResponse` handling now normalizes string content into Team events.
+  - Capability-only manager responses now surface successful capability `summary` text as a `VisibleMessage`.
+  - Reminder intent capability now accepts `ReminderDetectDecision` JSON string or dict content, matching legacy prepare workflow coercion.
+- Focused verification: `pytest tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test_team_runtime_execution.py tests/unit/agent/test_team_runtime_construction.py tests/unit/agent/test_team_streaming_filter.py -v` passed on 2026-05-06.
+- Retried command: `AGENT_RUNTIME_VERSION=team python scripts/eval_reminder_normal_path_cases.py --offset 0 --limit 1 --case-timeout-seconds 180 --output artifacts/evidence/reminder-normal/team-smoke.json`.
+- Exit status: 1.
+- Failure category: runtime/model instability during Team runtime execution; input `69fb48c41d9752f417a18c21` stayed `pending` for 180.33s after `AgentRuntime Team 开始`, with no `AgentRuntime Team 完成` log before the eval timeout.
+- Evidence file: `artifacts/evidence/reminder-normal/team-smoke.json`.
+- Cutover status: stopped before default runtime cutover, per Task 10 gate.

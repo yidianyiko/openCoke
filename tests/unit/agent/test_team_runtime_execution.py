@@ -128,3 +128,78 @@ async def test_run_team_runtime_empty_output_returns_empty_disposition(monkeypat
     assert result.visible_messages == ()
     assert result.output_disposition.status == "empty"
     assert result.error_disposition.code == "team_runtime_empty_output"
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_accepts_coroutine_run_response(monkeypatch):
+    class CoroutineTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            self.input = input
+            self.run_kwargs = kwargs
+            return types.SimpleNamespace(
+                content="RESPONSE:\n我来处理。\nREQUEST reminder_intent {}"
+            )
+
+    _install_fake_team(monkeypatch, CoroutineTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒"},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="18:00 remind me",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": FakeReminderPort()},
+    )
+
+    assert result.visible_messages[0].content == "我来处理。"
+    assert result.tool_results[0].content["summary"] == "已创建提醒"
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_sends_capability_summary_when_manager_only_requests(
+    monkeypatch,
+):
+    class RequestOnlyTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            self.input = input
+            self.run_kwargs = kwargs
+            return types.SimpleNamespace(content="REQUEST reminder_intent {}")
+
+    _install_fake_team(monkeypatch, RequestOnlyTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：喝水；已创建提醒：锻炼"},
+                metadata={"durable_write": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="今天17:57提醒我喝水，每天17:58提醒我锻炼",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": FakeReminderPort()},
+    )
+
+    assert result.visible_messages[0].content == "已创建提醒：喝水；已创建提醒：锻炼"
+    assert result.output_disposition.status == "ok"
+    assert result.post_analyze_input == {
+        "input_message": "今天17:57提醒我喝水，每天17:58提醒我锻炼",
+        "message_source": "user",
+    }

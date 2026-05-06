@@ -9,11 +9,27 @@ from agent.agno_agent.adapters.reminder_command_executor import (
 from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
+from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
 
 def _decision_from_response(response: Any) -> Any:
-    return getattr(response, "content", response)
+    if isinstance(response, ReminderDetectDecision):
+        return response
+    content = getattr(response, "content", response)
+    if isinstance(content, ReminderDetectDecision):
+        return content
+    if isinstance(content, Mapping):
+        try:
+            return ReminderDetectDecision.model_validate(content)
+        except Exception:
+            return content
+    if isinstance(content, str) and content.strip():
+        try:
+            return ReminderDetectDecision.model_validate_json(content)
+        except Exception:
+            return content
+    return content
 
 
 def _decision_value(decision: Any, field: str) -> Any:
