@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import inspect
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Callable
 
+from agent.agno_agent.adapters import (
+    DeferredActionFireResult,
+    map_agent_result_to_deferred_status,
+)
+from agent.agno_agent.runtime.result import AgentRunResult
 from agent.runner import deferred_action_policy as policy
 from agent.runner.context import context_prepare
 from agent.runner.identity import is_synthetic_coke_account_id
+from agent.util.message_util import send_message_via_context
 from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
 from dao.user_dao import UserDAO
@@ -33,6 +41,8 @@ class DeferredActionExecutor:
         conversation_dao: Any | None = None,
         user_dao: Any | None = None,
         handle_message_fn: Callable[..., Any] | None = None,
+        runtime_fire_handler: Callable[..., Any] | None = None,
+        output_writer: Callable[..., Any] | None = None,
         context_builder: Callable[..., dict] | None = None,
         now_provider: Callable[[], datetime] | None = None,
         conversation_lock_timeout: int = 120,
@@ -44,7 +54,11 @@ class DeferredActionExecutor:
         self.lock_manager = lock_manager or MongoDBLockManager()
         self.conversation_dao = conversation_dao or ConversationDAO()
         self.user_dao = user_dao or UserDAO()
-        self.handle_message_fn = handle_message_fn or _load_handle_message()
+        self.runtime_fire_handler = runtime_fire_handler
+        self.handle_message_fn = handle_message_fn
+        if self.handle_message_fn is None and self.runtime_fire_handler is None:
+            self.handle_message_fn = _load_handle_message()
+        self.output_writer = output_writer or send_message_via_context
         self.context_builder = context_builder or context_prepare
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
         self.conversation_lock_timeout = conversation_lock_timeout
@@ -123,7 +137,30 @@ class DeferredActionExecutor:
                 .get("metadata", {})
                 .get("proactive_times", 0),
             }
-            _, _, _, is_content_blocked = await self.handle_message_fn(
+            if self.runtime_fire_handler is not None:
+                context["message_source"] = "deferred_action"
+                runtime_fire_result = await self._execute_typed_runtime_fire(
+                    action=action,
+                    action_id=action_id,
+                    scheduled_for=scheduled_for,
+                    revision=revision,
+                    context=context,
+                    input_message=input_message,
+                    metadata=metadata,
+                )
+                return await self._apply_runtime_fire_result(
+                    runtime_fire_result=runtime_fire_result,
+                    action=action,
+                    action_id=action_id,
+                    revision=revision,
+                    scheduled_for=scheduled_for,
+                    trigger_key=trigger_key,
+                    lease_token=lease_token,
+                    occurrence=occurrence,
+                )
+
+            handle_message_fn = self.handle_message_fn or _load_handle_message()
+            _, _, _, is_content_blocked = await handle_message_fn(
                 context=context,
                 input_message_str=input_message,
                 message_source="deferred_action",
@@ -166,6 +203,179 @@ class DeferredActionExecutor:
             return "failed"
         finally:
             await self._release_conversation_lock(action["conversation_id"], lock_id)
+
+    async def _execute_typed_runtime_fire(
+        self,
+        *,
+        action: dict[str, Any],
+        action_id: str,
+        scheduled_for: datetime,
+        revision: int,
+        context: dict,
+        input_message: str,
+        metadata: dict[str, Any],
+    ) -> DeferredActionFireResult:
+        from agent.agno_agent.runtime.inputs import AgentInput, DeferredActionPayload
+
+        payload = action.get("payload") or {}
+        agent_input = AgentInput(
+            input_type="deferred_action.fire",
+            conversation_id=action["conversation_id"],
+            text=input_message,
+            payload=DeferredActionPayload(
+                action_id=action_id,
+                kind=action["kind"],
+                scheduled_for=scheduled_for,
+                revision=revision,
+                prompt=str(payload.get("prompt") or action.get("title") or ""),
+                metadata=metadata,
+            ),
+            occurred_at=scheduled_for,
+            metadata=metadata,
+        )
+        runtime_result = self.runtime_fire_handler(
+            agent_input=agent_input,
+            context=context,
+            message_source="deferred_action",
+            metadata=metadata,
+        )
+        if inspect.isawaitable(runtime_result):
+            runtime_result = await runtime_result
+        if isinstance(runtime_result, DeferredActionFireResult):
+            return runtime_result
+        if not isinstance(runtime_result, AgentRunResult):
+            return DeferredActionFireResult(
+                status="failed",
+                retryable=True,
+                error_code="invalid_runtime_result",
+                error_message="runtime fire handler returned invalid result",
+            )
+
+        output_references = []
+        for visible_message in runtime_result.visible_messages:
+            output = self.output_writer(
+                context,
+                message=visible_message.content,
+                message_type=visible_message.message_type,
+                metadata={
+                    "deferred_action_id": action_id,
+                    "scheduled_for": scheduled_for.isoformat(),
+                    **dict(visible_message.metadata),
+                },
+            )
+            if inspect.isawaitable(output):
+                output = await output
+            output_reference = self._output_reference(output)
+            if output_reference:
+                output_references.append(output_reference)
+
+        if (
+            runtime_result.output_disposition.status == "ok"
+            and not output_references
+            and not runtime_result.output_disposition.output_references
+        ):
+            return DeferredActionFireResult(status="no_output", retryable=True)
+
+        updated_result = replace(
+            runtime_result,
+            output_disposition=replace(
+                runtime_result.output_disposition,
+                output_references=tuple(
+                    runtime_result.output_disposition.output_references
+                )
+                + tuple(output_references),
+            ),
+        )
+        return map_agent_result_to_deferred_status(updated_result)
+
+    async def _apply_runtime_fire_result(
+        self,
+        *,
+        runtime_fire_result: DeferredActionFireResult,
+        action: dict[str, Any],
+        action_id: str,
+        revision: int,
+        scheduled_for: datetime,
+        trigger_key: str,
+        lease_token: str,
+        occurrence: dict[str, Any],
+    ) -> str:
+        finished_at = _normalize_mongo_datetime(self.now_provider())
+        attempt_count = int(occurrence.get("attempt_count", 1))
+
+        if runtime_fire_result.status == "succeeded":
+            if not runtime_fire_result.output_references:
+                runtime_fire_result = DeferredActionFireResult(
+                    status="no_output",
+                    retryable=True,
+                )
+            else:
+                self.occurrence_dao.mark_occurrence_succeeded(
+                    trigger_key, finished_at
+                )
+                self._handle_success(
+                    action=action,
+                    action_id=action_id,
+                    revision=revision,
+                    scheduled_for=scheduled_for,
+                    finished_at=finished_at,
+                )
+                return "succeeded"
+
+        if runtime_fire_result.status == "failed":
+            error = (
+                runtime_fire_result.error_message
+                or runtime_fire_result.error_code
+                or "runtime fire failed"
+            )
+            self.occurrence_dao.mark_occurrence_failed(
+                trigger_key,
+                error,
+                finished_at,
+            )
+            self._handle_failure(
+                action=action,
+                action_id=action_id,
+                revision=revision,
+                scheduled_for=scheduled_for,
+                finished_at=finished_at,
+                attempt_count=attempt_count,
+                error=error,
+            )
+            return "failed"
+
+        if runtime_fire_result.status == "no_output":
+            error = "runtime produced no output"
+            self.occurrence_dao.mark_occurrence_failed(
+                trigger_key,
+                error,
+                finished_at,
+            )
+            self._handle_failure(
+                action=action,
+                action_id=action_id,
+                revision=revision,
+                scheduled_for=scheduled_for,
+                finished_at=finished_at,
+                attempt_count=attempt_count,
+                error=error,
+            )
+            return "no_output"
+
+        if runtime_fire_result.status in {"rollback", "skipped"}:
+            release = getattr(self.action_dao, "release_action_lease", None)
+            if callable(release):
+                release(action_id, lease_token)
+            return runtime_fire_result.status
+
+        return "failed"
+
+    def _output_reference(self, output: Any) -> str | None:
+        if isinstance(output, dict):
+            value = output.get("_id") or output.get("id")
+            return str(value) if value is not None else None
+        value = getattr(output, "id", None)
+        return str(value) if value is not None else None
 
     def _handle_success(
         self,

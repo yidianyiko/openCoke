@@ -55,6 +55,7 @@ def bootstrap_deferred_action_runtime():
         action_dao=action_dao,
         occurrence_dao=occurrence_dao,
         scheduler=None,
+        runtime_fire_handler=run_agent_runtime_event,
     )
     scheduler = DeferredActionScheduler(
         action_dao=action_dao,
