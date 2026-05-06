@@ -28,6 +28,7 @@ import random
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from util.log_util import get_logger
@@ -101,6 +102,23 @@ async def _run_agent_runtime(
     return await run_team_runtime(
         context=context,
         input_message_str=input_message_str,
+        message_source=message_source,
+        metadata=metadata,
+    )
+
+
+async def _run_agent_runtime_event(
+    *,
+    agent_input,
+    context: dict,
+    message_source: str,
+    metadata: Optional[Dict[str, Any]],
+):
+    from agent.agno_agent.runtime.event_adapter import run_agent_runtime_event
+
+    return await run_agent_runtime_event(
+        agent_input=agent_input,
+        context=context,
         message_source=message_source,
         metadata=metadata,
     )
@@ -598,9 +616,29 @@ async def handle_message(
                 logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
 
             logger.info(f"{worker_tag} AgentRuntime Team 开始")
-            result = await _run_agent_runtime(
+            from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
+
+            selected_conversation_id = str(
+                context.get("conversation", {}).get("_id")
+                or context.get("conversation", {}).get("id")
+                or conversation_id
+                or ""
+            )
+            agent_input = AgentInput(
+                input_type="user.turn",
+                conversation_id=selected_conversation_id,
+                text=input_message_str,
+                payload=UserTurnPayload(
+                    current_message_ids=tuple(current_message_ids or ()),
+                    check_new_message=check_new_message,
+                    metadata=metadata or {},
+                ),
+                occurred_at=datetime.now(UTC),
+                metadata={"message_source": message_source, "worker_tag": worker_tag},
+            )
+            result = await _run_agent_runtime_event(
+                agent_input=agent_input,
                 context=context,
-                input_message_str=input_message_str,
                 message_source=message_source,
                 metadata=metadata,
             )
@@ -663,6 +701,23 @@ async def handle_message(
                     resp_messages.append(outputmessage)
 
             context["MultiModalResponses"] = all_multimodal_responses
+            if result.post_analyze_input is not None:
+                post_context = copy.deepcopy(context)
+                post_conversation_id = str(
+                    post_context.get("conversation", {}).get("_id")
+                    or conversation_id
+                    or ""
+                )
+                asyncio.create_task(
+                    _run_post_analyze_background(
+                        post_context,
+                        post_conversation_id,
+                        worker_tag,
+                    )
+                )
+                logger.info(
+                    f"{worker_tag} AgentRuntime Team PostAnalyzeWorkflow 已提交后台执行"
+                )
             is_content_blocked = False
             logger.info(
                 f"{worker_tag} AgentRuntime Team 完成 "
