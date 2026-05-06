@@ -153,7 +153,7 @@ git commit -m "docs(agent): record runtime leader baseline"
 - Test: `tests/unit/agent/test_manager_prompt.py`
 - Test: `tests/unit/agent/test_team_runtime_plan_parser.py`
 
-- [ ] **Step 1: Write failing manager prompt tests**
+- [x] **Step 1: Write failing manager prompt tests**
 
 Create `tests/unit/agent/test_manager_prompt.py`:
 
@@ -211,7 +211,7 @@ def test_manager_input_contains_trusted_context_and_user_text():
     assert "18:00 remind me to drink water" in message
 ```
 
-- [ ] **Step 2: Write failing plan parser tests**
+- [x] **Step 2: Write failing plan parser tests**
 
 Create `tests/unit/agent/test_team_runtime_plan_parser.py`:
 
@@ -257,7 +257,7 @@ def test_parser_rejects_unknown_capability():
     assert plan.rejected_requests == ("shell",)
 ```
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run:
 
@@ -267,7 +267,7 @@ pytest tests/unit/agent/test_manager_prompt.py tests/unit/agent/test_team_runtim
 
 Expected: FAIL with missing modules.
 
-- [ ] **Step 4: Implement manager prompt and parser**
+- [x] **Step 4: Implement manager prompt and parser**
 
 Create `agent/agno_agent/prompts/__init__.py`:
 
@@ -410,7 +410,7 @@ def parse_team_plan(content: str) -> TeamPlan:
     )
 ```
 
-- [ ] **Step 5: Verify GREEN**
+- [x] **Step 5: Verify GREEN**
 
 Run:
 
@@ -420,7 +420,7 @@ pytest tests/unit/agent/test_manager_prompt.py tests/unit/agent/test_team_runtim
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 Run:
 
