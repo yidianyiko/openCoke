@@ -19,6 +19,7 @@ def build_manager_instructions(run_context: AgentRunContext) -> str:
             'REQUEST timezone {"action":"confirm","decision":"yes"} or REQUEST timezone {"action":"confirm","decision":"no"} for short confirmation replies.',
             "REQUEST calendar_import {} when the user asks to import calendar data.",
             "Allowed capability names: reminder_intent, url_context, timezone, calendar_import.",
+            "Never emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
             "Never include hidden reasoning, JSON envelopes, tool logs, or database instructions.",
             f"Default user timezone: {run_context.user.timezone or 'UTC'}",
         ]

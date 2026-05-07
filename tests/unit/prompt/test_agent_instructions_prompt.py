@@ -20,6 +20,7 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
         instructions
     )
     assert "Preserve all meaningful title text" in instructions
+    assert "Exclude sentence-final modal particles" in instructions
     assert "Any decision with operations must use top-level action=\"batch\"" in (
         instructions
     )
@@ -117,6 +118,8 @@ def test_reminder_detect_retry_input_keeps_batch_schema_constraints():
     assert "For same-message listed routine times" in retry_input
     assert "schedule_basis=\"explicit_occurrences\"" in retry_input
     assert "one operation per listed time" in retry_input
+    assert "Drop final particles" in retry_input
+    assert "preserve quoted title" in retry_input
 
 
 def test_reminder_few_shot_fixture_stays_small_and_representative():

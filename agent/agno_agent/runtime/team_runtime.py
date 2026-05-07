@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
+import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -16,7 +19,7 @@ from agent.agno_agent.prompts.manager import (
     build_manager_instructions,
 )
 from agent.agno_agent.runtime.context import build_agent_run_context
-from agent.agno_agent.runtime.plan_parser import parse_team_plan
+from agent.agno_agent.runtime.plan_parser import TeamPlan, parse_team_plan
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     CapabilityResult,
@@ -25,6 +28,8 @@ from agent.agno_agent.runtime.result import (
     VisibleMessage,
 )
 from agent.agno_agent.runtime.streaming import filter_user_visible_team_events
+
+logger = logging.getLogger(__name__)
 
 
 def create_manager_team(
@@ -75,6 +80,21 @@ async def _collect_team_events(events: Any) -> list[Any]:
     return list(events)
 
 
+def _team_manager_timeout_seconds() -> float:
+    raw_value = os.environ.get("COKE_TEAM_MANAGER_TIMEOUT_SECONDS")
+    if raw_value is None:
+        return 45.0
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning(
+            "COKE_TEAM_MANAGER_TIMEOUT_SECONDS=%r is not a valid float; using 45.0",
+            raw_value,
+        )
+        return 45.0
+    return value if value > 0 else 45.0
+
+
 def _visible_text_from_capability_results(
     tool_results: list[CapabilityResult],
 ) -> str | None:
@@ -86,6 +106,36 @@ def _visible_text_from_capability_results(
     if not summaries:
         return None
     return "\n".join(summaries)
+
+
+def _is_protocol_artifact_response(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    return normalized in {"operation cancelled by user"} or "<tool_call" in normalized
+
+
+async def _run_manager_plan(
+    team: Any,
+    manager_input: str,
+    *,
+    metadata: dict[str, Any] | None,
+    conversation_id: str,
+) -> tuple[TeamPlan, bool]:
+    events = await asyncio.wait_for(
+        _collect_team_events(
+            team.arun(
+                manager_input,
+                session_state={
+                    "runtime": "team",
+                    "metadata": metadata or {},
+                    "conversation_id": conversation_id,
+                },
+            )
+        ),
+        timeout=_team_manager_timeout_seconds(),
+    )
+    raw_visible_text = "".join(filter_user_visible_team_events(events))
+    plan = parse_team_plan(raw_visible_text)
+    return plan, _is_protocol_artifact_response(plan.response_text)
 
 
 async def run_team_runtime(
@@ -109,23 +159,47 @@ async def run_team_runtime(
         instructions=build_manager_instructions(run_context),
     )
     manager_input = build_manager_input(run_context, input_message_str)
-    events = await _collect_team_events(
-        team.arun(
+    manager_timed_out = False
+    manager_protocol_retried = False
+    try:
+        plan, protocol_artifact = await _run_manager_plan(
+            team,
             manager_input,
-            session_state={
-                "runtime": "team",
-                "metadata": metadata or {},
-                "conversation_id": run_context.conversation.id,
-            },
+            metadata=metadata,
+            conversation_id=run_context.conversation.id,
         )
-    )
-    raw_visible_text = "".join(filter_user_visible_team_events(events))
-    plan = parse_team_plan(raw_visible_text)
+        if protocol_artifact and not plan.capability_requests:
+            manager_protocol_retried = True
+            plan, _ = await _run_manager_plan(
+                team,
+                "\n".join(
+                    [
+                        manager_input,
+                        "",
+                        "Previous manager output violated the RESPONSE/REQUEST contract.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                        "Return only RESPONSE and REQUEST lines now.",
+                    ]
+                ),
+                metadata=metadata,
+                conversation_id=run_context.conversation.id,
+            )
+    except TimeoutError:
+        manager_timed_out = True
+        logger.error(
+            "Team manager timed out: timeout=%.1fs",
+            _team_manager_timeout_seconds(),
+        )
+        plan = TeamPlan(response_text="", capability_requests=())
     ports = capability_ports or _default_capability_ports()
 
     tool_results = []
     executed_request_names = []
+    seen_request_names = set()
     for request in plan.capability_requests:
+        if request.name in seen_request_names:
+            continue
+        seen_request_names.add(request.name)
         port = ports.get(request.name)
         if port is None:
             continue
@@ -135,15 +209,15 @@ async def run_team_runtime(
         tool_results.append(result)
         executed_request_names.append(request.name)
 
-    visible_text = plan.response_text or _visible_text_from_capability_results(
-        tool_results
+    visible_text = _visible_text_from_capability_results(tool_results) or (
+        plan.response_text
     )
     visible_messages = (
         (VisibleMessage(message_type="text", content=visible_text),)
         if visible_text
         else ()
     )
-    if visible_messages or tool_results:
+    if visible_messages:
         return AgentRunResult(
             visible_messages=visible_messages,
             post_analyze_input={
@@ -158,6 +232,8 @@ async def run_team_runtime(
                 "runtime": "team",
                 "capability_requests": tuple(executed_request_names),
                 "rejected_requests": plan.rejected_requests,
+                "manager_timeout": manager_timed_out,
+                "manager_protocol_retried": manager_protocol_retried,
             },
             output_disposition=OutputDisposition(status="ok"),
         )
@@ -166,11 +242,14 @@ async def run_team_runtime(
         visible_messages=[],
         post_analyze_input=None,
         tool_results=tuple(tool_results),
-        metrics={"capability_result_count": 0},
+        metrics={"capability_result_count": len(tool_results)},
         trace={
             "runtime": "team",
             "status": "empty_output",
+            "capability_requests": tuple(executed_request_names),
             "rejected_requests": plan.rejected_requests,
+            "manager_timeout": manager_timed_out,
+            "manager_protocol_retried": manager_protocol_retried,
         },
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(

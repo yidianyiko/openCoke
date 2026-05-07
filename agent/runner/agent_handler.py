@@ -367,6 +367,35 @@ def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
     return True
 
 
+def _latest_input_message_timestamp(context: dict) -> int | None:
+    input_messages = (
+        context.get("conversation", {})
+        .get("conversation_info", {})
+        .get("input_messages", [])
+    )
+    timestamps = []
+    for message in input_messages if isinstance(input_messages, list) else []:
+        try:
+            timestamp = int(message.get("input_timestamp", 0))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if timestamp > 0:
+            timestamps.append(timestamp)
+    return max(timestamps) if timestamps else None
+
+
+def _derive_team_user_turn_occurred_at(context: dict) -> datetime:
+    wall_now = datetime.now(UTC)
+    timestamp = _latest_input_message_timestamp(context)
+    if timestamp is None:
+        return wall_now
+    try:
+        message_time = datetime.fromtimestamp(timestamp, UTC)
+    except (OverflowError, OSError, ValueError):
+        return wall_now
+    return max(wall_now, message_time)
+
+
 def _send_single_message(
     context, multimodal_response, expect_output_timestamp, is_first=False
 ):
@@ -689,7 +718,7 @@ async def handle_message(
                     check_new_message=check_new_message,
                     metadata=metadata or {},
                 ),
-                occurred_at=datetime.now(UTC),
+                occurred_at=_derive_team_user_turn_occurred_at(context),
                 metadata={"message_source": message_source, "worker_tag": worker_tag},
             )
             result = await _await_with_team_lock_heartbeat(

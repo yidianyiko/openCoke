@@ -891,7 +891,7 @@ def output_segment_for_expected(
     expected: ExpectedReminderCreate,
 ) -> str:
     positions: list[int] = []
-    output_text = normalize_expected_title(output_text)
+    output_text = normalize_expected_title(output_text.replace("\n", "；"))
     local_time = (expected.local_time or "")[:5]
     if local_time:
         index = output_text.find(local_time)

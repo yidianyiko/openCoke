@@ -180,6 +180,7 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
             "character": {"id": "char-1"},
             "conversation": {"id": "conv-1", "route_key": "route-1"},
             "platform": "business",
+            "current_time": "2026-05-01T01:00:00+00:00",
             "route_key": "route-1",
             "delivery_route_key": "route-1",
         }
@@ -229,7 +230,13 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     import agent.agno_agent.tools.reminder_protocol.tool as tool_module
 
     service = FakeReminderService()
-    monkeypatch.setattr(tool_module, "ReminderService", lambda: service)
+    captured_service_kwargs = {}
+
+    def service_factory(**kwargs):
+        captured_service_kwargs.update(kwargs)
+        return service
+
+    monkeypatch.setattr(tool_module, "ReminderService", service_factory)
 
     result = ReminderCommandExecutor(_visible_reminder_raw_function()).execute(
         SimpleNamespace(
@@ -251,6 +258,9 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
         conversation_id="conv-1",
         character_id="char-1",
         route_key="route-1",
+    )
+    assert captured_service_kwargs["now_provider"]() == datetime(
+        2026, 5, 1, 1, 0, tzinfo=UTC
     )
 
 

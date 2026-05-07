@@ -38,6 +38,8 @@ def test_manager_instructions_define_leader_boundary():
     assert "REQUEST url_context {}" in instructions
     assert "REQUEST timezone" in instructions
     assert "REQUEST calendar_import {}" in instructions
+    assert "Never emit XML" in instructions
+    assert "<tool_call>" in instructions
 
 
 def test_manager_input_contains_trusted_context_and_user_text():

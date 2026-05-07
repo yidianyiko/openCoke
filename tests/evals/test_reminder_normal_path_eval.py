@@ -1975,6 +1975,54 @@ def test_validate_observations_rejects_user_output_recurrence_mismatch():
     assert "user_output_missing_recurring:吃饭" in errors
 
 
+def test_validate_observations_keeps_newline_separated_batch_ack_segments():
+    case = normal_eval.ReminderNormalPathCase(
+        input="今天17:57提醒我喝水，每天17:58提醒我锻炼",
+        expected_intent="reminder",
+        matched_keywords=["提醒", "每天"],
+        metadata={"evaluation_expectation": "crud"},
+    )
+    reminders = [
+        {
+            "title": "喝水",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 7, 8, 57, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "17:57:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        },
+        {
+            "title": "锻炼",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 7, 8, 58, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "17:58:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=DAILY",
+            },
+        },
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "已创建提醒：喝水（2026-05-07 17:57）\n"
+                    "已创建提醒：锻炼（每天 17:58）"
+                )
+            }
+        ],
+        reminders=reminders,
+    )
+
+    assert "user_output_unexpected_recurring:喝水" not in errors
+    assert errors == []
+
+
 def test_validate_observations_rejects_duplicate_reminders():
     case = normal_eval.ReminderNormalPathCase(
         input="18:00提醒我喝水",

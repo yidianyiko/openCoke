@@ -1,0 +1,466 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 0,
+  "limit": null,
+  "run_all": true,
+  "batch_size": 1,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "run_id": "reminder-normal-bb70e44017",
+  "platform": "business",
+  "transport": "business-clawscale",
+  "serial": true,
+  "summary": {
+    "total": 2,
+    "passed": 1,
+    "failed": 1,
+    "pass_rate": 0.5,
+    "by_error": {
+      "expected_reminder_count_mismatch:2>0": 1,
+      "missing_expected_reminder_title:喝水": 1,
+      "missing_expected_reminder_title:锻炼": 1,
+      "no_reminder_created": 1,
+      "user_output_missing_expected_title:喝水": 1,
+      "user_output_missing_expected_title:锻炼": 1
+    },
+    "failures": [
+      {
+        "index": 1,
+        "input": "今天有这么两个事情提醒我 一个是17：57喝水呀，一个是每天17：58锻炼呀",
+        "user_id": "92711d2ff89614fdb913753c",
+        "original_from_user": "692c14aaa538f0baad5561b3",
+        "input_message_id": "69fc5af372ea52db7cb91992",
+        "input_status": "handled",
+        "passed": false,
+        "errors": [
+          "no_reminder_created",
+          "expected_reminder_count_mismatch:2>0",
+          "missing_expected_reminder_title:喝水",
+          "missing_expected_reminder_title:锻炼",
+          "user_output_missing_expected_title:喝水",
+          "user_output_missing_expected_title:锻炼"
+        ],
+        "outputs": [
+          {
+            "_id": "69fc5b4d09e4fedbe244ed87",
+            "expect_output_timestamp": 1778146125,
+            "handled_timestamp": 1778146125,
+            "status": "pending",
+            "message_type": "text",
+            "message": "Operation cancelled by user",
+            "metadata": {
+              "source": "clawscale",
+              "batch_id": "reminder-normal-bb70e44017-1",
+              "case_index": 1,
+              "original_from_user": "692c14aaa538f0baad5561b3",
+              "source_id": "692c14cfa538f0baad5561b5",
+              "source_eval": "reminder_normal_path_eval",
+              "delivery_mode": "request_response",
+              "business_protocol": {
+                "delivery_mode": "request_response",
+                "gateway_conversation_id": "reminder-normal-bb70e44017-1-case-1",
+                "business_conversation_key": "reminder-normal-bb70e44017-1-case-1",
+                "causal_inbound_event_id": "reminder-normal-bb70e44017-1-case-1-inbound"
+              }
+            },
+            "from_user": "69eeeee7e7ef890c105124bf",
+            "platform": "business",
+            "to_user": "92711d2ff89614fdb913753c"
+          }
+        ],
+        "reminders": [],
+        "elapsed_seconds": 91.17
+      }
+    ]
+  },
+  "batches": [
+    {
+      "offset": 0,
+      "limit": 1,
+      "batch_id": "reminder-normal-bb70e44017-0",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "28502df4a2c864d7319ffa2d"
+      ],
+      "serial": true,
+      "summary": {
+        "total": 1,
+        "passed": 1,
+        "failed": 0,
+        "pass_rate": 1.0,
+        "by_error": {},
+        "failures": []
+      },
+      "results": [
+        {
+          "index": 0,
+          "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+          "user_id": "28502df4a2c864d7319ffa2d",
+          "original_from_user": "692c14aaa538f0baad5561b3",
+          "input_message_id": "69fc5ac072ea52db7cb9198f",
+          "input_status": "handled",
+          "passed": true,
+          "errors": [],
+          "outputs": [
+            {
+              "_id": "69fc5af209e4fedbe244ed7b",
+              "expect_output_timestamp": 1778146034,
+              "handled_timestamp": 1778146034,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：喝水（2026-05-08 17:57）\n已创建提醒：锻炼（每天 17:58）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-bb70e44017-0",
+                "case_index": 0,
+                "original_from_user": "692c14aaa538f0baad5561b3",
+                "source_id": "692c14aaa538f0baad5561b4",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-bb70e44017-0-case-0",
+                  "business_conversation_key": "reminder-normal-bb70e44017-0-case-0",
+                  "causal_inbound_event_id": "reminder-normal-bb70e44017-0-case-0-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "28502df4a2c864d7319ffa2d"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69fc5af209e4fedbe244ed78",
+              "owner_user_id": "28502df4a2c864d7319ffa2d",
+              "title": "喝水",
+              "schedule": {
+                "anchor_at": "2026-05-08T08:57:00+00:00",
+                "local_date": "2026-05-08",
+                "local_time": "17:57:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69fc5ac009e4fedbe244ed73",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-08T08:57:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-08T08:55:53+00:00",
+              "updated_at": "2026-05-08T08:55:53+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            },
+            {
+              "_id": "69fc5af209e4fedbe244ed79",
+              "owner_user_id": "28502df4a2c864d7319ffa2d",
+              "title": "锻炼",
+              "schedule": {
+                "anchor_at": "2026-05-08T08:58:00+00:00",
+                "local_date": "2026-05-08",
+                "local_time": "17:58:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=DAILY"
+              },
+              "agent_output_target": {
+                "conversation_id": "69fc5ac009e4fedbe244ed73",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-08T08:58:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-08T08:55:53+00:00",
+              "updated_at": "2026-05-08T08:55:53+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 51.094
+        }
+      ]
+    },
+    {
+      "offset": 1,
+      "limit": 1,
+      "batch_id": "reminder-normal-bb70e44017-1",
+      "platform": "business",
+      "character_id": "69eeeee7e7ef890c105124bf",
+      "user_ids": [
+        "92711d2ff89614fdb913753c"
+      ],
+      "serial": true,
+      "summary": {
+        "total": 1,
+        "passed": 0,
+        "failed": 1,
+        "pass_rate": 0.0,
+        "by_error": {
+          "expected_reminder_count_mismatch:2>0": 1,
+          "missing_expected_reminder_title:喝水": 1,
+          "missing_expected_reminder_title:锻炼": 1,
+          "no_reminder_created": 1,
+          "user_output_missing_expected_title:喝水": 1,
+          "user_output_missing_expected_title:锻炼": 1
+        },
+        "failures": [
+          {
+            "index": 1,
+            "input": "今天有这么两个事情提醒我 一个是17：57喝水呀，一个是每天17：58锻炼呀",
+            "user_id": "92711d2ff89614fdb913753c",
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "input_message_id": "69fc5af372ea52db7cb91992",
+            "input_status": "handled",
+            "passed": false,
+            "errors": [
+              "no_reminder_created",
+              "expected_reminder_count_mismatch:2>0",
+              "missing_expected_reminder_title:喝水",
+              "missing_expected_reminder_title:锻炼",
+              "user_output_missing_expected_title:喝水",
+              "user_output_missing_expected_title:锻炼"
+            ],
+            "outputs": [
+              {
+                "_id": "69fc5b4d09e4fedbe244ed87",
+                "expect_output_timestamp": 1778146125,
+                "handled_timestamp": 1778146125,
+                "status": "pending",
+                "message_type": "text",
+                "message": "Operation cancelled by user",
+                "metadata": {
+                  "source": "clawscale",
+                  "batch_id": "reminder-normal-bb70e44017-1",
+                  "case_index": 1,
+                  "original_from_user": "692c14aaa538f0baad5561b3",
+                  "source_id": "692c14cfa538f0baad5561b5",
+                  "source_eval": "reminder_normal_path_eval",
+                  "delivery_mode": "request_response",
+                  "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "gateway_conversation_id": "reminder-normal-bb70e44017-1-case-1",
+                    "business_conversation_key": "reminder-normal-bb70e44017-1-case-1",
+                    "causal_inbound_event_id": "reminder-normal-bb70e44017-1-case-1-inbound"
+                  }
+                },
+                "from_user": "69eeeee7e7ef890c105124bf",
+                "platform": "business",
+                "to_user": "92711d2ff89614fdb913753c"
+              }
+            ],
+            "reminders": [],
+            "elapsed_seconds": 91.17
+          }
+        ]
+      },
+      "results": [
+        {
+          "index": 1,
+          "input": "今天有这么两个事情提醒我 一个是17：57喝水呀，一个是每天17：58锻炼呀",
+          "user_id": "92711d2ff89614fdb913753c",
+          "original_from_user": "692c14aaa538f0baad5561b3",
+          "input_message_id": "69fc5af372ea52db7cb91992",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:2>0",
+            "missing_expected_reminder_title:喝水",
+            "missing_expected_reminder_title:锻炼",
+            "user_output_missing_expected_title:喝水",
+            "user_output_missing_expected_title:锻炼"
+          ],
+          "outputs": [
+            {
+              "_id": "69fc5b4d09e4fedbe244ed87",
+              "expect_output_timestamp": 1778146125,
+              "handled_timestamp": 1778146125,
+              "status": "pending",
+              "message_type": "text",
+              "message": "Operation cancelled by user",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "reminder-normal-bb70e44017-1",
+                "case_index": 1,
+                "original_from_user": "692c14aaa538f0baad5561b3",
+                "source_id": "692c14cfa538f0baad5561b5",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "reminder-normal-bb70e44017-1-case-1",
+                  "business_conversation_key": "reminder-normal-bb70e44017-1-case-1",
+                  "causal_inbound_event_id": "reminder-normal-bb70e44017-1-case-1-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "92711d2ff89614fdb913753c"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 91.17
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "index": 0,
+      "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+      "user_id": "28502df4a2c864d7319ffa2d",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69fc5ac072ea52db7cb9198f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69fc5af209e4fedbe244ed7b",
+          "expect_output_timestamp": 1778146034,
+          "handled_timestamp": 1778146034,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：喝水（2026-05-08 17:57）\n已创建提醒：锻炼（每天 17:58）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bb70e44017-0",
+            "case_index": 0,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692c14aaa538f0baad5561b4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bb70e44017-0-case-0",
+              "business_conversation_key": "reminder-normal-bb70e44017-0-case-0",
+              "causal_inbound_event_id": "reminder-normal-bb70e44017-0-case-0-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "28502df4a2c864d7319ffa2d"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69fc5af209e4fedbe244ed78",
+          "owner_user_id": "28502df4a2c864d7319ffa2d",
+          "title": "喝水",
+          "schedule": {
+            "anchor_at": "2026-05-08T08:57:00+00:00",
+            "local_date": "2026-05-08",
+            "local_time": "17:57:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69fc5ac009e4fedbe244ed73",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-08T08:57:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-08T08:55:53+00:00",
+          "updated_at": "2026-05-08T08:55:53+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69fc5af209e4fedbe244ed79",
+          "owner_user_id": "28502df4a2c864d7319ffa2d",
+          "title": "锻炼",
+          "schedule": {
+            "anchor_at": "2026-05-08T08:58:00+00:00",
+            "local_date": "2026-05-08",
+            "local_time": "17:58:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69fc5ac009e4fedbe244ed73",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-08T08:58:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-08T08:55:53+00:00",
+          "updated_at": "2026-05-08T08:55:53+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 51.094
+    },
+    {
+      "index": 1,
+      "input": "今天有这么两个事情提醒我 一个是17：57喝水呀，一个是每天17：58锻炼呀",
+      "user_id": "92711d2ff89614fdb913753c",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69fc5af372ea52db7cb91992",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:2>0",
+        "missing_expected_reminder_title:喝水",
+        "missing_expected_reminder_title:锻炼",
+        "user_output_missing_expected_title:喝水",
+        "user_output_missing_expected_title:锻炼"
+      ],
+      "outputs": [
+        {
+          "_id": "69fc5b4d09e4fedbe244ed87",
+          "expect_output_timestamp": 1778146125,
+          "handled_timestamp": 1778146125,
+          "status": "pending",
+          "message_type": "text",
+          "message": "Operation cancelled by user",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-bb70e44017-1",
+            "case_index": 1,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692c14cfa538f0baad5561b5",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-bb70e44017-1-case-1",
+              "business_conversation_key": "reminder-normal-bb70e44017-1-case-1",
+              "causal_inbound_event_id": "reminder-normal-bb70e44017-1-case-1-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "92711d2ff89614fdb913753c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 91.17
+    }
+  ]
+}

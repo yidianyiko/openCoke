@@ -15,7 +15,14 @@ class ReminderOperation(BaseModel):
     action: Literal["create", "update", "delete", "cancel", "complete", "list"] = Field(
         description="Flat reminder operation action."
     )
-    title: str = Field(default="", description="Create title.")
+    title: str = Field(
+        default="",
+        description=(
+            "Create title. Exclude sentence-final modal particles, but preserve "
+            "meaningful quoted or parenthetical text that belongs to the reminder "
+            "content."
+        ),
+    )
     trigger_at: str = Field(default="", description="Aware ISO 8601 trigger time.")
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword.")
@@ -65,7 +72,14 @@ class ReminderDetectDecision(BaseModel):
             "only use list. Clarify and discussion must leave this empty."
         ),
     )
-    title: str = Field(default="", description="Create title; crud create only.")
+    title: str = Field(
+        default="",
+        description=(
+            "Create title; crud create only. Exclude sentence-final modal particles, "
+            "but preserve meaningful quoted or parenthetical text that belongs to "
+            "the reminder content."
+        ),
+    )
     trigger_at: str = Field(
         default="",
         description=(

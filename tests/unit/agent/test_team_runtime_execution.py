@@ -1,5 +1,6 @@
 import sys
 import types
+import asyncio
 from datetime import UTC, datetime
 
 import pytest
@@ -68,7 +69,7 @@ async def test_run_team_runtime_invokes_team_and_executes_requested_capability(
         capability_ports={"reminder_intent": FakeReminderPort()},
     )
 
-    assert result.visible_messages[0].content == "我来处理。"
+    assert result.visible_messages[0].content == "已创建提醒：drink water"
     assert result.tool_results[0].name == "reminder"
     assert result.output_disposition.status == "ok"
     assert result.post_analyze_input == {
@@ -161,7 +162,7 @@ async def test_run_team_runtime_accepts_coroutine_run_response(monkeypatch):
         capability_ports={"reminder_intent": FakeReminderPort()},
     )
 
-    assert result.visible_messages[0].content == "我来处理。"
+    assert result.visible_messages[0].content == "已创建提醒"
     assert result.tool_results[0].content["summary"] == "已创建提醒"
 
 
@@ -203,3 +204,159 @@ async def test_run_team_runtime_sends_capability_summary_when_manager_only_reque
         "input_message": "今天17:57提醒我喝水，每天17:58提醒我锻炼",
         "message_source": "user",
     }
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_returns_empty_when_capability_has_no_visible_summary(
+    monkeypatch,
+):
+    class RequestOnlyTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            self.input = input
+            self.run_kwargs = kwargs
+            return types.SimpleNamespace(content="REQUEST reminder_intent {}")
+
+    _install_fake_team(monkeypatch, RequestOnlyTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class NoopReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"action": "none", "intent_type": "discussion"},
+                metadata={"durable_write": False},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="嗯嗯计划写的4点半开始",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": NoopReminderPort()},
+    )
+
+    assert result.visible_messages == ()
+    assert result.tool_results[0].content["action"] == "none"
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition.code == "team_runtime_empty_output"
+    assert result.trace["capability_requests"] == ("reminder_intent",)
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_returns_retryable_empty_on_manager_timeout(
+    monkeypatch,
+):
+    class HangingTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            await asyncio.sleep(60)
+
+    _install_fake_team(monkeypatch, HangingTeam)
+    monkeypatch.setenv("COKE_TEAM_MANAGER_TIMEOUT_SECONDS", "0.01")
+
+    from agent.agno_agent.runtime import team_runtime
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="17:57提醒我喝水",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={},
+    )
+
+    assert result.visible_messages == ()
+    assert result.trace["manager_timeout"] is True
+    assert result.trace["capability_requests"] == ()
+    assert result.error_disposition.code == "team_runtime_empty_output"
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_deduplicates_repeated_capability_requests(
+    monkeypatch,
+):
+    class DuplicateRequestTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            return types.SimpleNamespace(
+                content=(
+                    "RESPONSE:\n我来处理。\n"
+                    "REQUEST reminder_intent {}\n"
+                    "REQUEST reminder_intent {}\n"
+                )
+            )
+
+    _install_fake_team(monkeypatch, DuplicateRequestTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        def __init__(self):
+            self.calls = 0
+
+        async def run(self, input_message, run_context, args=None):
+            self.calls += 1
+            if self.calls > 1:
+                raise TimeoutError("second reminder call should not run")
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：喝水"},
+                metadata={"durable_write": True},
+            )
+
+    reminder_port = FakeReminderPort()
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="17:57提醒我喝水",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": reminder_port},
+    )
+
+    assert reminder_port.calls == 1
+    assert result.visible_messages[0].content == "已创建提醒：喝水"
+    assert result.trace["capability_requests"] == ("reminder_intent",)
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_retries_manager_protocol_artifact(monkeypatch):
+    class ArtifactThenRequestTeam(FakeTeam):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.calls = 0
+
+        async def arun(self, input, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return types.SimpleNamespace(content="Operation cancelled by user")
+            assert "Previous manager output violated" in input
+            return types.SimpleNamespace(content="REQUEST reminder_intent {}")
+
+    _install_fake_team(monkeypatch, ArtifactThenRequestTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：喝水"},
+                metadata={"durable_write": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="17:57提醒我喝水",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": FakeReminderPort()},
+    )
+
+    assert result.visible_messages[0].content == "已创建提醒：喝水"
+    assert result.trace["manager_protocol_retried"] is True
+    assert result.trace["capability_requests"] == ("reminder_intent",)

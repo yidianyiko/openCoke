@@ -84,6 +84,7 @@ def _build_session_state(run_context: AgentRunContext) -> dict[str, Any]:
             "route_key": run_context.conversation.route_key,
         },
         "platform": run_context.platform,
+        "current_time": run_context.current_time.isoformat(),
     }
 
     if run_context.conversation.route_key:

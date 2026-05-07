@@ -314,8 +314,28 @@ def test_reminder_detect_trigger_schema_rejects_date_only_midnight_defaults():
 def test_reminder_operation_schema_marks_update_fields_update_only():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderOperation
 
+    assert (
+        "Exclude sentence-final modal particles"
+        in ReminderOperation.model_fields["title"].description
+    )
+    assert "preserve meaningful quoted" in ReminderOperation.model_fields[
+        "title"
+    ].description
     assert "update only" in ReminderOperation.model_fields["new_title"].description
     assert (
         "do not use for create"
         in ReminderOperation.model_fields["new_trigger_at"].description
+    )
+
+
+def test_reminder_detect_title_schema_preserves_quoted_content():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    assert (
+        "Exclude sentence-final modal particles"
+        in ReminderDetectDecision.model_fields["title"].description
+    )
+    assert (
+        "preserve meaningful quoted"
+        in ReminderDetectDecision.model_fields["title"].description
     )

@@ -2190,3 +2190,22 @@ Review history:
 - Failure category: runtime/model instability during Team runtime execution; input `69fb48c41d9752f417a18c21` stayed `pending` for 180.33s after `AgentRuntime Team 开始`, with no `AgentRuntime Team 完成` log before the eval timeout.
 - Evidence file: `artifacts/evidence/reminder-normal/team-smoke.json`.
 - Cutover status: stopped before default runtime cutover, per Task 10 gate.
+
+## Reminder Eval Follow-Up 2026-05-07
+
+- Cleaned the Team runtime follow-up path so it does not use regex or Python reminder-intent fallback to force eval success.
+- Focused verification passed:
+  - `pytest tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test_team_runtime_execution.py tests/unit/agent/test_team_runtime_construction.py tests/unit/agent/test_team_streaming_filter.py -v`
+  - `pytest tests/unit/test_reminder_detect_structured_output.py tests/unit/prompt/test_agent_instructions_prompt.py tests/unit/test_prepare_workflow_reminder_guard.py tests/unit/agent/test_reminder_intent_capability.py -v`
+  - `pytest tests/unit/agent/test_manager_prompt.py tests/unit/agent/test_team_runtime_execution.py -v`
+- Team one-case reminder smoke: PASS on 2026-05-07 with evidence file `artifacts/evidence/reminder-normal/team-smoke.json`.
+- Focused reruns fixed shared title-contract failures:
+  - Offset 14 PASS with evidence file `artifacts/evidence/reminder-normal/team-case14.json`.
+  - Offset 123 PASS with evidence file `artifacts/evidence/reminder-normal/team-case123.json`.
+- Full command failed and cutover remains blocked:
+  - Command: `AGENT_RUNTIME_VERSION=team python scripts/eval_reminder_normal_path_cases.py --run-all --batch-size 1 --case-timeout-seconds 180 --output artifacts/evidence/reminder-normal/team-run-all.json`.
+  - Exit status: 1.
+  - Evidence file: `artifacts/evidence/reminder-normal/team-run-all.json`.
+  - Summary: 1 passed, 1 failed, failed index 1.
+  - Failure category: Team manager output-protocol/model instability. The manager returned `Operation cancelled by user` instead of the `REQUEST reminder_intent {}` contract, so no reminder was created.
+- Cutover status: stopped before default runtime cutover, per Task 10 gate.

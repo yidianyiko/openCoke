@@ -2,6 +2,7 @@
 import asyncio
 import sys
 import types
+from datetime import UTC, datetime
 
 import pytest
 
@@ -204,6 +205,23 @@ def test_agent_runtime_env_selects_team(monkeypatch):
     from agent.runner import agent_handler
 
     assert agent_handler._select_agent_runtime({}) == "team"
+
+
+def test_team_user_turn_occurred_at_uses_future_message_timestamp(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+
+    from agent.runner import agent_handler
+
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {"input_timestamp": 1893456000},
+        {"input_timestamp": 1893456060},
+    ]
+
+    assert agent_handler._derive_team_user_turn_occurred_at(
+        sample_context
+    ) == datetime.fromtimestamp(1893456060, UTC)
 
 
 @pytest.mark.asyncio

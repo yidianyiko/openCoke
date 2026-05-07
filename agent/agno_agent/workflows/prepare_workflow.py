@@ -1258,6 +1258,7 @@ Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
+Drop final particles; preserve quoted title.
 For same-message listed routine times plus a reminder request, use action="batch",
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
 Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
