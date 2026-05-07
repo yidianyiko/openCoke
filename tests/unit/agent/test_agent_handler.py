@@ -622,6 +622,84 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
 
 
 @pytest.mark.asyncio
+async def test_handle_message_team_runtime_renews_lock_while_runtime_is_running(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
+    monkeypatch.setenv("COKE_TEAM_LOCK_HEARTBEAT_SECONDS", "0.01")
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    calls = []
+
+    async def fake_run_agent_runtime(**kwargs):
+        calls.append("runtime-start")
+        await asyncio.sleep(0.035)
+        calls.append("runtime-end")
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="Team reply")
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    def fake_renew_lock(*args, **kwargs):
+        calls.append(("renew", args, kwargs))
+        return True
+
+    monkeypatch.setattr(
+        agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime
+    )
+    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(agent_handler.lock_manager, "renew_lock", fake_renew_lock)
+    monkeypatch.setattr(
+        agent_handler,
+        "_send_single_message",
+        lambda **kwargs: (
+            {"message": kwargs["multimodal_response"]["content"]},
+            kwargs["expect_output_timestamp"],
+        ),
+    )
+
+    resp_messages, _, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="17:57提醒我喝水",
+            message_source="user",
+            check_new_message=False,
+            worker_tag="[T]",
+            lock_id="lock-1",
+            conversation_id="conversation-1",
+            current_message_ids=[],
+        )
+    )
+
+    renew_indices = [
+        index for index, call in enumerate(calls) if isinstance(call, tuple)
+    ]
+    runtime_start = calls.index("runtime-start")
+    runtime_end = calls.index("runtime-end")
+    renews_during_runtime = [
+        index for index in renew_indices if runtime_start < index < runtime_end
+    ]
+
+    assert resp_messages == [{"message": "Team reply"}]
+    assert len(renews_during_runtime) >= 2
+    assert is_rollback is False
+    assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
 async def test_handle_message_marks_stream_provider_error_for_rollback(
     monkeypatch, sample_context
 ):

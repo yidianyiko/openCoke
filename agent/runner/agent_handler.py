@@ -77,6 +77,62 @@ typing_speed = 2.2
 max_conversation_round = 15
 
 
+def _team_lock_heartbeat_interval_seconds() -> float:
+    raw_value = os.environ.get("COKE_TEAM_LOCK_HEARTBEAT_SECONDS")
+    default = min(60.0, max(1.0, LOCK_TIMEOUT / 3))
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning(
+            "COKE_TEAM_LOCK_HEARTBEAT_SECONDS=%r is invalid; using %.1fs",
+            raw_value,
+            default,
+        )
+        return default
+    return value if value > 0 else default
+
+
+async def _await_with_team_lock_heartbeat(
+    awaitable,
+    *,
+    lock_id: Optional[str],
+    conversation_id: Optional[str],
+    worker_tag: str,
+):
+    if not lock_id or not conversation_id:
+        return await awaitable
+
+    done = asyncio.Event()
+
+    async def _heartbeat() -> None:
+        interval = _team_lock_heartbeat_interval_seconds()
+        while not done.is_set():
+            await asyncio.sleep(interval)
+            if done.is_set():
+                return
+            renewed = lock_manager.renew_lock(
+                "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
+            )
+            if renewed:
+                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime heartbeat)")
+            else:
+                logger.warning(f"{worker_tag} Team runtime heartbeat 续期失败")
+                return
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
+    try:
+        return await awaitable
+    finally:
+        done.set()
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
+
 def _select_agent_runtime(context: dict) -> str:
     from agent.agno_agent.runtime.selector import RuntimeSelectionInput, select_runtime
 
@@ -636,15 +692,29 @@ async def handle_message(
                 occurred_at=datetime.now(UTC),
                 metadata={"message_source": message_source, "worker_tag": worker_tag},
             )
-            result = await _run_agent_runtime_event(
-                agent_input=agent_input,
-                context=context,
-                message_source=message_source,
-                metadata=metadata,
+            result = await _await_with_team_lock_heartbeat(
+                _run_agent_runtime_event(
+                    agent_input=agent_input,
+                    context=context,
+                    message_source=message_source,
+                    metadata=metadata,
+                ),
+                lock_id=lock_id,
+                conversation_id=conversation_id,
+                worker_tag=worker_tag,
             )
 
             expect_output_timestamp = int(time.time())
             all_multimodal_responses = []
+
+            if (
+                lock_id
+                and conversation_id
+                and not _verify_lock_ownership(conversation_id, lock_id)
+            ):
+                logger.warning(f"{worker_tag} 锁已丢失，停止接受 Team runtime 结果")
+                context["MultiModalResponses"] = all_multimodal_responses
+                return resp_messages, context, True, False
 
             if result.output_disposition.status == "rollback":
                 logger.info(f"{worker_tag} AgentRuntime Team rollback")
