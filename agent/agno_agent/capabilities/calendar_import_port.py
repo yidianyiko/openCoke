@@ -68,6 +68,7 @@ class CalendarImportPort:
                     "link": link,
                     "message": summary,
                     "summary": summary,
+                    "visible_summary": summary,
                 }
 
             self.handler = _default_handler
@@ -76,6 +77,12 @@ class CalendarImportPort:
         message = content.get("message")
         if isinstance(message, str) and message.strip() and not content.get("summary"):
             content["summary"] = message.strip()
+        if (
+            isinstance(message, str)
+            and message.strip()
+            and not content.get("visible_summary")
+        ):
+            content["visible_summary"] = message.strip()
         return CapabilityResult(
             name="calendar_import",
             ok=bool(content.get("ok", True)),

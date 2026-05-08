@@ -336,6 +336,45 @@ async def test_run_team_runtime_surfaces_capability_message_when_summary_missing
 
 
 @pytest.mark.asyncio
+async def test_run_team_runtime_uses_capability_protocol_visible_summary(monkeypatch):
+    class TimezoneOnlyTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            self.input = input
+            self.run_kwargs = kwargs
+            return types.SimpleNamespace(
+                content='REQUEST timezone {"action":"direct_set","timezone":"Asia/Tokyo"}'
+            )
+
+    _install_fake_team(monkeypatch, TimezoneOnlyTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeTimezonePort:
+        def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={
+                    "visible_summary": "已按协议更新为东京时间。",
+                    "state": {"timezone": "Asia/Tokyo"},
+                },
+                metadata={"durable_write": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="把我的时区改成东京",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"timezone": FakeTimezonePort()},
+    )
+
+    assert result.visible_messages[0].content == "已按协议更新为东京时间。"
+    assert result.output_disposition.status == "ok"
+
+
+@pytest.mark.asyncio
 async def test_run_team_runtime_synthesizes_reply_after_url_context(monkeypatch):
     class UrlThenAnswerTeam(FakeTeam):
         def __init__(self, **kwargs):

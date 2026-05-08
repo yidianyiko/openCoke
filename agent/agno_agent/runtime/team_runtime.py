@@ -126,23 +126,15 @@ def _visible_text_from_capability_results(
 ) -> str | None:
     summaries = []
     for result in tool_results:
-        summary = result.content.get("summary")
-        if isinstance(summary, str) and summary.strip():
-            summaries.append(summary.strip())
-            continue
-        message = result.content.get("message")
-        if isinstance(message, str) and message.strip():
-            summaries.append(message.strip())
+        if result.visible_summary:
+            summaries.append(result.visible_summary)
     if not summaries:
         return None
     return "\n".join(summaries)
 
 
 def _requires_response_synthesis(tool_results: list[CapabilityResult]) -> bool:
-    return any(
-        result.metadata.get("requires_response_synthesis") is True
-        for result in tool_results
-    )
+    return any(result.requires_response_synthesis for result in tool_results)
 
 
 def _jsonable(value: Any) -> Any:
@@ -156,16 +148,7 @@ def _jsonable(value: Any) -> Any:
 def _format_capability_results_for_manager(
     tool_results: list[CapabilityResult],
 ) -> str:
-    payload = [
-        {
-            "name": result.name,
-            "ok": result.ok,
-            "content": _jsonable(result.content),
-            "error": result.error,
-            "metadata": _jsonable(result.metadata),
-        }
-        for result in tool_results
-    ]
+    payload = [_jsonable(result.to_manager_payload()) for result in tool_results]
     return json.dumps(payload, ensure_ascii=False, default=str)
 
 

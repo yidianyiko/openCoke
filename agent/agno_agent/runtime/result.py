@@ -33,6 +33,35 @@ class CapabilityResult:
         object.__setattr__(self, "content", freeze_mapping(self.content))
         object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
 
+    @property
+    def visible_summary(self) -> str | None:
+        for key in ("visible_summary", "summary", "message"):
+            value = self.content.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
+    @property
+    def synthesis_context(self) -> Any:
+        return self.content.get("synthesis_context")
+
+    @property
+    def durable_write(self) -> bool:
+        return self.metadata.get("durable_write") is True
+
+    @property
+    def requires_response_synthesis(self) -> bool:
+        return self.metadata.get("requires_response_synthesis") is True
+
+    def to_manager_payload(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "ok": self.ok,
+            "content": self.content,
+            "error": self.error,
+            "metadata": self.metadata,
+        }
+
 
 @dataclass(frozen=True)
 class OutputDisposition:

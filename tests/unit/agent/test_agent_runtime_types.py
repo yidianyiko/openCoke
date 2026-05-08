@@ -123,6 +123,53 @@ def test_run_result_has_output_contract_fields():
     assert result.output_disposition.output_references == ("out-1",)
 
 
+def test_capability_result_exposes_runtime_protocol_fields():
+    result = CapabilityResult(
+        name="url_context",
+        ok=True,
+        content={
+            "visible_summary": "已读取链接内容。",
+            "synthesis_context": {"text": "article body"},
+        },
+        metadata={"durable_write": False, "requires_response_synthesis": True},
+    )
+
+    assert result.visible_summary == "已读取链接内容。"
+    assert result.synthesis_context == {"text": "article body"}
+    assert result.durable_write is False
+    assert result.requires_response_synthesis is True
+    assert result.to_manager_payload() == {
+        "name": "url_context",
+        "ok": True,
+        "content": {
+            "visible_summary": "已读取链接内容。",
+            "synthesis_context": {"text": "article body"},
+        },
+        "error": None,
+        "metadata": {
+            "durable_write": False,
+            "requires_response_synthesis": True,
+        },
+    }
+
+    assert (
+        CapabilityResult(
+            name="timezone",
+            ok=True,
+            content={"summary": "已切换时区。"},
+        ).visible_summary
+        == "已切换时区。"
+    )
+    assert (
+        CapabilityResult(
+            name="calendar_import",
+            ok=True,
+            content={"message": "可以从这里导入日历。"},
+        ).visible_summary
+        == "可以从这里导入日历。"
+    )
+
+
 def test_visible_message_accepts_multimodal_message_types():
     hints = get_type_hints(VisibleMessage)
     assert set(get_args(hints["message_type"])) == {"text", "voice", "photo"}

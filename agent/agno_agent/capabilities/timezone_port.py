@@ -72,6 +72,12 @@ class TimezonePort:
         message = content.get("message")
         if isinstance(message, str) and message.strip() and not content.get("summary"):
             content["summary"] = message.strip()
+        if (
+            isinstance(message, str)
+            and message.strip()
+            and not content.get("visible_summary")
+        ):
+            content["visible_summary"] = message.strip()
         return CapabilityResult(
             name="timezone",
             ok=bool(content.get("ok", True)),
