@@ -10,8 +10,9 @@ from agent.agno_agent.runtime.result import CapabilityResult
 class CalendarImportPort:
     def __init__(
         self,
-        handler: Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]]
-        | None = None,
+        handler: (
+            Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]] | None
+        ) = None,
     ) -> None:
         self.handler = handler
 
@@ -57,19 +58,24 @@ class CalendarImportPort:
                         }
                 else:
                     link = _fallback_web_url("/account/calendar-import")
+                summary = (
+                    "可以从这里导入 Google Calendar："
+                    f"{link}。打开后登录或验证邮箱，然后点击 Start Google "
+                    "Calendar import 授权 Google。"
+                )
                 return {
                     "ok": True,
                     "link": link,
-                    "message": (
-                        "用户想导入 Google Calendar。请把这个入口链接发给用户："
-                        f"{link}。说明打开后登录或验证邮箱，然后点击 Start Google "
-                        "Calendar import 授权 Google。不要说导入已经完成。"
-                    ),
+                    "message": summary,
+                    "summary": summary,
                 }
 
             self.handler = _default_handler
 
-        content = self.handler(input_message, run_context, args)
+        content = dict(self.handler(input_message, run_context, args))
+        message = content.get("message")
+        if isinstance(message, str) and message.strip() and not content.get("summary"):
+            content["summary"] = message.strip()
         return CapabilityResult(
             name="calendar_import",
             ok=bool(content.get("ok", True)),

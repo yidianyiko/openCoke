@@ -13,7 +13,7 @@ from agent.agno_agent.runtime._immutability import (
 
 @dataclass(frozen=True)
 class VisibleMessage:
-    message_type: Literal["text"]
+    message_type: Literal["text", "voice", "photo"]
     content: str
     metadata: Mapping[str, Any] = field(default_factory=dict)
 

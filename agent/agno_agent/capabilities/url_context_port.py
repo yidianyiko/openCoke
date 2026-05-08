@@ -42,5 +42,6 @@ class UrlContextPort:
             metadata={
                 "durable_write": False,
                 "conversation_id": run_context.conversation.id,
+                "requires_response_synthesis": True,
             },
         )

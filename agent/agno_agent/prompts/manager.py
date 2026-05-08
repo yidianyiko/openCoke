@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 
 
 def build_manager_instructions(run_context: AgentRunContext) -> str:
@@ -23,6 +24,8 @@ def build_manager_instructions(run_context: AgentRunContext) -> str:
             "Allowed capability names: reminder_intent, url_context, timezone, calendar_import.",
             "Never emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
             "Never include hidden reasoning, JSON envelopes, tool logs, or database instructions.",
+            "Follow this dialogue generation contract for any RESPONSE text:",
+            INSTRUCTIONS_CHAT_RESPONSE,
             f"Default user timezone: {run_context.user.timezone or 'UTC'}",
         ]
     )

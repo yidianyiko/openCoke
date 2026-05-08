@@ -33,6 +33,7 @@ def test_url_context_port_is_explicitly_not_a_durable_writer():
     assert result.name == "url_context"
     assert result.ok is True
     assert result.metadata["durable_write"] is False
+    assert result.metadata["requires_response_synthesis"] is True
 
 
 def test_timezone_port_returns_capability_result():
@@ -42,6 +43,7 @@ def test_timezone_port_returns_capability_result():
         handler=lambda text, context, args: {
             "ok": True,
             "timezone": "Asia/Tokyo",
+            "message": "已切换到东京时间",
             "state": {"timezone": "Asia/Tokyo"},
         }
     )
@@ -55,13 +57,18 @@ def test_timezone_port_returns_capability_result():
     assert result.name == "timezone"
     assert result.ok is True
     assert result.content["timezone"] == "Asia/Tokyo"
+    assert result.content["summary"] == "已切换到东京时间"
 
 
 def test_calendar_import_port_returns_capability_result():
     from agent.agno_agent.capabilities.calendar_import_port import CalendarImportPort
 
     port = CalendarImportPort(
-        handler=lambda text, context, args: {"ok": True, "status": "queued"}
+        handler=lambda text, context, args: {
+            "ok": True,
+            "status": "queued",
+            "message": "可以从这里导入 Google Calendar：/account/calendar-import。",
+        }
     )
 
     result = port.run("import my calendar", _run_context(), {})
@@ -69,3 +76,6 @@ def test_calendar_import_port_returns_capability_result():
     assert result.name == "calendar_import"
     assert result.ok is True
     assert result.content["status"] == "queued"
+    assert result.content["summary"] == (
+        "可以从这里导入 Google Calendar：/account/calendar-import。"
+    )

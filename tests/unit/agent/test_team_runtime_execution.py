@@ -293,6 +293,95 @@ async def test_run_team_runtime_returns_empty_when_capability_has_no_visible_sum
 
 
 @pytest.mark.asyncio
+async def test_run_team_runtime_surfaces_capability_message_when_summary_missing(
+    monkeypatch,
+):
+    class TimezoneOnlyTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            self.input = input
+            self.run_kwargs = kwargs
+            return types.SimpleNamespace(
+                content='REQUEST timezone {"action":"direct_set","timezone":"Asia/Tokyo"}'
+            )
+
+    _install_fake_team(monkeypatch, TimezoneOnlyTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeTimezonePort:
+        def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={
+                    "ok": True,
+                    "message": "已将您的时区更新为东京时间（UTC+9）。",
+                    "state": {"timezone": "Asia/Tokyo"},
+                },
+                metadata={"durable_write": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="把我的时区改成东京",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"timezone": FakeTimezonePort()},
+    )
+
+    assert result.visible_messages[0].content == "已将您的时区更新为东京时间（UTC+9）。"
+    assert result.output_disposition.status == "ok"
+    assert result.trace["capability_requests"] == ("timezone",)
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_synthesizes_reply_after_url_context(monkeypatch):
+    class UrlThenAnswerTeam(FakeTeam):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.calls = 0
+
+        async def arun(self, input, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return types.SimpleNamespace(content="REQUEST url_context {}")
+            assert "Capability results:" in input
+            assert "Example article text" in input
+            return types.SimpleNamespace(content="RESPONSE:\n这篇文章主要讲 example。")
+
+    _install_fake_team(monkeypatch, UrlThenAnswerTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeUrlPort:
+        def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="url_context",
+                ok=True,
+                content={
+                    "items": [
+                        {"url": "https://example.com", "text": "Example article text"}
+                    ],
+                    "context": "Example article text",
+                },
+                metadata={"durable_write": False, "requires_response_synthesis": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="帮我看下 https://example.com 讲了什么",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"url_context": FakeUrlPort()},
+    )
+
+    assert result.visible_messages[0].content == "这篇文章主要讲 example。"
+    assert result.trace["response_synthesized_after_capabilities"] is True
+
+
+@pytest.mark.asyncio
 async def test_run_team_runtime_returns_retryable_empty_on_manager_timeout(
     monkeypatch,
 ):
@@ -304,6 +393,7 @@ async def test_run_team_runtime_returns_retryable_empty_on_manager_timeout(
     monkeypatch.setenv("COKE_TEAM_MANAGER_TIMEOUT_SECONDS", "0.01")
 
     from agent.agno_agent.runtime import team_runtime
+
     result = await team_runtime.run_team_runtime(
         context=_legacy_context(),
         input_message_str="17:57提醒我喝水",
@@ -502,8 +592,8 @@ async def test_run_team_runtime_retries_provider_tool_artifact(monkeypatch):
                     content=(
                         "明天帮你设置提醒。\n"
                         "<minimax:tool_call>\n"
-                        "<invoke name=\"reminder_intent\">\n"
-                        "<parameter name=\"action\">create</parameter>\n"
+                        '<invoke name="reminder_intent">\n'
+                        '<parameter name="action">create</parameter>\n'
                         "</invoke>\n"
                         "</minimax:tool_call>"
                     )
@@ -552,8 +642,8 @@ async def test_run_team_runtime_retries_bracket_tool_artifact(monkeypatch):
                     content=(
                         "我已为您设置了每天的提醒。\n"
                         "[TOOL_CALL]\n"
-                        "{tool => \"reminder_intent\", args => {\n"
-                        "  --action \"create\"\n"
+                        '{tool => "reminder_intent", args => {\n'
+                        '  --action "create"\n'
                         "}}\n"
                         "[/TOOL_CALL]"
                     )

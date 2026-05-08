@@ -42,6 +42,8 @@ def test_manager_instructions_define_leader_boundary():
     assert "<tool_call>" in instructions
     assert "Do not request timezone only because" in instructions
     assert "Reminder times in the user's current timezone" in instructions
+    assert "Maintain the character's personality" in instructions
+    assert "Reply in the user's current message language" in instructions
 
 
 def test_manager_input_contains_trusted_context_and_user_text():

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import os
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -127,9 +129,85 @@ def _visible_text_from_capability_results(
         summary = result.content.get("summary")
         if isinstance(summary, str) and summary.strip():
             summaries.append(summary.strip())
+            continue
+        message = result.content.get("message")
+        if isinstance(message, str) and message.strip():
+            summaries.append(message.strip())
     if not summaries:
         return None
     return "\n".join(summaries)
+
+
+def _requires_response_synthesis(tool_results: list[CapabilityResult]) -> bool:
+    return any(
+        result.metadata.get("requires_response_synthesis") is True
+        for result in tool_results
+    )
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _format_capability_results_for_manager(
+    tool_results: list[CapabilityResult],
+) -> str:
+    payload = [
+        {
+            "name": result.name,
+            "ok": result.ok,
+            "content": _jsonable(result.content),
+            "error": result.error,
+            "metadata": _jsonable(result.metadata),
+        }
+        for result in tool_results
+    ]
+    return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+async def _run_manager_response_synthesis(
+    team: Any,
+    manager_input: str,
+    *,
+    metadata: dict[str, Any] | None,
+    conversation_id: str,
+    tool_results: list[CapabilityResult],
+) -> TeamPlan:
+    synthesis_input = "\n".join(
+        [
+            manager_input,
+            "",
+            "Capability results:",
+            _format_capability_results_for_manager(tool_results),
+            "",
+            "The capability requests above have already been executed.",
+            "Use the capability results to answer the user now.",
+            "Return final user-visible RESPONSE text only.",
+            "Do not request capabilities again unless the result shows a missing required input.",
+        ]
+    )
+    try:
+        plan, protocol_artifact = await _run_manager_plan(
+            team,
+            synthesis_input,
+            metadata=metadata,
+            conversation_id=conversation_id,
+            timeout_seconds=_team_manager_retry_timeout_seconds(),
+        )
+    except TimeoutError:
+        logger.error(
+            "Team manager response synthesis timed out: timeout=%.1fs",
+            _team_manager_retry_timeout_seconds(),
+        )
+        return TeamPlan(response_text="", capability_requests=())
+    if protocol_artifact:
+        logger.warning("Team manager response synthesis returned protocol artifact")
+        return TeamPlan(response_text="", capability_requests=())
+    return plan
 
 
 def _is_protocol_artifact_response(text: str) -> bool:
@@ -176,10 +254,16 @@ async def _run_manager_plan(
     plan = parse_team_plan(raw_visible_text)
     if not raw_visible_text.strip():
         event_names = [
-            event.get("event") if isinstance(event, dict) else getattr(event, "event", None)
+            (
+                event.get("event")
+                if isinstance(event, dict)
+                else getattr(event, "event", None)
+            )
             for event in events
         ]
-        logger.warning("Team manager produced no visible content: events=%s", event_names)
+        logger.warning(
+            "Team manager produced no visible content: events=%s", event_names
+        )
     elif not plan.response_text and not plan.capability_requests:
         logger.warning(
             "Team manager produced empty parsed plan: raw=%r",
@@ -262,7 +346,9 @@ async def run_team_runtime(
                 timeout_seconds=_team_manager_retry_timeout_seconds(),
             )
             if protocol_artifact and not plan.capability_requests:
-                logger.error("Team manager returned protocol artifact after empty retry")
+                logger.error(
+                    "Team manager returned protocol artifact after empty retry"
+                )
                 plan = TeamPlan(response_text="", capability_requests=())
     except TimeoutError:
         manager_timed_out = True
@@ -300,8 +386,23 @@ async def run_team_runtime(
         tool_results.append(result)
         executed_request_names.append(request.name)
 
-    visible_text = _visible_text_from_capability_results(tool_results) or (
-        plan.response_text
+    response_synthesized_after_capabilities = False
+    synthesized_plan = None
+    if tool_results and _requires_response_synthesis(tool_results):
+        synthesized_plan = await _run_manager_response_synthesis(
+            team,
+            manager_input,
+            metadata=metadata,
+            conversation_id=run_context.conversation.id,
+            tool_results=tool_results,
+        )
+        if synthesized_plan.response_text:
+            response_synthesized_after_capabilities = True
+
+    visible_text = (
+        synthesized_plan.response_text
+        if synthesized_plan is not None and synthesized_plan.response_text
+        else _visible_text_from_capability_results(tool_results) or plan.response_text
     )
     visible_messages = (
         (VisibleMessage(message_type="text", content=visible_text),)
@@ -311,12 +412,14 @@ async def run_team_runtime(
     if visible_messages:
         return AgentRunResult(
             visible_messages=visible_messages,
-            post_analyze_input={
-                "input_message": input_message_str,
-                "message_source": message_source,
-            }
-            if visible_messages
-            else None,
+            post_analyze_input=(
+                {
+                    "input_message": input_message_str,
+                    "message_source": message_source,
+                }
+                if visible_messages
+                else None
+            ),
             tool_results=tuple(tool_results),
             metrics={"capability_result_count": len(tool_results)},
             trace={
@@ -327,6 +430,7 @@ async def run_team_runtime(
                 "manager_protocol_retried": manager_protocol_retried,
                 "manager_empty_retried": manager_empty_retried,
                 "manager_recovery_capability": manager_recovery_capability,
+                "response_synthesized_after_capabilities": response_synthesized_after_capabilities,
             },
             output_disposition=OutputDisposition(status="ok"),
         )
@@ -345,6 +449,7 @@ async def run_team_runtime(
             "manager_protocol_retried": manager_protocol_retried,
             "manager_empty_retried": manager_empty_retried,
             "manager_recovery_capability": manager_recovery_capability,
+            "response_synthesized_after_capabilities": response_synthesized_after_capabilities,
         },
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(

@@ -10,8 +10,9 @@ from agent.agno_agent.runtime.result import CapabilityResult
 class TimezonePort:
     def __init__(
         self,
-        handler: Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]]
-        | None = None,
+        handler: (
+            Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]] | None
+        ) = None,
     ) -> None:
         self.handler = handler
 
@@ -67,7 +68,10 @@ class TimezonePort:
 
             self.handler = _default_handler
 
-        content = self.handler(input_message, run_context, args)
+        content = dict(self.handler(input_message, run_context, args))
+        message = content.get("message")
+        if isinstance(message, str) and message.strip() and not content.get("summary"):
+            content["summary"] = message.strip()
         return CapabilityResult(
             name="timezone",
             ok=bool(content.get("ok", True)),

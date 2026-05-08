@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import get_args, get_type_hints
 
 import pytest
 
@@ -122,6 +123,22 @@ def test_run_result_has_output_contract_fields():
     assert result.output_disposition.output_references == ("out-1",)
 
 
+def test_visible_message_accepts_multimodal_message_types():
+    hints = get_type_hints(VisibleMessage)
+    assert set(get_args(hints["message_type"])) == {"text", "voice", "photo"}
+
+    voice = VisibleMessage(
+        message_type="voice",
+        content="我来提醒你",
+        metadata={"emotion": "无"},
+    )
+    photo = VisibleMessage(message_type="photo", content="照片123")
+
+    assert voice.message_type == "voice"
+    assert voice.metadata["emotion"] == "无"
+    assert photo.message_type == "photo"
+
+
 def test_runtime_error_disposition_expresses_error_handling():
     error = RuntimeErrorDisposition(
         code="agent_timeout",
@@ -156,7 +173,9 @@ def test_sequence_fields_are_immutable_after_construction():
     with pytest.raises(AttributeError):
         disposition.output_references.append("out-2")
     with pytest.raises(AttributeError):
-        result.visible_messages.append(VisibleMessage(message_type="text", content="Nope"))
+        result.visible_messages.append(
+            VisibleMessage(message_type="text", content="Nope")
+        )
 
 
 def test_user_turn_payload_rejects_string_message_id_sequence():
@@ -193,20 +212,26 @@ def test_metadata_mappings_are_read_only_after_construction():
 @pytest.mark.parametrize(
     ("input_type", "payload"),
     [
-        ("user.turn", DeferredActionPayload(
-            action_id="action-1",
-            kind="follow_up",
-            scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
-            revision=1,
-            prompt="Follow up.",
-        )),
+        (
+            "user.turn",
+            DeferredActionPayload(
+                action_id="action-1",
+                kind="follow_up",
+                scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+                revision=1,
+                prompt="Follow up.",
+            ),
+        ),
         ("reminder.fired", UserTurnPayload()),
-        ("deferred_action.fire", ReminderFirePayload(
-            fire_id="rem-1:2026-05-01T01:00:00+00:00",
-            reminder_id="rem-1",
-            title="drink water",
-            scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
-        )),
+        (
+            "deferred_action.fire",
+            ReminderFirePayload(
+                fire_id="rem-1:2026-05-01T01:00:00+00:00",
+                reminder_id="rem-1",
+                title="drink water",
+                scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+            ),
+        ),
     ],
 )
 def test_agent_input_rejects_mismatched_input_type_and_payload(input_type, payload):

@@ -38,9 +38,8 @@ Current status:
 
 - this is the phase the repository has substantially completed
 - the core runtime is already implemented: inbound queueing, conversation
-  locking, `PrepareWorkflow`, `StreamingChatWorkflow`,
-  `PostAnalyzeWorkflow`, reminders, future/proactive messages, and outbound
-  delivery paths
+  locking, the Agent Runtime Team turn path, `PostAnalyzeWorkflow`, reminders,
+  future/proactive messages, and outbound delivery paths
 - the current work around ClawScale personal WeChat, bridge auth, async push,
   and rollout validation is still serving Phase 1 delivery and stabilization
 - shared-channel integrations for `whatsapp_evolution`, `wechat_ecloud`, and
