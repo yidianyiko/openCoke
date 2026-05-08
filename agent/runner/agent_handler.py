@@ -645,14 +645,15 @@ async def handle_message(
     is_content_blocked = False  # 内容安全审核失败标志
 
     try:
+        user = context.get("user", {})
+        character = context.get("character", {})
+        current_platform = (
+            context.get("platform")
+            or context.get("conversation", {}).get("platform")
+            or "business"
+        )
+
         if check_new_message and message_source == "user":
-            user = context.get("user", {})
-            character = context.get("character", {})
-            current_platform = (
-                context.get("platform")
-                or context.get("conversation", {}).get("platform")
-                or "business"
-            )
             if is_new_message_coming_in(
                 get_agent_entity_id(user),
                 get_agent_entity_id(character),
@@ -731,6 +732,19 @@ async def handle_message(
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
 
+            if check_new_message and message_source == "user":
+                if is_new_message_coming_in(
+                    get_agent_entity_id(user),
+                    get_agent_entity_id(character),
+                    current_platform,
+                    current_message_ids,
+                ):
+                    logger.info(
+                        f"{worker_tag} rollback: new message before Team message send"
+                    )
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    return resp_messages, context, True, False
+
             all_multimodal_responses.append(multimodal_response)
             outputmessage, expect_output_timestamp = _send_single_message(
                 context=context,
@@ -757,6 +771,19 @@ async def handle_message(
                 logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
                 context["MultiModalResponses"] = all_multimodal_responses
                 return resp_messages, context, True, False
+
+            if check_new_message and message_source == "user":
+                if is_new_message_coming_in(
+                    get_agent_entity_id(user),
+                    get_agent_entity_id(character),
+                    current_platform,
+                    current_message_ids,
+                ):
+                    logger.info(
+                        f"{worker_tag} rollback: new message before Team fallback send"
+                    )
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    return resp_messages, context, True, False
 
             outputmessage, expect_output_timestamp = _send_chat_response_fallback(
                 context=context,
