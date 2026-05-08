@@ -39,7 +39,7 @@ Use:
 ## Freshness
 
 Plans accumulate over time; not every file here is current. Before relying on
-any plan, verify it against current `main`, `docs/architecture.md`, and the
+any plan, verify it against current `main`, `docs/ARCHITECTURE.md`, and the
 touched code.
 
 ## Template

@@ -59,7 +59,7 @@ specs and was unaffected by this migration.
   control layer exists.
 - `superpowers/` is now a mixed canonical location, not a history-only
   archive. Per-file freshness checks (against current `main`,
-  `docs/architecture.md`, and the touched code) are now the load-bearing
+  `docs/ARCHITECTURE.md`, and the touched code) are now the load-bearing
   freshness signal, not the directory name.
 - Future migrations of dated specs/plans to a separate archive remain
   possible but are out of scope here; they would require a new ADR.

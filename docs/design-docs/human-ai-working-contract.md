@@ -67,7 +67,7 @@ to a stronger claim.
 AI agents working in this repository must:
 
 - read `AGENTS.md`, `docs/design-docs/index.md`, this file,
-  `docs/architecture.md`, and the task-specific surface docs before broad work
+  `docs/ARCHITECTURE.md`, and the task-specific surface docs before broad work
 - use `docs/fitness/surfaces.yaml` and `docs/fitness/coke-verification-matrix.md`
   as routing aids, not as unquestioned proof of correctness
 - update the surface map and tests when code ownership moves

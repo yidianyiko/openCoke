@@ -12,15 +12,15 @@ When starting work in this repository, read in this order:
 2. `docs/design-docs/index.md` for the canonical repo-OS map.
 3. `docs/design-docs/human-ai-working-contract.md` for the critical
    human/AI collaboration contract.
-4. `docs/roadmap.md` for product and platform direction.
-5. `docs/architecture.md` for the runtime topology wired in code.
+4. `docs/ARCHITECTURE.md` for the canonical runtime topology and boundaries.
+5. `docs/roadmap.md` for product and platform direction.
 6. `docs/fitness/README.md` for verification expectations.
 7. `docs/design-docs/coke-working-contract.md` for Coke-specific work surfaces.
 8. `docs/fitness/coke-verification-matrix.md` for surface-to-command mapping.
 9. Task-specific execution context in `docs/superpowers/specs/` (design)
    and `docs/superpowers/plans/` (execution). Both directories carry a mix
    of active and dated artifacts; verify any spec or plan against current
-   `main`, `docs/architecture.md`, and the touched code before relying on
+   `main`, `docs/ARCHITECTURE.md`, and the touched code before relying on
    it as truth.
 10. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
    bridge behavior, or operational flows.
@@ -45,9 +45,14 @@ When starting work in this repository, read in this order:
   commands by surface.
 - `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
   map for Coke-native guardrail scripts.
+- `docs/issues/`: local issue, incident, runbook, and investigation records.
+- `docs/product-specs/FEATURE_TREE.md`: product, route, and API surface index.
+- `docs/release-guide.md`: release and rollout workflow.
+- `docs/RELEASE_CHECKLIST.md`: release closeout checklist.
 - `artifacts/evidence/`: generated verification and eval evidence.
 - `docs/roadmap.md`: product and platform direction.
-- `docs/architecture.md`: runtime reference for the code that exists today.
+- `docs/ARCHITECTURE.md`: canonical runtime reference for the code that exists
+  today. `docs/architecture.md` is a compatibility symlink.
 - `docs/deploy.md`: operational deployment and smoke-check instructions.
 - `docs/clawscale_bridge.md`: bridge and personal-channel rollout notes.
 
@@ -57,12 +62,35 @@ When starting work in this repository, read in this order:
 - Put durable repository workflow rules in `docs/design-docs/` or `docs/adr/`.
 - Put new design specs in `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`.
 - Put new execution plans in `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` (matches the `superpowers:writing-plans` skill default).
+- Put local issue, incident, one-off repair, and historical runbook records in
+  `docs/issues/`, not as loose top-level docs.
+- Keep route and API discoverability in `docs/product-specs/FEATURE_TREE.md`.
+- Keep release workflow in `docs/release-guide.md` and the release closeout
+  checklist in `docs/RELEASE_CHECKLIST.md`.
 - Keep product, architecture, deployment, and bridge details in their domain
   docs.
 - `docs/superpowers/` is the canonical home for specs and plans, not a
   history-only archive. But individual files vary in freshness — always
-  verify a spec or plan against current `main`, `docs/architecture.md`,
+  verify a spec or plan against current `main`, `docs/ARCHITECTURE.md`,
   and the actual code before using it as evidence.
+
+## Issue Feedback Loop
+
+- Before creating a new issue, search `docs/issues/` for existing incident or
+  investigation context.
+- For non-trivial failures, create or update
+  `docs/issues/YYYY-MM-DD-short-description.md` first. Capture what happened,
+  why it mattered, affected surfaces, current status, and evidence.
+- Use one canonical active local tracker per problem. Supporting investigation
+  material should use `kind: progress_note`, `kind: verification_report`, or
+  `kind: runbook` instead of becoming another active tracker.
+- Use `kind: github_mirror` only for GitHub-synced mirrors. Include
+  `github_issue`, `github_state`, and `github_url` when a local record tracks
+  GitHub.
+- When resolved, update the local issue record with the fix commit and final
+  verification.
+- Run issue hygiene at least once every seven days and update
+  `docs/issues/issue-gc-state.yaml`.
 
 ## Delivery Rules
 
@@ -102,6 +130,8 @@ When starting work in this repository, read in this order:
 - Use `docs/fitness/coke-verification-matrix.md` to choose the right command
   set for worker, bridge, gateway, deploy, and repo-OS changes.
 - Follow `docs/deploy.md` for deployment-specific smoke checks.
+- Follow `docs/release-guide.md` and `docs/RELEASE_CHECKLIST.md` for release
+  or production rollout closeout.
 
 ## Common Commands
 

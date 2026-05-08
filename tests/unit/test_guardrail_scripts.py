@@ -76,6 +76,24 @@ def test_suggest_verification_maps_superpowers_history_to_repo_os_surface():
     assert "zsh scripts/verify-surface repo-os" in result.stdout
 
 
+def test_suggest_verification_maps_routa_style_doc_surfaces_to_repo_os():
+    result = run_script(
+        "scripts/suggest-verification",
+        "--files",
+        "docs/ARCHITECTURE.md",
+        "--files",
+        "docs/issues/2026-05-09-example.md",
+        "--files",
+        "docs/product-specs/FEATURE_TREE.md",
+        "--files",
+        "docs/release-guide.md",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: repo-os" in result.stdout
+    assert "zsh scripts/verify-surface repo-os" in result.stdout
+
+
 def test_collect_changed_files_includes_deleted_files(monkeypatch):
     from scripts import guardrails
 

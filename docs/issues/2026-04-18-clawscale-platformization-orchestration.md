@@ -1,3 +1,14 @@
+---
+kind: progress_note
+status: historical
+surface:
+  - gateway-api
+  - gateway-web
+  - bridge
+created_at: 2026-04-18
+updated_at: 2026-05-09
+---
+
 # ClawScale Platformization Orchestration
 
 ## Purpose

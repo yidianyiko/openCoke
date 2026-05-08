@@ -212,7 +212,7 @@ If you need a simple summary of where the codebase stands today:
 
 ## Canonical References
 
-- `docs/architecture.md`: runtime architecture wired in code today
+- `docs/ARCHITECTURE.md`: runtime architecture wired in code today
 - `docs/clawscale_bridge.md`: Coke user and personal WeChat rollout notes
 - `docs/superpowers/specs/`: dated design decisions and target architectures
 - `docs/superpowers/plans/`: implementation checklists, rollout tasks, and

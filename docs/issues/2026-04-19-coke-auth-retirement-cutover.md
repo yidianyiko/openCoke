@@ -1,3 +1,13 @@
+---
+kind: runbook
+status: historical
+surface:
+  - gateway-api
+  - deploy
+created_at: 2026-04-19
+updated_at: 2026-05-09
+---
+
 # Coke Auth Retirement Cutover Runbook
 
 ## Scope

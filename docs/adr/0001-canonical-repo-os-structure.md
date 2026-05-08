@@ -34,7 +34,7 @@ Adopt a canonical repository operating-system skeleton in `coke`:
 At the same time:
 
 - keep `AGENTS.md` as a routing layer
-- keep `docs/roadmap.md`, `docs/architecture.md`, `docs/deploy.md`, and
+- keep `docs/roadmap.md`, `docs/ARCHITECTURE.md`, `docs/deploy.md`, and
   `docs/clawscale_bridge.md` as the authoritative product/runtime documents
 - keep `docs/superpowers/specs/` and `docs/superpowers/plans/` as valid dated
   design and implementation history instead of mass-moving them in the same

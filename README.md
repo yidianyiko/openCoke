@@ -73,9 +73,15 @@ docs/fitness/              # verification rulebook
 docs/fitness/coke-verification-matrix.md
                            # project-specific verification commands by surface
 docs/fitness/surfaces.yaml # machine-readable surface and review trigger map
+docs/issues/               # local issue, incident, runbook, and investigation records
+docs/product-specs/FEATURE_TREE.md
+                           # product, route, and API surface index
+docs/release-guide.md      # release and rollout workflow
+docs/RELEASE_CHECKLIST.md  # release closeout checklist
 artifacts/evidence/        # generated verification and eval evidence
 docs/roadmap.md            # product and platform direction
-docs/architecture.md       # runtime architecture
+docs/ARCHITECTURE.md       # canonical runtime architecture
+docs/architecture.md       # compatibility symlink to docs/ARCHITECTURE.md
 docs/deploy.md             # deployment and smoke checks
 docs/clawscale_bridge.md   # bridge and channel rollout notes
 scripts/check              # repository structure verification entrypoint
@@ -92,7 +98,7 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
   contract and verification trust levels
 - `docs/design-docs/coke-working-contract.md`: project-specific work surfaces
 - `docs/roadmap.md`: high-level status and migration direction
-- `docs/architecture.md`: current runtime architecture
+- `docs/ARCHITECTURE.md`: current canonical runtime architecture
 - `docs/deploy.md`: deployment and startup notes
 - `docs/fitness/README.md`: verification expectations
 - `docs/fitness/coke-verification-matrix.md`: what to run for worker, bridge,
@@ -101,4 +107,8 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
   map used by the guardrail scripts
 - `docs/superpowers/specs/`: canonical home for design specs (active and dated)
 - `docs/superpowers/plans/`: canonical home for execution plans (active and dated; matches the `superpowers:writing-plans` skill default)
+- `docs/issues/`: local issue, incident, runbook, and investigation records
+- `docs/product-specs/FEATURE_TREE.md`: product, route, and API surface index
+- `docs/release-guide.md` and `docs/RELEASE_CHECKLIST.md`: release workflow
+  and closeout checklist
 - `artifacts/evidence/`: generated verification and eval evidence

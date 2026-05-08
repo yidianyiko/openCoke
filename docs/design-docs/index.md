@@ -32,6 +32,10 @@ store different kinds of knowledge:
 - [`../superpowers/specs/`](../superpowers/specs/): canonical home for
   design specs (active and dated).
 - [`../fitness/`](../fitness/README.md): verification rules and evidence model.
+- [`../issues/`](../issues/README.md): local issue, incident, runbook, and
+  investigation records.
+- [`../product-specs/FEATURE_TREE.md`](../product-specs/FEATURE_TREE.md):
+  product, route, and API surface index.
 - [`../../artifacts/evidence/`](../../artifacts/evidence/): generated
   verification and eval evidence.
 
@@ -41,10 +45,14 @@ These paths stay important, but they are not the home for repository-level
 rules:
 
 - [`../roadmap.md`](../roadmap.md): product and platform direction.
-- [`../architecture.md`](../architecture.md): runtime topology wired in code.
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md): canonical runtime topology and
+  boundaries wired in code.
 - [`../deploy.md`](../deploy.md): detailed deployment and operational steps.
 - [`../clawscale_bridge.md`](../clawscale_bridge.md): bridge and personal
   channel rollout notes.
+- [`../release-guide.md`](../release-guide.md): release and rollout workflow.
+- [`../RELEASE_CHECKLIST.md`](../RELEASE_CHECKLIST.md): release closeout
+  checklist.
 
 ## Writing Rule
 

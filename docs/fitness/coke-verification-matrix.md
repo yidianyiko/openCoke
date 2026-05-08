@@ -17,8 +17,11 @@ it.
 Use when changing:
 
 - `AGENTS.md`, `CLAUDE.md`, `README.md`
+- `docs/ARCHITECTURE.md` and compatibility symlink `docs/architecture.md`
 - `docs/design-docs/`, `docs/adr/`, `docs/fitness/`, `docs/superpowers/`,
+- `docs/issues/`, `docs/product-specs/`
 - `docs/design-docs/human-ai-working-contract.md`
+- `docs/release-guide.md`, `docs/RELEASE_CHECKLIST.md`
 - `artifacts/evidence/`
 - `scripts/check`
 

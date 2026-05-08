@@ -10,12 +10,17 @@ These rules govern day-to-day repository work in `coke`.
    not only in chat or one-off plans.
 4. Keep product/runtime docs in their domain homes:
    - `docs/roadmap.md`
-   - `docs/architecture.md`
+   - `docs/ARCHITECTURE.md`
    - `docs/deploy.md`
    - `docs/clawscale_bridge.md`
 5. `docs/superpowers/specs/` and `docs/superpowers/plans/` are the canonical
    homes for design specs and execution plans (active and dated). Verify any
    individual file's freshness against current code before relying on it.
+6. Put local issues, incidents, one-off repair runbooks, and investigation
+   notes in `docs/issues/`.
+7. Keep product/API surface discovery in `docs/product-specs/FEATURE_TREE.md`.
+8. Keep release workflow in `docs/release-guide.md` and
+   `docs/RELEASE_CHECKLIST.md`.
 
 ## Delivery Rules
 

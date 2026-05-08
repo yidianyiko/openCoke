@@ -16,10 +16,12 @@ Each kind of knowledge should have one default home:
 - durable workflow decisions: `docs/adr/`
 - design specs (active and dated): `docs/superpowers/specs/`
 - execution plans (active and dated): `docs/superpowers/plans/`
+- local issues, incidents, and runbooks: `docs/issues/`
+- product/API surface index: `docs/product-specs/FEATURE_TREE.md`
 - verification rules: `docs/fitness/`
 - generated verification evidence: `artifacts/evidence/`
 - product direction and runtime docs: `docs/roadmap.md`,
-  `docs/architecture.md`, `docs/deploy.md`, `docs/clawscale_bridge.md`
+  `docs/ARCHITECTURE.md`, `docs/deploy.md`, `docs/clawscale_bridge.md`
 
 ## 3. Specs And Plans Live Together; Freshness Is Per-File
 
@@ -47,10 +49,11 @@ accumulate as first-class repository history.
 
 ## 7. Keep Product Docs Separate From Repo-OS Docs
 
-`docs/roadmap.md`, `docs/architecture.md`, and `docs/deploy.md` describe what
+`docs/roadmap.md`, `docs/ARCHITECTURE.md`, and `docs/deploy.md` describe what
 Coke is and how it runs. `docs/design-docs/`, `docs/adr/`, `docs/fitness/`,
-`docs/superpowers/`, and `artifacts/evidence/` describe how work on the
-repository should be run and verified.
+`docs/superpowers/`, `docs/issues/`, `docs/product-specs/`, and
+`artifacts/evidence/` describe how work on the repository should be discovered,
+run, tracked, and verified.
 
 ## 8. Start With Minimal Structure That Improves Real Work
 

@@ -44,9 +44,15 @@ surfaces:
       - AGENTS.md
       - CLAUDE.md
       - README.md
+      - docs/ARCHITECTURE.md
+      - docs/architecture.md
       - docs/design-docs/**
       - docs/adr/**
       - docs/fitness/**
+      - docs/issues/**
+      - docs/product-specs/**
+      - docs/release-guide.md
+      - docs/RELEASE_CHECKLIST.md
       - docs/superpowers/**
       - artifacts/evidence/**
       - scripts/check
@@ -85,8 +91,13 @@ review_triggers:
     paths:
       - AGENTS.md
       - CLAUDE.md
+      - docs/ARCHITECTURE.md
       - docs/fitness/**
       - docs/design-docs/**
+      - docs/issues/**
+      - docs/product-specs/**
+      - docs/release-guide.md
+      - docs/RELEASE_CHECKLIST.md
       - docs/superpowers/**
       - scripts/check
       - scripts/verify-surface
@@ -123,7 +134,11 @@ review_triggers:
       - framework/**
       - deploy/**
       - scripts/**
+      - docs/ARCHITECTURE.md
       - docs/fitness/**
       - docs/design-docs/**
+      - docs/product-specs/**
+      - docs/release-guide.md
+      - docs/RELEASE_CHECKLIST.md
     evidence_paths:
       - artifacts/evidence/**

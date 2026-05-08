@@ -9,6 +9,8 @@ typeset -a required_files=(
   "AGENTS.md"
   "CLAUDE.md"
   "README.md"
+  "docs/ARCHITECTURE.md"
+  "docs/architecture.md"
   "docs/design-docs/index.md"
   "docs/design-docs/core-beliefs.md"
   "docs/design-docs/golden-rules.md"
@@ -21,6 +23,13 @@ typeset -a required_files=(
   "docs/adr/0003-consolidate-plans-to-superpowers.md"
   "docs/superpowers/plans/README.md"
   "docs/superpowers/plans/_template.md"
+  "docs/issues/README.md"
+  "docs/issues/_template.md"
+  "docs/issues/issue-gc-state.yaml"
+  "docs/product-specs/README.md"
+  "docs/product-specs/FEATURE_TREE.md"
+  "docs/release-guide.md"
+  "docs/RELEASE_CHECKLIST.md"
   "docs/fitness/README.md"
   "docs/fitness/verification-checklist.md"
   "docs/fitness/coke-verification-matrix.md"
@@ -54,6 +63,48 @@ else
   print "OK  docs/exec-plans retired"
 fi
 
+if [[ -L "docs/architecture.md" && "$(readlink docs/architecture.md)" == "ARCHITECTURE.md" ]]; then
+  print "OK  docs/architecture.md compatibility symlink"
+else
+  print "MISS docs/architecture.md must be a symlink to ARCHITECTURE.md"
+  missing=1
+fi
+
+if find docs/superpowers -maxdepth 1 -type f | rg -q .; then
+  print "MISS docs/superpowers root must not contain loose markdown files"
+  find docs/superpowers -maxdepth 1 -type f -print
+  missing=1
+else
+  print "OK  docs/superpowers root has no loose files"
+fi
+
+typeset -a allowed_root_docs=(
+  "docs/ARCHITECTURE.md"
+  "docs/architecture.md"
+  "docs/clawscale_bridge.md"
+  "docs/deploy.md"
+  "docs/roadmap.md"
+  "docs/release-guide.md"
+  "docs/RELEASE_CHECKLIST.md"
+)
+typeset -A allowed_root_doc_map
+for file in "${allowed_root_docs[@]}"; do
+  allowed_root_doc_map[$file]=1
+done
+
+unexpected_root_docs=0
+while IFS= read -r file; do
+  if [[ -z "${allowed_root_doc_map[$file]:-}" ]]; then
+    print "MISS unexpected root doc $file; move runbooks/issues/specs into canonical subdirectories"
+    unexpected_root_docs=1
+  fi
+done < <(find docs -maxdepth 1 \( -type f -o -type l \) -name "*.md" | sort)
+if [[ "$unexpected_root_docs" -ne 0 ]]; then
+  missing=1
+else
+  print "OK  docs root markdown allowlist"
+fi
+
 if git ls-tree HEAD gateway | rg -q '[[:space:]]gateway$'; then
   print "OK  gateway (gitlink)"
 else
@@ -67,6 +118,11 @@ for needle in \
   "docs/fitness/coke-verification-matrix.md" \
   "docs/fitness/surfaces.yaml" \
   "docs/design-docs/human-ai-working-contract.md" \
+  "docs/ARCHITECTURE.md" \
+  "docs/issues/" \
+  "docs/product-specs/FEATURE_TREE.md" \
+  "docs/release-guide.md" \
+  "docs/RELEASE_CHECKLIST.md" \
   "docs/superpowers/plans/" \
   "docs/superpowers/specs/" \
   "artifacts/evidence/"

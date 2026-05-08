@@ -89,6 +89,12 @@ For non-trivial work:
   `docs/design-docs/human-ai-working-contract.md`
 - new multi-step plans go in `docs/superpowers/plans/`
 - durable repository workflow rules go in `docs/design-docs/` or `docs/adr/`
+- local issues, incidents, one-off repairs, and historical runbooks go in
+  `docs/issues/`
+- product and API surface discovery goes in
+  `docs/product-specs/FEATURE_TREE.md`
+- release workflow and rollout closeout go in `docs/release-guide.md` and
+  `docs/RELEASE_CHECKLIST.md`
 - generated verification evidence goes in `artifacts/evidence/`
 - historical design and implementation context remains in
   `docs/superpowers/specs/` and `docs/superpowers/plans/`

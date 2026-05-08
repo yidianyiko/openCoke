@@ -1,3 +1,13 @@
+---
+kind: runbook
+status: historical
+surface:
+  - gateway-api
+  - deploy
+created_at: 2026-04-15
+updated_at: 2026-05-09
+---
+
 # Clawscale User Orphan Repair
 
 Use this runbook when Gateway startup fails during:

@@ -17,8 +17,17 @@ def test_repo_os_required_files_exist():
         ROOT / "docs" / "adr" / "0001-canonical-repo-os-structure.md",
         ROOT / "docs" / "adr" / "0002-retire-tasks-directory.md",
         ROOT / "docs" / "adr" / "0003-consolidate-plans-to-superpowers.md",
+        ROOT / "docs" / "ARCHITECTURE.md",
+        ROOT / "docs" / "architecture.md",
         ROOT / "docs" / "superpowers" / "plans" / "README.md",
         ROOT / "docs" / "superpowers" / "plans" / "_template.md",
+        ROOT / "docs" / "issues" / "README.md",
+        ROOT / "docs" / "issues" / "_template.md",
+        ROOT / "docs" / "issues" / "issue-gc-state.yaml",
+        ROOT / "docs" / "product-specs" / "README.md",
+        ROOT / "docs" / "product-specs" / "FEATURE_TREE.md",
+        ROOT / "docs" / "release-guide.md",
+        ROOT / "docs" / "RELEASE_CHECKLIST.md",
         ROOT / "docs" / "fitness" / "README.md",
         ROOT / "docs" / "fitness" / "verification-checklist.md",
         ROOT / "docs" / "fitness" / "coke-verification-matrix.md",
@@ -36,6 +45,43 @@ def test_repo_os_required_files_exist():
 
 def test_retired_exec_plans_directory_stays_absent():
     assert not (ROOT / "docs" / "exec-plans").exists()
+
+
+def test_architecture_has_routa_style_canonical_entrypoint():
+    architecture_alias = ROOT / "docs" / "architecture.md"
+
+    assert (ROOT / "docs" / "ARCHITECTURE.md").is_file()
+    assert architecture_alias.is_symlink()
+    assert architecture_alias.resolve() == ROOT / "docs" / "ARCHITECTURE.md"
+
+
+def test_superpowers_root_has_no_loose_historical_docs():
+    loose_files = [
+        path.name
+        for path in (ROOT / "docs" / "superpowers").iterdir()
+        if path.is_file()
+    ]
+
+    assert loose_files == []
+
+
+def test_docs_root_markdown_files_are_allowlisted():
+    allowed = {
+        "ARCHITECTURE.md",
+        "architecture.md",
+        "clawscale_bridge.md",
+        "deploy.md",
+        "roadmap.md",
+        "release-guide.md",
+        "RELEASE_CHECKLIST.md",
+    }
+    actual = {
+        path.name
+        for path in (ROOT / "docs").iterdir()
+        if path.suffix == ".md" and (path.is_file() or path.is_symlink())
+    }
+
+    assert actual == allowed
 
 
 def test_claude_md_is_agents_md_symlink():
@@ -56,6 +102,11 @@ def test_root_docs_reference_repo_os_map():
         "docs/fitness/coke-verification-matrix.md",
         "docs/fitness/surfaces.yaml",
         "docs/design-docs/human-ai-working-contract.md",
+        "docs/ARCHITECTURE.md",
+        "docs/issues/",
+        "docs/product-specs/FEATURE_TREE.md",
+        "docs/release-guide.md",
+        "docs/RELEASE_CHECKLIST.md",
         "docs/superpowers/plans/",
         "docs/superpowers/specs/",
         "artifacts/evidence/",
@@ -102,6 +153,20 @@ def test_agents_md_locates_specs_and_plans_under_superpowers():
     assert "Put new design specs in `docs/superpowers/specs/" in agents_text
     # Freshness must still be verified per file, even if location is canonical.
     assert "verify a spec or plan against current `main`" in agents_text
+
+
+def test_agents_md_defines_issue_product_and_release_loops():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    for needle in [
+        "## Issue Feedback Loop",
+        "docs/issues/YYYY-MM-DD-short-description.md",
+        "Use one canonical active local tracker per problem",
+        "docs/product-specs/FEATURE_TREE.md",
+        "docs/release-guide.md",
+        "docs/RELEASE_CHECKLIST.md",
+    ]:
+        assert needle in agents_text
 
 
 def test_docs_require_code_migrations_to_update_canonical_docs():
