@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.inputs import AgentInput
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
@@ -17,10 +18,6 @@ from agent.agno_agent.runtime.result import (
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
-
-
-class UnknownToolError(Exception):
-    """Raised when the model selects a capability tool that is not available."""
 
 
 def _default_capability_ports() -> dict[str, Any]:

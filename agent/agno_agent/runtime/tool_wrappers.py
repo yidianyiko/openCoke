@@ -6,6 +6,7 @@ from datetime import date, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.result import CapabilityResult
 
 _TOOL_NAMES = ("reminder_intent", "timezone", "calendar_import", "url_context")
@@ -120,8 +121,6 @@ def _build_wrapper(
 
 
 def _build_missing_wrapper(tool_name: str) -> Callable[..., Any]:
-    from agent.agno_agent.runtime.agent_runtime import UnknownToolError
-
     if tool_name == "reminder_intent":
 
         async def reminder_intent() -> dict[str, Any]:
