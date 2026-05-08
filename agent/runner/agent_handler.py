@@ -26,7 +26,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from util.log_util import get_logger
 
@@ -368,11 +368,25 @@ def _derive_team_user_turn_occurred_at(context: dict) -> datetime:
     return max(wall_now, message_time)
 
 
+class _OutboundSendInterrupted(Exception):
+    """Raised when a newer user message arrives between outbound writes."""
+
+    def __init__(self, sent_messages: list[dict] | None = None) -> None:
+        super().__init__("outbound send interrupted")
+        self.sent_messages = sent_messages or []
+
+
 def _send_single_message(
-    context, multimodal_response, expect_output_timestamp, is_first=False
+    context,
+    multimodal_response,
+    expect_output_timestamp,
+    is_first=False,
+    interrupt_check: Callable[[], bool] | None = None,
+    skip_first_interrupt_check: bool = False,
 ):
     """发送单条多模态消息"""
     outputmessage = None
+    sent_messages = []
     msg_type = multimodal_response.get("type", "text")
     content = multimodal_response.get("content", "")
 
@@ -390,7 +404,12 @@ def _send_single_message(
         voice_messages = character_voice(
             content, multimodal_response.get("emotion", "无")
         )
-        for voice_url, voice_length in voice_messages:
+        for index, (voice_url, voice_length) in enumerate(voice_messages):
+            if interrupt_check is not None and not (
+                skip_first_interrupt_check and index == 0
+            ):
+                if interrupt_check():
+                    raise _OutboundSendInterrupted(sent_messages)
             if not is_first:
                 expect_output_timestamp += int(voice_length / 1000) + random.randint(
                     2, 5
@@ -402,6 +421,8 @@ def _send_single_message(
                 expect_output_timestamp=expect_output_timestamp,
                 metadata={"url": voice_url, "voice_length": voice_length},
             )
+            if outputmessage is not None:
+                sent_messages.append(outputmessage)
     elif msg_type == "photo":
         photo_id = (
             str(content).replace("「", "").replace("」", "").replace("照片", "", 1)
@@ -417,6 +438,9 @@ def _send_single_message(
                 ]["conversation_info"]["photo_history"][-12:]
             if not is_first:
                 expect_output_timestamp += random.randint(2, 8)
+            if interrupt_check is not None and not skip_first_interrupt_check:
+                if interrupt_check():
+                    raise _OutboundSendInterrupted(sent_messages)
             outputmessage = send_message_via_context(
                 context,
                 message=content,
@@ -428,6 +452,9 @@ def _send_single_message(
         text_message = str(content).replace("<换行>", "\n")
         if not is_first:
             expect_output_timestamp += int(len(text_message) / typing_speed)
+        if interrupt_check is not None and not skip_first_interrupt_check:
+            if interrupt_check():
+                raise _OutboundSendInterrupted(sent_messages)
         outputmessage = send_message_via_context(
             context,
             message=text_message,
@@ -746,12 +773,31 @@ async def handle_message(
                     return resp_messages, context, True, False
 
             all_multimodal_responses.append(multimodal_response)
-            outputmessage, expect_output_timestamp = _send_single_message(
-                context=context,
-                multimodal_response=multimodal_response,
-                expect_output_timestamp=expect_output_timestamp,
-                is_first=(len(all_multimodal_responses) == 1),
-            )
+            try:
+                outputmessage, expect_output_timestamp = _send_single_message(
+                    context=context,
+                    multimodal_response=multimodal_response,
+                    expect_output_timestamp=expect_output_timestamp,
+                    is_first=(len(all_multimodal_responses) == 1),
+                    interrupt_check=(
+                        lambda: is_new_message_coming_in(
+                            get_agent_entity_id(user),
+                            get_agent_entity_id(character),
+                            current_platform,
+                            current_message_ids,
+                        )
+                    )
+                    if check_new_message and message_source == "user"
+                    else None,
+                    skip_first_interrupt_check=True,
+                )
+            except _OutboundSendInterrupted as exc:
+                resp_messages.extend(exc.sent_messages)
+                logger.info(
+                    f"{worker_tag} rollback: new message during Team message send"
+                )
+                context["MultiModalResponses"] = all_multimodal_responses
+                return resp_messages, context, True, False
             if outputmessage is not None:
                 resp_messages.append(outputmessage)
 
