@@ -119,6 +119,48 @@ def _build_wrapper(
     raise ValueError(f"Unsupported capability tool: {tool_name}")
 
 
+def _build_missing_wrapper(tool_name: str) -> Callable[..., Any]:
+    from agent.agno_agent.runtime.agent_runtime import UnknownToolError
+
+    if tool_name == "reminder_intent":
+
+        async def reminder_intent() -> dict[str, Any]:
+            raise UnknownToolError(tool_name)
+
+        return reminder_intent
+
+    if tool_name == "timezone":
+
+        async def timezone(
+            action: str,
+            timezone: str = "",
+            decision: str = "",
+        ) -> dict[str, Any]:
+            del action, timezone, decision
+            raise UnknownToolError(tool_name)
+
+        return timezone
+
+    if tool_name == "calendar_import":
+
+        async def calendar_import(
+            handoff_payload: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            del handoff_payload
+            raise UnknownToolError(tool_name)
+
+        return calendar_import
+
+    if tool_name == "url_context":
+
+        async def url_context() -> dict[str, Any]:
+            raise UnknownToolError(tool_name)
+
+        return url_context
+
+    raise ValueError(f"Unsupported capability tool: {tool_name}")
+
+
 def build_capability_tool_wrappers(
     *,
     ports: Mapping[str, Any],
@@ -131,6 +173,7 @@ def build_capability_tool_wrappers(
     for tool_name in _TOOL_NAMES:
         port = ports.get(tool_name)
         if port is None:
+            wrappers[tool_name] = _build_missing_wrapper(tool_name)
             continue
 
         wrappers[tool_name] = _build_wrapper(

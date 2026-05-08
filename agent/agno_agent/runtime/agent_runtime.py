@@ -19,6 +19,10 @@ logger = logging.getLogger(__name__)
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
 
 
+class UnknownToolError(Exception):
+    """Raised when the model selects a capability tool that is not available."""
+
+
 def _default_capability_ports() -> dict[str, Any]:
     from agent.agno_agent.capabilities import (
         CalendarImportPort,
@@ -170,6 +174,25 @@ def _exception_result(
     )
 
 
+def _unknown_tool_result(
+    exc: UnknownToolError,
+    tool_results: Sequence[CapabilityResult] = (),
+) -> AgentRunResult:
+    logger.error("Agent runtime received unknown tool name: %s", exc)
+    return AgentRunResult(
+        visible_messages=(),
+        post_analyze_input=None,
+        tool_results=tuple(tool_results),
+        metrics={"capability_result_count": len(tool_results)},
+        trace={"runtime": "agent", "status": "unknown_tool", "unknown_tool": str(exc)},
+        output_disposition=OutputDisposition(status="empty"),
+        error_disposition=RuntimeErrorDisposition(
+            code="agent_runtime_unknown_tool",
+            retryable=False,
+        ),
+    )
+
+
 async def run_agent_runtime(
     *,
     agent_input: AgentInput,
@@ -224,5 +247,7 @@ async def run_agent_runtime(
             output_disposition=OutputDisposition(status="empty"),
             error_disposition=durable_write_error,
         )
+    except UnknownToolError as exc:
+        return _unknown_tool_result(exc, tool_results)
     except Exception:
         return _exception_result(tool_results)
