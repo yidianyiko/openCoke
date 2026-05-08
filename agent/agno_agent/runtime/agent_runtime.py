@@ -35,13 +35,6 @@ def _default_capability_ports() -> dict[str, Any]:
     }
 
 
-def _build_chat_response_instructions(run_context: AgentRunContext) -> str:
-    from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
-
-    timezone = run_context.user.timezone or "UTC"
-    return "\n\n".join([INSTRUCTIONS_CHAT_RESPONSE, f"Default user timezone: {timezone}"])
-
-
 def _create_agent(
     *,
     run_context: AgentRunContext,
@@ -52,6 +45,9 @@ def _create_agent(
     from agno.tools import tool
 
     from agent.agno_agent.model_factory import create_llm_model
+    from agent.agno_agent.runtime.chat_response_instructions import (
+        build_chat_response_instructions,
+    )
     from agent.agno_agent.runtime.tool_wrappers import build_capability_tool_wrappers
 
     wrappers = build_capability_tool_wrappers(
@@ -65,7 +61,7 @@ def _create_agent(
         id="coke-single-agent",
         name="CokeSingleAgent",
         model=create_llm_model(role="reminder_detect", max_tokens=2000),
-        instructions=_build_chat_response_instructions(run_context),
+        instructions=build_chat_response_instructions(run_context),
         tools=tools,
         markdown=False,
     )
