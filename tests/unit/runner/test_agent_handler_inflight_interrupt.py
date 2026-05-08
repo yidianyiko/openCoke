@@ -36,18 +36,18 @@ async def test_send_loop_aborts_when_new_message_arrives_between_sends(
     sent = []
     new_message_checks = iter([False, False, True])
 
-    def fake_send_single_message(**kwargs):
-        sent.append(kwargs["multimodal_response"]["content"])
-        return {"message": kwargs["multimodal_response"]["content"]}, (
-            kwargs["expect_output_timestamp"]
-        )
+    def fake_send_message_via_context(context, **kwargs):
+        sent.append(kwargs["message"])
+        return {"message": kwargs["message"]}
 
     monkeypatch.setattr(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
     monkeypatch.setattr(agent_handler, "_team_should_skip_post_analyze", lambda: True)
-    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(
+        agent_handler, "send_message_via_context", fake_send_message_via_context
+    )
     monkeypatch.setattr(
         agent_handler,
         "is_new_message_coming_in",
@@ -129,6 +129,77 @@ async def test_empty_output_fallback_skipped_when_new_message_arrives(
 
     assert resp_messages == []
     assert fallback_calls == []
+    assert context["MultiModalResponses"] == []
+    assert is_rollback is True
+    assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
+async def test_voice_send_aborts_after_synthesis_before_first_chunk(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    sample_context["platform"] = "business"
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="voice", content="voice reply"),
+            ],
+            post_analyze_input=None,
+            tool_results=[],
+            metrics={},
+            trace={"runtime": "team"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    sent_urls = []
+    new_message_checks = iter([False, True])
+
+    def fake_send_message_via_context(context, **kwargs):
+        sent_urls.append(kwargs["metadata"]["url"])
+        return {"message": kwargs["message"], "metadata": kwargs["metadata"]}
+
+    monkeypatch.setattr(
+        agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
+    )
+    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(agent_handler, "_team_should_skip_post_analyze", lambda: True)
+    monkeypatch.setattr(
+        agent_handler,
+        "character_voice",
+        lambda content, emotion: [("voice-1", 1000)],
+    )
+    monkeypatch.setattr(
+        agent_handler, "send_message_via_context", fake_send_message_via_context
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "is_new_message_coming_in",
+        lambda u_id, c_id, platform, current_message_ids: next(new_message_checks),
+    )
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            check_new_message=True,
+            worker_tag="[T]",
+            current_message_ids=["msg-1"],
+        )
+    )
+
+    assert sent_urls == []
+    assert resp_messages == []
     assert context["MultiModalResponses"] == []
     assert is_rollback is True
     assert is_content_blocked is False

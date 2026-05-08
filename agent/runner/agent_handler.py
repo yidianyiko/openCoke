@@ -382,7 +382,6 @@ def _send_single_message(
     expect_output_timestamp,
     is_first=False,
     interrupt_check: Callable[[], bool] | None = None,
-    skip_first_interrupt_check: bool = False,
 ):
     """发送单条多模态消息"""
     outputmessage = None
@@ -404,10 +403,8 @@ def _send_single_message(
         voice_messages = character_voice(
             content, multimodal_response.get("emotion", "无")
         )
-        for index, (voice_url, voice_length) in enumerate(voice_messages):
-            if interrupt_check is not None and not (
-                skip_first_interrupt_check and index == 0
-            ):
+        for voice_url, voice_length in voice_messages:
+            if interrupt_check is not None:
                 if interrupt_check():
                     raise _OutboundSendInterrupted(sent_messages)
             if not is_first:
@@ -438,7 +435,7 @@ def _send_single_message(
                 ]["conversation_info"]["photo_history"][-12:]
             if not is_first:
                 expect_output_timestamp += random.randint(2, 8)
-            if interrupt_check is not None and not skip_first_interrupt_check:
+            if interrupt_check is not None:
                 if interrupt_check():
                     raise _OutboundSendInterrupted(sent_messages)
             outputmessage = send_message_via_context(
@@ -452,7 +449,7 @@ def _send_single_message(
         text_message = str(content).replace("<换行>", "\n")
         if not is_first:
             expect_output_timestamp += int(len(text_message) / typing_speed)
-        if interrupt_check is not None and not skip_first_interrupt_check:
+        if interrupt_check is not None:
             if interrupt_check():
                 raise _OutboundSendInterrupted(sent_messages)
         outputmessage = send_message_via_context(
@@ -759,26 +756,12 @@ async def handle_message(
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
 
-            if check_new_message and message_source == "user":
-                if is_new_message_coming_in(
-                    get_agent_entity_id(user),
-                    get_agent_entity_id(character),
-                    current_platform,
-                    current_message_ids,
-                ):
-                    logger.info(
-                        f"{worker_tag} rollback: new message before Team message send"
-                    )
-                    context["MultiModalResponses"] = all_multimodal_responses
-                    return resp_messages, context, True, False
-
-            all_multimodal_responses.append(multimodal_response)
             try:
                 outputmessage, expect_output_timestamp = _send_single_message(
                     context=context,
                     multimodal_response=multimodal_response,
                     expect_output_timestamp=expect_output_timestamp,
-                    is_first=(len(all_multimodal_responses) == 1),
+                    is_first=(len(all_multimodal_responses) == 0),
                     interrupt_check=(
                         lambda: is_new_message_coming_in(
                             get_agent_entity_id(user),
@@ -789,16 +772,18 @@ async def handle_message(
                     )
                     if check_new_message and message_source == "user"
                     else None,
-                    skip_first_interrupt_check=True,
                 )
             except _OutboundSendInterrupted as exc:
                 resp_messages.extend(exc.sent_messages)
+                if exc.sent_messages:
+                    all_multimodal_responses.append(multimodal_response)
                 logger.info(
                     f"{worker_tag} rollback: new message during Team message send"
                 )
                 context["MultiModalResponses"] = all_multimodal_responses
                 return resp_messages, context, True, False
             if outputmessage is not None:
+                all_multimodal_responses.append(multimodal_response)
                 resp_messages.append(outputmessage)
 
         if (
