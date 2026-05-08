@@ -104,7 +104,7 @@ def test_builder_uses_conversation_mongo_id_when_stable_id_is_absent():
     assert context.conversation.id == "conv-mongo-id"
 
 
-def test_builder_uses_fallbacks_and_preserves_immutable_raw_metadata():
+def test_builder_uses_fallbacks_and_preserves_immutable_runtime_metadata():
     legacy_context = {
         "user": {"id": "user-2", "name": "Fallback User"},
         "character": {"id": "char-2"},
@@ -113,10 +113,12 @@ def test_builder_uses_fallbacks_and_preserves_immutable_raw_metadata():
             "conversation_info": {"chat_history_str": "Fallback User: hi"}
         },
     }
+    runtime_metadata = {"worker_tag": "[T]"}
 
     context = build_agent_run_context(
         legacy_context,
         current_time=datetime(2026, 5, 1, 2, 0, tzinfo=UTC),
+        runtime_metadata=runtime_metadata,
     )
 
     assert context.user.id == "user-2"
@@ -131,13 +133,15 @@ def test_builder_uses_fallbacks_and_preserves_immutable_raw_metadata():
     assert context.relation.cid == "char-2"
     assert context.recent_chat_history == "Fallback User: hi"
     assert isinstance(context.user.metadata, MappingProxyType)
-    assert context.user.metadata["raw"]["name"] == "Fallback User"
+    assert isinstance(context.runtime_metadata, MappingProxyType)
+    assert context.user.metadata == {}
+    assert context.runtime_metadata["worker_tag"] == "[T]"
 
-    legacy_context["user"]["name"] = "Mutated"
+    runtime_metadata["worker_tag"] = "[Mutated]"
 
-    assert context.user.metadata["raw"]["name"] == "Fallback User"
+    assert context.runtime_metadata["worker_tag"] == "[T]"
     with pytest.raises(TypeError):
-        context.user.metadata["raw"]["name"] = "Mutated"
+        context.runtime_metadata["worker_tag"] = "[Mutated]"
 
 
 @pytest.mark.parametrize(
