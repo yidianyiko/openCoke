@@ -9,8 +9,7 @@ from agent.agno_agent.runtime.result import CapabilityResult
 
 class UrlContextPort:
     def __init__(
-        self,
-        url_reader: Callable[[str], dict[str, Any]] | None = None,
+        self, url_reader: Callable[[str], dict[str, Any]] | None = None
     ) -> None:
         self.url_reader = url_reader
 

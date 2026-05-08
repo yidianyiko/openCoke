@@ -1,0 +1,125 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 0,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 180.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-normal-8c73e83d2f",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "6f5399da97217c86227b3d21"
+  ],
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 0,
+      "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+      "user_id": "6f5399da97217c86227b3d21",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69fc5a85dfd3a0fa85a28345",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69fc5aba09e4fedbe244ed6b",
+          "expect_output_timestamp": 1778145977,
+          "handled_timestamp": 1778145977,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：喝水（2026-05-08 17:57）\n已创建提醒：锻炼（每天 17:58）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-normal-8c73e83d2f",
+            "case_index": 0,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692c14aaa538f0baad5561b4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-normal-8c73e83d2f-case-0",
+              "business_conversation_key": "reminder-normal-8c73e83d2f-case-0",
+              "causal_inbound_event_id": "reminder-normal-8c73e83d2f-case-0-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6f5399da97217c86227b3d21"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69fc5ab909e4fedbe244ed68",
+          "owner_user_id": "6f5399da97217c86227b3d21",
+          "title": "喝水",
+          "schedule": {
+            "anchor_at": "2026-05-08T08:57:00+00:00",
+            "local_date": "2026-05-08",
+            "local_time": "17:57:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69fc5a8709e4fedbe244ed61",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-08T08:57:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-08T08:55:53+00:00",
+          "updated_at": "2026-05-08T08:55:53+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "69fc5ab909e4fedbe244ed69",
+          "owner_user_id": "6f5399da97217c86227b3d21",
+          "title": "锻炼",
+          "schedule": {
+            "anchor_at": "2026-05-08T08:58:00+00:00",
+            "local_date": "2026-05-08",
+            "local_time": "17:58:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY"
+          },
+          "agent_output_target": {
+            "conversation_id": "69fc5a8709e4fedbe244ed61",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-08T08:58:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-08T08:55:53+00:00",
+          "updated_at": "2026-05-08T08:55:53+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 53.098
+    }
+  ]
+}

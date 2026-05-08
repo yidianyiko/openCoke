@@ -156,7 +156,11 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     created = {}
 
     monkeypatch.setattr(agent_runner, "ReminderDAO", lambda: reminder_dao)
-    monkeypatch.setattr(agent_runner, "ReminderFireEventHandler", lambda: handler)
+    monkeypatch.setattr(
+        agent_runner,
+        "ReminderFireEventHandler",
+        lambda **kwargs: created.update({"handler_kwargs": kwargs}) or handler,
+    )
     monkeypatch.setattr(
         agent_runner,
         "ReminderScheduler",
@@ -170,6 +174,7 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     assert runtime is scheduler
     scheduler.start.assert_called_once()
     set_instance.assert_called_once_with(scheduler)
+    assert "runtime_event_handler" in created["handler_kwargs"]
     assert created["scheduler_kwargs"]["reminder_dao"] is reminder_dao
     assert created["scheduler_kwargs"]["fire_event_handler"] is handler
 

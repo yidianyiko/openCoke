@@ -121,9 +121,6 @@ def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     ).read_text()
     agent_handler = (ROOT / "agent" / "runner" / "agent_handler.py").read_text()
     user_dao = (ROOT / "dao" / "user_dao.py").read_text()
-    chat_workflow = (
-        ROOT / "agent" / "agno_agent" / "workflows" / "chat_workflow_streaming.py"
-    ).read_text()
     chat_context = (
         ROOT / "agent" / "prompt" / "chat_contextprompt.py"
     ).read_text()
@@ -138,7 +135,9 @@ def test_runtime_sources_remove_legacy_wechat_identity_fallbacks():
     assert 'CONF.get("default_platform"' not in background_handler
     assert 'CONF.get("default_platform"' not in agent_handler
     assert '["platforms"]["wechat"]' not in hardcode_handler
-    assert '.get("platforms", {}).get("wechat"' not in chat_workflow
+    assert not (
+        ROOT / "agent" / "agno_agent" / "workflows" / "chat_workflow_streaming.py"
+    ).exists()
     assert '.get("platforms", {}).get("wechat"' not in chat_context
     assert "get_user_by_platform" not in user_dao
     assert "update_platform_info" not in user_dao

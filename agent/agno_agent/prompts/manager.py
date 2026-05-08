@@ -17,8 +17,11 @@ def build_manager_instructions(run_context: AgentRunContext) -> str:
             'REQUEST timezone {"action":"direct_set","timezone":"Asia/Tokyo"} when the user explicitly asks to use a timezone.',
             'REQUEST timezone {"action":"proposal","timezone":"Asia/Tokyo"} when a timezone change should be confirmed first.',
             'REQUEST timezone {"action":"confirm","decision":"yes"} or REQUEST timezone {"action":"confirm","decision":"no"} for short confirmation replies.',
+            "Do not request timezone only because the default timezone or current_time appears in context.",
+            "Reminder times in the user's current timezone still use reminder_intent, not timezone.",
             "REQUEST calendar_import {} when the user asks to import calendar data.",
             "Allowed capability names: reminder_intent, url_context, timezone, calendar_import.",
+            "Never emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
             "Never include hidden reasoning, JSON envelopes, tool logs, or database instructions.",
             f"Default user timezone: {run_context.user.timezone or 'UTC'}",
         ]
@@ -36,7 +39,7 @@ def build_manager_input(run_context: AgentRunContext, input_message: str) -> str
             f"timezone: {run_context.user.timezone or 'UTC'}",
             f"current_time: {run_context.current_time.isoformat()}",
             "recent_chat_history:",
-            run_context.recent_chat_history,
+            run_context.recent_chat_history or "(empty)",
             "user_message:",
             input_message,
         ]

@@ -60,12 +60,22 @@ When starting work in this repository, read in this order:
 - Multi-step, risky, cross-cutting, or multi-session work should also have an
   execution plan in `docs/exec-plans/`.
 - Prefer small, reviewable changes over broad speculative rewrites.
+- Preserve the product and architecture contract even when a test or eval gate
+  is red. Do not add compatibility paths, parser fallbacks, heuristic
+  shortcuts, or user-visible behavior changes just to make a test pass.
+- When verification fails, classify the failure before editing: product/runtime
+  bug, test/eval bug, environment instability, or plan gap. Fix the matching
+  layer only; if the correct layer is unclear, stop and record the blocker
+  instead of forcing the gate green.
 - If a workflow rule changes, update the canonical docs in the same change.
 - Use isolated git worktrees when concurrent implementation is real.
 
 ## Validation
 
 - Do not claim work is complete without fresh verification evidence.
+- Passing tests are evidence, not the goal. A change that passes tests by
+  weakening the real contract is a failed change and must be reverted or
+  redesigned.
 - Run `scripts/check` when repository structure, templates, routing docs, or
   workflow rules change.
 - Run the relevant runtime tests for the surfaces you touched.

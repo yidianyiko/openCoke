@@ -10,9 +10,8 @@ from agent.agno_agent.runtime.result import CapabilityResult
 class CalendarImportPort:
     def __init__(
         self,
-        handler: (
-            Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]] | None
-        ) = None,
+        handler: Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]]
+        | None = None,
     ) -> None:
         self.handler = handler
 

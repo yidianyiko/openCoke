@@ -42,19 +42,21 @@ def parse_team_plan(content: str) -> TeamPlan:
             saw_structured_marker = True
             in_response = True
             continue
+        if "REQUEST " in line and not line.startswith("REQUEST "):
+            before_request, _, inline_request = raw_line.partition("REQUEST ")
+            if in_response and before_request.strip():
+                response_lines.append(before_request.rstrip())
+            line = f"REQUEST {inline_request.strip()}"
         if line.startswith("REQUEST "):
             saw_structured_marker = True
             in_response = False
-            remainder = line.removeprefix("REQUEST ").strip()
-            name, _, raw_args = remainder.partition(" ")
-            if not name:
+            request = _parse_request_line(line)
+            if request is None:
                 continue
-            args = _parse_request_args(name, raw_args, rejected)
-            if args is None:
-                continue
+            name, args = request
             if name in ALLOWED_CAPABILITIES:
                 accepted.append(CapabilityRequest(name=name, args=args))
-            else:
+            elif name:
                 rejected.append(name)
             continue
         if in_response:
@@ -70,19 +72,16 @@ def parse_team_plan(content: str) -> TeamPlan:
     )
 
 
-def _parse_request_args(
-    name: str,
-    raw_args: str,
-    rejected: list[str],
-) -> dict[str, Any] | None:
-    if not raw_args.strip():
-        return {}
-    try:
-        parsed_args = json.loads(raw_args)
-    except json.JSONDecodeError:
-        rejected.append(name)
-        return None
-    if not isinstance(parsed_args, dict):
-        rejected.append(name)
-        return None
-    return parsed_args
+def _parse_request_line(line: str) -> tuple[str, dict[str, Any]] | None:
+    remainder = line.removeprefix("REQUEST ").strip()
+    name, _, raw_args = remainder.partition(" ")
+    args: dict[str, Any] = {}
+    if raw_args.strip():
+        try:
+            parsed_args = json.loads(raw_args)
+        except json.JSONDecodeError:
+            return (name, {}) if name else None
+        if not isinstance(parsed_args, dict):
+            return (name, {}) if name else None
+        args = parsed_args
+    return (name, args) if name else None

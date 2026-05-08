@@ -4,8 +4,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
-from agent.agno_agent.runtime import AgentRunResult
 from agent.agno_agent.runtime._immutability import freeze_sequence
+from agent.agno_agent.runtime.result import AgentRunResult
 
 
 @dataclass(frozen=True)

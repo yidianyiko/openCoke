@@ -14,9 +14,7 @@ def _run_context() -> AgentRunContext:
         user=TrustedUserContext(id="user-1", nickname="User", timezone="UTC"),
         character=TrustedCharacterContext(id="char-1", nickname="Coke"),
         conversation=TrustedConversationContext(
-            id="conv-1",
-            platform="business",
-            route_key=None,
+            id="conv-1", platform="business", route_key=None
         ),
         relation=TrustedRelationContext(uid="user-1", cid="char-1"),
         platform="business",

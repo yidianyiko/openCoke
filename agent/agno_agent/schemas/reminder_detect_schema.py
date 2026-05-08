@@ -15,7 +15,15 @@ class ReminderOperation(BaseModel):
     action: Literal["create", "update", "delete", "cancel", "complete", "list"] = Field(
         description="Flat reminder operation action."
     )
-    title: str = Field(default="", description="Create title.")
+    title: str = Field(
+        default="",
+        description=(
+            "Create title. Exclude sentence-final modal particles, but preserve "
+            "meaningful quoted or parenthetical text that belongs to the reminder "
+            "content. Prefer the task governed by the reminder verb over trailing "
+            "context or reason text."
+        ),
+    )
     trigger_at: str = Field(default="", description="Aware ISO 8601 trigger time.")
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword.")
@@ -65,7 +73,15 @@ class ReminderDetectDecision(BaseModel):
             "only use list. Clarify and discussion must leave this empty."
         ),
     )
-    title: str = Field(default="", description="Create title; crud create only.")
+    title: str = Field(
+        default="",
+        description=(
+            "Create title; crud create only. Exclude sentence-final modal particles, "
+            "but preserve meaningful quoted or parenthetical text that belongs to "
+            "the reminder content. Prefer the task governed by the reminder verb "
+            "over trailing context or reason text."
+        ),
+    )
     trigger_at: str = Field(
         default="",
         description=(
@@ -90,8 +106,8 @@ class ReminderDetectDecision(BaseModel):
     deadline_at: str = Field(
         default="",
         description=(
-            "Aware ISO 8601 exclusive deadline for interval/deadline batches. "
-            "When set, every create operation trigger_at must be before it."
+            "Aware ISO 8601 deadline for interval/deadline batches. "
+            "When set, every create operation trigger_at must be at or before it."
         ),
     )
     schedule_basis: Literal[
@@ -272,8 +288,10 @@ class ReminderDetectDecision(BaseModel):
                 operation.trigger_at,
                 "operation.trigger_at",
             )
-            if trigger_at >= deadline:
-                raise ValueError("batch create operation must be before deadline_at")
+            if trigger_at > deadline:
+                raise ValueError(
+                    "batch create operation must be at or before deadline_at"
+                )
 
 
 def _parse_aware_datetime(value: str, field_name: str) -> datetime:

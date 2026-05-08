@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
-from collections.abc import Iterable
+import logging
+import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -17,7 +19,11 @@ from agent.agno_agent.prompts.manager import (
     build_manager_instructions,
 )
 from agent.agno_agent.runtime.context import build_agent_run_context
-from agent.agno_agent.runtime.plan_parser import parse_team_plan
+from agent.agno_agent.runtime.plan_parser import (
+    CapabilityRequest,
+    TeamPlan,
+    parse_team_plan,
+)
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     CapabilityResult,
@@ -27,12 +33,15 @@ from agent.agno_agent.runtime.result import (
 )
 from agent.agno_agent.runtime.streaming import filter_user_visible_team_events
 
+logger = logging.getLogger(__name__)
+_DEFAULT_TEAM_MANAGER_TIMEOUT_SECONDS = 30.0
+_DEFAULT_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS = 10.0
+_TEAM_MANAGER_MODEL_ROLE = "reminder_detect"
+_TEAM_MANAGER_MAX_TOKENS = 2000
+
 
 def create_manager_team(
-    *,
-    model: Any,
-    members: list[Any],
-    instructions: str | None = None,
+    *, model: Any, members: list[Any], instructions: str | None = None
 ) -> Any:
     from agno.team import Team
 
@@ -49,6 +58,136 @@ def create_manager_team(
     )
 
 
+def _default_capability_ports() -> dict[str, Any]:
+    return {
+        "reminder_intent": ReminderIntentPort(),
+        "url_context": UrlContextPort(),
+        "timezone": TimezonePort(),
+        "calendar_import": CalendarImportPort(),
+    }
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _collect_team_events(events: Any) -> list[Any]:
+    if inspect.isawaitable(events):
+        response = await events
+        content = getattr(response, "content", None)
+        if isinstance(content, str):
+            return [{"event": "TeamRunContent", "content": content}]
+        return [response]
+    if hasattr(events, "__aiter__"):
+        collected = []
+        async for event in events:
+            collected.append(event)
+        return collected
+    return list(events)
+
+
+def _team_manager_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_MANAGER_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_MANAGER_TIMEOUT_SECONDS,
+    )
+
+
+def _team_manager_retry_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS,
+    )
+
+
+def _float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning(
+            "%s=%r is not a valid float; using %.1f",
+            name,
+            raw_value,
+            default,
+        )
+        return default
+    return value if value > 0 else default
+
+
+def _visible_text_from_capability_results(
+    tool_results: list[CapabilityResult],
+) -> str | None:
+    summaries = []
+    for result in tool_results:
+        summary = result.content.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            summaries.append(summary.strip())
+    if not summaries:
+        return None
+    return "\n".join(summaries)
+
+
+def _is_protocol_artifact_response(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    artifact_markers = (
+        "<tool_call",
+        ":tool_call",
+        "<invoke",
+        "</invoke>",
+        "<parameter",
+        "</parameter>",
+        "[tool_call]",
+        "[/tool_call]",
+        "{tool =>",
+        "--action",
+    )
+    return normalized in {"operation cancelled by user"} or any(
+        marker in normalized for marker in artifact_markers
+    )
+
+
+async def _run_manager_plan(
+    team: Any,
+    manager_input: str,
+    *,
+    metadata: dict[str, Any] | None,
+    conversation_id: str,
+    timeout_seconds: float | None = None,
+) -> tuple[TeamPlan, bool]:
+    events = await asyncio.wait_for(
+        _collect_team_events(
+            team.arun(
+                manager_input,
+                session_state={
+                    "runtime": "team",
+                    "metadata": metadata or {},
+                    "conversation_id": conversation_id,
+                },
+            )
+        ),
+        timeout=timeout_seconds or _team_manager_timeout_seconds(),
+    )
+    raw_visible_text = "".join(filter_user_visible_team_events(events))
+    plan = parse_team_plan(raw_visible_text)
+    if not raw_visible_text.strip():
+        event_names = [
+            event.get("event") if isinstance(event, dict) else getattr(event, "event", None)
+            for event in events
+        ]
+        logger.warning("Team manager produced no visible content: events=%s", event_names)
+    elif not plan.response_text and not plan.capability_requests:
+        logger.warning(
+            "Team manager produced empty parsed plan: raw=%r",
+            raw_visible_text[:500],
+        )
+    return plan, _is_protocol_artifact_response(plan.response_text)
+
+
 async def run_team_runtime(
     *,
     context: dict[str, Any],
@@ -58,142 +197,158 @@ async def run_team_runtime(
     current_time: datetime | None = None,
     capability_ports: dict[str, Any] | None = None,
 ) -> AgentRunResult:
+    occurred_at = current_time or datetime.now(UTC)
     run_context = build_agent_run_context(
         context,
-        current_time=current_time or datetime.now(UTC),
-        runtime_metadata=metadata or {},
+        current_time=occurred_at,
+        runtime_metadata={"message_source": message_source, **(metadata or {})},
     )
-    manager_input = build_manager_input(run_context, input_message_str)
     team = create_manager_team(
-        model=create_llm_model(role="chat", max_tokens=8000),
+        model=create_llm_model(
+            role=_TEAM_MANAGER_MODEL_ROLE,
+            max_tokens=_TEAM_MANAGER_MAX_TOKENS,
+        ),
         members=[],
         instructions=build_manager_instructions(run_context),
     )
-
-    raw_events = await _collect_team_events(
-        team.arun(
+    manager_input = build_manager_input(run_context, input_message_str)
+    manager_timed_out = False
+    manager_protocol_retried = False
+    manager_empty_retried = False
+    manager_recovery_capability = False
+    try:
+        plan, protocol_artifact = await _run_manager_plan(
+            team,
             manager_input,
-            stream=True,
-            session_state=_build_session_state(run_context),
+            metadata=metadata,
+            conversation_id=run_context.conversation.id,
         )
-    )
-    visible_text = "".join(filter_user_visible_team_events(raw_events)).strip()
-    plan = parse_team_plan(visible_text)
-    ports = capability_ports or _build_default_capability_ports()
-    tool_results = await _execute_capability_requests(
-        capability_ports=ports,
-        input_message=input_message_str,
-        run_context=run_context,
-        requests=plan.capability_requests,
-    )
-
-    visible_messages: tuple[VisibleMessage, ...] = ()
-    if plan.response_text:
-        visible_messages = (
-            VisibleMessage(message_type="text", content=plan.response_text),
-        )
-
-    if not visible_messages and not tool_results:
-        return AgentRunResult(
-            visible_messages=(),
-            post_analyze_input=None,
-            tool_results=(),
-            metrics={"event_count": len(raw_events)},
-            trace={
-                "runtime": "team",
-                "status": "empty",
-                "capability_requests": tuple(
-                    request.name for request in plan.capability_requests
+        if protocol_artifact and not plan.capability_requests:
+            manager_protocol_retried = True
+            plan, protocol_artifact = await _run_manager_plan(
+                team,
+                "\n".join(
+                    [
+                        manager_input,
+                        "",
+                        "Previous manager output violated the RESPONSE/REQUEST contract.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                        "Return only RESPONSE and REQUEST lines now.",
+                    ]
                 ),
-                "rejected_requests": plan.rejected_requests,
-            },
-            output_disposition=OutputDisposition(status="empty"),
-            error_disposition=RuntimeErrorDisposition(
-                code="team_runtime_empty_output",
-                retryable=True,
-            ),
+                metadata=metadata,
+                conversation_id=run_context.conversation.id,
+                timeout_seconds=_team_manager_retry_timeout_seconds(),
+            )
+            if protocol_artifact and not plan.capability_requests:
+                logger.error("Team manager returned protocol artifact after retry")
+                plan = TeamPlan(response_text="", capability_requests=())
+        if not plan.response_text and not plan.capability_requests:
+            manager_empty_retried = True
+            plan, protocol_artifact = await _run_manager_plan(
+                team,
+                "\n".join(
+                    [
+                        manager_input,
+                        "",
+                        "Previous manager output was empty.",
+                        "Return a valid RESPONSE block and any needed REQUEST lines now.",
+                        "If the user is asking for reminder CRUD or reminder listing, include REQUEST reminder_intent {}.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                    ]
+                ),
+                metadata=metadata,
+                conversation_id=run_context.conversation.id,
+                timeout_seconds=_team_manager_retry_timeout_seconds(),
+            )
+            if protocol_artifact and not plan.capability_requests:
+                logger.error("Team manager returned protocol artifact after empty retry")
+                plan = TeamPlan(response_text="", capability_requests=())
+    except TimeoutError:
+        manager_timed_out = True
+        logger.error(
+            "Team manager timed out: timeout=%.1fs",
+            _team_manager_timeout_seconds(),
         )
+        plan = TeamPlan(response_text="", capability_requests=())
+    if (
+        manager_protocol_retried
+        and not manager_timed_out
+        and not plan.response_text
+        and not plan.capability_requests
+    ):
+        manager_recovery_capability = True
+        plan = TeamPlan(
+            response_text="",
+            capability_requests=(CapabilityRequest(name="reminder_intent", args={}),),
+        )
+    ports = capability_ports or _default_capability_ports()
 
-    return AgentRunResult(
-        visible_messages=visible_messages,
-        post_analyze_input=(
-            {
+    tool_results = []
+    executed_request_names = []
+    seen_request_names = set()
+    for request in plan.capability_requests:
+        if request.name in seen_request_names:
+            continue
+        seen_request_names.add(request.name)
+        port = ports.get(request.name)
+        if port is None:
+            continue
+        result = await _maybe_await(
+            port.run(input_message_str, run_context, request.args)
+        )
+        tool_results.append(result)
+        executed_request_names.append(request.name)
+
+    visible_text = _visible_text_from_capability_results(tool_results) or (
+        plan.response_text
+    )
+    visible_messages = (
+        (VisibleMessage(message_type="text", content=visible_text),)
+        if visible_text
+        else ()
+    )
+    if visible_messages:
+        return AgentRunResult(
+            visible_messages=visible_messages,
+            post_analyze_input={
                 "input_message": input_message_str,
                 "message_source": message_source,
             }
             if visible_messages
-            else None
-        ),
+            else None,
+            tool_results=tuple(tool_results),
+            metrics={"capability_result_count": len(tool_results)},
+            trace={
+                "runtime": "team",
+                "capability_requests": tuple(executed_request_names),
+                "rejected_requests": plan.rejected_requests,
+                "manager_timeout": manager_timed_out,
+                "manager_protocol_retried": manager_protocol_retried,
+                "manager_empty_retried": manager_empty_retried,
+                "manager_recovery_capability": manager_recovery_capability,
+            },
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    return AgentRunResult(
+        visible_messages=[],
+        post_analyze_input=None,
         tool_results=tuple(tool_results),
-        metrics={"event_count": len(raw_events)},
+        metrics={"capability_result_count": len(tool_results)},
         trace={
             "runtime": "team",
-            "status": "ok",
-            "message_source": message_source,
-            "capability_requests": tuple(
-                request.name for request in plan.capability_requests
-            ),
+            "status": "empty_output",
+            "capability_requests": tuple(executed_request_names),
             "rejected_requests": plan.rejected_requests,
+            "manager_timeout": manager_timed_out,
+            "manager_protocol_retried": manager_protocol_retried,
+            "manager_empty_retried": manager_empty_retried,
+            "manager_recovery_capability": manager_recovery_capability,
         },
-        output_disposition=OutputDisposition(status="ok"),
+        output_disposition=OutputDisposition(status="empty"),
+        error_disposition=RuntimeErrorDisposition(
+            code="team_runtime_empty_output",
+            retryable=True,
+        ),
     )
-
-
-def _build_default_capability_ports() -> dict[str, Any]:
-    return {
-        "reminder_intent": ReminderIntentPort(),
-        "url_context": UrlContextPort(),
-        "timezone": TimezonePort(),
-        "calendar_import": CalendarImportPort(),
-    }
-
-
-def _build_session_state(run_context: Any) -> dict[str, Any]:
-    return {
-        "user": {
-            "id": run_context.user.id,
-            "timezone": run_context.user.timezone,
-        },
-        "character": {"id": run_context.character.id},
-        "conversation": {
-            "id": run_context.conversation.id,
-            "route_key": run_context.conversation.route_key,
-        },
-        "platform": run_context.platform,
-    }
-
-
-async def _collect_team_events(team_run: Any) -> list[Any]:
-    if hasattr(team_run, "__aiter__"):
-        events = []
-        async for event in team_run:
-            events.append(event)
-        return events
-
-    if inspect.isawaitable(team_run):
-        team_run = await team_run
-
-    if team_run is None:
-        return []
-    if isinstance(team_run, Iterable) and not isinstance(team_run, (str, bytes, dict)):
-        return list(team_run)
-    return [team_run]
-
-
-async def _execute_capability_requests(
-    *,
-    capability_ports: dict[str, Any],
-    input_message: str,
-    run_context: Any,
-    requests: Iterable[Any],
-) -> list[CapabilityResult]:
-    results: list[CapabilityResult] = []
-    for request in requests:
-        port = capability_ports.get(request.name)
-        if port is None:
-            continue
-        result = port.run(input_message, run_context, request.args)
-        if inspect.isawaitable(result):
-            result = await result
-        results.append(result)
-    return results

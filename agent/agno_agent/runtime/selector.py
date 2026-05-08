@@ -4,9 +4,9 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
-RuntimeVersion = Literal["legacy", "team"]
+RuntimeVersion = Literal["team"]
 
-_VALID_RUNTIME_VERSIONS: set[str] = {"legacy", "team"}
+_VALID_RUNTIME_VERSIONS: set[str] = {"team"}
 
 
 @dataclass(frozen=True)
@@ -39,4 +39,4 @@ def select_runtime(selection: RuntimeSelectionInput | None = None) -> RuntimeVer
         if runtime_version is not None:
             return runtime_version
 
-    return "legacy"
+    return "team"

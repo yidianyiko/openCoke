@@ -176,14 +176,9 @@ The deferred-action runtime remains active outside that new protocol boundary:
 
 ## 4. Turn Processing Pipeline
 
-The shared turn pipeline remains:
-
-1. `PrepareWorkflow`
-2. `StreamingChatWorkflow`
-3. `PostAnalyzeWorkflow`
-
-This path is invoked from `agent/runner/agent_handler.py` for both normal user
-turns and deferred-action-triggered turns (`message_source="deferred_action"`).
+The default turn pipeline is Agent Runtime Team. The runner remains responsible
+for locks, rollback, output writes, replay checks, scheduler boot, and delivery
+state transitions. The former prepare/chat workflow runtime has been retired.
 
 ## 5. Outbound Path
 

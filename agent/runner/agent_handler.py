@@ -2,14 +2,11 @@
 """
 Agent Message Handler-Agno Version
 
-消息处理主模块，使用 Agno Workflow 实现.
+消息处理主模块，使用 Agent Runtime Team.
 
 执行流程：
-- Phase 1: PrepareWorkflow (QueryRewrite + ReminderDetect + ContextRetrieve)
-- 检测点 1: 检测新消息
-- Phase 2: ChatWorkflow (ChatResponseAgent)
-- 检测点 2: 每条消息发送后检测新消息
-- Phase 3: PostAnalyzeWorkflow (PostAnalyzeAgent)-可被跳过
+- Agent Runtime Team handles semantic planning and capability dispatch
+- PostAnalyzeWorkflow runs in the background when the Team result requests it
 
 V2.4 更新：
 - 抽取核心处理逻辑为 handle_message() 函数
@@ -35,9 +32,7 @@ from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
-# ========== Agno Workflow 导入 ==========
-from agent.agno_agent.workflows import PostAnalyzeWorkflow, PrepareWorkflow
-from agent.agno_agent.workflows.chat_workflow_streaming import StreamingChatWorkflow
+from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
 from agent.runner.agent_hardcode_handler import handle_hardcode
 from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
@@ -56,9 +51,6 @@ from util.message_log_util import (
     should_log_message_content,
 )
 
-# 预创建 Workflow 实例
-prepare_workflow = PrepareWorkflow()
-streaming_chat_workflow = StreamingChatWorkflow()
 post_analyze_workflow = PostAnalyzeWorkflow()
 
 # ========== 配置 ==========
@@ -67,44 +59,80 @@ MAX_RETRIES = 3  # 最大重试次数
 MAX_ROLLBACK = 4  # 最大 rollback 次数
 LOCK_TIMEOUT = 180  # 锁超时时间（秒）- 增加到 180 秒以覆盖完整处理周期
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
-CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS = float(
-    os.environ.get("CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS", "90")
-)
-
 target_user_alias = CONF.get("default_character_alias", "coke")
 typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
 
 
-def _select_agent_runtime(context: dict) -> str:
-    from agent.agno_agent.runtime.selector import RuntimeSelectionInput, select_runtime
-
-    conversation = context.get("conversation") or {}
-    customer = context.get("customer") or {}
-    return select_runtime(
-        RuntimeSelectionInput(
-            conversation_override=conversation.get("agent_runtime_version"),
-            customer_override=customer.get("agent_runtime_version"),
+def _team_lock_heartbeat_interval_seconds() -> float:
+    raw_value = os.environ.get("COKE_TEAM_LOCK_HEARTBEAT_SECONDS")
+    default = min(60.0, max(1.0, LOCK_TIMEOUT / 3))
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning(
+            "COKE_TEAM_LOCK_HEARTBEAT_SECONDS=%r is invalid; using %.1fs",
+            raw_value,
+            default,
         )
-    )
+        return default
+    return value if value > 0 else default
 
 
-async def _run_agent_runtime(
+async def _await_with_team_lock_heartbeat(
+    awaitable,
     *,
-    context: dict,
-    input_message_str: str,
-    message_source: str,
-    metadata: Optional[Dict[str, Any]],
+    lock_id: Optional[str],
+    conversation_id: Optional[str],
+    worker_tag: str,
 ):
-    from agent.agno_agent.runtime.team_runtime import run_team_runtime
+    if not lock_id or not conversation_id:
+        return await awaitable
 
-    return await run_team_runtime(
-        context=context,
-        input_message_str=input_message_str,
-        message_source=message_source,
-        metadata=metadata,
+    done = asyncio.Event()
+
+    async def _heartbeat() -> None:
+        interval = _team_lock_heartbeat_interval_seconds()
+        while not done.is_set():
+            await asyncio.sleep(interval)
+            if done.is_set():
+                return
+            renewed = lock_manager.renew_lock(
+                "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
+            )
+            if renewed:
+                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime heartbeat)")
+            else:
+                logger.warning(f"{worker_tag} Team runtime heartbeat 续期失败")
+                return
+
+    heartbeat_task = asyncio.create_task(_heartbeat())
+    try:
+        return await awaitable
+    finally:
+        done.set()
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+
+
+def _team_should_skip_post_analyze() -> bool:
+    raw_value = (
+        os.environ.get("COKE_TEAM_SKIP_POST_ANALYZE")
+        or os.environ.get("SKIP_POST_ANALYZE")
+        or ""
     )
+    return raw_value.lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 async def _run_agent_runtime_event(
@@ -309,6 +337,35 @@ def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
         )
         return False
     return True
+
+
+def _latest_input_message_timestamp(context: dict) -> int | None:
+    input_messages = (
+        context.get("conversation", {})
+        .get("conversation_info", {})
+        .get("input_messages", [])
+    )
+    timestamps = []
+    for message in input_messages if isinstance(input_messages, list) else []:
+        try:
+            timestamp = int(message.get("input_timestamp", 0))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if timestamp > 0:
+            timestamps.append(timestamp)
+    return max(timestamps) if timestamps else None
+
+
+def _derive_team_user_turn_occurred_at(context: dict) -> datetime:
+    wall_now = datetime.now(UTC)
+    timestamp = _latest_input_message_timestamp(context)
+    if timestamp is None:
+        return wall_now
+    try:
+        message_time = datetime.fromtimestamp(timestamp, UTC)
+    except (OverflowError, OSError, ValueError):
+        return wall_now
+    return max(wall_now, message_time)
 
 
 def _send_single_message(
@@ -569,8 +626,7 @@ async def handle_message(
     # 将 proactive_times 放到顶层，供模板使用
     context["proactive_times"] = (metadata or {}).get("proactive_times", 0)
 
-    # ========== 将锁信息放入 context，供 PrepareWorkflow 续期使用 ==========
-    # 解决问题：ReminderDetectAgent 执行时间过长导致锁过期
+    # 将锁信息放入 context，供 runtime 能力执行时续期使用。
     if lock_id:
         context["lock_id"] = lock_id
     if conversation_id:
@@ -589,154 +645,6 @@ async def handle_message(
     is_content_blocked = False  # 内容安全审核失败标志
 
     try:
-        if _select_agent_runtime(context) == "team":
-            if check_new_message and message_source == "user":
-                user = context.get("user", {})
-                character = context.get("character", {})
-                current_platform = (
-                    context.get("platform")
-                    or context.get("conversation", {}).get("platform")
-                    or "business"
-                )
-                if is_new_message_coming_in(
-                    get_agent_entity_id(user),
-                    get_agent_entity_id(character),
-                    current_platform,
-                    current_message_ids,
-                ):
-                    logger.info(
-                        f"{worker_tag} rollback: new message before team runtime"
-                    )
-                    return resp_messages, context, True, False
-
-            if lock_id and conversation_id:
-                lock_manager.renew_lock(
-                    "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
-                )
-                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
-
-            logger.info(f"{worker_tag} AgentRuntime Team 开始")
-            from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
-
-            conversation_value = context.get("conversation", {})
-            agent_input = AgentInput(
-                input_type="user.turn",
-                conversation_id=str(
-                    conversation_value.get("_id")
-                    or conversation_value.get("id")
-                    or conversation_id
-                    or ""
-                ),
-                text=input_message_str,
-                payload=UserTurnPayload(
-                    current_message_ids=tuple(current_message_ids or ()),
-                    check_new_message=check_new_message,
-                    metadata=metadata or {},
-                ),
-                occurred_at=datetime.now(UTC),
-                metadata={"message_source": message_source, "worker_tag": worker_tag},
-            )
-            result = await _run_agent_runtime_event(
-                agent_input=agent_input,
-                context=context,
-                message_source=message_source,
-                metadata=metadata,
-            )
-
-            expect_output_timestamp = int(time.time())
-            all_multimodal_responses = []
-
-            if result.output_disposition.status == "rollback":
-                logger.info(f"{worker_tag} AgentRuntime Team rollback")
-                context["MultiModalResponses"] = all_multimodal_responses
-                return resp_messages, context, True, False
-
-            for visible_message in result.visible_messages:
-                multimodal_response = {
-                    "type": visible_message.message_type,
-                    "content": visible_message.content,
-                    "metadata": dict(visible_message.metadata),
-                }
-
-                if lock_id and conversation_id:
-                    if not _verify_lock_ownership(conversation_id, lock_id):
-                        logger.warning(f"{worker_tag} 锁已丢失，停止发送 Team 消息")
-                        context["MultiModalResponses"] = all_multimodal_responses
-                        return resp_messages, context, True, False
-
-                all_multimodal_responses.append(multimodal_response)
-                outputmessage, expect_output_timestamp = _send_single_message(
-                    context=context,
-                    multimodal_response=multimodal_response,
-                    expect_output_timestamp=expect_output_timestamp,
-                    is_first=(len(all_multimodal_responses) == 1),
-                )
-                if outputmessage is not None:
-                    resp_messages.append(outputmessage)
-
-            if (
-                not resp_messages
-                and not result.visible_messages
-                and result.output_disposition.status == "empty"
-            ):
-                logger.warning(
-                    f"{worker_tag} AgentRuntime Team 未产出用户可见回复，发送兜底回复"
-                )
-                if (
-                    lock_id
-                    and conversation_id
-                    and not _verify_lock_ownership(conversation_id, lock_id)
-                ):
-                    logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
-                    context["MultiModalResponses"] = all_multimodal_responses
-                    return resp_messages, context, True, False
-
-                outputmessage, expect_output_timestamp = _send_chat_response_fallback(
-                    context=context,
-                    input_message=input_message_str,
-                    expect_output_timestamp=expect_output_timestamp,
-                    all_multimodal_responses=all_multimodal_responses,
-                )
-                if outputmessage is not None:
-                    resp_messages.append(outputmessage)
-
-            if result.post_analyze_input is not None:
-                post_context = copy.deepcopy(context)
-                post_conversation = post_context.get("conversation", {})
-                post_conversation_id = str(
-                    post_conversation.get("_id")
-                    or post_conversation.get("id")
-                    or conversation_id
-                    or ""
-                )
-                asyncio.create_task(
-                    _run_post_analyze_background(
-                        post_context,
-                        post_conversation_id,
-                        worker_tag,
-                    )
-                )
-
-            context["MultiModalResponses"] = all_multimodal_responses
-            is_content_blocked = False
-            logger.info(
-                f"{worker_tag} AgentRuntime Team 完成 "
-                f"(visible_messages={len(result.visible_messages)}, "
-                f"status={result.output_disposition.status})"
-            )
-            return resp_messages, context, is_rollback, is_content_blocked
-
-        # ========== Phase 1: PrepareWorkflow ==========
-        logger.info(
-            f"{worker_tag} Phase 1: PrepareWorkflow 开始 (source={message_source})"
-        )
-        prepare_response = await prepare_workflow.run(
-            input_message=input_message_str, session_state=context
-        )
-        context = prepare_response.get("session_state", context)
-        logger.info(f"{worker_tag} Phase 1: PrepareWorkflow 完成")
-
-        # 检测点 1：仅用户消息检测新消息（排除当前正在处理的消息）
         if check_new_message and message_source == "user":
             user = context.get("user", {})
             character = context.get("character", {})
@@ -751,227 +659,144 @@ async def handle_message(
                 current_platform,
                 current_message_ids,
             ):
-                is_rollback = True
-                logger.info(f"{worker_tag} rollback: new message before chat")
+                logger.info(f"{worker_tag} rollback: new message before team runtime")
+                return resp_messages, context, True, False
 
-        if not is_rollback:
-            # ========== Phase 2: ChatWorkflow (流式) ==========
-            logger.info(f"{worker_tag} Phase 2: ChatWorkflow 开始")
-
-            # ========== 新增：Phase 2 前续期锁 ==========
-            if lock_id and conversation_id:
-                lock_manager.renew_lock(
-                    "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
-                )
-                logger.debug(f"{worker_tag} 锁续期成功 (Phase 2 前)")
-
-            expect_output_timestamp = int(time.time())
-            multimodal_responses_index = 0
-            all_multimodal_responses = []
-            is_lock_lost = False  # 新增：锁丢失标志
-            stream_error = None
-            is_clawscale_sync_text_reply = _is_clawscale_sync_text_reply_context(
-                context, message_source
+        if lock_id and conversation_id:
+            lock_manager.renew_lock(
+                "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
             )
-            sync_text_reply_sent = False
+            logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
 
-            try:
-                async with asyncio.timeout(CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS):
-                    async for event in streaming_chat_workflow.run_stream(
-                        input_message=input_message_str, session_state=context
-                    ):
-                        if event["type"] == "message":
-                            multimodal_response = event["data"]
-                            multimodal_response = _guard_pending_reminder_stop_response(
-                                context, multimodal_response
-                            )
-                            multimodal_response = _guard_unconfirmed_reminder_response_after_prepare_timeout(
-                                context, input_message_str, multimodal_response
-                            )
-                            multimodal_responses_index += 1
-                            all_multimodal_responses.append(multimodal_response)
-                            is_sync_text_reply_message = (
-                                is_clawscale_sync_text_reply
-                                and multimodal_response.get("type", "text") == "text"
-                            )
+        logger.info(f"{worker_tag} AgentRuntime Team 开始")
+        from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 
-                            # ========== 新增：发送消息前验证锁所有权 ==========
-                            if lock_id and conversation_id:
-                                if not _verify_lock_ownership(conversation_id, lock_id):
-                                    logger.warning(
-                                        f"{worker_tag} 锁已丢失，停止发送消息"
-                                    )
-                                    is_lock_lost = True
-                                    break
+        selected_conversation_id = str(
+            context.get("conversation", {}).get("_id")
+            or context.get("conversation", {}).get("id")
+            or conversation_id
+            or ""
+        )
+        agent_input = AgentInput(
+            input_type="user.turn",
+            conversation_id=selected_conversation_id,
+            text=input_message_str,
+            payload=UserTurnPayload(
+                current_message_ids=tuple(current_message_ids or ()),
+                check_new_message=check_new_message,
+                metadata=metadata or {},
+            ),
+            occurred_at=_derive_team_user_turn_occurred_at(context),
+            metadata={"message_source": message_source, "worker_tag": worker_tag},
+        )
+        result = await _await_with_team_lock_heartbeat(
+            _run_agent_runtime_event(
+                agent_input=agent_input,
+                context=context,
+                message_source=message_source,
+                metadata=metadata,
+            ),
+            lock_id=lock_id,
+            conversation_id=conversation_id,
+            worker_tag=worker_tag,
+        )
 
-                            outputmessage, expect_output_timestamp = (
-                                _send_single_message(
-                                    context=context,
-                                    multimodal_response=multimodal_response,
-                                    expect_output_timestamp=expect_output_timestamp,
-                                    is_first=(multimodal_responses_index == 1),
-                                )
-                            )
-                            if outputmessage is not None:
-                                if not (
-                                    is_sync_text_reply_message and sync_text_reply_sent
-                                ):
-                                    resp_messages.append(outputmessage)
-                                if is_sync_text_reply_message:
-                                    sync_text_reply_sent = True
+        expect_output_timestamp = int(time.time())
+        all_multimodal_responses = []
 
-                                # ========== 新增：每发送一条消息后续期锁 ==========
-                                if lock_id and conversation_id:
-                                    lock_manager.renew_lock(
-                                        "conversation",
-                                        conversation_id,
-                                        lock_id,
-                                        timeout=LOCK_TIMEOUT,
-                                    )
-
-                                if is_sync_text_reply_message:
-                                    logger.info(
-                                        f"{worker_tag} Clawscale request_response 首条文本回复已写入，提前结束流式等待"
-                                    )
-                                    break
-
-                            # 检测点 2：仅用户消息检测新消息（排除当前正在处理的消息）
-                            if check_new_message and message_source == "user":
-                                user = context.get("user", {})
-                                character = context.get("character", {})
-                                current_platform = (
-                                    context.get("platform")
-                                    or context.get("conversation", {}).get("platform")
-                                    or "business"
-                                )
-                                if is_new_message_coming_in(
-                                    get_agent_entity_id(user),
-                                    get_agent_entity_id(character),
-                                    current_platform,
-                                    current_message_ids,
-                                ):
-                                    is_rollback = True
-                                    logger.info(
-                                        f"{worker_tag} rollback: new message during streaming"
-                                    )
-                                    break
-                        elif event["type"] == "done":
-                            logger.info(
-                                f"{worker_tag} 流式完成，共 {event['data'].get('total_messages', 0)} 条"
-                            )
-                        elif event["type"] == "content_blocked":
-                            # ========== 内容安全审核失败，设置标志并停止处理 ==========
-                            logger.warning(
-                                f"{worker_tag} 内容安全审核失败 (Content Exists Risk)，跳过后续处理"
-                            )
-                            is_content_blocked = True
-                            break
-                        elif event["type"] == "error":
-                            stream_error = event["data"].get("error")
-                            logger.error(f"{worker_tag} 流式错误: {stream_error}")
-                            is_rollback = True
-                            break
-            except TimeoutError:
-                stream_error = (
-                    f"chat_response_timeout:{CHAT_RESPONSE_STREAM_TIMEOUT_SECONDS:g}s"
-                )
-                logger.warning(f"{worker_tag} ChatWorkflow 超时: {stream_error}")
-                if not resp_messages and not is_content_blocked:
-                    if (
-                        lock_id
-                        and conversation_id
-                        and not _verify_lock_ownership(conversation_id, lock_id)
-                    ):
-                        logger.warning(f"{worker_tag} 锁已丢失，跳过超时兜底回复")
-                        is_lock_lost = True
-                    else:
-                        outputmessage, expect_output_timestamp = (
-                            _send_chat_response_fallback(
-                                context=context,
-                                input_message=input_message_str,
-                                expect_output_timestamp=expect_output_timestamp,
-                                all_multimodal_responses=all_multimodal_responses,
-                            )
-                        )
-                        if outputmessage is not None:
-                            resp_messages.append(outputmessage)
-
-            if (
-                not resp_messages
-                and not is_content_blocked
-                and not is_rollback
-                and not is_lock_lost
-            ):
-                stream_error = stream_error or "chat_response_empty"
-                logger.warning(
-                    f"{worker_tag} ChatWorkflow 未产出用户可见回复，发送兜底回复"
-                )
-                if (
-                    lock_id
-                    and conversation_id
-                    and not _verify_lock_ownership(conversation_id, lock_id)
-                ):
-                    logger.warning(f"{worker_tag} 锁已丢失，跳过空流兜底回复")
-                    is_lock_lost = True
-                else:
-                    outputmessage, expect_output_timestamp = (
-                        _send_chat_response_fallback(
-                            context=context,
-                            input_message=input_message_str,
-                            expect_output_timestamp=expect_output_timestamp,
-                            all_multimodal_responses=all_multimodal_responses,
-                        )
-                    )
-                    if outputmessage is not None:
-                        resp_messages.append(outputmessage)
-
-            # ========== 新增：锁丢失时标记为 rollback ==========
-            if is_lock_lost:
-                is_rollback = True
-            if stream_error:
-                context["stream_error"] = stream_error
-
+        if (
+            lock_id
+            and conversation_id
+            and not _verify_lock_ownership(conversation_id, lock_id)
+        ):
+            logger.warning(f"{worker_tag} 锁已丢失，停止接受 Team runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
-            logger.info(f"{worker_tag} Phase 2: ChatWorkflow 完成")
+            return resp_messages, context, True, False
 
-            # ========== Phase 3: PostAnalyzeWorkflow ==========
-            # 跳过条件：rollback、无响应消息、或内容安全审核失败
-            if not is_rollback and not is_content_blocked and len(resp_messages) > 0:
-                # ========== 新增：Phase 3 前续期锁 ==========
-                if lock_id and conversation_id:
-                    lock_manager.renew_lock(
-                        "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
-                    )
-                    logger.debug(f"{worker_tag} 锁续期成功 (Phase 3 前)")
+        if result.output_disposition.status == "rollback":
+            logger.info(f"{worker_tag} AgentRuntime Team rollback")
+            context["MultiModalResponses"] = all_multimodal_responses
+            return resp_messages, context, True, False
 
-                # ========== V2.8 优化：提醒消息跳过 LLM 调用 ==========
-                deferred_kind = (metadata or {}).get("kind")
-                if (
-                    message_source == "deferred_action"
-                    and deferred_kind == "user_reminder"
-                ):
-                    logger.info(
-                        f"{worker_tag} Phase 3: user reminder deferred action，跳过 PostAnalyze"
-                    )
-                else:
-                    # 用户消息/主动消息：后台执行 PostAnalyze（Fire-and-Forget）
-                    # E2E 测试时可通过环境变量 SKIP_POST_ANALYZE=1 跳过
-                    if os.environ.get("SKIP_POST_ANALYZE") == "1":
-                        logger.info(
-                            f"{worker_tag} Phase 3: SKIP_POST_ANALYZE=1，跳过 PostAnalyze"
-                        )
-                    else:
-                        context_copy = copy.deepcopy(context)
-                        asyncio.create_task(
-                            _run_post_analyze_background(
-                                context_copy, conversation_id, worker_tag
-                            )
-                        )
-                        logger.info(
-                            f"{worker_tag} Phase 3: PostAnalyzeWorkflow 已提交后台执行"
-                        )
-            elif is_content_blocked:
-                logger.warning(f"{worker_tag} 跳过 Phase 3: 内容安全审核失败")
+        for visible_message in result.visible_messages:
+            multimodal_response = {
+                "type": visible_message.message_type,
+                "content": visible_message.content,
+                "metadata": dict(visible_message.metadata),
+            }
+
+            if lock_id and conversation_id:
+                if not _verify_lock_ownership(conversation_id, lock_id):
+                    logger.warning(f"{worker_tag} 锁已丢失，停止发送 Team 消息")
+                    context["MultiModalResponses"] = all_multimodal_responses
+                    return resp_messages, context, True, False
+
+            all_multimodal_responses.append(multimodal_response)
+            outputmessage, expect_output_timestamp = _send_single_message(
+                context=context,
+                multimodal_response=multimodal_response,
+                expect_output_timestamp=expect_output_timestamp,
+                is_first=(len(all_multimodal_responses) == 1),
+            )
+            if outputmessage is not None:
+                resp_messages.append(outputmessage)
+
+        if (
+            not resp_messages
+            and not result.visible_messages
+            and result.output_disposition.status == "empty"
+        ):
+            logger.warning(
+                f"{worker_tag} AgentRuntime Team 未产出用户可见回复，发送兜底回复"
+            )
+            if (
+                lock_id
+                and conversation_id
+                and not _verify_lock_ownership(conversation_id, lock_id)
+            ):
+                logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
+                context["MultiModalResponses"] = all_multimodal_responses
+                return resp_messages, context, True, False
+
+            outputmessage, expect_output_timestamp = _send_chat_response_fallback(
+                context=context,
+                input_message=input_message_str,
+                expect_output_timestamp=expect_output_timestamp,
+                all_multimodal_responses=all_multimodal_responses,
+            )
+            if outputmessage is not None:
+                resp_messages.append(outputmessage)
+
+        context["MultiModalResponses"] = all_multimodal_responses
+        if (
+            result.post_analyze_input is not None
+            and not _team_should_skip_post_analyze()
+        ):
+            post_context = copy.deepcopy(context)
+            post_conversation_id = str(
+                post_context.get("conversation", {}).get("_id")
+                or conversation_id
+                or ""
+            )
+            asyncio.create_task(
+                _run_post_analyze_background(
+                    post_context,
+                    post_conversation_id,
+                    worker_tag,
+                )
+            )
+            logger.info(
+                f"{worker_tag} AgentRuntime Team PostAnalyzeWorkflow 已提交后台执行"
+            )
+        elif result.post_analyze_input is not None:
+            logger.info(f"{worker_tag} AgentRuntime Team PostAnalyzeWorkflow 已跳过")
+        is_content_blocked = False
+        logger.info(
+            f"{worker_tag} AgentRuntime Team 完成 "
+            f"(visible_messages={len(result.visible_messages)}, "
+            f"status={result.output_disposition.status})"
+        )
+        return resp_messages, context, is_rollback, is_content_blocked
 
     except Exception as e:
         logger.error(f"{worker_tag} handle_message failed: {e}")

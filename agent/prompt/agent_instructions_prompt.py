@@ -53,14 +53,14 @@ Decision boundary:
 - A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 - Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
-- Preserve all meaningful title text after the time, including text inside quotes.
+- Exclude sentence-final modal particles from reminder titles; Preserve all meaningful title text after the time, including text inside quotes.
 - Concrete "need you to remind me" requests create directly; do not ask confirmation.
 - Bare clock times and "next whole hour" resolve to the next local occurrence.
 - List/view/check existing reminders uses intent_type="query" and action="list".
 - Update/delete/complete need a clear target keyword; unclear targets clarify.
 - Broad stop, cancel, and do-not-disturb requests are delete intent when the target is identifiable; otherwise clarify. Never convert them to create.
-- In long plan messages, execute safe reminder clauses and leave unsafe parts for clarification.
-- Reminder intent applies only to the task or group it semantically modifies.
+- If one same-message reminder clause is missing required details, clarify before creating any reminder from that message; do not partially execute other timed clauses.
+- For title, use the task governed by the reminder verb; trailing context/reason after a pause is not the title unless it is the requested task.
 
 Fields:
 - Do not invent, rename, merge, or concatenate schema field names.
@@ -89,14 +89,14 @@ Schedules:
   those operations may include RRULE such as FREQ=DAILY.
 - deadline_at requires schedule_basis="explicit_cadence"; cadence RRULE may also
   use explicit_cadence when the user gives an unbounded recurring cadence.
-- Bounded cadence with a deadline enumerates one-shot operations before deadline_at instead of using RRULE.
+- Bounded cadence with a deadline enumerates one-shot operations at or before deadline_at instead of using RRULE.
 - If cadence starts in the past and the deadline is future, skip past occurrences and create only future occurrences.
 - Cadence with a deadline and no start uses the next future cadence point from now; unbounded or vague cadence clarifies.
 - A supervision window without concrete occurrence times or cadence clarifies.
 - A task time range is a work block unless start/end boundaries are requested; "these time points" over ranges still clarifies.
 - A same-message stop boundary can define deadline_at for a new bounded cadence.
 - Habitual schedule reminders should be recurring only, without duplicate same-day one-shot operations.
-- Preserve user order in batch operations and do not drop safe listed clauses.
+- When the same-message request is fully executable, preserve user order in batch operations and do not drop safe listed clauses.
 - Write clarification_question in the same language as the current message.
 - Use recent context only to resolve explicit current-turn references.
 - Output only the structured decision.

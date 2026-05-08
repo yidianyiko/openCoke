@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextvars
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -37,6 +37,7 @@ class _RuntimeContext:
     owner_user_id: str
     target: AgentOutputTarget
     timezone: str
+    current_time: datetime | None
 
 
 class _KeywordResolutionError(Exception):
@@ -94,7 +95,7 @@ def _execute_visible_reminder_tool_action(
         return context_failure
 
     try:
-        service = ReminderService()
+        service = _build_reminder_service(session_state)
     except Exception:
         logger.exception("ReminderService adapter initialization failed")
         return _append_failure(
@@ -479,11 +480,39 @@ def _derive_runtime_context(session_state: dict) -> _RuntimeContext:
             route_key=_string_value(route_key) if route_key else None,
         ),
         timezone=timezone,
+        current_time=_parse_current_time(session_state.get("current_time")),
     )
 
 
 def _string_value(value: Any) -> str:
     return "" if value is None else str(value)
+
+
+def _parse_current_time(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(UTC)
+
+
+def _build_reminder_service(session_state: dict) -> ReminderService:
+    current_time = _parse_current_time(session_state.get("current_time"))
+    if current_time is None:
+        return ReminderService()
+    try:
+        return ReminderService(now_provider=lambda: current_time)
+    except TypeError as exc:
+        if "now_provider" not in str(exc):
+            raise
+        return ReminderService()
 
 
 def _canonical_action(action: str) -> str:

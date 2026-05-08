@@ -10,9 +10,8 @@ from agent.agno_agent.runtime.result import CapabilityResult
 class TimezonePort:
     def __init__(
         self,
-        handler: (
-            Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]] | None
-        ) = None,
+        handler: Callable[[str, AgentRunContext, dict[str, Any]], dict[str, Any]]
+        | None = None,
     ) -> None:
         self.handler = handler
 
@@ -29,10 +28,6 @@ class TimezonePort:
                 set_user_timezone,
                 store_timezone_proposal,
             )
-
-            def _tool_entrypoint(tool: Any) -> Any:
-                entrypoint = getattr(tool, "entrypoint", tool)
-                return getattr(entrypoint, "raw_function", entrypoint)
 
             def _default_handler(
                 text: str,
@@ -51,17 +46,17 @@ class TimezonePort:
                 }
                 action = str(request_args.get("action") or "").strip()
                 if action == "direct_set":
-                    return _tool_entrypoint(set_user_timezone)(
+                    return set_user_timezone.entrypoint(
                         timezone=str(request_args.get("timezone") or ""),
                         session_state=session_state,
                     )
                 if action == "proposal":
-                    return _tool_entrypoint(store_timezone_proposal)(
+                    return store_timezone_proposal.entrypoint(
                         timezone=str(request_args.get("timezone") or ""),
                         session_state=session_state,
                     )
                 if action == "confirm":
-                    return _tool_entrypoint(consume_timezone_confirmation)(
+                    return consume_timezone_confirmation.entrypoint(
                         decision=str(request_args.get("decision") or ""),
                         session_state=session_state,
                     )

@@ -143,7 +143,7 @@ reminder_detect_agent = Agent(
 reminder_detect_retry_agent = Agent(
     id="reminder-detect-retry-agent",
     name="ReminderDetectRetryAgent",
-    model=create_llm_model(max_tokens=6000, role="prepare_fast"),
+    model=create_llm_model(max_tokens=6000, role="reminder_detect"),
     description=DESCRIPTION_REMINDER_DETECT,
     instructions=get_reminder_detect_retry_instructions(),
     output_schema=ReminderDetectDecision,
