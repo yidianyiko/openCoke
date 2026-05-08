@@ -141,3 +141,80 @@ async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
     assert result.error_disposition is not None
     assert result.error_disposition.code == "agent_runtime_exception"
     assert result.error_disposition.retryable is True
+
+
+def test_create_agent_registers_canonical_capability_tools():
+    agent = agent_runtime._create_agent(
+        run_context=_run_context(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert [tool.name for tool in agent.tools] == [
+        "reminder_intent",
+        "timezone",
+        "calendar_import",
+        "url_context",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatch):
+    captured_envelopes: list[dict] = []
+
+    class StubPort:
+        async def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "ok"},
+                metadata={"durable_write": True},
+            )
+
+    monkeypatch.setattr(
+        agent_runtime,
+        "_default_capability_ports",
+        lambda: {"reminder_intent": StubPort()},
+    )
+
+    class FakeAgent:
+        def __init__(self, tools):
+            self.tools = tools
+
+        async def arun(self, **kwargs):
+            envelope = await self.tools["reminder_intent"]()
+            captured_envelopes.append(envelope)
+            return SimpleNamespace(
+                content="",
+                messages=[
+                    {"role": "user", "content": kwargs["input"]},
+                    {"role": "tool", "content": str(envelope)},
+                    {"role": "assistant", "content": ""},
+                ],
+            )
+
+    def fake_create_agent(*, run_context, input_message, tool_results):
+        from agent.agno_agent.runtime.tool_wrappers import (
+            build_capability_tool_wrappers,
+        )
+
+        wrappers = build_capability_tool_wrappers(
+            ports=agent_runtime._default_capability_ports(),
+            run_context=run_context,
+            input_message=input_message,
+            tool_results=tool_results,
+        )
+        return FakeAgent(tools=wrappers)
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert len(result.tool_results) == 1
+    assert result.tool_results[0].name == "reminder"
+    assert result.tool_results[0].durable_write is True
+    assert [message.content for message in result.visible_messages] == ["ok"]
+    assert captured_envelopes[0]["name"] == "reminder_intent"

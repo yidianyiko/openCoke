@@ -19,8 +19,56 @@ logger = logging.getLogger(__name__)
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
 
 
-def _create_agent(**kwargs: Any) -> Any:
-    raise NotImplementedError("agent runtime construction is not implemented yet")
+def _default_capability_ports() -> dict[str, Any]:
+    from agent.agno_agent.capabilities import (
+        CalendarImportPort,
+        ReminderIntentPort,
+        TimezonePort,
+        UrlContextPort,
+    )
+
+    return {
+        "reminder_intent": ReminderIntentPort(),
+        "timezone": TimezonePort(),
+        "calendar_import": CalendarImportPort(),
+        "url_context": UrlContextPort(),
+    }
+
+
+def _build_chat_response_instructions(run_context: AgentRunContext) -> str:
+    from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
+
+    timezone = run_context.user.timezone or "UTC"
+    return "\n\n".join([INSTRUCTIONS_CHAT_RESPONSE, f"Default user timezone: {timezone}"])
+
+
+def _create_agent(
+    *,
+    run_context: AgentRunContext,
+    input_message: str,
+    tool_results: list[CapabilityResult],
+) -> Any:
+    from agno.agent import Agent
+    from agno.tools import tool
+
+    from agent.agno_agent.model_factory import create_llm_model
+    from agent.agno_agent.runtime.tool_wrappers import build_capability_tool_wrappers
+
+    wrappers = build_capability_tool_wrappers(
+        ports=_default_capability_ports(),
+        run_context=run_context,
+        input_message=input_message,
+        tool_results=tool_results,
+    )
+    tools = [tool(name=name)(fn) for name, fn in wrappers.items()]
+    return Agent(
+        id="coke-single-agent",
+        name="CokeSingleAgent",
+        model=create_llm_model(role="reminder_detect", max_tokens=2000),
+        instructions=_build_chat_response_instructions(run_context),
+        tools=tools,
+        markdown=False,
+    )
 
 
 def _message_value(message: Any, key: str) -> Any:
@@ -108,13 +156,15 @@ def _message_source(agent_input: AgentInput, run_context: AgentRunContext) -> st
     return agent_input.input_type
 
 
-def _exception_result() -> AgentRunResult:
+def _exception_result(
+    tool_results: Sequence[CapabilityResult] = (),
+) -> AgentRunResult:
     logger.exception("Agent runtime failed closed")
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=(),
-        metrics={"capability_result_count": 0},
+        tool_results=tuple(tool_results),
+        metrics={"capability_result_count": len(tool_results)},
         trace={"runtime": "agent", "status": "exception"},
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(
@@ -129,14 +179,13 @@ async def run_agent_runtime(
     agent_input: AgentInput,
     run_context: AgentRunContext,
 ) -> AgentRunResult:
+    tool_results: list[CapabilityResult] = []
     try:
         if agent_input.input_type not in _SUPPORTED_INPUT_TYPES:
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
-        tool_results: list[CapabilityResult] = []
         agent = _create_agent(
-            agent_input=agent_input,
             run_context=run_context,
             input_message=input_message,
             tool_results=tool_results,
@@ -180,4 +229,4 @@ async def run_agent_runtime(
             error_disposition=durable_write_error,
         )
     except Exception:
-        return _exception_result()
+        return _exception_result(tool_results)
