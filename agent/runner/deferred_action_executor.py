@@ -106,6 +106,7 @@ class DeferredActionExecutor:
 
         trigger_key = self._build_trigger_key(action_id, scheduled_for)
 
+        occurrence: dict[str, Any] = {}
         try:
             occurrence = self.occurrence_dao.claim_or_get_occurrence(
                 action_id=action_id,
@@ -185,7 +186,7 @@ class DeferredActionExecutor:
             return "succeeded"
         except Exception as exc:
             finished_at = _normalize_mongo_datetime(self.now_provider())
-            attempt_count = int(occurrence.get("attempt_count", 1))
+            attempt_count = int((occurrence or {}).get("attempt_count", 1))
             self.occurrence_dao.mark_occurrence_failed(
                 trigger_key,
                 str(exc),
