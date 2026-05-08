@@ -1,6 +1,7 @@
 import json
 
 import pytest
+from agno.tools import Function
 
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
@@ -116,15 +117,31 @@ async def test_model_arguments_cannot_spoof_wrapper_internal_tool_name():
         tool_results=captured,
     )
 
-    envelope = await wrappers["timezone"](
-        _tool_name="spoofed",
-        _port="bad",
-        action="direct_set",
-    )
+    envelope = await wrappers["timezone"](action="direct_set")
 
     assert envelope["name"] == "timezone"
-    assert received_args == {
-        "_tool_name": "spoofed",
-        "_port": "bad",
-        "action": "direct_set",
-    }
+    assert received_args == {"action": "direct_set", "timezone": "", "decision": ""}
+
+
+def test_agno_function_schema_exposes_top_level_tool_arguments():
+    class StubTimezonePort:
+        def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={"visible_summary": "已切换时区"},
+            )
+
+    wrappers = build_capability_tool_wrappers(
+        ports={"timezone": StubTimezonePort()},
+        run_context=_run_context(),
+        input_message="set timezone",
+        tool_results=[],
+    )
+
+    function = Function.from_callable(wrappers["timezone"], name="timezone")
+
+    assert "kwargs" not in function.parameters["properties"]
+    assert "action" in function.parameters["properties"]
+    assert "timezone" in function.parameters["properties"]
+    assert "decision" in function.parameters["properties"]

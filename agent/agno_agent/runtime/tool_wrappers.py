@@ -62,17 +62,61 @@ def _build_wrapper(
     input_message: str,
     tool_results: list[CapabilityResult],
 ) -> Callable[..., Any]:
-    async def _wrapper(**kwargs: Any) -> dict[str, Any]:
+    async def _call(args: dict[str, Any]) -> dict[str, Any]:
         result = await _run_port(
             port,
             input_message=input_message,
             run_context=run_context,
-            args=dict(kwargs),
+            args=args,
         )
         tool_results.append(result)
         return _model_facing_envelope(tool_name, result)
 
-    return _wrapper
+    if tool_name == "reminder_intent":
+
+        async def reminder_intent() -> dict[str, Any]:
+            """Detect and execute reminder create, update, cancel, complete, or list intent."""
+            return await _call({})
+
+        return reminder_intent
+
+    if tool_name == "timezone":
+
+        async def timezone(
+            action: str,
+            timezone: str = "",
+            decision: str = "",
+        ) -> dict[str, Any]:
+            """Set, propose, or confirm a user timezone."""
+            return await _call(
+                {
+                    "action": action,
+                    "timezone": timezone,
+                    "decision": decision,
+                }
+            )
+
+        return timezone
+
+    if tool_name == "calendar_import":
+
+        async def calendar_import(
+            handoff_payload: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            """Create a Google Calendar import handoff link."""
+            return await _call({"handoff_payload": handoff_payload})
+
+        return calendar_import
+
+    if tool_name == "url_context":
+
+        async def url_context() -> dict[str, Any]:
+            """Read URLs from the current user message and return context."""
+            return await _call({})
+
+        return url_context
+
+    raise ValueError(f"Unsupported capability tool: {tool_name}")
 
 
 def build_capability_tool_wrappers(
