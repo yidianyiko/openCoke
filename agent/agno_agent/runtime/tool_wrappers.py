@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from datetime import date, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
@@ -18,9 +18,25 @@ def _model_facing_envelope(
     return {
         "name": tool_name,
         "ok": capability_result.ok,
-        "content": dict(capability_result.content),
+        "content": _jsonable(capability_result.content),
         "error": capability_result.error,
     }
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode(errors="replace")
+    if isinstance(value, Sequence):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return [_jsonable(item) for item in value]
+    return str(value)
 
 
 async def _run_port(
@@ -30,10 +46,33 @@ async def _run_port(
     run_context: AgentRunContext,
     args: dict[str, Any],
 ) -> CapabilityResult:
+    import asyncio
+
     run = port.run
     if inspect.iscoroutinefunction(run):
         return await run(input_message, run_context, args)
     return await asyncio.to_thread(run, input_message, run_context, args)
+
+
+def _build_wrapper(
+    *,
+    tool_name: str,
+    port: Any,
+    run_context: AgentRunContext,
+    input_message: str,
+    tool_results: list[CapabilityResult],
+) -> Callable[..., Any]:
+    async def _wrapper(**kwargs: Any) -> dict[str, Any]:
+        result = await _run_port(
+            port,
+            input_message=input_message,
+            run_context=run_context,
+            args=dict(kwargs),
+        )
+        tool_results.append(result)
+        return _model_facing_envelope(tool_name, result)
+
+    return _wrapper
 
 
 def build_capability_tool_wrappers(
@@ -50,20 +89,12 @@ def build_capability_tool_wrappers(
         if port is None:
             continue
 
-        async def _wrapper(
-            _tool_name: str = tool_name,
-            _port: Any = port,
-            **kwargs: Any,
-        ) -> dict[str, Any]:
-            result = await _run_port(
-                _port,
-                input_message=input_message,
-                run_context=run_context,
-                args=dict(kwargs),
-            )
-            tool_results.append(result)
-            return _model_facing_envelope(_tool_name, result)
-
-        wrappers[tool_name] = _wrapper
+        wrappers[tool_name] = _build_wrapper(
+            tool_name=tool_name,
+            port=port,
+            run_context=run_context,
+            input_message=input_message,
+            tool_results=tool_results,
+        )
 
     return wrappers

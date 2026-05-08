@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from agent.agno_agent.runtime.context import (
@@ -62,3 +64,67 @@ async def test_reminder_envelope_uses_tool_function_name_not_capability_name():
     assert captured[0].name == "reminder"
     assert captured[0].durable_write is True
     assert captured[0].requires_response_synthesis is True
+
+
+@pytest.mark.asyncio
+async def test_envelope_content_is_json_serializable_for_nested_results():
+    captured: list[CapabilityResult] = []
+
+    class StubTimezonePort:
+        def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={
+                    "visible_summary": "已切换时区",
+                    "state": {"timezone": "Asia/Tokyo"},
+                },
+                metadata={"durable_write": True},
+            )
+
+    wrappers = build_capability_tool_wrappers(
+        ports={"timezone": StubTimezonePort()},
+        run_context=_run_context(),
+        input_message="set timezone",
+        tool_results=captured,
+    )
+
+    envelope = await wrappers["timezone"](action="direct_set")
+
+    assert envelope["content"]["state"] == {"timezone": "Asia/Tokyo"}
+    json.dumps(envelope)
+
+
+@pytest.mark.asyncio
+async def test_model_arguments_cannot_spoof_wrapper_internal_tool_name():
+    captured: list[CapabilityResult] = []
+    received_args = {}
+
+    class StubTimezonePort:
+        def run(self, input_message, run_context, args):
+            received_args.update(args)
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={"visible_summary": "已切换时区"},
+            )
+
+    wrappers = build_capability_tool_wrappers(
+        ports={"timezone": StubTimezonePort()},
+        run_context=_run_context(),
+        input_message="set timezone",
+        tool_results=captured,
+    )
+
+    envelope = await wrappers["timezone"](
+        _tool_name="spoofed",
+        _port="bad",
+        action="direct_set",
+    )
+
+    assert envelope["name"] == "timezone"
+    assert received_args == {
+        "_tool_name": "spoofed",
+        "_port": "bad",
+        "action": "direct_set",
+    }
