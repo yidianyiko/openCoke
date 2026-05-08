@@ -19,7 +19,11 @@ from agent.agno_agent.prompts.manager import (
     build_manager_instructions,
 )
 from agent.agno_agent.runtime.context import build_agent_run_context
-from agent.agno_agent.runtime.plan_parser import TeamPlan, parse_team_plan
+from agent.agno_agent.runtime.plan_parser import (
+    CapabilityRequest,
+    TeamPlan,
+    parse_team_plan,
+)
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     CapabilityResult,
@@ -30,6 +34,10 @@ from agent.agno_agent.runtime.result import (
 from agent.agno_agent.runtime.streaming import filter_user_visible_team_events
 
 logger = logging.getLogger(__name__)
+_DEFAULT_TEAM_MANAGER_TIMEOUT_SECONDS = 30.0
+_DEFAULT_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS = 10.0
+_TEAM_MANAGER_MODEL_ROLE = "reminder_detect"
+_TEAM_MANAGER_MAX_TOKENS = 2000
 
 
 def create_manager_team(
@@ -81,18 +89,34 @@ async def _collect_team_events(events: Any) -> list[Any]:
 
 
 def _team_manager_timeout_seconds() -> float:
-    raw_value = os.environ.get("COKE_TEAM_MANAGER_TIMEOUT_SECONDS")
+    return _float_env(
+        "COKE_TEAM_MANAGER_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_MANAGER_TIMEOUT_SECONDS,
+    )
+
+
+def _team_manager_retry_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_MANAGER_RETRY_TIMEOUT_SECONDS,
+    )
+
+
+def _float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
     if raw_value is None:
-        return 45.0
+        return default
     try:
         value = float(raw_value)
     except ValueError:
         logger.warning(
-            "COKE_TEAM_MANAGER_TIMEOUT_SECONDS=%r is not a valid float; using 45.0",
+            "%s=%r is not a valid float; using %.1f",
+            name,
             raw_value,
+            default,
         )
-        return 45.0
-    return value if value > 0 else 45.0
+        return default
+    return value if value > 0 else default
 
 
 def _visible_text_from_capability_results(
@@ -110,7 +134,21 @@ def _visible_text_from_capability_results(
 
 def _is_protocol_artifact_response(text: str) -> bool:
     normalized = str(text or "").strip().lower()
-    return normalized in {"operation cancelled by user"} or "<tool_call" in normalized
+    artifact_markers = (
+        "<tool_call",
+        ":tool_call",
+        "<invoke",
+        "</invoke>",
+        "<parameter",
+        "</parameter>",
+        "[tool_call]",
+        "[/tool_call]",
+        "{tool =>",
+        "--action",
+    )
+    return normalized in {"operation cancelled by user"} or any(
+        marker in normalized for marker in artifact_markers
+    )
 
 
 async def _run_manager_plan(
@@ -119,6 +157,7 @@ async def _run_manager_plan(
     *,
     metadata: dict[str, Any] | None,
     conversation_id: str,
+    timeout_seconds: float | None = None,
 ) -> tuple[TeamPlan, bool]:
     events = await asyncio.wait_for(
         _collect_team_events(
@@ -131,10 +170,21 @@ async def _run_manager_plan(
                 },
             )
         ),
-        timeout=_team_manager_timeout_seconds(),
+        timeout=timeout_seconds or _team_manager_timeout_seconds(),
     )
     raw_visible_text = "".join(filter_user_visible_team_events(events))
     plan = parse_team_plan(raw_visible_text)
+    if not raw_visible_text.strip():
+        event_names = [
+            event.get("event") if isinstance(event, dict) else getattr(event, "event", None)
+            for event in events
+        ]
+        logger.warning("Team manager produced no visible content: events=%s", event_names)
+    elif not plan.response_text and not plan.capability_requests:
+        logger.warning(
+            "Team manager produced empty parsed plan: raw=%r",
+            raw_visible_text[:500],
+        )
     return plan, _is_protocol_artifact_response(plan.response_text)
 
 
@@ -154,13 +204,18 @@ async def run_team_runtime(
         runtime_metadata={"message_source": message_source, **(metadata or {})},
     )
     team = create_manager_team(
-        model=create_llm_model(role="chat", max_tokens=8000),
+        model=create_llm_model(
+            role=_TEAM_MANAGER_MODEL_ROLE,
+            max_tokens=_TEAM_MANAGER_MAX_TOKENS,
+        ),
         members=[],
         instructions=build_manager_instructions(run_context),
     )
     manager_input = build_manager_input(run_context, input_message_str)
     manager_timed_out = False
     manager_protocol_retried = False
+    manager_empty_retried = False
+    manager_recovery_capability = False
     try:
         plan, protocol_artifact = await _run_manager_plan(
             team,
@@ -170,7 +225,7 @@ async def run_team_runtime(
         )
         if protocol_artifact and not plan.capability_requests:
             manager_protocol_retried = True
-            plan, _ = await _run_manager_plan(
+            plan, protocol_artifact = await _run_manager_plan(
                 team,
                 "\n".join(
                     [
@@ -183,7 +238,32 @@ async def run_team_runtime(
                 ),
                 metadata=metadata,
                 conversation_id=run_context.conversation.id,
+                timeout_seconds=_team_manager_retry_timeout_seconds(),
             )
+            if protocol_artifact and not plan.capability_requests:
+                logger.error("Team manager returned protocol artifact after retry")
+                plan = TeamPlan(response_text="", capability_requests=())
+        if not plan.response_text and not plan.capability_requests:
+            manager_empty_retried = True
+            plan, protocol_artifact = await _run_manager_plan(
+                team,
+                "\n".join(
+                    [
+                        manager_input,
+                        "",
+                        "Previous manager output was empty.",
+                        "Return a valid RESPONSE block and any needed REQUEST lines now.",
+                        "If the user is asking for reminder CRUD or reminder listing, include REQUEST reminder_intent {}.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                    ]
+                ),
+                metadata=metadata,
+                conversation_id=run_context.conversation.id,
+                timeout_seconds=_team_manager_retry_timeout_seconds(),
+            )
+            if protocol_artifact and not plan.capability_requests:
+                logger.error("Team manager returned protocol artifact after empty retry")
+                plan = TeamPlan(response_text="", capability_requests=())
     except TimeoutError:
         manager_timed_out = True
         logger.error(
@@ -191,6 +271,17 @@ async def run_team_runtime(
             _team_manager_timeout_seconds(),
         )
         plan = TeamPlan(response_text="", capability_requests=())
+    if (
+        manager_protocol_retried
+        and not manager_timed_out
+        and not plan.response_text
+        and not plan.capability_requests
+    ):
+        manager_recovery_capability = True
+        plan = TeamPlan(
+            response_text="",
+            capability_requests=(CapabilityRequest(name="reminder_intent", args={}),),
+        )
     ports = capability_ports or _default_capability_ports()
 
     tool_results = []
@@ -234,6 +325,8 @@ async def run_team_runtime(
                 "rejected_requests": plan.rejected_requests,
                 "manager_timeout": manager_timed_out,
                 "manager_protocol_retried": manager_protocol_retried,
+                "manager_empty_retried": manager_empty_retried,
+                "manager_recovery_capability": manager_recovery_capability,
             },
             output_disposition=OutputDisposition(status="ok"),
         )
@@ -250,6 +343,8 @@ async def run_team_runtime(
             "rejected_requests": plan.rejected_requests,
             "manager_timeout": manager_timed_out,
             "manager_protocol_retried": manager_protocol_retried,
+            "manager_empty_retried": manager_empty_retried,
+            "manager_recovery_capability": manager_recovery_capability,
         },
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(

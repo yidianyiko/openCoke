@@ -59,7 +59,7 @@ class PostAnalyzeWorkflow:
 
      输入：
     -session_state["MultiModalResponses"]-来自 ChatWorkflow 的回复
-    -session_state["context_retrieve"]-来自 PrepareWorkflow
+    -session_state["context_retrieve"]-来自 Agent Runtime Team context
 
      输出：
     -CharacterPublicSettings-角色公开设定更新

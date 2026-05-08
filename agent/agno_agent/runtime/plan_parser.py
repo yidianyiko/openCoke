@@ -42,6 +42,11 @@ def parse_team_plan(content: str) -> TeamPlan:
             saw_structured_marker = True
             in_response = True
             continue
+        if "REQUEST " in line and not line.startswith("REQUEST "):
+            before_request, _, inline_request = raw_line.partition("REQUEST ")
+            if in_response and before_request.strip():
+                response_lines.append(before_request.rstrip())
+            line = f"REQUEST {inline_request.strip()}"
         if line.startswith("REQUEST "):
             saw_structured_marker = True
             in_response = False

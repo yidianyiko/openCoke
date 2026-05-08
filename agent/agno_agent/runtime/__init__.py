@@ -5,10 +5,6 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
-from agent.agno_agent.runtime.event_adapter import (
-    run_agent_runtime_event,
-    run_deferred_action_runtime_event,
-)
 from agent.agno_agent.runtime.inputs import (
     AgentInput,
     DeferredActionPayload,
@@ -49,3 +45,21 @@ __all__ = [
     "UserTurnPayload",
     "VisibleMessage",
 ]
+
+
+def __getattr__(name: str):
+    if name not in {
+        "run_agent_runtime_event",
+        "run_deferred_action_runtime_event",
+    }:
+        raise AttributeError(name)
+
+    from agent.agno_agent.runtime.event_adapter import (
+        run_agent_runtime_event,
+        run_deferred_action_runtime_event,
+    )
+
+    return {
+        "run_agent_runtime_event": run_agent_runtime_event,
+        "run_deferred_action_runtime_event": run_deferred_action_runtime_event,
+    }[name]

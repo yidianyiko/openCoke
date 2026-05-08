@@ -8,11 +8,11 @@
   "timezone": "Asia/Tokyo",
   "use_case_timestamps": false,
   "transport": "business-clawscale",
-  "batch_id": "reminder-normal-ff2130baea",
+  "batch_id": "reminder-normal-49a51f8ca1",
   "platform": "business",
   "character_id": "69eeeee7e7ef890c105124bf",
   "user_ids": [
-    "c2fc458126d9325c28b46e24"
+    "8431634521bc5c0c7d17aeac"
   ],
   "serial": true,
   "summary": {
@@ -27,23 +27,23 @@
     {
       "index": 123,
       "input": "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
-      "user_id": "c2fc458126d9325c28b46e24",
+      "user_id": "8431634521bc5c0c7d17aeac",
       "original_from_user": "692c4430a538f0baad5561de",
-      "input_message_id": "69fc584fc6c0eaafe698ac16",
+      "input_message_id": "69fc66d29ccfaf8fe2f7f426",
       "input_status": "handled",
       "passed": true,
       "errors": [],
       "outputs": [
         {
-          "_id": "69fc585c702488c83917845e",
-          "expect_output_timestamp": 1778145372,
-          "handled_timestamp": 1778145372,
+          "_id": "69fc66eeedcd219039061e33",
+          "expect_output_timestamp": 1778149102,
+          "handled_timestamp": 1778149102,
           "status": "pending",
           "message_type": "text",
           "message": "已创建提醒：思考一个问题：工作应该去做“非我不可”的事情（2026-05-08 10:40）",
           "metadata": {
             "source": "clawscale",
-            "batch_id": "reminder-normal-ff2130baea",
+            "batch_id": "reminder-normal-49a51f8ca1",
             "case_index": 123,
             "original_from_user": "692c4430a538f0baad5561de",
             "source_id": "69305f884bf7878f04114895",
@@ -51,20 +51,20 @@
             "delivery_mode": "request_response",
             "business_protocol": {
               "delivery_mode": "request_response",
-              "gateway_conversation_id": "reminder-normal-ff2130baea-case-123",
-              "business_conversation_key": "reminder-normal-ff2130baea-case-123",
-              "causal_inbound_event_id": "reminder-normal-ff2130baea-case-123-inbound"
+              "gateway_conversation_id": "reminder-normal-49a51f8ca1-case-123",
+              "business_conversation_key": "reminder-normal-49a51f8ca1-case-123",
+              "causal_inbound_event_id": "reminder-normal-49a51f8ca1-case-123-inbound"
             }
           },
           "from_user": "69eeeee7e7ef890c105124bf",
           "platform": "business",
-          "to_user": "c2fc458126d9325c28b46e24"
+          "to_user": "8431634521bc5c0c7d17aeac"
         }
       ],
       "reminders": [
         {
-          "_id": "69fc585c702488c83917845c",
-          "owner_user_id": "c2fc458126d9325c28b46e24",
+          "_id": "69fc66eeedcd219039061e31",
+          "owner_user_id": "8431634521bc5c0c7d17aeac",
           "title": "思考一个问题：工作应该去做“非我不可”的事情",
           "schedule": {
             "anchor_at": "2026-05-08T01:40:00+00:00",
@@ -74,7 +74,7 @@
             "rrule": null
           },
           "agent_output_target": {
-            "conversation_id": "69fc5850702488c839178457",
+            "conversation_id": "69fc66d3edcd219039061e2c",
             "character_id": "69eeeee7e7ef890c105124bf",
             "route_key": null
           },
@@ -91,7 +91,7 @@
           "failed_at": null
         }
       ],
-      "elapsed_seconds": 13.025
+      "elapsed_seconds": 29.053
     }
   ]
 }

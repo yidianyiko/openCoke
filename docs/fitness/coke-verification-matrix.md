@@ -55,6 +55,13 @@ pytest tests/unit/agent/ -v
 pytest tests/unit/test_clawscale_only_topology.py -v
 ```
 
+Team runtime cutover commands:
+
+```bash
+AGENT_RUNTIME_VERSION=team pytest tests/unit/agent/ tests/unit/runner/ -v
+AGENT_RUNTIME_VERSION=team python scripts/eval_reminder_normal_path_cases.py
+```
+
 Focused deferred-actions command set:
 
 ```bash

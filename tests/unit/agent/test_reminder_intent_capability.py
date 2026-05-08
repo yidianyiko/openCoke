@@ -27,6 +27,49 @@ def _run_context() -> AgentRunContext:
     )
 
 
+def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
+
+    prompt = build_reminder_intent_input(
+        "今天有两个事情提醒我，17:57喝水，每天17:58锻炼",
+        _run_context(),
+    )
+
+    assert "### Reminder Few-Shot Decisions" in prompt
+    assert '"schedule_basis": "explicit_occurrences"' in prompt
+    assert '"schedule_evidence"' in prompt
+    assert '"rrule": "FREQ=DAILY"' in prompt
+    assert "### 当前用户消息" in prompt
+    assert "每天17:58锻炼" in prompt
+
+
+def test_team_reminder_detect_default_timeout_allows_team_llm_budget(monkeypatch):
+    from agent.agno_agent.capabilities import reminder_intent
+
+    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False)
+
+    assert reminder_intent._team_reminder_detect_timeout_seconds() == 45.0
+
+
+def test_team_reminder_detect_timeout_retry_has_short_default_budget(monkeypatch):
+    from agent.agno_agent.capabilities import reminder_intent
+
+    monkeypatch.delenv(
+        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
+        raising=False,
+    )
+
+    assert reminder_intent._team_reminder_detect_timeout_retry_seconds() == 20.0
+
+
+def test_team_reminder_detect_retry_has_short_default_budget(monkeypatch):
+    from agent.agno_agent.capabilities import reminder_intent
+
+    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+
+    assert reminder_intent._team_reminder_detect_retry_timeout_seconds() == 20.0
+
+
 @pytest.mark.asyncio
 async def test_reminder_intent_port_runs_detector_and_executor():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
@@ -153,6 +196,137 @@ async def test_reminder_intent_port_retries_when_primary_has_no_executable_decis
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_retries_primary_clarification_before_returning():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "你是想每天提醒还是只提醒一次？",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "primary detector returned no executable decision" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "学英语",
+                    "trigger_at": "2026-05-07T18:00:00+09:00",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.action == "create"
+            assert received_decision.title == "学英语"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：学英语"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("你可以没太难18:00 提醒我学英语么", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：学英语"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_primary_clarification_survives_retry_timeout(
+    monkeypatch,
+):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    monkeypatch.setenv("COKE_TEAM_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS", "0.01")
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "下周二几点提醒你去杭州？",
+                }
+            )
+
+    class SlowRetryAgent:
+        async def arun(self, *, input, session_state):
+            await asyncio.sleep(60)
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=SlowRetryAgent(),
+    ).run("提醒我下周二去杭州", _run_context())
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "下周二几点提醒你去杭州？"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "思考一个问题：工作应该去做",
+                    "trigger_at": "2026-05-08T10:40:00+09:00",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "dropped quoted reminder title content" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "思考：工作应该去做“非我不可”的事情",
+                    "trigger_at": "2026-05-08T10:40:00+09:00",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "思考：工作应该去做“非我不可”的事情"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：思考：工作应该去做“非我不可”的事情"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run(
+        "另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：思考：工作应该去做“非我不可”的事情"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_returns_noop_when_retry_is_invalid():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -193,6 +367,8 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
         async def arun(self, *, input, session_state):
             assert "Retry reason: primary detector timed out" in input
             assert "Return only a valid ReminderDetectDecision" in input
+            assert "bounded cadence requests with a deadline" in input
+            assert 'schedule_basis="explicit_cadence"' in input
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -245,6 +421,34 @@ async def test_reminder_intent_port_timeout_falls_back_to_visible_clarification(
     assert result.error == "ReminderDetectTimeout"
     assert result.metadata["durable_write"] is False
     assert result.content["action"] == "clarify"
+    assert "提醒设置还没完成" in result.content["summary"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_primary_timeout_uses_short_retry_budget(
+    monkeypatch,
+):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS", "0.01")
+    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+
+    class SlowAgent:
+        async def arun(self, *, input, session_state):
+            await asyncio.sleep(60)
+
+    result = await asyncio.wait_for(
+        ReminderIntentPort(
+            detector_agent=SlowAgent(),
+            retry_agent=SlowAgent(),
+        ).run("【bad case】今天有哪些提醒？", _run_context()),
+        timeout=0.5,
+    )
+
+    assert result.ok is False
+    assert result.error == "ReminderDetectTimeout"
+    assert result.metadata["durable_write"] is False
     assert "提醒设置还没完成" in result.content["summary"]
 
 

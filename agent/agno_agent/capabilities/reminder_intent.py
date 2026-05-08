@@ -16,6 +16,9 @@ from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecisi
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
 logger = logging.getLogger(__name__)
+_DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS = 45.0
+_DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 20.0
+_DEFAULT_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
 
 
 def _float_env(name: str, default: float) -> float:
@@ -28,6 +31,27 @@ def _float_env(name: str, default: float) -> float:
         logger.warning("%s=%r is not a valid float; using %.1f", name, raw_value, default)
         return default
     return value if value > 0 else default
+
+
+def _team_reminder_detect_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS,
+    )
+
+
+def _team_reminder_detect_timeout_retry_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
+        _DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS,
+    )
+
+
+def _team_reminder_detect_retry_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+        _DEFAULT_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS,
+    )
 
 
 def _decision_from_response(response: Any) -> Any:
@@ -77,6 +101,8 @@ For same-message listed routine times plus a reminder request, use action="batch
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
 Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
 When the user explicitly lists multiple reminder times and tasks, create each requested reminder even if times are close together; do not ask whether to merge them.
+For bounded cadence requests with a deadline, use action="batch", schedule_basis="explicit_cadence",
+schedule_evidence, deadline_at, and one-shot operations at or before deadline_at instead of RRULE.
 
 ### 当前用户消息
 {input_message}"""
@@ -134,25 +160,52 @@ class ReminderIntentPort:
                     input=build_reminder_intent_input(input_message, run_context),
                     session_state=session_state,
                 ),
-                timeout=_float_env("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", 30.0),
+                timeout=_team_reminder_detect_timeout_seconds(),
             )
             decision = _decision_from_response(response)
         except asyncio.TimeoutError:
             logger.error(
                 "ReminderDetectAgent timed out in Team runtime: timeout=%.1fs",
-                _float_env("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", 30.0),
+                _team_reminder_detect_timeout_seconds(),
             )
             retry_decision = await self._run_retry_detector(
                 input_message,
                 run_context,
                 session_state,
                 reason="primary detector timed out",
+                timeout_seconds=_team_reminder_detect_timeout_retry_seconds(),
             )
             if retry_decision is None:
                 return _timeout_clarification_result()
             decision = retry_decision
-        if _is_clarification_decision(decision):
-            return _clarification_result(decision)
+        if _should_retry_for_quoted_title_loss(input_message, decision):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                run_context,
+                session_state,
+                reason="primary detector dropped quoted reminder title content",
+            )
+            if retry_decision is None:
+                return _timeout_clarification_result()
+            if not _should_retry_for_quoted_title_loss(input_message, retry_decision):
+                decision = retry_decision
+        if _is_clarification_decision(decision) and self.retry_agent is not None:
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                run_context,
+                session_state,
+                reason="primary detector returned no executable decision",
+                timeout_seconds=_float_env(
+                    "COKE_TEAM_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS",
+                    30.0,
+                ),
+            )
+            if _should_execute_decision(retry_decision):
+                decision = retry_decision
+            elif _is_clarification_decision(retry_decision):
+                return _clarification_result(retry_decision)
+            else:
+                return _clarification_result(decision)
         if not _should_execute_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
                 input_message,
@@ -166,6 +219,8 @@ class ReminderIntentPort:
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
                 return _timeout_clarification_result()
+        if _is_clarification_decision(decision):
+            return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
         if not _should_execute_decision(decision):
             return CapabilityResult(
@@ -191,9 +246,15 @@ class ReminderIntentPort:
         session_state: dict[str, Any],
         *,
         reason: str,
+        timeout_seconds: float | None = None,
     ) -> Any | None:
         if self.retry_agent is None:
             return None
+        timeout = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else _team_reminder_detect_retry_timeout_seconds()
+        )
         try:
             retry_response = await asyncio.wait_for(
                 self.retry_agent.arun(
@@ -204,15 +265,12 @@ class ReminderIntentPort:
                     ),
                     session_state=session_state,
                 ),
-                timeout=_float_env(
-                    "COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
-                    80.0,
-                ),
+                timeout=timeout,
             )
         except asyncio.TimeoutError:
             logger.error(
                 "ReminderDetectRetryAgent timed out in Team runtime: timeout=%.1fs",
-                _float_env("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", 80.0),
+                timeout,
             )
             return None
         return _decision_from_response(retry_response)
@@ -222,6 +280,53 @@ def _should_execute_decision(decision: Any) -> bool:
     intent_type = _decision_value(decision, "intent_type")
     action = _decision_value(decision, "action")
     return intent_type == "crud" or (intent_type == "query" and action == "list")
+
+
+def _should_retry_for_quoted_title_loss(input_message: str, decision: Any) -> bool:
+    if not _should_execute_decision(decision):
+        return False
+    quoted_segments = _quoted_segments(input_message)
+    if not quoted_segments:
+        return False
+    titles = _decision_titles(decision)
+    if not titles:
+        return False
+    return any(
+        segment and not any(segment in title for title in titles)
+        for segment in quoted_segments
+    )
+
+
+def _quoted_segments(text: str) -> tuple[str, ...]:
+    pairs = (("“", "”"), ("「", "」"), ("『", "』"), ('"', '"'), ("'", "'"))
+    segments: list[str] = []
+    for opening, closing in pairs:
+        start = 0
+        while True:
+            left = text.find(opening, start)
+            if left < 0:
+                break
+            right = text.find(closing, left + len(opening))
+            if right < 0:
+                break
+            segment = text[left : right + len(closing)].strip()
+            if segment:
+                segments.append(segment)
+            start = right + len(closing)
+    return tuple(segments)
+
+
+def _decision_titles(decision: Any) -> tuple[str, ...]:
+    titles: list[str] = []
+    title = str(_decision_value(decision, "title") or "").strip()
+    if title:
+        titles.append(title)
+    operations = _decision_value(decision, "operations") or []
+    for operation in operations:
+        operation_title = _decision_value(operation, "title")
+        if operation_title:
+            titles.append(str(operation_title).strip())
+    return tuple(title for title in titles if title)
 
 
 def _is_clarification_decision(decision: Any) -> bool:

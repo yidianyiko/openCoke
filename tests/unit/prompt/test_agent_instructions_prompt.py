@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
 
 
@@ -27,6 +29,8 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "one operation per listed time" in instructions
     assert "contacted, nudged, or supervised at a concrete time/cadence" in instructions
     assert "A task time range is a work block" in instructions
+    assert "clarify before creating any reminder from that message" in instructions
+    assert "use the task governed by the reminder verb" in instructions
     assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)
     assert "Output only the structured decision" in instructions
 
@@ -47,13 +51,28 @@ def test_reminder_detect_instructions_do_not_embed_case_examples():
         assert stale_phrase not in instructions
 
 
-def test_orchestrator_routes_stop_or_do_not_disturb_requests_to_reminder_detect():
-    from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_ORCHESTRATOR
+def _run_context():
+    from agent.agno_agent.runtime.context import (
+        AgentRunContext,
+        TrustedCharacterContext,
+        TrustedConversationContext,
+        TrustedRelationContext,
+        TrustedUserContext,
+    )
 
-    assert "avoid disturbance" in INSTRUCTIONS_ORCHESTRATOR
-    assert "reminder/alarm/check-in/supervision flow" in INSTRUCTIONS_ORCHESTRATOR
-    assert "Do-not-disturb/stop language is not pure small talk" in (
-        INSTRUCTIONS_ORCHESTRATOR
+    return AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1",
+            platform="business",
+            route_key="wechat_personal:primary",
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 4, 30, 12, 0, tzinfo=UTC),
+        runtime_metadata={},
     )
 
 
@@ -72,20 +91,9 @@ def test_reminder_detect_retry_reuses_primary_instructions():
 
 
 def test_reminder_few_shots_are_input_context_not_system_prompt():
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
-    workflow = PrepareWorkflow()
-    session_state = {
-        "conversation": {
-            "conversation_info": {
-                "time_str": "2026年04月30日12时00分",
-                "chat_history": [],
-            }
-        },
-        "user": {"timezone": "Asia/Tokyo"},
-    }
-
-    reminder_input = workflow._build_reminder_input("18:00提醒我喝水", session_state)
+    reminder_input = build_reminder_intent_input("18:00提醒我喝水", _run_context())
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
 
     assert "### Reminder Few-Shot Decisions" in reminder_input
@@ -99,19 +107,11 @@ def test_reminder_few_shots_are_input_context_not_system_prompt():
 
 
 def test_reminder_detect_retry_input_keeps_batch_schema_constraints():
-    from agent.agno_agent.workflows.prepare_workflow import PrepareWorkflow
+    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
 
-    workflow = PrepareWorkflow()
-    session_state = {
-        "conversation": {
-            "conversation_info": {"time_str": "2026年04月30日12时00分"}
-        },
-        "user": {"timezone": "Asia/Tokyo"},
-    }
-
-    retry_input = workflow._build_reminder_retry_input(
+    retry_input = _build_reminder_retry_input(
         "我一般7:15起床，23:00睡觉。我需要你在上述这些时间提醒我",
-        session_state,
+        _run_context(),
         reason="schema validation failed",
     )
 

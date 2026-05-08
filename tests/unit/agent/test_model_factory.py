@@ -6,7 +6,6 @@ from agno.models.openai import OpenAIChat
 from agno.models.siliconflow import Siliconflow
 
 from agent.agno_agent import agents, model_factory
-from agent.agno_agent.workflows import chat_workflow_streaming
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -113,7 +112,7 @@ def test_create_llm_model_uses_role_specific_chat_response_config(monkeypatch):
     assert model.max_tokens == 2048
 
 
-def test_runtime_uses_split_prepare_and_chat_models(monkeypatch):
+def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
     monkeypatch.setitem(
         model_factory.CONF,
         "llm",
@@ -124,13 +123,6 @@ def test_runtime_uses_split_prepare_and_chat_models(monkeypatch):
             "base_url": "https://api.siliconflow.cn/v1",
             "max_retries": 2,
             "roles": {
-                "prepare": {
-                    "provider": "siliconflow",
-                    "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
-                    "api_key": "sk-prepare",
-                    "base_url": "https://api.siliconflow.cn/v1",
-                    "max_retries": 2,
-                },
                 "reminder_detect": {
                     "provider": "siliconflow",
                     "model_id": "Pro/zai-org/GLM-5.1",
@@ -145,29 +137,14 @@ def test_runtime_uses_split_prepare_and_chat_models(monkeypatch):
                     "base_url": "https://api.siliconflow.cn/v1",
                     "max_retries": 2,
                 },
-                "chat_response": {
-                    "provider": "siliconflow",
-                    "model_id": "deepseek-ai/DeepSeek-V4-Flash",
-                    "api_key": "sk-chat",
-                    "base_url": "https://api.siliconflow.cn/v1",
-                    "max_retries": 2,
-                },
             },
         },
     )
 
     reload(agents)
-    reload(chat_workflow_streaming)
-
-    workflow = chat_workflow_streaming.StreamingChatWorkflow()
 
     assert isinstance(agents.reminder_detect_agent.model, Siliconflow)
-    assert isinstance(agents.orchestrator_agent.model, Siliconflow)
     assert isinstance(agents.post_analyze_agent.model, Siliconflow)
     assert agents.reminder_detect_agent.model.id == "Pro/zai-org/GLM-5.1"
     assert agents.reminder_detect_agent.model.api_key == "sk-reminder"
-    assert agents.orchestrator_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
-    assert agents.orchestrator_agent.model.api_key == "sk-prepare"
     assert agents.post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
-    assert isinstance(workflow.agent.model, Siliconflow)
-    assert workflow.agent.model.id == "deepseek-ai/DeepSeek-V4-Flash"

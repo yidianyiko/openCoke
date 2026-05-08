@@ -29,6 +29,25 @@ def test_parse_plain_text_as_response_only():
     assert plan.capability_requests == ()
 
 
+def test_parse_inline_request_after_response_text():
+    from agent.agno_agent.runtime.plan_parser import parse_team_plan
+
+    plan = parse_team_plan(
+        "RESPONSE:\n"
+        "好的，我来帮你设置今天10:50的提醒！"
+        "REQUEST reminder_intent {\"action\":\"create\",\"message\":\"出门\"}"
+    )
+
+    assert plan.response_text == "好的，我来帮你设置今天10:50的提醒！"
+    assert [request.name for request in plan.capability_requests] == [
+        "reminder_intent"
+    ]
+    assert plan.capability_requests[0].args == {
+        "action": "create",
+        "message": "出门",
+    }
+
+
 def test_parser_rejects_unknown_capability():
     from agent.agno_agent.runtime.plan_parser import parse_team_plan
 

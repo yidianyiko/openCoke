@@ -111,6 +111,27 @@ def test_reminder_detect_schema_accepts_deadline_batch_rrule_operation():
     assert decision.operations[0].rrule == "FREQ=HOURLY;INTERVAL=1"
 
 
+def test_reminder_detect_schema_accepts_operation_at_deadline_boundary():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="batch",
+        deadline_at="2026-04-29T20:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时",
+        operations=[
+            {
+                "action": "create",
+                "title": "打卡",
+                "trigger_at": "2026-04-29T20:00:00+09:00",
+            }
+        ],
+    )
+
+    assert decision.operations[0].trigger_at == "2026-04-29T20:00:00+09:00"
+
+
 def test_reminder_detect_schema_accepts_nightly_cadence_evidence():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -331,11 +352,8 @@ def test_reminder_operation_schema_marks_update_fields_update_only():
 def test_reminder_detect_title_schema_preserves_quoted_content():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
-    assert (
-        "Exclude sentence-final modal particles"
-        in ReminderDetectDecision.model_fields["title"].description
-    )
-    assert (
-        "preserve meaningful quoted"
-        in ReminderDetectDecision.model_fields["title"].description
-    )
+    description = ReminderDetectDecision.model_fields["title"].description
+
+    assert "Exclude sentence-final modal particles" in description
+    assert "preserve meaningful quoted" in description
+    assert "task governed by the reminder verb" in description

@@ -47,11 +47,23 @@ def test_env_default_is_used(monkeypatch):
     assert selected == "team"
 
 
-def test_invalid_values_fall_back_to_legacy(monkeypatch):
+def test_agent_runtime_rejects_legacy_after_deletion(monkeypatch):
+    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "legacy")
+
+    assert select_runtime() == "team"
+
+
+def test_agent_runtime_defaults_to_team(monkeypatch):
+    monkeypatch.delenv("AGENT_RUNTIME_VERSION", raising=False)
+
+    assert select_runtime() == "team"
+
+
+def test_invalid_values_fall_back_to_team(monkeypatch):
     monkeypatch.setenv("AGENT_RUNTIME_VERSION", "banana")
     selected = select_runtime(RuntimeSelectionInput())
 
-    assert selected == "legacy"
+    assert selected == "team"
 
 
 def test_invalid_higher_precedence_value_falls_through_to_valid_candidate(monkeypatch):
