@@ -24,22 +24,3 @@ async def run_agent_runtime_event(
         runtime_metadata={"message_source": message_source, **(metadata or {})},
     )
     return await run_agent_runtime(agent_input=agent_input, run_context=run_context)
-
-
-async def run_deferred_action_runtime_event(
-    *,
-    agent_input: AgentInput,
-    context: dict[str, Any],
-    metadata: dict[str, Any] | None = None,
-    current_time: datetime | None = None,
-):
-    from agent.agno_agent.adapters import map_agent_result_to_deferred_status
-
-    result = await run_agent_runtime_event(
-        agent_input=agent_input,
-        context=context,
-        message_source="deferred_action",
-        metadata=metadata,
-        current_time=current_time,
-    )
-    return map_agent_result_to_deferred_status(result)
