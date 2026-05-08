@@ -11,7 +11,11 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
-from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
+from agent.agno_agent.runtime.inputs import (
+    AgentInput,
+    ReminderFirePayload,
+    UserTurnPayload,
+)
 from agent.agno_agent.runtime.result import AgentRunResult, CapabilityResult
 
 
@@ -45,10 +49,11 @@ def _run_context() -> AgentRunContext:
 @pytest.mark.asyncio
 async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkeypatch):
     create_kwargs = {}
+    model_inputs = []
 
     class FakeAgent:
         async def arun(self, **kwargs):
-            assert kwargs["input"] == "hi"
+            model_inputs.append(kwargs["input"])
             assert kwargs["session_id"] == "conv-1"
             return SimpleNamespace(
                 content="fallback content",
@@ -79,6 +84,14 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     }
     assert create_kwargs["input_message"] == "hi"
     assert create_kwargs["tool_results"] == []
+    model_input = model_inputs[0]
+    assert "input_type: user.turn" in model_input
+    assert "message_source: user" in model_input
+    assert "current_time: 2026-05-09T01:00:00+00:00" in model_input
+    assert "user: User (user-1)" in model_input
+    assert "character: Coke (char-1)" in model_input
+    assert "recent_chat_history:\nUser: hi" in model_input
+    assert "user_message:\nhi" in model_input
 
 
 @pytest.mark.asyncio
@@ -244,3 +257,57 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
     assert result.tool_results[0].durable_write is True
     assert [message.content for message in result.visible_messages] == ["ok"]
     assert captured_envelopes[0]["name"] == "reminder_intent"
+
+
+@pytest.mark.asyncio
+async def test_reminder_fired_input_marks_system_delivery_for_model(monkeypatch):
+    model_inputs = []
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            model_inputs.append(kwargs["input"])
+            return SimpleNamespace(
+                content="",
+                messages=[SimpleNamespace(role="assistant", content="该喝水了。")],
+            )
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
+
+    ctx = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="UTC"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1",
+            platform="business",
+            route_key="route-1",
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 明天提醒我喝水\nCoke: 已设好提醒",
+        current_time=datetime(2026, 5, 9, 8, 0, tzinfo=UTC),
+        runtime_metadata={"message_source": "reminder"},
+    )
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="reminder.fired",
+            conversation_id="conv-1",
+            text="提醒：喝水",
+            payload=ReminderFirePayload(
+                fire_id="fire-1",
+                reminder_id="rem-1",
+                title="喝水",
+                scheduled_for=datetime(2026, 5, 9, 8, 0, tzinfo=UTC),
+            ),
+            occurred_at=datetime(2026, 5, 9, 8, 0, tzinfo=UTC),
+        ),
+        run_context=ctx,
+    )
+
+    assert result.output_disposition.status == "ok"
+    model_input = model_inputs[0]
+    assert "input_type: reminder.fired" in model_input
+    assert "message_source: reminder" in model_input
+    assert "system reminder delivery" in model_input
+    assert "deliver the existing reminder" in model_input
+    assert "do not create, update, cancel, or list reminders" in model_input
+    assert "reminder_title: 喝水" in model_input

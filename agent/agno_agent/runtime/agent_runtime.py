@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Sequence
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.errors import UnknownToolError
-from agent.agno_agent.runtime.inputs import AgentInput
+from agent.agno_agent.runtime.inputs import (
+    AgentInput,
+    DeferredActionPayload,
+    ReminderFirePayload,
+)
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     CapabilityResult,
@@ -18,6 +23,27 @@ from agent.agno_agent.runtime.result import (
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
+_UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
+    re.compile(
+        r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
+        r".{0,24}(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"
+    ),
+    re.compile(r"(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"),
+    re.compile(
+        r"(\u6211\u6765|\u4f1a|\u5230\u65f6\u5019).{0,16}"
+        r"(\u53eb\u4f60)"
+    ),
+    re.compile(
+        r"(\u5df2\u7ecf|\u5df2|\u5e2e\u4f60).{0,16}"
+        r"(\u8bbe\u7f6e|\u8bbe\u597d).{0,16}"
+        r"(\u63d0\u9192|\u901a\u77e5)"
+    ),
+    re.compile(
+        r"\b(i(?:'ll| will|'ve| have)|we(?:'ll| will)).{0,40}"
+        r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
+        re.IGNORECASE,
+    ),
+)
 
 
 def _default_capability_ports() -> dict[str, Any]:
@@ -153,6 +179,82 @@ def _message_source(agent_input: AgentInput, run_context: AgentRunContext) -> st
     return agent_input.input_type
 
 
+def _model_input(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+) -> str:
+    lines = [
+        "Trusted runtime context:",
+        f"input_type: {agent_input.input_type}",
+        f"message_source: {_message_source(agent_input, run_context)}",
+        f"current_time: {run_context.current_time.isoformat()}",
+        f"user: {run_context.user.nickname or 'User'} ({run_context.user.id})",
+        (
+            f"character: {run_context.character.nickname or 'Coke'} "
+            f"({run_context.character.id})"
+        ),
+        f"conversation_id: {run_context.conversation.id}",
+        f"platform: {run_context.platform}",
+    ]
+    if run_context.conversation.route_key:
+        lines.append(f"route_key: {run_context.conversation.route_key}")
+
+    if isinstance(agent_input.payload, ReminderFirePayload):
+        lines.extend(
+            [
+                (
+                    "event_contract: system reminder delivery; deliver the existing "
+                    "reminder to the user; do not create, update, cancel, or list "
+                    "reminders for this event."
+                ),
+                f"reminder_id: {agent_input.payload.reminder_id}",
+                f"reminder_title: {agent_input.payload.title}",
+                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
+                f"fire_id: {agent_input.payload.fire_id}",
+            ]
+        )
+    elif isinstance(agent_input.payload, DeferredActionPayload):
+        lines.extend(
+            [
+                f"deferred_action_id: {agent_input.payload.action_id}",
+                f"deferred_action_kind: {agent_input.payload.kind}",
+                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
+                f"revision: {agent_input.payload.revision}",
+            ]
+        )
+
+    if run_context.recent_chat_history:
+        lines.extend(["recent_chat_history:", run_context.recent_chat_history])
+
+    return "\n".join(lines) + f"\n\nuser_message:\n{input_message}"
+
+
+def _check_unconfirmed_durable_write_promise(
+    *,
+    agent_input: AgentInput,
+    final_text: str,
+    tool_results: Sequence[CapabilityResult],
+) -> RuntimeErrorDisposition | None:
+    if agent_input.input_type != "user.turn" or not final_text:
+        return None
+    if any(result.ok and result.durable_write for result in tool_results):
+        return None
+    if "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text:
+        return None
+    if not any(
+        pattern.search(final_text)
+        for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
+    ):
+        return None
+    return RuntimeErrorDisposition(
+        code="unconfirmed_durable_write_promise",
+        retryable=False,
+        metadata={"input_type": agent_input.input_type},
+    )
+
+
 def _exception_result(
     tool_results: Sequence[CapabilityResult] = (),
 ) -> AgentRunResult:
@@ -207,14 +309,24 @@ async def run_agent_runtime(
             tool_results=tool_results,
         )
         run_output = await agent.arun(
-            input=input_message,
+            input=_model_input(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+            ),
             session_id=run_context.conversation.id,
         )
         captured_tool_results = tuple(tool_results)
         durable_write_error = _check_durable_write_contract(captured_tool_results)
         final_text = _extract_final_text(run_output)
+        unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
+            agent_input=agent_input,
+            final_text=final_text,
+            tool_results=captured_tool_results,
+        )
+        runtime_contract_error = durable_write_error or unconfirmed_promise_error
         visible_text = _resolve_visible_text(final_text, captured_tool_results)
-        if durable_write_error is not None:
+        if runtime_contract_error is not None:
             visible_text = ""
         visible_messages = (
             (VisibleMessage(message_type="text", content=visible_text),)
@@ -222,7 +334,7 @@ async def run_agent_runtime(
             else ()
         )
 
-        if visible_messages and durable_write_error is None:
+        if visible_messages and runtime_contract_error is None:
             return AgentRunResult(
                 visible_messages=visible_messages,
                 post_analyze_input={
@@ -242,7 +354,7 @@ async def run_agent_runtime(
             metrics={"capability_result_count": len(captured_tool_results)},
             trace={"runtime": "agent", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
-            error_disposition=durable_write_error,
+            error_disposition=runtime_contract_error,
         )
     except UnknownToolError as exc:
         return _unknown_tool_result(exc, tool_results)

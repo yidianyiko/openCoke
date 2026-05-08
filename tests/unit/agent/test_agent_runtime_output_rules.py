@@ -159,6 +159,32 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_text",
+    [
+        "我会在明天早上九点提醒你。",
+        "好的，明天早上九点提醒你。",
+        "没问题，明天早上九点提醒你。",
+        "明天早上九点我来叫你。",
+    ],
+)
+async def test_direct_reminder_promise_without_tool_result_fails_closed(
+    monkeypatch, model_text
+):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_text}],
+        tool_results=[],
+        monkeypatch=monkeypatch,
+        input_text="明天九点提醒我喝水",
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
 async def test_rule4_empty_disposition_when_nothing_resolves(monkeypatch):
     no_summary = CapabilityResult(
         name="reminder",

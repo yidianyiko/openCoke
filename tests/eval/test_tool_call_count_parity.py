@@ -37,8 +37,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def test_native_tool_call_counts_within_baseline_band():
-    if not _BASELINE_PATH.exists():
-        pytest.skip(f"baseline not present at {_BASELINE_PATH}")
+    assert _BASELINE_PATH.exists(), f"baseline not present at {_BASELINE_PATH}"
 
     import json
 
