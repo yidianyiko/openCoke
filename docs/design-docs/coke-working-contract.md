@@ -12,13 +12,20 @@ Primary files:
 - `agent/runner/agent_runner.py`
 - `agent/runner/message_processor.py`
 - `agent/runner/agent_handler.py`
+- `agent/agno_agent/runtime/`
+- `agent/agno_agent/capabilities/`
+- `agent/agno_agent/adapters/`
+- `agent/agno_agent/schemas/`
+- `agent/agno_agent/model_factory.py`
 - `agent/agno_agent/workflows/`
+- `agent/agno_agent/tools/`
 - `agent/prompt/`
 
 Use this surface when the change affects:
 
 - message acquisition or queue mode
 - turn processing
+- Agent Runtime Team orchestration, typed runtime events, and capability ports
 - background handling
 - prompt or workflow behavior
 - reminder, context, or runtime state logic
@@ -78,7 +85,9 @@ Use this surface when the change affects:
 
 For non-trivial work:
 
-- new multi-step plans go in `docs/exec-plans/`
+- human/AI collaboration and verification trust rules live in
+  `docs/design-docs/human-ai-working-contract.md`
+- new multi-step plans go in `docs/superpowers/plans/`
 - durable repository workflow rules go in `docs/design-docs/` or `docs/adr/`
 - generated verification evidence goes in `artifacts/evidence/`
 - historical design and implementation context remains in

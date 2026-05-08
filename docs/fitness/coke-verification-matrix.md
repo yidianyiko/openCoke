@@ -17,7 +17,8 @@ it.
 Use when changing:
 
 - `AGENTS.md`, `CLAUDE.md`, `README.md`
-- `docs/design-docs/`, `docs/adr/`, `docs/fitness/`, `docs/exec-plans/`,
+- `docs/design-docs/`, `docs/adr/`, `docs/fitness/`, `docs/superpowers/`,
+- `docs/design-docs/human-ai-working-contract.md`
 - `artifacts/evidence/`
 - `scripts/check`
 
@@ -39,7 +40,13 @@ Use when changing:
 - `agent/runner/deferred_action_*.py`
 - `agent/runner/reminder_scheduler.py`
 - `agent/runner/reminder_event_handler.py`
+- `agent/agno_agent/runtime/`
+- `agent/agno_agent/capabilities/`
+- `agent/agno_agent/adapters/`
+- `agent/agno_agent/schemas/`
+- `agent/agno_agent/model_factory.py`
 - `agent/agno_agent/workflows/`
+- `agent/agno_agent/tools/`
 - `agent/reminder/`
 - `dao/reminder_dao.py`
 - `agent/agno_agent/tools/deferred_action/`
@@ -54,6 +61,12 @@ pytest tests/unit/runner/ -v
 pytest tests/unit/agent/ -v
 pytest tests/unit/test_clawscale_only_topology.py -v
 ```
+
+Runtime-facing changes often need stronger evidence than this baseline. When a
+change affects user-visible reminder behavior, Team runtime orchestration, LLM
+provider selection, or scheduler/executor delivery, add the focused command set
+below or a documented runtime/eval smoke. Do not treat the baseline as proof of
+user-visible behavior when the changed path is mostly exercised through mocks.
 
 Team runtime cutover commands:
 

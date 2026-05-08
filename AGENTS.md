@@ -10,14 +10,19 @@ When starting work in this repository, read in this order:
 
 1. This file (`AGENTS.md`) for routing and operating constraints.
 2. `docs/design-docs/index.md` for the canonical repo-OS map.
-3. `docs/roadmap.md` for product and platform direction.
-4. `docs/architecture.md` for the runtime topology wired in code.
-5. `docs/fitness/README.md` for verification expectations.
-6. `docs/design-docs/coke-working-contract.md` for Coke-specific work surfaces.
-7. `docs/fitness/coke-verification-matrix.md` for surface-to-command mapping.
-8. Task-specific design or execution context in `docs/exec-plans/` or
-   `docs/superpowers/`.
-9. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
+3. `docs/design-docs/human-ai-working-contract.md` for the critical
+   human/AI collaboration contract.
+4. `docs/roadmap.md` for product and platform direction.
+5. `docs/architecture.md` for the runtime topology wired in code.
+6. `docs/fitness/README.md` for verification expectations.
+7. `docs/design-docs/coke-working-contract.md` for Coke-specific work surfaces.
+8. `docs/fitness/coke-verification-matrix.md` for surface-to-command mapping.
+9. Task-specific execution context in `docs/superpowers/specs/` (design)
+   and `docs/superpowers/plans/` (execution). Both directories carry a mix
+   of active and dated artifacts; verify any spec or plan against current
+   `main`, `docs/architecture.md`, and the touched code before relying on
+   it as truth.
+10. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
    bridge behavior, or operational flows.
 
 ## Repository Map
@@ -28,10 +33,13 @@ When starting work in this repository, read in this order:
 - `gateway/`: web UI, channel-facing API, and shared platform surfaces.
 - `dao/`, `entity/`, `util/`, `framework/`: Coke runtime state and helpers.
 - `docs/design-docs/`: canonical repository-level beliefs and rules.
+- `docs/design-docs/human-ai-working-contract.md`: critical rules for
+  human/AI collaboration, verification trust levels, and guardrail skepticism.
 - `docs/design-docs/coke-working-contract.md`: the actual work surfaces inside
   Coke.
 - `docs/adr/`: durable workflow and structure decisions.
-- `docs/exec-plans/`: canonical home for new multi-step execution plans.
+- `docs/superpowers/plans/`: canonical home for multi-step execution plans (active and dated). Matches the `superpowers:writing-plans` skill default. See ADR 0003 for the consolidation history.
+- `docs/superpowers/specs/`: canonical home for design specs (active and dated). Verify against current code before treating any individual spec as truth.
 - `docs/fitness/`: verification rules and evidence model.
 - `docs/fitness/coke-verification-matrix.md`: project-specific verification
   commands by surface.
@@ -42,23 +50,24 @@ When starting work in this repository, read in this order:
 - `docs/architecture.md`: runtime reference for the code that exists today.
 - `docs/deploy.md`: operational deployment and smoke-check instructions.
 - `docs/clawscale_bridge.md`: bridge and personal-channel rollout notes.
-- `docs/superpowers/specs/` and `docs/superpowers/plans/`: dated design and
-  implementation history that remains valid during the transition.
 
 ## Documentation Rules
 
 - Keep this file as a routing layer, not a knowledge dump.
 - Put durable repository workflow rules in `docs/design-docs/` or `docs/adr/`.
-- Put new execution plans in `docs/exec-plans/`.
+- Put new design specs in `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`.
+- Put new execution plans in `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` (matches the `superpowers:writing-plans` skill default).
 - Keep product, architecture, deployment, and bridge details in their domain
   docs.
-- Preserve existing `docs/superpowers/` history unless a dedicated migration
-  explicitly replaces it.
+- `docs/superpowers/` is the canonical home for specs and plans, not a
+  history-only archive. But individual files vary in freshness — always
+  verify a spec or plan against current `main`, `docs/architecture.md`,
+  and the actual code before using it as evidence.
 
 ## Delivery Rules
 
 - Multi-step, risky, cross-cutting, or multi-session work should also have an
-  execution plan in `docs/exec-plans/`.
+  execution plan in `docs/superpowers/plans/`.
 - Prefer small, reviewable changes over broad speculative rewrites.
 - Preserve the product and architecture contract even when a test or eval gate
   is red. Do not add compatibility paths, parser fallbacks, heuristic
@@ -68,6 +77,11 @@ When starting work in this repository, read in this order:
   layer only; if the correct layer is unclear, stop and record the blocker
   instead of forcing the gate green.
 - If a workflow rule changes, update the canonical docs in the same change.
+- If a code migration changes runtime behavior, architecture boundaries,
+  protocol shape, deployment flow, or surface ownership, update the
+  corresponding canonical docs in the same change. Do not leave stale docs
+  behind as "historical context" unless they are explicitly marked dated or
+  superseded.
 - Use isolated git worktrees when concurrent implementation is real.
 
 ## Validation
@@ -76,6 +90,12 @@ When starting work in this repository, read in this order:
 - Passing tests are evidence, not the goal. A change that passes tests by
   weakening the real contract is a failed change and must be reverted or
   redesigned.
+- Structure checks do not prove runtime behavior.
+- Unit tests with mocks do not prove user-visible paths.
+- Runtime, eval, or deployment claims need user-path, corpus, or smoke evidence.
+- For non-trivial changes, run diff-aware routing before hand-picking tests:
+  `zsh scripts/suggest-verification --base HEAD~1`, then
+  `zsh scripts/review-trigger --base HEAD~1`.
 - Run `scripts/check` when repository structure, templates, routing docs, or
   workflow rules change.
 - Run the relevant runtime tests for the surfaces you touched.
@@ -87,8 +107,8 @@ When starting work in this repository, read in this order:
 
 - Setup: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 - Local runtime: `./start.sh` or `bash agent/runner/agent_start.sh --force-clean`
-- Unit tests: `pytest tests/unit/ -v`
-- E2E tests: `pytest tests/e2e/ -v`
+- Unit tests: `.venv/bin/python -m pytest tests/unit/ -v`
+- E2E tests: `.venv/bin/python -m pytest tests/e2e/ -v`
 - Format: `black . && isort .`
 - Repo-OS check: `zsh scripts/check`
 - Surface verification: `zsh scripts/verify-surface <surface>`

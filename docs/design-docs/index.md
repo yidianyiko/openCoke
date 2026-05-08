@@ -12,6 +12,9 @@ sessions.
   repository control layer.
 - [`golden-rules.md`](./golden-rules.md): day-to-day rules for documentation,
   delivery, and verification.
+- [`human-ai-working-contract.md`](./human-ai-working-contract.md): critical
+  collaboration rules for humans and AI agents, including verification trust
+  levels and test skepticism.
 - [`coke-working-contract.md`](./coke-working-contract.md): the Coke-specific
   work surfaces and planning contract.
 - [`interface-contract.md`](./interface-contract.md): the canonical public and
@@ -23,8 +26,11 @@ These locations are also part of the repository operating system, but they
 store different kinds of knowledge:
 
 - [`../adr/`](../adr/README.md): durable workflow and structure decisions.
-- [`../exec-plans/`](../exec-plans/README.md): new execution plans for active
-  multi-step work.
+- [`../superpowers/plans/`](../superpowers/plans/README.md): canonical home
+  for multi-step execution plans (active and dated). Matches the
+  `superpowers:writing-plans` skill default.
+- [`../superpowers/specs/`](../superpowers/specs/): canonical home for
+  design specs (active and dated).
 - [`../fitness/`](../fitness/README.md): verification rules and evidence model.
 - [`../../artifacts/evidence/`](../../artifacts/evidence/): generated
   verification and eval evidence.
@@ -39,9 +45,6 @@ rules:
 - [`../deploy.md`](../deploy.md): detailed deployment and operational steps.
 - [`../clawscale_bridge.md`](../clawscale_bridge.md): bridge and personal
   channel rollout notes.
-- [`../superpowers/specs/`](../superpowers/specs/): dated design artifacts.
-- [`../superpowers/plans/`](../superpowers/plans/): dated implementation plans
-  and migration checklists.
 
 ## Writing Rule
 

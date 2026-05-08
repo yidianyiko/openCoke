@@ -1,5 +1,6 @@
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -45,6 +46,54 @@ def test_suggest_verification_deduplicates_and_orders_surfaces_by_config():
     assert result.returncode == 0, result.stdout + result.stderr
     assert "changed_surfaces: gateway-web repo-os" in result.stdout
     assert "zsh scripts/verify-surface gateway-web repo-os" in result.stdout
+
+
+def test_suggest_verification_maps_agent_runtime_core_to_worker_surface():
+    result = run_script(
+        "scripts/suggest-verification",
+        "--files",
+        "agent/agno_agent/runtime/team_runtime.py",
+        "--files",
+        "agent/agno_agent/model_factory.py",
+        "--files",
+        "agent/agno_agent/capabilities/reminder_intent.py",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: worker-runtime" in result.stdout
+    assert "zsh scripts/verify-surface worker-runtime" in result.stdout
+
+
+def test_suggest_verification_maps_superpowers_history_to_repo_os_surface():
+    result = run_script(
+        "scripts/suggest-verification",
+        "--files",
+        "docs/superpowers/specs/2026-05-08-single-agent-native-toolcalling-design.md",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: repo-os" in result.stdout
+    assert "zsh scripts/verify-surface repo-os" in result.stdout
+
+
+def test_collect_changed_files_includes_deleted_files(monkeypatch):
+    from scripts import guardrails
+
+    def fake_run(command, **_kwargs):
+        if command[:4] == [
+            "git",
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMRD",
+        ]:
+            return SimpleNamespace(stdout="artifacts/evidence/deleted.json\n")
+        return SimpleNamespace(stdout="")
+
+    monkeypatch.setattr(guardrails.subprocess, "run", fake_run)
+
+    assert guardrails.collect_changed_files("HEAD") == [
+        "artifacts/evidence/deleted.json"
+    ]
 
 
 def test_review_trigger_flags_cross_boundary_and_missing_evidence():

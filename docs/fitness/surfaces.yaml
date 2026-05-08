@@ -4,9 +4,15 @@ surfaces:
   - name: worker-runtime
     paths:
       - agent/runner/**
+      - agent/agno_agent/adapters/**
+      - agent/agno_agent/capabilities/**
+      - agent/agno_agent/model_factory.py
+      - agent/agno_agent/prompts/**
+      - agent/agno_agent/runtime/**
+      - agent/agno_agent/schemas/**
+      - agent/agno_agent/tools/**
       - agent/agno_agent/workflows/**
-      - agent/agno_agent/tools/deferred_action/**
-      - agent/agno_agent/tools/reminder_protocol/**
+      - agent/agno_agent/utils/**
       - agent/prompt/**
       - agent/reminder/**
       - dao/reminder_dao.py
@@ -40,8 +46,8 @@ surfaces:
       - README.md
       - docs/design-docs/**
       - docs/adr/**
-      - docs/exec-plans/**
       - docs/fitness/**
+      - docs/superpowers/**
       - artifacts/evidence/**
       - scripts/check
       - scripts/verify-surface
@@ -81,6 +87,7 @@ review_triggers:
       - CLAUDE.md
       - docs/fitness/**
       - docs/design-docs/**
+      - docs/superpowers/**
       - scripts/check
       - scripts/verify-surface
       - scripts/suggest-verification

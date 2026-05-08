@@ -13,17 +13,23 @@ These rules govern day-to-day repository work in `coke`.
    - `docs/architecture.md`
    - `docs/deploy.md`
    - `docs/clawscale_bridge.md`
-5. Preserve `docs/superpowers/` as dated design and implementation history
-   until a dedicated migration replaces it.
+5. `docs/superpowers/specs/` and `docs/superpowers/plans/` are the canonical
+   homes for design specs and execution plans (active and dated). Verify any
+   individual file's freshness against current code before relying on it.
 
 ## Delivery Rules
 
 1. Multi-step, risky, cross-cutting, or multi-session work should have an
-   execution plan in `docs/exec-plans/`.
+   execution plan in `docs/superpowers/plans/`.
 2. If a workflow rule changes, update the canonical docs in the same change.
-3. Prefer the smallest implementation that improves repeatability or reduces
+3. If a code migration changes runtime behavior, architecture boundaries,
+   protocol shape, deployment flow, or surface ownership, update the
+   corresponding canonical docs in the same change. Do not leave stale docs
+   behind as "historical context" unless they are explicitly marked dated or
+   superseded.
+4. Prefer the smallest implementation that improves repeatability or reduces
    operator ambiguity.
-4. Use isolated git worktrees when concurrent implementation is real.
+5. Use isolated git worktrees when concurrent implementation is real.
 
 ## Validation Rules
 

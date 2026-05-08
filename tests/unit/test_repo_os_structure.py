@@ -10,13 +10,15 @@ def test_repo_os_required_files_exist():
         ROOT / "docs" / "design-docs" / "index.md",
         ROOT / "docs" / "design-docs" / "core-beliefs.md",
         ROOT / "docs" / "design-docs" / "golden-rules.md",
+        ROOT / "docs" / "design-docs" / "human-ai-working-contract.md",
         ROOT / "docs" / "design-docs" / "coke-working-contract.md",
         ROOT / "docs" / "adr" / "README.md",
         ROOT / "docs" / "adr" / "_template.md",
         ROOT / "docs" / "adr" / "0001-canonical-repo-os-structure.md",
         ROOT / "docs" / "adr" / "0002-retire-tasks-directory.md",
-        ROOT / "docs" / "exec-plans" / "README.md",
-        ROOT / "docs" / "exec-plans" / "_template.md",
+        ROOT / "docs" / "adr" / "0003-consolidate-plans-to-superpowers.md",
+        ROOT / "docs" / "superpowers" / "plans" / "README.md",
+        ROOT / "docs" / "superpowers" / "plans" / "_template.md",
         ROOT / "docs" / "fitness" / "README.md",
         ROOT / "docs" / "fitness" / "verification-checklist.md",
         ROOT / "docs" / "fitness" / "coke-verification-matrix.md",
@@ -30,6 +32,10 @@ def test_repo_os_required_files_exist():
 
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
     assert missing == []
+
+
+def test_retired_exec_plans_directory_stays_absent():
+    assert not (ROOT / "docs" / "exec-plans").exists()
 
 
 def test_claude_md_is_agents_md_symlink():
@@ -49,12 +55,79 @@ def test_root_docs_reference_repo_os_map():
         "docs/fitness/README.md",
         "docs/fitness/coke-verification-matrix.md",
         "docs/fitness/surfaces.yaml",
-        "docs/exec-plans/",
+        "docs/design-docs/human-ai-working-contract.md",
+        "docs/superpowers/plans/",
+        "docs/superpowers/specs/",
         "artifacts/evidence/",
     ]:
         assert needle in agents_text
         assert needle in claude_text
         assert needle in readme_text
+
+
+def test_agents_md_requires_diff_aware_routing_before_manual_test_selection():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    guardrail_section = (
+        "For non-trivial changes, run diff-aware routing before hand-picking"
+    )
+    suggest_command = "zsh scripts/suggest-verification --base HEAD~1"
+    review_command = "zsh scripts/review-trigger --base HEAD~1"
+
+    assert guardrail_section in agents_text
+    assert agents_text.index(guardrail_section) < agents_text.index(suggest_command)
+    assert agents_text.index(suggest_command) < agents_text.index(review_command)
+    assert agents_text.index(review_command) < agents_text.index(
+        "Use `docs/fitness/coke-verification-matrix.md`"
+    )
+
+
+def test_agents_md_uses_venv_python_for_pytest_commands():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    assert (
+        "Unit tests: `.venv/bin/python -m pytest tests/unit/ -v`" in agents_text
+    )
+    assert "E2E tests: `.venv/bin/python -m pytest tests/e2e/ -v`" in agents_text
+    assert "Unit tests: `pytest tests/unit/ -v`" not in agents_text
+    assert "E2E tests: `pytest tests/e2e/ -v`" not in agents_text
+
+
+def test_agents_md_locates_specs_and_plans_under_superpowers():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    assert "docs/superpowers/specs/" in agents_text
+    assert "docs/superpowers/plans/" in agents_text
+    assert "Put new execution plans in `docs/superpowers/plans/" in agents_text
+    assert "Put new design specs in `docs/superpowers/specs/" in agents_text
+    # Freshness must still be verified per file, even if location is canonical.
+    assert "verify a spec or plan against current `main`" in agents_text
+
+
+def test_docs_require_code_migrations_to_update_canonical_docs():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+    golden_rules_text = (
+        ROOT / "docs" / "design-docs" / "golden-rules.md"
+    ).read_text()
+
+    for text in [agents_text, golden_rules_text]:
+        assert "If a code migration changes runtime behavior" in text
+        assert "architecture boundaries" in text
+        assert "protocol shape" in text
+        assert "deployment flow" in text
+        assert "surface ownership" in text
+        assert "Do not leave stale docs" in text
+
+
+def test_agents_md_summarizes_verification_trust_levels():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    for needle in [
+        "Structure checks do not prove runtime behavior.",
+        "Unit tests with mocks do not prove user-visible paths.",
+        "Runtime, eval, or deployment claims need user-path, corpus, or smoke evidence.",
+    ]:
+        assert needle in agents_text
 
 
 def test_project_specific_docs_capture_coke_surfaces():
@@ -66,6 +139,7 @@ def test_project_specific_docs_capture_coke_surfaces():
     ).read_text()
 
     for needle in [
+        "human-ai-working-contract.md",
         "agent/runner/agent_runner.py",
         "connector/clawscale_bridge/app.py",
         "connector/clawscale_bridge/output_dispatcher.py",

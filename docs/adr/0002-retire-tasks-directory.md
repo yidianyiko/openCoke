@@ -14,8 +14,9 @@ truth.
 The repository already has better durable homes:
 
 - `docs/adr/` for long-lived decisions
-- `docs/exec-plans/` and `docs/superpowers/plans/` for implementation plans
-- `docs/superpowers/specs/` for dated design artifacts
+- `docs/superpowers/plans/` for implementation plans (see ADR 0003 for the
+  consolidation that retired `docs/exec-plans/`)
+- `docs/superpowers/specs/` for design specs
 - `artifacts/evidence/` for generated verification and eval output
 
 ## Decision
@@ -25,8 +26,8 @@ Retire `tasks/` as a canonical repo-OS directory.
 Use these homes instead:
 
 - Durable decisions: `docs/adr/`
-- New execution plans: `docs/exec-plans/`
-- Existing Superpowers plans and specs: `docs/superpowers/`
+- New execution plans: `docs/superpowers/plans/` (see ADR 0003)
+- Design specs: `docs/superpowers/specs/`
 - Generated verification evidence: `artifacts/evidence/`
 
 Repo-OS checks and guardrails should no longer require a task file for

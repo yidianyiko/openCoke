@@ -62,10 +62,13 @@ zsh scripts/review-trigger --base HEAD~1
 ```
 AGENTS.md                  # routing layer for agents
 docs/design-docs/          # durable repository workflow intent
+docs/design-docs/human-ai-working-contract.md
+                           # human/AI collaboration and verification trust rules
 docs/design-docs/coke-working-contract.md
                            # Coke-specific work surfaces and planning contract
 docs/adr/                  # durable workflow and structure decisions
-docs/exec-plans/           # canonical home for new execution plans
+docs/superpowers/specs/    # canonical home for design specs (active + dated)
+docs/superpowers/plans/    # canonical home for execution plans (active + dated)
 docs/fitness/              # verification rulebook
 docs/fitness/coke-verification-matrix.md
                            # project-specific verification commands by surface
@@ -75,7 +78,6 @@ docs/roadmap.md            # product and platform direction
 docs/architecture.md       # runtime architecture
 docs/deploy.md             # deployment and smoke checks
 docs/clawscale_bridge.md   # bridge and channel rollout notes
-docs/superpowers/          # dated design and implementation history
 scripts/check              # repository structure verification entrypoint
 scripts/suggest-verification
                            # diff-aware verification suggestion entrypoint
@@ -86,6 +88,8 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
 
 - `AGENTS.md`: routing layer and reading order
 - `docs/design-docs/index.md`: canonical repo-OS map
+- `docs/design-docs/human-ai-working-contract.md`: critical human/AI working
+  contract and verification trust levels
 - `docs/design-docs/coke-working-contract.md`: project-specific work surfaces
 - `docs/roadmap.md`: high-level status and migration direction
 - `docs/architecture.md`: current runtime architecture
@@ -95,6 +99,6 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
   gateway, deploy, and repo-OS changes
 - `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
   map used by the guardrail scripts
-- `docs/exec-plans/`: canonical home for new execution plans
+- `docs/superpowers/specs/`: canonical home for design specs (active and dated)
+- `docs/superpowers/plans/`: canonical home for execution plans (active and dated; matches the `superpowers:writing-plans` skill default)
 - `artifacts/evidence/`: generated verification and eval evidence
-- `docs/superpowers/`: dated design and implementation history

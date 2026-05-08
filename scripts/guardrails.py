@@ -61,9 +61,9 @@ def path_matches(file_path: str, patterns: list[str] | tuple[str, ...]) -> bool:
 
 def collect_changed_files(base: str) -> list[str]:
     commands = [
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", base],
-        ["git", "diff", "--name-only", "--diff-filter=ACMR"],
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", "--cached"],
+        ["git", "diff", "--name-only", "--diff-filter=ACMRD", base],
+        ["git", "diff", "--name-only", "--diff-filter=ACMRD"],
+        ["git", "diff", "--name-only", "--diff-filter=ACMRD", "--cached"],
         ["git", "ls-files", "--others", "--exclude-standard"],
     ]
     files: list[str] = []
@@ -121,7 +121,7 @@ def dry_run_verify_surface(surfaces: list[str]) -> str:
 def collect_diff_stats(
     base: str, files: list[str] | None = None
 ) -> tuple[int, int, int]:
-    command = ["git", "diff", "--numstat", "--diff-filter=ACMR", base]
+    command = ["git", "diff", "--numstat", "--diff-filter=ACMRD", base]
     if files:
         command.extend(["--", *files])
     result = subprocess.run(
