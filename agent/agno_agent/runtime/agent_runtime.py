@@ -64,7 +64,7 @@ def _create_agent(
     return Agent(
         id="coke-single-agent",
         name="CokeSingleAgent",
-        model=create_llm_model(role="reminder_detect", max_tokens=2000),
+        model=create_llm_model(role="chat_response", max_tokens=2000),
         instructions=build_chat_response_instructions(run_context),
         tools=tools,
         markdown=False,

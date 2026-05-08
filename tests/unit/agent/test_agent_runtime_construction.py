@@ -158,6 +158,32 @@ def test_create_agent_registers_canonical_capability_tools():
     ]
 
 
+def test_create_agent_uses_chat_response_model_role(monkeypatch):
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    def fake_create_llm_model(*, role, max_tokens):
+        captured.update({"role": role, "max_tokens": max_tokens})
+        return object()
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        fake_create_llm_model,
+    )
+
+    agent_runtime._create_agent(
+        run_context=_run_context(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert captured == {"role": "chat_response", "max_tokens": 2000}
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatch):
     captured_envelopes: list[dict] = []
