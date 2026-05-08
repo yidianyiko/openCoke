@@ -25,7 +25,7 @@ Use this surface when the change affects:
 
 - message acquisition or queue mode
 - turn processing
-- Agent Runtime Team orchestration, typed runtime events, and capability ports
+- single-Agent runtime, typed runtime events, and capability tool wrappers
 - background handling
 - prompt or workflow behavior
 - reminder, context, or runtime state logic

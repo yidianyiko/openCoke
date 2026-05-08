@@ -176,9 +176,14 @@ The deferred-action runtime remains active outside that new protocol boundary:
 
 ## 4. Turn Processing Pipeline
 
-The default turn pipeline is Agent Runtime Team. The runner remains responsible
-for locks, rollback, output writes, replay checks, scheduler boot, and delivery
-state transitions. The former prepare/chat workflow runtime has been retired.
+The default turn pipeline is the single-Agent runtime defined in
+`agent/agno_agent/runtime/agent_runtime.py`. The runner constructs an Agno
+`Agent` per turn and registers four async tool wrappers (`reminder_intent`,
+`timezone`, `calendar_import`, `url_context`) that capture typed
+`CapabilityResult` objects for deterministic visible-output rules. The runner
+remains responsible for locks, rollback, output writes, replay checks,
+scheduler boot, and delivery state transitions. The former prepare/chat
+workflow runtime and legacy multi-agent runtime have been retired.
 
 ## 5. Outbound Path
 
