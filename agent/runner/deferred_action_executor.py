@@ -8,9 +8,8 @@ from typing import Any, Callable
 from agent.agno_agent.adapters import (
     DeferredActionFireResult,
     map_agent_result_to_deferred_status,
-    with_output_references,
 )
-from agent.agno_agent.runtime.result import AgentRunResult
+from agent.agno_agent.runtime.result import AgentRunResult, with_output_references
 from agent.runner import deferred_action_policy as policy
 from agent.runner.context import context_prepare
 from agent.runner.identity import is_synthetic_coke_account_id
