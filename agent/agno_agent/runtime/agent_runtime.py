@@ -91,15 +91,6 @@ def _check_durable_write_contract(
     return None
 
 
-def _extract_tool_results(run_output: Any) -> tuple[CapabilityResult, ...]:
-    raw_tool_results = getattr(run_output, "tool_results", ())
-    if raw_tool_results is None:
-        return ()
-    return tuple(
-        result for result in raw_tool_results if isinstance(result, CapabilityResult)
-    )
-
-
 def _input_message(agent_input: AgentInput) -> str:
     if agent_input.input_type == "user.turn":
         return agent_input.text or ""
@@ -143,15 +134,21 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
-        agent = _create_agent(agent_input=agent_input, run_context=run_context)
+        tool_results: list[CapabilityResult] = []
+        agent = _create_agent(
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+            tool_results=tool_results,
+        )
         run_output = await agent.arun(
             input=input_message,
             session_id=run_context.conversation.id,
         )
-        tool_results = _extract_tool_results(run_output)
-        durable_write_error = _check_durable_write_contract(tool_results)
+        captured_tool_results = tuple(tool_results)
+        durable_write_error = _check_durable_write_contract(captured_tool_results)
         final_text = _extract_final_text(run_output)
-        visible_text = _resolve_visible_text(final_text, tool_results)
+        visible_text = _resolve_visible_text(final_text, captured_tool_results)
         if durable_write_error is not None:
             visible_text = ""
         visible_messages = (
@@ -167,8 +164,8 @@ async def run_agent_runtime(
                     "input_message": input_message,
                     "message_source": _message_source(agent_input, run_context),
                 },
-                tool_results=tool_results,
-                metrics={"capability_result_count": len(tool_results)},
+                tool_results=captured_tool_results,
+                metrics={"capability_result_count": len(captured_tool_results)},
                 trace={"runtime": "agent"},
                 output_disposition=OutputDisposition(status="ok"),
             )
@@ -176,8 +173,8 @@ async def run_agent_runtime(
         return AgentRunResult(
             visible_messages=visible_messages,
             post_analyze_input=None,
-            tool_results=tool_results,
-            metrics={"capability_result_count": len(tool_results)},
+            tool_results=captured_tool_results,
+            metrics={"capability_result_count": len(captured_tool_results)},
             trace={"runtime": "agent", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
             error_disposition=durable_write_error,

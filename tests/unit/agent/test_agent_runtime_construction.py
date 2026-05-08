@@ -12,7 +12,7 @@ from agent.agno_agent.runtime.context import (
     TrustedUserContext,
 )
 from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
-from agent.agno_agent.runtime.result import AgentRunResult
+from agent.agno_agent.runtime.result import AgentRunResult, CapabilityResult
 
 
 def _agent_input() -> AgentInput:
@@ -44,9 +44,12 @@ def _run_context() -> AgentRunContext:
 
 @pytest.mark.asyncio
 async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkeypatch):
+    create_kwargs = {}
+
     class FakeAgent:
         async def arun(self, **kwargs):
-            assert kwargs == {"input": "hi", "session_id": "conv-1"}
+            assert kwargs["input"] == "hi"
+            assert kwargs["session_id"] == "conv-1"
             return SimpleNamespace(
                 content="fallback content",
                 messages=[
@@ -55,7 +58,11 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
                 ],
             )
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
+    def fake_create_agent(**kwargs):
+        create_kwargs.update(kwargs)
+        return FakeAgent()
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -70,3 +77,67 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
         "input_message": "hi",
         "message_source": "user",
     }
+    assert create_kwargs["input_message"] == "hi"
+    assert create_kwargs["tool_results"] == []
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="ignored",
+                messages=[
+                    SimpleNamespace(role="tool", content='{"ok": true}'),
+                    SimpleNamespace(role="assistant", content=""),
+                ],
+                tool_results=[
+                    CapabilityResult(
+                        name="ignored_run_output_field",
+                        ok=True,
+                        content={"visible_summary": "wrong"},
+                    )
+                ],
+            )
+
+    def fake_create_agent(**kwargs):
+        kwargs["tool_results"].append(
+            CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "已为你设好提醒"},
+                metadata={"durable_write": True},
+            )
+        )
+        return FakeAgent()
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages[0].content == "已为你设好提醒"
+    assert [tool.name for tool in result.tool_results] == ["reminder"]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
+    class FailingAgent:
+        async def arun(self, **kwargs):
+            raise RuntimeError("model unavailable")
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FailingAgent())
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages == ()
+    assert result.post_analyze_input is None
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "agent_runtime_exception"
+    assert result.error_disposition.retryable is True
