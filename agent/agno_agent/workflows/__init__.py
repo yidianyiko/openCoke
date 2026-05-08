@@ -1,3 +1,3 @@
-"""Legacy workflow package retired after Agent Runtime Team cutover."""
+"""Legacy workflow package retired after single-Agent runtime cutover."""
 
 __all__: list[str] = []

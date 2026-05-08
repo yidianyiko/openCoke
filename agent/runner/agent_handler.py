@@ -2,11 +2,11 @@
 """
 Agent Message Handler-Agno Version
 
-消息处理主模块，使用 Agent Runtime Team.
+消息处理主模块，使用 single-Agent runtime.
 
 执行流程：
-- Agent Runtime Team handles semantic planning and capability dispatch
-- PostAnalyzeWorkflow runs in the background when the Team result requests it
+- single-Agent runtime handles semantic planning and capability dispatch
+- PostAnalyzeWorkflow runs in the background when the runtime result requests it
 
 V2.4 更新：
 - 抽取核心处理逻辑为 handle_message() 函数
@@ -65,8 +65,8 @@ typing_speed = 2.2
 max_conversation_round = 15
 
 
-def _team_lock_heartbeat_interval_seconds() -> float:
-    raw_value = os.environ.get("COKE_TEAM_LOCK_HEARTBEAT_SECONDS")
+def _agent_runtime_lock_heartbeat_interval_seconds() -> float:
+    raw_value = os.environ.get("COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS")
     default = min(60.0, max(1.0, LOCK_TIMEOUT / 3))
     if raw_value is None:
         return default
@@ -74,7 +74,7 @@ def _team_lock_heartbeat_interval_seconds() -> float:
         value = float(raw_value)
     except ValueError:
         logger.warning(
-            "COKE_TEAM_LOCK_HEARTBEAT_SECONDS=%r is invalid; using %.1fs",
+            "COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS=%r is invalid; using %.1fs",
             raw_value,
             default,
         )
@@ -82,7 +82,7 @@ def _team_lock_heartbeat_interval_seconds() -> float:
     return value if value > 0 else default
 
 
-async def _await_with_team_lock_heartbeat(
+async def _await_with_agent_runtime_lock_heartbeat(
     awaitable,
     *,
     lock_id: Optional[str],
@@ -95,7 +95,7 @@ async def _await_with_team_lock_heartbeat(
     done = asyncio.Event()
 
     async def _heartbeat() -> None:
-        interval = _team_lock_heartbeat_interval_seconds()
+        interval = _agent_runtime_lock_heartbeat_interval_seconds()
         while not done.is_set():
             await asyncio.sleep(interval)
             if done.is_set():
@@ -104,9 +104,9 @@ async def _await_with_team_lock_heartbeat(
                 "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
             )
             if renewed:
-                logger.debug(f"{worker_tag} 锁续期成功 (Team runtime heartbeat)")
+                logger.debug(f"{worker_tag} 锁续期成功 (single-Agent runtime heartbeat)")
             else:
-                logger.warning(f"{worker_tag} Team runtime heartbeat 续期失败")
+                logger.warning(f"{worker_tag} single-Agent runtime heartbeat 续期失败")
                 return
 
     heartbeat_task = asyncio.create_task(_heartbeat())
@@ -121,9 +121,9 @@ async def _await_with_team_lock_heartbeat(
             pass
 
 
-def _team_should_skip_post_analyze() -> bool:
+def _agent_runtime_should_skip_post_analyze() -> bool:
     raw_value = (
-        os.environ.get("COKE_TEAM_SKIP_POST_ANALYZE")
+        os.environ.get("COKE_AGENT_RUNTIME_SKIP_POST_ANALYZE")
         or os.environ.get("SKIP_POST_ANALYZE")
         or ""
     )
@@ -356,7 +356,7 @@ def _latest_input_message_timestamp(context: dict) -> int | None:
     return max(timestamps) if timestamps else None
 
 
-def _derive_team_user_turn_occurred_at(context: dict) -> datetime:
+def _derive_agent_runtime_user_turn_occurred_at(context: dict) -> datetime:
     wall_now = datetime.now(UTC)
     timestamp = _latest_input_message_timestamp(context)
     if timestamp is None:
@@ -590,16 +590,16 @@ async def handle_message(
                 current_platform,
                 current_message_ids,
             ):
-                logger.info(f"{worker_tag} rollback: new message before team runtime")
+                logger.info(f"{worker_tag} rollback: new message before agent runtime")
                 return resp_messages, context, True, False
 
         if lock_id and conversation_id:
             lock_manager.renew_lock(
                 "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
             )
-            logger.debug(f"{worker_tag} 锁续期成功 (Team runtime 前)")
+            logger.debug(f"{worker_tag} 锁续期成功 (single-Agent runtime 前)")
 
-        logger.info(f"{worker_tag} AgentRuntime Team 开始")
+        logger.info(f"{worker_tag} AgentRuntime 开始")
         from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 
         selected_conversation_id = str(
@@ -617,10 +617,10 @@ async def handle_message(
                 check_new_message=check_new_message,
                 metadata=metadata or {},
             ),
-            occurred_at=_derive_team_user_turn_occurred_at(context),
+            occurred_at=_derive_agent_runtime_user_turn_occurred_at(context),
             metadata={"message_source": message_source, "worker_tag": worker_tag},
         )
-        result = await _await_with_team_lock_heartbeat(
+        result = await _await_with_agent_runtime_lock_heartbeat(
             _run_agent_runtime_event(
                 agent_input=agent_input,
                 context=context,
@@ -640,12 +640,12 @@ async def handle_message(
             and conversation_id
             and not _verify_lock_ownership(conversation_id, lock_id)
         ):
-            logger.warning(f"{worker_tag} 锁已丢失，停止接受 Team runtime 结果")
+            logger.warning(f"{worker_tag} 锁已丢失，停止接受 single-Agent runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
             return resp_messages, context, True, False
 
         if result.output_disposition.status == "rollback":
-            logger.info(f"{worker_tag} AgentRuntime Team rollback")
+            logger.info(f"{worker_tag} AgentRuntime rollback")
             context["MultiModalResponses"] = all_multimodal_responses
             return resp_messages, context, True, False
 
@@ -658,7 +658,7 @@ async def handle_message(
 
             if lock_id and conversation_id:
                 if not _verify_lock_ownership(conversation_id, lock_id):
-                    logger.warning(f"{worker_tag} 锁已丢失，停止发送 Team 消息")
+                    logger.warning(f"{worker_tag} 锁已丢失，停止发送 runtime 消息")
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
 
@@ -684,7 +684,7 @@ async def handle_message(
                 if exc.sent_messages:
                     all_multimodal_responses.append(multimodal_response)
                 logger.info(
-                    f"{worker_tag} rollback: new message during Team message send"
+                    f"{worker_tag} rollback: new message during runtime message send"
                 )
                 context["MultiModalResponses"] = all_multimodal_responses
                 return resp_messages, context, True, False
@@ -698,14 +698,14 @@ async def handle_message(
             and result.output_disposition.status == "empty"
         ):
             logger.warning(
-                f"{worker_tag} AgentRuntime Team 未产出用户可见回复，发送兜底回复"
+                f"{worker_tag} AgentRuntime 未产出用户可见回复，发送兜底回复"
             )
             if (
                 lock_id
                 and conversation_id
                 and not _verify_lock_ownership(conversation_id, lock_id)
             ):
-                logger.warning(f"{worker_tag} 锁已丢失，跳过 Team 兜底回复")
+                logger.warning(f"{worker_tag} 锁已丢失，跳过 runtime 兜底回复")
                 context["MultiModalResponses"] = all_multimodal_responses
                 return resp_messages, context, True, False
 
@@ -717,7 +717,7 @@ async def handle_message(
                     current_message_ids,
                 ):
                     logger.info(
-                        f"{worker_tag} rollback: new message before Team fallback send"
+                        f"{worker_tag} rollback: new message before runtime fallback send"
                     )
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
@@ -734,7 +734,7 @@ async def handle_message(
         context["MultiModalResponses"] = all_multimodal_responses
         if (
             result.post_analyze_input is not None
-            and not _team_should_skip_post_analyze()
+            and not _agent_runtime_should_skip_post_analyze()
         ):
             post_context = copy.deepcopy(context)
             post_conversation_id = str(
@@ -750,13 +750,13 @@ async def handle_message(
                 )
             )
             logger.info(
-                f"{worker_tag} AgentRuntime Team PostAnalyzeWorkflow 已提交后台执行"
+                f"{worker_tag} AgentRuntime PostAnalyzeWorkflow 已提交后台执行"
             )
         elif result.post_analyze_input is not None:
-            logger.info(f"{worker_tag} AgentRuntime Team PostAnalyzeWorkflow 已跳过")
+            logger.info(f"{worker_tag} AgentRuntime PostAnalyzeWorkflow 已跳过")
         is_content_blocked = False
         logger.info(
-            f"{worker_tag} AgentRuntime Team 完成 "
+            f"{worker_tag} AgentRuntime 完成 "
             f"(visible_messages={len(result.visible_messages)}, "
             f"status={result.output_disposition.status})"
         )

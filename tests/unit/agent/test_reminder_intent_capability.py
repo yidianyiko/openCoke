@@ -43,31 +43,31 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "每天17:58锻炼" in prompt
 
 
-def test_team_reminder_detect_default_timeout_allows_team_llm_budget(monkeypatch):
+def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_budget(monkeypatch):
     from agent.agno_agent.capabilities import reminder_intent
 
-    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False)
 
-    assert reminder_intent._team_reminder_detect_timeout_seconds() == 45.0
+    assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 45.0
 
 
-def test_team_reminder_detect_timeout_retry_has_short_default_budget(monkeypatch):
+def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(monkeypatch):
     from agent.agno_agent.capabilities import reminder_intent
 
     monkeypatch.delenv(
-        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
         raising=False,
     )
 
-    assert reminder_intent._team_reminder_detect_timeout_retry_seconds() == 20.0
+    assert reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 20.0
 
 
-def test_team_reminder_detect_retry_has_short_default_budget(monkeypatch):
+def test_agent_runtime_reminder_detect_retry_has_short_default_budget(monkeypatch):
     from agent.agno_agent.capabilities import reminder_intent
 
-    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
 
-    assert reminder_intent._team_reminder_detect_retry_timeout_seconds() == 20.0
+    assert reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 20.0
 
 
 @pytest.mark.asyncio
@@ -249,7 +249,7 @@ async def test_reminder_intent_port_primary_clarification_survives_retry_timeout
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    monkeypatch.setenv("COKE_TEAM_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS", "0.01")
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state):
@@ -357,7 +357,7 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state):
@@ -405,8 +405,8 @@ async def test_reminder_intent_port_timeout_falls_back_to_visible_clarification(
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", "0.01")
 
     class SlowAgent:
         async def arun(self, *, input, session_state):
@@ -430,9 +430,9 @@ async def test_reminder_intent_port_primary_timeout_uses_short_retry_budget(
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setenv("COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS", "0.01")
-    monkeypatch.delenv("COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS", "0.01")
+    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
 
     class SlowAgent:
         async def arun(self, *, input, session_state):

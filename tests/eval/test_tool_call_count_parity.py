@@ -1,4 +1,4 @@
-"""Parity check: native tool-call counts stay within Team baseline +/- 1."""
+"""Parity check: native tool-call counts stay within pre-cutover baseline +/- 1."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 _BASELINE_PATH = Path(
-    "artifacts/evidence/2026-05-09-pre-cutover-baseline/team-tool-call-counts.json"
+    "artifacts/evidence/2026-05-09-pre-cutover-baseline/pre-cutover-tool-call-counts.json"
 )
 
 SCENARIOS: dict[str, dict[str, str]] = {

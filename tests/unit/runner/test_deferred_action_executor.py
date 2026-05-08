@@ -534,7 +534,7 @@ async def test_executor_consumes_deferred_action_fire_result_success():
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -714,7 +714,7 @@ async def test_executor_consumes_deferred_action_fire_result_success():
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
