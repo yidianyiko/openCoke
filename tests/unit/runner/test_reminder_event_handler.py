@@ -83,6 +83,14 @@ def build_handler(output_writer, existing_output_lookup=None):
     )
 
 
+def _build_handler_with_failing_replay_lookup():
+    event = build_event()
+    output_writer = Mock()
+    existing_output_lookup = Mock(side_effect=RuntimeError("boom"))
+    handler = build_handler(output_writer, existing_output_lookup=existing_output_lookup)
+    return handler, event, output_writer
+
+
 @pytest.mark.asyncio
 async def test_handler_resolves_target_acquires_lock_writes_output_and_returns_fire_id():
     event = build_event()
@@ -517,3 +525,20 @@ async def test_replay_lookup_exception_returns_failed_result_without_output():
     assert result.error_code == "ReplayLookupFailed"
     assert result.error_message == "reminder replay lookup failed"
     assert result.output_reference is None
+
+
+@pytest.mark.asyncio
+async def test_replay_lookup_failure_logs_exception(caplog):
+    handler, event, output_writer = _build_handler_with_failing_replay_lookup()
+
+    caplog.set_level("ERROR")
+    result = await handler.handle(event)
+
+    output_writer.assert_not_called()
+    assert result.ok is False
+    assert result.error_code == "ReplayLookupFailed"
+    assert any(
+        "reminder replay lookup failed before lock" in record.message
+        and record.exc_info
+        for record in caplog.records
+    )

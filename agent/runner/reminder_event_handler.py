@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from datetime import UTC, datetime
 from typing import Any, Callable
 
@@ -11,6 +12,9 @@ from dao.conversation_dao import ConversationDAO
 from dao.lock import MongoDBLockManager
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
+
+
+logger = logging.getLogger(__name__)
 
 
 class ReminderFireEventHandler:
@@ -65,6 +69,7 @@ class ReminderFireEventHandler:
         try:
             existing_output = self.existing_output_lookup(event)
         except Exception:
+            logger.exception("reminder replay lookup failed before lock")
             return self._failure(
                 event, "ReplayLookupFailed", "reminder replay lookup failed"
             )
@@ -87,6 +92,7 @@ class ReminderFireEventHandler:
             try:
                 existing_output = self.existing_output_lookup(event)
             except Exception:
+                logger.exception("reminder replay lookup failed under lock")
                 return self._failure(
                     event, "ReplayLookupFailed", "reminder replay lookup failed"
                 )
@@ -131,6 +137,7 @@ class ReminderFireEventHandler:
                 error_message=None,
             )
         except Exception as exc:
+            logger.exception("reminder fire output failed")
             return self._failure(event, "OutputFailed", str(exc))
         finally:
             await self._release_conversation_lock(conversation_id, lock_id)
