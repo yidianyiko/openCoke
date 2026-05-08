@@ -17,11 +17,7 @@ from agent.agno_agent.runtime.result import (
     OutputDisposition,
     RuntimeErrorDisposition,
     VisibleMessage,
-)
-from agent.agno_agent.runtime.selector import (
-    RuntimeSelectionInput,
-    RuntimeVersion,
-    select_runtime,
+    with_output_references,
 )
 
 __all__ = [
@@ -33,33 +29,20 @@ __all__ = [
     "OutputDisposition",
     "ReminderFirePayload",
     "RuntimeErrorDisposition",
-    "RuntimeSelectionInput",
-    "RuntimeVersion",
-    "run_agent_runtime_event",
-    "run_deferred_action_runtime_event",
-    "select_runtime",
     "TrustedCharacterContext",
     "TrustedConversationContext",
     "TrustedRelationContext",
     "TrustedUserContext",
     "UserTurnPayload",
     "VisibleMessage",
+    "run_agent_runtime_event",
+    "with_output_references",
 ]
 
 
 def __getattr__(name: str):
-    if name not in {
-        "run_agent_runtime_event",
-        "run_deferred_action_runtime_event",
-    }:
+    if name != "run_agent_runtime_event":
         raise AttributeError(name)
+    from agent.agno_agent.runtime.event_adapter import run_agent_runtime_event
 
-    from agent.agno_agent.runtime.event_adapter import (
-        run_agent_runtime_event,
-        run_deferred_action_runtime_event,
-    )
-
-    return {
-        "run_agent_runtime_event": run_agent_runtime_event,
-        "run_deferred_action_runtime_event": run_deferred_action_runtime_event,
-    }[name]
+    return run_agent_runtime_event

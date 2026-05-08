@@ -66,16 +66,16 @@ pytest tests/unit/test_clawscale_only_topology.py -v
 ```
 
 Runtime-facing changes often need stronger evidence than this baseline. When a
-change affects user-visible reminder behavior, Team runtime orchestration, LLM
+change affects user-visible reminder behavior, single-Agent runtime orchestration, LLM
 provider selection, or scheduler/executor delivery, add the focused command set
 below or a documented runtime/eval smoke. Do not treat the baseline as proof of
 user-visible behavior when the changed path is mostly exercised through mocks.
 
-Team runtime cutover commands:
+Single-Agent runtime commands:
 
 ```bash
-AGENT_RUNTIME_VERSION=team pytest tests/unit/agent/ tests/unit/runner/ -v
-AGENT_RUNTIME_VERSION=team python scripts/eval_reminder_normal_path_cases.py
+.venv/bin/python -m pytest tests/unit/agent/ tests/unit/runner/ -v
+.venv/bin/python scripts/eval_reminder_normal_path_cases.py
 ```
 
 Focused deferred-actions command set:

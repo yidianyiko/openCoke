@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from dataclasses import FrozenInstanceError
 from unittest.mock import ANY, AsyncMock, Mock
@@ -48,6 +49,42 @@ def build_context():
         "conversation": {"conversation_info": {"chat_history": []}},
         "relation": {"uid": "user-1", "cid": "char-1"},
     }
+
+
+_NOW = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
+
+
+def _build_executor_with_failing_occurrence_dao():
+    action = build_action(_id="A1", revision=1, next_run_at=_NOW, dtstart=_NOW)
+    return executor_module.DeferredActionExecutor(
+        action_dao=Mock(
+            get_action=Mock(return_value=action),
+            claim_action_lease=Mock(return_value=True),
+            update_action=Mock(return_value=True),
+        ),
+        occurrence_dao=Mock(
+            claim_or_get_occurrence=Mock(side_effect=RuntimeError("db down")),
+            mark_occurrence_failed=Mock(),
+        ),
+        scheduler=Mock(reschedule_action=Mock(), remove_action=Mock()),
+        lock_manager=Mock(
+            acquire_lock_async=AsyncMock(return_value="lock-1"),
+            release_lock_safe_async=AsyncMock(),
+        ),
+        conversation_dao=Mock(),
+        user_dao=Mock(),
+        handle_message_fn=AsyncMock(),
+        context_builder=Mock(),
+        now_provider=lambda: _NOW,
+    )
+
+
+def test_occurrence_claim_failure_returns_failed_without_nameerror():
+    executor = _build_executor_with_failing_occurrence_dao()
+    result = asyncio.run(
+        executor.execute_due_action(action_id="A1", scheduled_for=_NOW, revision=1)
+    )
+    assert result == "failed"
 
 
 @pytest.mark.asyncio
@@ -497,7 +534,7 @@ async def test_executor_consumes_deferred_action_fire_result_success():
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -677,7 +714,7 @@ async def test_executor_consumes_deferred_action_fire_result_success():
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 

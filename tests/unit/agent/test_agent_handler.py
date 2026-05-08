@@ -15,7 +15,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     agno = types.ModuleType("agno")
     agno.__path__ = []
     agno_agent = types.ModuleType("agno.agent")
-    agno_team = types.ModuleType("agno.team")
     agno_models = types.ModuleType("agno.models")
     agno_models.__path__ = []
     agno_tools = types.ModuleType("agno.tools")
@@ -24,10 +23,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     agno_models_siliconflow = types.ModuleType("agno.models.siliconflow")
 
     class _Agent:
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class _Team:
         def __init__(self, *args, **kwargs):
             pass
 
@@ -42,7 +37,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         return _decorate
 
     agno_agent.Agent = _Agent
-    agno_team.Team = _Team
     agno_tools.tool = _tool_decorator
     agno_models_deepseek.DeepSeek = _Model
     agno_models_openai.OpenAIChat = _Model
@@ -50,7 +44,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agno", agno)
     monkeypatch.setitem(sys.modules, "agno.agent", agno_agent)
-    monkeypatch.setitem(sys.modules, "agno.team", agno_team)
     monkeypatch.setitem(sys.modules, "agno.models", agno_models)
     monkeypatch.setitem(sys.modules, "agno.tools", agno_tools)
     monkeypatch.setitem(sys.modules, "agno.models.deepseek", agno_models_deepseek)
@@ -152,44 +145,7 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
     assert "再发" in reply
 
 
-def test_prepare_timeout_guard_replaces_unconfirmed_reminder_commitment(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.agent_handler import (
-        _guard_unconfirmed_reminder_response_after_prepare_timeout,
-    )
-
-    guarded = _guard_unconfirmed_reminder_response_after_prepare_timeout(
-        {"prepare_orchestrator_timeout": True, "tool_results": []},
-        "18:00提醒我学英语",
-        {"type": "text", "content": "没问题，我帮你设一个18:00的英语学习提醒。"},
-    )
-
-    assert guarded["content"] == (
-        "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
-    )
-
-
-def test_prepare_timeout_guard_keeps_confirmed_tool_result_reply(monkeypatch):
-    _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.agent_handler import (
-        _guard_unconfirmed_reminder_response_after_prepare_timeout,
-    )
-
-    response = {"type": "text", "content": "已创建提醒：喝水（18:00）"}
-
-    guarded = _guard_unconfirmed_reminder_response_after_prepare_timeout(
-        {
-            "prepare_orchestrator_timeout": True,
-            "tool_results": [{"tool_name": "提醒操作", "ok": True}],
-        },
-        "18:00提醒我喝水",
-        response,
-    )
-
-    assert guarded is response
-
-
-def test_team_user_turn_occurred_at_uses_future_message_timestamp(
+def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
@@ -201,18 +157,16 @@ def test_team_user_turn_occurred_at_uses_future_message_timestamp(
         {"input_timestamp": 1893456060},
     ]
 
-    assert agent_handler._derive_team_user_turn_occurred_at(
+    assert agent_handler._derive_agent_runtime_user_turn_occurred_at(
         sample_context
     ) == datetime.fromtimestamp(1893456060, UTC)
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_uses_agent_runtime(
+async def test_handle_message_agent_runtime_uses_agent_runtime(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
         OutputDisposition,
@@ -230,14 +184,14 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
             visible_messages=[
                 VisibleMessage(
                     message_type="text",
-                    content="Team reply",
-                    metadata={"source": "team"},
+                    content="Runtime reply",
+                    metadata={"source": "agent_runtime"},
                 )
             ],
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -273,9 +227,9 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
         )
     )
 
-    assert resp_messages == [{"message": "Team reply"}]
+    assert resp_messages == [{"message": "Runtime reply"}]
     assert sent == [
-        {"type": "text", "content": "Team reply", "metadata": {"source": "team"}}
+        {"type": "text", "content": "Runtime reply", "metadata": {"source": "agent_runtime"}}
     ]
     assert context is sample_context
     assert is_rollback is False
@@ -284,12 +238,10 @@ async def test_handle_message_team_runtime_uses_agent_runtime(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_empty_output_uses_chat_fallback(
+async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import AgentRunResult, OutputDisposition
     from agent.runner import agent_handler
 
@@ -301,7 +253,7 @@ async def test_handle_message_team_runtime_empty_output_uses_chat_fallback(
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team", "status": "empty_output"},
+            trace={"runtime": "agent_runtime", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
         )
 
@@ -337,12 +289,10 @@ async def test_handle_message_team_runtime_empty_output_uses_chat_fallback(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_passes_typed_user_turn(
+async def test_handle_message_agent_runtime_passes_typed_user_turn(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
         OutputDisposition,
@@ -356,12 +306,12 @@ async def test_handle_message_team_runtime_passes_typed_user_turn(
         captured.update(kwargs)
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="team reply")
+                VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -392,12 +342,10 @@ async def test_handle_message_team_runtime_passes_typed_user_turn(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_schedules_post_analyze(
+async def test_handle_message_agent_runtime_schedules_post_analyze(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
         OutputDisposition,
@@ -410,12 +358,12 @@ async def test_handle_message_team_runtime_schedules_post_analyze(
     async def fake_run_agent_runtime_event(**kwargs):
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="team reply")
+                VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input={"input_message": "hello", "message_source": "user"},
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -445,11 +393,10 @@ async def test_handle_message_team_runtime_schedules_post_analyze(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_can_skip_post_analyze_with_env(
+async def test_handle_message_agent_runtime_can_skip_post_analyze_with_env(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
     monkeypatch.setenv("SKIP_POST_ANALYZE", "1")
 
     from agent.agno_agent.runtime.result import (
@@ -464,12 +411,12 @@ async def test_handle_message_team_runtime_can_skip_post_analyze_with_env(
     async def fake_run_agent_runtime_event(**kwargs):
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="team reply")
+                VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input={"input_message": "hello", "message_source": "user"},
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -498,16 +445,14 @@ async def test_handle_message_team_runtime_can_skip_post_analyze_with_env(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_rolls_back_before_runtime_on_new_message(
+async def test_handle_message_agent_runtime_rolls_back_before_runtime_on_new_message(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.runner import agent_handler
 
     async def fail_run_agent_runtime(**kwargs):
-        raise AssertionError("Team runtime should not run when a newer message exists")
+        raise AssertionError("single-Agent runtime should not run when a newer message exists")
 
     sent = []
 
@@ -542,12 +487,10 @@ async def test_handle_message_team_runtime_rolls_back_before_runtime_on_new_mess
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send(
+async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_send(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
         OutputDisposition,
@@ -558,12 +501,12 @@ async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send
     async def fake_run_agent_runtime(**kwargs):
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="Team reply")
+                VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -597,12 +540,10 @@ async def test_handle_message_team_runtime_rolls_back_when_lock_lost_before_send
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
+async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
         OutputDisposition,
@@ -616,12 +557,12 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
         calls.append("runtime")
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="Team reply")
+                VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -654,7 +595,7 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
         )
     )
 
-    assert resp_messages == [{"message": "Team reply"}]
+    assert resp_messages == [{"message": "Runtime reply"}]
     assert calls[0][0] == "renew"
     assert calls[0][1] == ("conversation", "conversation-1", "lock-1")
     assert calls[0][2] == {"timeout": agent_handler.LOCK_TIMEOUT}
@@ -664,12 +605,11 @@ async def test_handle_message_team_runtime_renews_lock_before_runtime_and_send(
 
 
 @pytest.mark.asyncio
-async def test_handle_message_team_runtime_renews_lock_while_runtime_is_running(
+async def test_handle_message_agent_runtime_renews_lock_while_runtime_is_running(
     monkeypatch, sample_context
 ):
     _install_agent_handler_agno_stubs(monkeypatch)
-    monkeypatch.setenv("AGENT_RUNTIME_VERSION", "team")
-    monkeypatch.setenv("COKE_TEAM_LOCK_HEARTBEAT_SECONDS", "0.01")
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS", "0.01")
 
     from agent.agno_agent.runtime.result import (
         AgentRunResult,
@@ -686,12 +626,12 @@ async def test_handle_message_team_runtime_renews_lock_while_runtime_is_running(
         calls.append("runtime-end")
         return AgentRunResult(
             visible_messages=[
-                VisibleMessage(message_type="text", content="Team reply")
+                VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 
@@ -735,7 +675,7 @@ async def test_handle_message_team_runtime_renews_lock_while_runtime_is_running(
         index for index in renew_indices if runtime_start < index < runtime_end
     ]
 
-    assert resp_messages == [{"message": "Team reply"}]
+    assert resp_messages == [{"message": "Runtime reply"}]
     assert len(renews_during_runtime) >= 2
     assert is_rollback is False
     assert is_content_blocked is False

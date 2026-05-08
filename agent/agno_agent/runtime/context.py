@@ -116,7 +116,8 @@ def _nickname(value: Mapping[str, Any], fallback: str) -> str:
 
 
 def _metadata_from_raw(raw: Mapping[str, Any]) -> dict[str, Any]:
-    return {"raw": raw} if raw else {}
+    """Reserved for explicitly validated metadata; never smuggle untrusted dicts."""
+    return {}
 
 
 def build_agent_run_context(

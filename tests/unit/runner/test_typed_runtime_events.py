@@ -40,7 +40,7 @@ async def test_reminder_event_handler_can_route_through_typed_runtime():
             post_analyze_input=None,
             tool_results=[],
             metrics={},
-            trace={"runtime": "team"},
+            trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
         )
 

@@ -113,3 +113,19 @@ class AgentRunResult:
         object.__setattr__(self, "tool_results", freeze_sequence(self.tool_results))
         object.__setattr__(self, "metrics", freeze_mapping(self.metrics))
         object.__setattr__(self, "trace", freeze_mapping(self.trace))
+
+
+def with_output_references(
+    result: AgentRunResult,
+    output_references: Sequence[str],
+) -> AgentRunResult:
+    from dataclasses import replace
+
+    return replace(
+        result,
+        output_disposition=OutputDisposition(
+            status=result.output_disposition.status,
+            output_references=tuple(output_references),
+            metadata=dict(result.output_disposition.metadata),
+        ),
+    )

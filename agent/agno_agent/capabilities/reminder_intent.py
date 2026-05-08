@@ -16,9 +16,9 @@ from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecisi
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
 logger = logging.getLogger(__name__)
-_DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS = 45.0
-_DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 20.0
-_DEFAULT_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS = 45.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 20.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
 
 
 def _float_env(name: str, default: float) -> float:
@@ -33,24 +33,24 @@ def _float_env(name: str, default: float) -> float:
     return value if value > 0 else default
 
 
-def _team_reminder_detect_timeout_seconds() -> float:
+def _agent_runtime_reminder_detect_timeout_seconds() -> float:
     return _float_env(
-        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS",
-        _DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_SECONDS,
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS",
+        _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS,
     )
 
 
-def _team_reminder_detect_timeout_retry_seconds() -> float:
+def _agent_runtime_reminder_detect_timeout_retry_seconds() -> float:
     return _float_env(
-        "COKE_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
-        _DEFAULT_TEAM_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS,
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
+        _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS,
     )
 
 
-def _team_reminder_detect_retry_timeout_seconds() -> float:
+def _agent_runtime_reminder_detect_retry_timeout_seconds() -> float:
     return _float_env(
-        "COKE_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
-        _DEFAULT_TEAM_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS,
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS",
+        _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS,
     )
 
 
@@ -91,7 +91,7 @@ Use the ReminderDetect system instructions already attached to this agent.
 Return only a valid ReminderDetectDecision for the current user message.
 Do not invent, rename, merge, or concatenate schema field names.
 Never output keys like intentaction; use intent_type and action separately.
-action must be exactly one of create, update, delete, complete, batch, list, or empty.
+action must be exactly one of create, update, cancel, delete, complete, batch, list, or empty.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
@@ -160,20 +160,20 @@ class ReminderIntentPort:
                     input=build_reminder_intent_input(input_message, run_context),
                     session_state=session_state,
                 ),
-                timeout=_team_reminder_detect_timeout_seconds(),
+                timeout=_agent_runtime_reminder_detect_timeout_seconds(),
             )
             decision = _decision_from_response(response)
         except asyncio.TimeoutError:
             logger.error(
-                "ReminderDetectAgent timed out in Team runtime: timeout=%.1fs",
-                _team_reminder_detect_timeout_seconds(),
+                "ReminderDetectAgent timed out in single-Agent runtime: timeout=%.1fs",
+                _agent_runtime_reminder_detect_timeout_seconds(),
             )
             retry_decision = await self._run_retry_detector(
                 input_message,
                 run_context,
                 session_state,
                 reason="primary detector timed out",
-                timeout_seconds=_team_reminder_detect_timeout_retry_seconds(),
+                timeout_seconds=_agent_runtime_reminder_detect_timeout_retry_seconds(),
             )
             if retry_decision is None:
                 return _timeout_clarification_result()
@@ -196,7 +196,7 @@ class ReminderIntentPort:
                 session_state,
                 reason="primary detector returned no executable decision",
                 timeout_seconds=_float_env(
-                    "COKE_TEAM_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS",
+                    "COKE_AGENT_RUNTIME_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS",
                     30.0,
                 ),
             )
@@ -253,7 +253,7 @@ class ReminderIntentPort:
         timeout = (
             timeout_seconds
             if timeout_seconds is not None
-            else _team_reminder_detect_retry_timeout_seconds()
+            else _agent_runtime_reminder_detect_retry_timeout_seconds()
         )
         try:
             retry_response = await asyncio.wait_for(
@@ -269,7 +269,7 @@ class ReminderIntentPort:
             )
         except asyncio.TimeoutError:
             logger.error(
-                "ReminderDetectRetryAgent timed out in Team runtime: timeout=%.1fs",
+                "ReminderDetectRetryAgent timed out in single-Agent runtime: timeout=%.1fs",
                 timeout,
             )
             return None

@@ -9,6 +9,7 @@ from agent.agno_agent.runtime.context import (
     TrustedConversationContext,
     TrustedRelationContext,
     TrustedUserContext,
+    build_agent_run_context,
 )
 from agent.agno_agent.runtime.inputs import (
     AgentInput,
@@ -103,6 +104,31 @@ def test_run_context_uses_trusted_context_objects():
     assert context.runtime_metadata["worker_tag"] == "[T]"
 
 
+def test_agent_run_context_metadata_does_not_smuggle_raw():
+    context = build_agent_run_context(
+        {
+            "user": {
+                "id": "user-1",
+                "nickname": "User",
+                "timezone": "Asia/Tokyo",
+            },
+            "character": {"id": "char-1", "nickname": "Coke"},
+            "conversation": {
+                "id": "conv-1",
+                "platform": "business",
+                "route_key": "route-1",
+            },
+            "relation": {"uid": "user-1", "cid": "char-1"},
+        },
+        current_time=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+    )
+
+    assert "raw" not in context.user.metadata
+    assert "raw" not in context.character.metadata
+    assert "raw" not in context.conversation.metadata
+    assert "raw" not in context.relation.metadata
+
+
 def test_run_result_has_output_contract_fields():
     result = AgentRunResult(
         visible_messages=[
@@ -111,14 +137,14 @@ def test_run_result_has_output_contract_fields():
         post_analyze_input=None,
         tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
         metrics={"latency_ms": 12},
-        trace={"runtime": "team"},
+        trace={"runtime": "agent_runtime"},
         output_disposition=OutputDisposition(status="ok", output_references=["out-1"]),
     )
 
     assert result.visible_messages[0].content == "Done"
     assert result.tool_results[0].content == {"id": "r1"}
     assert result.metrics["latency_ms"] == 12
-    assert result.trace["runtime"] == "team"
+    assert result.trace["runtime"] == "agent_runtime"
     assert result.output_disposition.status == "ok"
     assert result.output_disposition.output_references == ("out-1",)
 
@@ -237,7 +263,7 @@ def test_metadata_mappings_are_read_only_after_construction():
         post_analyze_input={"messages": ["msg-1"]},
         tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
         metrics={"latency_ms": 12},
-        trace={"runtime": "team"},
+        trace={"runtime": "agent_runtime"},
         output_disposition=OutputDisposition(status="ok"),
     )
 

@@ -38,7 +38,7 @@ Current status:
 
 - this is the phase the repository has substantially completed
 - the core runtime is already implemented: inbound queueing, conversation
-  locking, the Agent Runtime Team turn path, `PostAnalyzeWorkflow`, reminders,
+  locking, the single-Agent turn path, `PostAnalyzeWorkflow`, reminders,
   future/proactive messages, and outbound delivery paths
 - the current work around ClawScale personal WeChat, bridge auth, async push,
   and rollout validation is still serving Phase 1 delivery and stabilization
