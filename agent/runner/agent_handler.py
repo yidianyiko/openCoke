@@ -461,29 +461,6 @@ def _send_single_message(
     return outputmessage, expect_output_timestamp
 
 
-def _is_clawscale_sync_text_reply_context(context: dict, message_source: str) -> bool:
-    if message_source != "user":
-        return False
-
-    conversation = context.get("conversation", {})
-    if conversation.get("platform") != "business":
-        return False
-
-    input_messages = conversation.get("conversation_info", {}).get("input_messages", [])
-    if not input_messages:
-        return False
-
-    metadata = input_messages[0].get("metadata", {})
-    if not isinstance(metadata, dict) or metadata.get("source") != "clawscale":
-        return False
-
-    business_protocol = metadata.get("business_protocol", {})
-    if not isinstance(business_protocol, dict):
-        return False
-
-    return business_protocol.get("delivery_mode") == "request_response"
-
-
 def _chat_response_timeout_fallback(
     input_message: str, context: dict | None = None
 ) -> str:
@@ -501,77 +478,6 @@ def _chat_response_timeout_fallback(
     if "计划" in str(input_message or ""):
         return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
     return "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
-
-
-def _guard_pending_reminder_stop_response(
-    context: dict, multimodal_response: dict
-) -> dict:
-    if not _has_pending_reminder_stop_without_tool_result(context):
-        return multimodal_response
-    if multimodal_response.get("type", "text") != "text":
-        return multimodal_response
-
-    content = str(multimodal_response.get("content") or "")
-    if _mentions_reminder_stop_target_clarification(content):
-        return multimodal_response
-
-    guarded = dict(multimodal_response)
-    guarded["content"] = "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
-    return guarded
-
-
-def _guard_unconfirmed_reminder_response_after_prepare_timeout(
-    context: dict, input_message: str, multimodal_response: dict
-) -> dict:
-    if context.get("prepare_orchestrator_timeout") is not True:
-        return multimodal_response
-    if multimodal_response.get("type", "text") != "text":
-        return multimodal_response
-    if any(
-        result.get("tool_name") == "提醒操作"
-        for result in context.get("tool_results") or []
-        if isinstance(result, dict)
-    ):
-        return multimodal_response
-    if not re.search(
-        r"(提醒|叫我|通知|闹钟|\bremind\b|\balarm\b)", str(input_message), re.I
-    ):
-        return multimodal_response
-
-    content = str(multimodal_response.get("content") or "")
-    if not re.search(
-        r"(帮你|我来|我会|我给你|已经|已).{0,16}(设|设置|创建|记|提醒|安排)",
-        content,
-    ):
-        return multimodal_response
-
-    guarded = dict(multimodal_response)
-    guarded["content"] = _chat_response_timeout_fallback(input_message, context)
-    return guarded
-
-
-def _has_pending_reminder_stop_without_tool_result(context: dict) -> bool:
-    if context.get("prepare_reminder_intent_hint") != "stop_or_cancel":
-        return False
-    if context.get("orchestrator", {}).get("need_reminder_detect") is not True:
-        return False
-    return not any(
-        result.get("tool_name") == "提醒操作"
-        for result in context.get("tool_results") or []
-        if isinstance(result, dict)
-    )
-
-
-def _mentions_reminder_stop_target_clarification(text: str) -> bool:
-    return bool(
-        re.search(
-            r"(哪条提醒|哪个提醒|什么提醒|哪一个提醒|哪项提醒|"
-            r"(?:取消|删除|停掉|停止|关掉).{0,16}(哪条|哪个|哪一个|什么)|"
-            r"which.{0,20}(reminder|alarm|notification))",
-            text,
-            re.IGNORECASE,
-        )
-    )
 
 
 def _send_chat_response_fallback(
