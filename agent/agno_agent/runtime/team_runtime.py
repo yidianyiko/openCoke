@@ -5,6 +5,7 @@ import inspect
 import json
 import logging
 import os
+import re
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
@@ -207,8 +208,45 @@ def _is_protocol_artifact_response(text: str) -> bool:
         "{tool =>",
         "--action",
     )
-    return normalized in {"operation cancelled by user"} or any(
-        marker in normalized for marker in artifact_markers
+    return (
+        normalized in {"operation cancelled by user"}
+        or _is_json_response_envelope_artifact(normalized)
+        or any(marker in normalized for marker in artifact_markers)
+    )
+
+
+def _is_json_response_envelope_artifact(normalized: str) -> bool:
+    if not normalized:
+        return False
+    if normalized.startswith("```json") or normalized.startswith("```"):
+        return '"type"' in normalized and '"content"' in normalized
+    if normalized.startswith(("[", "{")):
+        return '"type"' in normalized and '"content"' in normalized
+    return False
+
+
+def _is_unconfirmed_reminder_commitment(
+    *,
+    input_message: str,
+    response_text: str,
+    tool_results: list[CapabilityResult],
+) -> bool:
+    if tool_results:
+        return False
+    if not re.search(
+        r"(提醒|叫我|通知|闹钟|\bremind\b|\balarm\b)",
+        str(input_message or ""),
+        re.IGNORECASE,
+    ):
+        return False
+    return bool(
+        re.search(
+            r"(已|已经|好的|没问题|我会|到时候|准时).{0,24}"
+            r"(设定|设置|创建|安排|记下|提醒|通知)|"
+            r"(reminder|alarm).{0,24}(set|created|scheduled)",
+            str(response_text or ""),
+            re.IGNORECASE,
+        )
     )
 
 
@@ -283,6 +321,7 @@ async def run_team_runtime(
     manager_protocol_retried = False
     manager_empty_retried = False
     manager_recovery_capability = False
+    manager_unconfirmed_reminder_recovered = False
     try:
         plan, protocol_artifact = await _run_manager_plan(
             team,
@@ -299,7 +338,7 @@ async def run_team_runtime(
                         manager_input,
                         "",
                         "Previous manager output violated the RESPONSE/REQUEST contract.",
-                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, provider tool syntax, Markdown JSON blocks, or JSON response envelopes.",
                         "Return only RESPONSE and REQUEST lines now.",
                     ]
                 ),
@@ -321,7 +360,7 @@ async def run_team_runtime(
                         "Previous manager output was empty.",
                         "Return a valid RESPONSE block and any needed REQUEST lines now.",
                         "If the user is asking for reminder CRUD or reminder listing, include REQUEST reminder_intent {}.",
-                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, or provider tool syntax.",
+                        "Do not emit XML, <tool_call>, <invoke>, function-call JSON, provider tool syntax, Markdown JSON blocks, or JSON response envelopes.",
                     ]
                 ),
                 metadata=metadata,
@@ -350,6 +389,21 @@ async def run_team_runtime(
         plan = TeamPlan(
             response_text="",
             capability_requests=(CapabilityRequest(name="reminder_intent", args={}),),
+        )
+    if (
+        not manager_timed_out
+        and not plan.capability_requests
+        and _is_unconfirmed_reminder_commitment(
+            input_message=input_message_str,
+            response_text=plan.response_text,
+            tool_results=[],
+        )
+    ):
+        manager_unconfirmed_reminder_recovered = True
+        plan = TeamPlan(
+            response_text="",
+            capability_requests=(CapabilityRequest(name="reminder_intent", args={}),),
+            rejected_requests=plan.rejected_requests,
         )
     ports = capability_ports or _default_capability_ports()
 
@@ -413,6 +467,7 @@ async def run_team_runtime(
                 "manager_protocol_retried": manager_protocol_retried,
                 "manager_empty_retried": manager_empty_retried,
                 "manager_recovery_capability": manager_recovery_capability,
+                "manager_unconfirmed_reminder_recovered": manager_unconfirmed_reminder_recovered,
                 "response_synthesized_after_capabilities": response_synthesized_after_capabilities,
             },
             output_disposition=OutputDisposition(status="ok"),
@@ -432,6 +487,7 @@ async def run_team_runtime(
             "manager_protocol_retried": manager_protocol_retried,
             "manager_empty_retried": manager_empty_retried,
             "manager_recovery_capability": manager_recovery_capability,
+            "manager_unconfirmed_reminder_recovered": manager_unconfirmed_reminder_recovered,
             "response_synthesized_after_capabilities": response_synthesized_after_capabilities,
         },
         output_disposition=OutputDisposition(status="empty"),

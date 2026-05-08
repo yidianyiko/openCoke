@@ -29,6 +29,24 @@ def test_parse_plain_text_as_response_only():
     assert plan.capability_requests == ()
 
 
+def test_parse_response_marker_without_colon():
+    from agent.agno_agent.runtime.plan_parser import parse_team_plan
+
+    plan = parse_team_plan("RESPONSE\n让我确认一下。")
+
+    assert plan.response_text == "让我确认一下。"
+    assert plan.capability_requests == ()
+
+
+def test_parse_inline_response_marker_without_colon():
+    from agent.agno_agent.runtime.plan_parser import parse_team_plan
+
+    plan = parse_team_plan("RESPONSE 让我确认一下。")
+
+    assert plan.response_text == "让我确认一下。"
+    assert plan.capability_requests == ()
+
+
 def test_parse_inline_request_after_response_text():
     from agent.agno_agent.runtime.plan_parser import parse_team_plan
 

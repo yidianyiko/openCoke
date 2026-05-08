@@ -668,6 +668,53 @@ async def test_run_team_runtime_retries_provider_tool_artifact(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_run_team_runtime_retries_json_response_envelope(monkeypatch):
+    class JsonEnvelopeThenRequestTeam(FakeTeam):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.calls = 0
+
+        async def arun(self, input, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return types.SimpleNamespace(
+                    content=(
+                        "```json\n"
+                        '[{"type":"text","content":"请告诉我提醒时间。"}]\n'
+                        "```"
+                    )
+                )
+            assert "Previous manager output violated" in input
+            return types.SimpleNamespace(content="REQUEST reminder_intent {}")
+
+    _install_fake_team(monkeypatch, JsonEnvelopeThenRequestTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "请告诉我提醒什么事和什么时间。"},
+                metadata={"durable_write": False},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="记得按时提醒我",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": FakeReminderPort()},
+    )
+
+    assert result.visible_messages[0].content == "请告诉我提醒什么事和什么时间。"
+    assert result.trace["manager_protocol_retried"] is True
+    assert result.trace["capability_requests"] == ("reminder_intent",)
+
+
+@pytest.mark.asyncio
 async def test_run_team_runtime_retries_bracket_tool_artifact(monkeypatch):
     class BracketArtifactThenRequestTeam(FakeTeam):
         def __init__(self, **kwargs):
@@ -714,6 +761,48 @@ async def test_run_team_runtime_retries_bracket_tool_artifact(monkeypatch):
 
     assert result.visible_messages[0].content == "已创建提醒：起床"
     assert result.trace["manager_protocol_retried"] is True
+    assert result.trace["capability_requests"] == ("reminder_intent",)
+
+
+@pytest.mark.asyncio
+async def test_run_team_runtime_routes_unconfirmed_reminder_response_to_capability(
+    monkeypatch,
+):
+    class DirectPromiseTeam(FakeTeam):
+        async def arun(self, input, **kwargs):
+            return types.SimpleNamespace(
+                content=(
+                    "RESPONSE:\n"
+                    "好的，已经为你设定了明天早上10:30的提醒，到时候会准时提醒你。"
+                )
+            )
+
+    _install_fake_team(monkeypatch, DirectPromiseTeam)
+    from agent.agno_agent.runtime import team_runtime
+    from agent.agno_agent.runtime.result import CapabilityResult
+
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：看毛利分布（2026-05-09 10:30）"},
+                metadata={"durable_write": True},
+            )
+
+    result = await team_runtime.run_team_runtime(
+        context=_legacy_context(),
+        input_message_str="早上10:30提醒我看毛利分布",
+        message_source="user",
+        metadata={},
+        current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
+        capability_ports={"reminder_intent": FakeReminderPort()},
+    )
+
+    assert result.visible_messages[0].content == (
+        "已创建提醒：看毛利分布（2026-05-09 10:30）"
+    )
+    assert result.trace["manager_unconfirmed_reminder_recovered"] is True
     assert result.trace["capability_requests"] == ("reminder_intent",)
 
 
