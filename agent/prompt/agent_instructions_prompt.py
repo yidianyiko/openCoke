@@ -94,9 +94,9 @@ Schedules:
   for reminders at listed habitual/routine times.
 - Use schedule_basis="explicit_occurrences" for listed habitual/routine times;
   those operations may include RRULE such as FREQ=DAILY.
-- deadline_at requires schedule_basis="explicit_cadence"; cadence RRULE may also
-  use explicit_cadence when the user gives an unbounded recurring cadence.
-- Bounded cadence with a deadline enumerates one-shot operations at or before deadline_at instead of using RRULE.
+- Bounded recurring cadence with a deadline uses one compact recurrence:
+  action="create", RRULE, schedule_basis="explicit_cadence", schedule_evidence,
+  and deadline_at. Do not drop the deadline.
 - If cadence starts in the past and the deadline is future, skip past occurrences and create only future occurrences.
 - Cadence with a deadline and no start uses the next future cadence point from now; unbounded or vague cadence clarifies.
 - A supervision window without concrete occurrence times or cadence clarifies.

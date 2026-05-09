@@ -89,6 +89,8 @@ class ExpectedReminderCreate:
     local_time: str | None
     recurring: bool | None
     title_variants: tuple[str, ...] = ()
+    rrule_contains: tuple[str, ...] = ()
+    output_terms: tuple[str, ...] = ()
 
 
 def load_cases(path: Path = DEFAULT_CASES_PATH) -> list[ReminderNormalPathCase]:
@@ -787,12 +789,16 @@ def expected_created_reminders_for_case(
                 )
             else:
                 title_variants = ()
+            rrule_contains = _string_tuple(item.get("rrule_contains"))
+            output_terms = _string_tuple(item.get("output_terms"))
             expected.append(
                 ExpectedReminderCreate(
                     title=title,
                     local_time=str(local_time) if local_time else None,
                     recurring=recurring if isinstance(recurring, bool) else None,
                     title_variants=title_variants,
+                    rrule_contains=rrule_contains,
+                    output_terms=output_terms,
                 )
             )
         return expected
@@ -890,11 +896,19 @@ def validate_expected_creates(
             errors.append(f"expected_recurring_reminder_not_recurring:{expected.title}")
         if expected.recurring is False and rrule:
             errors.append(f"expected_one_shot_reminder_is_recurring:{expected.title}")
+        for token in expected.rrule_contains:
+            if token not in rrule:
+                errors.append(f"expected_rrule_missing:{expected.title}:{token}")
 
     output_text = combined_output_text(outputs)
     for expected in expected_creates:
         if not output_mentions_expected_title(output_text, expected):
             errors.append(f"user_output_missing_expected_title:{expected.title}")
+        for token in expected.output_terms:
+            if token not in output_text:
+                errors.append(
+                    f"user_output_missing_expected_term:{expected.title}:{token}"
+                )
         output_segment = output_segment_for_expected(output_text, expected)
         if not output_segment:
             continue
@@ -905,6 +919,15 @@ def validate_expected_creates(
         if expected.recurring is False and segment_has_recurring_signal(output_segment):
             errors.append(f"user_output_unexpected_recurring:{expected.title}")
     return errors
+
+
+def _string_tuple(value: Any) -> tuple[str, ...]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return (stripped,) if stripped else ()
+    if isinstance(value, list):
+        return tuple(str(item).strip() for item in value if str(item).strip())
+    return ()
 
 
 _COMMON_TITLE_LEADING_VERBS = frozenset("喝吃学背看写做跑练买拿取打出睡起读来")

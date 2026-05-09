@@ -150,8 +150,9 @@ For same-message listed routine times plus a reminder request, use action="batch
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.
 Use the activity next to each listed time as the title; do not ask for daily confirmation or lead time.
 When the user explicitly lists multiple reminder times and tasks, create each requested reminder even if times are close together; do not ask whether to merge them.
-For bounded cadence requests with a deadline, use action="batch", schedule_basis="explicit_cadence",
-schedule_evidence, deadline_at, and one-shot operations at or before deadline_at instead of RRULE.
+For bounded recurring cadence requests with a deadline, use action="create",
+RRULE, schedule_basis="explicit_cadence", schedule_evidence, and deadline_at.
+Do not drop the deadline.
 {workflow_block}
 
 ### 当前用户消息
@@ -322,6 +323,32 @@ class ReminderIntentPort:
                 input_message,
                 _invalid_decision_clarification_result(),
             )
+        if _should_execute_decision(decision) and _is_bounded_cadence_deadline_loss(
+            input_message, decision
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector returned an unbounded recurring reminder "
+                    "for an input that includes a cadence and a deadline; keep "
+                    "the deadline as deadline_at"
+                ),
+            )
+            if _should_execute_decision(
+                retry_decision
+            ) and not _is_bounded_cadence_deadline_loss(input_message, retry_decision):
+                decision = retry_decision
+            elif retry_decision is not None and _is_unrecognized_decision(
+                retry_decision
+            ):
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
+            else:
+                return _bounded_cadence_deadline_loss_clarification_result(decision)
         if _should_execute_decision(decision) and _is_unbounded_high_frequency_cadence(
             decision, input_message=input_message
         ):
@@ -1029,6 +1056,72 @@ def _has_explicit_deadline(decision: Any) -> bool:
     )
 
 
+def _is_bounded_cadence_deadline_loss(input_message: str, decision: Any) -> bool:
+    if not _input_has_bounded_cadence_deadline(input_message):
+        return False
+    if _has_explicit_deadline(decision):
+        return False
+    return _has_unbounded_recurring_rrule(decision)
+
+
+def _has_unbounded_recurring_rrule(decision: Any) -> bool:
+    rrules = [str(_decision_value(decision, "rrule") or "")]
+    operations = _decision_value(decision, "operations") or []
+    for operation in operations:
+        rrules.append(str(_decision_value(operation, "rrule") or ""))
+    return any(_is_unbounded_rrule(rrule) for rrule in rrules)
+
+
+def _is_unbounded_rrule(rrule: str) -> bool:
+    rule = str(rrule or "").upper()
+    if "FREQ=" not in rule:
+        return False
+    return "UNTIL=" not in rule and "COUNT=" not in rule
+
+
+def _input_has_bounded_cadence_deadline(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return False
+    cadence_tokens = (
+        "每天",
+        "每日",
+        "每晚",
+        "每早",
+        "每周",
+        "每月",
+        "每年",
+        "每小时",
+        "每分钟",
+        "每隔",
+        "daily",
+        "weekly",
+        "monthly",
+        "hourly",
+        "every ",
+    )
+    deadline_tokens = (
+        "截止",
+        "持续到",
+        "结束",
+        "之前",
+        "以前",
+        "until",
+        "before",
+        "through",
+        " by ",
+    )
+    deadline_patterns = (
+        r"\d{1,2}\s*月\s*\d{1,2}\s*(?:号|日)?\s*前",
+        r"\d{1,2}\s*(?:号|日)\s*前",
+        r"\d{1,2}\s*(?::\s*\d{1,2}|点)\s*前",
+    )
+    has_deadline = any(token in normalized for token in deadline_tokens) or any(
+        re.search(pattern, normalized) for pattern in deadline_patterns
+    )
+    return any(token in normalized for token in cadence_tokens) and has_deadline
+
+
 def _is_high_frequency_rrule(rrule: str) -> bool:
     rule = str(rrule or "").upper()
     return "FREQ=HOURLY" in rule or "FREQ=MINUTELY" in rule
@@ -1107,6 +1200,23 @@ def _unbounded_high_frequency_cadence_clarification_result(
             "action": "clarify",
             "intent_type": "clarify",
             "summary": f"{subject}要持续到什么时候结束？请告诉我截止时间。",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _bounded_cadence_deadline_loss_clarification_result(
+    decision: Any,
+) -> CapabilityResult:
+    title = str(_decision_value(decision, "title") or "").strip()
+    subject = title or "这个重复提醒"
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": f"{subject}有截止条件，请确认截止日期和最后一次提醒时间。",
         },
         metadata={"durable_write": False},
     )

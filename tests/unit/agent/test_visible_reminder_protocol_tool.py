@@ -14,7 +14,6 @@ from agent.reminder.models import (
     ReminderSchedule,
 )
 
-
 NOW = datetime(2026, 4, 28, 1, 0, tzinfo=UTC)
 
 
@@ -230,6 +229,27 @@ def test_create_derives_owner_target_and_timezone_from_session_state(monkeypatch
     assert session_state["tool_results"][0]["result_summary"] == (
         "已创建提醒：call mom（2026-04-29 10:30）"
     )
+
+
+def test_create_formats_daily_until_rrule_as_deadline_summary(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"id": "char-1"},
+        "conversation": {"id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-10T20:00:00+09:00",
+        rrule="FREQ=DAILY;UNTIL=20261206T150000Z",
+    )
+
+    assert result == "已创建提醒：跑步（每天 20:00，截止 2026-12-07 00:00）"
+    assert session_state["tool_results"][0]["result_summary"] == result
 
 
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):
@@ -570,7 +590,9 @@ def test_empty_batch_appends_failed_tool_result(monkeypatch):
     ]
 
 
-def test_missing_action_appends_clarifying_tool_result_without_service_call(monkeypatch):
+def test_missing_action_appends_clarifying_tool_result_without_service_call(
+    monkeypatch,
+):
     service = FakeReminderService()
     install_service(monkeypatch, service)
     session_state = {

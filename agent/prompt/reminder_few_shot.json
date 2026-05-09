@@ -39,22 +39,13 @@
     "input": "帮我记住今天任务，以这个版本为准\n\n15点-16点\n起床，开始帮我每小时打卡，打卡持续到20点\n跑步3公里\n\n20点\n睡觉，20点之后不要打卡",
     "decision": {
       "intent_type": "crud",
-      "action": "batch",
+      "action": "create",
+      "title": "打卡",
+      "trigger_at": "2026-04-30T15:00:00+09:00",
+      "rrule": "FREQ=HOURLY;UNTIL=20260430T110000Z",
       "schedule_basis": "explicit_cadence",
       "schedule_evidence": "15点开始每小时打卡，打卡持续到20点",
-      "deadline_at": "2026-04-30T20:00:00+09:00",
-      "operations": [
-        {
-          "action": "create",
-          "title": "打卡",
-          "trigger_at": "2026-04-30T15:00:00+09:00"
-        },
-        {
-          "action": "create",
-          "title": "打卡",
-          "trigger_at": "2026-04-30T16:00:00+09:00"
-        }
-      ]
+      "deadline_at": "2026-04-30T20:00:00+09:00"
     }
   },
   {

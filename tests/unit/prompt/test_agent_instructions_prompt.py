@@ -18,15 +18,13 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "Current time: 2026年04月30日12时00分" in instructions
     assert "create only when the user asks to be reminded" in instructions
     assert "Date-only or time-missing reminder requests clarify" in instructions
-    assert "Bounded cadence with a deadline enumerates one-shot operations" in (
+    assert "Bounded recurring cadence with a deadline uses one compact recurrence" in (
         instructions
     )
-    assert "Cadence with a deadline and no start uses the next future" in (
-        instructions
-    )
+    assert "Cadence with a deadline and no start uses the next future" in (instructions)
     assert "Preserve all meaningful title text" in instructions
     assert "Exclude sentence-final modal particles" in instructions
-    assert "Any decision with operations must use top-level action=\"batch\"" in (
+    assert 'Any decision with operations must use top-level action="batch"' in (
         instructions
     )
     assert "one operation per listed time" in instructions
@@ -115,8 +113,10 @@ def test_reminder_few_shots_are_input_context_not_system_prompt():
     assert "Reminder Few-Shot Decisions" not in instructions
 
 
-def test_reminder_detect_retry_input_keeps_batch_schema_constraints():
-    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+def test_reminder_detect_retry_input_keeps_schedule_schema_constraints():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
 
     retry_input = _build_reminder_retry_input(
         "我一般7:15起床，23:00睡觉。我需要你在上述这些时间提醒我",
@@ -125,8 +125,10 @@ def test_reminder_detect_retry_input_keeps_batch_schema_constraints():
     )
 
     assert "For same-message listed routine times" in retry_input
-    assert "schedule_basis=\"explicit_occurrences\"" in retry_input
+    assert 'schedule_basis="explicit_occurrences"' in retry_input
     assert "one operation per listed time" in retry_input
+    assert "bounded recurring cadence requests with a deadline" in retry_input
+    assert "deadline_at" in retry_input
     assert "Drop final particles" in retry_input
     assert "preserve quoted title" in retry_input
 

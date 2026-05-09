@@ -101,7 +101,9 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "### Active Pending Workflow" not in prompt
     assert "每天17:58锻炼" in prompt
     assert "Complete CRUD decisions must omit workflow_update" in prompt
-    assert "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
+    assert (
+        "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
+    )
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
@@ -453,7 +455,9 @@ async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_freq
 
     assert result.ok is True
     assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "正念冥想要持续到什么时候结束？请告诉我截止时间。"
+    assert (
+        result.content["summary"] == "正念冥想要持续到什么时候结束？请告诉我截止时间。"
+    )
 
 
 @pytest.mark.asyncio
@@ -664,6 +668,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
         title="离开时手机",
         trigger_at="2026-05-06T00:00:00+00:00",
     )
+
     class PrimaryAgent:
         async def arun(self, *, input, session_state):
             return SimpleNamespace(content=primary_decision)
@@ -741,7 +746,9 @@ async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails
                 return SimpleNamespace(
                     name="reminder",
                     ok=False,
-                    content={"summary": "这个提醒时间已经过去了，请告诉我一个未来的时间。"},
+                    content={
+                        "summary": "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+                    },
                     error="InvalidSchedule",
                     metadata={},
                 )
@@ -763,6 +770,148 @@ async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails
     assert executor.received == [primary_decision, retry_decision]
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：离开时手机"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-10T20:00:00+09:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天晚上八点",
+    )
+    retry_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-10T20:00:00+09:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天晚上八点，12月7号前",
+        deadline_at="2026-12-07T00:00:00+09:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "cadence and a deadline" in input
+            assert "deadline_at" in input
+            return SimpleNamespace(content=retry_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：跑步"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run("12月7号前，每天晚上八点提醒我跑步", _run_context())
+
+    assert executor.received == [retry_decision]
+    assert result.ok is True
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="吃药",
+        trigger_at="2026-05-06T22:00:00+00:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天睡前",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("睡前 is not a bounded deadline")
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：吃药"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run("每天睡前提醒我吃药", _run_context())
+
+    assert executor.received == [primary_decision]
+    assert result.ok is True
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_failcloses_bounded_cadence_deadline_loss():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-10T20:00:00+09:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天晚上八点",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("unsafe unbounded recurrence must not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("12月7号前，每天晚上八点提醒我跑步", _run_context())
+
+    assert result.content == {
+        "action": "clarify",
+        "intent_type": "clarify",
+        "summary": "跑步有截止条件，请确认截止日期和最后一次提醒时间。",
+    }
+    assert result.metadata["durable_write"] is False
 
 
 @pytest.mark.asyncio
@@ -806,8 +955,11 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
             assert "Retry reason: primary detector timed out" in input
             assert "Return only a valid ReminderDetectDecision" in input
             assert "Complete CRUD decisions must omit workflow_update" in input
-            assert "Noisy filler before a concrete clock time is not recurrence evidence" in input
-            assert "bounded cadence requests with a deadline" in input
+            assert (
+                "Noisy filler before a concrete clock time is not recurrence evidence"
+                in input
+            )
+            assert "bounded recurring cadence requests with a deadline" in input
             assert 'schedule_basis="explicit_cadence"' in input
             return SimpleNamespace(
                 content={

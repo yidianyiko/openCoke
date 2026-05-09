@@ -188,6 +188,37 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
     ]
 
 
+def test_deadline_at_is_preserved_as_rrule_until_for_bounded_recurring_create():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return "Reminder created."
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="跑步",
+        trigger_at="2026-05-10T20:00:00+09:00",
+        rrule="FREQ=DAILY",
+        deadline_at="2026-12-07T00:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天晚上八点",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(
+        decision,
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert calls[0]["rrule"] == "FREQ=DAILY;UNTIL=20261206T150000Z"
+    assert "deadline_at" not in calls[0]
+
+
 def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
     calls = []
 

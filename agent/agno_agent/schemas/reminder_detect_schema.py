@@ -42,8 +42,8 @@ class ReminderOperation(BaseModel):
     rrule: str = Field(
         default="",
         description=(
-            "RFC 5545 RRULE. Leave empty for bounded cadence/deadline batches; "
-            "enumerate those as one-shot operations."
+            "RFC 5545 RRULE. For bounded recurring cadence, include the RRULE "
+            "and set top-level deadline_at."
         ),
     )
 
@@ -101,15 +101,16 @@ class ReminderDetectDecision(BaseModel):
     rrule: str = Field(
         default="",
         description=(
-            "RFC 5545 RRULE; crud create/update only. Leave empty for bounded "
-            "cadence/deadline requests and enumerate one-shot operations instead."
+            "RFC 5545 RRULE; crud create/update only. For bounded recurring "
+            "cadence, include RRULE and top-level deadline_at."
         ),
     )
     deadline_at: str = Field(
         default="",
         description=(
-            "Aware ISO 8601 deadline for interval/deadline batches. "
-            "When set, every create operation trigger_at must be at or before it."
+            "Aware ISO 8601 deadline for bounded recurring cadence or "
+            "interval/deadline batches. When set, every create operation "
+            "trigger_at must be at or before it."
         ),
     )
     schedule_basis: Literal[

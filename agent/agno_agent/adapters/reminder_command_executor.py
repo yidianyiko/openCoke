@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, is_dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
@@ -9,7 +10,6 @@ from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
 from conf.config import CONF
 from util.log_util import get_logger
-
 
 logger = get_logger(__name__)
 
@@ -23,7 +23,11 @@ _REMINDER_DECISION_FIELDS = (
     "new_title",
     "new_trigger_at",
     "rrule",
+    "deadline_at",
     "operations",
+)
+_TOOL_DECISION_FIELDS = tuple(
+    field for field in _REMINDER_DECISION_FIELDS if field != "deadline_at"
 )
 
 
@@ -94,6 +98,27 @@ def _normalize_operations(operations: Any) -> list[Any] | None:
         return [_normalize_operation(operations)]
 
 
+def _rrule_with_deadline(rrule: Any, deadline_at: Any) -> Any:
+    if not isinstance(rrule, str) or not rrule.strip():
+        return rrule
+    if not isinstance(deadline_at, str) or not deadline_at.strip():
+        return rrule
+
+    normalized = rrule.strip()
+    upper_parts = {part.split("=", 1)[0].upper() for part in normalized.split(";")}
+    if "UNTIL" in upper_parts or "COUNT" in upper_parts:
+        return normalized
+
+    try:
+        deadline = datetime.fromisoformat(deadline_at.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return normalized
+    if deadline.tzinfo is None or deadline.utcoffset() is None:
+        return normalized
+    until = deadline.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{normalized};UNTIL={until}"
+
+
 def _build_session_state(run_context: AgentRunContext) -> dict[str, Any]:
     session_state: dict[str, Any] = {
         "user": {
@@ -161,6 +186,11 @@ class ReminderCommandExecutor:
                 for field in _REMINDER_DECISION_FIELDS
             }
             kwargs["operations"] = _normalize_operations(kwargs["operations"])
+            kwargs["rrule"] = _rrule_with_deadline(
+                kwargs.get("rrule"),
+                kwargs.get("deadline_at"),
+            )
+            kwargs = {field: kwargs.get(field) for field in _TOOL_DECISION_FIELDS}
 
             summary = self._tool_entrypoint(**kwargs)
         except Exception as exc:

@@ -1365,7 +1365,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 90
+    assert len(expectations) <= 110
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1381,7 +1381,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 88
+    assert len(selected) == 91
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1439,7 +1439,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 90
+    assert report["fixture_overrides"] <= 110
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -2052,6 +2052,46 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
     )
 
     assert errors == []
+
+
+def test_validate_observations_enforces_bounded_recurring_deadline_fixture():
+    case = normal_eval.ReminderNormalPathCase(
+        input="12月7号前，每天晚上八点提醒我跑步",
+        expected_intent="reminder",
+        matched_keywords=["提醒", "每天"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "跑步",
+                    "local_time": "20:00:00",
+                    "recurring": True,
+                    "rrule_contains": "UNTIL",
+                    "output_terms": ["截止"],
+                }
+            ],
+        },
+    )
+    reminder = {
+        "title": "跑步",
+        "lifecycle_state": "active",
+        "next_fire_at": datetime(2026, 5, 11, 11, 0, tzinfo=timezone.utc),
+        "schedule": {
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=DAILY",
+        },
+    }
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：跑步（每天 20:00）"}],
+        reminders=[reminder],
+    )
+
+    assert "expected_rrule_missing:跑步:UNTIL" in errors
+    assert "user_output_missing_expected_term:跑步:截止" in errors
 
 
 def test_validate_observations_rejects_user_output_recurrence_mismatch():

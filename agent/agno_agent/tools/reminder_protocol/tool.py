@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import contextvars
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agno.tools import tool
 
@@ -343,10 +344,7 @@ def _run_operation(
 def _user_safe_reminder_error_message(exc: ReminderError) -> str:
     if exc.code == "InvalidSchedule" and exc.detail.get("reason") == "past_one_shot":
         return "这个提醒时间已经过去了，请告诉我一个未来的时间。"
-    if (
-        exc.code == "InvalidArgument"
-        and exc.detail.get("reason") == "missing_target"
-    ):
+    if exc.code == "InvalidArgument" and exc.detail.get("reason") == "missing_target":
         return _target_resolution_message(str(exc.detail.get("action") or ""), None)
     return exc.user_message
 
@@ -623,8 +621,13 @@ def _format_list_summary(reminders: list[Reminder]) -> str:
 def _format_reminder_with_schedule(reminder: Reminder) -> str:
     schedule = reminder.schedule
     time_text = schedule.local_time.strftime("%H:%M")
-    if schedule.rrule == "FREQ=DAILY":
+    until_text = _format_rrule_until(schedule.rrule, schedule.timezone)
+    if schedule.rrule == "FREQ=DAILY" or (
+        schedule.rrule and schedule.rrule.startswith("FREQ=DAILY;UNTIL=")
+    ):
         schedule_text = f"每天 {time_text}"
+        if until_text:
+            schedule_text = f"{schedule_text}，截止 {until_text}"
     elif schedule.rrule:
         schedule_text = (
             f"{schedule.local_date.isoformat()} {time_text}，循环规则 {schedule.rrule}"
@@ -632,6 +635,21 @@ def _format_reminder_with_schedule(reminder: Reminder) -> str:
     else:
         schedule_text = f"{schedule.local_date.isoformat()} {time_text}"
     return f"{reminder.title}（{schedule_text}）"
+
+
+def _format_rrule_until(rrule: str | None, timezone: str) -> str:
+    if not rrule:
+        return ""
+    match = re.search(r"(?:^|;)UNTIL=(\d{8}T\d{6}Z)(?:;|$)", rrule)
+    if not match:
+        return ""
+    try:
+        until_at = datetime.strptime(match.group(1), "%Y%m%dT%H%M%SZ").replace(
+            tzinfo=UTC
+        )
+        return until_at.astimezone(ZoneInfo(timezone)).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, ZoneInfoNotFoundError):
+        return ""
 
 
 def _action_failure_label(action: str) -> str:

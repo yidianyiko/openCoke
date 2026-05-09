@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-38-1778345650",
+    "message": null,
+    "offset": 38,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我当然可以提醒你！请告诉我你希望我什么时候提醒你，以及提醒你什么内容？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 38,
+          "input": "怎么这样！那你到底会不会提醒我",
+          "user_id": "8ed273cd17db72b77d3052fa",
+          "original_from_user": "692c4430a538f0baad5561de",
+          "input_message_id": "69ff66b4b05b0abcf9add7e7",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff66c0c2e28b8321b473cf",
+              "expect_output_timestamp": 1778345664,
+              "handled_timestamp": 1778345664,
+              "status": "pending",
+              "message_type": "text",
+              "message": "我当然可以提醒你！请告诉我你希望我什么时候提醒你，以及提醒你什么内容？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-20-119-case-38-1778345650",
+                "case_index": 38,
+                "original_from_user": "692c4430a538f0baad5561de",
+                "source_id": "692d80d164d834c3c06164ba",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-20-119-case-38-1778345650-case-38",
+                  "business_conversation_key": "corpus-20-119-case-38-1778345650-case-38",
+                  "causal_inbound_event_id": "corpus-20-119-case-38-1778345650-case-38-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "8ed273cd17db72b77d3052fa"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 13.026
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 38,
+      "input": "怎么这样！那你到底会不会提醒我",
+      "user_id": "8ed273cd17db72b77d3052fa",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69ff66b4b05b0abcf9add7e7",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff66c0c2e28b8321b473cf",
+          "expect_output_timestamp": 1778345664,
+          "handled_timestamp": 1778345664,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我当然可以提醒你！请告诉我你希望我什么时候提醒你，以及提醒你什么内容？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-38-1778345650",
+            "case_index": 38,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692d80d164d834c3c06164ba",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-38-1778345650-case-38",
+              "business_conversation_key": "corpus-20-119-case-38-1778345650-case-38",
+              "causal_inbound_event_id": "corpus-20-119-case-38-1778345650-case-38-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8ed273cd17db72b77d3052fa"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.026
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}
