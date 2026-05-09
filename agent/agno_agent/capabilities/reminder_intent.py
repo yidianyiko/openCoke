@@ -236,7 +236,7 @@ class ReminderIntentPort:
                 content={"action": "none", "intent_type": intent_type},
                 metadata={"durable_write": False},
             )
-        if _is_unbounded_high_frequency_cadence(decision):
+        if _is_unbounded_high_frequency_cadence(decision, input_message=input_message):
             return _unbounded_high_frequency_cadence_clarification_result(decision)
 
         result = self.command_executor.execute(decision, run_context)
@@ -368,24 +368,50 @@ def _is_clarification_decision(decision: Any) -> bool:
     )
 
 
-def _is_unbounded_high_frequency_cadence(decision: Any) -> bool:
-    if _decision_value(decision, "schedule_basis") != "explicit_cadence":
-        return False
-    if str(_decision_value(decision, "deadline_at") or "").strip():
-        return False
+def _is_unbounded_high_frequency_cadence(
+    decision: Any,
+    *,
+    input_message: str = "",
+) -> bool:
     rrules = [str(_decision_value(decision, "rrule") or "")]
     operations = _decision_value(decision, "operations") or []
     for operation in operations:
         rrules.append(str(_decision_value(operation, "rrule") or ""))
-    evidence = str(_decision_value(decision, "schedule_evidence") or "")
-    if any(_is_high_frequency_rrule(rrule) for rrule in rrules):
+    if any(_is_unbounded_high_frequency_rrule(rrule) for rrule in rrules):
         return True
-    return _is_high_frequency_evidence(evidence)
+    if _has_explicit_deadline(decision):
+        return False
+    evidence = str(_decision_value(decision, "schedule_evidence") or "")
+    if (
+        _decision_value(decision, "schedule_basis") == "explicit_cadence"
+        and _is_high_frequency_evidence(evidence)
+    ):
+        return True
+    if _input_has_high_frequency_without_deadline(input_message):
+        return True
+    return False
+
+
+def _has_explicit_deadline(decision: Any) -> bool:
+    if str(_decision_value(decision, "deadline_at") or "").strip():
+        return True
+    operations = _decision_value(decision, "operations") or []
+    return any(
+        str(_decision_value(operation, "deadline_at") or "").strip()
+        for operation in operations
+    )
 
 
 def _is_high_frequency_rrule(rrule: str) -> bool:
     rule = str(rrule or "").upper()
     return "FREQ=HOURLY" in rule or "FREQ=MINUTELY" in rule
+
+
+def _is_unbounded_high_frequency_rrule(rrule: str) -> bool:
+    rule = str(rrule or "").upper()
+    if not _is_high_frequency_rrule(rule):
+        return False
+    return "UNTIL=" not in rule and "COUNT=" not in rule
 
 
 def _is_high_frequency_evidence(evidence: str) -> bool:
@@ -396,10 +422,30 @@ def _is_high_frequency_evidence(evidence: str) -> bool:
         "every hour",
         "every minute",
         "每小时",
+        "每个小时",
+        "每一小时",
         "每分钟",
         "每隔",
     )
     return any(token in text for token in tokens)
+
+
+def _input_has_high_frequency_without_deadline(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if not _is_high_frequency_evidence(normalized):
+        return False
+    deadline_tokens = (
+        "到",
+        "截止",
+        "结束",
+        "持续到",
+        "until",
+        "through",
+        "ending",
+        "ends",
+        "end at",
+    )
+    return not any(token in normalized for token in deadline_tokens)
 
 
 def _clarification_result(decision: Any) -> CapabilityResult:
