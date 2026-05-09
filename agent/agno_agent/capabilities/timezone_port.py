@@ -69,18 +69,25 @@ class TimezonePort:
             self.handler = _default_handler
 
         content = dict(self.handler(input_message, run_context, args))
+        ok = bool(content.get("ok", True))
         message = content.get("message")
-        if isinstance(message, str) and message.strip() and not content.get("summary"):
+        if (
+            ok
+            and isinstance(message, str)
+            and message.strip()
+            and not content.get("summary")
+        ):
             content["summary"] = message.strip()
         if (
-            isinstance(message, str)
+            ok
+            and isinstance(message, str)
             and message.strip()
             and not content.get("visible_summary")
         ):
             content["visible_summary"] = message.strip()
         return CapabilityResult(
             name="timezone",
-            ok=bool(content.get("ok", True)),
+            ok=ok,
             content=content,
             metadata={"durable_write": bool(content.get("state"))},
         )

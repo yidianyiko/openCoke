@@ -146,6 +146,31 @@ async def test_rule2_joins_multiple_visible_summaries(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatch):
+    timezone_result = CapabilityResult(
+        name="timezone",
+        ok=False,
+        content={"message": "unsupported timezone action: get"},
+    )
+    reminder_result = CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={"summary": "已创建提醒：离开时手机（2026-05-10 11:00）"},
+        metadata={"durable_write": True},
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": ""}],
+        tool_results=[timezone_result, reminder_result],
+        monkeypatch=monkeypatch,
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：离开时手机（2026-05-10 11:00）"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": "ordinary chat"}],

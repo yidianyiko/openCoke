@@ -35,7 +35,11 @@ class CapabilityResult:
 
     @property
     def visible_summary(self) -> str | None:
-        for key in ("visible_summary", "summary", "message"):
+        keys = ("visible_summary", "summary", "message") if self.ok else (
+            "visible_summary",
+            "summary",
+        )
+        for key in keys:
             value = self.content.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
