@@ -34,11 +34,9 @@ Consolidate execution plans into a single canonical directory:
 - All 21 plans plus `README.md` and `_template.md` were `git mv`'d from
   `docs/exec-plans/` to `docs/superpowers/plans/` (no filename
   collisions). The `docs/exec-plans/` directory was deleted.
-- `AGENTS.md`, `README.md`, the design-docs (`index.md`, `core-beliefs.md`,
-  `golden-rules.md`, `human-ai-working-contract.md`,
-  `coke-working-contract.md`), `docs/fitness/coke-verification-matrix.md`,
-  `docs/fitness/surfaces.yaml`, ADR 0001, and ADR 0002 were updated to
-  reflect the new location.
+- `AGENTS.md`, `README.md`, the repo-OS design docs,
+  `docs/fitness/coke-verification-matrix.md`, `docs/fitness/surfaces.yaml`,
+  ADR 0001, and ADR 0002 were updated to reflect the new location.
 - `tests/unit/test_repo_os_structure.py` was updated: it no longer
   asserts `docs/exec-plans/` exists, and its rule-text assertions check
   the new "Put new execution plans in `docs/superpowers/plans/`" wording.

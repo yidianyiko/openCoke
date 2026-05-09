@@ -8,8 +8,6 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_repo_os_required_files_exist():
     required = [
         ROOT / "docs" / "design-docs" / "index.md",
-        ROOT / "docs" / "design-docs" / "core-beliefs.md",
-        ROOT / "docs" / "design-docs" / "golden-rules.md",
         ROOT / "docs" / "design-docs" / "human-ai-working-contract.md",
         ROOT / "docs" / "design-docs" / "coke-working-contract.md",
         ROOT / "docs" / "adr" / "README.md",
@@ -169,11 +167,11 @@ def test_agents_md_defines_issue_product_and_release_loops():
 
 def test_docs_require_code_migrations_to_update_canonical_docs():
     agents_text = (ROOT / "AGENTS.md").read_text()
-    golden_rules_text = (
-        ROOT / "docs" / "design-docs" / "golden-rules.md"
+    human_ai_contract_text = (
+        ROOT / "docs" / "design-docs" / "human-ai-working-contract.md"
     ).read_text()
 
-    for text in [agents_text, golden_rules_text]:
+    for text in [agents_text, human_ai_contract_text]:
         assert "If a code migration changes runtime behavior" in text
         assert "architecture boundaries" in text
         assert "protocol shape" in text

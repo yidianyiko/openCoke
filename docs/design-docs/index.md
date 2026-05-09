@@ -8,13 +8,10 @@ sessions.
 
 ## Canonical Documents
 
-- [`core-beliefs.md`](./core-beliefs.md): the operating beliefs behind the
-  repository control layer.
-- [`golden-rules.md`](./golden-rules.md): day-to-day rules for documentation,
-  delivery, and verification.
 - [`human-ai-working-contract.md`](./human-ai-working-contract.md): critical
-  collaboration rules for humans and AI agents, including verification trust
-  levels and test skepticism.
+  collaboration rules for humans and AI agents, including repository beliefs,
+  documentation rules, delivery rules, verification trust levels, and test
+  skepticism.
 - [`coke-working-contract.md`](./coke-working-contract.md): the Coke-specific
   work surfaces and planning contract.
 - [`interface-contract.md`](./interface-contract.md): the canonical public and

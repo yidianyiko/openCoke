@@ -12,8 +12,6 @@ typeset -a required_files=(
   "docs/ARCHITECTURE.md"
   "docs/architecture.md"
   "docs/design-docs/index.md"
-  "docs/design-docs/core-beliefs.md"
-  "docs/design-docs/golden-rules.md"
   "docs/design-docs/human-ai-working-contract.md"
   "docs/design-docs/coke-working-contract.md"
   "docs/adr/README.md"

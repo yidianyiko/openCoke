@@ -4,6 +4,30 @@ This repository should be usable by humans and AI agents without relying on
 private chat memory. The goal is not to make agents more confident; it is to
 make their work easier to inspect, constrain, and verify.
 
+## Repository Beliefs
+
+1. The repository is the system of record. If an agent cannot find a durable
+   rule, plan, or verification step in the repo, it is operationally missing.
+2. Each kind of knowledge should have one canonical home:
+   - repository workflow rules: `docs/design-docs/` or `docs/adr/`
+   - design specs: `docs/superpowers/specs/`
+   - execution plans: `docs/superpowers/plans/`
+   - local issues, incidents, and runbooks: `docs/issues/`
+   - product/API surface index: `docs/product-specs/FEATURE_TREE.md`
+   - verification rules: `docs/fitness/`
+   - generated verification evidence: `artifacts/evidence/`
+   - product direction and runtime docs: `docs/roadmap.md`,
+     `docs/ARCHITECTURE.md`, `docs/deploy.md`, and
+     `docs/clawscale_bridge.md`
+3. Specs and plans live together, and freshness is per-file. Verify any
+   individual spec or plan against current `main`, `docs/ARCHITECTURE.md`, and
+   touched code before treating it as truth.
+4. Methodology must be visible to new agents. Routing files should explain
+   where to read, where to write, and what counts as complete without requiring
+   chat reconstruction.
+5. Verification must be stronger than confidence. Completion requires fresh
+   evidence: tests, checks, smoke commands, or reviewed outputs.
+
 ## Operating Principles
 
 1. Treat repository state as the authority, but treat every authority as
@@ -32,6 +56,24 @@ Every non-trivial task should leave these questions answerable from the repo:
 For multi-step or risky work, write the execution plan in `docs/superpowers/plans/`.
 For durable rules or decisions, use `docs/design-docs/` or `docs/adr/`.
 For generated run evidence, use `artifacts/evidence/`.
+
+## Documentation And Delivery Rules
+
+1. Keep `AGENTS.md` as a routing layer, not a knowledge dump.
+2. Put local issue, incident, one-off repair, and investigation records in
+   `docs/issues/`.
+3. Keep product/API surface discovery in
+   `docs/product-specs/FEATURE_TREE.md`.
+4. Keep release workflow in `docs/release-guide.md` and
+   `docs/RELEASE_CHECKLIST.md`.
+5. If a workflow rule changes, update the canonical docs in the same change.
+6. If a code migration changes runtime behavior, architecture boundaries,
+   protocol shape, deployment flow, or surface ownership, update the
+   corresponding canonical docs in the same change. Do not leave stale docs
+   behind as "historical context" unless they are explicitly marked dated or
+   superseded.
+7. Prefer short, focused docs over sprawling catch-all notes. Add structure only
+   when it reduces ambiguity, improves handoff, or strengthens verification.
 
 ## Verification Trust Levels
 
