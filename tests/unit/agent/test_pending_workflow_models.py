@@ -112,6 +112,28 @@ def test_legal_ready_to_executing_transition_is_allowed():
     assert validate_status_transition("ready_to_execute", "executing") is True
 
 
+def test_slot_transition_rejects_filled_back_to_missing():
+    from agent.agno_agent.runtime.pending_workflow import (
+        PendingWorkflowEnvelope,
+        validate_slot_transitions,
+    )
+
+    current = PendingWorkflowEnvelope.model_validate(
+        _workflow_payload(
+            slots={"title": {"value": "打卡", "status": "filled"}},
+            missing_fields=[],
+        )
+    )
+    proposed = PendingWorkflowEnvelope.model_validate(
+        _workflow_payload(
+            slots={"title": {"value": None, "status": "missing"}},
+            missing_fields=["title"],
+        )
+    )
+
+    assert validate_slot_transitions(current, proposed) == ("title:filled->missing",)
+
+
 def test_pending_workflow_schema_has_typed_slot_values_and_draft_operations():
     from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
 

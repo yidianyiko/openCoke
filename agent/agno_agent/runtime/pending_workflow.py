@@ -58,6 +58,13 @@ _LEGAL_STATUS_TRANSITIONS: dict[str, set[str]] = {
     "expired": set(),
     "failed": set(),
 }
+_LEGAL_SLOT_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "missing": {"filled", "assumed", "needs_confirmation", "invalid"},
+    "assumed": {"filled", "invalid"},
+    "needs_confirmation": {"filled", "invalid"},
+    "invalid": {"filled", "missing"},
+    "filled": {"needs_confirmation", "invalid"},
+}
 
 
 class WorkflowOrigin(BaseModel):
@@ -135,6 +142,27 @@ def validate_status_transition(current: str | None, proposed: str) -> bool:
     if current is None:
         return proposed in {"draft", "awaiting_user", "ready_to_execute"}
     return proposed in _LEGAL_STATUS_TRANSITIONS.get(current, set())
+
+
+def validate_slot_transitions(
+    current: PendingWorkflowEnvelope | None,
+    proposed: PendingWorkflowEnvelope,
+) -> tuple[str, ...]:
+    if current is None:
+        return ()
+    violations: list[str] = []
+    for field_name, proposed_slot in proposed.slots.items():
+        current_slot = current.slots.get(field_name)
+        if current_slot is None or current_slot.status == proposed_slot.status:
+            continue
+        if proposed_slot.status not in _LEGAL_SLOT_STATUS_TRANSITIONS.get(
+            current_slot.status,
+            set(),
+        ):
+            violations.append(
+                f"{field_name}:{current_slot.status}->{proposed_slot.status}"
+            )
+    return tuple(violations)
 
 
 def normalize_workflow_invariants(

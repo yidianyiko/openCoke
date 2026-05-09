@@ -78,8 +78,9 @@ def test_load_active_for_conversation_filters_active_statuses(mock_collection):
     dao = PendingWorkflowDAO()
     dao.collection = mock_collection
     mock_collection.find_one.return_value = _document()
+    now = datetime(2026, 5, 9, 1, 30, tzinfo=UTC)
 
-    result = dao.load_active_for_conversation("user-1", "conv-1")
+    result = dao.load_active_for_conversation("user-1", "conv-1", now=now)
 
     assert result["id"] == "workflow_1"
     mock_collection.find_one.assert_called_once_with(
@@ -89,6 +90,7 @@ def test_load_active_for_conversation_filters_active_statuses(mock_collection):
             "status": {
                 "$in": ["draft", "awaiting_user", "ready_to_execute", "executing"]
             },
+            "expires_at": {"$gt": now},
         },
         sort=[("updated_at", -1)],
     )
@@ -116,7 +118,9 @@ def test_upsert_new_active_workflow_does_not_replace_existing_active_workflow(
 
     dao = PendingWorkflowDAO()
     dao.collection = mock_collection
-    mock_collection.insert_one.side_effect = DuplicateKeyError("duplicate active workflow")
+    mock_collection.insert_one.side_effect = DuplicateKeyError(
+        "duplicate active workflow"
+    )
 
     assert dao.upsert_new_active_workflow(_document(revision=7)) is False
 
@@ -132,10 +136,24 @@ def test_cas_update_requires_expected_revision_and_increments(mock_collection):
     dao.collection = mock_collection
     mock_collection.update_one.return_value = MagicMock(matched_count=1)
 
-    assert dao.cas_update_workflow("workflow_1", 3, _document(revision=3)) is True
+    assert (
+        dao.cas_update_workflow(
+            "workflow_1",
+            "user-1",
+            "conv-1",
+            3,
+            _document(revision=3),
+        )
+        is True
+    )
 
     selector, update = mock_collection.update_one.call_args.args
-    assert selector == {"id": "workflow_1", "revision": 3}
+    assert selector == {
+        "id": "workflow_1",
+        "owner_user_id": "user-1",
+        "conversation_id": "conv-1",
+        "revision": 3,
+    }
     assert update["$set"]["revision"] == 4
 
 
@@ -146,7 +164,16 @@ def test_cas_update_returns_false_on_stale_revision(mock_collection):
     dao.collection = mock_collection
     mock_collection.update_one.return_value = MagicMock(matched_count=0)
 
-    assert dao.cas_update_workflow("workflow_1", 3, _document(revision=3)) is False
+    assert (
+        dao.cas_update_workflow(
+            "workflow_1",
+            "user-1",
+            "conv-1",
+            3,
+            _document(revision=3),
+        )
+        is False
+    )
 
 
 def test_pending_workflow_flags_default_off():

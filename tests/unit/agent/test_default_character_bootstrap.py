@@ -1,6 +1,7 @@
 from agent.prompt.character import get_character_prompt, get_character_status
 from agent.role.bootstrap import (
     build_default_character_payload,
+    ensure_bootstrap_indexes,
     ensure_default_character_seeded,
 )
 
@@ -51,7 +52,10 @@ def test_coke_system_prompt_includes_poke_inspired_texting_rules():
     assert "warm but never sycophantic" in prompt
     assert "subtle wit" in prompt
     assert "match the user's message length" in prompt
-    assert "Never expose workflows, tools, model routing, logs, or internal agents" in prompt
+    assert (
+        "Never expose workflows, tools, model routing, logs, or internal agents"
+        in prompt
+    )
     assert "Only promise a future reminder" in prompt
     assert "must refuse" not in prompt
     assert "work-related tasks" not in prompt
@@ -60,10 +64,33 @@ def test_coke_system_prompt_includes_poke_inspired_texting_rules():
 def test_ensure_default_character_seeded_is_idempotent():
     user_dao = FakeUserDAO()
 
-    first_id = ensure_default_character_seeded(user_dao=user_dao, character_alias="qiaoyun")
-    second_id = ensure_default_character_seeded(user_dao=user_dao, character_alias="qiaoyun")
+    first_id = ensure_default_character_seeded(
+        user_dao=user_dao, character_alias="qiaoyun"
+    )
+    second_id = ensure_default_character_seeded(
+        user_dao=user_dao, character_alias="qiaoyun"
+    )
 
     assert first_id == second_id
     stored = user_dao.find_characters({"name": "qiaoyun"}, limit=1)[0]
     assert stored["_id"] == first_id
     assert stored["user_info"]["description"] == get_character_prompt("qiaoyun")
+
+
+def test_bootstrap_creates_pending_workflow_indexes():
+    class FakePendingWorkflowDAO:
+        def __init__(self):
+            self.created = False
+
+        def create_indexes(self):
+            self.created = True
+
+    user_dao = FakeUserDAO()
+    pending_workflow_dao = FakePendingWorkflowDAO()
+
+    ensure_bootstrap_indexes(
+        user_dao=user_dao,
+        pending_workflow_dao=pending_workflow_dao,
+    )
+
+    assert pending_workflow_dao.created is True

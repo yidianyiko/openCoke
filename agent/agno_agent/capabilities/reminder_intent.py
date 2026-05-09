@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from datetime import date, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -16,6 +18,7 @@ from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.pending_workflow import (
     PendingWorkflowEnvelope,
     normalize_workflow_invariants,
+    validate_slot_transitions,
     validate_status_transition,
     workflow_to_document,
 )
@@ -36,6 +39,9 @@ class _WorkflowPersistenceOutcome:
     had_update: bool = False
     workflow: PendingWorkflowEnvelope | None = None
     saved: bool = False
+    stored_revision: int | None = None
+    concurrent_drop: bool = False
+    fresh_workflow: Mapping[str, Any] | None = None
 
 
 def _float_env(name: str, default: float) -> float:
@@ -112,6 +118,7 @@ def _build_reminder_retry_input(
     *,
     reason: str,
 ) -> str:
+    workflow_block = _active_workflow_prompt_block(run_context)
     return f"""### Time
 {run_context.current_time.isoformat()}
 
@@ -136,6 +143,7 @@ Use the activity next to each listed time as the title; do not ask for daily con
 When the user explicitly lists multiple reminder times and tasks, create each requested reminder even if times are close together; do not ask whether to merge them.
 For bounded cadence requests with a deadline, use action="batch", schedule_basis="explicit_cadence",
 schedule_evidence, deadline_at, and one-shot operations at or before deadline_at instead of RRULE.
+{workflow_block}
 
 ### 当前用户消息
 {input_message}"""
@@ -222,7 +230,7 @@ class ReminderIntentPort:
             )
             retry_decision = await self._run_retry_detector(
                 input_message,
-                run_context,
+                detector_run_context,
                 session_state,
                 reason="primary detector timed out",
                 timeout_seconds=_agent_runtime_reminder_detect_timeout_retry_seconds(),
@@ -233,7 +241,7 @@ class ReminderIntentPort:
         if _should_retry_for_quoted_title_loss(input_message, decision):
             retry_decision = await self._run_retry_detector(
                 input_message,
-                run_context,
+                detector_run_context,
                 session_state,
                 reason="primary detector dropped quoted reminder title content",
             )
@@ -244,7 +252,7 @@ class ReminderIntentPort:
         if _is_clarification_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
                 input_message,
-                run_context,
+                detector_run_context,
                 session_state,
                 reason="primary detector returned no executable decision",
                 timeout_seconds=_float_env(
@@ -255,26 +263,34 @@ class ReminderIntentPort:
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
             elif _is_clarification_decision(retry_decision):
-                self._persist_workflow_update(
+                retry_outcome = self._persist_workflow_update(
                     retry_decision, run_context, active_workflow
                 )
+                if retry_outcome.concurrent_drop:
+                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             else:
-                self._persist_workflow_update(decision, run_context, active_workflow)
+                fallback_outcome = self._persist_workflow_update(
+                    decision, run_context, active_workflow
+                )
+                if fallback_outcome.concurrent_drop:
+                    return _fresh_workflow_state_result(fallback_outcome.fresh_workflow)
                 return _clarification_result(decision)
         if not _should_execute_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
                 input_message,
-                run_context,
+                detector_run_context,
                 session_state,
                 reason="primary detector returned no executable decision",
             )
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
             elif _is_clarification_decision(retry_decision):
-                self._persist_workflow_update(
+                retry_outcome = self._persist_workflow_update(
                     retry_decision, run_context, active_workflow
                 )
+                if retry_outcome.concurrent_drop:
+                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
                 return _timeout_clarification_result()
@@ -287,6 +303,8 @@ class ReminderIntentPort:
             run_context,
             active_workflow,
         )
+        if workflow_outcome.concurrent_drop:
+            return _fresh_workflow_state_result(workflow_outcome.fresh_workflow)
         if _is_clarification_decision(decision):
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
@@ -306,7 +324,29 @@ class ReminderIntentPort:
         if _is_unbounded_high_frequency_cadence(decision, input_message=input_message):
             return _unbounded_high_frequency_cadence_clarification_result(decision)
 
+        execution_workflow = workflow_outcome.workflow
+        execution_revision = workflow_outcome.stored_revision
+        if workflow_outcome.had_update and execution_workflow is not None:
+            executing_outcome = self._persist_workflow_status(
+                execution_workflow,
+                run_context,
+                expected_revision=execution_revision,
+                status="executing",
+            )
+            if not executing_outcome.saved:
+                return _fresh_workflow_state_result(executing_outcome.fresh_workflow)
+            execution_workflow = executing_outcome.workflow
+            execution_revision = executing_outcome.stored_revision
+
         result = self.command_executor.execute(decision, run_context)
+        if workflow_outcome.had_update and execution_workflow is not None:
+            terminal_status = "completed" if result.ok else "failed"
+            self._persist_workflow_status(
+                execution_workflow,
+                run_context,
+                expected_revision=execution_revision,
+                status=terminal_status,
+            )
         return CapabilityResult(
             name=result.name,
             ok=result.ok,
@@ -324,6 +364,7 @@ class ReminderIntentPort:
         return self.pending_workflow_dao.load_active_for_conversation(
             run_context.user.id,
             run_context.conversation.id,
+            now=run_context.current_time,
         )
 
     def _persist_workflow_update(
@@ -336,9 +377,7 @@ class ReminderIntentPort:
             return _WorkflowPersistenceOutcome()
         workflow = _workflow_update_from_decision(decision, run_context)
         if workflow is None:
-            return _WorkflowPersistenceOutcome(
-                had_update=_decision_value(decision, "workflow_update") is not None
-            )
+            return _WorkflowPersistenceOutcome()
         normalized_workflow, violations = normalize_workflow_invariants(workflow)
         if violations:
             logger.warning(
@@ -361,6 +400,20 @@ class ReminderIntentPort:
                 },
             )
             return _WorkflowPersistenceOutcome(had_update=True)
+        slot_violations = validate_slot_transitions(
+            _active_workflow_envelope(active_workflow),
+            normalized_workflow,
+        )
+        if slot_violations:
+            logger.warning(
+                "workflow_invariant_violation",
+                extra={
+                    "conversation_id": run_context.conversation.id,
+                    "workflow_id": normalized_workflow.id,
+                    "slot_violations": slot_violations,
+                },
+            )
+            return _WorkflowPersistenceOutcome(had_update=True)
         if active_workflow is None:
             saved = self.pending_workflow_dao.upsert_new_active_workflow(
                 _workflow_storage_document(
@@ -377,10 +430,14 @@ class ReminderIntentPort:
                         "workflow_id": normalized_workflow.id,
                     },
                 )
+                fresh_workflow = self._load_active_pending_workflow(run_context)
             return _WorkflowPersistenceOutcome(
                 had_update=True,
                 workflow=normalized_workflow,
                 saved=saved,
+                stored_revision=0 if saved else None,
+                concurrent_drop=not saved,
+                fresh_workflow=fresh_workflow if not saved else None,
             )
 
         active_workflow_id = str(active_workflow.get("id") or "").strip()
@@ -398,6 +455,8 @@ class ReminderIntentPort:
         revision = int(active_workflow.get("revision") or 0)
         saved = self.pending_workflow_dao.cas_update_workflow(
             normalized_workflow.id,
+            run_context.user.id,
+            run_context.conversation.id,
             revision,
             _workflow_storage_document(
                 normalized_workflow,
@@ -414,10 +473,73 @@ class ReminderIntentPort:
                     "revision": revision,
                 },
             )
+            fresh_workflow = self._load_active_pending_workflow(run_context)
         return _WorkflowPersistenceOutcome(
             had_update=True,
             workflow=normalized_workflow,
             saved=saved,
+            stored_revision=revision + 1 if saved else None,
+            concurrent_drop=not saved,
+            fresh_workflow=fresh_workflow if not saved else None,
+        )
+
+    def _persist_workflow_status(
+        self,
+        workflow: PendingWorkflowEnvelope,
+        run_context: AgentRunContext,
+        *,
+        expected_revision: int | None,
+        status: str,
+    ) -> _WorkflowPersistenceOutcome:
+        if (
+            not self.pending_workflow_enabled
+            or self.pending_workflow_dao is None
+            or expected_revision is None
+        ):
+            return _WorkflowPersistenceOutcome()
+        if not validate_status_transition(workflow.status, status):
+            logger.warning(
+                "workflow_invariant_violation",
+                extra={
+                    "conversation_id": run_context.conversation.id,
+                    "workflow_id": workflow.id,
+                    "current_status": workflow.status,
+                    "proposed_status": status,
+                },
+            )
+            return _WorkflowPersistenceOutcome(had_update=True)
+        updated_workflow = workflow.model_copy(update={"status": status})
+        saved = self.pending_workflow_dao.cas_update_workflow(
+            updated_workflow.id,
+            run_context.user.id,
+            run_context.conversation.id,
+            expected_revision,
+            _workflow_storage_document(
+                updated_workflow,
+                run_context,
+                revision=expected_revision,
+            ),
+        )
+        if not saved:
+            logger.warning(
+                "workflow_concurrent_write_dropped",
+                extra={
+                    "conversation_id": run_context.conversation.id,
+                    "workflow_id": updated_workflow.id,
+                    "revision": expected_revision,
+                },
+            )
+            return _WorkflowPersistenceOutcome(
+                had_update=True,
+                workflow=updated_workflow,
+                concurrent_drop=True,
+                fresh_workflow=self._load_active_pending_workflow(run_context),
+            )
+        return _WorkflowPersistenceOutcome(
+            had_update=True,
+            workflow=updated_workflow,
+            saved=True,
+            stored_revision=expected_revision + 1,
         )
 
     async def _run_retry_detector(
@@ -480,6 +602,41 @@ def _context_with_active_workflow(
     return replace(run_context, runtime_metadata=runtime_metadata)
 
 
+def _json_safe_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    return value
+
+
+def _active_workflow_prompt_block(run_context: AgentRunContext) -> str:
+    pending_workflow = run_context.runtime_metadata.get("pending_workflow")
+    if not pending_workflow:
+        return ""
+    return "\n\n### Active Pending Workflow\n" + json.dumps(
+        _json_safe_value(pending_workflow),
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
+def _active_workflow_envelope(
+    active_workflow: Mapping[str, Any] | None,
+) -> PendingWorkflowEnvelope | None:
+    if active_workflow is None:
+        return None
+    document = active_workflow.get("document")
+    if document is None:
+        return None
+    try:
+        return PendingWorkflowEnvelope.model_validate(document)
+    except Exception:
+        return None
+
+
 def _workflow_update_from_decision(
     decision: Any,
     run_context: AgentRunContext,
@@ -497,10 +654,67 @@ def _workflow_update_from_decision(
             extra={
                 "conversation_id": run_context.conversation.id,
                 "error": str(exc),
+                "raw_decision_excerpt": str(_decision_public_excerpt(decision))[:1000],
                 "workflow_update_type": type(workflow_update).__name__,
             },
         )
         return None
+
+
+def _decision_public_excerpt(decision: Any) -> dict[str, Any]:
+    return {
+        key: _decision_value(decision, key)
+        for key in (
+            "intent_type",
+            "action",
+            "clarification_question",
+            "workflow_update",
+        )
+        if _decision_value(decision, key) is not None
+    }
+
+
+def _fresh_workflow_state_result(
+    active_workflow: Mapping[str, Any] | None,
+) -> CapabilityResult:
+    document = (
+        active_workflow.get("document")
+        if isinstance(active_workflow, Mapping)
+        else None
+    )
+    status = ""
+    missing_fields: list[str] = []
+    goal = ""
+    if isinstance(document, Mapping):
+        status = str(document.get("status") or "")
+        missing_fields = [
+            str(field)
+            for field in document.get("missing_fields", [])
+            if str(field).strip()
+        ]
+        goal = str(document.get("goal") or "").strip()
+    detail = "、".join(missing_fields)
+    if detail:
+        summary = f"这个提醒流程已经更新，还需要补充：{detail}。"
+    elif status:
+        summary = f"这个提醒流程已经更新，当前状态是 {status}。"
+    else:
+        summary = "这个提醒流程已经更新，请继续按最新状态补充信息。"
+    content: dict[str, Any] = {
+        "action": "clarify",
+        "intent_type": "clarify",
+        "summary": summary,
+        "workflow_status": status,
+        "missing_fields": missing_fields,
+    }
+    if goal:
+        content["goal"] = goal
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content=content,
+        metadata={"durable_write": False},
+    )
 
 
 def _active_workflow_status(active_workflow: Mapping[str, Any] | None) -> str | None:

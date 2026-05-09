@@ -38,16 +38,16 @@ class PendingWorkflowDAO:
         self.collection.create_index([("status", 1), ("updated_at", 1)])
 
     def load_active_for_conversation(
-        self, owner_user_id: str, conversation_id: str
+        self, owner_user_id: str, conversation_id: str, now: datetime | None = None
     ) -> dict[str, Any] | None:
-        return self.collection.find_one(
-            {
-                "owner_user_id": owner_user_id,
-                "conversation_id": conversation_id,
-                "status": {"$in": list(ACTIVE_WORKFLOW_STATUSES)},
-            },
-            sort=[("updated_at", -1)],
-        )
+        selector = {
+            "owner_user_id": owner_user_id,
+            "conversation_id": conversation_id,
+            "status": {"$in": list(ACTIVE_WORKFLOW_STATUSES)},
+        }
+        if now is not None:
+            selector["expires_at"] = {"$gt": now}
+        return self.collection.find_one(selector, sort=[("updated_at", -1)])
 
     def upsert_new_active_workflow(self, document: dict[str, Any]) -> bool:
         write_doc = dict(document)
@@ -61,6 +61,8 @@ class PendingWorkflowDAO:
     def cas_update_workflow(
         self,
         workflow_id: str,
+        owner_user_id: str,
+        conversation_id: str,
         expected_revision: int,
         document: dict[str, Any],
     ) -> bool:
@@ -70,7 +72,12 @@ class PendingWorkflowDAO:
             write_doc.get("updated_at") or datetime.now().astimezone()
         )
         result = self.collection.update_one(
-            {"id": workflow_id, "revision": expected_revision},
+            {
+                "id": workflow_id,
+                "owner_user_id": owner_user_id,
+                "conversation_id": conversation_id,
+                "revision": expected_revision,
+            },
             {"$set": write_doc},
         )
         return result.matched_count > 0

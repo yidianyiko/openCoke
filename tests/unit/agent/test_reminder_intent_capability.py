@@ -71,6 +71,20 @@ def _active_pending_workflow(*, revision=4, document=None):
     }
 
 
+def _ready_pending_workflow_document(**overrides):
+    document = _pending_workflow_document(
+        status="ready_to_execute",
+        slots={
+            "title": {"value": "打卡", "status": "filled"},
+            "start_at": {"value": "now", "status": "filled"},
+        },
+        missing_fields=[],
+        next_steps=["execute_now"],
+    )
+    document.update(overrides)
+    return document
+
+
 def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
@@ -667,6 +681,46 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
 
 
 @pytest.mark.asyncio
+async def test_pending_workflow_retry_detector_receives_active_workflow(monkeypatch):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+    active = _active_pending_workflow(revision=2)
+
+    class FakeDAO:
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
+            return active
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            await asyncio.sleep(60)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "### Active Pending Workflow" in input
+            assert '"revision": 2' in input
+            assert '"id": "workflow_1"' in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "还差结束时间。",
+                }
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        pending_workflow_enabled=True,
+        pending_workflow_dao=FakeDAO(),
+    ).run("从现在开始", _run_context())
+
+    assert result.content["summary"] == "还差结束时间。"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_timeout_falls_back_to_visible_clarification(
     monkeypatch,
 ):
@@ -772,7 +826,9 @@ async def test_pending_workflow_flag_off_keeps_legacy_clarify_behavior():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class ExplodingDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             raise AssertionError("flag-off path must not load pending workflows")
 
         def upsert_new_active_workflow(self, document):
@@ -812,7 +868,9 @@ async def test_pending_workflow_flag_on_persists_clarify_workflow():
     saved = []
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             assert owner_user_id == "user-1"
             assert conversation_id == "conv-1"
             return None
@@ -859,13 +917,30 @@ async def test_pending_workflow_followup_uses_loaded_workflow_and_cas_updates():
     updates = []
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             assert owner_user_id == "user-1"
             assert conversation_id == "conv-1"
             return active
 
-        def cas_update_workflow(self, workflow_id, expected_revision, document):
-            updates.append((workflow_id, expected_revision, document))
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
+            updates.append(
+                (
+                    workflow_id,
+                    owner_user_id,
+                    conversation_id,
+                    expected_revision,
+                    document,
+                )
+            )
             return True
 
     class PrimaryAgent:
@@ -912,8 +987,68 @@ async def test_pending_workflow_followup_uses_loaded_workflow_and_cas_updates():
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：打卡"
     assert updates[0][0] == "workflow_1"
-    assert updates[0][1] == 4
-    assert updates[0][2]["status"] == "ready_to_execute"
+    assert updates[0][1] == "user-1"
+    assert updates[0][2] == "conv-1"
+    assert updates[0][3] == 4
+    assert updates[0][4]["status"] == "ready_to_execute"
+
+
+@pytest.mark.asyncio
+async def test_pending_workflow_successful_execution_marks_workflow_completed():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    active = _active_pending_workflow(revision=4)
+    updates = []
+
+    class FakeDAO:
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
+            return active
+
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
+            updates.append((expected_revision, document["status"]))
+            return True
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-06T02:00:00+00:00",
+                    "workflow_update": _ready_pending_workflow_document(),
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, decision, run_context):
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：打卡"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+        pending_workflow_enabled=True,
+        pending_workflow_dao=FakeDAO(),
+    ).run("从现在到晚上七点", _run_context())
+
+    assert result.ok is True
+    assert updates == [(4, "ready_to_execute"), (5, "executing"), (6, "completed")]
 
 
 @pytest.mark.asyncio
@@ -923,10 +1058,19 @@ async def test_pending_workflow_illegal_transition_preserves_existing_workflow(c
     active = _active_pending_workflow(revision=2)
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             return active
 
-        def cas_update_workflow(self, workflow_id, expected_revision, document):
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
             raise AssertionError("illegal transition must not be persisted")
 
     class PrimaryAgent:
@@ -952,16 +1096,81 @@ async def test_pending_workflow_illegal_transition_preserves_existing_workflow(c
 
 
 @pytest.mark.asyncio
+async def test_pending_workflow_illegal_slot_transition_preserves_existing_workflow(
+    caplog,
+):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    active = _active_pending_workflow(
+        revision=2,
+        document=_pending_workflow_document(
+            slots={"title": {"value": "打卡", "status": "filled"}},
+            missing_fields=[],
+        ),
+    )
+
+    class FakeDAO:
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
+            return active
+
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
+            raise AssertionError("illegal slot transition must not be persisted")
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "还需要什么？",
+                    "workflow_update": {
+                        **active["document"],
+                        "slots": {"title": {"value": None, "status": "missing"}},
+                        "missing_fields": ["title"],
+                    },
+                }
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        pending_workflow_enabled=True,
+        pending_workflow_dao=FakeDAO(),
+    ).run("继续", _run_context())
+
+    assert result.content["summary"] == "还需要什么？"
+    assert "workflow_invariant_violation" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_pending_workflow_invalid_schema_is_logged_and_ignored(caplog):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     active = _active_pending_workflow(revision=2)
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             return active
 
-        def cas_update_workflow(self, workflow_id, expected_revision, document):
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
             raise AssertionError("invalid workflow schema must not be persisted")
 
     class PrimaryAgent:
@@ -987,16 +1196,99 @@ async def test_pending_workflow_invalid_schema_is_logged_and_ignored(caplog):
 
 
 @pytest.mark.asyncio
+async def test_pending_workflow_invalid_schema_does_not_block_v0_execution(caplog):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    active = _active_pending_workflow(revision=2)
+
+    class FakeDAO:
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
+            return active
+
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
+            raise AssertionError("invalid workflow schema must not be persisted")
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-06T02:00:00+00:00",
+                    "workflow_update": {"id": "workflow_1", "unexpected": "field"},
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, decision, run_context):
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：打卡"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+        pending_workflow_enabled=True,
+        pending_workflow_dao=FakeDAO(),
+    ).run("从现在到晚上七点", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：打卡"
+    assert "workflow_schema_invalid" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_pending_workflow_cas_failure_is_logged_and_dropped(caplog):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     active = _active_pending_workflow(revision=3)
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
-            return active
+        def __init__(self):
+            self.loads = 0
 
-        def cas_update_workflow(self, workflow_id, expected_revision, document):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
+            self.loads += 1
+            if self.loads == 1:
+                return active
+            return _active_pending_workflow(
+                revision=4,
+                document={
+                    **active["document"],
+                    "slots": {
+                        "title": {"value": "打卡", "status": "filled"},
+                        "start_at": {"value": "now", "status": "filled"},
+                    },
+                    "missing_fields": [],
+                    "status": "ready_to_execute",
+                },
+            )
+
+        def cas_update_workflow(
+            self,
+            workflow_id,
+            owner_user_id,
+            conversation_id,
+            expected_revision,
+            document,
+        ):
             return False
 
     class PrimaryAgent:
@@ -1019,14 +1311,17 @@ async def test_pending_workflow_cas_failure_is_logged_and_dropped(caplog):
                 }
             )
 
+    dao = FakeDAO()
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         retry_agent=None,
         pending_workflow_enabled=True,
-        pending_workflow_dao=FakeDAO(),
+        pending_workflow_dao=dao,
     ).run("从现在开始", _run_context())
 
-    assert result.content["summary"] == "还差结束时间。"
+    assert dao.loads == 2
+    assert result.content["workflow_status"] == "ready_to_execute"
+    assert result.content["missing_fields"] == ()
     assert "workflow_concurrent_write_dropped" in caplog.text
 
 
@@ -1037,7 +1332,9 @@ async def test_pending_workflow_does_not_execute_before_ready():
     saved = []
 
     class FakeDAO:
-        def load_active_for_conversation(self, owner_user_id, conversation_id):
+        def load_active_for_conversation(
+            self, owner_user_id, conversation_id, now=None
+        ):
             return None
 
         def upsert_new_active_workflow(self, document):
