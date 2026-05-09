@@ -43,6 +43,10 @@ Consolidate execution plans into a single canonical directory:
 - `docs/superpowers/plans/` is no longer described as "dated history."
   It is the single canonical home for execution plans, both active and
   archived. Individual file freshness must still be verified per file.
+- The directory stays flat to remain compatible with the
+  `superpowers:writing-plans` default path. Lifecycle is represented by
+  in-file status metadata, not `active/`, `completed/`, or `archived/`
+  subdirectories.
 
 `docs/superpowers/specs/` continues to be the canonical home for design
 specs and was unaffected by this migration.
@@ -59,5 +63,7 @@ specs and was unaffected by this migration.
   archive. Per-file freshness checks (against current `main`,
   `docs/ARCHITECTURE.md`, and the touched code) are now the load-bearing
   freshness signal, not the directory name.
-- Future migrations of dated specs/plans to a separate archive remain
-  possible but are out of scope here; they would require a new ADR.
+- Future migrations of dated specs/plans to separate lifecycle directories are
+  intentionally avoided while the Superpowers skill contract uses the flat
+  path. If that upstream contract changes, revisit this ADR before moving
+  files.

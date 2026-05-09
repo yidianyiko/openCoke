@@ -21,7 +21,9 @@ When starting work in this repository, read in this order:
    and `docs/superpowers/plans/` (execution). Both directories carry a mix
    of active and dated artifacts; verify any spec or plan against current
    `main`, `docs/ARCHITECTURE.md`, and the touched code before relying on
-   it as truth.
+   it as truth. Keep `docs/superpowers/plans/` flat for
+   `superpowers:writing-plans` compatibility; plan lifecycle belongs in file
+   status metadata, not `active/` or `completed/` subdirectories.
 10. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
    bridge behavior, or operational flows.
 
@@ -38,7 +40,10 @@ When starting work in this repository, read in this order:
 - `docs/design-docs/coke-working-contract.md`: the actual work surfaces inside
   Coke.
 - `docs/adr/`: durable workflow and structure decisions.
-- `docs/superpowers/plans/`: canonical home for multi-step execution plans (active and dated). Matches the `superpowers:writing-plans` skill default. See ADR 0003 for the consolidation history.
+- `docs/superpowers/plans/`: canonical flat home for multi-step execution
+  plans. Matches the `superpowers:writing-plans` skill default; lifecycle is
+  tracked by file status metadata, not subdirectories. See ADR 0003 for the
+  consolidation history.
 - `docs/superpowers/specs/`: canonical home for design specs (active and dated). Verify against current code before treating any individual spec as truth.
 - `docs/fitness/`: verification rules and evidence model.
 - `docs/fitness/coke-verification-matrix.md`: project-specific verification
@@ -61,7 +66,9 @@ When starting work in this repository, read in this order:
 - Keep this file as a routing layer, not a knowledge dump.
 - Put durable repository workflow rules in `docs/design-docs/` or `docs/adr/`.
 - Put new design specs in `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`.
-- Put new execution plans in `docs/superpowers/plans/YYYY-MM-DD-<topic>.md` (matches the `superpowers:writing-plans` skill default).
+- Put new execution plans in `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`
+  (matches the `superpowers:writing-plans` skill default). Do not create
+  lifecycle subdirectories under `docs/superpowers/plans/`.
 - Put local issue, incident, one-off repair, and historical runbook records in
   `docs/issues/`, not as loose top-level docs.
 - Keep route and API discoverability in `docs/product-specs/FEATURE_TREE.md`.

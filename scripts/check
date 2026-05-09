@@ -74,6 +74,14 @@ else
   print "OK  docs/superpowers root has no loose files"
 fi
 
+if find docs/superpowers/plans -mindepth 1 -maxdepth 1 -type d | rg -q .; then
+  print "MISS docs/superpowers/plans must stay flat for superpowers:writing-plans compatibility"
+  find docs/superpowers/plans -mindepth 1 -maxdepth 1 -type d -print
+  missing=1
+else
+  print "OK  docs/superpowers/plans stays flat"
+fi
+
 typeset -a allowed_root_docs=(
   "docs/ARCHITECTURE.md"
   "docs/architecture.md"

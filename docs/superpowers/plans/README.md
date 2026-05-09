@@ -1,10 +1,15 @@
 # Execution Plans
 
-This directory is the canonical home for execution plans in `coke` — both
-active and archived. It matches the `superpowers:writing-plans` skill default
-path. See `docs/adr/0003-consolidate-plans-to-superpowers.md` for the
-consolidation history (the predecessor `docs/exec-plans/` was retired and its
-contents merged here on 2026-05-09).
+This directory is the canonical home for execution plans in `coke`. It stays
+flat on purpose because the `superpowers:writing-plans` skill saves plans to:
+
+`docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+
+Do not create lifecycle subdirectories such as `active/`, `completed/`, or
+`archived/` under this path. See
+`docs/adr/0003-consolidate-plans-to-superpowers.md` for the consolidation
+history (the predecessor `docs/exec-plans/` was retired and its contents
+merged here on 2026-05-09).
 
 ## Purpose
 
@@ -31,10 +36,23 @@ Use:
 
 ## Lifecycle
 
-1. Drafted
-2. Active
-3. Verified
-4. Archived or superseded
+Lifecycle is file metadata, not directory placement.
+
+For ad-hoc plans, include this block near the top:
+
+```md
+**Plan Status:** draft | active | verified | completed | superseded
+**Status Date:** YYYY-MM-DD
+**Freshness Check:** Verify against current `main`, `docs/ARCHITECTURE.md`,
+and touched code before execution.
+```
+
+For `superpowers:writing-plans` output, preserve the skill-required header
+exactly. Add the status block immediately after the required header separator
+(`---`) or in the first handoff/status update after the plan is created.
+
+When a plan ships or is abandoned, update `Plan Status` instead of moving it to
+a lifecycle directory.
 
 ## Freshness
 

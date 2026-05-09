@@ -68,7 +68,7 @@ docs/design-docs/coke-working-contract.md
                            # Coke-specific work surfaces and planning contract
 docs/adr/                  # durable workflow and structure decisions
 docs/superpowers/specs/    # canonical home for design specs (active + dated)
-docs/superpowers/plans/    # canonical home for execution plans (active + dated)
+docs/superpowers/plans/    # flat canonical home for execution plans
 docs/fitness/              # verification rulebook
 docs/fitness/coke-verification-matrix.md
                            # project-specific verification commands by surface
@@ -106,7 +106,9 @@ scripts/review-trigger     # diff-aware review escalation entrypoint
 - `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
   map used by the guardrail scripts
 - `docs/superpowers/specs/`: canonical home for design specs (active and dated)
-- `docs/superpowers/plans/`: canonical home for execution plans (active and dated; matches the `superpowers:writing-plans` skill default)
+- `docs/superpowers/plans/`: flat canonical home for execution plans; matches
+  the `superpowers:writing-plans` skill default, so lifecycle is tracked in
+  file status metadata instead of subdirectories
 - `docs/issues/`: local issue, incident, runbook, and investigation records
 - `docs/product-specs/FEATURE_TREE.md`: product, route, and API surface index
 - `docs/release-guide.md` and `docs/RELEASE_CHECKLIST.md`: release workflow

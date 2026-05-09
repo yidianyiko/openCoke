@@ -1,5 +1,10 @@
 # YYYY-MM-DD Topic
 
+**Plan Status:** draft
+**Status Date:** YYYY-MM-DD
+**Freshness Check:** Verify against current `main`, `docs/ARCHITECTURE.md`,
+and touched code before execution.
+
 ## Goal
 
 What should be true when this work is complete?

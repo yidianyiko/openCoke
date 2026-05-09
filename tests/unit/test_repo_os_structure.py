@@ -61,6 +61,16 @@ def test_superpowers_root_has_no_loose_historical_docs():
     assert loose_files == []
 
 
+def test_superpowers_plans_stay_flat_for_writing_plans_skill():
+    plan_dirs = [
+        path.name
+        for path in (ROOT / "docs" / "superpowers" / "plans").iterdir()
+        if path.is_dir()
+    ]
+
+    assert plan_dirs == []
+
+
 def test_docs_root_markdown_files_are_allowlisted():
     allowed = {
         "ARCHITECTURE.md",
@@ -146,6 +156,8 @@ def test_agents_md_locates_specs_and_plans_under_superpowers():
     assert "docs/superpowers/specs/" in agents_text
     assert "docs/superpowers/plans/" in agents_text
     assert "Put new execution plans in `docs/superpowers/plans/" in agents_text
+    assert "Do not create\n  lifecycle subdirectories" in agents_text
+    assert "plan lifecycle belongs in file\n   status metadata" in agents_text
     assert "Put new design specs in `docs/superpowers/specs/" in agents_text
     # Freshness must still be verified per file, even if location is canonical.
     assert "verify a spec or plan against current `main`" in agents_text
