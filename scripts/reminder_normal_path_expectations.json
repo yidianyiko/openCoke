@@ -127,6 +127,36 @@
       "allow_clarification": true,
       "evaluation_reason": "The user is correcting a prior reminder time. In isolated evaluation there may be no existing reminder target, so an update no-match result or clarification is safe; creating a new reminder would conflate correction with creation."
     },
+    "24": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Explicit unbounded hourly reminder request at minute 09 without an end time; the agent should ask for the end condition before creating high-frequency reminders.",
+      "expected_clarification_terms": [
+        "持续",
+        "结束",
+        "截止"
+      ]
+    },
+    "25": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Polite concrete reminder request with explicit content and tomorrow morning 06:30; the assistant should create the one-shot wake-up reminder.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_date": "2026-05-11",
+          "local_time": "06:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "26": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Explicit hourly reminder request has a start time but no end time; the agent should ask for the end condition before creating high-frequency recurring reminders.",
+      "expected_clarification_terms": [
+        "持续",
+        "结束",
+        "截止"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

@@ -1354,7 +1354,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 81
+    assert len(selected) == 84
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
