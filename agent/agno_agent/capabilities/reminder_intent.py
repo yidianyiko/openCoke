@@ -410,6 +410,8 @@ class ReminderIntentPort:
         )
         if _should_clarify_date_only_create(input_message, decision):
             return _date_only_missing_time_clarification_result()
+        if _should_clarify_ambiguous_time_range_create(input_message, decision):
+            return _ambiguous_time_range_clarification_result()
         result = self.command_executor.execute(decision, run_context)
         if (
             not workflow_outcome.had_update
@@ -944,6 +946,10 @@ _BARE_CLOCK_PATTERN = re.compile(
     r"(\d{1,2}\s*[:：.]\s*\d{1,2}|\d{1,2}\s*(?:点|时)|"
     r"[零一二两三四五六七八九十百半]+\s*(?:点|时))"
 )
+_AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN = re.compile(
+    r"(?:一二|二三|两三|三四|四五|五六|六七|七八|八九|九十)\s*(?:点|时)"
+    r"|(?:\d{1,2})\s*(?:-|~|到|至)\s*(?:\d{1,2})\s*(?:点|时)"
+)
 _EXPLICIT_DATE_PATTERN = re.compile(
     r"(今天|今日|今晚|今早|明天|明早|后天|大后天|周[一二三四五六日天]|星期[一二三四五六日天]|"
     r"\d{1,4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|\d{1,2}[/-]\d{1,2})",
@@ -1009,6 +1015,15 @@ def _should_clarify_date_only_create(input_message: str, decision: Any) -> bool:
     if not has_date_reference or _BARE_CLOCK_PATTERN.search(current_user_text):
         return False
     return True
+
+
+def _should_clarify_ambiguous_time_range_create(
+    input_message: str, decision: Any
+) -> bool:
+    if not _decision_has_create_operation(decision):
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    return bool(_AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN.search(current_user_text))
 
 
 def _decision_has_create_operation(decision: Any) -> bool:
@@ -1378,6 +1393,19 @@ def _date_only_missing_time_clarification_result() -> CapabilityResult:
             "action": "clarify",
             "intent_type": "clarify",
             "summary": "你想在那天几点提醒你？",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _ambiguous_time_range_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "这个时间范围不够精确，你想在具体几点提醒你？",
         },
         metadata={"durable_write": False},
     )

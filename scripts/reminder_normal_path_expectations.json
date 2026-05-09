@@ -498,6 +498,27 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default."
     },
+    "92": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit Chinese clock time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "接电话",
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "93": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Colloquial adjacent-hour range ('四五点') is approximate rather than two explicit reminder times; the agent should ask for the exact reminder time before creating reminders.",
+      "expected_clarification_terms": [
+        "16:00",
+        "17:00",
+        "具体",
+        "几点"
+      ]
+    },
     "101": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "Habitual schedule wording ('我一般') asks for reminders at the listed times, so daily recurring reminders are expected.",

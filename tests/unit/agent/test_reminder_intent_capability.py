@@ -843,6 +843,48 @@ async def test_reminder_intent_port_clarifies_date_only_batch_create():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="周四下午四五点",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="准备 resume",
+                trigger_at="2026-05-14T16:00:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="准备 resume",
+                trigger_at="2026-05-14T17:00:00+09:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("ambiguous adjacent hour range must clarify")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("提醒我周四下午四五点，准备下resume", _run_context())
+
+    assert result.ok is True
+    assert result.content["intent_type"] == "clarify"
+    assert "具体几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
