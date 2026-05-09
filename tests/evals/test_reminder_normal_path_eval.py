@@ -731,6 +731,27 @@ def test_validate_observations_rejects_reminder_clarification_for_nickname_reque
     assert "unexpected_reminder_clarification" in errors
 
 
+def test_validate_observations_rejects_wrong_clarification_focus():
+    case = normal_eval.ReminderNormalPathCase(
+        input="冥想可以每个小时提醒我做一次冥想吗",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={
+            "evaluation_expectation": "clarify",
+            "expected_clarification_terms": ["持续", "结束", "截止"],
+        },
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。"}],
+        reminders=[],
+    )
+
+    assert "user_output_wrong_clarification_focus" in errors
+
+
 def test_validate_observations_does_not_require_crud_for_vague_capability_question():
     case = normal_eval.ReminderNormalPathCase(
         input="你可以循环提醒我吗",
@@ -1333,7 +1354,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 76
+    assert len(selected) == 77
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0

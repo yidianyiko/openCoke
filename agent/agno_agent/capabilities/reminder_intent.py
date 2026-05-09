@@ -245,7 +245,10 @@ class ReminderIntentPort:
                 timeout_seconds=_agent_runtime_reminder_detect_timeout_retry_seconds(),
             )
             if retry_decision is None:
-                return _timeout_clarification_result()
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _timeout_clarification_result(),
+                )
             decision = retry_decision
         if _should_retry_for_quoted_title_loss(input_message, decision):
             retry_decision = await self._run_retry_detector(
@@ -255,7 +258,10 @@ class ReminderIntentPort:
                 reason="primary detector dropped quoted reminder title content",
             )
             if retry_decision is None:
-                return _timeout_clarification_result()
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _timeout_clarification_result(),
+                )
             if not _should_retry_for_quoted_title_loss(input_message, retry_decision):
                 decision = retry_decision
         if _is_clarification_decision(decision) and self.retry_agent is not None:
@@ -302,11 +308,20 @@ class ReminderIntentPort:
                     return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
-                return _timeout_clarification_result()
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _timeout_clarification_result(),
+                )
             elif _is_unrecognized_decision(retry_decision):
-                return _invalid_decision_clarification_result()
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
         if _is_unrecognized_decision(decision):
-            return _invalid_decision_clarification_result()
+            return _fallback_clarification_for_input(
+                input_message,
+                _invalid_decision_clarification_result(),
+            )
         if _should_execute_decision(decision) and _is_unbounded_high_frequency_cadence(
             decision, input_message=input_message
         ):
@@ -333,7 +348,10 @@ class ReminderIntentPort:
             or workflow_outcome.workflow is None
             or workflow_outcome.workflow.status != "ready_to_execute"
         ):
-            return _invalid_decision_clarification_result()
+            return _fallback_clarification_for_input(
+                input_message,
+                _invalid_decision_clarification_result(),
+            )
         execution_workflow = workflow_outcome.workflow
         execution_revision = workflow_outcome.stored_revision
         if workflow_outcome.had_update and execution_workflow is not None:
@@ -1092,6 +1110,28 @@ def _unbounded_high_frequency_cadence_clarification_result(
         },
         metadata={"durable_write": False},
     )
+
+
+def _high_frequency_input_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "这个高频提醒要持续到什么时候结束？请告诉我截止时间。",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _fallback_clarification_for_input(
+    input_message: str,
+    fallback: CapabilityResult,
+) -> CapabilityResult:
+    if _input_has_high_frequency_without_deadline(input_message):
+        return _high_frequency_input_clarification_result()
+    return fallback
 
 
 def _timeout_clarification_result() -> CapabilityResult:

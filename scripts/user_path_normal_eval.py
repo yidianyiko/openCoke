@@ -132,6 +132,7 @@ def merge_case_expectation_metadata(
         "expected_operation",
         "allow_clarification",
         "expected_creates",
+        "expected_clarification_terms",
     ):
         if key in expectation:
             merged[key] = expectation[key]
@@ -719,6 +720,11 @@ def validate_observations(
             judge=clarification_judge,
         ):
             errors.append("user_output_missing_clarification")
+        expected_terms = case.metadata.get("expected_clarification_terms") or []
+        if expectation == "clarify" and expected_terms:
+            output_text = combined_output_text(outputs)
+            if not any(str(term) in output_text for term in expected_terms):
+                errors.append("user_output_wrong_clarification_focus")
     for reminder in reminders:
         if (
             reminder.get("next_fire_at") is None

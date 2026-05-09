@@ -88,6 +88,15 @@
       "evaluation_expectation": "crud",
       "evaluation_reason": "Explicit one-shot reminder request with a concrete start time and title."
     },
+    "19": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Explicit unbounded hourly reminder request; the agent should ask for an end time before creating high-frequency reminders.",
+      "expected_clarification_terms": [
+        "持续",
+        "结束",
+        "截止"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
