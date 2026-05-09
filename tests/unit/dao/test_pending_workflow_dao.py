@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
 
 import pytest
+from pymongo.errors import DuplicateKeyError
 
 
 @pytest.fixture
@@ -100,11 +101,28 @@ def test_upsert_new_active_workflow_sets_revision_zero(mock_collection):
     dao.collection = mock_collection
     document = _document(revision=7)
 
-    dao.upsert_new_active_workflow(document)
+    assert dao.upsert_new_active_workflow(document) is True
 
-    written = mock_collection.update_one.call_args.args[1]
-    assert written["$set"]["revision"] == 0
-    assert written["$set"]["id"] == "workflow_1"
+    written = mock_collection.insert_one.call_args.args[0]
+    assert written["revision"] == 0
+    assert written["id"] == "workflow_1"
+    mock_collection.update_one.assert_not_called()
+
+
+def test_upsert_new_active_workflow_does_not_replace_existing_active_workflow(
+    mock_collection,
+):
+    from dao.pending_workflow_dao import PendingWorkflowDAO
+
+    dao = PendingWorkflowDAO()
+    dao.collection = mock_collection
+    mock_collection.insert_one.side_effect = DuplicateKeyError("duplicate active workflow")
+
+    assert dao.upsert_new_active_workflow(_document(revision=7)) is False
+
+    written = mock_collection.insert_one.call_args.args[0]
+    assert written["revision"] == 0
+    mock_collection.update_one.assert_not_called()
 
 
 def test_cas_update_requires_expected_revision_and_increments(mock_collection):

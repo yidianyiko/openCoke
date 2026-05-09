@@ -6,6 +6,7 @@ from typing import Any
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
+from pymongo.errors import DuplicateKeyError
 
 from agent.agno_agent.runtime.pending_workflow import ACTIVE_WORKFLOW_STATUSES
 from conf.config import CONF
@@ -51,16 +52,11 @@ class PendingWorkflowDAO:
     def upsert_new_active_workflow(self, document: dict[str, Any]) -> bool:
         write_doc = dict(document)
         write_doc["revision"] = 0
-        result = self.collection.update_one(
-            {
-                "owner_user_id": write_doc["owner_user_id"],
-                "conversation_id": write_doc["conversation_id"],
-                "status": {"$in": list(ACTIVE_WORKFLOW_STATUSES)},
-            },
-            {"$set": write_doc},
-            upsert=True,
-        )
-        return result.matched_count == 1 or result.upserted_id is not None
+        try:
+            self.collection.insert_one(write_doc)
+        except DuplicateKeyError:
+            return False
+        return True
 
     def cas_update_workflow(
         self,
