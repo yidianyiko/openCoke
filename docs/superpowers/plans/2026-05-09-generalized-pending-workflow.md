@@ -1288,7 +1288,7 @@ git commit -m "test: add pending workflow eval evidence hooks"
 **Files:**
 - No new files unless verification reveals a defect.
 
-- [ ] **Step 1: Run focused worker-runtime tests**
+- [x] **Step 1: Run focused worker-runtime tests**
 
 Run:
 
@@ -1298,7 +1298,7 @@ pytest tests/unit/agent/test_pending_workflow_models.py tests/unit/dao/test_pend
 
 Expected: all selected tests pass.
 
-- [ ] **Step 2: Run repo structure and workflow checks**
+- [x] **Step 2: Run repo structure and workflow checks**
 
 Run:
 
@@ -1308,7 +1308,7 @@ zsh scripts/check
 
 Expected: exits 0.
 
-- [ ] **Step 3: Run verification routing**
+- [x] **Step 3: Run verification routing**
 
 Run:
 
@@ -1319,7 +1319,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Expected: output names worker-runtime and repo-os surfaces; record any review trigger in the final response.
 
-- [ ] **Step 4: Inspect diff for forbidden shortcuts**
+- [x] **Step 4: Inspect diff for forbidden shortcuts**
 
 Run:
 
@@ -1330,7 +1330,7 @@ rg -n "每个整点|从现在到晚上七点|high.frequency|phrase|parser shortc
 
 Expected: no phrase-specific runtime branch or prompt example added; any `pending_task_draft` hit is from existing tests/docs or the spec explaining why it is not used.
 
-- [ ] **Step 5: Commit any final fixes**
+- [x] **Step 5: Commit any final fixes**
 
 If Step 1-4 required changes, commit them:
 
