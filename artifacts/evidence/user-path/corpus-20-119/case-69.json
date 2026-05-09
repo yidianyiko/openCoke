@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-69-1778348987",
+    "message": null,
+    "offset": 69,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，Sirius！我记住了～有什么需要帮忙的随时告诉我！"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 69,
+      "input": " 叫我Sirius就行",
+      "user_id": "91d85ae703ecae476a67f79a",
+      "original_from_user": "692ec5554bf7878f041146a7",
+      "input_message_id": "69ff73bdbb07a445b2e7fe01",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff73bf63dcc4abf7d8c3a3",
+          "expect_output_timestamp": 1778348991,
+          "handled_timestamp": 1778348991,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，Sirius！我记住了～有什么需要帮忙的随时告诉我！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-69-1778348987",
+            "case_index": 69,
+            "original_from_user": "692ec5554bf7878f041146a7",
+            "source_id": "692ec5554bf7878f041146a8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-69-1778348987-case-69",
+              "business_conversation_key": "corpus-20-119-case-69-1778348987-case-69",
+              "causal_inbound_event_id": "corpus-20-119-case-69-1778348987-case-69-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "91d85ae703ecae476a67f79a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 2.005
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

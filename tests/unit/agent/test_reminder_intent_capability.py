@@ -101,6 +101,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "### Active Pending Workflow" not in prompt
     assert "每天17:58锻炼" in prompt
     assert "Complete CRUD decisions must omit workflow_update" in prompt
+    assert "One-shot deadline wording" in prompt
     assert "Need/intention statements" in prompt
     assert "return discussion" in prompt
     assert (
@@ -1148,6 +1149,21 @@ async def test_reminder_intent_port_primary_timeout_uses_short_retry_budget(
     assert result.error == "ReminderDetectTimeout"
     assert result.metadata["durable_write"] is False
     assert "提醒设置还没完成" in result.content["summary"]
+
+
+def test_fallback_clarification_for_deadline_without_trigger_asks_when_before_deadline():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _invalid_decision_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "提醒我今晚十点半之前完成英语小组作业",
+        _invalid_decision_clarification_result(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "这是截止时间。你想在这个时间之前的什么时候提醒你？"
 
 
 @pytest.mark.asyncio

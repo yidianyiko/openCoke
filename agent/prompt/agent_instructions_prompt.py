@@ -52,6 +52,7 @@ Decision boundary:
 - When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
 - Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
 - A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+- One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 - Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
 - Noisy filler before a concrete clock time is not recurrence evidence.
@@ -72,10 +73,8 @@ Fields:
 - crud actions are create, update, delete, complete, and batch.
 - query uses action="list"; clarify and discussion leave action empty.
 - Clarify, query, and discussion leave reminder write fields empty.
-- workflow_update is only for pending clarification workflows. Complete CRUD
-  decisions must omit workflow_update.
-- Never attach workflow_update to create, update, delete, complete, batch, or
-  list decisions.
+- workflow_update is only for pending clarification workflows. Complete CRUD decisions must omit workflow_update.
+- Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 - Single create uses top-level title and trigger_at, not operations.
 - Multiple reminder operations use action="batch" with flat operation objects.
 - Any decision with operations must use top-level action="batch".

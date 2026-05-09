@@ -140,6 +140,7 @@ Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
@@ -1173,6 +1174,34 @@ def _input_has_high_frequency_without_deadline(text: str) -> bool:
     return not any(token in normalized for token in deadline_tokens)
 
 
+def _input_has_one_shot_deadline_without_trigger(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if _is_high_frequency_evidence(normalized):
+        return False
+    has_reminder_request = any(
+        token in normalized
+        for token in (
+            "提醒",
+            "叫我",
+            "喊我",
+            "通知",
+            "remind",
+            "notify",
+            "alarm",
+        )
+    )
+    if not has_reminder_request:
+        return False
+    has_deadline_word = any(
+        token in normalized for token in ("之前", "以前", "前", "before", "by ")
+    )
+    has_clock = bool(
+        re.search(r"\d{1,2}\s*[:：点]", normalized)
+        or re.search(r"[一二三四五六七八九十两]+点", normalized)
+    )
+    return has_deadline_word and has_clock
+
+
 def _clarification_result(decision: Any) -> CapabilityResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return CapabilityResult(
@@ -1246,6 +1275,8 @@ def _fallback_clarification_for_input(
 ) -> CapabilityResult:
     if _input_has_high_frequency_without_deadline(input_message):
         return _high_frequency_input_clarification_result()
+    if _input_has_one_shot_deadline_without_trigger(input_message):
+        return _deadline_without_trigger_clarification_result()
     return fallback
 
 
@@ -1259,6 +1290,19 @@ def _timeout_clarification_result() -> CapabilityResult:
             "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
         },
         error="ReminderDetectTimeout",
+        metadata={"durable_write": False},
+    )
+
+
+def _deadline_without_trigger_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "这是截止时间。你想在这个时间之前的什么时候提醒你？",
+        },
         metadata={"durable_write": False},
     )
 
