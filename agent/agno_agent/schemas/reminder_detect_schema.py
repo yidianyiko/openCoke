@@ -52,6 +52,8 @@ class ReminderOperation(BaseModel):
     def enforce_operation_fields(self) -> "ReminderOperation":
         if self.action == "create" and not (self.title and self.trigger_at):
             raise ValueError("batch create operation requires title and trigger_at")
+        if self.action == "create" and _is_generic_reminder_title(self.title):
+            raise ValueError("batch create operation requires non-generic title")
         return self
 
 
@@ -220,6 +222,8 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError("batch action requires operations")
             if self.action == "create" and not (self.title and self.trigger_at):
                 raise ValueError("create action requires title and trigger_at")
+            if self.action == "create" and _is_generic_reminder_title(self.title):
+                raise ValueError("create action requires non-generic title")
             self._validate_executable_datetimes()
             self._validate_schedule_basis()
             self._validate_deadline_operations()
@@ -341,6 +345,11 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
         normalized[field_name] = ""
     normalized["operations"] = []
     return normalized
+
+
+def _is_generic_reminder_title(value: str) -> bool:
+    normalized = re.sub(r"[\s，,。.!！?？]+", "", str(value or "").strip())
+    return normalized in {"提醒", "提醒我", "提醒一下", "提醒一下我"}
 
 
 def _workflow_update_has_missing_field_slots(value: Any) -> bool:

@@ -1166,6 +1166,21 @@ def test_fallback_clarification_for_deadline_without_trigger_asks_when_before_de
     assert result.content["summary"] == "这是截止时间。你想在这个时间之前的什么时候提醒你？"
 
 
+def test_fallback_clarification_for_concrete_time_without_content_asks_task():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _invalid_decision_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "周三下午4点提醒我",
+        _invalid_decision_clarification_result(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "你想让我提醒你做什么？"
+
+
 @pytest.mark.asyncio
 async def test_reminder_intent_port_returns_noop_for_non_reminder():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort

@@ -1202,6 +1202,25 @@ def _input_has_one_shot_deadline_without_trigger(text: str) -> bool:
     return has_deadline_word and has_clock
 
 
+def _input_has_concrete_time_without_reminder_content(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return False
+    has_concrete_time = bool(
+        re.search(r"\d{1,2}\s*[:：点]", normalized)
+        or re.search(r"[一二三四五六七八九十两]+点", normalized)
+        or re.search(r"(今天|今晚|明天|后天|周[一二三四五六日天])", normalized)
+    )
+    if not has_concrete_time:
+        return False
+    return bool(
+        re.search(
+            r"(?:提醒我|提醒一下我|提醒一下|提醒|叫我|喊我)[。.!！?？\s]*$",
+            normalized,
+        )
+    )
+
+
 def _clarification_result(decision: Any) -> CapabilityResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return CapabilityResult(
@@ -1275,8 +1294,11 @@ def _fallback_clarification_for_input(
 ) -> CapabilityResult:
     if _input_has_high_frequency_without_deadline(input_message):
         return _high_frequency_input_clarification_result()
-    if _input_has_one_shot_deadline_without_trigger(input_message):
-        return _deadline_without_trigger_clarification_result()
+    if fallback.error == "ReminderDetectInvalidDecision":
+        if _input_has_concrete_time_without_reminder_content(input_message):
+            return _missing_reminder_content_clarification_result()
+        if _input_has_one_shot_deadline_without_trigger(input_message):
+            return _deadline_without_trigger_clarification_result()
     return fallback
 
 
@@ -1302,6 +1324,19 @@ def _deadline_without_trigger_clarification_result() -> CapabilityResult:
             "action": "clarify",
             "intent_type": "clarify",
             "summary": "这是截止时间。你想在这个时间之前的什么时候提醒你？",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _missing_reminder_content_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "你想让我提醒你做什么？",
         },
         metadata={"durable_write": False},
     )

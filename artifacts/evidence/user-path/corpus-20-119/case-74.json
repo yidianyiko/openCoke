@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-74-1778349384",
+    "message": null,
+    "offset": 74,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，很高兴帮你制定学习计划！为了更贴合你的需求，我想多了解几点：\n\n1. **学习目标**：你明天主要想学习什么内容？比如备考、复习某门课程、学习新技能？\n2. **学习时长**：打算学习多长时间？比如几个小时？\n3. **科目安排**：有几门科目或内容需要分配时间？\n4. **偏好时段**：有没有特别喜欢的学习时间段？比如上午、下午还是晚上？\n\n告诉我这些信息，我来帮你规划一下😊"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 74,
+      "input": "请为我制定明天的学习计划",
+      "user_id": "068d342e182629809cedcd4a",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69ff754aaa668fa6cf247686",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff754dc113ea7231c5b122",
+          "expect_output_timestamp": 1778349389,
+          "handled_timestamp": 1778349389,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，很高兴帮你制定学习计划！为了更贴合你的需求，我想多了解几点：\n\n1. **学习目标**：你明天主要想学习什么内容？比如备考、复习某门课程、学习新技能？\n2. **学习时长**：打算学习多长时间？比如几个小时？\n3. **科目安排**：有几门科目或内容需要分配时间？\n4. **偏好时段**：有没有特别喜欢的学习时间段？比如上午、下午还是晚上？\n\n告诉我这些信息，我来帮你规划一下😊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-74-1778349384",
+            "case_index": 74,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692ef8e84bf7878f041146e6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-74-1778349384-case-74",
+              "business_conversation_key": "corpus-20-119-case-74-1778349384-case-74",
+              "causal_inbound_event_id": "corpus-20-119-case-74-1778349384-case-74-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "068d342e182629809cedcd4a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.008
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

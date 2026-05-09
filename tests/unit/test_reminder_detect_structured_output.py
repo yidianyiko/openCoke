@@ -71,6 +71,37 @@ def test_reminder_detect_schema_requires_batch_create_fields():
         )
 
 
+def test_reminder_detect_schema_rejects_generic_create_title():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError, match="non-generic title"):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="create",
+            title="提醒我",
+            trigger_at="2026-05-13T16:00:00+09:00",
+        )
+
+
+def test_reminder_detect_schema_rejects_generic_batch_create_title():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError, match="non-generic title"):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "提醒",
+                    "trigger_at": "2026-05-13T16:00:00+09:00",
+                }
+            ],
+            schedule_basis="explicit_occurrences",
+            schedule_evidence="周三下午4点",
+        )
+
+
 def test_reminder_detect_schema_rejects_batch_operation_after_deadline():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -160,7 +191,7 @@ def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
         operations=[
             {
                 "action": "create",
-                "title": "提醒",
+                "title": "喝水",
                 "trigger_at": "2026-04-29T17:37:00+09:00",
             }
         ],
@@ -299,12 +330,12 @@ def test_reminder_detect_schema_accepts_explicit_occurrence_batch():
         operations=[
             {
                 "action": "create",
-                "title": "提醒",
+                "title": "喝水",
                 "trigger_at": "2026-04-30T11:10:00+09:00",
             },
             {
                 "action": "create",
-                "title": "提醒",
+                "title": "喝水",
                 "trigger_at": "2026-04-30T12:00:00+09:00",
             },
         ],

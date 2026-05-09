@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-76-1778349406",
+    "message": null,
+    "offset": 76,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我目前还没有你的学习计划信息呢。能不能告诉我你明天想学习哪些科目，或者有什么具体的学习目标？这样我可以帮你安排一个合适的学习计划~"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 76,
+      "input": "请给我完整的明天的学习计划",
+      "user_id": "e5e0893d0bd50a4e7ee03bc2",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69ff75601449229ae44a7aa8",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff7565c113ea7231c5b136",
+          "expect_output_timestamp": 1778349413,
+          "handled_timestamp": 1778349413,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我目前还没有你的学习计划信息呢。能不能告诉我你明天想学习哪些科目，或者有什么具体的学习目标？这样我可以帮你安排一个合适的学习计划~",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-76-1778349406",
+            "case_index": 76,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692efc404bf7878f041146ef",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-76-1778349406-case-76",
+              "business_conversation_key": "corpus-20-119-case-76-1778349406-case-76",
+              "causal_inbound_event_id": "corpus-20-119-case-76-1778349406-case-76-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e5e0893d0bd50a4e7ee03bc2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

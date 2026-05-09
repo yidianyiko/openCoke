@@ -419,6 +419,17 @@
         "几点"
       ]
     },
+    "72": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit tonight time and noisy trailing character; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "没回复完成的任务",
+          "local_time": "22:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
@@ -426,6 +437,13 @@
     "75": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the LLM-first boundary treats this as discussion unless the same message asks for reminder supervision."
+    },
+    "77": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder request gives a concrete time but no reminder content; the agent should ask what to remind instead of creating a generic reminder.",
+      "expected_clarification_terms": [
+        "做什么"
+      ]
     },
     "86": {
       "evaluation_expectation": "clarify",
