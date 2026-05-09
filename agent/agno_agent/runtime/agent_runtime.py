@@ -111,6 +111,7 @@ def _create_agent(
         model=create_llm_model(role="chat_response", max_tokens=2000),
         instructions=build_chat_response_instructions(run_context),
         tools=tools,
+        tool_call_limit=4,
         markdown=False,
     )
 

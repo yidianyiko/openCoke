@@ -26,6 +26,27 @@ _REMINDER_DECISION_FIELDS = (
 )
 
 
+def _last_failed_tool_result(session_state: dict[str, Any]) -> Mapping[str, Any] | None:
+    tool_results = session_state.get("tool_results")
+    if not isinstance(tool_results, list):
+        return None
+
+    for item in reversed(tool_results):
+        if isinstance(item, Mapping) and item.get("ok") is False:
+            return item
+    return None
+
+
+def _error_code_from_tool_result(tool_result: Mapping[str, Any]) -> str:
+    notes = tool_result.get("extra_notes")
+    if isinstance(notes, str):
+        for part in notes.split(";"):
+            key, separator, value = part.strip().partition("=")
+            if separator and key == "error_code" and value:
+                return value
+    return "ReminderToolFailed"
+
+
 def _decision_value(decision: Any, field: str) -> Any:
     if isinstance(decision, Mapping):
         return decision.get(field)
@@ -110,7 +131,8 @@ class ReminderCommandExecutor:
         run_context: AgentRunContext,
     ) -> CapabilityResult:
         try:
-            self._session_state_setter(_build_session_state(run_context))
+            session_state = _build_session_state(run_context)
+            self._session_state_setter(session_state)
             kwargs = {
                 field: _decision_value(decision, field)
                 for field in _REMINDER_DECISION_FIELDS
@@ -128,6 +150,27 @@ class ReminderCommandExecutor:
                 metadata={
                     "error_type": type(exc).__name__,
                     "message": "adapter failed",
+                },
+            )
+
+        failed_tool_result = _last_failed_tool_result(session_state)
+        if failed_tool_result is not None:
+            result_summary = failed_tool_result.get("result_summary")
+            content = {}
+            if isinstance(result_summary, str) and result_summary.strip():
+                content["summary"] = result_summary.strip()
+            return CapabilityResult(
+                name="reminder",
+                ok=False,
+                content=content,
+                error=_error_code_from_tool_result(failed_tool_result),
+                metadata={
+                    key: value
+                    for key, value in {
+                        "tool_name": failed_tool_result.get("tool_name"),
+                        "extra_notes": failed_tool_result.get("extra_notes"),
+                    }.items()
+                    if value is not None
                 },
             )
 

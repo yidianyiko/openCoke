@@ -327,7 +327,7 @@ async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_returns_noop_when_retry_is_invalid():
+async def test_reminder_intent_port_failcloses_when_retry_is_invalid():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
@@ -343,11 +343,10 @@ async def test_reminder_intent_port_returns_noop_when_retry_is_invalid():
         retry_agent=RetryAgent(),
     ).run("帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://x", _run_context())
 
-    assert result.ok is True
-    assert result.content == {
-        "action": "none",
-        "intent_type": None,
-    }
+    assert result.ok is False
+    assert result.error == "ReminderDetectInvalidDecision"
+    assert result.content["action"] == "clarify"
+    assert "提醒设置还没完成" in result.content["summary"]
     assert result.metadata["durable_write"] is False
 
 

@@ -219,6 +219,10 @@ class ReminderIntentPort:
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
                 return _timeout_clarification_result()
+            elif _is_unrecognized_decision(retry_decision):
+                return _invalid_decision_clarification_result()
+        if _is_unrecognized_decision(decision):
+            return _invalid_decision_clarification_result()
         if _is_clarification_decision(decision):
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
@@ -280,6 +284,30 @@ def _should_execute_decision(decision: Any) -> bool:
     intent_type = _decision_value(decision, "intent_type")
     action = _decision_value(decision, "action")
     return intent_type == "crud" or (intent_type == "query" and action == "list")
+
+
+def _is_unrecognized_decision(decision: Any) -> bool:
+    if decision is None:
+        return False
+    if isinstance(decision, (str, bytes)):
+        return bool(str(decision).strip())
+    intent_type = _decision_value(decision, "intent_type")
+    action = _decision_value(decision, "action")
+    if intent_type in {"crud", "clarify", "query", "discussion", "none"}:
+        return False
+    if action in {
+        "",
+        None,
+        "create",
+        "update",
+        "delete",
+        "cancel",
+        "complete",
+        "batch",
+        "list",
+    }:
+        return False
+    return True
 
 
 def _should_retry_for_quoted_title_loss(input_message: str, decision: Any) -> bool:
@@ -359,5 +387,19 @@ def _timeout_clarification_result() -> CapabilityResult:
             "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
         },
         error="ReminderDetectTimeout",
+        metadata={"durable_write": False},
+    )
+
+
+def _invalid_decision_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=False,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+        },
+        error="ReminderDetectInvalidDecision",
         metadata={"durable_write": False},
     )

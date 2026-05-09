@@ -264,6 +264,45 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     )
 
 
+def test_tool_failure_result_is_propagated_as_failed_capability():
+    session_states = []
+
+    def tool_entrypoint(**kwargs):
+        from agent.agno_agent.tools.tool_result import append_tool_result
+
+        append_tool_result(
+            session_states[-1],
+            tool_name="提醒操作",
+            ok=False,
+            result_summary="创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
+            extra_notes="action=create; error_code=InvalidSchedule",
+        )
+        return "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=session_states.append,
+    ).execute(
+        {
+            "action": "create",
+            "title": "早读",
+            "trigger_at": "2026-05-01T07:00:00+09:00",
+        },
+        _run_context(),
+    )
+
+    assert result.name == "reminder"
+    assert result.ok is False
+    assert result.content["summary"] == (
+        "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    )
+    assert result.error == "InvalidSchedule"
+    assert result.metadata == {
+        "tool_name": "提醒操作",
+        "extra_notes": "action=create; error_code=InvalidSchedule",
+    }
+
+
 def test_batch_operations_from_reminder_detect_decision_are_dicts():
     calls = []
 

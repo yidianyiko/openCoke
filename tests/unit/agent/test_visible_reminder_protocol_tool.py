@@ -623,6 +623,47 @@ def test_unexpected_service_exception_appends_failed_tool_result(monkeypatch):
     assert "reminder_created_with_time" not in session_state
 
 
+def test_past_one_shot_create_uses_user_safe_chinese_failure(monkeypatch):
+    from agent.reminder.errors import InvalidSchedule
+
+    class PastScheduleService(FakeReminderService):
+        def create(self, *, owner_user_id, command):
+            raise InvalidSchedule(
+                "One-shot reminder schedule must be in the future",
+                detail={"reason": "past_one_shot"},
+            )
+
+    service = PastScheduleService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="早读",
+        trigger_at="2026-04-28T07:00:00+09:00",
+    )
+
+    assert result == "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    assert service.calls == []
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": (
+                "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+            ),
+            "extra_notes": "action=create; error_code=InvalidSchedule",
+        }
+    ]
+    assert "One-shot reminder schedule must be in the future" not in result
+    assert "reminder_created_with_time" not in session_state
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [

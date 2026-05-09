@@ -252,6 +252,26 @@ def test_create_agent_uses_chat_response_model_role(monkeypatch):
     assert captured == {"role": "chat_response", "max_tokens": 2000}
 
 
+def test_create_agent_sets_tool_call_limit(monkeypatch):
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+
+    agent = agent_runtime._create_agent(
+        run_context=_run_context(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert agent.kwargs["tool_call_limit"] == 4
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatch):
     captured_envelopes: list[dict] = []

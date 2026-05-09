@@ -297,7 +297,10 @@ def _run_operation(
         )
         return summary
     except ReminderError as exc:
-        summary = f"{_action_failure_label(canonical_action)}失败：{exc.user_message}"
+        summary = (
+            f"{_action_failure_label(canonical_action)}失败："
+            f"{_user_safe_reminder_error_message(exc)}"
+        )
         append_tool_result(
             session_state,
             tool_name="提醒操作",
@@ -335,6 +338,12 @@ def _run_operation(
         extra_notes=f"action={canonical_action}",
     )
     return summary
+
+
+def _user_safe_reminder_error_message(exc: ReminderError) -> str:
+    if exc.code == "InvalidSchedule" and exc.detail.get("reason") == "past_one_shot":
+        return "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    return exc.user_message
 
 
 def _execute_one(
