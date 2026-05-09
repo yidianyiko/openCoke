@@ -7,6 +7,7 @@ from typing import Any
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
+from conf.config import CONF
 from util.log_util import get_logger
 
 
@@ -115,15 +116,32 @@ def _build_session_state(run_context: AgentRunContext) -> dict[str, Any]:
     return session_state
 
 
+def _execution_envelope_enabled_from_config() -> bool:
+    try:
+        return bool(
+            CONF["features"]["pending_workflow"]["reminders"]["execution_envelope"][
+                "enabled"
+            ]
+        )
+    except (KeyError, TypeError):
+        return False
+
+
 class ReminderCommandExecutor:
     def __init__(
         self,
         tool_entrypoint: Callable[..., str],
         *,
         session_state_setter: Callable[[dict[str, Any]], None] | None = None,
+        execution_envelope_enabled: bool | None = None,
     ) -> None:
         self._tool_entrypoint = tool_entrypoint
         self._session_state_setter = session_state_setter or set_reminder_session_state
+        self._execution_envelope_enabled = (
+            bool(execution_envelope_enabled)
+            if execution_envelope_enabled is not None
+            else _execution_envelope_enabled_from_config()
+        )
 
     def execute(
         self,
@@ -174,12 +192,23 @@ class ReminderCommandExecutor:
                 },
             )
 
+        content = {
+            "summary": summary,
+            "owner_user_id": run_context.user.id,
+            "conversation_id": run_context.conversation.id,
+        }
+        if self._execution_envelope_enabled:
+            action = kwargs.get("action")
+            content["execution"] = {
+                "status": "success",
+                "operation": f"{action}_reminder" if action else "reminder_operation",
+                "entities": [],
+                "visible_summary": summary,
+                "next_steps": ["show_confirmation", "offer_modification"],
+            }
+
         return CapabilityResult(
             name="reminder",
             ok=True,
-            content={
-                "summary": summary,
-                "owner_user_id": run_context.user.id,
-                "conversation_id": run_context.conversation.id,
-            },
+            content=content,
         )
