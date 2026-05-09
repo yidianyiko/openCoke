@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -161,6 +161,14 @@ class ReminderDetectDecision(BaseModel):
         if not isinstance(data, dict):
             return data
         clarification_question = str(data.get("clarification_question") or "").strip()
+        explicit_intent = str(data.get("intent_type") or "").strip()
+        if clarification_question and explicit_intent == "clarify":
+            normalized = _strip_executable_fields_for_clarification(data)
+            if not _workflow_update_has_missing_field_slots(
+                normalized.get("workflow_update")
+            ):
+                normalized.pop("workflow_update", None)
+            return normalized
         executable_field_names = (
             "title",
             "trigger_at",
@@ -310,6 +318,39 @@ def _parse_aware_datetime(value: str, field_name: str) -> datetime:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         raise ValueError(f"{field_name} must include timezone")
     return parsed
+
+
+def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(data)
+    normalized["intent_type"] = "clarify"
+    normalized["action"] = ""
+    for field_name in (
+        "title",
+        "trigger_at",
+        "reminder_id",
+        "keyword",
+        "new_title",
+        "new_trigger_at",
+        "rrule",
+        "deadline_at",
+        "schedule_basis",
+        "schedule_evidence",
+    ):
+        normalized[field_name] = ""
+    normalized["operations"] = []
+    return normalized
+
+
+def _workflow_update_has_missing_field_slots(value: Any) -> bool:
+    if value is None:
+        return True
+    if not isinstance(value, dict):
+        return True
+    missing_fields = value.get("missing_fields") or ()
+    slots = value.get("slots") or {}
+    if not isinstance(slots, dict):
+        return False
+    return all(str(field) in slots for field in missing_fields)
 
 
 def _looks_like_concrete_cadence(value: str) -> bool:

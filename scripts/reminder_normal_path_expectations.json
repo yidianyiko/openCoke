@@ -166,6 +166,14 @@
         "截止"
       ]
     },
+    "30": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder request includes content and a vague tomorrow-morning window but no specific wake-up time; the agent should ask what time to remind instead of creating a default-time reminder.",
+      "expected_clarification_terms": [
+        "几点",
+        "时间"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

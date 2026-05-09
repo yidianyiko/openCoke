@@ -395,6 +395,47 @@ def test_reminder_detect_schema_accepts_workflow_update():
     assert decision.workflow_update.id == "workflow_1"
 
 
+def test_reminder_detect_schema_preserves_clarification_when_draft_fields_leak():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="create",
+        title="起床",
+        trigger_at="",
+        schedule_basis="one_shot",
+        clarification_question="明早几点叫你起床？",
+        workflow_update={
+            "id": "workflow_1",
+            "kind": "reminder_create",
+            "status": "awaiting_user",
+            "origin": {
+                "conversation_id": "conv-1",
+                "message_ids": ["msg-1"],
+                "created_at": "2026-05-09T01:00:00+00:00",
+                "updated_at": "2026-05-09T01:00:00+00:00",
+                "expires_at": "2026-05-10T01:00:00+00:00",
+            },
+            "goal": "Wake the user tomorrow morning",
+            "slots": {
+                "title": {"value": "起床", "status": "filled"},
+            },
+            "missing_fields": ["trigger_time"],
+            "assumptions": [],
+            "constraints": [],
+            "next_steps": ["ask_user"],
+            "payload": {"reminder": {"draft_operations": []}},
+        },
+    )
+
+    assert decision.intent_type == "clarify"
+    assert decision.action == ""
+    assert decision.title == ""
+    assert decision.schedule_basis == ""
+    assert decision.clarification_question == "明早几点叫你起床？"
+    assert decision.workflow_update is None
+
+
 def test_reminder_detect_schema_rejects_free_form_workflow_key():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
