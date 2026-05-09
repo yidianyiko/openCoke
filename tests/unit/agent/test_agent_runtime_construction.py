@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -154,6 +155,60 @@ async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
     assert result.error_disposition is not None
     assert result.error_disposition.code == "agent_runtime_exception"
     assert result.error_disposition.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_times_out_when_agent_hangs(monkeypatch):
+    class HangingAgent:
+        async def arun(self, **kwargs):
+            await asyncio.sleep(1)
+
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: HangingAgent())
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "agent_runtime_timeout"
+    assert result.error_disposition.retryable is True
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypatch):
+    class HangingAgent:
+        async def arun(self, **kwargs):
+            await asyncio.sleep(1)
+
+    def fake_create_agent(**kwargs):
+        kwargs["tool_results"].append(
+            CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：喝水（2026-05-09 17:57）"},
+                metadata={"durable_write": True},
+            )
+        )
+        return HangingAgent()
+
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.output_disposition.status == "ok"
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：喝水（2026-05-09 17:57）"
+    ]
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "agent_runtime_timeout"
 
 
 def test_create_agent_registers_canonical_capability_tools():

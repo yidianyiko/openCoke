@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 import re
 from collections.abc import Sequence
 from typing import Any
@@ -23,16 +25,14 @@ from agent.agno_agent.runtime.result import (
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
+_DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
         r".{0,24}(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"
     ),
     re.compile(r"(\u63d0\u9192\u4f60|\u901a\u77e5\u4f60)"),
-    re.compile(
-        r"(\u6211\u6765|\u4f1a|\u5230\u65f6\u5019).{0,16}"
-        r"(\u53eb\u4f60)"
-    ),
+    re.compile(r"(\u6211\u6765|\u4f1a|\u5230\u65f6\u5019).{0,16}" r"(\u53eb\u4f60)"),
     re.compile(
         r"(\u5df2\u7ecf|\u5df2|\u5e2e\u4f60).{0,16}"
         r"(\u8bbe\u7f6e|\u8bbe\u597d).{0,16}"
@@ -44,6 +44,27 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+
+
+def _float_env(name: str, default: float) -> float:
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning(
+            "%s=%r is not a valid float; using %.1f", name, raw_value, default
+        )
+        return default
+    return value if value > 0 else default
+
+
+def _agent_runtime_timeout_seconds() -> float:
+    return _float_env(
+        "COKE_AGENT_RUNTIME_TIMEOUT_SECONDS",
+        _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS,
+    )
 
 
 def _default_capability_ports() -> dict[str, Any]:
@@ -244,8 +265,7 @@ def _check_unconfirmed_durable_write_promise(
     if "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text:
         return None
     if not any(
-        pattern.search(final_text)
-        for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
+        pattern.search(final_text) for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
     ):
         return None
     return RuntimeErrorDisposition(
@@ -292,6 +312,55 @@ def _unknown_tool_result(
     )
 
 
+def _timeout_result(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    timeout_seconds: float,
+    tool_results: Sequence[CapabilityResult] = (),
+) -> AgentRunResult:
+    logger.error("Agent runtime timed out: timeout=%.1fs", timeout_seconds)
+    captured_tool_results = tuple(tool_results)
+    durable_write_error = _check_durable_write_contract(captured_tool_results)
+    timeout_error = RuntimeErrorDisposition(
+        code="agent_runtime_timeout",
+        retryable=True,
+        metadata={"timeout_seconds": timeout_seconds},
+    )
+    visible_text = _resolve_visible_text("", captured_tool_results)
+    if durable_write_error is not None:
+        visible_text = ""
+    visible_messages = (
+        (VisibleMessage(message_type="text", content=visible_text),)
+        if visible_text
+        else ()
+    )
+    if visible_messages and durable_write_error is None:
+        return AgentRunResult(
+            visible_messages=visible_messages,
+            post_analyze_input={
+                "input_message": input_message,
+                "message_source": _message_source(agent_input, run_context),
+            },
+            tool_results=captured_tool_results,
+            metrics={"capability_result_count": len(captured_tool_results)},
+            trace={"runtime": "agent", "status": "timeout_with_visible_summary"},
+            output_disposition=OutputDisposition(status="ok"),
+            error_disposition=timeout_error,
+        )
+
+    return AgentRunResult(
+        visible_messages=(),
+        post_analyze_input=None,
+        tool_results=captured_tool_results,
+        metrics={"capability_result_count": len(captured_tool_results)},
+        trace={"runtime": "agent", "status": "timeout"},
+        output_disposition=OutputDisposition(status="empty"),
+        error_disposition=durable_write_error or timeout_error,
+    )
+
+
 async def run_agent_runtime(
     *,
     agent_input: AgentInput,
@@ -308,14 +377,27 @@ async def run_agent_runtime(
             input_message=input_message,
             tool_results=tool_results,
         )
-        run_output = await agent.arun(
-            input=_model_input(
+        timeout_seconds = _agent_runtime_timeout_seconds()
+        try:
+            run_output = await asyncio.wait_for(
+                agent.arun(
+                    input=_model_input(
+                        agent_input=agent_input,
+                        run_context=run_context,
+                        input_message=input_message,
+                    ),
+                    session_id=run_context.conversation.id,
+                ),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            return _timeout_result(
                 agent_input=agent_input,
                 run_context=run_context,
                 input_message=input_message,
-            ),
-            session_id=run_context.conversation.id,
-        )
+                timeout_seconds=timeout_seconds,
+                tool_results=tool_results,
+            )
         captured_tool_results = tuple(tool_results)
         durable_write_error = _check_durable_write_contract(captured_tool_results)
         final_text = _extract_final_text(run_output)
