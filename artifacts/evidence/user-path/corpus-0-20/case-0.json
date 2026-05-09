@@ -1,0 +1,146 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-0",
+    "message": null,
+    "offset": 0,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "no_reminder_created",
+      "expected_reminder_count_mismatch:2>0",
+      "missing_expected_reminder_title:喝水",
+      "missing_expected_reminder_title:锻炼",
+      "user_output_missing_expected_title:喝水",
+      "user_output_missing_expected_title:锻炼"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "expected_reminder_count_mismatch:2>0": 1,
+        "missing_expected_reminder_title:喝水": 1,
+        "missing_expected_reminder_title:锻炼": 1,
+        "no_reminder_created": 1,
+        "user_output_missing_expected_title:喝水": 1,
+        "user_output_missing_expected_title:锻炼": 1
+      },
+      "failures": [
+        {
+          "index": 0,
+          "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+          "user_id": "4749328d1c51a1069de568a9",
+          "original_from_user": "692c14aaa538f0baad5561b3",
+          "input_message_id": "69ff3ecbd80d217b1c3237d5",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:2>0",
+            "missing_expected_reminder_title:喝水",
+            "missing_expected_reminder_title:锻炼",
+            "user_output_missing_expected_title:喝水",
+            "user_output_missing_expected_title:锻炼"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff3f30d0c91fda5e6a93bc",
+              "expect_output_timestamp": 1778335536,
+              "handled_timestamp": 1778335536,
+              "status": "pending",
+              "message_type": "text",
+              "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-0-20-case-0",
+                "case_index": 0,
+                "original_from_user": "692c14aaa538f0baad5561b3",
+                "source_id": "692c14aaa538f0baad5561b4",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-0-20-case-0-case-0",
+                  "business_conversation_key": "corpus-0-20-case-0-case-0",
+                  "causal_inbound_event_id": "corpus-0-20-case-0-case-0-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "4749328d1c51a1069de568a9"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 101.183
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 0,
+      "input": "今天有这么两个事情提醒我 一个是17：57喝水，一个是每天17：58锻炼 ",
+      "user_id": "4749328d1c51a1069de568a9",
+      "original_from_user": "692c14aaa538f0baad5561b3",
+      "input_message_id": "69ff3ecbd80d217b1c3237d5",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:2>0",
+        "missing_expected_reminder_title:喝水",
+        "missing_expected_reminder_title:锻炼",
+        "user_output_missing_expected_title:喝水",
+        "user_output_missing_expected_title:锻炼"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff3f30d0c91fda5e6a93bc",
+          "expect_output_timestamp": 1778335536,
+          "handled_timestamp": 1778335536,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-0",
+            "case_index": 0,
+            "original_from_user": "692c14aaa538f0baad5561b3",
+            "source_id": "692c14aaa538f0baad5561b4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-0-case-0",
+              "business_conversation_key": "corpus-0-20-case-0-case-0",
+              "causal_inbound_event_id": "corpus-0-20-case-0-case-0-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4749328d1c51a1069de568a9"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 101.183
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "no_reminder_created, expected_reminder_count_mismatch:2>0, missing_expected_reminder_title:喝水, missing_expected_reminder_title:锻炼, user_output_missing_expected_title:喝水"
+  }
+}

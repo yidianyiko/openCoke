@@ -69,6 +69,10 @@ Fields:
 - crud actions are create, update, delete, complete, and batch.
 - query uses action="list"; clarify and discussion leave action empty.
 - Clarify, query, and discussion leave reminder write fields empty.
+- workflow_update is only for pending clarification workflows. Complete CRUD
+  decisions must omit workflow_update.
+- Never attach workflow_update to create, update, delete, complete, batch, or
+  list decisions.
 - Single create uses top-level title and trigger_at, not operations.
 - Multiple reminder operations use action="batch" with flat operation objects.
 - Any decision with operations must use top-level action="batch".

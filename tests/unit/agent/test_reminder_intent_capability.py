@@ -100,6 +100,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "### 当前用户消息" in prompt
     assert "### Active Pending Workflow" not in prompt
     assert "每天17:58锻炼" in prompt
+    assert "Complete CRUD decisions must omit workflow_update" in prompt
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
@@ -648,6 +649,7 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
         async def arun(self, *, input, session_state):
             assert "Retry reason: primary detector timed out" in input
             assert "Return only a valid ReminderDetectDecision" in input
+            assert "Complete CRUD decisions must omit workflow_update" in input
             assert "bounded cadence requests with a deadline" in input
             assert 'schedule_basis="explicit_cadence"' in input
             return SimpleNamespace(

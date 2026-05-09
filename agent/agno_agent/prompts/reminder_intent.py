@@ -54,6 +54,11 @@ def build_reminder_intent_input(
             format_reminder_few_shots_for_prompt(),
             *workflow_lines,
             "",
+            "### Workflow Boundary",
+            "workflow_update is only for pending clarification workflows.",
+            "Complete CRUD decisions must omit workflow_update.",
+            "Never attach workflow_update to create, update, delete, complete, batch, or list decisions.",
+            "",
             "### 当前用户消息",
             input_message,
         ]

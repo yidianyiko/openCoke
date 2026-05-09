@@ -132,6 +132,9 @@ Return only a valid ReminderDetectDecision for the current user message.
 Do not invent, rename, merge, or concatenate schema field names.
 Never output keys like intentaction; use intent_type and action separately.
 action must be exactly one of create, update, cancel, delete, complete, batch, list, or empty.
+workflow_update is only for pending clarification workflows.
+Complete CRUD decisions must omit workflow_update.
+Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.

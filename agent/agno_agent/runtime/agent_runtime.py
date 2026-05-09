@@ -25,7 +25,7 @@ from agent.agno_agent.runtime.result import (
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
-_DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
+_DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 160.0
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
