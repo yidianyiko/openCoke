@@ -695,6 +695,33 @@ def test_validate_observations_does_not_require_crud_for_unschedulable_label():
     assert "no_reminder_created" not in errors
 
 
+def test_validate_observations_accepts_planning_detail_question_as_discussion():
+    case = normal_eval.ReminderNormalPathCase(
+        input="还有就是规划一下，我这今天半天和明天半天我要怎么安排我的时间才能差不多做完",
+        expected_intent="reminder",
+        matched_keywords=["今天", "明天", "时间"],
+        metadata={"evaluation_expectation": "discussion"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "我很乐意帮你规划时间，不过我需要先了解一下："
+                    "你今天半天和明天半天需要完成什么呢？"
+                    "只要你告诉我具体要做的任务或工作内容，我就可以帮你安排时间啦！"
+                )
+            }
+        ],
+        reminders=[],
+    )
+
+    assert "unexpected_reminder_clarification" not in errors
+    assert errors == []
+
+
 def test_validate_observations_does_not_require_crud_for_nickname_request():
     case = normal_eval.ReminderNormalPathCase(
         input="叫我小凡就行了",
@@ -1354,7 +1381,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 84
+    assert len(selected) == 85
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0

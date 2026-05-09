@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-29-1778344628",
+    "message": null,
+    "offset": 29,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你好呀！😊 我很乐意帮你规划时间～\n\n不过我需要先了解一下：你今天半天和明天半天需要完成什么呢？只要你告诉我具体要做的任务或工作内容，我就可以帮你安排时间啦！"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 29,
+          "input": "还有就是规划一下，我这今天半天和明天半天我要怎么安排我的时间才能差不多做完",
+          "user_id": "e63b9426bf37b450b9b54266",
+          "original_from_user": "692d4e5564d834c3c06163ea",
+          "input_message_id": "69ff62b52f6f52a227c058d1",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff62b84d42bb7682711a6b",
+              "expect_output_timestamp": 1778344632,
+              "handled_timestamp": 1778344632,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你好呀！😊 我很乐意帮你规划时间～\n\n不过我需要先了解一下：你今天半天和明天半天需要完成什么呢？只要你告诉我具体要做的任务或工作内容，我就可以帮你安排时间啦！",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-20-119-case-29-1778344628",
+                "case_index": 29,
+                "original_from_user": "692d4e5564d834c3c06163ea",
+                "source_id": "692d500564d834c3c06163f9",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-20-119-case-29-1778344628-case-29",
+                  "business_conversation_key": "corpus-20-119-case-29-1778344628-case-29",
+                  "causal_inbound_event_id": "corpus-20-119-case-29-1778344628-case-29-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "e63b9426bf37b450b9b54266"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 3.007
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 29,
+      "input": "还有就是规划一下，我这今天半天和明天半天我要怎么安排我的时间才能差不多做完",
+      "user_id": "e63b9426bf37b450b9b54266",
+      "original_from_user": "692d4e5564d834c3c06163ea",
+      "input_message_id": "69ff62b52f6f52a227c058d1",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff62b84d42bb7682711a6b",
+          "expect_output_timestamp": 1778344632,
+          "handled_timestamp": 1778344632,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你好呀！😊 我很乐意帮你规划时间～\n\n不过我需要先了解一下：你今天半天和明天半天需要完成什么呢？只要你告诉我具体要做的任务或工作内容，我就可以帮你安排时间啦！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-29-1778344628",
+            "case_index": 29,
+            "original_from_user": "692d4e5564d834c3c06163ea",
+            "source_id": "692d500564d834c3c06163f9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-29-1778344628-case-29",
+              "business_conversation_key": "corpus-20-119-case-29-1778344628-case-29",
+              "causal_inbound_event_id": "corpus-20-119-case-29-1778344628-case-29-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e63b9426bf37b450b9b54266"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

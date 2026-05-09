@@ -157,6 +157,15 @@
         "截止"
       ]
     },
+    "27": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Explicit hourly reminder request has a start time but no end time; the agent should ask for the end condition before creating high-frequency recurring reminders.",
+      "expected_clarification_terms": [
+        "持续",
+        "结束",
+        "截止"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

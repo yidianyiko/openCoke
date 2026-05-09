@@ -1197,15 +1197,21 @@ def deterministic_output_mentions_clarification(
     if not asks_question:
         return False
 
-    reminder_detail = bool(
+    reminder_word = bool(
+        re.search(r"提醒|叫|通知|remind|alarm|notification", normalized, re.I)
+    )
+    schedule_detail = bool(
         re.search(
-            r"提醒|时间|几点|日期|哪天|什么时候|频率|多频繁|多久|每小时|每天|"
-            r"结束|开始|提前|内容|事情|具体|取消|删除|停止|关掉",
+            r"几点|日期|哪天|什么时候|频率|多频繁|多久|每小时|每天|"
+            r"结束|开始|提前|取消|删除|停止|关掉",
             normalized,
         )
     )
+    generic_detail = bool(re.search(r"时间|内容|事情|具体", normalized))
     user_requested_reminder = bool(re.search(r"提醒|叫|通知|remind", case_input, re.I))
-    return reminder_detail or user_requested_reminder
+    if not user_requested_reminder and not reminder_word:
+        return False
+    return reminder_word or schedule_detail or generic_detail
 
 
 def output_is_pure_reminder_clarification(
