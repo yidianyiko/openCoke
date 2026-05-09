@@ -30,10 +30,10 @@ def test_chat_response_config_uses_siliconflow_minimax_m25():
         assert chat_response["base_url"] == expected["base_url"], config_path
 
 
-def test_reminder_detect_config_uses_siliconflow_minimax_m25():
+def test_reminder_detect_config_uses_siliconflow_glm_51():
     expected = {
         "provider": "siliconflow",
-        "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+        "model_id": "Pro/zai-org/GLM-5.1",
         "api_key": "${SiliconFlow_API_KEY}",
         "base_url": "https://api.siliconflow.cn/v1",
     }
@@ -125,7 +125,7 @@ def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
             "roles": {
                 "reminder_detect": {
                     "provider": "siliconflow",
-                    "model_id": "Pro/MiniMaxAI/MiniMax-M2.5",
+                    "model_id": "Pro/zai-org/GLM-5.1",
                     "api_key": "sk-reminder",
                     "base_url": "https://api.siliconflow.cn/v1",
                     "max_retries": 2,
@@ -145,6 +145,6 @@ def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
 
     assert isinstance(agents.reminder_detect_agent.model, Siliconflow)
     assert isinstance(agents.post_analyze_agent.model, Siliconflow)
-    assert agents.reminder_detect_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
+    assert agents.reminder_detect_agent.model.id == "Pro/zai-org/GLM-5.1"
     assert agents.reminder_detect_agent.model.api_key == "sk-reminder"
     assert agents.post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"

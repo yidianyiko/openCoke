@@ -1,0 +1,68 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 116,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-case116-glm-detect-toollimit-20260509-01",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "9d4d6ad2f832175224dbea6d"
+  ],
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 116,
+      "input": "我的作息，6点半起床，7:00~12:00，下午1点40起床，14:00~18:00，18:30~23:00",
+      "user_id": "9d4d6ad2f832175224dbea6d",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69fee6cd2e47243828475887",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69fee6e49a7eb80a6b7c5705",
+          "expect_output_timestamp": 1778312932,
+          "handled_timestamp": 1778312932,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你描述了你的作息时间，请问你是希望我在这些时间点提醒你吗？比如6点半提醒你起床、下午1点40提醒你起床等？请确认是否需要设置提醒。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-case116-glm-detect-toollimit-20260509-01",
+            "case_index": 116,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301daa4bf7878f0411482e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-case116-glm-detect-toollimit-20260509-01-case-116",
+              "business_conversation_key": "reminder-case116-glm-detect-toollimit-20260509-01-case-116",
+              "causal_inbound_event_id": "reminder-case116-glm-detect-toollimit-20260509-01-case-116-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9d4d6ad2f832175224dbea6d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 24.046
+    }
+  ]
+}
