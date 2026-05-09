@@ -335,16 +335,40 @@ def test_ambiguous_keyword_appends_failed_tool_result(monkeypatch):
 
     result = call_tool(action="update", keyword="milk", new_title="buy soy milk")
 
-    assert "keyword 'milk' matched 2 reminders" in result
+    assert result == "更新提醒失败：找到多条可能的提醒，请说得更具体一点。"
     assert session_state["tool_results"] == [
         {
             "tool_name": "提醒操作",
             "ok": False,
-            "result_summary": "更新提醒失败：keyword 'milk' matched 2 reminders",
+            "result_summary": "更新提醒失败：找到多条可能的提醒，请说得更具体一点。",
             "extra_notes": "action=update; error_code=AmbiguousReminderKeyword",
         }
     ]
     assert [call[0] for call in service.calls] == ["list_for_user"]
+
+
+def test_missing_update_target_appends_user_safe_failed_tool_result(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1"},
+        "character": {"_id": "char-1"},
+        "conversation": {"_id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(action="update", new_trigger_at="2026-04-29T16:00:00+09:00")
+
+    assert result == "更新提醒失败：要更新哪条提醒？请告诉我提醒名称。"
+    assert service.calls == []
+    assert session_state["tool_results"] == [
+        {
+            "tool_name": "提醒操作",
+            "ok": False,
+            "result_summary": "更新提醒失败：要更新哪条提醒？请告诉我提醒名称。",
+            "extra_notes": "action=update; error_code=InvalidArgument",
+        }
+    ]
 
 
 def test_batch_returns_ordered_partial_results(monkeypatch):
@@ -371,7 +395,7 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
     )
 
     assert result.splitlines()[0].startswith("已创建提醒")
-    assert "keyword 'missing' matched 0 reminders" in result.splitlines()[1]
+    assert "没有找到要更新的提醒" in result.splitlines()[1]
     assert result.splitlines()[2].startswith("已完成提醒")
     assert [item["ok"] for item in session_state["tool_results"]] == [
         True,
@@ -380,7 +404,7 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
     ]
     assert [item["result_summary"] for item in session_state["tool_results"]] == [
         "已创建提醒：drink water（2026-04-29 10:00）",
-        "更新提醒失败：keyword 'missing' matched 0 reminders",
+        "更新提醒失败：没有找到要更新的提醒，请告诉我提醒名称。",
         "已完成提醒：completed",
     ]
 

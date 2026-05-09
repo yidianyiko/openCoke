@@ -203,14 +203,14 @@ def test_reminder_operation_direct_reply_keeps_delete_no_match_results():
     failed_delete = {
         "tool_name": "提醒操作",
         "ok": False,
-        "result_summary": "取消提醒失败：keyword '该走了' matched 0 reminders",
+        "result_summary": "取消提醒失败：没有找到要取消的提醒，请告诉我提醒名称。",
         "extra_notes": "action=delete",
     }
     state = {"tool_results": [failed_delete]}
 
     assert reminder_tool_result_counts_as_setup(failed_delete) is True
     assert get_reminder_operation_direct_reply(state) == (
-        "取消提醒失败：keyword '该走了' matched 0 reminders"
+        "取消提醒失败：没有找到要取消的提醒，请告诉我提醒名称。"
     )
 
 

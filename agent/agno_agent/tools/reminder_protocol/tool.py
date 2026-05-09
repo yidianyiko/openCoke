@@ -45,7 +45,7 @@ class _KeywordResolutionError(Exception):
         self.action = action
         self.keyword = keyword
         self.match_count = match_count
-        super().__init__(f"keyword '{keyword}' matched {match_count} reminders")
+        super().__init__(_target_resolution_message(action, match_count))
 
 
 def set_reminder_session_state(session_state: dict) -> None:
@@ -343,6 +343,11 @@ def _run_operation(
 def _user_safe_reminder_error_message(exc: ReminderError) -> str:
     if exc.code == "InvalidSchedule" and exc.detail.get("reason") == "past_one_shot":
         return "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    if (
+        exc.code == "InvalidArgument"
+        and exc.detail.get("reason") == "missing_target"
+    ):
+        return _target_resolution_message(str(exc.detail.get("action") or ""), None)
     return exc.user_message
 
 
@@ -583,8 +588,8 @@ def _resolve_reminder_id(
         return reminder_id
     if not keyword:
         raise InvalidArgument(
-            "reminder_id or keyword is required",
-            detail={"action": action},
+            _target_resolution_message(action, None),
+            detail={"action": action, "reason": "missing_target"},
         )
 
     reminders = service.list_for_user(
@@ -637,6 +642,23 @@ def _action_failure_label(action: str) -> str:
         "complete": "完成提醒",
         "list": "列出提醒",
     }.get(action, "提醒操作")
+
+
+def _target_resolution_action_text(action: str) -> str:
+    return {
+        "update": "更新",
+        "cancel": "取消",
+        "complete": "完成",
+    }.get(action, "处理")
+
+
+def _target_resolution_message(action: str, match_count: int | None) -> str:
+    action_text = _target_resolution_action_text(action)
+    if match_count is None:
+        return f"要{action_text}哪条提醒？请告诉我提醒名称。"
+    if match_count == 0:
+        return f"没有找到要{action_text}的提醒，请告诉我提醒名称。"
+    return "找到多条可能的提醒，请说得更具体一点。"
 
 
 def _append_failure(
