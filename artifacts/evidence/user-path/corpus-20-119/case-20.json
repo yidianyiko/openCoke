@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-20",
+    "message": null,
+    "offset": 20,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你想被循环提醒做什么事情？另外，希望以什么样的频率循环（比如每小时、每天、每周等）？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 20,
+          "input": "你可以循环提醒我吗",
+          "user_id": "176c8b5d35bd9601385b42f3",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "69ff567b3c0256f43b037975",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff568d1fdc0ac5d7978f15",
+              "expect_output_timestamp": 1778341517,
+              "handled_timestamp": 1778341517,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你想被循环提醒做什么事情？另外，希望以什么样的频率循环（比如每小时、每天、每周等）？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-20-119-case-20",
+                "case_index": 20,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "692d402fa538f0baad55628c",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-20-119-case-20-case-20",
+                  "business_conversation_key": "corpus-20-119-case-20-case-20",
+                  "causal_inbound_event_id": "corpus-20-119-case-20-case-20-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "176c8b5d35bd9601385b42f3"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 18.035
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 20,
+      "input": "你可以循环提醒我吗",
+      "user_id": "176c8b5d35bd9601385b42f3",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff567b3c0256f43b037975",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff568d1fdc0ac5d7978f15",
+          "expect_output_timestamp": 1778341517,
+          "handled_timestamp": 1778341517,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想被循环提醒做什么事情？另外，希望以什么样的频率循环（比如每小时、每天、每周等）？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-20",
+            "case_index": 20,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d402fa538f0baad55628c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-20-case-20",
+              "business_conversation_key": "corpus-20-119-case-20-case-20",
+              "causal_inbound_event_id": "corpus-20-119-case-20-case-20-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "176c8b5d35bd9601385b42f3"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 18.035
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

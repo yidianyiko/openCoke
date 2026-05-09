@@ -97,6 +97,10 @@
         "截止"
       ]
     },
+    "20": {
+      "evaluation_expectation": "capability",
+      "evaluation_reason": "Capability question about recurring reminders; the agent may explain it can do recurring reminders or ask what content/frequency the user wants, but should not create a reminder yet."
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
