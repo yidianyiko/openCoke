@@ -7,7 +7,7 @@ description: Use when testing Coke reminder CRUD corpus cases, especially one-ca
 
 ## Purpose
 
-Run reminder corpus cases through the real local agent path with bounded waits. Do not continue to later cases when a case exposes a product or harness bug; fix and verify the current case first.
+Run reminder corpus cases through the canonical user-path simulator with bounded waits. Do not continue to later cases when a case exposes a product or harness bug; fix and verify the current case first.
 
 ## Required Runtime
 
@@ -24,19 +24,17 @@ If only code changed after PM2 was already started, reload the agent:
 ./pm2-manager.sh restart coke-agent
 ```
 
-Confirm `coke-agent` is online and `agent/runner/agent_runner.py` is the running process. Bridge/gateway HTTP listeners are not required for this harness; the harness simulates ClawScale request-response inbound messages by writing Mongo `inputmessages`.
+Confirm `coke-agent` is online and `agent/runner/agent_runner.py` is the running process. Bridge/gateway HTTP listeners are not required for this local harness; `scripts/simulate_user_path.py` uses the same business ClawScale request-response shape and drives Mongo `inputmessages` through the worker normal path.
 
 ## One-Case Loop
 
 Run exactly one JSON case at a time, in corpus order:
 
 ```bash
-python scripts/eval_reminder_normal_path_cases.py \
-  --offset <case_index> \
-  --limit 1 \
+python scripts/simulate_user_path.py \
+  --case-index <case_index> \
   --case-timeout-seconds 120 \
-  --transport business-clawscale \
-  --output /tmp/reminder-normal-case-<case_index>.json
+  --output /tmp/user-path-case-<case_index>.json
 ```
 
 Rules:
@@ -86,7 +84,7 @@ Do not let normal-path fixes become another case-by-case parser.
   expectations to `scripts/reminder_normal_path_expectations.json` or a dedicated
   fixture.
 - Treat prompt changes like code changes: prefer compact positive boundaries that describe a class of inputs and expected decision, and add prompt tests for that boundary. Do not let the prompt accumulate one-case `Avoid X` clauses or narrow examples as a substitute for improving the decision boundary.
-- `scripts/eval_reminder_normal_path_cases.py::output_implies_unconfirmed_reminder`
+- `scripts/user_path_normal_eval.py::output_implies_unconfirmed_reminder`
   must remain an LLM judge boundary, not a handwritten regex blacklist. If it is
   wrong, fix the judge rubric or fixture evidence rather than adding more regex
   phrases.

@@ -8,12 +8,15 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json")
-DEFAULT_PROMPT_PATHS = (
-    Path("agent/prompt/agent_instructions_prompt.py"),
-    Path("agent/prompt/chat_contextprompt.py"),
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_EXPECTATIONS_PATH = (
+    PROJECT_ROOT / "scripts/reminder_normal_path_expectations.json"
 )
-DEFAULT_WORKFLOW_PATH = Path("agent/agno_agent/workflows/prepare_workflow.py")
+DEFAULT_PROMPT_PATHS = (
+    PROJECT_ROOT / "agent/prompt/agent_instructions_prompt.py",
+    PROJECT_ROOT / "agent/prompt/chat_contextprompt.py",
+)
+DEFAULT_WORKFLOW_PATH = PROJECT_ROOT / "agent/agno_agent/workflows/prepare_workflow.py"
 
 
 def load_expectation_cases(path: Path) -> dict[str, dict[str, Any]]:
@@ -62,7 +65,9 @@ def build_report(
             "negative_constraints": count_negative_constraints(text),
         }
 
-    workflow_text = workflow_path.read_text(encoding="utf-8")
+    workflow_text = (
+        workflow_path.read_text(encoding="utf-8") if workflow_path.exists() else ""
+    )
     return {
         "fixture_overrides": len(cases),
         "evaluation_expectation_counts": dict(sorted(expectation_counts.items())),

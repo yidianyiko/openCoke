@@ -75,7 +75,7 @@ Single-Agent runtime commands:
 
 ```bash
 .venv/bin/python -m pytest tests/unit/agent/ tests/unit/runner/ -v
-.venv/bin/python scripts/eval_reminder_normal_path_cases.py
+.venv/bin/python scripts/simulate_user_path.py --case-index 0
 ```
 
 Focused deferred-actions command set:

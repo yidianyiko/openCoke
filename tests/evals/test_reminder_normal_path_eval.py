@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from bson import ObjectId
 
-from scripts import eval_reminder_normal_path_cases as normal_eval
+from scripts import user_path_normal_eval as normal_eval
 
 _ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE = normal_eval.run_clarification_output_judge
 
