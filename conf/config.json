@@ -119,6 +119,14 @@
             "enabled": true,
             "max_urls": 3,
             "max_content_length": 2000
+        },
+        "pending_workflow": {
+            "reminders": {
+                "enabled": false,
+                "execution_envelope": {
+                    "enabled": false
+                }
+            }
         }
     }
 }
