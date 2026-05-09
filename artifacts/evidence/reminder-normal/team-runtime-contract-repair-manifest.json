@@ -1,0 +1,16 @@
+{
+  "topic": "team-runtime-contract-repair",
+  "policy": "Keep small targeted case evidence in git. Store full-run LLM transcripts outside git.",
+  "tracked_case_artifacts": [
+    "team-case14.json",
+    "team-case123.json",
+    "team-smoke.json"
+  ],
+  "full_transcripts_removed_from_git": [
+    "team-100-pass-gate.json",
+    "team-run-all.json",
+    "team-100-pass-gate-supplement.json"
+  ],
+  "external_transcript_location": "not recorded in repo",
+  "created_at": "2026-05-09"
+}
