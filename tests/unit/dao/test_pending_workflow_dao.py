@@ -111,6 +111,38 @@ def test_upsert_new_active_workflow_sets_revision_zero(mock_collection):
     mock_collection.update_one.assert_not_called()
 
 
+def test_upsert_new_active_workflow_expires_stale_active_before_insert(
+    mock_collection,
+):
+    from dao.pending_workflow_dao import PendingWorkflowDAO
+
+    dao = PendingWorkflowDAO()
+    dao.collection = mock_collection
+    now = datetime(2026, 5, 9, 2, 0, tzinfo=UTC)
+    document = _document(revision=7)
+
+    assert dao.upsert_new_active_workflow(document, now=now) is True
+
+    mock_collection.update_many.assert_called_once_with(
+        {
+            "owner_user_id": "user-1",
+            "conversation_id": "conv-1",
+            "status": {
+                "$in": ["draft", "awaiting_user", "ready_to_execute", "executing"]
+            },
+            "expires_at": {"$lte": now},
+        },
+        {
+            "$set": {
+                "status": "expired",
+                "document.status": "expired",
+                "updated_at": now,
+            }
+        },
+    )
+    assert mock_collection.insert_one.call_args.args[0]["revision"] == 0
+
+
 def test_upsert_new_active_workflow_does_not_replace_existing_active_workflow(
     mock_collection,
 ):
@@ -174,6 +206,34 @@ def test_cas_update_returns_false_on_stale_revision(mock_collection):
         )
         is False
     )
+
+
+def test_mark_terminal_workflow_from_executing_without_revision(mock_collection):
+    from dao.pending_workflow_dao import PendingWorkflowDAO
+
+    dao = PendingWorkflowDAO()
+    dao.collection = mock_collection
+    mock_collection.update_one.return_value = MagicMock(matched_count=1)
+    document = _document(status="completed", revision=6)
+
+    assert (
+        dao.mark_terminal_workflow_from_executing(
+            "workflow_1",
+            "user-1",
+            "conv-1",
+            document,
+        )
+        is True
+    )
+
+    selector, update = mock_collection.update_one.call_args.args
+    assert selector == {
+        "id": "workflow_1",
+        "owner_user_id": "user-1",
+        "conversation_id": "conv-1",
+        "status": "executing",
+    }
+    assert update["$set"]["status"] == "completed"
 
 
 def test_pending_workflow_flags_default_off():

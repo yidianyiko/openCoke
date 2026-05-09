@@ -49,9 +49,27 @@ class PendingWorkflowDAO:
             selector["expires_at"] = {"$gt": now}
         return self.collection.find_one(selector, sort=[("updated_at", -1)])
 
-    def upsert_new_active_workflow(self, document: dict[str, Any]) -> bool:
+    def upsert_new_active_workflow(
+        self, document: dict[str, Any], now: datetime | None = None
+    ) -> bool:
         write_doc = dict(document)
         write_doc["revision"] = 0
+        if now is not None:
+            self.collection.update_many(
+                {
+                    "owner_user_id": write_doc["owner_user_id"],
+                    "conversation_id": write_doc["conversation_id"],
+                    "status": {"$in": list(ACTIVE_WORKFLOW_STATUSES)},
+                    "expires_at": {"$lte": now},
+                },
+                {
+                    "$set": {
+                        "status": "expired",
+                        "document.status": "expired",
+                        "updated_at": now,
+                    }
+                },
+            )
         try:
             self.collection.insert_one(write_doc)
         except DuplicateKeyError:
@@ -79,6 +97,24 @@ class PendingWorkflowDAO:
                 "revision": expected_revision,
             },
             {"$set": write_doc},
+        )
+        return result.matched_count > 0
+
+    def mark_terminal_workflow_from_executing(
+        self,
+        workflow_id: str,
+        owner_user_id: str,
+        conversation_id: str,
+        document: dict[str, Any],
+    ) -> bool:
+        result = self.collection.update_one(
+            {
+                "id": workflow_id,
+                "owner_user_id": owner_user_id,
+                "conversation_id": conversation_id,
+                "status": "executing",
+            },
+            {"$set": dict(document)},
         )
         return result.matched_count > 0
 

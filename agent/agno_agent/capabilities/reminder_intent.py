@@ -298,6 +298,10 @@ class ReminderIntentPort:
                 return _invalid_decision_clarification_result()
         if _is_unrecognized_decision(decision):
             return _invalid_decision_clarification_result()
+        if _should_execute_decision(decision) and _is_unbounded_high_frequency_cadence(
+            decision, input_message=input_message
+        ):
+            return _unbounded_high_frequency_cadence_clarification_result(decision)
         workflow_outcome = self._persist_workflow_update(
             decision,
             run_context,
@@ -321,9 +325,6 @@ class ReminderIntentPort:
             or workflow_outcome.workflow.status != "ready_to_execute"
         ):
             return _invalid_decision_clarification_result()
-        if _is_unbounded_high_frequency_cadence(decision, input_message=input_message):
-            return _unbounded_high_frequency_cadence_clarification_result(decision)
-
         execution_workflow = workflow_outcome.workflow
         execution_revision = workflow_outcome.stored_revision
         if workflow_outcome.had_update and execution_workflow is not None:
@@ -341,12 +342,21 @@ class ReminderIntentPort:
         result = self.command_executor.execute(decision, run_context)
         if workflow_outcome.had_update and execution_workflow is not None:
             terminal_status = "completed" if result.ok else "failed"
-            self._persist_workflow_status(
+            terminal_outcome = self._persist_workflow_status(
                 execution_workflow,
                 run_context,
                 expected_revision=execution_revision,
                 status=terminal_status,
             )
+            if terminal_outcome.concurrent_drop:
+                logger.warning(
+                    "workflow_terminal_write_dropped",
+                    extra={
+                        "conversation_id": run_context.conversation.id,
+                        "workflow_id": execution_workflow.id,
+                        "status": terminal_status,
+                    },
+                )
         return CapabilityResult(
             name=result.name,
             ok=result.ok,
@@ -420,7 +430,8 @@ class ReminderIntentPort:
                     normalized_workflow,
                     run_context,
                     revision=0,
-                )
+                ),
+                now=run_context.current_time,
             )
             if not saved:
                 logger.warning(
@@ -521,6 +532,29 @@ class ReminderIntentPort:
             ),
         )
         if not saved:
+            if status in {"completed", "cancelled", "expired", "failed"} and hasattr(
+                self.pending_workflow_dao,
+                "mark_terminal_workflow_from_executing",
+            ):
+                terminal_saved = (
+                    self.pending_workflow_dao.mark_terminal_workflow_from_executing(
+                        updated_workflow.id,
+                        run_context.user.id,
+                        run_context.conversation.id,
+                        _workflow_storage_document(
+                            updated_workflow,
+                            run_context,
+                            revision=expected_revision,
+                        ),
+                    )
+                )
+                if terminal_saved:
+                    return _WorkflowPersistenceOutcome(
+                        had_update=True,
+                        workflow=updated_workflow,
+                        saved=True,
+                        stored_revision=expected_revision,
+                    )
             logger.warning(
                 "workflow_concurrent_write_dropped",
                 extra={
