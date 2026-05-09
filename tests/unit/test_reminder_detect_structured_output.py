@@ -232,6 +232,22 @@ def test_reminder_detect_schema_rejects_non_concrete_cadence_evidence():
         )
 
 
+def test_reminder_detect_schema_accepts_whole_hour_cadence_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="打卡",
+        trigger_at="2026-04-29T10:00:00+09:00",
+        rrule="FREQ=HOURLY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每个整点",
+    )
+
+    assert decision.schedule_evidence == "每个整点"
+
+
 def test_reminder_detect_schema_rejects_time_range_as_cadence_evidence():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

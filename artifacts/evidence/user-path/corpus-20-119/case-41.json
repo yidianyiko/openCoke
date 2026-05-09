@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-41-1778346673",
+    "message": null,
+    "offset": 41,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "哇，作业安排得满满当当的，看来今天是学习强度拉满的一天啊！\n\n你让我别让你浑水摸鱼，这是要我帮你监督你的学习计划呀～ 想确认一下，你希望我帮你设置哪些提醒呢？\n\n比如：\n\n- 📍 关键节点提醒：起床、数学/物理练习、英语语法、复盘、睡觉\n- 📍 每个学习时段开始和结束提醒\n\n还是说，你只需要几个关键节点的提醒就够了？告诉我你想要的，我来帮你安排～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 41,
+      "input": "时间安排\n6:30 起床（书桌照片证明）\n7:00-9:00  数学网课\n9:10-11:30  数学练习\n13:00-16:00  物理网课\n18:00-20:00  物理练习\n20:00-21:30  英语语法练习\n21:30-21:40  复盘\n22:30  睡觉\n网课我会发屏幕使用时间证明 不要让我浑水摸鱼啊",
+      "user_id": "21c32c427c288c4fb0a6d462",
+      "original_from_user": "692d4ac79913054ccf2b90bf",
+      "input_message_id": "69ff6ab390ce04bf4a8d3306",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6ab8b63defb11d3d84d0",
+          "expect_output_timestamp": 1778346680,
+          "handled_timestamp": 1778346680,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哇，作业安排得满满当当的，看来今天是学习强度拉满的一天啊！\n\n你让我别让你浑水摸鱼，这是要我帮你监督你的学习计划呀～ 想确认一下，你希望我帮你设置哪些提醒呢？\n\n比如：\n\n- 📍 关键节点提醒：起床、数学/物理练习、英语语法、复盘、睡觉\n- 📍 每个学习时段开始和结束提醒\n\n还是说，你只需要几个关键节点的提醒就够了？告诉我你想要的，我来帮你安排～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-41-1778346673",
+            "case_index": 41,
+            "original_from_user": "692d4ac79913054ccf2b90bf",
+            "source_id": "692d9e3a64d834c3c061650a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-41-1778346673-case-41",
+              "business_conversation_key": "corpus-20-119-case-41-1778346673-case-41",
+              "causal_inbound_event_id": "corpus-20-119-case-41-1778346673-case-41-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "21c32c427c288c4fb0a6d462"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

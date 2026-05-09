@@ -376,6 +376,8 @@ def _looks_like_concrete_cadence(value: str) -> bool:
         "每小时",
         "每分钟",
         "每隔",
+        "每个整点",
+        "整点",
     )
     if any(token in text for token in concrete_tokens):
         return True

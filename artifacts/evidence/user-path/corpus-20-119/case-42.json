@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-42-1778346701",
+    "message": null,
+    "offset": 42,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "收到啦！你的12月2日学习计划安排得很充实呢～\n\n从早上8点到晚上23点，安排了英语、背政、物理和天文好几门科目复习，时间管理得很紧凑！\n\n计划是那天早上自动启动吗？还是需要我帮你设置个提醒？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 42,
+      "input": "[太阳][太阳]12月2日计划 星期二\n8:00～8:40英语单词背诵#680个阅读高频词1-100\n8:50～10:30英语阅读技巧#阅读理论课-推荐颉斌斌理论\n10:30～12:00天文教材阅读理解#第一章\n14:00～16:00物理概念理解+题目练习#参考系和坐标系\n16:20～18:00物理概念理解+题目练习#质点运动\n19:00～20:30政治真题技巧课+背诵1#边刷边学边背\n20:40～22:00天文教材阅读理解#第2-3章\n22:00～23:00总结复盘",
+      "user_id": "0360774d74eb783b454351ef",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "69ff6acffc345bdec896378b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6ad2b63defb11d3d84da",
+          "expect_output_timestamp": 1778346706,
+          "handled_timestamp": 1778346706,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到啦！你的12月2日学习计划安排得很充实呢～\n\n从早上8点到晚上23点，安排了英语、背政、物理和天文好几门科目复习，时间管理得很紧凑！\n\n计划是那天早上自动启动吗？还是需要我帮你设置个提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-42-1778346701",
+            "case_index": 42,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "692da80364d834c3c0616519",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-42-1778346701-case-42",
+              "business_conversation_key": "corpus-20-119-case-42-1778346701-case-42",
+              "causal_inbound_event_id": "corpus-20-119-case-42-1778346701-case-42-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0360774d74eb783b454351ef"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

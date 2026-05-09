@@ -1022,6 +1022,34 @@ async def test_reminder_intent_port_timeout_asks_deadline_for_high_frequency_inp
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_invalid_retry_asks_window_for_whole_hour_input(
+    monkeypatch,
+):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
+
+    class SlowPrimaryAgent:
+        async def arun(self, *, input, session_state):
+            await asyncio.sleep(60)
+
+    class InvalidRetryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content="intentaction create")
+
+    result = await ReminderIntentPort(
+        detector_agent=SlowPrimaryAgent(),
+        retry_agent=InvalidRetryAgent(),
+    ).run("每个整点喊我打卡吧", _run_context())
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert "从什么时候开始" in result.content["summary"]
+    assert "持续到什么时候结束" in result.content["summary"]
+    assert result.metadata["durable_write"] is False
+
+
+@pytest.mark.asyncio
 async def test_pending_workflow_retry_detector_receives_active_workflow(monkeypatch):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

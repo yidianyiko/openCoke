@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-40-1778346662",
+    "message": null,
+    "offset": 40,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "这个决定很棒！确实，博物馆什么时候去都行，但当下这份想要练习正念的心意更为难得。明后天正好可以随心而动，不需要赶什么行程，反而更能好好享受那份宁静。你打算怎么安排呢？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 40,
+      "input": "我决定修改明后天的计划，不再出游博物馆，因为就像你说的，博物馆随时在，正念不会随时在",
+      "user_id": "782f6cd3cab12e31c64a6df7",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff6aa8178dbe767869edaf",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6aadb63defb11d3d84c6",
+          "expect_output_timestamp": 1778346669,
+          "handled_timestamp": 1778346669,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这个决定很棒！确实，博物馆什么时候去都行，但当下这份想要练习正念的心意更为难得。明后天正好可以随心而动，不需要赶什么行程，反而更能好好享受那份宁静。你打算怎么安排呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-40-1778346662",
+            "case_index": 40,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d8f6f64d834c3c06164fe",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-40-1778346662-case-40",
+              "business_conversation_key": "corpus-20-119-case-40-1778346662-case-40",
+              "causal_inbound_event_id": "corpus-20-119-case-40-1778346662-case-40-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "782f6cd3cab12e31c64a6df7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

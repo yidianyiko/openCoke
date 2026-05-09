@@ -223,6 +223,24 @@
         }
       ]
     },
+    "45": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Bare reminder request without reminder content or time; the agent should ask for the missing details instead of creating a reminder.",
+      "expected_clarification_terms": [
+        "时间",
+        "什么",
+        "提醒"
+      ]
+    },
+    "47": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "High-frequency every-whole-hour reminder has content and cadence but no start or end window; the agent should ask for the missing bounded window instead of creating an unbounded reminder.",
+      "expected_clarification_terms": [
+        "开始",
+        "持续",
+        "结束"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-47-rerun-whole-hour-window",
+    "message": null,
+    "offset": 47,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "这个高频提醒要从什么时候开始，持续到什么时候结束？请告诉我开始时间和截止时间。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 47,
+      "input": "每个整点喊我打卡吧",
+      "user_id": "be926a19f9f5293c1a5f8ecc",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff6c01a577012685d5e006",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6c580d333a4b544c2bbd",
+          "expect_output_timestamp": 1778347096,
+          "handled_timestamp": 1778347096,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这个高频提醒要从什么时候开始，持续到什么时候结束？请告诉我开始时间和截止时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-47-rerun-whole-hour-window",
+            "case_index": 47,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692e363c4bf7878f04114555",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-47-rerun-whole-hour-window-case-47",
+              "business_conversation_key": "corpus-20-119-case-47-rerun-whole-hour-window-case-47",
+              "causal_inbound_event_id": "corpus-20-119-case-47-rerun-whole-hour-window-case-47-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "be926a19f9f5293c1a5f8ecc"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 87.166
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

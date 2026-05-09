@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-46-1778346768",
+    "message": null,
+    "offset": 46,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "明白了～ 周一到周四的晚上，除了已有的安排外，其余时间要控制游戏时间。\n\n想确认一下，这个\"原有安排\"是指平时已经固定的某些活动或时间吗？另外，需不需要我帮你设置一个提醒来帮助你执行这个计划？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 46,
+      "input": "周1234的晚上其余时间我想控制游戏时间，保持原有安排",
+      "user_id": "9c6e8fd2263b7c5c365d566a",
+      "original_from_user": "692dba6f64d834c3c061653b",
+      "input_message_id": "69ff6b121bce9bc456fde725",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6b17b63defb11d3d8502",
+          "expect_output_timestamp": 1778346775,
+          "handled_timestamp": 1778346775,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明白了～ 周一到周四的晚上，除了已有的安排外，其余时间要控制游戏时间。\n\n想确认一下，这个\"原有安排\"是指平时已经固定的某些活动或时间吗？另外，需不需要我帮你设置一个提醒来帮助你执行这个计划？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-46-1778346768",
+            "case_index": 46,
+            "original_from_user": "692dba6f64d834c3c061653b",
+            "source_id": "692dbbaa64d834c3c0616544",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-46-1778346768-case-46",
+              "business_conversation_key": "corpus-20-119-case-46-1778346768-case-46",
+              "causal_inbound_event_id": "corpus-20-119-case-46-1778346768-case-46-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9c6e8fd2263b7c5c365d566a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

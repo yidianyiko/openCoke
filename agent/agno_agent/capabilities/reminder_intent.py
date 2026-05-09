@@ -1146,6 +1146,8 @@ def _is_high_frequency_evidence(evidence: str) -> bool:
         "每一小时",
         "每分钟",
         "每隔",
+        "每个整点",
+        "整点",
     )
     return any(token in text for token in tokens)
 
@@ -1229,7 +1231,7 @@ def _high_frequency_input_clarification_result() -> CapabilityResult:
         content={
             "action": "clarify",
             "intent_type": "clarify",
-            "summary": "这个高频提醒要持续到什么时候结束？请告诉我截止时间。",
+            "summary": "这个高频提醒要从什么时候开始，持续到什么时候结束？请告诉我开始时间和截止时间。",
         },
         metadata={"durable_write": False},
     )
