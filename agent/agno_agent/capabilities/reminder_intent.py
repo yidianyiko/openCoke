@@ -408,6 +408,7 @@ class ReminderIntentPort:
             decision,
             run_context,
         )
+        decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         if _should_clarify_date_only_create(input_message, decision):
             return _date_only_missing_time_clarification_result()
         if _should_clarify_ambiguous_time_range_create(input_message, decision):
@@ -957,6 +958,14 @@ _EXPLICIT_DATE_PATTERN = re.compile(
 )
 _STANDALONE_DAY_OF_MONTH_PATTERN = re.compile(r"(?<!\d)\d{1,2}\s*[日号](?!\d)")
 _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
+_REMINDER_VERB_PATTERN = re.compile(
+    r"提醒我|叫我|喊我|通知我|监督我|问我|检查我|"
+    r"remind me|call me|notify me|nudge me",
+    re.IGNORECASE,
+)
+_SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
+    r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
+)
 
 
 def _normalize_past_bare_create_trigger(
@@ -1001,6 +1010,59 @@ def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
     except TypeError:
         return decision
     data[field] = value
+    return SimpleNamespace(**data)
+
+
+def _drop_ungoverned_batch_plan_operations(input_message: str, decision: Any) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "batch":
+        return decision
+    operations = list(_decision_value(decision, "operations") or [])
+    if len(operations) <= 1:
+        return decision
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if _SCHEDULE_BACK_REFERENCE_PATTERN.search(current_user_text):
+        return decision
+    reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
+    if reminder_match is None:
+        return decision
+    reminder_start = reminder_match.start()
+    kept_operations = []
+    changed = False
+    for operation in operations:
+        if str(_operation_value(operation, "action") or "").strip() != "create":
+            kept_operations.append(operation)
+            continue
+        title = str(_operation_value(operation, "title") or "").strip()
+        if not title:
+            kept_operations.append(operation)
+            continue
+        first_title_at = current_user_text.find(title)
+        if first_title_at < 0:
+            kept_operations.append(operation)
+            continue
+        later_title_at = current_user_text.find(title, reminder_start)
+        if first_title_at < reminder_start and later_title_at < 0:
+            changed = True
+            continue
+        kept_operations.append(operation)
+    if not changed or not kept_operations:
+        return decision
+    return _copy_decision_with_operations(decision, kept_operations)
+
+
+def _copy_decision_with_operations(decision: Any, operations: list[Any]) -> Any:
+    if isinstance(decision, Mapping):
+        return {**dict(decision), "operations": operations}
+    model_dump = getattr(decision, "model_dump", None)
+    if callable(model_dump):
+        data = model_dump()
+        data["operations"] = operations
+        return SimpleNamespace(**data)
+    try:
+        data = vars(decision).copy()
+    except TypeError:
+        return decision
+    data["operations"] = operations
     return SimpleNamespace(**data)
 
 

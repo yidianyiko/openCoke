@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-111-1778352283",
+    "message": null,
+    "offset": 111,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，我知道了，你一点半才下课呢。那就先专心上课吧～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 111,
+      "input": "我要到一点半才下课呢。",
+      "user_id": "21fef8b71c8532251e531d2a",
+      "original_from_user": "692c2f0fa538f0baad5561c6",
+      "input_message_id": "69ff809c5f9ecd6d51dfdafc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff809f3b79d5eb95a95d24",
+          "expect_output_timestamp": 1778352287,
+          "handled_timestamp": 1778352287,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，我知道了，你一点半才下课呢。那就先专心上课吧～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-111-1778352283",
+            "case_index": 111,
+            "original_from_user": "692c2f0fa538f0baad5561c6",
+            "source_id": "693011754bf7878f04114814",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-111-1778352283-case-111",
+              "business_conversation_key": "corpus-20-119-case-111-1778352283-case-111",
+              "causal_inbound_event_id": "corpus-20-119-case-111-1778352283-case-111-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "21fef8b71c8532251e531d2a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -519,6 +519,38 @@
         "几点"
       ]
     },
+    "94": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit evening time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "给annette教授发邮件",
+          "local_time": "21:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "98": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit weekday, evening time, and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "交接2个客户",
+          "local_time": "20:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "99": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative-delay reminder request with task content; the agent should create the reminder ten minutes after the user turn.",
+      "expected_creates": [
+        {
+          "title": "补充评价图",
+          "recurring": false
+        }
+      ]
+    },
     "101": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "Habitual schedule wording ('我一般') asks for reminders at the listed times, so daily recurring reminders are expected.",
@@ -571,13 +603,121 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder."
     },
+    "103": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Same-message recurring request includes a nightly check-in clause without a concrete clock time. The agent should clarify before partially creating the sleep and wake reminders.",
+      "expected_clarification_terms": [
+        "具体提醒时间",
+        "确认"
+      ]
+    },
+    "104": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot call-me/wake request with explicit local clock time; if today's time has passed, the agent should schedule the next occurrence.",
+      "expected_creates": [
+        {
+          "title": "叫我起床",
+          "title_variants": [
+            "起床"
+          ],
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "106": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit multi-create reminder request with several listed local times and one shared task.",
+      "expected_creates": [
+        {
+          "title": "完成任务",
+          "local_time": "18:30:00",
+          "recurring": false
+        },
+        {
+          "title": "完成任务",
+          "local_time": "21:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成任务",
+          "local_time": "21:30:00",
+          "recurring": false
+        },
+        {
+          "title": "完成任务",
+          "local_time": "23:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成任务",
+          "local_time": "00:30:00",
+          "recurring": false
+        }
+      ]
+    },
     "107": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder."
     },
+    "109": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit evening time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "20:10:00",
+          "recurring": false
+        }
+      ]
+    },
+    "110": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with a bare clock time and task content; the agent should create the next matching reminder.",
+      "expected_creates": [
+        {
+          "title": "学习",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "112": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default."
+    },
+    "113": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit relative date, afternoon time, and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "找老师",
+          "local_time": "16:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "114": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user lists reminder times but gives no reminder content; the agent should ask what to remind before creating any reminders.",
+      "expected_clarification_terms": [
+        "提醒内容",
+        "具体"
+      ]
+    },
+    "115": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Only the second clause asks to be called/woken up; the leading sleep-time statement is context and should not become a reminder.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "title_variants": [
+            "叫我起床"
+          ],
+          "local_time": "06:30:00",
+          "recurring": false
+        }
+      ]
     },
     "116": {
       "evaluation_expectation": "discussion",

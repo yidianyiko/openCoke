@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-117-1778352848",
+    "message": null,
+    "offset": 117,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "请问你需要我在什么时间提醒你什么事情？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 117,
+      "input": "记得按时提醒我",
+      "user_id": "dd4112745c184f440265216d",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "69ff82d22c7ec9d9ca9df190",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff82f4e2515d3b9a564eb7",
+          "expect_output_timestamp": 1778352884,
+          "handled_timestamp": 1778352884,
+          "status": "pending",
+          "message_type": "text",
+          "message": "请问你需要我在什么时间提醒你什么事情？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-117-1778352848",
+            "case_index": 117,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "69301dc64bf7878f0411482f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-117-1778352848-case-117",
+              "business_conversation_key": "corpus-20-119-case-117-1778352848-case-117",
+              "causal_inbound_event_id": "corpus-20-119-case-117-1778352848-case-117-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "dd4112745c184f440265216d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 34.067
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

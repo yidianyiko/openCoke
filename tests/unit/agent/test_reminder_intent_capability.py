@@ -885,6 +885,59 @@ async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="1点睡觉，明天6点半叫我起床",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="睡觉",
+                trigger_at="2026-05-11T01:00:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="起床",
+                trigger_at="2026-05-11T06:30:00+09:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：起床"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=executor,
+    ).run("1点睡觉，明天6点半叫我起床", _run_context())
+
+    assert result.ok is True
+    assert len(executor.received) == 1
+    assert [op.title for op in executor.received[0].operations] == ["起床"]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
