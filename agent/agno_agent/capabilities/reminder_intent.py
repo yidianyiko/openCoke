@@ -31,7 +31,7 @@ from dao.pending_workflow_dao import PendingWorkflowDAO
 logger = logging.getLogger(__name__)
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS = 45.0
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 20.0
-_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -139,6 +139,8 @@ Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
+Noisy filler before a concrete clock time is not recurrence evidence.
+Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.
 Drop final particles; preserve quoted title.
 For same-message listed routine times plus a reminder request, use action="batch",
 schedule_basis="explicit_occurrences", schedule_evidence, and one operation per listed time.

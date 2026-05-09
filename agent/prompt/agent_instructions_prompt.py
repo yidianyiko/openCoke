@@ -53,6 +53,8 @@ Decision boundary:
 - A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 - Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
+- Noisy filler before a concrete clock time is not recurrence evidence.
+- Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.
 - Exclude sentence-final modal particles from reminder titles; Preserve all meaningful title text after the time, including text inside quotes.
 - Concrete "need you to remind me" requests create directly; do not ask confirmation.
 - Bare clock times and "next whole hour" resolve to the next local occurrence.

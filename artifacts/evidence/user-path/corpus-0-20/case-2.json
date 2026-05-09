@@ -1,0 +1,138 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-2",
+    "message": null,
+    "offset": 2,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "no_reminder_created",
+      "expected_reminder_count_mismatch:1>0",
+      "missing_expected_reminder_title:学英语",
+      "user_output_missing_expected_title:学英语"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "expected_reminder_count_mismatch:1>0": 1,
+        "missing_expected_reminder_title:学英语": 1,
+        "no_reminder_created": 1,
+        "user_output_missing_expected_title:学英语": 1
+      },
+      "failures": [
+        {
+          "index": 2,
+          "input": "你可以没太难18:00 提醒我学英语么",
+          "user_id": "8b71356cd282903866130b77",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69ff4347801e21a9581431d4",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:1>0",
+            "missing_expected_reminder_title:学英语",
+            "user_output_missing_expected_title:学英语"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff436df0350ecae27289a6",
+              "expect_output_timestamp": 1778336621,
+              "handled_timestamp": 1778336621,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-0-20-case-2",
+                "case_index": 2,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "692c1546a538f0baad5561bb",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-0-20-case-2-case-2",
+                  "business_conversation_key": "corpus-0-20-case-2-case-2",
+                  "causal_inbound_event_id": "corpus-0-20-case-2-case-2-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "8b71356cd282903866130b77"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 38.074
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 2,
+      "input": "你可以没太难18:00 提醒我学英语么",
+      "user_id": "8b71356cd282903866130b77",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69ff4347801e21a9581431d4",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:学英语",
+        "user_output_missing_expected_title:学英语"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff436df0350ecae27289a6",
+          "expect_output_timestamp": 1778336621,
+          "handled_timestamp": 1778336621,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-2",
+            "case_index": 2,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692c1546a538f0baad5561bb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-2-case-2",
+              "business_conversation_key": "corpus-0-20-case-2-case-2",
+              "causal_inbound_event_id": "corpus-0-20-case-2-case-2-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "8b71356cd282903866130b77"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 38.074
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "no_reminder_created, expected_reminder_count_mismatch:1>0, missing_expected_reminder_title:学英语, user_output_missing_expected_title:学英语"
+  }
+}

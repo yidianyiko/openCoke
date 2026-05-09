@@ -58,6 +58,8 @@ def build_reminder_intent_input(
             "workflow_update is only for pending clarification workflows.",
             "Complete CRUD decisions must omit workflow_update.",
             "Never attach workflow_update to create, update, delete, complete, batch, or list decisions.",
+            "Noisy filler before a concrete clock time is not recurrence evidence.",
+            "Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.",
             "",
             "### 当前用户消息",
             input_message,
