@@ -127,6 +127,11 @@ def _execution_envelope_enabled_from_config() -> bool:
         return False
 
 
+def _execution_operation_for_action(action: Any) -> str:
+    canonical_action = "cancel" if action == "delete" else str(action or "").strip()
+    return f"{canonical_action}_reminder" if canonical_action else "reminder_operation"
+
+
 class ReminderCommandExecutor:
     def __init__(
         self,
@@ -198,10 +203,9 @@ class ReminderCommandExecutor:
             "conversation_id": run_context.conversation.id,
         }
         if self._execution_envelope_enabled:
-            action = kwargs.get("action")
             content["execution"] = {
                 "status": "success",
-                "operation": f"{action}_reminder" if action else "reminder_operation",
+                "operation": _execution_operation_for_action(kwargs.get("action")),
                 "entities": [],
                 "visible_summary": summary,
                 "next_steps": ["show_confirmation", "offer_modification"],

@@ -447,3 +447,19 @@ def test_execution_envelope_defaults_from_pending_workflow_config(monkeypatch):
     )
 
     assert result.content["execution"]["status"] == "success"
+
+
+def test_execution_envelope_uses_canonical_cancel_operation_for_delete_alias():
+    def tool_entrypoint(**kwargs):
+        return "Reminder cancelled."
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+        execution_envelope_enabled=True,
+    ).execute(
+        SimpleNamespace(action="delete", reminder_id="rem-1"),
+        _run_context(),
+    )
+
+    assert result.content["execution"]["operation"] == "cancel_reminder"
