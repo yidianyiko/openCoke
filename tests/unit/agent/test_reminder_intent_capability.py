@@ -40,7 +40,35 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert '"schedule_evidence"' in prompt
     assert '"rrule": "FREQ=DAILY"' in prompt
     assert "### 当前用户消息" in prompt
+    assert "### Active Pending Workflow" not in prompt
     assert "每天17:58锻炼" in prompt
+
+
+def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
+
+    context = _run_context()
+    context = type(context)(
+        user=context.user,
+        character=context.character,
+        conversation=context.conversation,
+        relation=context.relation,
+        platform=context.platform,
+        recent_chat_history=context.recent_chat_history,
+        current_time=context.current_time,
+        runtime_metadata={
+            "pending_workflow": {
+                "revision": 2,
+                "document": {"id": "workflow_1", "status": "awaiting_user"},
+            }
+        },
+    )
+
+    prompt = build_reminder_intent_input("从现在到晚上七点", context)
+
+    assert "### Active Pending Workflow" in prompt
+    assert '"revision": 2' in prompt
+    assert '"id": "workflow_1"' in prompt
 
 
 def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_budget(

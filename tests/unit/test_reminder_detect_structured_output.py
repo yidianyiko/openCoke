@@ -358,3 +358,50 @@ def test_reminder_detect_title_schema_preserves_quoted_content():
     assert "Exclude sentence-final modal particles" in description
     assert "preserve meaningful quoted" in description
     assert "task governed by the reminder verb" in description
+
+
+def test_reminder_detect_schema_accepts_workflow_update():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="",
+        clarification_question="每个整点打卡要从什么时候开始，持续到什么时候结束？",
+        workflow_update={
+            "id": "workflow_1",
+            "kind": "reminder_create",
+            "status": "awaiting_user",
+            "origin": {
+                "conversation_id": "conv-1",
+                "message_ids": ["msg-1"],
+                "created_at": "2026-05-09T01:00:00+00:00",
+                "updated_at": "2026-05-09T01:00:00+00:00",
+                "expires_at": "2026-05-10T01:00:00+00:00",
+            },
+            "goal": "Set up hourly check-in reminders",
+            "slots": {
+                "title": {"value": "打卡", "status": "filled"},
+                "start_at": {"value": None, "status": "missing"},
+            },
+            "missing_fields": ["start_at"],
+            "assumptions": [],
+            "constraints": [],
+            "next_steps": ["ask_user"],
+            "payload": {"reminder": {"draft_operations": []}},
+        },
+    )
+
+    assert decision.workflow_update is not None
+    assert decision.workflow_update.id == "workflow_1"
+
+
+def test_reminder_detect_schema_rejects_free_form_workflow_key():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="clarify",
+            action="",
+            clarification_question="还需要结束时间。",
+            workflow={"id": "wrong"},
+        )

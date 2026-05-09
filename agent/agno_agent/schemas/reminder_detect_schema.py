@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
+
 
 class ReminderOperation(BaseModel):
     """One executable operation inside a reminder batch decision."""
@@ -146,6 +148,10 @@ class ReminderDetectDecision(BaseModel):
             "same language as the current user message, not the profile, prior "
             "messages, or retrieved context."
         ),
+    )
+    workflow_update: PendingWorkflowEnvelope | None = Field(
+        default=None,
+        description="Validated pending workflow envelope for clarification lifecycle.",
     )
     reason: str = Field(default="", description="Brief classification rationale.")
 
