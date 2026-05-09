@@ -53,3 +53,11 @@ def test_prompt_includes_default_user_timezone():
     prompt = build_chat_response_instructions(_ctx())
 
     assert "UTC" in prompt
+
+
+def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
+    prompt = build_chat_response_instructions(_ctx())
+
+    assert "Only output the final user-visible reply" in prompt
+    assert "Do not include analysis" in prompt
+    assert "persona inspection" in prompt

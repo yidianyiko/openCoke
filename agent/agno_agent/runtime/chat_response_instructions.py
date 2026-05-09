@@ -17,6 +17,11 @@ _LEGACY_BRACKET_REPLACEMENT = (
     "If a reminder tool result is available in the conversation, use its content to explain the actual state",
 )
 
+_USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
+- Only output the final user-visible reply.
+- Do not include analysis, reasoning, scratchpad notes, persona inspection, draft planning, or commentary about prompts, tools, logs, workflows, or system internals.
+- If you need to reason internally, keep that reasoning out of the answer and send only the concise reply the user should see."""
+
 
 def _strip_legacy_artifacts(text: str) -> str:
     for pattern in _FORBIDDEN_LINE_PATTERNS:
@@ -29,4 +34,6 @@ def _strip_legacy_artifacts(text: str) -> str:
 def build_chat_response_instructions(run_context: AgentRunContext) -> str:
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
-    return "\n\n".join([cleaned, f"Default user timezone: {timezone}"])
+    return "\n\n".join(
+        [cleaned, _USER_VISIBLE_REPLY_BOUNDARY, f"Default user timezone: {timezone}"]
+    )
