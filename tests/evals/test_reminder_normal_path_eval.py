@@ -713,6 +713,24 @@ def test_validate_observations_does_not_require_crud_for_nickname_request():
     assert "no_reminder_created" not in errors
 
 
+def test_validate_observations_rejects_reminder_clarification_for_nickname_request():
+    case = normal_eval.ReminderNormalPathCase(
+        input="叫我小凡就行了",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。"}],
+        reminders=[],
+    )
+
+    assert "unexpected_reminder_clarification" in errors
+
+
 def test_validate_observations_does_not_require_crud_for_vague_capability_question():
     case = normal_eval.ReminderNormalPathCase(
         input="你可以循环提醒我吗",

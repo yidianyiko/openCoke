@@ -178,6 +178,42 @@ async def test_run_agent_runtime_preflights_explicit_reminder_intent(monkeypatch
     assert result.trace["status"] == "preflight_reminder_intent"
 
 
+def test_reminder_preflight_routes_call_me_only_with_schedule_context():
+    agent_input = _agent_input()
+    run_context = _run_context()
+
+    assert agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="七点叫我可以么",
+    )
+    assert agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="话说你明早能叫我起床么",
+    )
+    assert agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="（2026年05月10日 reminder-e2e-user发来了文本消息）18:05提醒我出门",
+    )
+    assert not agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="叫我小凡就行了",
+    )
+    assert not agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="（2026年05月10日 reminder-e2e-user发来了文本消息）叫我小凡就行了",
+    )
+    assert not agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message="你可以叫我小隼",
+    )
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
     class FailingAgent:

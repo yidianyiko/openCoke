@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 
-from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
+from agent.prompt.agent_instructions_prompt import (
+    INSTRUCTIONS_ORCHESTRATOR,
+    get_reminder_detect_instructions,
+)
 
 
 def _non_empty_lines(text: str) -> list[str]:
@@ -11,7 +14,7 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
     lines = _non_empty_lines(instructions)
 
-    assert len(lines) <= 60
+    assert len(lines) <= 67
     assert "Current time: 2026年04月30日12时00分" in instructions
     assert "create only when the user asks to be reminded" in instructions
     assert "Date-only or time-missing reminder requests clarify" in instructions
@@ -31,8 +34,14 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "A task time range is a work block" in instructions
     assert "clarify before creating any reminder from that message" in instructions
     assert "use the task governed by the reminder verb" in instructions
+    assert "Name/address preferences" in instructions
     assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)
     assert "Output only the structured decision" in instructions
+
+
+def test_orchestrator_does_not_route_name_preferences_to_reminder_detect():
+    assert "Name/address preferences" in INSTRUCTIONS_ORCHESTRATOR
+    assert "concrete reminder time, cadence, or task" in INSTRUCTIONS_ORCHESTRATOR
 
 
 def test_reminder_detect_instructions_do_not_embed_case_examples():

@@ -708,6 +708,11 @@ def validate_observations(
     if expectation in {"clarify", "capability", "discussion", "query"}:
         if reminders:
             errors.append("unexpected_reminder_created")
+        if expectation == "discussion" and output_is_pure_reminder_clarification(
+            outputs,
+            case_input=case.input,
+        ):
+            errors.append("unexpected_reminder_clarification")
         if expectation == "clarify" and not output_mentions_clarification(
             outputs,
             case_input=case.input,

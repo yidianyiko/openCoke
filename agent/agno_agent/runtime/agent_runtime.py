@@ -32,8 +32,6 @@ _REMINDER_PREFLIGHT_KEYWORDS = (
     "闹钟",
     "打卡",
     "监督",
-    "叫我",
-    "喊我",
     "通知我",
     "不要打扰",
     "别打扰",
@@ -44,6 +42,33 @@ _REMINDER_PREFLIGHT_KEYWORDS = (
     "notify",
     "wake me",
 )
+_REMINDER_CALL_WORD_PATTERN = r"(叫我|喊我|call me|wake me)"
+_REMINDER_TIME_ANCHOR_PATTERN = (
+    r"(?:"
+    r"\d{1,2}\s*[:：.]\s*\d{1,2}|"
+    r"\d{1,2}\s*(?:点|时|am|pm)|"
+    r"[零一二两三四五六七八九十百半]+\s*(?:点|时)|"
+    r"今天|今晚|明天|明早|早上|上午|中午|下午|晚上|凌晨|半夜|"
+    r"分钟|小时|整点|准点|到点|到时候|一会|待会|过会|以后|"
+    r"每天|每晚|每周|每月|下个|下次|休息"
+    r")"
+)
+_REMINDER_CALL_CONTEXT_PATTERN = (
+    r"(?:起床|睡觉|学习|打卡|吃药|喝水|上课|下课|开会|出门|"
+    r"复盘|运动|健身|画画|背单词|政治)"
+)
+_AMBIGUOUS_REMINDER_PREFLIGHT_PATTERNS = (
+    re.compile(
+        rf"{_REMINDER_TIME_ANCHOR_PATTERN}.{{0,24}}{_REMINDER_CALL_WORD_PATTERN}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"{_REMINDER_CALL_WORD_PATTERN}.{{0,24}}"
+        rf"(?:{_REMINDER_TIME_ANCHOR_PATTERN}|{_REMINDER_CALL_CONTEXT_PATTERN})",
+        re.IGNORECASE,
+    ),
+)
+_INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -307,8 +332,14 @@ def _should_preflight_reminder_intent(
         return False
     if run_context.runtime_metadata.get("pending_workflow"):
         return True
-    normalized = input_message.casefold()
-    return any(keyword in normalized for keyword in _REMINDER_PREFLIGHT_KEYWORDS)
+    scan_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    normalized = scan_text.casefold()
+    if any(keyword in normalized for keyword in _REMINDER_PREFLIGHT_KEYWORDS):
+        return True
+    return any(
+        pattern.search(scan_text)
+        for pattern in _AMBIGUOUS_REMINDER_PREFLIGHT_PATTERNS
+    )
 
 
 async def _run_capability_port(

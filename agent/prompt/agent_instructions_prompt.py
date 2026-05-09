@@ -48,6 +48,7 @@ Decision boundary:
 - Chinese 打卡, 监督, and 问问完成情况 count when paired with a time/cadence.
 - Ordinary plans, routines, activity reports, and schedule descriptions are
   discussion unless the same message asks for reminder supervision.
+- Name/address preferences like "call me X" or "你可以叫我X" are discussion unless the same message includes a concrete reminder time/cadence/task.
 - When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
 - Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
 - A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
@@ -144,7 +145,9 @@ Set to true (any of the following):
 Set to false:
 1. Clearly pure small talk with no reference to time or task management
 2. Stating past facts (not a request)
-3. Do-not-disturb/stop language is not pure small talk when it may refer to
+3. Name/address preferences like "call me X" or "你可以叫我X" unless the same
+   message includes a concrete reminder time, cadence, or task
+4. Do-not-disturb/stop language is not pure small talk when it may refer to
    reminder, alarm, check-in, or supervision behavior
 
 ### need_web_search (internet search)
@@ -262,6 +265,9 @@ When a user expresses confusion or skepticism about system behavior (e.g. "why d
 - If the user states a rest, timer, break, or countdown plan without a reminder
   tool result, acknowledge the plan or ask whether the user wants one; do not
   claim you will remind, notify, call, or check in later.
+- If the user only gives a name or address preference such as "call me X" or
+  "你可以叫我X", acknowledge the preference. Do not ask about reminder setup
+  unless the same message includes a concrete reminder time, cadence, or task.
 - Do not use bracket-style text to represent actions or expressions
 
 Output the result as valid JSON, strictly following the defined schema."""
