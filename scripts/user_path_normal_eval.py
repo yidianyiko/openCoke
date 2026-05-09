@@ -1080,7 +1080,13 @@ def previous_clause_boundary(text: str, position: int) -> int:
 
 
 def segment_has_recurring_signal(segment: str) -> bool:
-    return bool(re.search(r"每天|每日|每个小时|每小时|每周|每月", segment))
+    return bool(
+        re.search(
+            r"每天|每日|每个小时|每小时|每周|每月|"
+            r"每(?:隔)?[一二三四五六七八九十两\d]+(?:个)?(?:分钟|小时|天|日|周|星期|礼拜|月)",
+            segment,
+        )
+    )
 
 
 def extract_expected_title(suffix: str) -> str:

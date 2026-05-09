@@ -1381,7 +1381,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 100
+    assert len(selected) == 101
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -2187,6 +2187,51 @@ def test_validate_observations_keeps_newline_separated_batch_ack_segments():
     )
 
     assert "user_output_unexpected_recurring:喝水" not in errors
+    assert errors == []
+
+
+def test_validate_observations_accepts_every_two_weeks_as_recurring_ack():
+    case = normal_eval.ReminderNormalPathCase(
+        input="每个奇数周周三周四晚上八点，提醒我开例会，直到17周",
+        expected_intent="reminder",
+        matched_keywords=["提醒", "周三", "周四"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "开例会",
+                    "local_time": "20:00:00",
+                    "recurring": True,
+                    "rrule_contains": ["INTERVAL=2", "WE", "TH"],
+                    "output_terms": ["每两周", "周四"],
+                }
+            ],
+        },
+    )
+    reminders = [
+        {
+            "title": "开例会",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 20, 11, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "20:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,TH",
+            },
+        },
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-26 20:00）"
+            }
+        ],
+        reminders=reminders,
+    )
+
     assert errors == []
 
 

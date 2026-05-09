@@ -648,9 +648,10 @@ def _format_weekly_rrule(rrule: str | None) -> str:
     parts = _parse_rrule_parts(rrule)
     if parts.get("FREQ") != "WEEKLY":
         return ""
+    interval_text = _format_weekly_interval(parts.get("INTERVAL"))
     byday = parts.get("BYDAY")
     if not byday:
-        return "每周"
+        return interval_text
     labels = {
         "MO": "周一",
         "TU": "周二",
@@ -662,7 +663,25 @@ def _format_weekly_rrule(rrule: str | None) -> str:
     }
     days = [labels.get(day.strip().upper(), "") for day in byday.split(",")]
     days = [day for day in days if day]
-    return f"每{'、'.join(days)}" if days else "每周"
+    if not days:
+        return interval_text
+    if interval_text == "每周":
+        return f"每{'、'.join(days)}"
+    return f"{interval_text}的{'、'.join(days)}"
+
+
+def _format_weekly_interval(interval: str | None) -> str:
+    if not interval:
+        return "每周"
+    try:
+        weeks = int(interval)
+    except (TypeError, ValueError):
+        return "每周"
+    if weeks <= 1:
+        return "每周"
+    if weeks == 2:
+        return "每两周"
+    return f"每{weeks}周"
 
 
 def _parse_rrule_parts(rrule: str) -> dict[str, str]:

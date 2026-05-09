@@ -325,6 +325,29 @@
         }
       ]
     },
+    "59": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Bounded every-other-week reminder request with explicit weekdays, local time, and content; the agent should create a recurring reminder and acknowledge the two-week interval.",
+      "expected_creates": [
+        {
+          "title": "开例会",
+          "local_time": "20:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=WEEKLY",
+            "INTERVAL=2",
+            "BYDAY=",
+            "WE",
+            "TH",
+            "UNTIL="
+          ],
+          "output_terms": [
+            "每两周",
+            "周四"
+          ]
+        }
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

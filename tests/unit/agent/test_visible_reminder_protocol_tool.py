@@ -273,6 +273,27 @@ def test_create_formats_weekly_byday_rrule_as_local_weekdays(monkeypatch):
     assert session_state["tool_results"][0]["result_summary"] == result
 
 
+def test_create_formats_weekly_interval_rrule_as_every_two_weeks(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"id": "char-1"},
+        "conversation": {"id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="开例会",
+        trigger_at="2026-05-20T20:00:00+09:00",
+        rrule="FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,TH;UNTIL=20260625T110000Z",
+    )
+
+    assert result == "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-25 20:00）"
+    assert session_state["tool_results"][0]["result_summary"] == result
+
+
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):
     service = FakeReminderService()
     install_service(monkeypatch, service)
