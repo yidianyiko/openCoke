@@ -59,6 +59,8 @@ def build_reminder_intent_input(
             "When no pending-workflow block is present, do not output workflow_update.",
             "Complete CRUD decisions must omit workflow_update.",
             "Never attach workflow_update to create, update, delete, complete, batch, or list decisions.",
+            "Need/intention statements such as 'I need to do X at Y' are discussion, not clarify, unless the user asks for reminder supervision.",
+            "Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
             "Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.",
             "",

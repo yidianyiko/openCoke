@@ -140,6 +140,8 @@ Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
+Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.

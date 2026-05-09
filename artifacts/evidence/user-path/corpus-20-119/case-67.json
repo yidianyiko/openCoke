@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-67-1778348669",
+    "message": null,
+    "offset": 67,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "嘿～我是云筱呀！\n\n嗯...抱歉呀，这是我们新的对话呢，所以我没有昨天关于Ilya文章的记忆～\n\n你能再跟我说说那篇文章是什么吗？或者如果你有链接的话也可以发给我看看哦！😊"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 67,
+      "input": "好的！你记得llya的文章么 昨天提到的",
+      "user_id": "037bc5343dd4c54318e94a36",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "69ff727ffb3baa4303838a7a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff7282ffcb8140026fb6a2",
+          "expect_output_timestamp": 1778348674,
+          "handled_timestamp": 1778348674,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嘿～我是云筱呀！\n\n嗯...抱歉呀，这是我们新的对话呢，所以我没有昨天关于Ilya文章的记忆～\n\n你能再跟我说说那篇文章是什么吗？或者如果你有链接的话也可以发给我看看哦！😊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-67-1778348669",
+            "case_index": 67,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "692eb24a4bf7878f0411468c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-67-1778348669-case-67",
+              "business_conversation_key": "corpus-20-119-case-67-1778348669-case-67",
+              "causal_inbound_event_id": "corpus-20-119-case-67-1778348669-case-67-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "037bc5343dd4c54318e94a36"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

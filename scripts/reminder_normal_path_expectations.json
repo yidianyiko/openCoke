@@ -348,6 +348,54 @@
         }
       ]
     },
+    "61": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit evening time and content; the trailing stop-working text is part of the thing to be reminded.",
+      "expected_creates": [
+        {
+          "title": "泡澡！不要工作了",
+          "local_time": "22:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "63": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit evening time and destination content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "去h115",
+          "local_time": "20:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "64": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot relative-time reminder request with explicit duration and content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "吃饭",
+          "local_time": "17:45:00",
+          "recurring": false
+        }
+      ]
+    },
+    "66": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request phrased as a question with explicit evening time and content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "去健身",
+          "local_time": "18:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "68": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "Plain plan and schedule statement with no reminder request; the agent should discuss normally and must not offer a reminder setup clarification."
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

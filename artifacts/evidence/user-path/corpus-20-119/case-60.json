@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-60-1778348429",
+    "message": null,
+    "offset": 60,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "云云记得我们的对话是从这条消息开始的，所以之前没有看到你昨天写的计划呢。\n\n不过没关系，你可以再跟云云说一遍，云云很乐意帮你记住！"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 60,
+      "input": "你还记得昨天写的计划吗",
+      "user_id": "5fd9952ac013da7c5eba4651",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff718e0af6f026397ca413",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff7193ffcb8140026fb654",
+          "expect_output_timestamp": 1778348435,
+          "handled_timestamp": 1778348435,
+          "status": "pending",
+          "message_type": "text",
+          "message": "云云记得我们的对话是从这条消息开始的，所以之前没有看到你昨天写的计划呢。\n\n不过没关系，你可以再跟云云说一遍，云云很乐意帮你记住！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-60-1778348429",
+            "case_index": 60,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692e79774bf7878f0411460e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-60-1778348429-case-60",
+              "business_conversation_key": "corpus-20-119-case-60-1778348429-case-60",
+              "causal_inbound_event_id": "corpus-20-119-case-60-1778348429-case-60-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "5fd9952ac013da7c5eba4651"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

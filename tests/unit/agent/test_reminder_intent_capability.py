@@ -101,6 +101,8 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "### Active Pending Workflow" not in prompt
     assert "每天17:58锻炼" in prompt
     assert "Complete CRUD decisions must omit workflow_update" in prompt
+    assert "Need/intention statements" in prompt
+    assert "return discussion" in prompt
     assert (
         "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
     )
