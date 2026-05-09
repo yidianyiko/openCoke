@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime
@@ -62,8 +63,25 @@ def _build_wrapper(
     run_context: AgentRunContext,
     input_message: str,
     tool_results: list[CapabilityResult],
+    duplicate_guard_results: dict[str, CapabilityResult],
+    reminder_intent_lock: asyncio.Lock,
 ) -> Callable[..., Any]:
     async def _call(args: dict[str, Any]) -> dict[str, Any]:
+        if tool_name == "reminder_intent":
+            async with reminder_intent_lock:
+                guarded_result = duplicate_guard_results.get(tool_name)
+                if guarded_result is not None:
+                    return _model_facing_envelope(tool_name, guarded_result)
+                result = await _run_port(
+                    port,
+                    input_message=input_message,
+                    run_context=run_context,
+                    args=args,
+                )
+                tool_results.append(result)
+                duplicate_guard_results[tool_name] = result
+                return _model_facing_envelope(tool_name, result)
+
         result = await _run_port(
             port,
             input_message=input_message,
@@ -168,6 +186,8 @@ def build_capability_tool_wrappers(
     tool_results: list[CapabilityResult],
 ) -> dict[str, Callable[..., Any]]:
     wrappers: dict[str, Callable[..., Any]] = {}
+    duplicate_guard_results: dict[str, CapabilityResult] = {}
+    reminder_intent_lock = asyncio.Lock()
 
     for tool_name in _TOOL_NAMES:
         port = ports.get(tool_name)
@@ -181,6 +201,8 @@ def build_capability_tool_wrappers(
             run_context=run_context,
             input_message=input_message,
             tool_results=tool_results,
+            duplicate_guard_results=duplicate_guard_results,
+            reminder_intent_lock=reminder_intent_lock,
         )
 
     return wrappers

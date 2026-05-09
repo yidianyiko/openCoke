@@ -272,6 +272,21 @@ def test_create_agent_sets_tool_call_limit(monkeypatch):
     assert agent.kwargs["tool_call_limit"] == 4
 
 
+def test_create_agent_stops_after_reminder_tool_call():
+    agent = agent_runtime._create_agent(
+        run_context=_run_context(),
+        input_message="提醒我喝水",
+        tool_results=[],
+    )
+
+    tool_flags = {tool.name: tool.stop_after_tool_call for tool in agent.tools}
+
+    assert tool_flags["reminder_intent"] is True
+    assert tool_flags["timezone"] is False
+    assert tool_flags["calendar_import"] is False
+    assert tool_flags["url_context"] is False
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatch):
     captured_envelopes: list[dict] = []
@@ -282,7 +297,10 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
                 name="reminder",
                 ok=True,
                 content={"visible_summary": "ok"},
-                metadata={"durable_write": True},
+                metadata={
+                    "durable_write": True,
+                    "requires_response_synthesis": True,
+                },
             )
 
     monkeypatch.setattr(

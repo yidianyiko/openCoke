@@ -104,7 +104,10 @@ def _create_agent(
         input_message=input_message,
         tool_results=tool_results,
     )
-    tools = [tool(name=name)(fn) for name, fn in wrappers.items()]
+    tools = [
+        tool(name=name, stop_after_tool_call=name == "reminder_intent")(fn)
+        for name, fn in wrappers.items()
+    ]
     return Agent(
         id="coke-single-agent",
         name="CokeSingleAgent",

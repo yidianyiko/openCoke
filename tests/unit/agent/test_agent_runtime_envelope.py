@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -79,7 +80,10 @@ async def test_reminder_wrapper_ignores_model_supplied_arguments():
                 name="reminder",
                 ok=True,
                 content={"visible_summary": "已为你设好提醒"},
-                metadata={"durable_write": True},
+                metadata={
+                    "durable_write": True,
+                    "requires_response_synthesis": True,
+                },
             )
 
     wrappers = build_capability_tool_wrappers(
@@ -98,6 +102,41 @@ async def test_reminder_wrapper_ignores_model_supplied_arguments():
     assert envelope["ok"] is True
     assert received_args == [{}]
     assert captured[0].content["visible_summary"] == "已为你设好提醒"
+
+
+@pytest.mark.asyncio
+async def test_reminder_wrapper_suppresses_duplicate_parallel_calls():
+    captured: list[CapabilityResult] = []
+    calls = 0
+
+    class StubReminderPort:
+        async def run(self, input_message, run_context, args):
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0.01)
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "已为你设好提醒"},
+                metadata={"durable_write": True},
+            )
+
+    wrappers = build_capability_tool_wrappers(
+        ports={"reminder_intent": StubReminderPort()},
+        run_context=_run_context(),
+        input_message="提醒我喝水",
+        tool_results=captured,
+    )
+
+    first, second = await asyncio.gather(
+        wrappers["reminder_intent"](),
+        wrappers["reminder_intent"](),
+    )
+
+    assert calls == 1
+    assert len(captured) == 1
+    assert first == second
+    assert captured[0].visible_summary == "已为你设好提醒"
 
 
 @pytest.mark.asyncio

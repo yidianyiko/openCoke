@@ -1,0 +1,68 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 27,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-case27-stop-after-summary-20260509-01",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "3716078a77df3939a22a5d20"
+  ],
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 27,
+      "input": "每小时提醒我一次冥想，从下午五点开始",
+      "user_id": "3716078a77df3939a22a5d20",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69fef24ac26bfbc1d4e2032f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69fef25cd10c248db10a07b8",
+          "expect_output_timestamp": 1778315868,
+          "handled_timestamp": 1778315868,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-case27-stop-after-summary-20260509-01",
+            "case_index": 27,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d4e3c64d834c3c06163e8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-case27-stop-after-summary-20260509-01-case-27",
+              "business_conversation_key": "reminder-case27-stop-after-summary-20260509-01-case-27",
+              "causal_inbound_event_id": "reminder-case27-stop-after-summary-20260509-01-case-27-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "3716078a77df3939a22a5d20"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 19.035
+    }
+  ]
+}
