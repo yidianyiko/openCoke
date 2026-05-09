@@ -74,6 +74,16 @@
       "evaluation_expectation": "crud",
       "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title."
     },
+    "16": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a Chinese period-of-day time expression and title.",
+      "expected_creates": [
+        {
+          "title": "打电话",
+          "local_time": "20:00:00"
+        }
+      ]
+    },
     "18": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "Explicit one-shot reminder request with a concrete start time and title."

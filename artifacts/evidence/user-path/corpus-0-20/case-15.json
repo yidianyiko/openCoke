@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-15",
+    "message": null,
+    "offset": 15,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 15,
+      "input": "我这周一和周五是全天兼职，这两天估计要插空学习",
+      "user_id": "745516ab6cf9a3f8be66d7a7",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "69ff49e2ab55f6ae03785ff5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff49f406c2f21f856adede",
+          "expect_output_timestamp": 1778338292,
+          "handled_timestamp": 1778338292,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-15",
+            "case_index": 15,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "692d0560a538f0baad55621f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-15-case-15",
+              "business_conversation_key": "corpus-0-20-case-15-case-15",
+              "causal_inbound_event_id": "corpus-0-20-case-15-case-15-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "745516ab6cf9a3f8be66d7a7"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 19.035
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

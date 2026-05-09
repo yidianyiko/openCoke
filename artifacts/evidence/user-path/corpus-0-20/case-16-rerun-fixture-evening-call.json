@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-16-rerun-fixture-evening-call",
+    "message": null,
+    "offset": 16,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：打电话（2026-05-10 20:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "69ff4a7c06c2f21f856adef2",
+        "owner_user_id": "919b72b84b61d3de36497f69",
+        "title": "打电话",
+        "schedule": {
+          "anchor_at": "2026-05-10T11:00:00+00:00",
+          "local_date": "2026-05-10",
+          "local_time": "20:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "69ff4a7806c2f21f856adeed",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-10T11:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-10T04:11:17+00:00",
+        "updated_at": "2026-05-10T04:11:17+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 16,
+      "input": "  晚上八点提醒我打电话",
+      "user_id": "919b72b84b61d3de36497f69",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69ff4a78cd146e5dfdf74214",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff4a7c06c2f21f856adef4",
+          "expect_output_timestamp": 1778338428,
+          "handled_timestamp": 1778338428,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打电话（2026-05-10 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-16-rerun-fixture-evening-call",
+            "case_index": 16,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692d2376a538f0baad556244",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-16-rerun-fixture-evening-call-case-16",
+              "business_conversation_key": "corpus-0-20-case-16-rerun-fixture-evening-call-case-16",
+              "causal_inbound_event_id": "corpus-0-20-case-16-rerun-fixture-evening-call-case-16-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "919b72b84b61d3de36497f69"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69ff4a7c06c2f21f856adef2",
+          "owner_user_id": "919b72b84b61d3de36497f69",
+          "title": "打电话",
+          "schedule": {
+            "anchor_at": "2026-05-10T11:00:00+00:00",
+            "local_date": "2026-05-10",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69ff4a7806c2f21f856adeed",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-10T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-10T04:11:17+00:00",
+          "updated_at": "2026-05-10T04:11:17+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

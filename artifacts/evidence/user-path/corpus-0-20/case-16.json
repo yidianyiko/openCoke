@@ -1,0 +1,213 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-16",
+    "message": null,
+    "offset": 16,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：打电话（2026-05-10 20:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "69ff4a0106c2f21f856adee7",
+        "owner_user_id": "c468e9dc38339c3b0e9606be",
+        "title": "打电话",
+        "schedule": {
+          "anchor_at": "2026-05-10T11:00:00+00:00",
+          "local_date": "2026-05-10",
+          "local_time": "20:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "69ff49fd06c2f21f856adee2",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-10T11:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-10T04:11:17+00:00",
+        "updated_at": "2026-05-10T04:11:17+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_created": 1
+      },
+      "failures": [
+        {
+          "index": 16,
+          "input": "  晚上八点提醒我打电话",
+          "user_id": "c468e9dc38339c3b0e9606be",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69ff49fd89981924bd988e04",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff4a0106c2f21f856adee9",
+              "expect_output_timestamp": 1778338305,
+              "handled_timestamp": 1778338305,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：打电话（2026-05-10 20:00）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-0-20-case-16",
+                "case_index": 16,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "692d2376a538f0baad556244",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-0-20-case-16-case-16",
+                  "business_conversation_key": "corpus-0-20-case-16-case-16",
+                  "causal_inbound_event_id": "corpus-0-20-case-16-case-16-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "c468e9dc38339c3b0e9606be"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "69ff4a0106c2f21f856adee7",
+              "owner_user_id": "c468e9dc38339c3b0e9606be",
+              "title": "打电话",
+              "schedule": {
+                "anchor_at": "2026-05-10T11:00:00+00:00",
+                "local_date": "2026-05-10",
+                "local_time": "20:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "69ff49fd06c2f21f856adee2",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-10T11:00:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-10T04:11:17+00:00",
+              "updated_at": "2026-05-10T04:11:17+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 4.009
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 16,
+      "input": "  晚上八点提醒我打电话",
+      "user_id": "c468e9dc38339c3b0e9606be",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69ff49fd89981924bd988e04",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff4a0106c2f21f856adee9",
+          "expect_output_timestamp": 1778338305,
+          "handled_timestamp": 1778338305,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打电话（2026-05-10 20:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-16",
+            "case_index": 16,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692d2376a538f0baad556244",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-16-case-16",
+              "business_conversation_key": "corpus-0-20-case-16-case-16",
+              "causal_inbound_event_id": "corpus-0-20-case-16-case-16-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c468e9dc38339c3b0e9606be"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "69ff4a0106c2f21f856adee7",
+          "owner_user_id": "c468e9dc38339c3b0e9606be",
+          "title": "打电话",
+          "schedule": {
+            "anchor_at": "2026-05-10T11:00:00+00:00",
+            "local_date": "2026-05-10",
+            "local_time": "20:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "69ff49fd06c2f21f856adee2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-10T11:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-10T04:11:17+00:00",
+          "updated_at": "2026-05-10T04:11:17+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_created"
+  }
+}
