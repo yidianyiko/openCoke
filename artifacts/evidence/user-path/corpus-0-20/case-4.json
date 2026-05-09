@@ -1,0 +1,138 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-4",
+    "message": null,
+    "offset": 4,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "no_reminder_created",
+      "expected_reminder_count_mismatch:1>0",
+      "missing_expected_reminder_title:出门",
+      "user_output_missing_expected_title:出门"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "expected_reminder_count_mismatch:1>0": 1,
+        "missing_expected_reminder_title:出门": 1,
+        "no_reminder_created": 1,
+        "user_output_missing_expected_title:出门": 1
+      },
+      "failures": [
+        {
+          "index": 4,
+          "input": "18:05提醒我出门",
+          "user_id": "716517c61904a7226b0e92c8",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "69ff44c2dd031a251e68008b",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created",
+            "expected_reminder_count_mismatch:1>0",
+            "missing_expected_reminder_title:出门",
+            "user_output_missing_expected_title:出门"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff456272de3a53b0666265",
+              "expect_output_timestamp": 1778337122,
+              "handled_timestamp": 1778337122,
+              "status": "pending",
+              "message_type": "text",
+              "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-0-20-case-4",
+                "case_index": 4,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "692c1653a538f0baad5561be",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-0-20-case-4-case-4",
+                  "business_conversation_key": "corpus-0-20-case-4-case-4",
+                  "causal_inbound_event_id": "corpus-0-20-case-4-case-4-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "716517c61904a7226b0e92c8"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 160.301
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 4,
+      "input": "18:05提醒我出门",
+      "user_id": "716517c61904a7226b0e92c8",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "69ff44c2dd031a251e68008b",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created",
+        "expected_reminder_count_mismatch:1>0",
+        "missing_expected_reminder_title:出门",
+        "user_output_missing_expected_title:出门"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff456272de3a53b0666265",
+          "expect_output_timestamp": 1778337122,
+          "handled_timestamp": 1778337122,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-4",
+            "case_index": 4,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "692c1653a538f0baad5561be",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-4-case-4",
+              "business_conversation_key": "corpus-0-20-case-4-case-4",
+              "causal_inbound_event_id": "corpus-0-20-case-4-case-4-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "716517c61904a7226b0e92c8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 160.301
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "no_reminder_created, expected_reminder_count_mismatch:1>0, missing_expected_reminder_title:出门, user_output_missing_expected_title:出门"
+  }
+}

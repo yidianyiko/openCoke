@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import re
@@ -26,6 +27,23 @@ logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
 _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 160.0
+_REMINDER_PREFLIGHT_KEYWORDS = (
+    "提醒",
+    "闹钟",
+    "打卡",
+    "监督",
+    "叫我",
+    "喊我",
+    "通知我",
+    "不要打扰",
+    "别打扰",
+    "取消",
+    "remind",
+    "reminder",
+    "alarm",
+    "notify",
+    "wake me",
+)
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -279,6 +297,87 @@ def _check_unconfirmed_durable_write_promise(
     )
 
 
+def _should_preflight_reminder_intent(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+) -> bool:
+    if agent_input.input_type != "user.turn":
+        return False
+    if run_context.runtime_metadata.get("pending_workflow"):
+        return True
+    normalized = input_message.casefold()
+    return any(keyword in normalized for keyword in _REMINDER_PREFLIGHT_KEYWORDS)
+
+
+async def _run_capability_port(
+    port: Any,
+    *,
+    input_message: str,
+    run_context: AgentRunContext,
+    args: dict[str, Any],
+) -> CapabilityResult:
+    run = port.run
+    if inspect.iscoroutinefunction(run):
+        return await run(input_message, run_context, args)
+    return await asyncio.to_thread(run, input_message, run_context, args)
+
+
+async def _preflight_reminder_intent_result(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+) -> AgentRunResult | None:
+    if not _should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+    ):
+        return None
+
+    reminder_port = _default_capability_ports().get("reminder_intent")
+    if reminder_port is None:
+        return None
+
+    result = await _run_capability_port(
+        reminder_port,
+        input_message=input_message,
+        run_context=run_context,
+        args={},
+    )
+    tool_results = (result,)
+    durable_write_error = _check_durable_write_contract(tool_results)
+    visible_text = _resolve_visible_text("", tool_results)
+    if durable_write_error is not None:
+        visible_text = ""
+    if not visible_text and not result.durable_write:
+        return None
+
+    visible_messages = (
+        (VisibleMessage(message_type="text", content=visible_text),)
+        if visible_text
+        else ()
+    )
+    return AgentRunResult(
+        visible_messages=visible_messages,
+        post_analyze_input={
+            "input_message": input_message,
+            "message_source": _message_source(agent_input, run_context),
+        }
+        if visible_messages and durable_write_error is None
+        else None,
+        tool_results=tool_results,
+        metrics={"capability_result_count": len(tool_results)},
+        trace={"runtime": "agent", "status": "preflight_reminder_intent"},
+        output_disposition=OutputDisposition(
+            status="ok" if visible_messages and durable_write_error is None else "empty"
+        ),
+        error_disposition=durable_write_error,
+    )
+
+
 def _exception_result(
     tool_results: Sequence[CapabilityResult] = (),
 ) -> AgentRunResult:
@@ -376,6 +475,14 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
+        preflight_result = await _preflight_reminder_intent_result(
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+        )
+        if preflight_result is not None:
+            return preflight_result
+
         agent = _create_agent(
             run_context=run_context,
             input_message=input_message,

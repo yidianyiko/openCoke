@@ -196,6 +196,12 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 async def test_direct_reminder_promise_without_tool_result_fails_closed(
     monkeypatch, model_text
 ):
+    monkeypatch.setattr(
+        agent_runtime,
+        "_should_preflight_reminder_intent",
+        lambda **_kwargs: False,
+    )
+
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": model_text}],
         tool_results=[],
