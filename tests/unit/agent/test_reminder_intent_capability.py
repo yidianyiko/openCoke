@@ -71,6 +71,38 @@ def test_build_reminder_intent_input_includes_active_pending_workflow_from_metad
     assert '"id": "workflow_1"' in prompt
 
 
+def test_build_reminder_intent_input_serializes_datetime_workflow_metadata():
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
+
+    context = _run_context()
+    context = type(context)(
+        user=context.user,
+        character=context.character,
+        conversation=context.conversation,
+        relation=context.relation,
+        platform=context.platform,
+        recent_chat_history=context.recent_chat_history,
+        current_time=context.current_time,
+        runtime_metadata={
+            "pending_workflow": {
+                "revision": 2,
+                "loaded_at": datetime(2026, 5, 6, 1, 30, tzinfo=UTC),
+                "document": {
+                    "id": "workflow_1",
+                    "origin": {
+                        "created_at": datetime(2026, 5, 6, 1, 0, tzinfo=UTC)
+                    },
+                },
+            }
+        },
+    )
+
+    prompt = build_reminder_intent_input("从现在到晚上七点", context)
+
+    assert '"loaded_at": "2026-05-06T01:30:00+00:00"' in prompt
+    assert '"created_at": "2026-05-06T01:00:00+00:00"' in prompt
+
+
 def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_budget(
     monkeypatch,
 ):

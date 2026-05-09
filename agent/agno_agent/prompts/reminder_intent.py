@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from datetime import date, datetime
 from typing import Any
 
 from agent.prompt.reminder_few_shot import format_reminder_few_shots_for_prompt
@@ -12,8 +13,10 @@ from agent.agno_agent.runtime.context import AgentRunContext
 def _json_safe_metadata(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {key: _json_safe_metadata(item) for key, item in value.items()}
-    if isinstance(value, tuple):
+    if isinstance(value, (list, tuple)):
         return [_json_safe_metadata(item) for item in value]
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
     return value
 
 

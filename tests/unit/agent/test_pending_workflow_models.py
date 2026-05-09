@@ -44,6 +44,29 @@ def test_pending_workflow_model_accepts_spec_shape():
     assert workflow.payload.reminder.draft_operations == ()
 
 
+def test_pending_workflow_model_accepts_typed_draft_operations():
+    from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
+
+    workflow = PendingWorkflowEnvelope.model_validate(
+        _workflow_payload(
+            payload={
+                "reminder": {
+                    "draft_operations": [
+                        {
+                            "action": "create",
+                            "title": "打卡",
+                            "trigger_at": "2026-05-09T02:00:00+00:00",
+                        }
+                    ]
+                }
+            }
+        )
+    )
+
+    assert workflow.payload.reminder.draft_operations[0].action == "create"
+    assert workflow.payload.reminder.draft_operations[0].title == "打卡"
+
+
 def test_pending_workflow_model_rejects_unknown_fields():
     from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
 
@@ -87,3 +110,20 @@ def test_legal_ready_to_executing_transition_is_allowed():
     from agent.agno_agent.runtime.pending_workflow import validate_status_transition
 
     assert validate_status_transition("ready_to_execute", "executing") is True
+
+
+def test_pending_workflow_schema_has_typed_slot_values_and_draft_operations():
+    from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
+
+    schema = PendingWorkflowEnvelope.model_json_schema()
+
+    slot_value_schema = schema["$defs"]["WorkflowSlot"]["properties"]["value"]
+    assert {"type": "string"} in slot_value_schema["anyOf"]
+    assert {"type": "integer"} in slot_value_schema["anyOf"]
+    assert {"type": "null"} in slot_value_schema["anyOf"]
+
+    draft_operation_items = schema["$defs"]["ReminderWorkflowPayload"]["properties"][
+        "draft_operations"
+    ]["items"]
+    assert draft_operation_items["$ref"] == "#/$defs/ReminderDraftOperation"
+    assert "title" in schema["$defs"]["ReminderDraftOperation"]["properties"]

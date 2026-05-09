@@ -38,6 +38,7 @@ NextStep = Literal[
     "notify_error",
     "no_action",
 ]
+SlotValue = str | int | float | bool | None
 
 ACTIVE_WORKFLOW_STATUSES = (
     "draft",
@@ -72,14 +73,28 @@ class WorkflowOrigin(BaseModel):
 class WorkflowSlot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    value: Any = None
+    value: SlotValue = None
     status: SlotStatus
+
+
+class ReminderDraftOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["", "create", "update", "delete", "cancel", "complete", "list"] = ""
+    title: str = ""
+    trigger_at: str = ""
+    reminder_id: str = ""
+    keyword: str = ""
+    new_title: str = ""
+    new_trigger_at: str = ""
+    rrule: str = ""
+    deadline_at: str = ""
 
 
 class ReminderWorkflowPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    draft_operations: tuple[dict[str, Any], ...] = Field(default_factory=tuple)
+    draft_operations: tuple[ReminderDraftOperation, ...] = Field(default_factory=tuple)
 
 
 class WorkflowPayload(BaseModel):
