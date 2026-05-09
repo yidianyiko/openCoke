@@ -51,7 +51,7 @@ Decision boundary:
 - Name/address preferences like "call me X" or "你可以叫我X" are discussion unless the same message includes a concrete reminder time/cadence/task.
 - When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
 - Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
-- A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
+- A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 - Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
 - Noisy filler before a concrete clock time is not recurrence evidence.
@@ -63,7 +63,7 @@ Decision boundary:
 - Update/delete/complete need a clear target keyword; unclear targets clarify.
 - Broad stop, cancel, and do-not-disturb requests are delete intent when the target is identifiable; otherwise clarify. Never convert them to create.
 - If one same-message reminder clause is missing required details, clarify before creating any reminder from that message; do not partially execute other timed clauses.
-- For title, use the task governed by the reminder verb; trailing context/reason after a pause is not the title unless it is the requested task.
+- For title, use the task governed by the reminder verb; bare call/wake/alarm-me requests may use that verb as the title. Trailing context/reason after a pause is not the title unless it is the requested task.
 
 Fields:
 - Do not invent, rename, merge, or concatenate schema field names.

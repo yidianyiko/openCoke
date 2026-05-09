@@ -32,6 +32,7 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "A task time range is a work block" in instructions
     assert "clarify before creating any reminder from that message" in instructions
     assert "use the task governed by the reminder verb" in instructions
+    assert "bare call/wake/alarm-me requests" in instructions
     assert "Name/address preferences" in instructions
     assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)
     assert "Output only the structured decision" in instructions
@@ -131,6 +132,7 @@ def test_reminder_detect_retry_input_keeps_schedule_schema_constraints():
     assert "deadline_at" in retry_input
     assert "Drop final particles" in retry_input
     assert "preserve quoted title" in retry_input
+    assert "bare call/wake/alarm-me requests" in retry_input
 
 
 def test_reminder_few_shot_fixture_stays_small_and_representative():

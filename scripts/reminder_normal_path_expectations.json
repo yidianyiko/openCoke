@@ -241,6 +241,49 @@
         "结束"
       ]
     },
+    "48": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Vague later reminder request has no concrete reminder content and no concrete reminder time; the agent should ask for missing details.",
+      "expected_clarification_terms": [
+        "什么时间",
+        "做什么",
+        "提醒"
+      ]
+    },
+    "51": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit same-day time and content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "备课支教课",
+          "local_time": "12:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "52": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Weekday-only reminder request has content but no concrete reminder time; the agent should ask for the missing time, and may clarify the weekday reference.",
+      "expected_clarification_terms": [
+        "周五",
+        "几点",
+        "提醒"
+      ]
+    },
+    "55": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Bare call-me request with a concrete clock time is executable because the reminder verb is the reminder content.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "title_variants": [
+            "叫醒我",
+            "喊我"
+          ],
+          "recurring": false
+        }
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

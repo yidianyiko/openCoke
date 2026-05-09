@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-50-1778347257",
+    "message": null,
+    "offset": 50,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "今天开始启动这个计划了啊。\n\n需要我帮你设置什么提醒吗？比如每天的检查点或者其他什么督促性的提醒？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 50,
+      "input": "今天开始启动【戒掉李梓豪计划】",
+      "user_id": "b7109e60862bde8aba631cc5",
+      "original_from_user": "692db91164d834c3c0616539",
+      "input_message_id": "69ff6cfba332023c68ddbee1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff6cfe0d333a4b544c2bdb",
+          "expect_output_timestamp": 1778347262,
+          "handled_timestamp": 1778347262,
+          "status": "pending",
+          "message_type": "text",
+          "message": "今天开始启动这个计划了啊。\n\n需要我帮你设置什么提醒吗？比如每天的检查点或者其他什么督促性的提醒？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-50-1778347257",
+            "case_index": 50,
+            "original_from_user": "692db91164d834c3c0616539",
+            "source_id": "692e3bad4bf7878f04114563",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-50-1778347257-case-50",
+              "business_conversation_key": "corpus-20-119-case-50-1778347257-case-50",
+              "causal_inbound_event_id": "corpus-20-119-case-50-1778347257-case-50-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b7109e60862bde8aba631cc5"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

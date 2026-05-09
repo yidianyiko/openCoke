@@ -139,7 +139,7 @@ For retries without a pending-workflow block, workflow_update is not an allowed 
 Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
-A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
+A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
