@@ -110,6 +110,17 @@
         "截止"
       ]
     },
+    "22": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit relative-time reminder request: after ten minutes of phone use, remind the user to start memorizing.",
+      "expected_creates": [
+        {
+          "title": "开始背书",
+          "local_time": "15:31:00",
+          "recurring": false
+        }
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
