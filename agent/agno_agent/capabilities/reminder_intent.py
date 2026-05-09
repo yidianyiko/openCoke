@@ -408,6 +408,8 @@ class ReminderIntentPort:
             decision,
             run_context,
         )
+        if _should_clarify_date_only_create(input_message, decision):
+            return _date_only_missing_time_clarification_result()
         result = self.command_executor.execute(decision, run_context)
         if (
             not workflow_outcome.had_update
@@ -947,6 +949,7 @@ _EXPLICIT_DATE_PATTERN = re.compile(
     r"\d{1,4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|\d{1,2}[/-]\d{1,2})",
     re.IGNORECASE,
 )
+_STANDALONE_DAY_OF_MONTH_PATTERN = re.compile(r"(?<!\d)\d{1,2}\s*[日号](?!\d)")
 _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 
 
@@ -993,6 +996,38 @@ def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
         return decision
     data[field] = value
     return SimpleNamespace(**data)
+
+
+def _should_clarify_date_only_create(input_message: str, decision: Any) -> bool:
+    if not _decision_has_create_operation(decision):
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    has_date_reference = bool(
+        _EXPLICIT_DATE_PATTERN.search(current_user_text)
+        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
+    )
+    if not has_date_reference or _BARE_CLOCK_PATTERN.search(current_user_text):
+        return False
+    return True
+
+
+def _decision_has_create_operation(decision: Any) -> bool:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        return True
+    if action != "batch":
+        return False
+    operations = _decision_value(decision, "operations") or []
+    for operation in operations:
+        if str(_operation_value(operation, "action") or "").strip() == "create":
+            return True
+    return False
+
+
+def _operation_value(operation: Any, field: str) -> Any:
+    if isinstance(operation, Mapping):
+        return operation.get(field)
+    return getattr(operation, field, None)
 
 
 def _quoted_segments(text: str) -> tuple[str, ...]:
@@ -1330,6 +1365,19 @@ def _deadline_without_trigger_clarification_result() -> CapabilityResult:
             "action": "clarify",
             "intent_type": "clarify",
             "summary": "这是截止时间。你想在这个时间之前的什么时候提醒你？",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _date_only_missing_time_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "你想在那天几点提醒你？",
         },
         metadata={"durable_write": False},
     )

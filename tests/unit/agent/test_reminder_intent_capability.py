@@ -776,6 +776,73 @@ async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_date_only_create():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="预定礼盒",
+        trigger_at="2026-05-10T09:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("date-only midnight create must clarify before tool")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
+
+    assert result.ok is True
+    assert result.content["intent_type"] == "clarify"
+    assert "几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_date_only_batch_create():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="10号",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="预定礼盒",
+                trigger_at="2026-05-10T09:00:00+00:00",
+            )
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("date-only batch create must clarify before tool")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
+
+    assert result.ok is True
+    assert result.content["intent_type"] == "clarify"
+    assert "几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
