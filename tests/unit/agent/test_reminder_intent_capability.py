@@ -613,6 +613,117 @@ async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrence():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="离开时手机",
+        trigger_at="2026-05-06T00:00:00+00:00",
+    )
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("bare clock normalization should not need retry")
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            assert received_decision.trigger_at == "2026-05-07T00:00:00+00:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：离开时手机"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run(
+        "（2026年05月10日14时44分 reminder-e2e-user-18发来了文本消息）十一点开始提醒我离开时手机",
+        _run_context(),
+    )
+
+    assert len(executor.received) == 1
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：离开时手机"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="离开时手机",
+        trigger_at="2026-05-06T00:00:00+00:00",
+    )
+    retry_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="离开时手机",
+        trigger_at="2026-05-07T00:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "tool rejected past trigger_at" in input
+            assert "bare local clock time has already passed" in input
+            assert "do not output workflow_update" in input
+            assert "workflow_update is not an allowed output field" in input
+            return SimpleNamespace(content=retry_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            if received_decision is primary_decision:
+                return SimpleNamespace(
+                    name="reminder",
+                    ok=False,
+                    content={"summary": "这个提醒时间已经过去了，请告诉我一个未来的时间。"},
+                    error="InvalidSchedule",
+                    metadata={},
+                )
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：离开时手机"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run("今天十一点开始提醒我离开时手机", _run_context())
+
+    assert executor.received == [primary_decision, retry_decision]
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：离开时手机"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_failcloses_when_retry_is_invalid():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

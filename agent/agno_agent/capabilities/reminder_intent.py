@@ -4,9 +4,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -133,11 +134,14 @@ Do not invent, rename, merge, or concatenate schema field names.
 Never output keys like intentaction; use intent_type and action separately.
 action must be exactly one of create, update, cancel, delete, complete, batch, list, or empty.
 workflow_update is only for pending clarification workflows.
+When no pending-workflow block is present, do not output workflow_update.
+For retries without a pending-workflow block, workflow_update is not an allowed output field.
 Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies; do not create a generic title="提醒" reminder.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
+If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
 Noisy filler before a concrete clock time is not recurrence evidence.
 Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.
@@ -344,7 +348,35 @@ class ReminderIntentPort:
             execution_workflow = executing_outcome.workflow
             execution_revision = executing_outcome.stored_revision
 
+        decision = _normalize_past_bare_create_trigger(
+            input_message,
+            decision,
+            run_context,
+        )
         result = self.command_executor.execute(decision, run_context)
+        if (
+            not workflow_outcome.had_update
+            and _should_retry_for_past_one_shot_failure(input_message, result)
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "reminder tool rejected past trigger_at; if the user gave a "
+                    "bare clock time and did not explicitly say today, resolve the "
+                    "next future occurrence"
+                ),
+            )
+            if _should_execute_decision(retry_decision) and not (
+                _is_unbounded_high_frequency_cadence(
+                    retry_decision,
+                    input_message=input_message,
+                )
+            ):
+                decision = retry_decision
+                result = self.command_executor.execute(decision, run_context)
         if workflow_outcome.had_update and execution_workflow is not None:
             terminal_status = "completed" if result.ok else "failed"
             terminal_outcome = self._persist_workflow_status(
@@ -832,6 +864,80 @@ def _should_retry_for_quoted_title_loss(input_message: str, decision: Any) -> bo
         segment and not any(segment in title for title in titles)
         for segment in quoted_segments
     )
+
+
+def _should_retry_for_past_one_shot_failure(
+    input_message: str,
+    result: Any,
+) -> bool:
+    if not str(input_message or "").strip():
+        return False
+    if getattr(result, "ok", None) is not False:
+        return False
+    if str(getattr(result, "error", "") or "") != "InvalidSchedule":
+        return False
+    content = getattr(result, "content", None)
+    summary = ""
+    if isinstance(content, Mapping):
+        summary = str(content.get("summary") or "")
+    return "时间已经过去" in summary or "past" in summary.lower()
+
+
+_BARE_CLOCK_PATTERN = re.compile(
+    r"(\d{1,2}\s*[:：.]\s*\d{1,2}|\d{1,2}\s*(?:点|时)|"
+    r"[零一二两三四五六七八九十百半]+\s*(?:点|时))"
+)
+_EXPLICIT_DATE_PATTERN = re.compile(
+    r"(今天|今日|今晚|今早|明天|明早|后天|大后天|周[一二三四五六日天]|星期[一二三四五六日天]|"
+    r"\d{1,4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|\d{1,2}[/-]\d{1,2})",
+    re.IGNORECASE,
+)
+_INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
+
+
+def _normalize_past_bare_create_trigger(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    if _decision_value(decision, "action") != "create":
+        return decision
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    if not trigger_at:
+        return decision
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not _BARE_CLOCK_PATTERN.search(current_user_text):
+        return decision
+    if _EXPLICIT_DATE_PATTERN.search(current_user_text):
+        return decision
+    try:
+        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+    except ValueError:
+        return decision
+    current_time = run_context.current_time
+    if parsed.tzinfo is not None and current_time.tzinfo is not None:
+        current_time = current_time.astimezone(parsed.tzinfo)
+    if parsed > current_time:
+        return decision
+    while parsed <= current_time:
+        parsed += timedelta(days=1)
+    return _copy_decision_with_value(decision, "trigger_at", parsed.isoformat())
+
+
+def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
+    if isinstance(decision, Mapping):
+        return {**dict(decision), field: value}
+    model_dump = getattr(decision, "model_dump", None)
+    if callable(model_dump):
+        data = model_dump()
+        data[field] = value
+        return SimpleNamespace(**data)
+    try:
+        data = vars(decision).copy()
+    except TypeError:
+        return decision
+    data[field] = value
+    return SimpleNamespace(**data)
 
 
 def _quoted_segments(text: str) -> tuple[str, ...]:

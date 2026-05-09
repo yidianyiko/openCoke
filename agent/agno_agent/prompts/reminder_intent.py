@@ -56,6 +56,7 @@ def build_reminder_intent_input(
             "",
             "### Workflow Boundary",
             "workflow_update is only for pending clarification workflows.",
+            "When no pending-workflow block is present, do not output workflow_update.",
             "Complete CRUD decisions must omit workflow_update.",
             "Never attach workflow_update to create, update, delete, complete, batch, or list decisions.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
