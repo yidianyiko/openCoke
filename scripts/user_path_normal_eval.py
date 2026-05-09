@@ -959,6 +959,9 @@ def expected_title_variants(expected: ExpectedReminderCreate) -> list[str]:
         compacted_light_connector = compact_title_light_connectors(normalized_title)
         if compacted_light_connector and compacted_light_connector not in variants:
             variants.append(compacted_light_connector)
+        compacted_structural_de = compact_title_structural_de(normalized_title)
+        if compacted_structural_de and compacted_structural_de not in variants:
+            variants.append(compacted_structural_de)
     return variants
 
 
@@ -975,6 +978,13 @@ def strip_common_title_leading_verb(normalized_title: str) -> str:
 def compact_title_light_connectors(normalized_title: str) -> str:
     compacted = re.sub(r"(?:并|然后|再)开始", "", normalized_title)
     compacted = re.sub(r"(?:并|然后|再)(?=[\u4e00-\u9fffA-Za-z0-9])", "", compacted)
+    return compacted if compacted != normalized_title else ""
+
+
+def compact_title_structural_de(normalized_title: str) -> str:
+    if len(normalized_title) < 4 or "的" not in normalized_title:
+        return ""
+    compacted = normalized_title.replace("的", "")
     return compacted if compacted != normalized_title else ""
 
 

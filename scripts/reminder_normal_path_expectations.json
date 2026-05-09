@@ -56,6 +56,16 @@
       "evaluation_expectation": "crud",
       "evaluation_reason": "Explicit English relative-time reminder request."
     },
+    "12": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit reminder request with an approximate clock phrase; use the named local time as the reminder point.",
+      "expected_creates": [
+        {
+          "title": "看数学的网课",
+          "local_time": "15:00:00"
+        }
+      ]
+    },
     "13": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "Explicit one-shot reminder request using an English 8pm time expression."

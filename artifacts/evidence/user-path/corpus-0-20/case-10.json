@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-0-20-case-10",
+    "message": null,
+    "offset": 10,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "哈哈，明白了～醒了还得赖一会儿床，6点醒，6:15正式开始背书！\n\n所以是需要我帮你记一下这个时间吗？还是就是跟我说一下安排呀？😊"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 10,
+      "input": "因为我就是6点钟醒了，我还得摸一下，大概6:15开始背书",
+      "user_id": "f8fb37df3dc31c79b85a9789",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "69ff4762ca54e4d7960dcdb7",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff476de55f7d889c1049e2",
+          "expect_output_timestamp": 1778337645,
+          "handled_timestamp": 1778337645,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈，明白了～醒了还得赖一会儿床，6点醒，6:15正式开始背书！\n\n所以是需要我帮你记一下这个时间吗？还是就是跟我说一下安排呀？😊",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-0-20-case-10",
+            "case_index": 10,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "692c5dc1a538f0baad5561fc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-0-20-case-10-case-10",
+              "business_conversation_key": "corpus-0-20-case-10-case-10",
+              "causal_inbound_event_id": "corpus-0-20-case-10-case-10-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f8fb37df3dc31c79b85a9789"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 12.024
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -1315,7 +1315,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 74
+    assert len(selected) == 75
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1852,6 +1852,45 @@ def test_validate_observations_tolerates_light_connector_in_title():
         case,
         "handled",
         outputs=[{"message": "已创建提醒：起床准备论文写作（2026-04-30 13:50）"}],
+        reminders=reminders,
+    )
+
+    assert errors == []
+
+
+def test_validate_observations_tolerates_structural_de_omission_in_title():
+    case = normal_eval.ReminderNormalPathCase(
+        input="明天下午3点左右提醒我看数学的网课",
+        expected_intent="reminder",
+        matched_keywords=["提醒我"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "看数学的网课",
+                    "local_time": "15:00:00",
+                    "recurring": False,
+                }
+            ],
+        },
+    )
+    reminders = [
+        {
+            "title": "看数学网课",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 11, 6, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "15:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：看数学网课（2026-05-11 15:00）"}],
         reminders=reminders,
     )
 
