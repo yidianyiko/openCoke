@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -182,9 +183,12 @@ def test_main_writes_default_evidence_and_uses_serial_batches(monkeypatch, tmp_p
 
     assert normal_eval.main() == 0
     assert captured["serial"] is True
-    assert (
-        tmp_path / "artifacts/evidence/reminder-normal/unit-evidence.json"
-    ).exists()
+    evidence_path = tmp_path / "artifacts/evidence/reminder-normal/unit-evidence.json"
+    assert evidence_path.exists()
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["pending_workflow_two_turn_eval"]["name"] == (
+        "pending-workflow-hourly-checkin-two-turn"
+    )
 
 
 def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(
@@ -1315,6 +1319,24 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
+
+
+def test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence():
+    manifest = normal_eval.pending_workflow_two_turn_eval_manifest()
+
+    assert manifest["name"] == "pending-workflow-hourly-checkin-two-turn"
+    assert manifest["turns"] == [
+        "每个整点喊我打卡吧",
+        "从现在到晚上七点",
+    ]
+    assert manifest["guard_modes"] == [
+        "high_frequency_guards_enabled",
+        "high_frequency_guards_bypassed",
+    ]
+    assert manifest["transport"] == "business-clawscale"
+    assert manifest["evidence_status"] == (
+        "open_real_model_business_clawscale_run_required"
+    )
 
 
 def test_validate_observations_still_requires_crud_for_call_me_with_time():

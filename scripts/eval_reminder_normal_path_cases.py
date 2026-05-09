@@ -43,6 +43,15 @@ CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS = float(
 LLM_JUDGE_PROCESS_START_METHOD = os.environ.get(
     "REMINDER_NORMAL_PATH_JUDGE_PROCESS_START_METHOD", "spawn"
 )
+PENDING_WORKFLOW_TWO_TURN_CASE_NAME = "pending-workflow-hourly-checkin-two-turn"
+PENDING_WORKFLOW_TWO_TURN_TURNS = (
+    "每个整点喊我打卡吧",
+    "从现在到晚上七点",
+)
+PENDING_WORKFLOW_TWO_TURN_GUARD_MODES = (
+    "high_frequency_guards_enabled",
+    "high_frequency_guards_bypassed",
+)
 
 
 @dataclass(frozen=True)
@@ -153,6 +162,21 @@ def select_expectation_cases(
         for case in cases
         if str(case.metadata.get("evaluation_expectation") or "").strip()
     ]
+
+
+def pending_workflow_two_turn_eval_manifest() -> dict[str, Any]:
+    return {
+        "name": PENDING_WORKFLOW_TWO_TURN_CASE_NAME,
+        "turns": list(PENDING_WORKFLOW_TWO_TURN_TURNS),
+        "guard_modes": list(PENDING_WORKFLOW_TWO_TURN_GUARD_MODES),
+        "transport": "business-clawscale",
+        "expected_path": (
+            "turn 1 persists an awaiting_user pending workflow; turn 2 loads "
+            "the same workflow, advances it to execution, creates bounded "
+            "reminders, and leaves the workflow terminal"
+        ),
+        "evidence_status": "open_real_model_business_clawscale_run_required",
+    }
 
 
 def runtime_case_index(case: ReminderNormalPathCase, fallback_index: int) -> int:
@@ -1712,6 +1736,7 @@ def main() -> int:
             "platform": platform,
             "transport": args.transport,
             "serial": not args.parallel_submit,
+            "pending_workflow_two_turn_eval": pending_workflow_two_turn_eval_manifest(),
             "summary": summary,
             "batches": batches,
             "results": all_results,
@@ -1742,6 +1767,7 @@ def main() -> int:
             "timezone": args.timezone,
             "use_case_timestamps": args.use_case_timestamps,
             "transport": args.transport,
+            "pending_workflow_two_turn_eval": pending_workflow_two_turn_eval_manifest(),
             **batch_payload,
         }
     text = json.dumps(payload, ensure_ascii=False, indent=2)

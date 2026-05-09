@@ -44,7 +44,7 @@
 - Create: `agent/agno_agent/runtime/pending_workflow.py`
 - Create: `tests/unit/agent/test_pending_workflow_models.py`
 
-- [ ] **Step 1: Write failing model tests**
+- [x] **Step 1: Write failing model tests**
 
 Add `tests/unit/agent/test_pending_workflow_models.py`:
 
@@ -140,7 +140,7 @@ def test_legal_ready_to_executing_transition_is_allowed():
     assert validate_status_transition("ready_to_execute", "executing") is True
 ```
 
-- [ ] **Step 2: Run the model tests and confirm they fail**
+- [x] **Step 2: Run the model tests and confirm they fail**
 
 Run:
 
@@ -150,7 +150,7 @@ pytest tests/unit/agent/test_pending_workflow_models.py -q
 
 Expected: fail with `ModuleNotFoundError: No module named 'agent.agno_agent.runtime.pending_workflow'`.
 
-- [ ] **Step 3: Implement pending workflow models**
+- [x] **Step 3: Implement pending workflow models**
 
 Create `agent/agno_agent/runtime/pending_workflow.py` with:
 
@@ -298,7 +298,7 @@ def workflow_to_document(workflow: PendingWorkflowEnvelope) -> dict[str, Any]:
     return workflow.model_dump(mode="json")
 ```
 
-- [ ] **Step 4: Run the model tests and confirm they pass**
+- [x] **Step 4: Run the model tests and confirm they pass**
 
 Run:
 
@@ -308,7 +308,7 @@ pytest tests/unit/agent/test_pending_workflow_models.py -q
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 Run:
 
@@ -326,7 +326,7 @@ git commit -m "feat: add pending workflow envelope models"
 - Create: `tests/unit/dao/test_pending_workflow_dao.py`
 - Modify: `conf/config.json`
 
-- [ ] **Step 1: Write failing DAO and flag tests**
+- [x] **Step 1: Write failing DAO and flag tests**
 
 Add `tests/unit/dao/test_pending_workflow_dao.py`:
 
@@ -474,7 +474,7 @@ def mock_collection(monkeypatch):
     return collection
 ```
 
-- [ ] **Step 2: Run the DAO tests and confirm they fail**
+- [x] **Step 2: Run the DAO tests and confirm they fail**
 
 Run:
 
@@ -484,7 +484,7 @@ pytest tests/unit/dao/test_pending_workflow_dao.py -q
 
 Expected: fail until `dao.pending_workflow_dao` and flags exist.
 
-- [ ] **Step 3: Add feature flags**
+- [x] **Step 3: Add feature flags**
 
 In `conf/config.json`, add under top-level `features`:
 
@@ -499,7 +499,7 @@ In `conf/config.json`, add under top-level `features`:
 }
 ```
 
-- [ ] **Step 4: Implement the DAO**
+- [x] **Step 4: Implement the DAO**
 
 Create `dao/pending_workflow_dao.py` with:
 
@@ -587,7 +587,7 @@ class PendingWorkflowDAO:
         self.client.close()
 ```
 
-- [ ] **Step 5: Run the DAO tests**
+- [x] **Step 5: Run the DAO tests**
 
 Run:
 
@@ -597,7 +597,7 @@ pytest tests/unit/dao/test_pending_workflow_dao.py -q
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 Run:
 
@@ -617,7 +617,7 @@ git commit -m "feat: add pending workflow store"
 - Modify: `tests/unit/test_reminder_detect_structured_output.py`
 - Modify: `tests/unit/agent/test_reminder_intent_capability.py`
 
-- [ ] **Step 1: Add failing schema and prompt tests**
+- [x] **Step 1: Add failing schema and prompt tests**
 
 Append to `tests/unit/test_reminder_detect_structured_output.py`:
 
@@ -699,7 +699,7 @@ def test_build_reminder_intent_input_includes_active_pending_workflow_from_metad
     assert '"id": "workflow_1"' in prompt
 ```
 
-- [ ] **Step 2: Run the tests and confirm they fail**
+- [x] **Step 2: Run the tests and confirm they fail**
 
 Run:
 
@@ -709,7 +709,7 @@ pytest tests/unit/test_reminder_detect_structured_output.py::test_reminder_detec
 
 Expected: fail until `workflow_update` and prompt metadata are implemented.
 
-- [ ] **Step 3: Extend the schema**
+- [x] **Step 3: Extend the schema**
 
 In `agent/agno_agent/schemas/reminder_detect_schema.py`, import:
 
@@ -728,7 +728,7 @@ workflow_update: PendingWorkflowEnvelope | None = Field(
 
 Do not add `workflow` or allow unknown keys.
 
-- [ ] **Step 4: Include active workflow in prompt input**
+- [x] **Step 4: Include active workflow in prompt input**
 
 In `agent/agno_agent/prompts/reminder_intent.py`, import `json` and build optional workflow text:
 
@@ -751,7 +751,7 @@ Inside `build_reminder_intent_input`, before the return:
 
 Insert `*workflow_lines` before `"### 当前用户消息"`.
 
-- [ ] **Step 5: Run the focused tests**
+- [x] **Step 5: Run the focused tests**
 
 Run:
 
@@ -761,7 +761,7 @@ pytest tests/unit/test_reminder_detect_structured_output.py tests/unit/agent/tes
 
 Expected: all selected tests pass.
 
-- [ ] **Step 6: Commit Task 3**
+- [x] **Step 6: Commit Task 3**
 
 Run:
 
@@ -778,7 +778,7 @@ git commit -m "feat: pass pending workflow through reminder detector"
 - Modify: `agent/agno_agent/capabilities/reminder_intent.py`
 - Modify: `tests/unit/agent/test_reminder_intent_capability.py`
 
-- [ ] **Step 1: Add failing runtime lifecycle tests**
+- [x] **Step 1: Add failing runtime lifecycle tests**
 
 Append to `tests/unit/agent/test_reminder_intent_capability.py`:
 
@@ -1020,7 +1020,7 @@ async def test_pending_workflow_illegal_transition_preserves_existing_workflow()
     assert result.content["summary"] == "还需要什么？"
 ```
 
-- [ ] **Step 2: Run the lifecycle tests and confirm they fail**
+- [x] **Step 2: Run the lifecycle tests and confirm they fail**
 
 Run:
 
@@ -1030,7 +1030,7 @@ pytest tests/unit/agent/test_reminder_intent_capability.py::test_pending_workflo
 
 Expected: flag-off test passes or fails only on constructor signature; others fail until lifecycle integration exists.
 
-- [ ] **Step 3: Implement lifecycle support in `ReminderIntentPort`**
+- [x] **Step 3: Implement lifecycle support in `ReminderIntentPort`**
 
 In `agent/agno_agent/capabilities/reminder_intent.py`:
 
@@ -1076,7 +1076,7 @@ def _workflow_storage_document(workflow, run_context, *, revision: int) -> dict[
     }
 ```
 
-- [ ] **Step 4: Run lifecycle tests**
+- [x] **Step 4: Run lifecycle tests**
 
 Run:
 
@@ -1086,7 +1086,7 @@ pytest tests/unit/agent/test_reminder_intent_capability.py -q
 
 Expected: all tests in the file pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 Run:
 
@@ -1103,7 +1103,7 @@ git commit -m "feat: persist pending reminder workflows"
 - Modify: `agent/agno_agent/adapters/reminder_command_executor.py`
 - Modify: `tests/unit/agent/test_reminder_command_executor.py`
 
-- [ ] **Step 1: Add failing envelope tests**
+- [x] **Step 1: Add failing envelope tests**
 
 Append to `tests/unit/agent/test_reminder_command_executor.py`:
 
@@ -1151,7 +1151,7 @@ def test_execution_envelope_flag_off_keeps_existing_content_shape():
     assert result.content["summary"] == "Reminder created."
 ```
 
-- [ ] **Step 2: Run the envelope tests and confirm they fail**
+- [x] **Step 2: Run the envelope tests and confirm they fail**
 
 Run:
 
@@ -1161,7 +1161,7 @@ pytest tests/unit/agent/test_reminder_command_executor.py::test_execution_envelo
 
 Expected: fail until the constructor flag and envelope are implemented.
 
-- [ ] **Step 3: Implement optional execution envelope**
+- [x] **Step 3: Implement optional execution envelope**
 
 In `agent/agno_agent/adapters/reminder_command_executor.py`, add constructor argument:
 
@@ -1189,7 +1189,7 @@ For successful execution, keep the existing keys and add:
 
 Do not remove `summary`, `owner_user_id`, or `conversation_id`.
 
-- [ ] **Step 4: Run command executor tests**
+- [x] **Step 4: Run command executor tests**
 
 Run:
 
@@ -1199,7 +1199,7 @@ pytest tests/unit/agent/test_reminder_command_executor.py -q
 
 Expected: all tests in the file pass.
 
-- [ ] **Step 5: Commit Task 5**
+- [x] **Step 5: Commit Task 5**
 
 Run:
 
@@ -1217,7 +1217,7 @@ git commit -m "feat: add optional reminder execution envelope"
 - Modify: `docs/superpowers/specs/2026-05-09-generalized-pending-workflow-design.md`
 - Modify: `docs/superpowers/plans/2026-05-09-generalized-pending-workflow.md`
 
-- [ ] **Step 1: Add an eval/test marker for two-turn pending workflow**
+- [x] **Step 1: Add an eval/test marker for two-turn pending workflow**
 
 If the eval runner already supports multi-turn cases, add a case named:
 
@@ -1234,7 +1234,7 @@ with user turns:
 
 If the runner cannot support the two-turn case in this change, add a pytest-level test in `tests/evals/test_reminder_normal_path_eval.py` that asserts the case manifest exists and documents that real-model corpus evidence remains open.
 
-- [ ] **Step 2: Record implementation evidence fields in the spec**
+- [x] **Step 2: Record implementation evidence fields in the spec**
 
 Append this section to `docs/superpowers/specs/2026-05-09-generalized-pending-workflow-design.md`:
 
@@ -1257,11 +1257,11 @@ Open evidence before Phase A GA:
 - `workflow_schema_invalid` rate across at least 50 representative two-turn decisions
 ```
 
-- [ ] **Step 3: Mark completed plan tasks as checked**
+- [x] **Step 3: Mark completed plan tasks as checked**
 
 As tasks complete, replace each completed checkbox in this plan from `- [ ]` to `- [x]` only after its command evidence exists.
 
-- [ ] **Step 4: Run diff-aware verification routing**
+- [x] **Step 4: Run diff-aware verification routing**
 
 Run:
 
@@ -1272,7 +1272,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Expected: worker-runtime and repo-os surfaces are suggested; review trigger may flag non-trivial runtime/docs changes.
 
-- [ ] **Step 5: Commit Task 6**
+- [x] **Step 5: Commit Task 6**
 
 Run:
 

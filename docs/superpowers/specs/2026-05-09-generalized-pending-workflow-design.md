@@ -1,7 +1,8 @@
 # Generalized Pending Workflow Design
 
 **Date:** 2026-05-09
-**Status:** Ready for implementation planning
+**Status:** Implemented behind default-off flags; Phase A/Phase B runtime
+evidence remains open
 
 Spec-level blockers resolved inline:
 
@@ -687,3 +688,27 @@ Future:
 - The ablation protocol has been executed and recorded; the disabled-guards
   run meets ≥ 90% absolute or ≥ 95% of the with-guards baseline.
 - `workflow_schema_invalid` rate ≤ 5% on the eval corpus.
+
+## Implementation Evidence
+
+Implementation branch: `generalized-pending-workflow`
+
+Fresh evidence produced during implementation:
+
+- Pending workflow model tests:
+  `pytest tests/unit/agent/test_pending_workflow_models.py -q`
+- Pending workflow DAO tests:
+  `pytest tests/unit/dao/test_pending_workflow_dao.py -q`
+- Reminder detector schema and capability tests:
+  `pytest tests/unit/test_reminder_detect_structured_output.py tests/unit/agent/test_reminder_intent_capability.py -q`
+- Reminder execution envelope tests:
+  `pytest tests/unit/agent/test_reminder_command_executor.py -q`
+- Normal-path eval hook test:
+  `pytest tests/evals/test_reminder_normal_path_eval.py::test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence -q`
+
+Open evidence before Phase A GA:
+
+- two-turn runtime/eval proof path through `business-clawscale`
+- ablation run with high-frequency guards bypassed via test harness
+- `workflow_schema_invalid` rate across at least 50 representative two-turn
+  decisions
