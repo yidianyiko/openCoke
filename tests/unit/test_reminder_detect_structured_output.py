@@ -248,6 +248,22 @@ def test_reminder_detect_schema_accepts_whole_hour_cadence_evidence():
     assert decision.schedule_evidence == "每个整点"
 
 
+def test_reminder_detect_schema_accepts_weekday_pair_cadence_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="create",
+        title="好好学习",
+        trigger_at="2026-05-11T09:00:00+09:00",
+        rrule="FREQ=WEEKLY;BYDAY=MO,FR",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每个周一周五早上九点",
+    )
+
+    assert decision.schedule_evidence == "每个周一周五早上九点"
+
+
 def test_reminder_detect_schema_rejects_time_range_as_cadence_evidence():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

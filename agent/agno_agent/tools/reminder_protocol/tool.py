@@ -622,10 +622,15 @@ def _format_reminder_with_schedule(reminder: Reminder) -> str:
     schedule = reminder.schedule
     time_text = schedule.local_time.strftime("%H:%M")
     until_text = _format_rrule_until(schedule.rrule, schedule.timezone)
+    weekly_text = _format_weekly_rrule(schedule.rrule)
     if schedule.rrule == "FREQ=DAILY" or (
         schedule.rrule and schedule.rrule.startswith("FREQ=DAILY;UNTIL=")
     ):
         schedule_text = f"每天 {time_text}"
+        if until_text:
+            schedule_text = f"{schedule_text}，截止 {until_text}"
+    elif weekly_text:
+        schedule_text = f"{weekly_text} {time_text}"
         if until_text:
             schedule_text = f"{schedule_text}，截止 {until_text}"
     elif schedule.rrule:
@@ -635,6 +640,39 @@ def _format_reminder_with_schedule(reminder: Reminder) -> str:
     else:
         schedule_text = f"{schedule.local_date.isoformat()} {time_text}"
     return f"{reminder.title}（{schedule_text}）"
+
+
+def _format_weekly_rrule(rrule: str | None) -> str:
+    if not rrule:
+        return ""
+    parts = _parse_rrule_parts(rrule)
+    if parts.get("FREQ") != "WEEKLY":
+        return ""
+    byday = parts.get("BYDAY")
+    if not byday:
+        return "每周"
+    labels = {
+        "MO": "周一",
+        "TU": "周二",
+        "WE": "周三",
+        "TH": "周四",
+        "FR": "周五",
+        "SA": "周六",
+        "SU": "周日",
+    }
+    days = [labels.get(day.strip().upper(), "") for day in byday.split(",")]
+    days = [day for day in days if day]
+    return f"每{'、'.join(days)}" if days else "每周"
+
+
+def _parse_rrule_parts(rrule: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    for raw_part in str(rrule or "").split(";"):
+        if "=" not in raw_part:
+            continue
+        key, value = raw_part.split("=", 1)
+        parts[key.strip().upper()] = value.strip().upper()
+    return parts
 
 
 def _format_rrule_until(rrule: str | None, timezone: str) -> str:

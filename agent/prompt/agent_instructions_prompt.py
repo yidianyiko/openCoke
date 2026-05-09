@@ -90,8 +90,8 @@ Schedules:
 - schedule_basis is one_shot, explicit_occurrences, or explicit_cadence.
 - schedule_evidence may summarize the concrete cadence/time; it no longer needs to be a substring of the user message.
 - Batch, bounded schedules, and recurrence include schedule_basis and schedule_evidence.
-- Recurrence uses RFC 5545 RRULE only when the user asks for recurrence or asks
-  for reminders at listed habitual/routine times.
+- Recurrence uses RFC 5545 RRULE only when the user asks for recurrence or listed habitual/routine times.
+- Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
 - Use schedule_basis="explicit_occurrences" for listed habitual/routine times;
   those operations may include RRULE such as FREQ=DAILY.
 - Bounded recurring cadence with a deadline uses one compact recurrence:

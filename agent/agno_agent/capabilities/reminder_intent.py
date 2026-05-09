@@ -153,6 +153,7 @@ When the user explicitly lists multiple reminder times and tasks, create each re
 For bounded recurring cadence requests with a deadline, use action="create",
 RRULE, schedule_basis="explicit_cadence", schedule_evidence, and deadline_at.
 Do not drop the deadline.
+Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
 {workflow_block}
 
 ### 当前用户消息

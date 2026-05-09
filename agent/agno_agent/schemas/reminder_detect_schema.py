@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -378,8 +379,15 @@ def _looks_like_concrete_cadence(value: str) -> bool:
         "每隔",
         "每个整点",
         "整点",
+        "每个周",
+        "每个星期",
+        "每个礼拜",
     )
     if any(token in text for token in concrete_tokens):
+        return True
+    if re.search(r"每(?:个)?(?:周|星期|礼拜)", text):
+        return True
+    if len(set(re.findall(r"周[一二三四五六日天]", text))) >= 2:
         return True
     interval_units = (
         "minute",

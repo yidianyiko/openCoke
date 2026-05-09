@@ -252,6 +252,27 @@ def test_create_formats_daily_until_rrule_as_deadline_summary(monkeypatch):
     assert session_state["tool_results"][0]["result_summary"] == result
 
 
+def test_create_formats_weekly_byday_rrule_as_local_weekdays(monkeypatch):
+    service = FakeReminderService()
+    install_service(monkeypatch, service)
+    session_state = {
+        "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+        "character": {"id": "char-1"},
+        "conversation": {"id": "conv-1"},
+    }
+    set_session_state(session_state)
+
+    result = call_tool(
+        action="create",
+        title="好好学习",
+        trigger_at="2026-05-11T09:00:00+09:00",
+        rrule="FREQ=WEEKLY;BYDAY=MO,FR",
+    )
+
+    assert result == "已创建提醒：好好学习（每周一、周五 09:00）"
+    assert session_state["tool_results"][0]["result_summary"] == result
+
+
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):
     service = FakeReminderService()
     install_service(monkeypatch, service)

@@ -284,6 +284,47 @@
         }
       ]
     },
+    "56": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "One-shot reminder request with explicit same-day afternoon time and content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "完成体育课理论作业",
+          "local_time": "16:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "57": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Daily recurring reminder request with explicit local time and content; the agent should create a recurring reminder.",
+      "expected_creates": [
+        {
+          "title": "睡觉",
+          "local_time": "23:30:00",
+          "recurring": true
+        }
+      ]
+    },
+    "58": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Weekly recurring reminder request with explicit weekdays, local time, and content; the agent should create a recurring reminder.",
+      "expected_creates": [
+        {
+          "title": "好好学习",
+          "local_time": "09:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "BYDAY=",
+            "MO",
+            "FR"
+          ],
+          "output_terms": [
+            "周五"
+          ]
+        }
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
