@@ -38,8 +38,21 @@ is:
 
 - [`../../scripts/check`](../../scripts/check)
 
-Use [`verification-checklist.md`](./verification-checklist.md) when a task
-needs a human-readable evidence list.
+## Human Verification Checklist
+
+Use this checklist when a task spans workflow docs, repository structure, and
+runtime behavior:
+
+- Structure: required files exist, canonical paths are valid, root routing docs
+  point to the canonical locations, and `scripts/check` passes.
+- Workflow: execution plans exist when the work is multi-step or risky,
+  canonical docs were updated for workflow changes, and generated evidence is
+  stored under `artifacts/evidence/`.
+- Runtime: run the relevant targeted tests for touched code, run broader smoke
+  or deployment verification when required, and record any intentionally
+  unverified areas.
+- Review: inspect the diff, note assumptions and remaining risks, and avoid
+  claiming success without command evidence.
 
 Use [`coke-verification-matrix.md`](./coke-verification-matrix.md) when you
 need the repository-specific command mapping for worker, bridge, gateway, or

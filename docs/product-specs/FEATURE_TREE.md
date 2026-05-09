@@ -7,6 +7,10 @@ before changing routes, endpoints, channel flows, or user-visible capabilities.
 It is intentionally smaller than Routa's generated tree until Coke has a
 checked generator.
 
+This file is the entry point for route and endpoint discovery. It is a
+repo-local map, not a product roadmap and not a replacement for
+`docs/roadmap.md`.
+
 ## Runtime Surfaces
 
 - Worker runtime
@@ -65,5 +69,10 @@ checked generator.
 
 ## Update Rule
 
-If a change adds, removes, renames, or retires a product/API surface, update
-this file in the same change.
+- Update this file when adding, removing, renaming, or retiring user-visible
+  routes, bridge endpoints, gateway APIs, worker-triggered product surfaces, or
+  deployment entrypoints.
+- Keep behavioral intent in design docs, ADRs, or architecture docs. Keep this
+  file focused on discoverability.
+- If this file becomes generated, document the generator command here and wire
+  it into repo-OS checks before claiming generated status.
