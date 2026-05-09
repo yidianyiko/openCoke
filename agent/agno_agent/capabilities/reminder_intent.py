@@ -28,7 +28,9 @@ def _float_env(name: str, default: float) -> float:
     try:
         value = float(raw_value)
     except ValueError:
-        logger.warning("%s=%r is not a valid float; using %.1f", name, raw_value, default)
+        logger.warning(
+            "%s=%r is not a valid float; using %.1f", name, raw_value, default
+        )
         return default
     return value if value > 0 else default
 
@@ -64,7 +66,8 @@ def _decision_from_response(response: Any) -> Any:
         try:
             return ReminderDetectDecision.model_validate(content)
         except Exception:
-            return content
+            logger.warning("ReminderDetectAgent returned invalid structured mapping")
+            return "ReminderDetectInvalidStructuredOutput"
     if isinstance(content, str) and content.strip():
         try:
             return ReminderDetectDecision.model_validate_json(content)
@@ -233,6 +236,8 @@ class ReminderIntentPort:
                 content={"action": "none", "intent_type": intent_type},
                 metadata={"durable_write": False},
             )
+        if _is_unbounded_high_frequency_cadence(decision):
+            return _unbounded_high_frequency_cadence_clarification_result(decision)
 
         result = self.command_executor.execute(decision, run_context)
         return CapabilityResult(
@@ -363,6 +368,40 @@ def _is_clarification_decision(decision: Any) -> bool:
     )
 
 
+def _is_unbounded_high_frequency_cadence(decision: Any) -> bool:
+    if _decision_value(decision, "schedule_basis") != "explicit_cadence":
+        return False
+    if str(_decision_value(decision, "deadline_at") or "").strip():
+        return False
+    rrules = [str(_decision_value(decision, "rrule") or "")]
+    operations = _decision_value(decision, "operations") or []
+    for operation in operations:
+        rrules.append(str(_decision_value(operation, "rrule") or ""))
+    evidence = str(_decision_value(decision, "schedule_evidence") or "")
+    if any(_is_high_frequency_rrule(rrule) for rrule in rrules):
+        return True
+    return _is_high_frequency_evidence(evidence)
+
+
+def _is_high_frequency_rrule(rrule: str) -> bool:
+    rule = str(rrule or "").upper()
+    return "FREQ=HOURLY" in rule or "FREQ=MINUTELY" in rule
+
+
+def _is_high_frequency_evidence(evidence: str) -> bool:
+    text = str(evidence or "").strip().lower()
+    tokens = (
+        "hourly",
+        "minutely",
+        "every hour",
+        "every minute",
+        "每小时",
+        "每分钟",
+        "每隔",
+    )
+    return any(token in text for token in tokens)
+
+
 def _clarification_result(decision: Any) -> CapabilityResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return CapabilityResult(
@@ -372,6 +411,29 @@ def _clarification_result(decision: Any) -> CapabilityResult:
             "action": "clarify",
             "intent_type": "clarify",
             "summary": question,
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _unbounded_high_frequency_cadence_clarification_result(
+    decision: Any,
+) -> CapabilityResult:
+    title = str(_decision_value(decision, "title") or "").strip()
+    if not title:
+        operations = _decision_value(decision, "operations") or []
+        for operation in operations:
+            title = str(_decision_value(operation, "title") or "").strip()
+            if title:
+                break
+    subject = title or "这个高频提醒"
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": f"{subject}要持续到什么时候结束？请告诉我截止时间。",
         },
         metadata={"durable_write": False},
     )

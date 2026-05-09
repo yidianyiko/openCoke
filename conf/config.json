@@ -63,7 +63,10 @@
                 "model_id": "Pro/zai-org/GLM-5.1",
                 "api_key": "${SiliconFlow_API_KEY}",
                 "base_url": "https://api.siliconflow.cn/v1",
-                "max_retries": 2
+                "max_retries": 2,
+                "extra_body": {
+                    "enable_thinking": false
+                }
             },
             "prepare_fast": {
                 "provider": "siliconflow",

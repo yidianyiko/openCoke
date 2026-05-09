@@ -1,0 +1,68 @@
+{
+  "cases": "scripts/reminder_test_cases.json",
+  "offset": 27,
+  "limit": 1,
+  "run_all": false,
+  "batch_size": 32,
+  "timeout_seconds": 120.0,
+  "timezone": "Asia/Tokyo",
+  "use_case_timestamps": false,
+  "transport": "business-clawscale",
+  "batch_id": "reminder-case27-disable-thinking-guard-20260509-04",
+  "platform": "business",
+  "character_id": "69eeeee7e7ef890c105124bf",
+  "user_ids": [
+    "425dda5add7d7e0aa7370ea0"
+  ],
+  "serial": true,
+  "summary": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0,
+    "pass_rate": 1.0,
+    "by_error": {},
+    "failures": []
+  },
+  "results": [
+    {
+      "index": 27,
+      "input": "每小时提醒我一次冥想，从下午五点开始",
+      "user_id": "425dda5add7d7e0aa7370ea0",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69feee61b3fce4d7336e0d1f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69feee76bbee2b1b847df0f9",
+          "expect_output_timestamp": 1778314870,
+          "handled_timestamp": 1778314870,
+          "status": "pending",
+          "message_type": "text",
+          "message": "冥想要持续到什么时候结束？请告诉我截止时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "reminder-case27-disable-thinking-guard-20260509-04",
+            "case_index": 27,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d4e3c64d834c3c06163e8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "reminder-case27-disable-thinking-guard-20260509-04-case-27",
+              "business_conversation_key": "reminder-case27-disable-thinking-guard-20260509-04-case-27",
+              "causal_inbound_event_id": "reminder-case27-disable-thinking-guard-20260509-04-case-27-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "425dda5add7d7e0aa7370ea0"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.039
+    }
+  ]
+}

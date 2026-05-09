@@ -40,6 +40,7 @@ def create_llm_model(*, max_tokens: int, role: str | None = None):
     max_retries = int(llm_conf.get("max_retries", 2))
     api_key = _resolve_api_key(provider, llm_conf)
     base_url = llm_conf.get("base_url")
+    extra_body = llm_conf.get("extra_body")
 
     if provider == "siliconflow":
         return Siliconflow(
@@ -48,6 +49,7 @@ def create_llm_model(*, max_tokens: int, role: str | None = None):
             base_url=base_url or "https://api.siliconflow.cn/v1",
             max_retries=max_retries,
             max_tokens=max_tokens,
+            extra_body=extra_body,
         )
     if provider == "openai":
         return OpenAIChat(

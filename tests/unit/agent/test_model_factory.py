@@ -36,6 +36,7 @@ def test_reminder_detect_config_uses_siliconflow_glm_51():
         "model_id": "Pro/zai-org/GLM-5.1",
         "api_key": "${SiliconFlow_API_KEY}",
         "base_url": "https://api.siliconflow.cn/v1",
+        "extra_body": {"enable_thinking": False},
     }
 
     for config_path in (
@@ -48,6 +49,7 @@ def test_reminder_detect_config_uses_siliconflow_glm_51():
         assert reminder_detect["model_id"] == expected["model_id"], config_path
         assert reminder_detect["api_key"] == expected["api_key"], config_path
         assert reminder_detect["base_url"] == expected["base_url"], config_path
+        assert reminder_detect["extra_body"] == expected["extra_body"], config_path
 
 
 def test_create_llm_model_uses_role_specific_prepare_config(monkeypatch):
@@ -129,6 +131,7 @@ def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
                     "api_key": "sk-reminder",
                     "base_url": "https://api.siliconflow.cn/v1",
                     "max_retries": 2,
+                    "extra_body": {"enable_thinking": False},
                 },
                 "post_analyze": {
                     "provider": "siliconflow",
@@ -147,4 +150,5 @@ def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
     assert isinstance(agents.post_analyze_agent.model, Siliconflow)
     assert agents.reminder_detect_agent.model.id == "Pro/zai-org/GLM-5.1"
     assert agents.reminder_detect_agent.model.api_key == "sk-reminder"
+    assert agents.reminder_detect_agent.model.extra_body == {"enable_thinking": False}
     assert agents.post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"

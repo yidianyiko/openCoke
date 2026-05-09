@@ -168,7 +168,9 @@ class ReminderDetectDecision(BaseModel):
             "schedule_evidence",
             "operations",
         )
-        has_executable_fields = any(bool(data.get(name)) for name in executable_field_names)
+        has_executable_fields = any(
+            bool(data.get(name)) for name in executable_field_names
+        )
         action = str(data.get("action") or "")
         if clarification_question and not has_executable_fields:
             return {**data, "intent_type": "clarify", "action": ""}

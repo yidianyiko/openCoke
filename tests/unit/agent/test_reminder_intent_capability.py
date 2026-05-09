@@ -43,15 +43,21 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "每天17:58锻炼" in prompt
 
 
-def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_budget(monkeypatch):
+def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_budget(
+    monkeypatch,
+):
     from agent.agno_agent.capabilities import reminder_intent
 
-    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False
+    )
 
     assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 45.0
 
 
-def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(monkeypatch):
+def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(
+    monkeypatch,
+):
     from agent.agno_agent.capabilities import reminder_intent
 
     monkeypatch.delenv(
@@ -59,15 +65,21 @@ def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(mo
         raising=False,
     )
 
-    assert reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 20.0
+    assert (
+        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 20.0
+    )
 
 
 def test_agent_runtime_reminder_detect_retry_has_short_default_budget(monkeypatch):
     from agent.agno_agent.capabilities import reminder_intent
 
-    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.delenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False
+    )
 
-    assert reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 20.0
+    assert (
+        reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 20.0
+    )
 
 
 @pytest.mark.asyncio
@@ -196,6 +208,84 @@ async def test_reminder_intent_port_retries_when_primary_has_no_executable_decis
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "batch",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                    "operations": [
+                        {
+                            "action": "create",
+                            "title": "冥想",
+                            "trigger_at": "2026-05-10T17:00:00+09:00",
+                        },
+                        {
+                            "action": "create",
+                            "title": "冥想",
+                            "trigger_at": "2026-05-10T18:00:00+09:00",
+                        },
+                    ],
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("protocol guard should not need retry")
+
+    class FailingExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("unbounded high-frequency cadence must not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FailingExecutor(),
+    ).run("每小时提醒我一次冥想，从下午五点开始", _run_context())
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_blocks_unbounded_hourly_rrule():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "冥想",
+                    "trigger_at": "2026-05-10T17:00:00+09:00",
+                    "rrule": "FREQ=HOURLY",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                }
+            )
+
+    class FailingExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("unbounded hourly recurrence must not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FailingExecutor(),
+    ).run("每小时提醒我一次冥想，从下午五点开始", _run_context())
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_primary_clarification_before_returning():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -249,7 +339,9 @@ async def test_reminder_intent_port_primary_clarification_survives_retry_timeout
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv(
+        "COKE_AGENT_RUNTIME_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS", "0.01"
+    )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state):
@@ -405,7 +497,9 @@ async def test_reminder_intent_port_timeout_falls_back_to_visible_clarification(
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", "0.01")
+    monkeypatch.setenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", "0.01"
+    )
 
     class SlowAgent:
         async def arun(self, *, input, session_state):
@@ -430,8 +524,12 @@ async def test_reminder_intent_port_primary_timeout_uses_short_retry_budget(
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS", "0.01")
-    monkeypatch.delenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False)
+    monkeypatch.setenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS", "0.01"
+    )
+    monkeypatch.delenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS", raising=False
+    )
 
     class SlowAgent:
         async def arun(self, *, input, session_state):

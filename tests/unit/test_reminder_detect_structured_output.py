@@ -339,9 +339,10 @@ def test_reminder_operation_schema_marks_update_fields_update_only():
         "Exclude sentence-final modal particles"
         in ReminderOperation.model_fields["title"].description
     )
-    assert "preserve meaningful quoted" in ReminderOperation.model_fields[
-        "title"
-    ].description
+    assert (
+        "preserve meaningful quoted"
+        in ReminderOperation.model_fields["title"].description
+    )
     assert "update only" in ReminderOperation.model_fields["new_title"].description
     assert (
         "do not use for create"
