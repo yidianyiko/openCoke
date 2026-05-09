@@ -174,6 +174,27 @@
         "时间"
       ]
     },
+    "31": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Concrete one-shot reminder request with a clock time; '叫我' is the requested reminder action/content.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "local_date": "2026-05-10",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "32": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request also leaves the reminder content vague ('continue reminding me'); the agent should ask for the time and what to remind about.",
+      "expected_clarification_terms": [
+        "几点",
+        "做什么",
+        "提醒"
+      ]
+    },
     "73": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."

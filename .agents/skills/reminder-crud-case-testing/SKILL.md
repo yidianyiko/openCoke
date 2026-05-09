@@ -45,7 +45,13 @@ Rules:
 - After every completed case, save any needed evidence and clear historical agent logs before the next case so old lines cannot pollute the next diagnosis.
 - Stop immediately on any failure or suspicious duplicate output/reminder. Diagnose logs and Mongo state, fix the root cause, restart PM2 if runtime code changed, rerun the same case, then proceed.
 - Do not run 32-way batches until one-case execution is stable.
-- After each code change, run the relevant tests and commit the verified change before continuing to later cases.
+- If the failure is only a missing or stale fixture/expectation entry, patch the
+  fixture and continue to the next case without rerunning that same case,
+  running full verification, or creating a per-case commit. Accumulate
+  fixture-only changes and evidence into a later batch commit.
+- After runtime, evaluator, schema, prompt, or harness code changes, run the
+  relevant tests, restart PM2 when runtime code changed, rerun the same case,
+  and commit the verified change before continuing to later cases.
 
 ## Drift Guardrails
 

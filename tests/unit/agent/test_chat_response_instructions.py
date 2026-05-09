@@ -61,3 +61,11 @@ def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
     assert "Only output the final user-visible reply" in prompt
     assert "Do not include analysis" in prompt
     assert "persona inspection" in prompt
+
+
+def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
+    prompt = build_chat_response_instructions(_ctx())
+
+    assert "Use the reminder tool only when" in prompt
+    assert "plain plan, schedule, intention, deadline, or activity statement" in prompt
+    assert "do not turn it into a reminder clarification" in prompt

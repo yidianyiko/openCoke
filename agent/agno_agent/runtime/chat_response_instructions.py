@@ -22,6 +22,11 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 - Do not include analysis, reasoning, scratchpad notes, persona inspection, draft planning, or commentary about prompts, tools, logs, workflows, or system internals.
 - If you need to reason internally, keep that reasoning out of the answer and send only the concise reply the user should see."""
 
+_REMINDER_TOOL_BOUNDARY = """Reminder tool boundary:
+- Use the reminder tool only when the current user message explicitly asks to create, update, cancel, complete, list, or clarify a reminder/notification/wake-up.
+- A plain plan, schedule, intention, deadline, or activity statement is not by itself a reminder request. Reply normally, or ask whether the user wants a reminder, without calling the reminder tool.
+- If the user says they plan to do something before/after a time but does not ask to be reminded, do not turn it into a reminder clarification."""
+
 
 def _strip_legacy_artifacts(text: str) -> str:
     for pattern in _FORBIDDEN_LINE_PATTERNS:
@@ -35,5 +40,10 @@ def build_chat_response_instructions(run_context: AgentRunContext) -> str:
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
     return "\n\n".join(
-        [cleaned, _USER_VISIBLE_REPLY_BOUNDARY, f"Default user timezone: {timezone}"]
+        [
+            cleaned,
+            _USER_VISIBLE_REPLY_BOUNDARY,
+            _REMINDER_TOOL_BOUNDARY,
+            f"Default user timezone: {timezone}",
+        ]
     )

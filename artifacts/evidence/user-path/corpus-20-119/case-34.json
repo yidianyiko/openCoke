@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-34-1778345375",
+    "message": null,
+    "offset": 34,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "当然可以呀！我很乐意帮你记住日程安排～\n\n有什么需要我帮你提醒的吗？告诉我时间和事项，我就会在到时候提醒你啦！"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 34,
+      "input": "你会记得我的日程吗",
+      "user_id": "3009bbe08cf0e98eacb7e321",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff65a11945aee705efa3aa",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff65a41590a1db99457710",
+          "expect_output_timestamp": 1778345380,
+          "handled_timestamp": 1778345380,
+          "status": "pending",
+          "message_type": "text",
+          "message": "当然可以呀！我很乐意帮你记住日程安排～\n\n有什么需要我帮你提醒的吗？告诉我时间和事项，我就会在到时候提醒你啦！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-34-1778345375",
+            "case_index": 34,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692d7d7b64d834c3c06164a9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-34-1778345375-case-34",
+              "business_conversation_key": "corpus-20-119-case-34-1778345375-case-34",
+              "causal_inbound_event_id": "corpus-20-119-case-34-1778345375-case-34-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "3009bbe08cf0e98eacb7e321"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

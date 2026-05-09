@@ -217,3 +217,14 @@ def test_agno_function_schema_exposes_top_level_tool_arguments():
     assert "action" in function.parameters["properties"]
     assert "timezone" in function.parameters["properties"]
     assert "decision" in function.parameters["properties"]
+
+
+def test_reminder_tool_description_requires_explicit_reminder_request():
+    wrappers = build_capability_tool_wrappers(
+        ports={"reminder_intent": object()},
+        run_context=_run_context(),
+        input_message="我要在睡前看文章",
+        tool_results=[],
+    )
+
+    assert "Use only for explicit reminder" in wrappers["reminder_intent"].__doc__
