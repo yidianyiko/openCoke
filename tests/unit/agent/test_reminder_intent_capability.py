@@ -173,7 +173,7 @@ def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_
     assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 45.0
 
 
-def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(
+def test_agent_runtime_reminder_detect_timeout_retry_default_budget_covers_live_retry_latency(
     monkeypatch,
 ):
     from agent.agno_agent.capabilities import reminder_intent
@@ -184,7 +184,7 @@ def test_agent_runtime_reminder_detect_timeout_retry_has_short_default_budget(
     )
 
     assert (
-        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 20.0
+        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 30.0
     )
 
 
