@@ -75,7 +75,7 @@ def _build_wrapper(
 
     if tool_name == "reminder_intent":
 
-        async def reminder_intent() -> dict[str, Any]:
+        async def reminder_intent(**_ignored_model_args: Any) -> dict[str, Any]:
             """Detect and execute reminder create, update, cancel, complete, or list intent."""
             return await _call({})
 
