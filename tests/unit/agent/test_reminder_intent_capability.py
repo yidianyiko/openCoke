@@ -415,6 +415,48 @@ async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_ev
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_frequency_batch():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "batch",
+                    "schedule_basis": "explicit_occurrences",
+                    "schedule_evidence": "16:00, 17:00",
+                    "deadline_at": "2026-05-10T23:00:00+09:00",
+                    "operations": [
+                        {
+                            "action": "create",
+                            "title": "正念冥想",
+                            "trigger_at": "2026-05-10T16:00:00+09:00",
+                        },
+                        {
+                            "action": "create",
+                            "title": "正念冥想",
+                            "trigger_at": "2026-05-10T17:00:00+09:00",
+                        },
+                    ],
+                }
+            )
+
+    class FailingExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("model-inferred deadline must not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FailingExecutor(),
+    ).run("每个小时一次提醒我正念冥想", _run_context())
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "正念冥想要持续到什么时候结束？请告诉我截止时间。"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_blocks_unbounded_hourly_rrule():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

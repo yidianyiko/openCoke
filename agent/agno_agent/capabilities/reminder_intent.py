@@ -1001,6 +1001,8 @@ def _is_unbounded_high_frequency_cadence(
     *,
     input_message: str = "",
 ) -> bool:
+    if _input_has_high_frequency_without_deadline(input_message):
+        return True
     rrules = [str(_decision_value(decision, "rrule") or "")]
     operations = _decision_value(decision, "operations") or []
     for operation in operations:
@@ -1013,8 +1015,6 @@ def _is_unbounded_high_frequency_cadence(
     if _decision_value(
         decision, "schedule_basis"
     ) == "explicit_cadence" and _is_high_frequency_evidence(evidence):
-        return True
-    if _input_has_high_frequency_without_deadline(input_message):
         return True
     return False
 
