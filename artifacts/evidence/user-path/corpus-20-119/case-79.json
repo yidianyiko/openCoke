@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-79-1778349761",
+    "message": null,
+    "offset": 79,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "嗯，记得不是很牢的话，确实会有些头疼呢。不过你今天想背260个，决心很大呀～，慢慢来，一步步扎实记住就好，我陪你一起加油💪"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 79,
+      "input": "可是记得不是很牢，而且我今天准备背260个",
+      "user_id": "f4f4d7d91ec7d9368f73ad55",
+      "original_from_user": "692ef7f84bf7878f041146e1",
+      "input_message_id": "69ff76c3f8761000751d4fc4",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff76cabc3b0a0cf1916bfa",
+          "expect_output_timestamp": 1778349770,
+          "handled_timestamp": 1778349770,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗯，记得不是很牢的话，确实会有些头疼呢。不过你今天想背260个，决心很大呀～，慢慢来，一步步扎实记住就好，我陪你一起加油💪",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-79-1778349761",
+            "case_index": 79,
+            "original_from_user": "692ef7f84bf7878f041146e1",
+            "source_id": "692f69a24bf7878f0411470b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-79-1778349761-case-79",
+              "business_conversation_key": "corpus-20-119-case-79-1778349761-case-79",
+              "causal_inbound_event_id": "corpus-20-119-case-79-1778349761-case-79-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f4f4d7d91ec7d9368f73ad55"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.014
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

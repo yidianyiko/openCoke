@@ -87,8 +87,9 @@ def _decision_from_response(response: Any) -> Any:
     if isinstance(content, ReminderDetectDecision):
         return content
     if isinstance(content, Mapping):
+        raw_workflow_update = content.get("workflow_update")
         try:
-            return ReminderDetectDecision.model_validate(content)
+            decision = ReminderDetectDecision.model_validate(content)
         except Exception:
             if "workflow_update" in content:
                 fallback_content = dict(content)
@@ -105,6 +106,11 @@ def _decision_from_response(response: Any) -> Any:
                     return SimpleNamespace(**decision_values)
             logger.warning("ReminderDetectAgent returned invalid structured mapping")
             return "ReminderDetectInvalidStructuredOutput"
+        if raw_workflow_update is not None and decision.workflow_update is None:
+            decision_values = decision.model_dump()
+            decision_values["workflow_update"] = raw_workflow_update
+            return SimpleNamespace(**decision_values)
+        return decision
     if isinstance(content, str) and content.strip():
         try:
             return ReminderDetectDecision.model_validate_json(content)

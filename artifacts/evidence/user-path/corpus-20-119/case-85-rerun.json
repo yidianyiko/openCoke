@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-85-rerun-1778350186",
+    "message": null,
+    "offset": 85,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 85,
+          "input": "上午徒步运动完成。复盘昨天的笔记完成，现在准备午休一下，11点钟不要给我打卡，12点钟再给我打卡，起床吃午饭",
+          "user_id": "1a996c22167b04bb99b6ad27",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "69ff786ccc5862e4078c4de3",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "69ff78814290e4e813115f2f",
+              "expect_output_timestamp": 1778350209,
+              "handled_timestamp": 1778350209,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "corpus-20-119-case-85-rerun-1778350186",
+                "case_index": 85,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "692f9c2a4bf7878f0411473e",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "corpus-20-119-case-85-rerun-1778350186-case-85",
+                  "business_conversation_key": "corpus-20-119-case-85-rerun-1778350186-case-85",
+                  "causal_inbound_event_id": "corpus-20-119-case-85-rerun-1778350186-case-85-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "1a996c22167b04bb99b6ad27"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 21.039
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 85,
+      "input": "上午徒步运动完成。复盘昨天的笔记完成，现在准备午休一下，11点钟不要给我打卡，12点钟再给我打卡，起床吃午饭",
+      "user_id": "1a996c22167b04bb99b6ad27",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff786ccc5862e4078c4de3",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "69ff78814290e4e813115f2f",
+          "expect_output_timestamp": 1778350209,
+          "handled_timestamp": 1778350209,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-85-rerun-1778350186",
+            "case_index": 85,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692f9c2a4bf7878f0411473e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-85-rerun-1778350186-case-85",
+              "business_conversation_key": "corpus-20-119-case-85-rerun-1778350186-case-85",
+              "causal_inbound_event_id": "corpus-20-119-case-85-rerun-1778350186-case-85-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1a996c22167b04bb99b6ad27"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.039
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

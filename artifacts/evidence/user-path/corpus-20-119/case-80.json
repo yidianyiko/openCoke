@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-80-1778349776",
+    "message": null,
+    "offset": 80,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "打卡要持续到什么时候结束？请告诉我截止时间。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 80,
+      "input": "记得每个小时整点给我打卡",
+      "user_id": "e822c23669d3314f9618aaa1",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "69ff76d252aa7cf45c08b961",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff76d6bc3b0a0cf1916c04",
+          "expect_output_timestamp": 1778349782,
+          "handled_timestamp": 1778349782,
+          "status": "pending",
+          "message_type": "text",
+          "message": "打卡要持续到什么时候结束？请告诉我截止时间。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-80-1778349776",
+            "case_index": 80,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "692f885a4bf7878f04114715",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-80-1778349776-case-80",
+              "business_conversation_key": "corpus-20-119-case-80-1778349776-case-80",
+              "causal_inbound_event_id": "corpus-20-119-case-80-1778349776-case-80-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e822c23669d3314f9618aaa1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

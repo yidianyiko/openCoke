@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
 
@@ -168,8 +168,9 @@ class ReminderDetectDecision(BaseModel):
         explicit_intent = str(data.get("intent_type") or "").strip()
         if clarification_question and explicit_intent == "clarify":
             normalized = _strip_executable_fields_for_clarification(data)
-            if not _workflow_update_has_missing_field_slots(
-                normalized.get("workflow_update")
+            workflow_update = normalized.get("workflow_update")
+            if workflow_update is not None and not _is_valid_clarification_workflow_update(
+                workflow_update
             ):
                 normalized.pop("workflow_update", None)
             return normalized
@@ -362,6 +363,18 @@ def _workflow_update_has_missing_field_slots(value: Any) -> bool:
     if not isinstance(slots, dict):
         return False
     return all(str(field) in slots for field in missing_fields)
+
+
+def _is_valid_clarification_workflow_update(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    if not _workflow_update_has_missing_field_slots(value):
+        return False
+    try:
+        PendingWorkflowEnvelope.model_validate(value)
+    except ValidationError:
+        return False
+    return True
 
 
 def _looks_like_concrete_cadence(value: str) -> bool:

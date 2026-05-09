@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "corpus-20-119-case-81-1778349787",
+    "message": null,
+    "offset": 81,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，了解到你的计划了——6号有考试，后面几天先把选课的作业做了，周四周五没时间。\n\n需要帮你安排什么吗？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 81,
+      "input": "6号考试了，其他计划就是后面几天我选课的作业要先做一下，周四周五没时间了",
+      "user_id": "a95297c82b67e8e6609ef5ba",
+      "original_from_user": "692ec5554bf7878f041146a7",
+      "input_message_id": "69ff76dd679204e3d3bb3e09",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "69ff76e2bc3b0a0cf1916c0e",
+          "expect_output_timestamp": 1778349794,
+          "handled_timestamp": 1778349794,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，了解到你的计划了——6号有考试，后面几天先把选课的作业做了，周四周五没时间。\n\n需要帮你安排什么吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "corpus-20-119-case-81-1778349787",
+            "case_index": 81,
+            "original_from_user": "692ec5554bf7878f041146a7",
+            "source_id": "692f8d254bf7878f04114721",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "corpus-20-119-case-81-1778349787-case-81",
+              "business_conversation_key": "corpus-20-119-case-81-1778349787-case-81",
+              "causal_inbound_event_id": "corpus-20-119-case-81-1778349787-case-81-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a95297c82b67e8e6609ef5ba"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -499,6 +499,44 @@ def test_reminder_detect_schema_preserves_clarification_when_draft_fields_leak()
     assert decision.workflow_update is None
 
 
+def test_reminder_detect_schema_drops_invalid_workflow_update_for_clarification():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="",
+        clarification_question="你是想把 11 点打卡改到 12 点，还是新增一个 12 点提醒？",
+        workflow_update={
+            "id": "workflow_1",
+            "kind": "reminder_update",
+            "status": "awaiting_user",
+            "origin": {
+                "conversation_id": "",
+                "message_ids": ["msg-1"],
+                "created_at": "2026-05-09T01:00:00+00:00",
+                "updated_at": "2026-05-09T01:00:00+00:00",
+                "expires_at": "2026-05-10T01:00:00+00:00",
+            },
+            "goal": "Move the check-in reminder",
+            "slots": {
+                "target_time": {"value": "11:00", "status": "filled"},
+                "new_time": {"value": "12:00", "status": "filled"},
+                "target": {"value": None, "status": "missing"},
+            },
+            "missing_fields": ["target"],
+            "assumptions": ["There may be a prior check-in reminder."],
+            "constraints": [],
+            "next_steps": ["ask_user"],
+            "payload": {"reminder": {"draft_operations": []}},
+        },
+    )
+
+    assert decision.intent_type == "clarify"
+    assert decision.action == ""
+    assert decision.clarification_question.startswith("你是想把 11 点打卡")
+    assert decision.workflow_update is None
+
+
 def test_reminder_detect_schema_rejects_free_form_workflow_key():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
