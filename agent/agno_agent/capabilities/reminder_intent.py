@@ -146,6 +146,7 @@ Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.

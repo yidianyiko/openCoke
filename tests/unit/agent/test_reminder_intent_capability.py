@@ -109,6 +109,19 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     )
 
 
+def test_retry_prompt_preserves_bare_call_me_clock_contract():
+    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+
+    prompt = _build_reminder_retry_input(
+        "3点叫我",
+        _run_context(),
+        reason="primary detector timed out",
+    )
+
+    assert "Bare call/wake/alarm-me with a concrete clock time is complete" in prompt
+    assert "do not ask for reminder content or date" in prompt
+
+
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
