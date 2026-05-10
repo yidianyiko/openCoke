@@ -4,7 +4,7 @@ import asyncio
 import inspect
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.errors import UnknownToolError
@@ -102,11 +102,11 @@ def _build_wrapper(
     if tool_name == "timezone":
 
         async def timezone(
-            action: str,
+            action: Literal["direct_set", "proposal", "confirm"],
             timezone: str = "",
             decision: str = "",
         ) -> dict[str, Any]:
-            """Set, propose, or confirm a user timezone."""
+            """Use direct_set to change timezone now, proposal to ask confirmation, or confirm to consume yes/no."""
             return await _call(
                 {
                     "action": action,
@@ -149,7 +149,7 @@ def _build_missing_wrapper(tool_name: str) -> Callable[..., Any]:
     if tool_name == "timezone":
 
         async def timezone(
-            action: str,
+            action: Literal["direct_set", "proposal", "confirm"],
             timezone: str = "",
             decision: str = "",
         ) -> dict[str, Any]:

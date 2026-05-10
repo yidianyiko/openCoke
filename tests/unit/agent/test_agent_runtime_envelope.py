@@ -219,6 +219,31 @@ def test_agno_function_schema_exposes_top_level_tool_arguments():
     assert "decision" in function.parameters["properties"]
 
 
+def test_timezone_schema_restricts_action_to_runtime_contract():
+    class StubTimezonePort:
+        def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={"visible_summary": "已切换时区"},
+            )
+
+    wrappers = build_capability_tool_wrappers(
+        ports={"timezone": StubTimezonePort()},
+        run_context=_run_context(),
+        input_message="set timezone",
+        tool_results=[],
+    )
+
+    function = Function.from_callable(wrappers["timezone"], name="timezone")
+
+    assert function.parameters["properties"]["action"]["enum"] == [
+        "direct_set",
+        "proposal",
+        "confirm",
+    ]
+
+
 def test_reminder_tool_description_requires_explicit_reminder_request():
     wrappers = build_capability_tool_wrappers(
         ports={"reminder_intent": object()},

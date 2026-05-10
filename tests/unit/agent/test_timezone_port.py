@@ -29,3 +29,25 @@ def test_unsupported_action_is_not_user_visible():
 
     assert result.ok is False
     assert result.visible_summary is None
+
+
+def test_set_action_alias_routes_to_direct_timezone_update():
+    received = {}
+
+    def handler(input_message, run_context, args):
+        received.update(args)
+        return {
+            "ok": True,
+            "message": "已将您的时区更新为东京时间（UTC+9）。",
+            "state": {"timezone": "Asia/Tokyo"},
+        }
+
+    result = TimezonePort(handler=handler).run(
+        "我在日本，帮我改成日本的时区",
+        _ctx(),
+        {"action": "set", "timezone": "Asia/Tokyo"},
+    )
+
+    assert result.ok is True
+    assert result.visible_summary == "已将您的时区更新为东京时间（UTC+9）。"
+    assert received["action"] == "direct_set"
