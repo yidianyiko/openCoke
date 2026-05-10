@@ -203,7 +203,7 @@ def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_
         "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False
     )
 
-    assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 45.0
+    assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 30.0
 
 
 def test_agent_runtime_reminder_detect_timeout_retry_default_budget_covers_live_retry_latency(
@@ -233,6 +233,27 @@ def test_agent_runtime_reminder_detect_retry_default_budget_covers_live_retry_la
     assert (
         reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 80.0
     )
+
+
+def test_agent_runtime_reminder_detect_primary_timeout_leaves_user_path_budget(
+    monkeypatch,
+):
+    from agent.agno_agent.capabilities import reminder_intent
+
+    monkeypatch.delenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", raising=False
+    )
+    monkeypatch.delenv(
+        "COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS",
+        raising=False,
+    )
+
+    total_timeout_budget = (
+        reminder_intent._agent_runtime_reminder_detect_timeout_seconds()
+        + reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds()
+    )
+
+    assert total_timeout_budget <= 110.0
 
 
 @pytest.mark.asyncio

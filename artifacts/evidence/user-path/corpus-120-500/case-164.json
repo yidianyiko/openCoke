@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-3f98ba0a1f",
+    "message": null,
+    "offset": 164,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 164,
+          "input": "你十点半提醒我一次",
+          "user_id": "f94686e4dc99af97f9e13060",
+          "original_from_user": "6930e40c4bf7878f041148b5",
+          "input_message_id": "6a00404338e64da876609fd1",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a004051492bbd624321843a",
+              "expect_output_timestamp": 1778401361,
+              "handled_timestamp": 1778401361,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-3f98ba0a1f",
+                "case_index": 164,
+                "original_from_user": "6930e40c4bf7878f041148b5",
+                "source_id": "693185be4bf7878f041149b8",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-3f98ba0a1f-case-164",
+                  "business_conversation_key": "user-path-3f98ba0a1f-case-164",
+                  "causal_inbound_event_id": "user-path-3f98ba0a1f-case-164-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "f94686e4dc99af97f9e13060"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 15.028
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 164,
+      "input": "你十点半提醒我一次",
+      "user_id": "f94686e4dc99af97f9e13060",
+      "original_from_user": "6930e40c4bf7878f041148b5",
+      "input_message_id": "6a00404338e64da876609fd1",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a004051492bbd624321843a",
+          "expect_output_timestamp": 1778401361,
+          "handled_timestamp": 1778401361,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-3f98ba0a1f",
+            "case_index": 164,
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "source_id": "693185be4bf7878f041149b8",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-3f98ba0a1f-case-164",
+              "business_conversation_key": "user-path-3f98ba0a1f-case-164",
+              "causal_inbound_event_id": "user-path-3f98ba0a1f-case-164-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f94686e4dc99af97f9e13060"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 15.028
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-e59a085fd6",
+    "message": null,
+    "offset": 168,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你要取消所有的提醒吗？还是只取消某个特定的提醒？请告诉我具体要取消哪个。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 168,
+          "input": "今天学习结束，晚安，不要打扰我了",
+          "user_id": "fb294f7021e1d9b7b6981bd2",
+          "original_from_user": "693181994bf7878f041149af",
+          "input_message_id": "6a0040e59a5f3c16e88d9af1",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0040fa492bbd624321845f",
+              "expect_output_timestamp": 1778401530,
+              "handled_timestamp": 1778401530,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你要取消所有的提醒吗？还是只取消某个特定的提醒？请告诉我具体要取消哪个。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-e59a085fd6",
+                "case_index": 168,
+                "original_from_user": "693181994bf7878f041149af",
+                "source_id": "693195814bf7878f041149e1",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-e59a085fd6-case-168",
+                  "business_conversation_key": "user-path-e59a085fd6-case-168",
+                  "causal_inbound_event_id": "user-path-e59a085fd6-case-168-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "fb294f7021e1d9b7b6981bd2"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 21.041
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 168,
+      "input": "今天学习结束，晚安，不要打扰我了",
+      "user_id": "fb294f7021e1d9b7b6981bd2",
+      "original_from_user": "693181994bf7878f041149af",
+      "input_message_id": "6a0040e59a5f3c16e88d9af1",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0040fa492bbd624321845f",
+          "expect_output_timestamp": 1778401530,
+          "handled_timestamp": 1778401530,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你要取消所有的提醒吗？还是只取消某个特定的提醒？请告诉我具体要取消哪个。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-e59a085fd6",
+            "case_index": 168,
+            "original_from_user": "693181994bf7878f041149af",
+            "source_id": "693195814bf7878f041149e1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-e59a085fd6-case-168",
+              "business_conversation_key": "user-path-e59a085fd6-case-168",
+              "causal_inbound_event_id": "user-path-e59a085fd6-case-168-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "fb294f7021e1d9b7b6981bd2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 21.041
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

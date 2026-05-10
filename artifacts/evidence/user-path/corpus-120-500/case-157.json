@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-20d9fb62a5",
+    "message": null,
+    "offset": 157,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，收到你的通知。由于上课时间更改，学习时间已调整为由19:40改为20:00。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 157,
+      "input": "因为上课时间更改，所以学习时间由19:40改为20:00",
+      "user_id": "2ec1089950b37250a3af673b",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "6a003f4881f9f3e0a10f849d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a003f4a492bbd62432183f2",
+          "expect_output_timestamp": 1778401098,
+          "handled_timestamp": 1778401098,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，收到你的通知。由于上课时间更改，学习时间已调整为由19:40改为20:00。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-20d9fb62a5",
+            "case_index": 157,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693160f14bf7878f0411498b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-20d9fb62a5-case-157",
+              "business_conversation_key": "user-path-20d9fb62a5-case-157",
+              "causal_inbound_event_id": "user-path-20d9fb62a5-case-157-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2ec1089950b37250a3af673b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

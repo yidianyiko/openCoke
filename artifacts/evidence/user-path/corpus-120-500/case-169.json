@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-a3994f9b85",
+    "message": null,
+    "offset": 169,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，知道啦。好好休息，晚安！"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 169,
+      "input": "我回去休息一下，23点睡觉",
+      "user_id": "c9d04012dc027cc75d1e1d37",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "6a0041f712e9aae2fa6f0522",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0041fd492bbd6243218469",
+          "expect_output_timestamp": 1778401789,
+          "handled_timestamp": 1778401789,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，知道啦。好好休息，晚安！",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-a3994f9b85",
+            "case_index": 169,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693197ff4bf7878f041149f0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-a3994f9b85-case-169",
+              "business_conversation_key": "user-path-a3994f9b85-case-169",
+              "causal_inbound_event_id": "user-path-a3994f9b85-case-169-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c9d04012dc027cc75d1e1d37"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.013
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
