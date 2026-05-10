@@ -67,6 +67,7 @@ def build_reminder_intent_input(
             "Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.",
             "Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.",
             "Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.",
+            "If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.",
             "Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.",
             "",
             "### 当前用户消息",

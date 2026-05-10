@@ -335,6 +335,58 @@ def test_tool_failure_result_is_propagated_as_failed_capability():
     }
 
 
+def test_partial_batch_success_is_not_collapsed_to_last_failure():
+    session_states = []
+
+    def tool_entrypoint(**kwargs):
+        from agent.agno_agent.tools.tool_result import append_tool_result
+
+        append_tool_result(
+            session_states[-1],
+            tool_name="提醒操作",
+            ok=True,
+            result_summary="已创建提醒：通知（2026-05-11 15:50）",
+            extra_notes="action=create",
+        )
+        append_tool_result(
+            session_states[-1],
+            tool_name="提醒操作",
+            ok=False,
+            result_summary="创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
+            extra_notes="action=create; error_code=InvalidSchedule",
+        )
+        return (
+            "已创建提醒：通知（2026-05-11 15:50）\n"
+            "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+        )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=session_states.append,
+    ).execute(
+        {
+            "action": "batch",
+            "operations": [
+                {
+                    "action": "create",
+                    "title": "通知",
+                    "trigger_at": "2026-05-11T15:50:00+09:00",
+                },
+                {
+                    "action": "create",
+                    "title": "通知",
+                    "trigger_at": "2026-05-11T15:00:00+09:00",
+                },
+            ],
+        },
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"].splitlines()[0].startswith("已创建提醒")
+    assert "创建提醒失败" in result.content["summary"]
+
+
 def test_batch_operations_from_reminder_detect_decision_are_dicts():
     calls = []
 

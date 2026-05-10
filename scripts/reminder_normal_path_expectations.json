@@ -1063,6 +1063,25 @@
         }
       ]
     },
+    "184": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Bounded recurring notification request with an interval and end time; the bare notification verb is the reminder content.",
+      "expected_creates": [
+        {
+          "title": "通知",
+          "local_time": "15:50:00",
+          "recurring": true,
+          "rrule_contains": [
+            "INTERVAL=50",
+            "UNTIL"
+          ]
+        }
+      ]
+    },
+    "185": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The interval request includes a manual correction to later occurrence timing. Because that exception is not safely representable as one plain RRULE without dropping or shifting occurrences, the agent should clarify the exact reminder times instead of creating an approximate cadence."
+    },
     "187": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒."

@@ -111,6 +111,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "Do not use RRULE or explicit_cadence unless the user supplies recurrence" in prompt
     assert "Weekly recurrence with listed weekdays must include every listed weekday" in prompt
     assert "Weekday names used as a recurrence cadence are concrete" in prompt
+    assert "manual correction or exception to occurrence times" in prompt
 
 
 def test_retry_prompt_preserves_bare_call_me_clock_contract():
@@ -150,6 +151,19 @@ def test_retry_prompt_preserves_weekday_recurrence_contract():
 
     assert "Weekday names used as a recurrence cadence are concrete" in prompt
     assert "do not ask which calendar date" in prompt
+
+
+def test_retry_prompt_preserves_corrected_interval_sequence_contract():
+    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+
+    prompt = _build_reminder_retry_input(
+        "在6点前，每50分钟通知我一次，4点40之后的提醒应该是5点半",
+        _run_context(),
+        reason="primary detector returned a past trigger",
+    )
+
+    assert "manual correction or exception to occurrence times" in prompt
+    assert "clarify for the exact occurrence list" in prompt
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():

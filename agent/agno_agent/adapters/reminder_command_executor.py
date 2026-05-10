@@ -42,6 +42,15 @@ def _last_failed_tool_result(session_state: dict[str, Any]) -> Mapping[str, Any]
     return None
 
 
+def _has_successful_tool_result(session_state: dict[str, Any]) -> bool:
+    tool_results = session_state.get("tool_results")
+    if not isinstance(tool_results, list):
+        return False
+    return any(
+        isinstance(item, Mapping) and item.get("ok") is True for item in tool_results
+    )
+
+
 def _error_code_from_tool_result(tool_result: Mapping[str, Any]) -> str:
     notes = tool_result.get("extra_notes")
     if isinstance(notes, str):
@@ -207,7 +216,9 @@ class ReminderCommandExecutor:
             )
 
         failed_tool_result = _last_failed_tool_result(session_state)
-        if failed_tool_result is not None:
+        if failed_tool_result is not None and not _has_successful_tool_result(
+            session_state
+        ):
             result_summary = failed_tool_result.get("result_summary")
             content = {}
             if isinstance(result_summary, str) and result_summary.strip():

@@ -167,6 +167,7 @@ RRULE, schedule_basis="explicit_cadence", schedule_evidence, and deadline_at.
 Do not drop the deadline.
 Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
 Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.
+If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.
 {workflow_block}
 
 ### 当前用户消息

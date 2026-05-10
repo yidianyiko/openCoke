@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-78ed8a101d",
+    "message": null,
+    "offset": 185,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你希望在4:40之后以什么间隔（比如继续每50分钟）提醒，还是只在5:30提醒一次？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 185,
+      "input": "在6点前，每50分钟通知我一次，4点40之后的提醒应该是5点半",
+      "user_id": "a080920100091e537ce36807",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "6a00498eba872ac9c65b16b5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0049a7b6153caa219ee7d0",
+          "expect_output_timestamp": 1778403751,
+          "handled_timestamp": 1778403751,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你希望在4:40之后以什么间隔（比如继续每50分钟）提醒，还是只在5:30提醒一次？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-78ed8a101d",
+            "case_index": 185,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "693285144bf7878f04114a67",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-78ed8a101d-case-185",
+              "business_conversation_key": "user-path-78ed8a101d-case-185",
+              "causal_inbound_event_id": "user-path-78ed8a101d-case-185-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a080920100091e537ce36807"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 25.05
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
