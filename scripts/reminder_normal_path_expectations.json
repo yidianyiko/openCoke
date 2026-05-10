@@ -1600,6 +1600,125 @@
         }
       ]
     },
+    "258": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded 'after a while' without a concrete delay or clock time, so the agent should ask for the exact reminder time.",
+      "expected_clarification_terms": [
+        "几分钟",
+        "几点"
+      ]
+    },
+    "259": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Tomorrow plus a concrete clock time and task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "09:40:00",
+          "recurring": false
+        }
+      ]
+    },
+    "260": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Tomorrow evening plus a concrete clock time and task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "去见secondme",
+          "local_time": "19:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "261": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Tomorrow afternoon plus a concrete clock time and task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "去见vast",
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "262": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "A calendar date plus a broad day period like morning is missing the concrete reminder clock time, so the agent should ask what time.",
+      "expected_clarification_terms": [
+        "几点"
+      ]
+    },
+    "263": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete morning clock time plus task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "阅读monolith的文章",
+          "local_time": "10:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "264": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete clock time plus reminder task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "回复刘冲、Eva，约一下袁琳、浩然",
+          "local_time": "08:40:00",
+          "recurring": false
+        }
+      ]
+    },
+    "266": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Today plus a concrete morning clock time and task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "开始写论文",
+          "local_time": "10:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "267": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete afternoon clock time plus task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "开始写论文",
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "268": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete evening clock time plus study task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "开始学习雅思",
+          "local_time": "19:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "269": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete clock time plus reminder request is a complete one-shot reminder; the surrounding scheduling context can be included in the task title.",
+      "expected_creates": [
+        {
+          "title": "约面试",
+          "title_variants": [
+            "先去面试对方，都还没约",
+            "提醒约对方",
+            "去面试对方（约对方）"
+          ],
+          "local_time": "11:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."

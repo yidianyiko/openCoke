@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-c94cd6a48c",
+    "message": null,
+    "offset": 264,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：回复刘冲、Eva，约一下袁琳、浩然（2026-05-11 08:40）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00ad315f1b9e758606364f",
+        "owner_user_id": "cb690e4f5906d5d08443af43",
+        "title": "回复刘冲、Eva，约一下袁琳、浩然",
+        "schedule": {
+          "anchor_at": "2026-05-10T23:40:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "08:40:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00ad255f1b9e758606364a",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-10T23:40:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-10T17:12:13+00:00",
+        "updated_at": "2026-05-10T17:12:13+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 264,
+      "input": "如果可以的话 你8:40提醒我一下回复刘冲、Eva，约一下袁琳、浩然",
+      "user_id": "cb690e4f5906d5d08443af43",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "6a00ad25dc44b169bd1b58dd",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00ad315f1b9e7586063651",
+          "expect_output_timestamp": 1778429233,
+          "handled_timestamp": 1778429233,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：回复刘冲、Eva，约一下袁琳、浩然（2026-05-11 08:40）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-c94cd6a48c",
+            "case_index": 264,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693714fdfa6e02049481c8a2",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-c94cd6a48c-case-264",
+              "business_conversation_key": "user-path-c94cd6a48c-case-264",
+              "causal_inbound_event_id": "user-path-c94cd6a48c-case-264-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cb690e4f5906d5d08443af43"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00ad315f1b9e758606364f",
+          "owner_user_id": "cb690e4f5906d5d08443af43",
+          "title": "回复刘冲、Eva，约一下袁琳、浩然",
+          "schedule": {
+            "anchor_at": "2026-05-10T23:40:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "08:40:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00ad255f1b9e758606364a",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-10T23:40:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-10T17:12:13+00:00",
+          "updated_at": "2026-05-10T17:12:13+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 12.023
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

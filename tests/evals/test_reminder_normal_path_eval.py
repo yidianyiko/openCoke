@@ -1419,7 +1419,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 193
+    assert len(expectations) <= 204
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1435,7 +1435,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 193
+    assert len(selected) == 204
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1493,7 +1493,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 193
+    assert report["fixture_overrides"] <= 204
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -1961,6 +1961,20 @@ def test_title_normalizer_keeps_short_lai_nouns_intact():
             recurring=False,
         )
     ) == ["来信"]
+
+
+def test_output_title_matching_reuses_created_title_variant_semantics():
+    expected = normal_eval.ExpectedReminderCreate(
+        title="约面试",
+        title_variants=("去面试对方（约对方）",),
+        local_time="11:00:00",
+        recurring=False,
+    )
+
+    assert normal_eval.output_mentions_expected_title(
+        "已创建提醒：约对方（2026-05-11 11:00）",
+        expected,
+    )
 
 
 def test_validate_observations_tolerates_trailing_light_action_particle():

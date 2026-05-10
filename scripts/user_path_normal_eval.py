@@ -952,10 +952,34 @@ def output_mentions_expected_title(
     output_text: str, expected: ExpectedReminderCreate
 ) -> bool:
     normalized_output = normalize_expected_title(output_text)
-    for variant in expected_title_variants(expected):
+    variants = expected_title_variants(expected)
+    for variant in variants:
         if variant in normalized_output:
             return True
+    for candidate in output_created_title_candidates(output_text):
+        if title_matches_expected_variants(candidate, variants):
+            return True
     return False
+
+
+def output_created_title_candidates(output_text: str) -> list[str]:
+    normalized = normalize_expected_title(output_text.replace("\n", "；"))
+    candidates: list[str] = []
+    marker_re = re.compile(
+        r"(?:已创建提醒|提醒(?:已经|已)?(?:设好|设置好了|安排好了)|已经安排好了)[:：]?"
+    )
+    for match in marker_re.finditer(normalized):
+        suffix = normalized[match.end() :]
+        segment = re.split(r"[，,。；;！？!?]", suffix, maxsplit=1)[0]
+        segment = re.sub(
+            r"（(?:\d{4}|每天|每日|每周|每月|每两周|循环规则|FREQ=).*",
+            "",
+            segment,
+        )
+        candidate = normalize_expected_title(segment)
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
 
 
 def output_segment_for_expected(

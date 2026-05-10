@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-342558230a",
+    "message": null,
+    "offset": 268,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：开始学习雅思（2026-05-11 19:30）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00ae3e5f1b9e758606369e",
+        "owner_user_id": "9222316527f04d7814af7e16",
+        "title": "开始学习雅思",
+        "schedule": {
+          "anchor_at": "2026-05-11T10:30:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "19:30:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00ae3a5f1b9e7586063699",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T10:30:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-10T23:40:59+00:00",
+        "updated_at": "2026-05-10T23:40:59+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 268,
+      "input": "晚上 7 点半提醒我开始学习雅思",
+      "user_id": "9222316527f04d7814af7e16",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a00ae3aa288e4fb286d1ac6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00ae3e5f1b9e75860636a0",
+          "expect_output_timestamp": 1778429502,
+          "handled_timestamp": 1778429502,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：开始学习雅思（2026-05-11 19:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-342558230a",
+            "case_index": 268,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6937701cfa6e02049481c8b5",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-342558230a-case-268",
+              "business_conversation_key": "user-path-342558230a-case-268",
+              "causal_inbound_event_id": "user-path-342558230a-case-268-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "9222316527f04d7814af7e16"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00ae3e5f1b9e758606369e",
+          "owner_user_id": "9222316527f04d7814af7e16",
+          "title": "开始学习雅思",
+          "schedule": {
+            "anchor_at": "2026-05-11T10:30:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "19:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00ae3a5f1b9e7586063699",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T10:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-10T23:40:59+00:00",
+          "updated_at": "2026-05-10T23:40:59+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.008
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
