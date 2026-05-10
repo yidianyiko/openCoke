@@ -144,6 +144,8 @@ When no pending-workflow block is present, do not output workflow_update.
 For retries without a pending-workflow block, workflow_update is not an allowed output field.
 Complete CRUD decisions must omit workflow_update.
 Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
+All batch create decisions require top-level schedule_basis and schedule_evidence; do not put them only inside operations.
+Clarify and discussion retries must return empty action and empty operations.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
@@ -268,6 +270,35 @@ class ReminderIntentPort:
                     _timeout_clarification_result(),
                 )
             decision = retry_decision
+        if _is_unrecognized_decision(decision) and self.retry_agent is not None:
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector returned invalid structured output; "
+                    "retry with a schema-valid ReminderDetectDecision"
+                ),
+            )
+            if _should_execute_decision(retry_decision):
+                decision = retry_decision
+            elif _is_clarification_decision(retry_decision):
+                retry_outcome = self._persist_workflow_update(
+                    retry_decision, run_context, active_workflow
+                )
+                if retry_outcome.concurrent_drop:
+                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
+                return _clarification_result(retry_decision)
+            elif retry_decision is None:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _timeout_clarification_result(),
+                )
+            else:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
         if _should_retry_for_quoted_title_loss(input_message, decision):
             retry_decision = await self._run_retry_detector(
                 input_message,
@@ -1108,12 +1139,12 @@ def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
     operations = list(_decision_value(decision, "operations") or [])
     if len(operations) <= 1:
         return decision
-    has_recurring_create = any(
+    has_high_frequency_recurring_create = any(
         str(_operation_value(operation, "action") or "").strip() == "create"
-        and str(_operation_value(operation, "rrule") or "").strip()
+        and _is_high_frequency_rrule(str(_operation_value(operation, "rrule") or ""))
         for operation in operations
     )
-    if not has_recurring_create:
+    if not has_high_frequency_recurring_create:
         return decision
 
     kept_operations = []
@@ -1122,11 +1153,15 @@ def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
         if str(_operation_value(operation, "action") or "").strip() != "create":
             kept_operations.append(operation)
             continue
-        if str(_operation_value(operation, "rrule") or "").strip():
+        title = str(_operation_value(operation, "title") or "").strip()
+        rrule = str(_operation_value(operation, "rrule") or "").strip()
+        if rrule and not _is_high_frequency_rrule(rrule):
             kept_operations.append(operation)
             continue
-        title = str(_operation_value(operation, "title") or "").strip()
-        if title and _title_has_local_reminder_verb_context(text, title):
+        if title and (
+            _title_has_local_reminder_verb_context(text, title)
+            or (rrule and _title_has_local_cadence_context(text, title))
+        ):
             kept_operations.append(operation)
             continue
         changed = True
@@ -1148,12 +1183,35 @@ def _title_has_local_reminder_verb_context(text: str, title: str) -> bool:
         start = position + len(title)
 
 
+def _title_has_local_cadence_context(text: str, title: str) -> bool:
+    start = 0
+    while True:
+        position = text.find(title, start)
+        if position < 0:
+            return False
+        clause_start = _previous_clause_boundary(text, position)
+        clause_end = _next_clause_boundary(text, position + len(title))
+        clause = text[clause_start:clause_end]
+        if _is_high_frequency_evidence(clause):
+            return True
+        start = position + len(title)
+
+
 def _previous_clause_boundary(text: str, position: int) -> int:
     boundary = 0
     for separator in "，,。；;！？!?\n":
         index = text.rfind(separator, 0, position)
         if index >= boundary:
             boundary = index + 1
+    return boundary
+
+
+def _next_clause_boundary(text: str, position: int) -> int:
+    boundary = len(text)
+    for separator in "，,。；;！？!?\n":
+        index = text.find(separator, position)
+        if index != -1 and index < boundary:
+            boundary = index
     return boundary
 
 

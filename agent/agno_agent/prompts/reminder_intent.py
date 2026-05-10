@@ -66,6 +66,8 @@ def build_reminder_intent_input(
             "Noisy filler before a concrete clock time is not recurrence evidence.",
             "Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.",
             "Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.",
+            "Every batch create decision must include top-level schedule_basis and schedule_evidence; do not put them only inside operations.",
+            "Clarify and discussion decisions must use empty action and empty operations.",
             "Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.",
             "Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.",
             "If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.",

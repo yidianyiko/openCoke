@@ -115,6 +115,8 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
         "Do not use RRULE or explicit_cadence unless the user supplies recurrence"
         in prompt
     )
+    assert "batch create decision must include top-level schedule_basis" in prompt
+    assert "Clarify and discussion decisions must use empty action" in prompt
     assert (
         "Weekly recurrence with listed weekdays must include every listed weekday"
         in prompt
@@ -138,6 +140,8 @@ def test_retry_prompt_preserves_bare_call_me_clock_contract():
 
     assert "Bare call/wake/alarm-me with a concrete clock time is complete" in prompt
     assert "do not ask for reminder content or date" in prompt
+    assert "batch create decisions require top-level schedule_basis" in prompt
+    assert "Clarify and discussion retries must return empty action" in prompt
 
 
 def test_retry_prompt_preserves_undesignated_task_clock_contract():
@@ -1265,6 +1269,122 @@ async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence
     assert result.ok is True
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["打卡"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrule():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="开始帮我每小时打卡，打卡持续到20点",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="起床",
+                trigger_at="2026-05-11T15:00:00+09:00",
+                rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="打卡",
+                trigger_at="2026-05-11T15:00:00+09:00",
+                rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：打卡"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=executor,
+    ).run(
+        (
+            "帮我记住今天任务，以这个版本为准\n\n"
+            "15点-16点\n起床，开始帮我每小时打卡，打卡持续到20点\n跑步3公里"
+        ),
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert len(executor.received) == 1
+    assert [op.title for op in executor.received[0].operations] == ["打卡"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_invalid_structured_output_with_schema_boundary():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    retry_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="打卡",
+        trigger_at="2026-05-11T15:00:00+09:00",
+        rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
+        deadline_at="2026-05-11T20:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时打卡，打卡持续到20点",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content="ReminderDetectInvalidStructuredOutput")
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "primary detector returned invalid structured output" in input
+            assert "batch create decisions require top-level schedule_basis" in input
+            assert "Clarify and discussion retries must return empty action" in input
+            return SimpleNamespace(content=retry_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：打卡"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run(
+        "15点开始帮我每小时打卡，打卡持续到20点",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert len(executor.received) == 1
+    assert executor.received[0].title == "打卡"
 
 
 @pytest.mark.asyncio

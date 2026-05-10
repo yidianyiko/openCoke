@@ -1401,7 +1401,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 161
+    assert len(expectations) <= 162
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1417,7 +1417,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 161
+    assert len(selected) == 162
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1475,7 +1475,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 161
+    assert report["fixture_overrides"] <= 162
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -1720,6 +1720,65 @@ def test_validate_observations_rejects_case3_false_positive_shape():
     assert "expected_one_shot_reminder_is_recurring:喝水" in errors
     assert "missing_expected_reminder_title:吃饭" in errors
     assert "user_output_missing_expected_title:吃饭" in errors
+
+
+def test_validate_observations_rejects_unexpected_extra_fixture_create():
+    case = normal_eval.ReminderNormalPathCase(
+        input="15点-16点起床，开始帮我每小时打卡，打卡持续到20点",
+        expected_intent="reminder",
+        matched_keywords=["打卡"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "打卡",
+                    "local_time": "15:00:00",
+                    "recurring": True,
+                    "rrule_contains": ["FREQ=HOURLY", "UNTIL"],
+                }
+            ],
+        },
+    )
+    reminders = [
+        {
+            "title": "打卡",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 11, 6, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "15:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=HOURLY;UNTIL=20260511T110000Z",
+            },
+        },
+        {
+            "title": "起床",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 11, 6, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "15:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=HOURLY;UNTIL=20260511T110000Z",
+            },
+        },
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "已创建提醒：打卡（2026-05-11 15:00，"
+                    "循环规则 FREQ=HOURLY;UNTIL=20260511T110000Z）\n"
+                    "已创建提醒：起床（2026-05-11 15:00，"
+                    "循环规则 FREQ=HOURLY;UNTIL=20260511T110000Z）"
+                )
+            }
+        ],
+        reminders=reminders,
+    )
+
+    assert "unexpected_reminder_count_mismatch:2>1" in errors
 
 
 def test_validate_observations_accepts_case3_expected_shape():

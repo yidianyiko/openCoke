@@ -875,6 +875,10 @@ def validate_expected_creates(
         errors.append(
             f"expected_reminder_count_mismatch:{len(expected_creates)}>{len(reminders)}"
         )
+    if len(reminders) > len(expected_creates):
+        errors.append(
+            f"unexpected_reminder_count_mismatch:{len(reminders)}>{len(expected_creates)}"
+        )
 
     for expected in expected_creates:
         reminder = find_matching_reminder(expected, reminders)
