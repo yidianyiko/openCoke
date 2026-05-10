@@ -1726,6 +1726,50 @@
         "内容"
       ]
     },
+    "271": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete rest-and-water task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "休息喝水",
+          "local_time": "12:02:00",
+          "recurring": false
+        }
+      ]
+    },
+    "272": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete afternoon clock time plus wake-and-writing task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "起床并开始准备论文写作",
+          "local_time": "13:50:00",
+          "recurring": false
+        }
+      ]
+    },
+    "273": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete get-up, water, and rest task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "起来喝水休息",
+          "local_time": "14:29:00",
+          "recurring": false
+        }
+      ]
+    },
+    "274": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete get-up, rest, and drink-water task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "起来休息，倒水喝",
+          "local_time": "15:56:00",
+          "recurring": false
+        }
+      ]
+    },
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."

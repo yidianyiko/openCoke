@@ -514,6 +514,11 @@ class ReminderIntentPort:
             execution_workflow = executing_outcome.workflow
             execution_revision = executing_outcome.stored_revision
 
+        decision = _normalize_relative_delay_create_trigger(
+            input_message,
+            decision,
+            run_context,
+        )
         decision = _normalize_past_bare_create_trigger(
             input_message,
             decision,
@@ -1129,6 +1134,11 @@ _REMINDER_VERB_PATTERN = re.compile(
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
     r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
 )
+_RELATIVE_DELAY_PATTERN = re.compile(
+    r"(?P<amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
+    r"(?P<unit>分钟|分|小时|个小时|天|日)\s*"
+    r"(?:后|之后|以后)"
+)
 _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
     r"^(?:都|也|还|这|那|这个|那个|这些|那些|它|事情|事|东西|任务|it|that|this)*"
     r"(?:还没|还没有|没|没有|未|尚未|not)"
@@ -1141,6 +1151,74 @@ _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
+
+
+def _normalize_relative_delay_create_trigger(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action not in {"create", "batch"}:
+        return decision
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    delay = _single_relative_delay(current_user_text)
+    if delay is None:
+        return decision
+    normalized_trigger_at = _relative_delay_trigger_at(run_context, delay)
+
+    if action == "batch":
+        operations = list(_decision_value(decision, "operations") or [])
+        if len(operations) != 1:
+            return decision
+        operation = operations[0]
+        if str(_operation_value(operation, "action") or "").strip() != "create":
+            return decision
+        trigger_at = str(_operation_value(operation, "trigger_at") or "").strip()
+        if not trigger_at or trigger_at == normalized_trigger_at:
+            return decision
+        return _copy_decision_with_operations(
+            decision,
+            [_copy_operation_with_value(operation, "trigger_at", normalized_trigger_at)],
+        )
+
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    if not trigger_at or trigger_at == normalized_trigger_at:
+        return decision
+    return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
+
+
+def _single_relative_delay(current_user_text: str) -> timedelta | None:
+    matches = list(_RELATIVE_DELAY_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    amount_text = match.group("amount") or ""
+    amount = int(amount_text) if amount_text.isdigit() else _parse_chinese_hour(amount_text)
+    if amount is None or amount <= 0:
+        return None
+    unit = match.group("unit") or ""
+    if unit in {"分钟", "分"}:
+        return timedelta(minutes=amount)
+    if unit in {"小时", "个小时"}:
+        return timedelta(hours=amount)
+    if unit in {"天", "日"}:
+        return timedelta(days=amount)
+    return None
+
+
+def _relative_delay_trigger_at(
+    run_context: AgentRunContext,
+    delay: timedelta,
+) -> str:
+    current_time = run_context.current_time
+    if current_time.tzinfo is None:
+        try:
+            timezone = ZoneInfo(run_context.user.timezone or "UTC")
+        except ZoneInfoNotFoundError:
+            timezone = ZoneInfo("UTC")
+        current_time = current_time.replace(tzinfo=timezone)
+    return (current_time + delay).replace(microsecond=0).isoformat()
 
 
 def _normalize_past_bare_create_trigger(

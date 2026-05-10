@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-8209a49d43",
+    "message": null,
+    "offset": 272,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：起床并开始准备论文写作（2026-05-11 13:50）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00b29854c9c0816a71e5e7",
+        "owner_user_id": "696f18f779793775c4157086",
+        "title": "起床并开始准备论文写作",
+        "schedule": {
+          "anchor_at": "2026-05-11T04:50:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "13:50:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00b29454c9c0816a71e5e2",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T04:50:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T03:19:52+00:00",
+        "updated_at": "2026-05-11T03:19:52+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 272,
+      "input": "下午 1:50 提醒我起床并开始准备论文写作",
+      "user_id": "696f18f779793775c4157086",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a00b2948fe3d266317aa281",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00b29854c9c0816a71e5e9",
+          "expect_output_timestamp": 1778430616,
+          "handled_timestamp": 1778430616,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床并开始准备论文写作（2026-05-11 13:50）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-8209a49d43",
+            "case_index": 272,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6937a368fa6e02049481c8c6",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-8209a49d43-case-272",
+              "business_conversation_key": "user-path-8209a49d43-case-272",
+              "causal_inbound_event_id": "user-path-8209a49d43-case-272-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "696f18f779793775c4157086"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00b29854c9c0816a71e5e7",
+          "owner_user_id": "696f18f779793775c4157086",
+          "title": "起床并开始准备论文写作",
+          "schedule": {
+            "anchor_at": "2026-05-11T04:50:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "13:50:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00b29454c9c0816a71e5e2",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T04:50:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T03:19:52+00:00",
+          "updated_at": "2026-05-11T03:19:52+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
