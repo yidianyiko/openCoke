@@ -63,6 +63,8 @@ def build_reminder_intent_input(
             "Need/intention statements such as 'I need to do X at Y' are discussion, not clarify, unless the user asks for reminder supervision.",
             "Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
+            "Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.",
+            "Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.",
             "Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.",
             "",
             "### 当前用户消息",

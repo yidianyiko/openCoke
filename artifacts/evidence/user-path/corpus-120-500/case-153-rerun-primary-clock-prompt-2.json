@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-b56023bba3",
+    "message": null,
+    "offset": 153,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：学习（2026-05-10 18:30）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a003e83492bbd62432183c4",
+        "owner_user_id": "6e9a2344bcba5312277a3f0c",
+        "title": "学习",
+        "schedule": {
+          "anchor_at": "2026-05-10T09:30:00+00:00",
+          "local_date": "2026-05-10",
+          "local_time": "18:30:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a003e80492bbd62432183bf",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-10T09:30:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-10T08:59:18+00:00",
+        "updated_at": "2026-05-10T08:59:18+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 153,
+      "input": "6点30开始学习提醒我下",
+      "user_id": "6e9a2344bcba5312277a3f0c",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "6a003e801d1ceddf69021758",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a003e83492bbd62432183c6",
+          "expect_output_timestamp": 1778400899,
+          "handled_timestamp": 1778400899,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：学习（2026-05-10 18:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-b56023bba3",
+            "case_index": 153,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "69315b764bf7878f04114980",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-b56023bba3-case-153",
+              "business_conversation_key": "user-path-b56023bba3-case-153",
+              "causal_inbound_event_id": "user-path-b56023bba3-case-153-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6e9a2344bcba5312277a3f0c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a003e83492bbd62432183c4",
+          "owner_user_id": "6e9a2344bcba5312277a3f0c",
+          "title": "学习",
+          "schedule": {
+            "anchor_at": "2026-05-10T09:30:00+00:00",
+            "local_date": "2026-05-10",
+            "local_time": "18:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a003e80492bbd62432183bf",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-10T09:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-10T08:59:18+00:00",
+          "updated_at": "2026-05-10T08:59:18+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.008
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

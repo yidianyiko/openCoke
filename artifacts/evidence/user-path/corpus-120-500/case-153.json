@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-ed8dd0a341",
+    "message": null,
+    "offset": 153,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 153,
+          "input": "6点30开始学习提醒我下",
+          "user_id": "74df07b0f1b61f59a8fc502d",
+          "original_from_user": "692c2417a538f0baad5561c0",
+          "input_message_id": "6a003d014f5f0a945eac69a8",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a003d4779c764c1663ca9b2",
+              "expect_output_timestamp": 1778400583,
+              "handled_timestamp": 1778400583,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-ed8dd0a341",
+                "case_index": 153,
+                "original_from_user": "692c2417a538f0baad5561c0",
+                "source_id": "69315b764bf7878f04114980",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-ed8dd0a341-case-153",
+                  "business_conversation_key": "user-path-ed8dd0a341-case-153",
+                  "causal_inbound_event_id": "user-path-ed8dd0a341-case-153-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "74df07b0f1b61f59a8fc502d"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 70.134
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 153,
+      "input": "6点30开始学习提醒我下",
+      "user_id": "74df07b0f1b61f59a8fc502d",
+      "original_from_user": "692c2417a538f0baad5561c0",
+      "input_message_id": "6a003d014f5f0a945eac69a8",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a003d4779c764c1663ca9b2",
+          "expect_output_timestamp": 1778400583,
+          "handled_timestamp": 1778400583,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-ed8dd0a341",
+            "case_index": 153,
+            "original_from_user": "692c2417a538f0baad5561c0",
+            "source_id": "69315b764bf7878f04114980",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-ed8dd0a341-case-153",
+              "business_conversation_key": "user-path-ed8dd0a341-case-153",
+              "causal_inbound_event_id": "user-path-ed8dd0a341-case-153-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "74df07b0f1b61f59a8fc502d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 70.134
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

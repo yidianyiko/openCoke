@@ -107,6 +107,8 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert (
         "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
     )
+    assert "Undesignated local clock times attached to a reminder task are concrete" in prompt
+    assert "Do not use RRULE or explicit_cadence unless the user supplies recurrence" in prompt
 
 
 def test_retry_prompt_preserves_bare_call_me_clock_contract():
@@ -120,6 +122,19 @@ def test_retry_prompt_preserves_bare_call_me_clock_contract():
 
     assert "Bare call/wake/alarm-me with a concrete clock time is complete" in prompt
     assert "do not ask for reminder content or date" in prompt
+
+
+def test_retry_prompt_preserves_undesignated_task_clock_contract():
+    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+
+    prompt = _build_reminder_retry_input(
+        "6点30开始学习提醒我下",
+        _run_context(),
+        reason="primary detector timed out",
+    )
+
+    assert "Undesignated local clock times attached to a reminder task are concrete" in prompt
+    assert "do not ask for date or trigger_at" in prompt
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():

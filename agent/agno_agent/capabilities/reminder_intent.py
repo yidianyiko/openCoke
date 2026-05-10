@@ -152,6 +152,8 @@ Need/intention statements such as "I need to do X at Y" are discussion, not clar
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
+Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.
+Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
 Noisy filler before a concrete clock time is not recurrence evidence.
 Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.

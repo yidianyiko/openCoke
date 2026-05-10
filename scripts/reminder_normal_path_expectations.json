@@ -869,6 +869,21 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation."
     },
+    "147": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a local clock time and task content after non-reminder context; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "开始政治",
+          "local_time": "16:10:00",
+          "recurring": false
+        }
+      ]
+    },
+    "148": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder."
+    },
     "149": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder."
@@ -876,6 +891,32 @@
     "150": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user asks for cadence advice, not to set a confirmed reminder. Answering with a recommendation is ordinary discussion as long as no reminder is created or promised."
+    },
+    "151": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Bare call-me request with a concrete afternoon clock time is executable because the reminder verb is the reminder content.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "local_time": "17:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "152": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder."
+    },
+    "153": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with an undesignated local clock time and task content; in late afternoon context, 6:30 is expected as the upcoming 18:30 occurrence.",
+      "expected_creates": [
+        {
+          "title": "开始学习",
+          "local_time": "18:30:00",
+          "recurring": false
+        }
+      ]
     },
     "158": {
       "evaluation_expectation": "crud",

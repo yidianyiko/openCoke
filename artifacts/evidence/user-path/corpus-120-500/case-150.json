@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-5d3af7ad41",
+    "message": null,
+    "offset": 150,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "这取决于你的需要。如果你想快速跟踪，可以每1-2天提醒一次；如果节奏慢一些，每周一次也可以。请告诉我你希望的提醒频率和提醒内容，我来帮你设置。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 150,
+      "input": "那你建议我多久来提醒我呢？",
+      "user_id": "1fa2834a5cdd3c6430cb568b",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "6a003c2870f196a7ec7ee59d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a003c4479c764c1663ca993",
+          "expect_output_timestamp": 1778400324,
+          "handled_timestamp": 1778400324,
+          "status": "pending",
+          "message_type": "text",
+          "message": "这取决于你的需要。如果你想快速跟踪，可以每1-2天提醒一次；如果节奏慢一些，每周一次也可以。请告诉我你希望的提醒频率和提醒内容，我来帮你设置。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-5d3af7ad41",
+            "case_index": 150,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "6931461d4bf7878f0411495e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-5d3af7ad41-case-150",
+              "business_conversation_key": "user-path-5d3af7ad41-case-150",
+              "causal_inbound_event_id": "user-path-5d3af7ad41-case-150-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1fa2834a5cdd3c6430cb568b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 28.053
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
