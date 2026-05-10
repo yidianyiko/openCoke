@@ -1001,6 +1001,28 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states a plan to return to study at 15:00 after resting but does not ask for a reminder, notification, call, or check-in. A social acknowledgement is acceptable as long as no reminder is created or promised."
     },
+    "178": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete clock time and reading task; the 50 minute study duration is task context, not a recurrence.",
+      "expected_creates": [
+        {
+          "title": "开始看书《问鼎》",
+          "local_time": "15:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "179": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete clock time and task content; the agent should create the local 16:00 reminder.",
+      "expected_creates": [
+        {
+          "title": "开始写论文文献综述（国外研究现状）",
+          "local_time": "16:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "180": {
       "evaluation_expectation": "crud",
       "expected_operation": "update",
@@ -1010,6 +1032,36 @@
     "181": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder."
+    },
+    "182": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete clock time and task content; the agent should create the local 15:00 reminder.",
+      "expected_creates": [
+        {
+          "title": "起来走走",
+          "local_time": "15:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "183": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit weekly reminder request listing Saturday and Sunday at 15:00; the created RRULE must preserve both listed weekdays.",
+      "expected_creates": [
+        {
+          "title": "提醒小吴完成学习任务",
+          "local_time": "15:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "SA",
+            "SU"
+          ],
+          "output_terms": [
+            "周六",
+            "周日"
+          ]
+        }
+      ]
     },
     "187": {
       "evaluation_expectation": "crud",

@@ -1,0 +1,213 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-01eefd149f",
+    "message": null,
+    "offset": 183,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：提醒小吴完成学习任务（每周六 15:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a0045af0839ae537f7de4b2",
+        "owner_user_id": "6055744e0d2d89d39369e635",
+        "title": "提醒小吴完成学习任务",
+        "schedule": {
+          "anchor_at": "2026-05-16T06:00:00+00:00",
+          "local_date": "2026-05-16",
+          "local_time": "15:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": "FREQ=WEEKLY;BYDAY=SA"
+        },
+        "agent_output_target": {
+          "conversation_id": "6a0045a80839ae537f7de4ad",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-16T06:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T05:39:03+00:00",
+        "updated_at": "2026-05-11T05:39:03+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_created": 1
+      },
+      "failures": [
+        {
+          "index": 183,
+          "input": "周六周天下午三点提醒小吴完成学习任务",
+          "user_id": "6055744e0d2d89d39369e635",
+          "original_from_user": "692e9d234bf7878f0411466e",
+          "input_message_id": "6a0045a8afb4bbc2628ceb51",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0045af0839ae537f7de4b4",
+              "expect_output_timestamp": 1778402735,
+              "handled_timestamp": 1778402735,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：提醒小吴完成学习任务（每周六 15:00）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-01eefd149f",
+                "case_index": 183,
+                "original_from_user": "692e9d234bf7878f0411466e",
+                "source_id": "69327e084bf7878f04114a5e",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-01eefd149f-case-183",
+                  "business_conversation_key": "user-path-01eefd149f-case-183",
+                  "causal_inbound_event_id": "user-path-01eefd149f-case-183-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "6055744e0d2d89d39369e635"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "6a0045af0839ae537f7de4b2",
+              "owner_user_id": "6055744e0d2d89d39369e635",
+              "title": "提醒小吴完成学习任务",
+              "schedule": {
+                "anchor_at": "2026-05-16T06:00:00+00:00",
+                "local_date": "2026-05-16",
+                "local_time": "15:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=WEEKLY;BYDAY=SA"
+              },
+              "agent_output_target": {
+                "conversation_id": "6a0045a80839ae537f7de4ad",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-16T06:00:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-11T05:39:03+00:00",
+              "updated_at": "2026-05-11T05:39:03+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 8.016
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 183,
+      "input": "周六周天下午三点提醒小吴完成学习任务",
+      "user_id": "6055744e0d2d89d39369e635",
+      "original_from_user": "692e9d234bf7878f0411466e",
+      "input_message_id": "6a0045a8afb4bbc2628ceb51",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0045af0839ae537f7de4b4",
+          "expect_output_timestamp": 1778402735,
+          "handled_timestamp": 1778402735,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：提醒小吴完成学习任务（每周六 15:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-01eefd149f",
+            "case_index": 183,
+            "original_from_user": "692e9d234bf7878f0411466e",
+            "source_id": "69327e084bf7878f04114a5e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-01eefd149f-case-183",
+              "business_conversation_key": "user-path-01eefd149f-case-183",
+              "causal_inbound_event_id": "user-path-01eefd149f-case-183-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6055744e0d2d89d39369e635"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a0045af0839ae537f7de4b2",
+          "owner_user_id": "6055744e0d2d89d39369e635",
+          "title": "提醒小吴完成学习任务",
+          "schedule": {
+            "anchor_at": "2026-05-16T06:00:00+00:00",
+            "local_date": "2026-05-16",
+            "local_time": "15:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=WEEKLY;BYDAY=SA"
+          },
+          "agent_output_target": {
+            "conversation_id": "6a0045a80839ae537f7de4ad",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-16T06:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T05:39:03+00:00",
+          "updated_at": "2026-05-11T05:39:03+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 8.016
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_created"
+  }
+}

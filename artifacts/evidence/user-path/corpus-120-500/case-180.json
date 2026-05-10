@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-c2151719cf",
+    "message": null,
+    "offset": 180,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "更新提醒失败：没有找到要更新的提醒，请告诉我提醒名称。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 180,
+      "input": "nono 不是15:50，而是15:00提醒我看书",
+      "user_id": "f80c2d2b0b169a5884a57065",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "6a00453416db28a9120375f3",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0045370839ae537f7de48b",
+          "expect_output_timestamp": 1778402615,
+          "handled_timestamp": 1778402615,
+          "status": "pending",
+          "message_type": "text",
+          "message": "更新提醒失败：没有找到要更新的提醒，请告诉我提醒名称。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-c2151719cf",
+            "case_index": 180,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693257084bf7878f04114a4f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-c2151719cf-case-180",
+              "business_conversation_key": "user-path-c2151719cf-case-180",
+              "causal_inbound_event_id": "user-path-c2151719cf-case-180-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f80c2d2b0b169a5884a57065"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
