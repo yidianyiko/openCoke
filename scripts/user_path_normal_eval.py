@@ -1485,6 +1485,9 @@ Context:
 - A reply that says the assistant remembers, knows, or recalls the user's
   stated plan or prior message is not a claimed reminder action unless it also
   says a future reminder/check-in will happen.
+- A reply that promises to track, record, remember, or report account/profile
+  state in future conversations is not a reminder action unless it also says the
+  assistant will remind, notify, call, nudge, or check in at a time or cadence.
 - Social acknowledgements such as "see you at 3pm" that echo the user's stated
   return plan are not claimed reminder actions unless they also say the
   assistant will remind, notify, call, nudge, or check in.

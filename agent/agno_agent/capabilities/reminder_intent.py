@@ -379,6 +379,40 @@ class ReminderIntentPort:
                 input_message,
                 _invalid_decision_clarification_result(),
             )
+        if _should_execute_decision(
+            decision
+        ) and _input_has_large_today_time_range_points_request(input_message):
+            return _ambiguous_time_range_clarification_result()
+        if _should_execute_decision(
+            decision
+        ) and _is_today_time_range_points_incomplete_or_recurring(
+            input_message, decision
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector compressed today's task-range reminder into "
+                    "a recurring or incomplete create; use action=batch with "
+                    "one-shot create operations for the future task start points"
+                ),
+            )
+            if _should_execute_decision(
+                retry_decision
+            ) and not _is_today_time_range_points_incomplete_or_recurring(
+                input_message, retry_decision
+            ):
+                decision = retry_decision
+            elif retry_decision is not None and _is_unrecognized_decision(
+                retry_decision
+            ):
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
+            else:
+                return _ambiguous_time_range_clarification_result()
         if _should_execute_decision(decision) and _is_bounded_cadence_deadline_loss(
             input_message, decision
         ):
@@ -1052,6 +1086,10 @@ _AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN = re.compile(
     r"(?:一二|二三|两三|三四|四五|五六|六七|七八|八九|九十)\s*(?:点|时)"
     r"|(?:\d{1,2})\s*(?:-|~|到|至)\s*(?:\d{1,2})\s*(?:点|时)"
 )
+_CLOCK_RANGE_PATTERN = re.compile(
+    r"\d{1,2}\s*(?:[:：]\s*\d{1,2})?\s*(?:-|~|到|至)\s*"
+    r"\d{1,2}\s*(?:[:：]\s*\d{1,2})?"
+)
 _EXPLICIT_DATE_PATTERN = re.compile(
     r"(今天|今日|今晚|今早|明天|明早|后天|大后天|周[一二三四五六日天]|星期[一二三四五六日天]|"
     r"\d{1,4}\s*年|\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|\d{1,2}[/-]\d{1,2})",
@@ -1338,6 +1376,41 @@ def _decision_has_create_operation(decision: Any) -> bool:
     return False
 
 
+def _is_today_time_range_points_incomplete_or_recurring(
+    input_message: str, decision: Any
+) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not _input_has_today_time_range_points_request(current_user_text):
+        return False
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action != "batch":
+        return True
+    if _decision_has_recurring_create(decision):
+        return True
+    create_count = sum(
+        1
+        for operation in (_decision_value(decision, "operations") or [])
+        if str(_operation_value(operation, "action") or "").strip() == "create"
+    )
+    return create_count < 2
+
+
+def _input_has_today_time_range_points_request(text: str) -> bool:
+    normalized = str(text or "").strip()
+    if "今天" not in normalized or "这些时间点" not in normalized:
+        return False
+    if "提醒" not in normalized:
+        return False
+    return len(_CLOCK_RANGE_PATTERN.findall(normalized)) >= 2
+
+
+def _input_has_large_today_time_range_points_request(text: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", text).strip()
+    if not _input_has_today_time_range_points_request(current_user_text):
+        return False
+    return len(_CLOCK_RANGE_PATTERN.findall(current_user_text)) >= 4
+
+
 def _decision_has_recurring_create(decision: Any) -> bool:
     action = str(_decision_value(decision, "action") or "").strip()
     if action == "create":
@@ -1469,6 +1542,8 @@ def _input_has_bounded_cadence_deadline(text: str) -> bool:
         "每月",
         "每年",
         "每小时",
+        "每个整点",
+        "整点",
         "每分钟",
         "每隔",
         "daily",
@@ -1741,12 +1816,30 @@ def _fallback_clarification_for_input(
         return _high_frequency_input_clarification_result()
     if _input_is_plain_schedule_statement_without_reminder_request(input_message):
         return _no_action_discussion_result()
+    if fallback.error in {
+        "ReminderDetectInvalidDecision",
+        "ReminderDetectTimeout",
+    } and _input_has_date_reference_without_clock(input_message):
+        return _date_only_missing_time_clarification_result()
     if fallback.error == "ReminderDetectInvalidDecision":
         if _input_has_concrete_time_without_reminder_content(input_message):
             return _missing_reminder_content_clarification_result()
         if _input_has_one_shot_deadline_without_trigger(input_message):
             return _deadline_without_trigger_clarification_result()
     return fallback
+
+
+def _input_has_date_reference_without_clock(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not _REMINDER_VERB_PATTERN.search(current_user_text):
+        return False
+    if _input_has_concrete_time_without_reminder_content(current_user_text):
+        return False
+    has_date_reference = bool(
+        _EXPLICIT_DATE_PATTERN.search(current_user_text)
+        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
+    )
+    return has_date_reference and not bool(_BARE_CLOCK_PATTERN.search(current_user_text))
 
 
 def _timeout_clarification_result() -> CapabilityResult:

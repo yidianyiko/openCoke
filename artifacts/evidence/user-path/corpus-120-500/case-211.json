@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-d954d162b2",
+    "message": null,
+    "offset": 211,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "了解了！我来帮你记录每天的任务和经验值。\n\n当前状态：\n- 等级：0级\n- 经验值：70/100 EXP\n\n请告诉我你今天完成了哪些任务呢？这样我可以帮你记录并累计经验值～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 211,
+      "input": "用户希望通过对话积累经验值，每等级为100exp，并希望每次对话中告知当前等级。当前等级为0级，经验值为70exp。用户希望按天记录已完成的任务，并告知目前的等级和经验值。e.g.: 已完成日常任务：xxx，xxx；已完成普通任务：xx，xx。经验值：exp，等级。用户达到33级将获得mini ai购买权。",
+      "user_id": "6ce3a2e7e868f8851c094eac",
+      "original_from_user": "692d3874a538f0baad55626e",
+      "input_message_id": "6a00978e9ec1ba22e435fb9e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a009792468d4ae64a9f0e32",
+          "expect_output_timestamp": 1778423698,
+          "handled_timestamp": 1778423698,
+          "status": "pending",
+          "message_type": "text",
+          "message": "了解了！我来帮你记录每天的任务和经验值。\n\n当前状态：\n- 等级：0级\n- 经验值：70/100 EXP\n\n请告诉我你今天完成了哪些任务呢？这样我可以帮你记录并累计经验值～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-d954d162b2",
+            "case_index": 211,
+            "original_from_user": "692d3874a538f0baad55626e",
+            "source_id": "693516b14bf7878f04114b51",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-d954d162b2-case-211",
+              "business_conversation_key": "user-path-d954d162b2-case-211",
+              "causal_inbound_event_id": "user-path-d954d162b2-case-211-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6ce3a2e7e868f8851c094eac"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

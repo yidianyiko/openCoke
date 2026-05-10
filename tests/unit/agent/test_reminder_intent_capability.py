@@ -1394,6 +1394,116 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_retries_today_time_range_recurring_compression():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="看法考网课和做题",
+        trigger_at="2026-05-11T11:30:00+09:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="今天的任务时间点",
+    )
+    retry_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="这些时间点",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="看法考网课",
+                trigger_at="2026-05-11T11:30:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="健身",
+                trigger_at="2026-05-11T13:30:00+09:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "today's task-range reminder" in input
+            assert "action=batch" in input
+            return SimpleNamespace(content=retry_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：看法考网课；已创建提醒：健身"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run(
+        "这是我今天的任务 11：30-13：30 看法考网课；13：30-15：30 健身 请在这些时间点提醒我学习",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert executor.received == [retry_decision]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_large_today_time_range_plan():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="这些时间点",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="学习",
+                trigger_at=f"2026-05-11T{hour:02d}:00:00+09:00",
+            )
+            for hour in range(11, 15)
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("large ambiguous day plan must clarify before tool")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run(
+        "这是我今天的任务 11-12 吃饭；12-13 学习；13-14 健身；14-15 洗澡 请在这些时间点提醒我学习",
+        _run_context(),
+    )
+
+    assert result.content["action"] == "clarify"
+    assert "具体几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_invalid_structured_output_with_schema_boundary():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -1926,6 +2036,31 @@ def test_fallback_clarification_for_deadline_without_trigger_asks_when_before_de
         result.content["summary"]
         == "这是截止时间。你想在这个时间之前的什么时候提醒你？"
     )
+
+
+def test_timeout_fallback_for_date_only_reminder_asks_for_clock_time():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _timeout_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
+        _timeout_clarification_result(),
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.content["action"] == "clarify"
+    assert "几点" in result.content["summary"]
+
+
+def test_whole_hour_until_phrase_counts_as_bounded_cadence_deadline():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _input_has_bounded_cadence_deadline,
+    )
+
+    assert _input_has_bounded_cadence_deadline("每个整点让我打卡直到19点") is True
 
 
 def test_fallback_for_plain_schedule_statement_returns_no_reminder_action():

@@ -1212,9 +1212,57 @@
       "allow_clarification": true,
       "evaluation_reason": "The user says 'modify it' and supplies a new bounded hourly schedule plus reminder title. In isolated evaluation there may be no existing reminder target, so an update no-match result or target clarification is safe; creating a new reminder would conflate correction with creation."
     },
+    "207": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for check-ins at every whole hour until 19:00. At the corpus timestamp, the next whole-hour occurrence is 10:00 and the schedule is a bounded hourly recurrence.",
+      "expected_creates": [
+        {
+          "title": "打卡",
+          "local_time": "10:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=HOURLY",
+            "UNTIL"
+          ]
+        }
+      ]
+    },
     "208": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded for a day schedule expressed as time ranges. The ranges provide task boundaries, but the requested reminder trigger point is ambiguous (start, end, or cadence), so the agent should clarify instead of choosing range endpoints by default."
+      "evaluation_reason": "The user asks to be reminded for a long day schedule expressed as many time ranges. The ranges provide task boundaries, but creating many reminders from the full plan is high-blast-radius and ambiguous, so the agent should clarify instead of choosing all range boundaries by default."
+    },
+    "209": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly lists four concrete reminder times and tasks in one message.",
+      "expected_creates": [
+        {
+          "title": "吃饭",
+          "local_time": "15:30:00",
+          "recurring": false
+        },
+        {
+          "title": "洗澡",
+          "local_time": "16:40:00",
+          "recurring": false
+        },
+        {
+          "title": "看法考网课和做题",
+          "local_time": "17:20:00",
+          "recurring": false
+        },
+        {
+          "title": "去练腹肌",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "212": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Date-only reminder request gives a reminder day and task content but no clock time. Without a default-time policy, the agent should ask what time on that day.",
+      "expected_clarification_terms": [
+        "几点"
+      ]
     },
     "213": {
       "evaluation_expectation": "crud",

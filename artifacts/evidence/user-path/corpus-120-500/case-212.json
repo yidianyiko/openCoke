@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-fd22a9f392",
+    "message": null,
+    "offset": 212,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你想在那天几点提醒你？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 212,
+      "input": "提醒我，我12月18号之前定个蛋糕，17号提醒吧",
+      "user_id": "14e657f774a97e0c18d52c4f",
+      "original_from_user": "692fb38c4bf7878f0411476c",
+      "input_message_id": "6a0097e953dde249bfcf636e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0097eec44553b011ac3f20",
+          "expect_output_timestamp": 1778423790,
+          "handled_timestamp": 1778423790,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想在那天几点提醒你？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-fd22a9f392",
+            "case_index": 212,
+            "original_from_user": "692fb38c4bf7878f0411476c",
+            "source_id": "69352d5b4bf7878f04114b56",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-fd22a9f392-case-212",
+              "business_conversation_key": "user-path-fd22a9f392-case-212",
+              "causal_inbound_event_id": "user-path-fd22a9f392-case-212-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "14e657f774a97e0c18d52c4f"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.013
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
