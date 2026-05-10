@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-dcc883f78c",
+    "message": null,
+    "offset": 120,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "收到啦～ [太阳]\n\n12月4日周四的学习计划安排得很充实呢！从早上8点到晚上23点，安排了英语、天文、物理、政治，还有复盘时间。\n\n不过这天是12月4日，距离现在还有一段时间哦～ 到了那天我会陪你一起完成这些任务的，现在可以先好好准备一下涉及的教材和资料呀～\n\n有什么需要帮忙的随时告诉我！✨"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 120,
+      "input": "[太阳][太阳]12月4日计划 星期四\n8:00～8:40英语单词诵#680个阅读高频词101-200\n8:50～10:30英语-阅读真题2025 1-4\n10:30～12:00天文教材阅读理解#第5章\n14:00～16:00物理概念理解#网课\n16:20～18:00物理题目练习#网课对应题目\n19:00～21:00政治十页纸网课#11.16\n20:40～22:00天文教材阅读理解#第6章\n22:00～23:00总结复盘",
+      "user_id": "b07afd681438f5c92fc6d0c1",
+      "original_from_user": "692d0488a538f0baad556217",
+      "input_message_id": "6a0035f8f389b19ca11064ab",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0035fcc08a653e71b9af34",
+          "expect_output_timestamp": 1778398716,
+          "handled_timestamp": 1778398716,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到啦～ [太阳]\n\n12月4日周四的学习计划安排得很充实呢！从早上8点到晚上23点，安排了英语、天文、物理、政治，还有复盘时间。\n\n不过这天是12月4日，距离现在还有一段时间哦～ 到了那天我会陪你一起完成这些任务的，现在可以先好好准备一下涉及的教材和资料呀～\n\n有什么需要帮忙的随时告诉我！✨",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-dcc883f78c",
+            "case_index": 120,
+            "original_from_user": "692d0488a538f0baad556217",
+            "source_id": "6930501a4bf7878f0411488a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-dcc883f78c-case-120",
+              "business_conversation_key": "user-path-dcc883f78c-case-120",
+              "causal_inbound_event_id": "user-path-dcc883f78c-case-120-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b07afd681438f5c92fc6d0c1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

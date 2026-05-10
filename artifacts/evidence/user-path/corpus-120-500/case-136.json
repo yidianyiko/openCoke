@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-8d485c305e",
+    "message": null,
+    "offset": 136,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你想在那天几点提醒你？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 136,
+      "input": "周五下午提醒我 看 沼泽深处的女孩这个电影",
+      "user_id": "6e9d1d446bf56fd36a741ba1",
+      "original_from_user": "692c4430a538f0baad5561de",
+      "input_message_id": "6a003809d01f14650afe66d6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00380fc08a653e71b9afda",
+          "expect_output_timestamp": 1778399247,
+          "handled_timestamp": 1778399247,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你想在那天几点提醒你？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-8d485c305e",
+            "case_index": 136,
+            "original_from_user": "692c4430a538f0baad5561de",
+            "source_id": "6930f4ad4bf7878f041148d4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-8d485c305e-case-136",
+              "business_conversation_key": "user-path-8d485c305e-case-136",
+              "causal_inbound_event_id": "user-path-8d485c305e-case-136-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6e9d1d446bf56fd36a741ba1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.014
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -189,7 +189,7 @@ def test_agent_runtime_reminder_detect_timeout_retry_default_budget_covers_live_
     )
 
     assert (
-        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 30.0
+        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 80.0
     )
 
 
@@ -203,7 +203,7 @@ def test_agent_runtime_reminder_detect_retry_default_budget_covers_live_retry_la
     )
 
     assert (
-        reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 30.0
+        reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 80.0
     )
 
 

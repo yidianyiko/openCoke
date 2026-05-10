@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-21f94be4e4",
+    "message": null,
+    "offset": 135,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒我什么内容？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 135,
+          "input": "11点提醒我",
+          "user_id": "d0ac62cbd36eb703ec411b30",
+          "original_from_user": "693003594bf7878f041147f1",
+          "input_message_id": "6a0037cbc6af2326107edeaa",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0037e7c08a653e71b9afd0",
+              "expect_output_timestamp": 1778399207,
+              "handled_timestamp": 1778399207,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒我什么内容？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-21f94be4e4",
+                "case_index": 135,
+                "original_from_user": "693003594bf7878f041147f1",
+                "source_id": "6930f2e64bf7878f041148d1",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-21f94be4e4-case-135",
+                  "business_conversation_key": "user-path-21f94be4e4-case-135",
+                  "causal_inbound_event_id": "user-path-21f94be4e4-case-135-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "d0ac62cbd36eb703ec411b30"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 28.055
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 135,
+      "input": "11点提醒我",
+      "user_id": "d0ac62cbd36eb703ec411b30",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "6a0037cbc6af2326107edeaa",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0037e7c08a653e71b9afd0",
+          "expect_output_timestamp": 1778399207,
+          "handled_timestamp": 1778399207,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒我什么内容？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-21f94be4e4",
+            "case_index": 135,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930f2e64bf7878f041148d1",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-21f94be4e4-case-135",
+              "business_conversation_key": "user-path-21f94be4e4-case-135",
+              "causal_inbound_event_id": "user-path-21f94be4e4-case-135-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d0ac62cbd36eb703ec411b30"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 28.055
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

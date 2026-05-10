@@ -768,9 +768,24 @@
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks which reminders exist today, despite the bad-case prefix; this is a reminder query, not a create/update/cancel/complete request."
     },
+    "128": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user lists multiple reminder times but gives no reminder content. Creating generic title='提醒' batch reminders would violate the reminder contract, so the agent should ask for the missing content."
+    },
     "130": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder."
+    },
+    "131": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a local clock time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "开始工作",
+          "local_time": "10:00:00",
+          "recurring": false
+        }
+      ]
     },
     "133": {
       "evaluation_expectation": "crud",
@@ -786,13 +801,54 @@
         }
       ]
     },
+    "134": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder."
+    },
+    "135": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder."
+    },
     "136": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder."
     },
+    "137": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a precise local clock time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "12:07:00",
+          "recurring": false
+        }
+      ]
+    },
+    "138": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Polite explicit one-shot reminder request with a precise local clock time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "12:07:00",
+          "recurring": false
+        }
+      ]
+    },
     "139": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request."
+    },
+    "142": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a same-day afternoon time and task content; the agent should create the reminder.",
+      "expected_creates": [
+        {
+          "title": "起来走一走",
+          "local_time": "14:30:00",
+          "recurring": false
+        }
+      ]
     },
     "145": {
       "evaluation_expectation": "discussion",

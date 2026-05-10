@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-feefb423b7",
+    "message": null,
+    "offset": 129,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "收到啦！你10点前要完成第一项任务，记下了～加油！💪"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 129,
+      "input": "10点应该第一项任务完成",
+      "user_id": "77e208f2ce029af7bc79d0bd",
+      "original_from_user": "693003594bf7878f041147f1",
+      "input_message_id": "6a003711c87df61e53abea3f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a003718c08a653e71b9af91",
+          "expect_output_timestamp": 1778399000,
+          "handled_timestamp": 1778399000,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到啦！你10点前要完成第一项任务，记下了～加油！💪",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-feefb423b7",
+            "case_index": 129,
+            "original_from_user": "693003594bf7878f041147f1",
+            "source_id": "6930e3e34bf7878f041148b3",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-feefb423b7-case-129",
+              "business_conversation_key": "user-path-feefb423b7-case-129",
+              "causal_inbound_event_id": "user-path-feefb423b7-case-129-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "77e208f2ce029af7bc79d0bd"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 8.016
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -1,0 +1,213 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-8d3b914db8",
+    "message": null,
+    "offset": 131,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：开始工作（2026-05-11 10:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00375bc08a653e71b9afa5",
+        "owner_user_id": "b982cf8bc8fddfdc547826e0",
+        "title": "开始工作",
+        "schedule": {
+          "anchor_at": "2026-05-11T01:00:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "10:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a003758c08a653e71b9afa0",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T01:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T00:30:49+00:00",
+        "updated_at": "2026-05-11T00:30:49+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_created": 1
+      },
+      "failures": [
+        {
+          "index": 131,
+          "input": "十点提醒我开始工作",
+          "user_id": "b982cf8bc8fddfdc547826e0",
+          "original_from_user": "692c14e6a538f0baad5561b6",
+          "input_message_id": "6a0037578c4050dadc5e765c",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "6a00375bc08a653e71b9afa7",
+              "expect_output_timestamp": 1778399067,
+              "handled_timestamp": 1778399067,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：开始工作（2026-05-11 10:00）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-8d3b914db8",
+                "case_index": 131,
+                "original_from_user": "692c14e6a538f0baad5561b6",
+                "source_id": "6930e44a4bf7878f041148b9",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-8d3b914db8-case-131",
+                  "business_conversation_key": "user-path-8d3b914db8-case-131",
+                  "causal_inbound_event_id": "user-path-8d3b914db8-case-131-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "b982cf8bc8fddfdc547826e0"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "6a00375bc08a653e71b9afa5",
+              "owner_user_id": "b982cf8bc8fddfdc547826e0",
+              "title": "开始工作",
+              "schedule": {
+                "anchor_at": "2026-05-11T01:00:00+00:00",
+                "local_date": "2026-05-11",
+                "local_time": "10:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "6a003758c08a653e71b9afa0",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-11T01:00:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-11T00:30:49+00:00",
+              "updated_at": "2026-05-11T00:30:49+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 5.011
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 131,
+      "input": "十点提醒我开始工作",
+      "user_id": "b982cf8bc8fddfdc547826e0",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a0037578c4050dadc5e765c",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "6a00375bc08a653e71b9afa7",
+          "expect_output_timestamp": 1778399067,
+          "handled_timestamp": 1778399067,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：开始工作（2026-05-11 10:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-8d3b914db8",
+            "case_index": 131,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "6930e44a4bf7878f041148b9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-8d3b914db8-case-131",
+              "business_conversation_key": "user-path-8d3b914db8-case-131",
+              "causal_inbound_event_id": "user-path-8d3b914db8-case-131-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b982cf8bc8fddfdc547826e0"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00375bc08a653e71b9afa5",
+          "owner_user_id": "b982cf8bc8fddfdc547826e0",
+          "title": "开始工作",
+          "schedule": {
+            "anchor_at": "2026-05-11T01:00:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "10:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a003758c08a653e71b9afa0",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T01:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T00:30:49+00:00",
+          "updated_at": "2026-05-11T00:30:49+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_created"
+  }
+}
