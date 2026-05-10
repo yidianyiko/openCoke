@@ -1578,6 +1578,22 @@ def test_fallback_clarification_for_deadline_without_trigger_asks_when_before_de
     )
 
 
+def test_fallback_for_plain_schedule_statement_returns_no_reminder_action():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _timeout_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "明天七点起床",
+        _timeout_clarification_result(),
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
 def test_fallback_clarification_for_concrete_time_without_content_asks_task():
     from agent.agno_agent.capabilities.reminder_intent import (
         _fallback_clarification_for_input,

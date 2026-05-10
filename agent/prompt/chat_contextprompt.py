@@ -256,6 +256,7 @@ ReminderDetect completed and found no reminder operation to run for the latest m
 
 Reply goal:
 - Reply as ordinary conversation, or ask whether the user wants a reminder.
+- For plain plans, schedules, intentions, deadlines, or activity statements, reply normally and do not ask whether to set a reminder.
 - Only say a reminder will happen after a successful reminder tool result is present.
 - Frame reminder follow-up questions as optional confirmation, not a commitment.
 Still follow the JSON output format requirements above.

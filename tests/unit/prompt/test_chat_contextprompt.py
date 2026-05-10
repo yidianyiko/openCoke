@@ -32,6 +32,7 @@ def test_no_action_reminder_prompt_stays_compact_and_general():
         "Only say a reminder will happen after a successful reminder tool result"
         in (CONTEXTPROMPT_提醒无需操作)
     )
+    assert "plain plans, schedules, intentions" in CONTEXTPROMPT_提醒无需操作
     assert "Frame reminder follow-up questions as optional confirmation" in (
         CONTEXTPROMPT_提醒无需操作
     )

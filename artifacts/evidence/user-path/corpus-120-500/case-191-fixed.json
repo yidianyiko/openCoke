@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-fe29d3941e",
+    "message": null,
+    "offset": 191,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，明白了。祝你明天早起顺利！🌅"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 191,
+      "input": "明天七点起床",
+      "user_id": "f523cdc481bff503d1425e2a",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "6a007f9dc8af257150fe50db",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a007fa34468ea4cb7e97da7",
+          "expect_output_timestamp": 1778417571,
+          "handled_timestamp": 1778417571,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，明白了。祝你明天早起顺利！🌅",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-fe29d3941e",
+            "case_index": 191,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "6932ea7d4bf7878f04114a8c",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-fe29d3941e-case-191",
+              "business_conversation_key": "user-path-fe29d3941e-case-191",
+              "causal_inbound_event_id": "user-path-fe29d3941e-case-191-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f523cdc481bff503d1425e2a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 7.015
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

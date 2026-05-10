@@ -1409,6 +1409,41 @@ def _input_has_concrete_time_without_reminder_content(text: str) -> bool:
     )
 
 
+def _input_is_plain_schedule_statement_without_reminder_request(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return False
+    if _is_high_frequency_evidence(normalized):
+        return False
+    reminder_request_tokens = (
+        "提醒",
+        "叫我",
+        "喊我",
+        "通知",
+        "闹钟",
+        "叫醒",
+        "监督",
+        "打卡",
+        "remind",
+        "notify",
+        "alarm",
+        "wake me",
+        "call me",
+        "check in",
+        "nudge",
+    )
+    if any(token in normalized for token in reminder_request_tokens):
+        return False
+    has_schedule_time = bool(
+        _BARE_CLOCK_PATTERN.search(normalized)
+        or _EXPLICIT_DATE_PATTERN.search(normalized)
+        or re.search(r"\b(?:today|tomorrow|tonight)\b", normalized)
+    )
+    if not has_schedule_time:
+        return False
+    return bool(re.search(r"[\u4e00-\u9fffA-Za-z]", normalized))
+
+
 def _clarification_result(decision: Any) -> CapabilityResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return CapabilityResult(
@@ -1482,6 +1517,8 @@ def _fallback_clarification_for_input(
 ) -> CapabilityResult:
     if _input_has_high_frequency_without_deadline(input_message):
         return _high_frequency_input_clarification_result()
+    if _input_is_plain_schedule_statement_without_reminder_request(input_message):
+        return _no_action_discussion_result()
     if fallback.error == "ReminderDetectInvalidDecision":
         if _input_has_concrete_time_without_reminder_content(input_message):
             return _missing_reminder_content_clarification_result()
@@ -1500,6 +1537,15 @@ def _timeout_clarification_result() -> CapabilityResult:
             "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
         },
         error="ReminderDetectTimeout",
+        metadata={"durable_write": False},
+    )
+
+
+def _no_action_discussion_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={"action": "none", "intent_type": "discussion"},
         metadata={"durable_write": False},
     )
 
