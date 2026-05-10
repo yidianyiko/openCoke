@@ -1132,6 +1132,7 @@ def extract_expected_title(suffix: str) -> str:
 def normalize_expected_title(title: str) -> str:
     text = str(title or "").strip().translate(_TITLE_PUNCTUATION_TRANSLATION)
     text = re.sub(r"\s+", "", text)
+    text = re.sub(r"(?:一下)+$", "", text)
     return re.sub(r"(?:的)?提醒$", "", text)
 
 

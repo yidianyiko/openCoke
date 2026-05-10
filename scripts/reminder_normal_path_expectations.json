@@ -1379,6 +1379,17 @@
         }
       ]
     },
+    "228": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Bare call-me wording with a concrete future local clock time is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "叫我一下",
+          "local_time": "05:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "231": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."
