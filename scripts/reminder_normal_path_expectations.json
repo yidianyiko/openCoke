@@ -1390,6 +1390,28 @@
         }
       ]
     },
+    "229": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording with concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "上床",
+          "local_time": "00:34:00",
+          "recurring": false
+        }
+      ]
+    },
+    "230": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording with concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "上床",
+          "local_time": "00:39:00",
+          "recurring": false
+        }
+      ]
+    },
     "231": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."

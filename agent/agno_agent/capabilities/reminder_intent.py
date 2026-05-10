@@ -466,6 +466,10 @@ class ReminderIntentPort:
             in {"delete", "cancel"}
         ):
             return _no_action_discussion_result()
+        if _should_execute_decision(
+            decision
+        ) and _input_is_standalone_reminder_acknowledgement(input_message):
+            return _no_action_discussion_result()
         workflow_outcome = self._persist_workflow_update(
             decision,
             run_context,
@@ -1753,6 +1757,33 @@ def _input_is_standalone_reminder_opt_out(text: str) -> bool:
             normalized,
         )
     )
+
+
+def _input_is_standalone_reminder_acknowledgement(text: str) -> bool:
+    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
+    if not normalized:
+        return False
+    if (
+        _BARE_CLOCK_PATTERN.search(normalized)
+        or _EXPLICIT_DATE_PATTERN.search(normalized)
+        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after)\b", normalized)
+    ):
+        return False
+    if re.search(r"取消|删除|停止|停掉|完成|做完|不用|不要|别提醒|不提醒", normalized):
+        return False
+    if not re.search(r"谢谢|谢啦|感谢|thanks?|thank\s+you", normalized, re.IGNORECASE):
+        return False
+    if not re.search(
+        r"闹钟|提醒|叫我|喊我|alarm|reminder|notification|nudge",
+        normalized,
+        re.IGNORECASE,
+    ):
+        return False
+    words = re.findall(r"[a-z']+", normalized)
+    if words and len(words) > 8:
+        return False
+    chinese_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
+    return len(chinese_chars) <= 12
 
 
 def _clarification_result(decision: Any) -> CapabilityResult:

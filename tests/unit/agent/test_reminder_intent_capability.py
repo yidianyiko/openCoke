@@ -1670,6 +1670,34 @@ async def test_reminder_intent_port_suppresses_delete_for_standalone_english_opt
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_suppresses_management_for_alarm_acknowledgement():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="complete",
+        keyword="闹钟",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("standalone alarm acknowledgement should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("谢谢闹钟", _run_context())
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_suppresses_invalid_structured_for_english_opt_out():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
