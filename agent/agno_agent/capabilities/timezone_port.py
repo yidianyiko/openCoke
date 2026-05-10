@@ -22,7 +22,7 @@ class TimezonePort:
         run_context: AgentRunContext,
         args: dict[str, Any] | None = None,
     ) -> CapabilityResult:
-        args = args or {}
+        args = _normalize_timezone_args(args or {})
         if self.handler is None:
             from agent.agno_agent.tools.timezone_tools import (
                 consume_timezone_confirmation,
@@ -91,3 +91,22 @@ class TimezonePort:
             content=content,
             metadata={"durable_write": bool(content.get("state"))},
         )
+
+
+def _normalize_timezone_args(args: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(args)
+    action = str(normalized.get("action") or "").strip().lower()
+    action_aliases = {
+        "set": "direct_set",
+        "update": "direct_set",
+        "change": "direct_set",
+        "direct": "direct_set",
+        "direct-set": "direct_set",
+        "direct set": "direct_set",
+        "propose": "proposal",
+        "ask": "proposal",
+        "confirm_yes": "confirm",
+        "confirm_no": "confirm",
+    }
+    normalized["action"] = action_aliases.get(action, action)
+    return normalized
