@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-0ece6ff387",
+    "message": null,
+    "offset": 243,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：站起来休息（2026-05-11 15:49）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00a8a9c56755c1077ba56c",
+        "owner_user_id": "e5870440a69d36920bafe24d",
+        "title": "站起来休息",
+        "schedule": {
+          "anchor_at": "2026-05-11T06:49:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "15:49:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00a8a6c56755c1077ba567",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T06:49:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T06:24:38+00:00",
+        "updated_at": "2026-05-11T06:24:38+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 243,
+      "input": "25分钟之后提醒我站起来休息",
+      "user_id": "e5870440a69d36920bafe24d",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a00a8a5cd532936fb1ac7e1",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00a8a9c56755c1077ba56e",
+          "expect_output_timestamp": 1778428073,
+          "handled_timestamp": 1778428073,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：站起来休息（2026-05-11 15:49）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-0ece6ff387",
+            "case_index": 243,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "69367d3694ff180b41ab745b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-0ece6ff387-case-243",
+              "business_conversation_key": "user-path-0ece6ff387-case-243",
+              "causal_inbound_event_id": "user-path-0ece6ff387-case-243-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "e5870440a69d36920bafe24d"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00a8a9c56755c1077ba56c",
+          "owner_user_id": "e5870440a69d36920bafe24d",
+          "title": "站起来休息",
+          "schedule": {
+            "anchor_at": "2026-05-11T06:49:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "15:49:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00a8a6c56755c1077ba567",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T06:49:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T06:24:38+00:00",
+          "updated_at": "2026-05-11T06:24:38+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

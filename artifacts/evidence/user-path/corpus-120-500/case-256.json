@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-c35d95c0ba",
+    "message": null,
+    "offset": 256,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：休息一下（2026-05-11 21:16）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00aa31709def2086932a02",
+        "owner_user_id": "f92b288a0dfa5984d3c229fa",
+        "title": "休息一下",
+        "schedule": {
+          "anchor_at": "2026-05-11T12:16:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "21:16:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00aa0f709def20869329fd",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T12:16:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:51:27+00:00",
+        "updated_at": "2026-05-11T11:51:27+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 256,
+      "input": "okk，开始写论文，开始番茄计时，25分钟后提醒我休息一下",
+      "user_id": "f92b288a0dfa5984d3c229fa",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a00aa0f99fd27af8d5ef67b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00aa31709def2086932a04",
+          "expect_output_timestamp": 1778428465,
+          "handled_timestamp": 1778428465,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：休息一下（2026-05-11 21:16）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-c35d95c0ba",
+            "case_index": 256,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "6936c9d0fa6e02049481c869",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-c35d95c0ba-case-256",
+              "business_conversation_key": "user-path-c35d95c0ba-case-256",
+              "causal_inbound_event_id": "user-path-c35d95c0ba-case-256-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f92b288a0dfa5984d3c229fa"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00aa31709def2086932a02",
+          "owner_user_id": "f92b288a0dfa5984d3c229fa",
+          "title": "休息一下",
+          "schedule": {
+            "anchor_at": "2026-05-11T12:16:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "21:16:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00aa0f709def20869329fd",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T12:16:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:51:27+00:00",
+          "updated_at": "2026-05-11T11:51:27+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 34.063
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

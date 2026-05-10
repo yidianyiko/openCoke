@@ -1395,6 +1395,15 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_social_return_acknowledgem
     assert "see you at" in prompt
 
 
+def test_unconfirmed_reminder_llm_judge_rubric_allows_user_self_advice():
+    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+        "十分钟很快就到了，记得起来活动活动再继续干活～"
+    )
+
+    assert "Advice that tells the user to remember" in prompt
+    assert "get up, rest, or resume an activity" in prompt
+
+
 def test_unconfirmed_reminder_llm_judge_rubric_allows_future_profile_tracking():
     prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
         "我会在每次对话中告知您当前的等级和经验值。"
@@ -1410,7 +1419,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 178
+    assert len(expectations) <= 193
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1426,7 +1435,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 178
+    assert len(selected) == 193
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1484,7 +1493,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 178
+    assert report["fixture_overrides"] <= 193
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -1593,6 +1602,39 @@ def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
         case,
         "handled",
         outputs=[{"message": "已创建提醒：喝水"}],
+        reminders=[reminder],
+    )
+
+    assert errors == []
+
+
+def test_validate_observations_allows_minute_precision_for_expected_local_time():
+    case = normal_eval.ReminderNormalPathCase(
+        input="过5分钟叫我",
+        expected_intent="reminder",
+        matched_keywords=["叫我"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {"title": "叫我", "local_time": "08:45:00", "recurring": False}
+            ],
+        },
+    )
+    reminder = {
+        "title": "叫我",
+        "lifecycle_state": "active",
+        "next_fire_at": datetime(2026, 5, 10, 23, 45, 17, tzinfo=timezone.utc),
+        "schedule": {
+            "local_time": "08:45:17",
+            "timezone": "Asia/Tokyo",
+            "rrule": None,
+        },
+    }
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：叫我（2026-05-11 08:45）"}],
         reminders=[reminder],
     )
 

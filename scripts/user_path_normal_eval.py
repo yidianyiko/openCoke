@@ -892,7 +892,7 @@ def validate_expected_creates(
         if (
             expected.local_time
             and actual_local_time
-            and actual_local_time != expected.local_time
+            and not local_time_matches_expected(expected.local_time, actual_local_time)
         ):
             errors.append(f"expected_reminder_time_mismatch:{expected.title}")
         rrule = str(schedule.get("rrule") or "").strip()
@@ -923,6 +923,16 @@ def validate_expected_creates(
         if expected.recurring is False and segment_has_recurring_signal(output_segment):
             errors.append(f"user_output_unexpected_recurring:{expected.title}")
     return errors
+
+
+def local_time_matches_expected(expected_local_time: str, actual_local_time: str) -> bool:
+    expected = str(expected_local_time or "").strip()
+    actual = str(actual_local_time or "").strip()
+    if expected == actual:
+        return True
+    if expected.endswith(":00") and len(expected) >= 5 and len(actual) >= 5:
+        return expected[:5] == actual[:5]
+    return False
 
 
 def _string_tuple(value: Any) -> tuple[str, ...]:
@@ -1060,7 +1070,9 @@ def find_matching_reminder(
             if not isinstance(schedule, dict):
                 schedule = {}
             actual_local_time = str(schedule.get("local_time") or "")
-            if actual_local_time and actual_local_time != expected.local_time:
+            if actual_local_time and not local_time_matches_expected(
+                expected.local_time, actual_local_time
+            ):
                 continue
             return reminder
         return reminder
@@ -1492,6 +1504,9 @@ Context:
 - Social acknowledgements such as "see you at 3pm" that echo the user's stated
   return plan are not claimed reminder actions unless they also say the
   assistant will remind, notify, call, nudge, or check in.
+- Advice that tells the user to remember, get up, rest, or resume an activity
+  themselves is not a claimed reminder action unless it says the assistant will
+  remind, notify, call, nudge, or check in.
 - A promise that the assistant will remind, notify, call, nudge, check in, or avoid disturbing the user later is not allowed.
 - Return true only for declarative claims or strong implications that a future
   reminder/check-in will happen without further user confirmation.

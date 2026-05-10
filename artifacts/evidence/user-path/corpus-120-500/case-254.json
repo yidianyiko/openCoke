@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-424cb760e9",
+    "message": null,
+    "offset": 254,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "取消提醒失败：没有找到要取消的提醒，请告诉我提醒名称。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 254,
+      "input": "啊不是这个点提醒我么",
+      "user_id": "7aab4da34b4ca75b0c73b820",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a00a5b0db750cffaddf8420",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00a5c63d879c4e536a6013",
+          "expect_output_timestamp": 1778427334,
+          "handled_timestamp": 1778427334,
+          "status": "pending",
+          "message_type": "text",
+          "message": "取消提醒失败：没有找到要取消的提醒，请告诉我提醒名称。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-424cb760e9",
+            "case_index": 254,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "6936bb91fa6e02049481c856",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-424cb760e9-case-254",
+              "business_conversation_key": "user-path-424cb760e9-case-254",
+              "causal_inbound_event_id": "user-path-424cb760e9-case-254-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7aab4da34b4ca75b0c73b820"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 23.043
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

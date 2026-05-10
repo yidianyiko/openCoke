@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agent.agno_agent.adapters.reminder_command_executor import (
     ReminderCommandExecutor,
@@ -1125,6 +1126,12 @@ _REMINDER_VERB_PATTERN = re.compile(
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
     r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
 )
+_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
+    r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
+    r"|(?P<hour_only>\d{1,2})\s*(?:点|时)(?P<half>半)?"
+    r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
+)
+_PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
 
 
 def _normalize_past_bare_create_trigger(
@@ -1171,12 +1178,108 @@ def _normalize_past_bare_create_trigger(
         return decision
 
     trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
-    normalized_trigger_at = _next_future_trigger_at(
-        trigger_at, run_context.current_time
-    )
+    if not trigger_at:
+        return decision
+    normalized_trigger_at = _next_future_trigger_at_for_single_bare_clock(
+        current_user_text,
+        run_context,
+    ) or _next_future_trigger_at(trigger_at, run_context.current_time)
     if normalized_trigger_at and normalized_trigger_at != trigger_at:
         return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
     return decision
+
+
+def _next_future_trigger_at_for_single_bare_clock(
+    current_user_text: str,
+    run_context: AgentRunContext,
+) -> str:
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return ""
+    parsed = _parse_bare_clock_match(current_user_text, matches[0])
+    if parsed is None:
+        return ""
+    hour, minute = parsed
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    if current_time.tzinfo is None:
+        current_local = current_time.replace(tzinfo=timezone)
+    else:
+        current_local = current_time.astimezone(timezone)
+    candidate = current_local.replace(
+        hour=hour,
+        minute=minute,
+        second=0,
+        microsecond=0,
+    )
+    if candidate <= current_local:
+        candidate += timedelta(days=1)
+    return candidate.isoformat()
+
+
+def _parse_bare_clock_match(
+    current_user_text: str,
+    match: re.Match[str],
+) -> tuple[int, int] | None:
+    if match.group("hour") is not None:
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute"))
+    elif match.group("hour_only") is not None:
+        hour = int(match.group("hour_only"))
+        minute = 30 if match.group("half") else 0
+    else:
+        hour = _parse_chinese_hour(match.group("chinese_hour") or "")
+        minute = 30 if match.group("chinese_half") else 0
+    if hour is None or not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
+    if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+        hour += 12
+    return hour, minute
+
+
+_CHINESE_DIGIT_VALUES = {
+    "零": 0,
+    "〇": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+
+
+def _parse_chinese_hour(value: str) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text in _CHINESE_DIGIT_VALUES:
+        return _CHINESE_DIGIT_VALUES[text]
+    if text == "十":
+        return 10
+    if text.startswith("十"):
+        suffix = text[1:]
+        if suffix in _CHINESE_DIGIT_VALUES:
+            return 10 + _CHINESE_DIGIT_VALUES[suffix]
+        return None
+    if text.endswith("十"):
+        prefix = text[:-1]
+        if prefix in _CHINESE_DIGIT_VALUES:
+            return _CHINESE_DIGIT_VALUES[prefix] * 10
+        return None
+    if "十" in text:
+        prefix, suffix = text.split("十", 1)
+        if prefix in _CHINESE_DIGIT_VALUES and suffix in _CHINESE_DIGIT_VALUES:
+            return _CHINESE_DIGIT_VALUES[prefix] * 10 + _CHINESE_DIGIT_VALUES[suffix]
+    return None
 
 
 def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:

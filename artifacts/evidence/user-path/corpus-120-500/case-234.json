@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-ef234ddf1b",
+    "message": null,
+    "offset": 234,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，知道啦！下课休息一下吧～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 234,
+      "input": "一会儿下课",
+      "user_id": "cd840b9bd7a9cbcfe04c5ed2",
+      "original_from_user": "693591bc4bf7878f04114b91",
+      "input_message_id": "6a00a140e1a608fa8674ee3c",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00a1423d879c4e536a5f09",
+          "expect_output_timestamp": 1778426178,
+          "handled_timestamp": 1778426178,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，知道啦！下课休息一下吧～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-ef234ddf1b",
+            "case_index": 234,
+            "original_from_user": "693591bc4bf7878f04114b91",
+            "source_id": "6936376b8adf4a858a3df3ea",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-ef234ddf1b-case-234",
+              "business_conversation_key": "user-path-ef234ddf1b-case-234",
+              "causal_inbound_event_id": "user-path-ef234ddf1b-case-234-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "cd840b9bd7a9cbcfe04c5ed2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 2.005
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

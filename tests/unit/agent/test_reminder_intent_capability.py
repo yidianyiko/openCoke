@@ -1004,7 +1004,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            assert received_decision.trigger_at == "2026-05-07T00:00:00+00:00"
+            assert received_decision.trigger_at == "2026-05-06T11:00:00+00:00"
             return SimpleNamespace(
                 name="reminder",
                 ok=True,
@@ -1026,6 +1026,53 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
     assert len(executor.received) == 1
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：离开时手机"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_corrects_bare_numeric_clock_to_user_local_time():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 11, 10, 45, 17, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="回家开会",
+        trigger_at="2026-05-12T10:20:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_decision.trigger_at == "2026-05-12T09:20:00+09:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：回家开会"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("9:20 提醒我回家开会", run_context)
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：回家开会"
 
 
 @pytest.mark.asyncio

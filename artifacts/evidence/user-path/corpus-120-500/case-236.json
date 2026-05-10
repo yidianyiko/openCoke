@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-52e8a59a78",
+    "message": null,
+    "offset": 236,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：出门（2026-05-11 13:30）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00a840c56755c1077ba537",
+        "owner_user_id": "98a1ca34091c63da57ea1569",
+        "title": "出门",
+        "schedule": {
+          "anchor_at": "2026-05-11T04:30:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "13:30:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00a817c56755c1077ba532",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T04:30:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T02:31:44+00:00",
+        "updated_at": "2026-05-11T02:31:44+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 236,
+      "input": "一点半提醒我出门",
+      "user_id": "98a1ca34091c63da57ea1569",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a00a817b03a9ffa9db6273a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00a840c56755c1077ba539",
+          "expect_output_timestamp": 1778427968,
+          "handled_timestamp": 1778427968,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：出门（2026-05-11 13:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-52e8a59a78",
+            "case_index": 236,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693646a08adf4a858a3df3f9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-52e8a59a78-case-236",
+              "business_conversation_key": "user-path-52e8a59a78-case-236",
+              "causal_inbound_event_id": "user-path-52e8a59a78-case-236-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "98a1ca34091c63da57ea1569"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00a840c56755c1077ba537",
+          "owner_user_id": "98a1ca34091c63da57ea1569",
+          "title": "出门",
+          "schedule": {
+            "anchor_at": "2026-05-11T04:30:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "13:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00a817c56755c1077ba532",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T04:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T02:31:44+00:00",
+          "updated_at": "2026-05-11T02:31:44+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 41.078
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

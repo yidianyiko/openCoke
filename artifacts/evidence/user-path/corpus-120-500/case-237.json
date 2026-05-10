@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-c3f7badf47",
+    "message": null,
+    "offset": 237,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的呀！先把本周的任务完成2件，今天先干起来，效率很高呢～加油！💪 有什么需要帮忙的随时说"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 237,
+      "input": "这周的任务，今天先干完 2",
+      "user_id": "b04e712f120bbdb8a821ea17",
+      "original_from_user": "692d1e74a538f0baad556236",
+      "input_message_id": "6a00a254aef3dbbb998156f5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00a2593d879c4e536a5f34",
+          "expect_output_timestamp": 1778426457,
+          "handled_timestamp": 1778426457,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的呀！先把本周的任务完成2件，今天先干起来，效率很高呢～加油！💪 有什么需要帮忙的随时说",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-c3f7badf47",
+            "case_index": 237,
+            "original_from_user": "692d1e74a538f0baad556236",
+            "source_id": "693677fe94ff180b41ab744a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-c3f7badf47-case-237",
+              "business_conversation_key": "user-path-c3f7badf47-case-237",
+              "causal_inbound_event_id": "user-path-c3f7badf47-case-237-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b04e712f120bbdb8a821ea17"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -1416,25 +1416,189 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."
     },
+    "232": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording with a bare call-me reminder request is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "local_time": "08:45:00",
+          "recurring": false
+        }
+      ]
+    },
+    "235": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Daily cadence plus concrete clock time and task content is a complete recurring reminder.",
+      "expected_creates": [
+        {
+          "title": "吃午饭",
+          "local_time": "12:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=DAILY"
+          ]
+        }
+      ]
+    },
+    "236": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A local clock time plus concrete reminder task is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "13:30:00",
+          "recurring": false
+        }
+      ]
+    },
     "238": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time."
+    },
+    "239": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user lists reminder times but omits the reminder content, so the agent should ask what to remind about instead of creating empty reminders.",
+      "expected_clarification_terms": [
+        "提醒"
+      ]
+    },
+    "240": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete evening clock time plus task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "提交延毕申请",
+          "local_time": "21:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "241": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete evening clock time plus study task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "学习雅思",
+          "local_time": "19:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "242": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "开始下一个番茄",
+          "local_time": "15:24:00",
+          "recurring": false
+        }
+      ]
+    },
+    "243": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "站起来休息",
+          "local_time": "15:49:00",
+          "recurring": false
+        }
+      ]
+    },
+    "244": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "休息喝水",
+          "local_time": "16:36:00",
+          "recurring": false
+        }
+      ]
     },
     "245": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder."
     },
+    "246": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete clock time plus task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "开始新的番茄",
+          "local_time": "17:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "247": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected daily reminder did not happen. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "248": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A local clock time plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "学习",
+          "local_time": "18:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "249": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Tomorrow plus a concrete afternoon clock time and task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "去教室公寓买高数b2的题",
+          "local_time": "14:30:00",
+          "recurring": false
+        }
+      ]
     },
     "251": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for a reminder 'later today' without a concrete clock time. The agent should ask for the exact time instead of inventing one."
     },
+    "252": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A bare local clock time plus task content is a complete one-shot reminder; if the clock has passed, it resolves to the next future occurrence.",
+      "expected_creates": [
+        {
+          "title": "出门吃饭",
+          "local_time": "07:50:00",
+          "recurring": false
+        }
+      ]
+    },
+    "253": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A bare local clock time plus task content is a complete one-shot reminder; if the clock has passed, it resolves to the next future occurrence.",
+      "expected_creates": [
+        {
+          "title": "回家开会",
+          "local_time": "09:20:00",
+          "recurring": false
+        }
+      ]
+    },
     "254": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "256": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "休息一下",
+          "local_time": "21:16:00",
+          "recurring": false
+        }
+      ]
     },
     "279": {
       "evaluation_expectation": "query",
