@@ -270,6 +270,10 @@ class ReminderIntentPort:
                     _timeout_clarification_result(),
                 )
             decision = retry_decision
+        if _is_unrecognized_decision(
+            decision
+        ) and _input_is_standalone_reminder_opt_out(input_message):
+            return _no_action_discussion_result()
         if _is_unrecognized_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
                 input_message,
@@ -313,6 +317,10 @@ class ReminderIntentPort:
                 )
             if not _should_retry_for_quoted_title_loss(input_message, retry_decision):
                 decision = retry_decision
+        if _is_clarification_decision(
+            decision
+        ) and _input_is_standalone_reminder_opt_out(input_message):
+            return _no_action_discussion_result()
         if _is_clarification_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
                 input_message,
@@ -401,6 +409,13 @@ class ReminderIntentPort:
             decision, input_message=input_message
         ):
             return _unbounded_high_frequency_cadence_clarification_result(decision)
+        if (
+            _should_execute_decision(decision)
+            and _input_is_standalone_reminder_opt_out(input_message)
+            and str(_decision_value(decision, "action") or "").strip()
+            in {"delete", "cancel"}
+        ):
+            return _no_action_discussion_result()
         workflow_outcome = self._persist_workflow_update(
             decision,
             run_context,
@@ -409,6 +424,8 @@ class ReminderIntentPort:
         if workflow_outcome.concurrent_drop:
             return _fresh_workflow_state_result(workflow_outcome.fresh_workflow)
         if _is_clarification_decision(decision):
+            if _input_is_standalone_reminder_opt_out(input_message):
+                return _no_action_discussion_result()
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
         if not _should_execute_decision(decision):
@@ -1566,6 +1583,32 @@ def _input_is_plain_schedule_statement_without_reminder_request(text: str) -> bo
     return bool(re.search(r"[\u4e00-\u9fffA-Za-z]", normalized))
 
 
+def _input_is_standalone_reminder_opt_out(text: str) -> bool:
+    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
+    if not normalized:
+        return False
+    if re.search(r"\b(?:cancel|delete|remove|stop)\b", normalized):
+        return False
+    if (
+        _BARE_CLOCK_PATTERN.search(normalized)
+        or _EXPLICIT_DATE_PATTERN.search(normalized)
+        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after)\b", normalized)
+    ):
+        return False
+    words = re.findall(r"[a-z']+", normalized)
+    if len(words) > 8:
+        return False
+    return bool(
+        re.search(
+            r"\b(?:no|without)\s+reminders?\b|"
+            r"\bdon't\s+need\s+(?:any\s+)?reminders?\b|"
+            r"\bdo\s+not\s+need\s+(?:any\s+)?reminders?\b|"
+            r"\bno\s+need\s+for\s+reminders?\b",
+            normalized,
+        )
+    )
+
+
 def _clarification_result(decision: Any) -> CapabilityResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return CapabilityResult(
@@ -1637,6 +1680,8 @@ def _fallback_clarification_for_input(
     input_message: str,
     fallback: CapabilityResult,
 ) -> CapabilityResult:
+    if _input_is_standalone_reminder_opt_out(input_message):
+        return _no_action_discussion_result()
     if _input_has_high_frequency_without_deadline(input_message):
         return _high_frequency_input_clarification_result()
     if _input_is_plain_schedule_statement_without_reminder_request(input_message):

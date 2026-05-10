@@ -1388,6 +1388,92 @@ async def test_reminder_intent_port_retries_invalid_structured_output_with_schem
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_treats_standalone_english_opt_out_as_no_action():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="clarify",
+        action="",
+        clarification_question="Which reminder should I cancel?",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("standalone reminder opt-out should not retry")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("standalone reminder opt-out should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("All good, no reminders pls", _run_context())
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_suppresses_delete_for_standalone_english_opt_out():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="cancel",
+        keyword="",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("standalone reminder opt-out should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("All good, no reminders pls", _run_context())
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_suppresses_invalid_structured_for_english_opt_out():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content="ReminderDetectInvalidStructuredOutput")
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("standalone reminder opt-out should not retry")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("standalone reminder opt-out should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("All good, no reminders pls", _run_context())
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -1793,6 +1879,21 @@ def test_fallback_for_plain_schedule_statement_returns_no_reminder_action():
     )
 
     assert result.ok is True
+    assert result.error is None
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+def test_fallback_for_standalone_english_opt_out_returns_no_reminder_action():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _invalid_decision_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "All good, no reminders pls",
+        _invalid_decision_clarification_result(),
+    )
+
     assert result.error is None
     assert result.content == {"action": "none", "intent_type": "discussion"}
 
