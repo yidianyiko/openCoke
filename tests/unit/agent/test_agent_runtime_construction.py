@@ -256,10 +256,10 @@ async def test_run_agent_runtime_times_out_when_agent_hangs(monkeypatch):
     assert result.error_disposition.retryable is True
 
 
-def test_agent_runtime_default_timeout_covers_reminder_tool_budget(monkeypatch):
+def test_agent_runtime_default_timeout_stays_inside_user_path_budget(monkeypatch):
     monkeypatch.delenv("COKE_AGENT_RUNTIME_TIMEOUT_SECONDS", raising=False)
 
-    assert agent_runtime._agent_runtime_timeout_seconds() == 160.0
+    assert agent_runtime._agent_runtime_timeout_seconds() == 100.0
 
 
 @pytest.mark.asyncio

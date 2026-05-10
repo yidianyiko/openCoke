@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-b24b1f3dd8",
+    "message": null,
+    "offset": 201,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 201,
+      "input": "目前在二战考研，我白天学习状态还可以，因为在图书馆，晚上回家的话，学了一天有点累加上一个人学的话，没那么自律了，晚上这几个小时就不太想浪费，怎么办",
+      "user_id": "f5fa570406a899b9d90d3407",
+      "original_from_user": "6934184e4bf7878f04114aed",
+      "input_message_id": "6a008d9c54915c02a2ab4646",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a008e0148840fbd198e2c44",
+          "expect_output_timestamp": 1778421249,
+          "handled_timestamp": 1778421249,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-b24b1f3dd8",
+            "case_index": 201,
+            "original_from_user": "6934184e4bf7878f04114aed",
+            "source_id": "69341ae44bf7878f04114af0",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-b24b1f3dd8-case-201",
+              "business_conversation_key": "user-path-b24b1f3dd8-case-201",
+              "causal_inbound_event_id": "user-path-b24b1f3dd8-case-201-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f5fa570406a899b9d90d3407"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 101.195
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -26,7 +26,7 @@ from agent.agno_agent.runtime.result import (
 logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
-_DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 160.0
+_DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _REMINDER_PREFLIGHT_KEYWORDS = (
     "提醒",
     "闹钟",
