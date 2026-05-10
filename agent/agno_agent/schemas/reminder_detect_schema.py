@@ -121,11 +121,11 @@ class ReminderDetectDecision(BaseModel):
     ] = Field(
         default="",
         description=(
-            "How the create schedule was authorized by the user. Use one_shot "
+            "How the create/update schedule was authorized by the user. Use one_shot "
             "for a single concrete trigger, explicit_occurrences when the user "
             "listed each occurrence time, and explicit_cadence only when the "
             "user supplied a concrete frequency or interval. Leave empty for "
-            "non-create actions."
+            "non-scheduling actions."
         ),
     )
     schedule_evidence: str = Field(
@@ -260,10 +260,10 @@ class ReminderDetectDecision(BaseModel):
                     )
 
     def _validate_schedule_basis(self) -> None:
-        if self.action not in {"create", "batch"}:
+        if self.action not in {"create", "update", "batch"}:
             if self.schedule_basis or self.schedule_evidence:
                 raise ValueError(
-                    "schedule_basis and schedule_evidence are only for create batches"
+                    "schedule_basis and schedule_evidence are only for scheduling decisions"
                 )
             return
 
@@ -286,11 +286,11 @@ class ReminderDetectDecision(BaseModel):
 
         if self.schedule_basis not in {"explicit_occurrences", "explicit_cadence"}:
             raise ValueError(
-                "multi-occurrence or bounded create schedules require explicit schedule_basis"
+                "multi-occurrence or bounded schedules require explicit schedule_basis"
             )
         if not self.schedule_evidence.strip():
             raise ValueError(
-                "multi-occurrence or bounded create schedules require schedule_evidence"
+                "multi-occurrence or bounded schedules require schedule_evidence"
             )
         if (
             self.schedule_basis == "explicit_cadence"

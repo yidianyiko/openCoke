@@ -179,6 +179,25 @@ def test_reminder_detect_schema_accepts_nightly_cadence_evidence():
     assert decision.schedule_evidence == "每晚"
 
 
+def test_reminder_detect_schema_accepts_schedule_changing_update_evidence():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="update",
+        keyword="打卡",
+        new_title="及时完成任务，及时打卡",
+        new_trigger_at="2026-05-11T08:00:00+09:00",
+        rrule="FREQ=HOURLY;INTERVAL=1",
+        deadline_at="2026-05-11T23:00:00+09:00",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="从早上7点到晚上11点，每一小时提醒我一次",
+    )
+
+    assert decision.action == "update"
+    assert decision.schedule_basis == "explicit_cadence"
+
+
 def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
