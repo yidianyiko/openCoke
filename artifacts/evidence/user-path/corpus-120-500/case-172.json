@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-159a951d38",
+    "message": null,
+    "offset": 172,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你需要我在什么时间叫你？另外，叫你做什么呢？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 172,
+          "input": "你到时候来叫我",
+          "user_id": "852cde956e9740e55f7d2889",
+          "original_from_user": "693138704bf7878f0411492e",
+          "input_message_id": "6a0043aa6d9f1fa7c9dba287",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0043c90839ae537f7de42c",
+              "expect_output_timestamp": 1778402249,
+              "handled_timestamp": 1778402249,
+              "status": "pending",
+              "message_type": "text",
+              "message": "你需要我在什么时间叫你？另外，叫你做什么呢？",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-159a951d38",
+                "case_index": 172,
+                "original_from_user": "693138704bf7878f0411492e",
+                "source_id": "6932299c4bf7878f04114a25",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-159a951d38-case-172",
+                  "business_conversation_key": "user-path-159a951d38-case-172",
+                  "causal_inbound_event_id": "user-path-159a951d38-case-172-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "852cde956e9740e55f7d2889"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 32.061
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 172,
+      "input": "你到时候来叫我",
+      "user_id": "852cde956e9740e55f7d2889",
+      "original_from_user": "693138704bf7878f0411492e",
+      "input_message_id": "6a0043aa6d9f1fa7c9dba287",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0043c90839ae537f7de42c",
+          "expect_output_timestamp": 1778402249,
+          "handled_timestamp": 1778402249,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你需要我在什么时间叫你？另外，叫你做什么呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-159a951d38",
+            "case_index": 172,
+            "original_from_user": "693138704bf7878f0411492e",
+            "source_id": "6932299c4bf7878f04114a25",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-159a951d38-case-172",
+              "business_conversation_key": "user-path-159a951d38-case-172",
+              "causal_inbound_event_id": "user-path-159a951d38-case-172-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "852cde956e9740e55f7d2889"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 32.061
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

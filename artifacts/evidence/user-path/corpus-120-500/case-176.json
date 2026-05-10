@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-ca5197fe21",
+    "message": null,
+    "offset": 176,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "收到啦～ 每天晚上9点到12点学习，这个时间段安排得很充实呢！🌙\n\n不过云朵没有自动提醒的功能哦，如果你想要提醒的话，随时可以让我帮你设置～\n\n今天有什么学习计划吗？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 176,
+      "input": "每天学习时间为晚上9点到12点",
+      "user_id": "b4e05b092536e9341597f419",
+      "original_from_user": "6930e40c4bf7878f041148b5",
+      "input_message_id": "6a0044296f07b2cdb13a3c85",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00442e0839ae537f7de454",
+          "expect_output_timestamp": 1778402350,
+          "handled_timestamp": 1778402350,
+          "status": "pending",
+          "message_type": "text",
+          "message": "收到啦～ 每天晚上9点到12点学习，这个时间段安排得很充实呢！🌙\n\n不过云朵没有自动提醒的功能哦，如果你想要提醒的话，随时可以让我帮你设置～\n\n今天有什么学习计划吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-ca5197fe21",
+            "case_index": 176,
+            "original_from_user": "6930e40c4bf7878f041148b5",
+            "source_id": "693250bd4bf7878f04114a45",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-ca5197fe21-case-176",
+              "business_conversation_key": "user-path-ca5197fe21-case-176",
+              "causal_inbound_event_id": "user-path-ca5197fe21-case-176-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b4e05b092536e9341597f419"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.012
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

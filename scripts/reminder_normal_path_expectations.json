@@ -989,9 +989,17 @@
         }
       ]
     },
+    "172": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user says to call them later but gives no concrete trigger time and no reminder content. The agent should ask for the missing details instead of creating a generic reminder."
+    },
     "176": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user describes a daily study time block but does not explicitly ask to be reminded or supervised; the agent should not create reminders from the schedule statement alone."
+    },
+    "177": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states a plan to return to study at 15:00 after resting but does not ask for a reminder, notification, call, or check-in. A social acknowledgement is acceptable as long as no reminder is created or promised."
     },
     "180": {
       "evaluation_expectation": "crud",

@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-2d28a0f442",
+    "message": null,
+    "offset": 177,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，去好好休息一下吧！吃饭、洗澡、健身都安排上，放松身心。祝你享受这段休息时间，下午3点见，一起继续学习！💪"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "user_output_implies_unconfirmed_reminder"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "user_output_implies_unconfirmed_reminder": 1
+      },
+      "failures": [
+        {
+          "index": 177,
+          "input": "休息一下，我去吃饭，洗澡和健身，等到下午3点再来学",
+          "user_id": "89408aa70cb3e6982d905df6",
+          "original_from_user": "693000a24bf7878f041147e3",
+          "input_message_id": "6a00443fc44e3778edf2b0a0",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "user_output_implies_unconfirmed_reminder"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0044420839ae537f7de45e",
+              "expect_output_timestamp": 1778402370,
+              "handled_timestamp": 1778402370,
+              "status": "pending",
+              "message_type": "text",
+              "message": "好的，去好好休息一下吧！吃饭、洗澡、健身都安排上，放松身心。祝你享受这段休息时间，下午3点见，一起继续学习！💪",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-2d28a0f442",
+                "case_index": 177,
+                "original_from_user": "693000a24bf7878f041147e3",
+                "source_id": "693255ff4bf7878f04114a49",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-2d28a0f442-case-177",
+                  "business_conversation_key": "user-path-2d28a0f442-case-177",
+                  "causal_inbound_event_id": "user-path-2d28a0f442-case-177-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "89408aa70cb3e6982d905df6"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 3.006
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 177,
+      "input": "休息一下，我去吃饭，洗澡和健身，等到下午3点再来学",
+      "user_id": "89408aa70cb3e6982d905df6",
+      "original_from_user": "693000a24bf7878f041147e3",
+      "input_message_id": "6a00443fc44e3778edf2b0a0",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "user_output_implies_unconfirmed_reminder"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0044420839ae537f7de45e",
+          "expect_output_timestamp": 1778402370,
+          "handled_timestamp": 1778402370,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，去好好休息一下吧！吃饭、洗澡、健身都安排上，放松身心。祝你享受这段休息时间，下午3点见，一起继续学习！💪",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-2d28a0f442",
+            "case_index": 177,
+            "original_from_user": "693000a24bf7878f041147e3",
+            "source_id": "693255ff4bf7878f04114a49",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-2d28a0f442-case-177",
+              "business_conversation_key": "user-path-2d28a0f442-case-177",
+              "causal_inbound_event_id": "user-path-2d28a0f442-case-177-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "89408aa70cb3e6982d905df6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.006
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "user_output_implies_unconfirmed_reminder"
+  }
+}
