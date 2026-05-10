@@ -111,6 +111,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
         "Undesignated local clock times attached to a reminder task are concrete"
         in prompt
     )
+    assert "Status-only or referential fragments" in prompt
     assert (
         "Do not use RRULE or explicit_cadence unless the user supplies recurrence"
         in prompt
@@ -142,6 +143,21 @@ def test_retry_prompt_preserves_bare_call_me_clock_contract():
     assert "do not ask for reminder content or date" in prompt
     assert "batch create decisions require top-level schedule_basis" in prompt
     assert "Clarify and discussion retries must return empty action" in prompt
+
+
+def test_retry_prompt_preserves_status_only_missing_content_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "十一点提醒我吧 都还没做",
+        _run_context(),
+        reason="primary detector timed out",
+    )
+
+    assert "Status-only or referential fragments" in prompt
+    assert "clarify for the task/content" in prompt
 
 
 def test_retry_prompt_preserves_undesignated_task_clock_contract():
@@ -1308,6 +1324,36 @@ async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
     assert result.ok is True
     assert result.content["intent_type"] == "clarify"
     assert "具体几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_status_only_reminder_content():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="还没弄完",
+        trigger_at="2026-05-11T11:00:00+09:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("status-only reminder content must clarify")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("十一点提醒我吧 还没弄完", _run_context())
+
+    assert result.ok is True
+    assert result.content["intent_type"] == "clarify"
+    assert "提醒你做什么" in result.content["summary"]
 
 
 @pytest.mark.asyncio

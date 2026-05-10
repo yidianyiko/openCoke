@@ -1719,6 +1719,13 @@
         }
       ]
     },
+    "270": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a concrete time but only says 'it is not done yet' without naming the task to remind about, so the agent should ask for the reminder content.",
+      "expected_clarification_terms": [
+        "内容"
+      ]
+    },
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."

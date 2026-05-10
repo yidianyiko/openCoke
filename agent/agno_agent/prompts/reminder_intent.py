@@ -63,6 +63,7 @@ def build_reminder_intent_input(
             "For recurring cadence wording with an end phrase such as '到/直到/until + clock/date', treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.",
             "Need/intention statements such as 'I need to do X at Y' are discussion, not clarify, unless the user asks for reminder supervision.",
             "Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.",
+            "Status-only or referential fragments such as 'not done yet', '还没做', '这件事', or 'that' are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
             "Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.",
             "Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.",

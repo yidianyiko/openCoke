@@ -165,6 +165,7 @@ All batch create decisions require top-level schedule_basis and schedule_evidenc
 Clarify and discussion retries must return empty action and empty operations.
 Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
@@ -523,6 +524,8 @@ class ReminderIntentPort:
             return _date_only_missing_time_clarification_result()
         if _should_clarify_ambiguous_time_range_create(input_message, decision):
             return _ambiguous_time_range_clarification_result()
+        if _should_clarify_status_only_content_create(input_message, decision):
+            return _missing_reminder_content_clarification_result()
         result = self.command_executor.execute(decision, run_context)
         if (
             not workflow_outcome.had_update
@@ -1126,6 +1129,12 @@ _REMINDER_VERB_PATTERN = re.compile(
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
     r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
 )
+_STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
+    r"^(?:都|也|还|这|那|这个|那个|这些|那些|它|事情|事|东西|任务|it|that|this)*"
+    r"(?:还没|还没有|没|没有|未|尚未|not)"
+    r"(?:做|弄|搞|处理|完成|finish|done)(?:完|好|掉|了)?$",
+    re.IGNORECASE,
+)
 _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
     r"|(?P<hour_only>\d{1,2})\s*(?:点|时)(?P<half>半)?"
@@ -1484,6 +1493,21 @@ def _should_clarify_ambiguous_time_range_create(
         return False
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     return bool(_AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN.search(current_user_text))
+
+
+def _should_clarify_status_only_content_create(input_message: str, decision: Any) -> bool:
+    if not _decision_has_create_operation(decision):
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not _REMINDER_VERB_PATTERN.search(current_user_text):
+        return False
+    if not _BARE_CLOCK_PATTERN.search(current_user_text):
+        return False
+    for title in _decision_titles(decision):
+        normalized_title = re.sub(r"\s+", "", title).strip().lower()
+        if _STATUS_ONLY_REMINDER_TITLE_PATTERN.fullmatch(normalized_title):
+            return True
+    return False
 
 
 def _decision_has_create_operation(decision: Any) -> bool:

@@ -52,6 +52,7 @@ Decision boundary:
 - When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
 - Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
 - A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
+- Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 - One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 - Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Current time to trigger_at.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
