@@ -115,6 +115,22 @@ def _decision_from_response(response: Any) -> Any:
         try:
             return ReminderDetectDecision.model_validate_json(content)
         except Exception:
+            try:
+                raw_content = json.loads(content)
+            except Exception:
+                return content
+            if isinstance(raw_content, Mapping) and "workflow_update" in raw_content:
+                fallback_content = dict(raw_content)
+                raw_workflow_update = fallback_content.pop("workflow_update")
+                try:
+                    fallback_decision = ReminderDetectDecision.model_validate(
+                        fallback_content
+                    )
+                except Exception:
+                    return content
+                decision_values = fallback_decision.model_dump()
+                decision_values["workflow_update"] = raw_workflow_update
+                return SimpleNamespace(**decision_values)
             return content
     return content
 

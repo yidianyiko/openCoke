@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-8a62cc363d",
+    "message": null,
+    "offset": 219,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "明天几点提醒你换护照？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 219,
+      "input": "明天提醒我换护照",
+      "user_id": "126a0bd0e50cae4903bf4bf6",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a009a5dfec1ddc80de9d1df",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a009a6d2a161e879334baf7",
+          "expect_output_timestamp": 1778424429,
+          "handled_timestamp": 1778424429,
+          "status": "pending",
+          "message_type": "text",
+          "message": "明天几点提醒你换护照？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-8a62cc363d",
+            "case_index": 219,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "69356f544bf7878f04114b74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-8a62cc363d-case-219",
+              "business_conversation_key": "user-path-8a62cc363d-case-219",
+              "causal_inbound_event_id": "user-path-8a62cc363d-case-219-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "126a0bd0e50cae4903bf4bf6"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 16.032
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

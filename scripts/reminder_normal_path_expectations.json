@@ -1281,12 +1281,51 @@
       ]
     },
     "215": {
-      "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should confirm reminder intent instead of creating one silently."
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should not create a reminder or force a reminder clarification for a plain plan statement."
+    },
+    "216": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder at 20:00 with concrete task content.",
+      "expected_creates": [
+        {
+          "title": "法考记忆和做题",
+          "local_time": "20:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "217": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks to stop today's check-ins. This is reminder cancellation work; if no matching reminder exists in the isolated case, the safe outcome is a delete failure or target clarification.",
+      "expected_operation": "delete",
+      "allow_clarification": true
+    },
+    "218": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks to be called tomorrow at 06:00 to check in.",
+      "expected_creates": [
+        {
+          "title": "打卡",
+          "local_time": "06:00:00",
+          "recurring": false
+        }
+      ]
     },
     "219": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
+    },
+    "220": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder next Tuesday at 14:00 with concrete task content.",
+      "expected_creates": [
+        {
+          "title": "见vast",
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
     },
     "221": {
       "evaluation_expectation": "query",
@@ -1296,9 +1335,49 @@
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request."
     },
+    "223": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for a daily reminder with task content but no concrete daily trigger time. The agent should ask what time each day.",
+      "expected_clarification_terms": [
+        "几点"
+      ]
+    },
+    "224": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder tomorrow at 15:30 with concrete task content.",
+      "expected_creates": [
+        {
+          "title": "出门打球",
+          "local_time": "15:30:00",
+          "recurring": false
+        }
+      ]
+    },
     "225": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Weekday-only reminder request gives a day and content but no clock time. Without a default-time policy, the agent should ask what time on that day."
+    },
+    "226": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder tomorrow at 10:00 with concrete task content.",
+      "expected_creates": [
+        {
+          "title": "给学校心理中心打电话约心理咨询",
+          "local_time": "10:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "227": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder tomorrow at 10:00 with concrete task content.",
+      "expected_creates": [
+        {
+          "title": "更新登记表，15号的人也要更新",
+          "local_time": "10:00:00",
+          "recurring": false
+        }
+      ]
     },
     "231": {
       "evaluation_expectation": "discussion",

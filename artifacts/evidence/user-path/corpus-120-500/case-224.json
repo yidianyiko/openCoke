@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-d015da5a58",
+    "message": null,
+    "offset": 224,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：出门打球（2026-05-12 15:30）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a009b9d2a161e879334bb4b",
+        "owner_user_id": "10a302b3b762f9bdbb3c08b7",
+        "title": "出门打球",
+        "schedule": {
+          "anchor_at": "2026-05-12T06:30:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "15:30:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a009b9a2a161e879334bb46",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-12T06:30:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:48:03+00:00",
+        "updated_at": "2026-05-11T11:48:03+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 224,
+      "input": "明天下午3:30提醒我出门打球 ",
+      "user_id": "10a302b3b762f9bdbb3c08b7",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a009b99e72344113976b077",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a009b9d2a161e879334bb4d",
+          "expect_output_timestamp": 1778424733,
+          "handled_timestamp": 1778424733,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：出门打球（2026-05-12 15:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-d015da5a58",
+            "case_index": 224,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693577844bf7878f04114b87",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-d015da5a58-case-224",
+              "business_conversation_key": "user-path-d015da5a58-case-224",
+              "causal_inbound_event_id": "user-path-d015da5a58-case-224-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "10a302b3b762f9bdbb3c08b7"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a009b9d2a161e879334bb4b",
+          "owner_user_id": "10a302b3b762f9bdbb3c08b7",
+          "title": "出门打球",
+          "schedule": {
+            "anchor_at": "2026-05-12T06:30:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "15:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a009b9a2a161e879334bb46",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-12T06:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:48:03+00:00",
+          "updated_at": "2026-05-11T11:48:03+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

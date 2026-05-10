@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-dbc269bb58",
+    "message": null,
+    "offset": 218,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：打卡（2026-05-12 06:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a009a4f2a161e879334baec",
+        "owner_user_id": "165f17ee2291fb41cf4037a8",
+        "title": "打卡",
+        "schedule": {
+          "anchor_at": "2026-05-11T21:00:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "06:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a009a4b2a161e879334bae7",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T21:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T10:57:55+00:00",
+        "updated_at": "2026-05-11T10:57:55+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 218,
+      "input": "明天六点喊我打卡",
+      "user_id": "165f17ee2291fb41cf4037a8",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "6a009a4b8cb9d62560cd4355",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a009a4f2a161e879334baee",
+          "expect_output_timestamp": 1778424399,
+          "handled_timestamp": 1778424399,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打卡（2026-05-12 06:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-dbc269bb58",
+            "case_index": 218,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "69356bc34bf7878f04114b6f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-dbc269bb58-case-218",
+              "business_conversation_key": "user-path-dbc269bb58-case-218",
+              "causal_inbound_event_id": "user-path-dbc269bb58-case-218-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "165f17ee2291fb41cf4037a8"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a009a4f2a161e879334baec",
+          "owner_user_id": "165f17ee2291fb41cf4037a8",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-11T21:00:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "06:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a009a4b2a161e879334bae7",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T21:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T10:57:55+00:00",
+          "updated_at": "2026-05-11T10:57:55+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

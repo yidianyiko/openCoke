@@ -426,6 +426,57 @@ async def test_reminder_intent_port_accepts_json_string_detector_content():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_salvages_json_string_with_invalid_workflow_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    detector_content = """
+    {
+      "intent_type": "crud",
+      "action": "create",
+      "title": "更新登记表，15号的人也要更新",
+      "trigger_at": "2026-05-12T10:00:00+09:00",
+      "schedule_basis": "one_shot",
+      "schedule_evidence": "明天上午10点",
+      "workflow_update": {
+        "assumptions": ["明天上午10点提醒"],
+        "constraints": [],
+        "missing_fields": [],
+        "next_steps": [],
+        "payload": {},
+        "status": "draft"
+      }
+    }
+    """
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=detector_content)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "crud"
+            assert received_decision.action == "create"
+            assert received_decision.title == "更新登记表，15号的人也要更新"
+            assert received_decision.trigger_at == "2026-05-12T10:00:00+09:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：更新登记表，15号的人也要更新"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("明天上午10点提醒我更新登记表，15号的人也要更新", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：更新登记表，15号的人也要更新"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_when_primary_has_no_executable_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
