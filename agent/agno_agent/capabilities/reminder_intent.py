@@ -148,6 +148,7 @@ Do not use conversation history or infer missing details from prior turns.
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
+For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
@@ -432,6 +433,32 @@ class ReminderIntentPort:
                     "reminder tool rejected past trigger_at; if the user gave a "
                     "bare clock time and did not explicitly say today, resolve the "
                     "next future occurrence"
+                ),
+            )
+            if _should_execute_decision(retry_decision) and not (
+                _is_unbounded_high_frequency_cadence(
+                    retry_decision,
+                    input_message=input_message,
+                )
+            ):
+                decision = retry_decision
+                result = self.command_executor.execute(decision, run_context)
+        if (
+            not workflow_outcome.had_update
+            and _should_retry_for_bounded_recurring_no_future_failure(
+                input_message, decision, result
+            )
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "reminder tool rejected a bounded recurring cadence because "
+                    "the recurrence has no future fire time; keep the supplied "
+                    "deadline as deadline_at, and set trigger_at to the first "
+                    "future occurrence before that deadline"
                 ),
             )
             if _should_execute_decision(retry_decision) and not (
@@ -948,6 +975,26 @@ def _should_retry_for_past_one_shot_failure(
     return "时间已经过去" in summary or "past" in summary.lower()
 
 
+def _should_retry_for_bounded_recurring_no_future_failure(
+    input_message: str,
+    decision: Any,
+    result: Any,
+) -> bool:
+    if not _input_has_bounded_cadence_deadline(input_message):
+        return False
+    if not _decision_has_recurring_create(decision):
+        return False
+    if getattr(result, "ok", None) is not False:
+        return False
+    if str(getattr(result, "error", "") or "") != "InvalidSchedule":
+        return False
+    content = getattr(result, "content", None)
+    summary = ""
+    if isinstance(content, Mapping):
+        summary = str(content.get("summary") or "")
+    return "no future fire time" in summary.lower() or "没有未来" in summary
+
+
 _BARE_CLOCK_PATTERN = re.compile(
     r"(\d{1,2}\s*[:：.]\s*\d{1,2}|\d{1,2}\s*(?:点|时)|"
     r"[零一二两三四五六七八九十百半]+\s*(?:点|时))"
@@ -1106,6 +1153,22 @@ def _decision_has_create_operation(decision: Any) -> bool:
     return False
 
 
+def _decision_has_recurring_create(decision: Any) -> bool:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        return bool(str(_decision_value(decision, "rrule") or "").strip())
+    if action != "batch":
+        return False
+    operations = _decision_value(decision, "operations") or []
+    for operation in operations:
+        if (
+            str(_operation_value(operation, "action") or "").strip() == "create"
+            and str(_operation_value(operation, "rrule") or "").strip()
+        ):
+            return True
+    return False
+
+
 def _operation_value(operation: Any, field: str) -> Any:
     if isinstance(operation, Mapping):
         return operation.get(field)
@@ -1157,14 +1220,14 @@ def _is_unbounded_high_frequency_cadence(
 ) -> bool:
     if _input_has_high_frequency_without_deadline(input_message):
         return True
+    if _has_explicit_deadline(decision):
+        return False
     rrules = [str(_decision_value(decision, "rrule") or "")]
     operations = _decision_value(decision, "operations") or []
     for operation in operations:
         rrules.append(str(_decision_value(operation, "rrule") or ""))
     if any(_is_unbounded_high_frequency_rrule(rrule) for rrule in rrules):
         return True
-    if _has_explicit_deadline(decision):
-        return False
     evidence = str(_decision_value(decision, "schedule_evidence") or "")
     if _decision_value(
         decision, "schedule_basis"
@@ -1239,6 +1302,8 @@ def _input_has_bounded_cadence_deadline(text: str) -> bool:
         " by ",
     )
     deadline_patterns = (
+        r"(?:到|直到)\s*(?:今天|今晚|明天|明晚|晚上|下午|中午|早上|上午)?\s*\d{1,2}\s*(?::\s*\d{1,2}|点)",
+        r"(?:到|直到)\s*(?:今天|今晚|明天|明晚|晚上|下午|中午|早上|上午)?\s*[零一二两三四五六七八九十百半]+\s*点",
         r"\d{1,2}\s*月\s*\d{1,2}\s*(?:号|日)?\s*前",
         r"\d{1,2}\s*(?:号|日)\s*前",
         r"\d{1,2}\s*(?::\s*\d{1,2}|点)\s*前",

@@ -107,15 +107,27 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert (
         "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
     )
-    assert "Undesignated local clock times attached to a reminder task are concrete" in prompt
-    assert "Do not use RRULE or explicit_cadence unless the user supplies recurrence" in prompt
-    assert "Weekly recurrence with listed weekdays must include every listed weekday" in prompt
+    assert (
+        "Undesignated local clock times attached to a reminder task are concrete"
+        in prompt
+    )
+    assert (
+        "Do not use RRULE or explicit_cadence unless the user supplies recurrence"
+        in prompt
+    )
+    assert (
+        "Weekly recurrence with listed weekdays must include every listed weekday"
+        in prompt
+    )
     assert "Weekday names used as a recurrence cadence are concrete" in prompt
     assert "manual correction or exception to occurrence times" in prompt
+    assert "到/直到/until + clock/date" in prompt
 
 
 def test_retry_prompt_preserves_bare_call_me_clock_contract():
-    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
 
     prompt = _build_reminder_retry_input(
         "3点叫我",
@@ -128,7 +140,9 @@ def test_retry_prompt_preserves_bare_call_me_clock_contract():
 
 
 def test_retry_prompt_preserves_undesignated_task_clock_contract():
-    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
 
     prompt = _build_reminder_retry_input(
         "6点30开始学习提醒我下",
@@ -136,12 +150,17 @@ def test_retry_prompt_preserves_undesignated_task_clock_contract():
         reason="primary detector timed out",
     )
 
-    assert "Undesignated local clock times attached to a reminder task are concrete" in prompt
+    assert (
+        "Undesignated local clock times attached to a reminder task are concrete"
+        in prompt
+    )
     assert "do not ask for date or trigger_at" in prompt
 
 
 def test_retry_prompt_preserves_weekday_recurrence_contract():
-    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
 
     prompt = _build_reminder_retry_input(
         "周六周天下午三点提醒小吴完成学习任务",
@@ -154,7 +173,9 @@ def test_retry_prompt_preserves_weekday_recurrence_contract():
 
 
 def test_retry_prompt_preserves_corrected_interval_sequence_contract():
-    from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
 
     prompt = _build_reminder_retry_input(
         "在6点前，每50分钟通知我一次，4点40之后的提醒应该是5点半",
@@ -164,6 +185,21 @@ def test_retry_prompt_preserves_corrected_interval_sequence_contract():
 
     assert "manual correction or exception to occurrence times" in prompt
     assert "clarify for the exact occurrence list" in prompt
+
+
+def test_retry_prompt_preserves_bounded_cadence_end_phrase_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "每小时打卡，到晚上8点",
+        _run_context(),
+        reason="reminder tool rejected a bounded recurrence",
+    )
+
+    assert "到/直到/until + clock/date" in prompt
+    assert "first future occurrence" in prompt
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
@@ -571,6 +607,139 @@ async def test_reminder_intent_port_blocks_unbounded_hourly_rrule():
     assert result.ok is True
     assert result.content["action"] == "clarify"
     assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_bounded_cadence_with_dao_deadline_phrase():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-10T20:00:00+09:00",
+                    "rrule": "FREQ=HOURLY",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "keep the deadline as deadline_at" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-10T17:00:00+09:00",
+                    "rrule": "FREQ=HOURLY",
+                    "deadline_at": "2026-05-10T20:00:00+09:00",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                }
+            )
+
+    class FakeExecutor:
+        def __init__(self):
+            self.decisions = []
+
+        def execute(self, received_decision, run_context):
+            self.decisions.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "ok"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run("每小时打卡，到晚上8点", _run_context())
+
+    assert result.ok is True
+    assert len(executor.decisions) == 1
+    assert executor.decisions[0].deadline_at == "2026-05-10T20:00:00+09:00"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_bounded_recurring_no_future_schedule():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-10T20:00:00+09:00",
+                    "rrule": "FREQ=HOURLY",
+                    "deadline_at": "2026-05-10T20:00:00+09:00",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "no future fire time" in input
+            assert "first future occurrence" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "打卡",
+                    "trigger_at": "2026-05-10T17:00:00+09:00",
+                    "rrule": "FREQ=HOURLY",
+                    "deadline_at": "2026-05-10T20:00:00+09:00",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
+                }
+            )
+
+    class FakeExecutor:
+        def __init__(self):
+            self.decisions = []
+
+        def execute(self, received_decision, run_context):
+            self.decisions.append(received_decision)
+            if len(self.decisions) == 1:
+                return SimpleNamespace(
+                    name="reminder",
+                    ok=False,
+                    content={
+                        "summary": "创建提醒失败：Recurring reminder schedule has no future fire time"
+                    },
+                    error="InvalidSchedule",
+                )
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "ok"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run("每小时打卡，到晚上8点", _run_context())
+
+    assert result.ok is True
+    assert len(executor.decisions) == 2
+    assert executor.decisions[1].trigger_at == "2026-05-10T17:00:00+09:00"
 
 
 @pytest.mark.asyncio
@@ -1403,7 +1572,10 @@ def test_fallback_clarification_for_deadline_without_trigger_asks_when_before_de
     )
 
     assert result.ok is True
-    assert result.content["summary"] == "这是截止时间。你想在这个时间之前的什么时候提醒你？"
+    assert (
+        result.content["summary"]
+        == "这是截止时间。你想在这个时间之前的什么时候提醒你？"
+    )
 
 
 def test_fallback_clarification_for_concrete_time_without_content_asks_task():

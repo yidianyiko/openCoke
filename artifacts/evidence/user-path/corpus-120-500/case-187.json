@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-3c0ba0f840",
+    "message": null,
+    "offset": 187,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "no_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "no_reminder_created": 1
+      },
+      "failures": [
+        {
+          "index": 187,
+          "input": "每小时打卡，到晚上8点",
+          "user_id": "ced5d2794f0c77a6af01f3a5",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "6a0049f923a4d33338071a9e",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "no_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "6a004a1ab6153caa219ee846",
+              "expect_output_timestamp": 1778403866,
+              "handled_timestamp": 1778403866,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-3c0ba0f840",
+                "case_index": 187,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "6932a0dc4bf7878f04114a74",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-3c0ba0f840-case-187",
+                  "business_conversation_key": "user-path-3c0ba0f840-case-187",
+                  "causal_inbound_event_id": "user-path-3c0ba0f840-case-187-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "ced5d2794f0c77a6af01f3a5"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 34.065
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 187,
+      "input": "每小时打卡，到晚上8点",
+      "user_id": "ced5d2794f0c77a6af01f3a5",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "6a0049f923a4d33338071a9e",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "no_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "6a004a1ab6153caa219ee846",
+          "expect_output_timestamp": 1778403866,
+          "handled_timestamp": 1778403866,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-3c0ba0f840",
+            "case_index": 187,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "6932a0dc4bf7878f04114a74",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-3c0ba0f840-case-187",
+              "business_conversation_key": "user-path-3c0ba0f840-case-187",
+              "causal_inbound_event_id": "user-path-3c0ba0f840-case-187-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "ced5d2794f0c77a6af01f3a5"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 34.065
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "no_reminder_created"
+  }
+}

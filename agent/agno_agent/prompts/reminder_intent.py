@@ -60,6 +60,7 @@ def build_reminder_intent_input(
             "Complete CRUD decisions must omit workflow_update.",
             "Never attach workflow_update to create, update, delete, complete, batch, or list decisions.",
             "One-shot deadline wording such as 'before/by 22:30' is not a concrete trigger_at; clarify for when to remind unless the user says to remind at that deadline.",
+            "For recurring cadence wording with an end phrase such as '到/直到/until + clock/date', treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.",
             "Need/intention statements such as 'I need to do X at Y' are discussion, not clarify, unless the user asks for reminder supervision.",
             "Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
