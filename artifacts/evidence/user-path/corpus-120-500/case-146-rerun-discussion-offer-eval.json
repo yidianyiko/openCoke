@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-550da2e57a",
+    "message": null,
+    "offset": 146,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "早起晨读是个很棒的计划呢，清晨的时光最适合静心学习。\n\n不过我这边看不到你平时具体的起床时间，所以也不太确定7点对你来说难度如何。你是想从明天开始吗？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 146,
+      "input": "我希望可以7点起床早读",
+      "user_id": "6741d00f3c90a2956cd0e5ca",
+      "original_from_user": "69311e944bf7878f041148f6",
+      "input_message_id": "6a003b8164ffeb04ca9f990a",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a003b8579c764c1663ca96a",
+          "expect_output_timestamp": 1778400133,
+          "handled_timestamp": 1778400133,
+          "status": "pending",
+          "message_type": "text",
+          "message": "早起晨读是个很棒的计划呢，清晨的时光最适合静心学习。\n\n不过我这边看不到你平时具体的起床时间，所以也不太确定7点对你来说难度如何。你是想从明天开始吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-550da2e57a",
+            "case_index": 146,
+            "original_from_user": "69311e944bf7878f041148f6",
+            "source_id": "693127a44bf7878f04114916",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-550da2e57a-case-146",
+              "business_conversation_key": "user-path-550da2e57a-case-146",
+              "causal_inbound_event_id": "user-path-550da2e57a-case-146-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6741d00f3c90a2956cd0e5ca"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

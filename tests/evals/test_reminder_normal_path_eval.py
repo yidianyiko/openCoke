@@ -722,6 +722,33 @@ def test_validate_observations_accepts_planning_detail_question_as_discussion():
     assert errors == []
 
 
+def test_validate_observations_accepts_discussion_with_trailing_reminder_offer():
+    case = normal_eval.ReminderNormalPathCase(
+        input="我希望可以7点起床早读",
+        expected_intent="reminder",
+        matched_keywords=["7点", "起床"],
+        metadata={"evaluation_expectation": "discussion"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "早晨好！这个计划听起来很棒，7点起床早读可以让你的一天更加充实。"
+                    "坚持下去一定会很有收获的！\n\n"
+                    "如果之后需要提醒或其他帮助，随时告诉我哦。"
+                )
+            }
+        ],
+        reminders=[],
+    )
+
+    assert "unexpected_reminder_clarification" not in errors
+    assert errors == []
+
+
 def test_validate_observations_does_not_require_crud_for_nickname_request():
     case = normal_eval.ReminderNormalPathCase(
         input="叫我小凡就行了",

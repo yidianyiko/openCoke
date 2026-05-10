@@ -1251,6 +1251,21 @@ def output_is_pure_reminder_clarification(
     output_text = combined_output_text(outputs)
     if not deterministic_output_mentions_clarification(case_input, output_text):
         return False
+    first_segment = next(
+        (
+            segment.strip()
+            for segment in re.split(r"[\n。.!！?？]+", output_text)
+            if segment.strip()
+        ),
+        "",
+    )
+    if first_segment and not re.search(
+        r"提醒|叫|通知|remind|alarm|notification|几点|什么时候|什么时间|"
+        r"什么内容|哪天|多久|多频繁|频率|提前多久",
+        first_segment,
+        re.IGNORECASE,
+    ):
+        return False
     return not bool(
         re.search(
             r"已创建提醒|"
