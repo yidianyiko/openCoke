@@ -1,0 +1,359 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-5f7b788889",
+    "message": null,
+    "offset": 203,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：完成学习任务打卡（2026-05-12 10:00）\n已创建提醒：完成学习任务打卡（2026-05-12 12:00）\n已创建提醒：完成学习任务打卡（2026-05-12 17:00）\n已创建提醒：完成学习任务打卡（2026-05-11 21:00）\n已创建提醒：完成学习任务打卡（2026-05-11 23:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a008f9ff6de3c5d508f878c",
+        "owner_user_id": "c71cf168bfd2b44976ed462c",
+        "title": "完成学习任务打卡",
+        "schedule": {
+          "anchor_at": "2026-05-12T01:00:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "10:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a008f75f6de3c5d508f8786",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-12T01:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:44:29+00:00",
+        "updated_at": "2026-05-11T11:44:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      },
+      {
+        "_id": "6a008f9ff6de3c5d508f878d",
+        "owner_user_id": "c71cf168bfd2b44976ed462c",
+        "title": "完成学习任务打卡",
+        "schedule": {
+          "anchor_at": "2026-05-12T03:00:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "12:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a008f75f6de3c5d508f8786",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-12T03:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:44:29+00:00",
+        "updated_at": "2026-05-11T11:44:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      },
+      {
+        "_id": "6a008f9ff6de3c5d508f878e",
+        "owner_user_id": "c71cf168bfd2b44976ed462c",
+        "title": "完成学习任务打卡",
+        "schedule": {
+          "anchor_at": "2026-05-12T08:00:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "17:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a008f75f6de3c5d508f8786",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-12T08:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:44:29+00:00",
+        "updated_at": "2026-05-11T11:44:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      },
+      {
+        "_id": "6a008f9ff6de3c5d508f878f",
+        "owner_user_id": "c71cf168bfd2b44976ed462c",
+        "title": "完成学习任务打卡",
+        "schedule": {
+          "anchor_at": "2026-05-11T12:00:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "21:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a008f75f6de3c5d508f8786",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T12:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:44:29+00:00",
+        "updated_at": "2026-05-11T11:44:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      },
+      {
+        "_id": "6a008f9ff6de3c5d508f8790",
+        "owner_user_id": "c71cf168bfd2b44976ed462c",
+        "title": "完成学习任务打卡",
+        "schedule": {
+          "anchor_at": "2026-05-11T14:00:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "23:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a008f75f6de3c5d508f8786",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T14:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T11:44:29+00:00",
+        "updated_at": "2026-05-11T11:44:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 203,
+      "input": "上午10点一次，中午12点一次，下午5点一次，晚上9点一次，晚上11点一次，提醒我完成学习任务打卡",
+      "user_id": "c71cf168bfd2b44976ed462c",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "6a008f754cdcd0f57a95ab5d",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a008f9ff6de3c5d508f8792",
+          "expect_output_timestamp": 1778421663,
+          "handled_timestamp": 1778421663,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：完成学习任务打卡（2026-05-12 10:00）\n已创建提醒：完成学习任务打卡（2026-05-12 12:00）\n已创建提醒：完成学习任务打卡（2026-05-12 17:00）\n已创建提醒：完成学习任务打卡（2026-05-11 21:00）\n已创建提醒：完成学习任务打卡（2026-05-11 23:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-5f7b788889",
+            "case_index": 203,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "6934252e4bf7878f04114b08",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-5f7b788889-case-203",
+              "business_conversation_key": "user-path-5f7b788889-case-203",
+              "causal_inbound_event_id": "user-path-5f7b788889-case-203-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c71cf168bfd2b44976ed462c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a008f9ff6de3c5d508f878c",
+          "owner_user_id": "c71cf168bfd2b44976ed462c",
+          "title": "完成学习任务打卡",
+          "schedule": {
+            "anchor_at": "2026-05-12T01:00:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "10:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a008f75f6de3c5d508f8786",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-12T01:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:44:29+00:00",
+          "updated_at": "2026-05-11T11:44:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "6a008f9ff6de3c5d508f878d",
+          "owner_user_id": "c71cf168bfd2b44976ed462c",
+          "title": "完成学习任务打卡",
+          "schedule": {
+            "anchor_at": "2026-05-12T03:00:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "12:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a008f75f6de3c5d508f8786",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-12T03:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:44:29+00:00",
+          "updated_at": "2026-05-11T11:44:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "6a008f9ff6de3c5d508f878e",
+          "owner_user_id": "c71cf168bfd2b44976ed462c",
+          "title": "完成学习任务打卡",
+          "schedule": {
+            "anchor_at": "2026-05-12T08:00:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "17:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a008f75f6de3c5d508f8786",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-12T08:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:44:29+00:00",
+          "updated_at": "2026-05-11T11:44:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "6a008f9ff6de3c5d508f878f",
+          "owner_user_id": "c71cf168bfd2b44976ed462c",
+          "title": "完成学习任务打卡",
+          "schedule": {
+            "anchor_at": "2026-05-11T12:00:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "21:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a008f75f6de3c5d508f8786",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T12:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:44:29+00:00",
+          "updated_at": "2026-05-11T11:44:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        },
+        {
+          "_id": "6a008f9ff6de3c5d508f8790",
+          "owner_user_id": "c71cf168bfd2b44976ed462c",
+          "title": "完成学习任务打卡",
+          "schedule": {
+            "anchor_at": "2026-05-11T14:00:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "23:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a008f75f6de3c5d508f8786",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T14:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T11:44:29+00:00",
+          "updated_at": "2026-05-11T11:44:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 43.082
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -1074,28 +1074,67 @@ def _normalize_past_bare_create_trigger(
     decision: Any,
     run_context: AgentRunContext,
 ) -> Any:
-    if _decision_value(decision, "action") != "create":
-        return decision
-    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
-    if not trigger_at:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action not in {"create", "batch"}:
         return decision
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     if not _BARE_CLOCK_PATTERN.search(current_user_text):
         return decision
     if _EXPLICIT_DATE_PATTERN.search(current_user_text):
         return decision
+
+    if action == "batch":
+        operations = list(_decision_value(decision, "operations") or [])
+        if not operations:
+            return decision
+        normalized_operations = []
+        changed = False
+        for operation in operations:
+            if str(_operation_value(operation, "action") or "").strip() != "create":
+                normalized_operations.append(operation)
+                continue
+            trigger_at = str(_operation_value(operation, "trigger_at") or "").strip()
+            normalized_trigger_at = _next_future_trigger_at(
+                trigger_at, run_context.current_time
+            )
+            if normalized_trigger_at and normalized_trigger_at != trigger_at:
+                normalized_operations.append(
+                    _copy_operation_with_value(
+                        operation,
+                        "trigger_at",
+                        normalized_trigger_at,
+                    )
+                )
+                changed = True
+                continue
+            normalized_operations.append(operation)
+        if changed:
+            return _copy_decision_with_operations(decision, normalized_operations)
+        return decision
+
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    normalized_trigger_at = _next_future_trigger_at(
+        trigger_at, run_context.current_time
+    )
+    if normalized_trigger_at and normalized_trigger_at != trigger_at:
+        return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
+    return decision
+
+
+def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:
+    if not trigger_at:
+        return ""
     try:
         parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
     except ValueError:
-        return decision
-    current_time = run_context.current_time
+        return ""
     if parsed.tzinfo is not None and current_time.tzinfo is not None:
         current_time = current_time.astimezone(parsed.tzinfo)
     if parsed > current_time:
-        return decision
+        return trigger_at
     while parsed <= current_time:
         parsed += timedelta(days=1)
-    return _copy_decision_with_value(decision, "trigger_at", parsed.isoformat())
+    return parsed.isoformat()
 
 
 def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
@@ -1110,6 +1149,22 @@ def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
         data = vars(decision).copy()
     except TypeError:
         return decision
+    data[field] = value
+    return SimpleNamespace(**data)
+
+
+def _copy_operation_with_value(operation: Any, field: str, value: Any) -> Any:
+    if isinstance(operation, Mapping):
+        return {**dict(operation), field: value}
+    model_dump = getattr(operation, "model_dump", None)
+    if callable(model_dump):
+        data = model_dump()
+        data[field] = value
+        return SimpleNamespace(**data)
+    try:
+        data = vars(operation).copy()
+    except TypeError:
+        return operation
     data[field] = value
     return SimpleNamespace(**data)
 

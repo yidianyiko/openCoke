@@ -1,0 +1,37 @@
+{
+  "fixture_overrides": 163,
+  "evaluation_expectation_counts": {
+    "capability": 2,
+    "clarify": 52,
+    "crud": 79,
+    "discussion": 19,
+    "query": 11
+  },
+  "title_variant_cases": [
+    "1",
+    "55",
+    "101",
+    "104",
+    "115",
+    "122",
+    "123",
+    "133",
+    "444"
+  ],
+  "title_variants": 21,
+  "prompt_metrics": {
+    "/data/projects/coke/agent/prompt/agent_instructions_prompt.py": {
+      "non_empty_lines": 254,
+      "negative_constraints": 31
+    },
+    "/data/projects/coke/agent/prompt/chat_contextprompt.py": {
+      "non_empty_lines": 444,
+      "negative_constraints": 6
+    }
+  },
+  "workflow_regex_fast_path_markers": {
+    "looks_like_reminder": false,
+    "actionable_patterns": false,
+    "explicit_reminder_patterns": false
+  }
+}

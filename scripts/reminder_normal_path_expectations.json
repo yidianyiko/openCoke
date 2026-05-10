@@ -1171,6 +1171,37 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time."
     },
+    "203": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly lists five reminder times and asks to be reminded to complete study-task check-ins. Past bare local clocks should roll to their next future occurrence because the user did not say today.",
+      "expected_creates": [
+        {
+          "title": "完成学习任务打卡",
+          "local_time": "10:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成学习任务打卡",
+          "local_time": "12:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成学习任务打卡",
+          "local_time": "17:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成学习任务打卡",
+          "local_time": "21:00:00",
+          "recurring": false
+        },
+        {
+          "title": "完成学习任务打卡",
+          "local_time": "23:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "205": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time."

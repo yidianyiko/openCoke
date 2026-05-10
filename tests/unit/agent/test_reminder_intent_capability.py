@@ -978,6 +978,67 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="0点一次，0点半一次，2点一次",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="完成学习任务打卡",
+                trigger_at="2026-05-06T00:00:00+00:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="完成学习任务打卡",
+                trigger_at="2026-05-06T00:30:00+00:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="完成学习任务打卡",
+                trigger_at="2026-05-06T02:00:00+00:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：完成学习任务打卡"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=executor,
+    ).run("0点一次，0点半一次，2点一次，提醒我完成学习任务打卡", _run_context())
+
+    assert result.ok is True
+    assert [op.trigger_at for op in executor.received[0].operations] == [
+        "2026-05-07T00:00:00+00:00",
+        "2026-05-07T00:30:00+00:00",
+        "2026-05-06T02:00:00+00:00",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

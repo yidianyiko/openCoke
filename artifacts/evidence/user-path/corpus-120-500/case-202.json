@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-f919700951",
+    "message": null,
+    "offset": 202,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "我明白了，总共6小时的任务，今晚只能投入4小时，确实有点紧张呢。\n\n那这样的话，我们可以先看看哪些是最紧急的，先做一部分？剩下的可以明天再继续，不用一下子全做完。你觉得怎么样？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 202,
+      "input": "其实这些任务的总共需要时间，可能需要6个小时左右，但是我今天晚上只有4个小时了",
+      "user_id": "b4183160cec8b8d6a93ab90c",
+      "original_from_user": "6934184e4bf7878f04114aed",
+      "input_message_id": "6a008e74c809ed94ccf9e5d6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a008e7748840fbd198e2c4d",
+          "expect_output_timestamp": 1778421367,
+          "handled_timestamp": 1778421367,
+          "status": "pending",
+          "message_type": "text",
+          "message": "我明白了，总共6小时的任务，今晚只能投入4小时，确实有点紧张呢。\n\n那这样的话，我们可以先看看哪些是最紧急的，先做一部分？剩下的可以明天再继续，不用一下子全做完。你觉得怎么样？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-f919700951",
+            "case_index": 202,
+            "original_from_user": "6934184e4bf7878f04114aed",
+            "source_id": "69341deb4bf7878f04114af9",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-f919700951-case-202",
+              "business_conversation_key": "user-path-f919700951-case-202",
+              "causal_inbound_event_id": "user-path-f919700951-case-202-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b4183160cec8b8d6a93ab90c"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.008
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
