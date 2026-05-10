@@ -121,6 +121,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     )
     assert "Weekday names used as a recurrence cadence are concrete" in prompt
     assert "manual correction or exception to occurrence times" in prompt
+    assert "stops the cadence at or after the same deadline" in prompt
     assert "到/直到/until + clock/date" in prompt
 
 
@@ -200,6 +201,21 @@ def test_retry_prompt_preserves_bounded_cadence_end_phrase_contract():
 
     assert "到/直到/until + clock/date" in prompt
     assert "first future occurrence" in prompt
+
+
+def test_retry_prompt_preserves_bounded_cadence_stop_boundary_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "开始帮我每小时打卡持续到20点，20点之后不要打卡",
+        _run_context(),
+        reason="primary detector returned no executable decision",
+    )
+
+    assert "stops the cadence at or after the same deadline" in prompt
+    assert "not a manual correction" in prompt
 
 
 def test_build_reminder_intent_input_includes_active_pending_workflow_from_metadata():
@@ -1182,6 +1198,73 @@ async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb(
     assert result.ok is True
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["起床"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence_batch():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每小时打卡持续到20点",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="起床",
+                trigger_at="2026-05-11T15:00:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="打卡",
+                trigger_at="2026-05-11T15:00:00+09:00",
+                rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="跑步",
+                trigger_at="2026-05-11T15:00:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="睡觉",
+                trigger_at="2026-05-11T20:00:00+09:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：打卡"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=executor,
+    ).run(
+        "帮我记住今天任务，15点起床，开始帮我每小时打卡持续到20点，跑步，20点睡觉",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert len(executor.received) == 1
+    assert [op.title for op in executor.received[0].operations] == ["打卡"]
 
 
 @pytest.mark.asyncio

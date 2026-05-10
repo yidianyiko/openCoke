@@ -1,0 +1,126 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-5c7e183d06",
+    "message": null,
+    "offset": 196,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_clarification"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_clarification": 1
+      },
+      "failures": [
+        {
+          "index": 196,
+          "input": "帮我记住今天任务，15点起床，开始帮我每小时打卡持续到20点，跑步，听冥想音频，吃晚饭，手机锁调整，冥想练习，洗漱洗澡，20点睡觉，20点之后不要打卡",
+          "user_id": "bf57ac3962ae2409396aa168",
+          "original_from_user": "692d38aea538f0baad556271",
+          "input_message_id": "6a0080c9e47ed4a1bd8330e5",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_clarification"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0080f04468ea4cb7e97ddd",
+              "expect_output_timestamp": 1778417904,
+              "handled_timestamp": 1778417904,
+              "status": "pending",
+              "message_type": "text",
+              "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-5c7e183d06",
+                "case_index": 196,
+                "original_from_user": "692d38aea538f0baad556271",
+                "source_id": "693382684bf7878f04114ac7",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-5c7e183d06-case-196",
+                  "business_conversation_key": "user-path-5c7e183d06-case-196",
+                  "causal_inbound_event_id": "user-path-5c7e183d06-case-196-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "bf57ac3962ae2409396aa168"
+            }
+          ],
+          "reminders": [],
+          "elapsed_seconds": 39.075
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 196,
+      "input": "帮我记住今天任务，15点起床，开始帮我每小时打卡持续到20点，跑步，听冥想音频，吃晚饭，手机锁调整，冥想练习，洗漱洗澡，20点睡觉，20点之后不要打卡",
+      "user_id": "bf57ac3962ae2409396aa168",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "6a0080c9e47ed4a1bd8330e5",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_clarification"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0080f04468ea4cb7e97ddd",
+          "expect_output_timestamp": 1778417904,
+          "handled_timestamp": 1778417904,
+          "status": "pending",
+          "message_type": "text",
+          "message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-5c7e183d06",
+            "case_index": 196,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "693382684bf7878f04114ac7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-5c7e183d06-case-196",
+              "business_conversation_key": "user-path-5c7e183d06-case-196",
+              "causal_inbound_event_id": "user-path-5c7e183d06-case-196-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "bf57ac3962ae2409396aa168"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 39.075
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_clarification"
+  }
+}

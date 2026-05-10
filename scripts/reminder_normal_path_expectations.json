@@ -1107,6 +1107,43 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request."
     },
+    "193": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with reminder verb, concrete local clock time, and task content; the agent should create the local 08:00 reminder.",
+      "expected_creates": [
+        {
+          "title": "完成第一个任务",
+          "local_time": "08:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "195": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Although the message begins with a rejection marker, the current-turn request explicitly says to remind the user at 11:00 to eat. In isolation this is an executable one-shot reminder create request.",
+      "expected_creates": [
+        {
+          "title": "吃饭",
+          "local_time": "11:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "196": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks for an hourly check-in cadence starting at 15:00 and bounded by 20:00. The final no-check-in-after-20:00 phrase restates the deadline rather than introducing a timing exception.",
+      "expected_creates": [
+        {
+          "title": "打卡",
+          "local_time": "15:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=HOURLY",
+            "UNTIL"
+          ]
+        }
+      ]
+    },
     "198": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders."

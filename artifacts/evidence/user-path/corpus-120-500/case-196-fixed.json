@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-8de6b6f432",
+    "message": null,
+    "offset": 196,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：打卡（2026-05-11 15:00，循环规则 FREQ=HOURLY;UNTIL=20260511T110000Z）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a00846bdfb41e64bc2ed532",
+        "owner_user_id": "900aaa3a3fe3c7d6f0a66074",
+        "title": "打卡",
+        "schedule": {
+          "anchor_at": "2026-05-11T06:00:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "15:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": "FREQ=HOURLY;UNTIL=20260511T110000Z"
+        },
+        "agent_output_target": {
+          "conversation_id": "6a00845adfb41e64bc2ed52c",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T06:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T00:10:00+00:00",
+        "updated_at": "2026-05-11T00:10:00+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 196,
+      "input": "帮我记住今天任务，15点起床，开始帮我每小时打卡持续到20点，跑步，听冥想音频，吃晚饭，手机锁调整，冥想练习，洗漱洗澡，20点睡觉，20点之后不要打卡",
+      "user_id": "900aaa3a3fe3c7d6f0a66074",
+      "original_from_user": "692d38aea538f0baad556271",
+      "input_message_id": "6a008459082cbc9fbdda1f17",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00846bdfb41e64bc2ed534",
+          "expect_output_timestamp": 1778418795,
+          "handled_timestamp": 1778418795,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：打卡（2026-05-11 15:00，循环规则 FREQ=HOURLY;UNTIL=20260511T110000Z）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-8de6b6f432",
+            "case_index": 196,
+            "original_from_user": "692d38aea538f0baad556271",
+            "source_id": "693382684bf7878f04114ac7",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-8de6b6f432-case-196",
+              "business_conversation_key": "user-path-8de6b6f432-case-196",
+              "causal_inbound_event_id": "user-path-8de6b6f432-case-196-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "900aaa3a3fe3c7d6f0a66074"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a00846bdfb41e64bc2ed532",
+          "owner_user_id": "900aaa3a3fe3c7d6f0a66074",
+          "title": "打卡",
+          "schedule": {
+            "anchor_at": "2026-05-11T06:00:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "15:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": "FREQ=HOURLY;UNTIL=20260511T110000Z"
+          },
+          "agent_output_target": {
+            "conversation_id": "6a00845adfb41e64bc2ed52c",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T06:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T00:10:00+00:00",
+          "updated_at": "2026-05-11T00:10:00+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 18.036
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

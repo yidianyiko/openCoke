@@ -972,6 +972,17 @@ def output_segment_for_expected(
         right = output_text.find(separator, position)
         if right != -1 and right < end:
             end = right
+    left_paren = output_text.rfind("（", start, position + 1)
+    right_paren = output_text.rfind("）", start, position + 1)
+    if left_paren > right_paren:
+        closing = output_text.find("）", position)
+        if closing != -1:
+            end = max(end, closing + 1)
+    next_paren = output_text.find("（", position, end)
+    if next_paren != -1:
+        closing = output_text.find("）", next_paren)
+        if closing != -1:
+            end = max(end, closing + 1)
     return output_text[start:end]
 
 
@@ -1083,6 +1094,7 @@ def segment_has_recurring_signal(segment: str) -> bool:
     return bool(
         re.search(
             r"每天|每日|每个小时|每小时|每周|每月|"
+            r"循环规则|FREQ=|"
             r"每(?:隔)?[一二三四五六七八九十两\d]+(?:个)?(?:分钟|小时|天|日|周|星期|礼拜|月)",
             segment,
         )

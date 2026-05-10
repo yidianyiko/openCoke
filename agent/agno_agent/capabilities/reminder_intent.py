@@ -169,6 +169,7 @@ Do not drop the deadline.
 Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
 Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.
 If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.
+For a bounded cadence, wording that stops the cadence at or after the same deadline is the deadline boundary, not a manual correction or occurrence-time exception.
 {workflow_block}
 
 ### 当前用户消息
@@ -1075,31 +1076,85 @@ def _drop_ungoverned_batch_plan_operations(input_message: str, decision: Any) ->
     if _SCHEDULE_BACK_REFERENCE_PATTERN.search(current_user_text):
         return decision
     reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
-    if reminder_match is None:
+    if reminder_match is not None:
+        reminder_start = reminder_match.start()
+        kept_operations = []
+        changed = False
+        for operation in operations:
+            if str(_operation_value(operation, "action") or "").strip() != "create":
+                kept_operations.append(operation)
+                continue
+            title = str(_operation_value(operation, "title") or "").strip()
+            if not title:
+                kept_operations.append(operation)
+                continue
+            first_title_at = current_user_text.find(title)
+            if first_title_at < 0:
+                kept_operations.append(operation)
+                continue
+            later_title_at = current_user_text.find(title, reminder_start)
+            if first_title_at < reminder_start and later_title_at < 0:
+                changed = True
+                continue
+            kept_operations.append(operation)
+        if changed and kept_operations:
+            decision = _copy_decision_with_operations(decision, kept_operations)
+    return _drop_ungoverned_cadence_task_operations(current_user_text, decision)
+
+
+def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "batch":
         return decision
-    reminder_start = reminder_match.start()
+    operations = list(_decision_value(decision, "operations") or [])
+    if len(operations) <= 1:
+        return decision
+    has_recurring_create = any(
+        str(_operation_value(operation, "action") or "").strip() == "create"
+        and str(_operation_value(operation, "rrule") or "").strip()
+        for operation in operations
+    )
+    if not has_recurring_create:
+        return decision
+
     kept_operations = []
     changed = False
     for operation in operations:
         if str(_operation_value(operation, "action") or "").strip() != "create":
             kept_operations.append(operation)
             continue
+        if str(_operation_value(operation, "rrule") or "").strip():
+            kept_operations.append(operation)
+            continue
         title = str(_operation_value(operation, "title") or "").strip()
-        if not title:
+        if title and _title_has_local_reminder_verb_context(text, title):
             kept_operations.append(operation)
             continue
-        first_title_at = current_user_text.find(title)
-        if first_title_at < 0:
-            kept_operations.append(operation)
-            continue
-        later_title_at = current_user_text.find(title, reminder_start)
-        if first_title_at < reminder_start and later_title_at < 0:
-            changed = True
-            continue
-        kept_operations.append(operation)
+        changed = True
     if not changed or not kept_operations:
         return decision
     return _copy_decision_with_operations(decision, kept_operations)
+
+
+def _title_has_local_reminder_verb_context(text: str, title: str) -> bool:
+    start = 0
+    while True:
+        position = text.find(title, start)
+        if position < 0:
+            return False
+        clause_start = _previous_clause_boundary(text, position)
+        clause = text[clause_start : position + len(title)]
+        if _REMINDER_VERB_PATTERN.search(clause):
+            return True
+        start = position + len(title)
+
+
+def _previous_clause_boundary(text: str, position: int) -> int:
+    boundary = 0
+    for separator in "，,。；;！？!?\n":
+        index = text.rfind(separator, 0, position)
+        if index >= boundary:
+            boundary = index + 1
+    return boundary
 
 
 def _copy_decision_with_operations(decision: Any, operations: list[Any]) -> Any:
@@ -1226,6 +1281,8 @@ def _is_unbounded_high_frequency_cadence(
     operations = _decision_value(decision, "operations") or []
     for operation in operations:
         rrules.append(str(_decision_value(operation, "rrule") or ""))
+    if any(_is_bounded_high_frequency_rrule(rrule) for rrule in rrules):
+        return False
     if any(_is_unbounded_high_frequency_rrule(rrule) for rrule in rrules):
         return True
     evidence = str(_decision_value(decision, "schedule_evidence") or "")
@@ -1324,6 +1381,13 @@ def _is_unbounded_high_frequency_rrule(rrule: str) -> bool:
     if not _is_high_frequency_rrule(rule):
         return False
     return "UNTIL=" not in rule and "COUNT=" not in rule
+
+
+def _is_bounded_high_frequency_rrule(rrule: str) -> bool:
+    rule = str(rrule or "").upper()
+    if not _is_high_frequency_rrule(rule):
+        return False
+    return "UNTIL=" in rule or "COUNT=" in rule
 
 
 def _is_high_frequency_evidence(evidence: str) -> bool:
