@@ -1082,6 +1082,17 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The interval request includes a manual correction to later occurrence timing. Because that exception is not safely representable as one plain RRULE without dropping or shifting occurrences, the agent should clarify the exact reminder times instead of creating an approximate cadence."
     },
+    "186": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a same-day evening clock time and task content; the agent should create the local 19:00 reminder.",
+      "expected_creates": [
+        {
+          "title": "fay学习",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "187": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒."

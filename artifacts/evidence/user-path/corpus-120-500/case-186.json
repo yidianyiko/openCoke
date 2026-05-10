@@ -1,0 +1,213 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-db25d680c9",
+    "message": null,
+    "offset": 186,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：fay学习（2026-05-11 19:00）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a0049d4b6153caa219ee7da",
+        "owner_user_id": "1a1fbab76ed2790d2b97b796",
+        "title": "fay学习",
+        "schedule": {
+          "anchor_at": "2026-05-11T10:00:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "19:00:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a0049d1b6153caa219ee7d5",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T10:00:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T06:24:26+00:00",
+        "updated_at": "2026-05-11T06:24:26+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_created": 1
+      },
+      "failures": [
+        {
+          "index": 186,
+          "input": "今天七点提醒fay学习",
+          "user_id": "1a1fbab76ed2790d2b97b796",
+          "original_from_user": "692e9d234bf7878f0411466e",
+          "input_message_id": "6a0049d090ad041b1d1e5119",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "6a0049d4b6153caa219ee7dc",
+              "expect_output_timestamp": 1778403796,
+              "handled_timestamp": 1778403796,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：fay学习（2026-05-11 19:00）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-db25d680c9",
+                "case_index": 186,
+                "original_from_user": "692e9d234bf7878f0411466e",
+                "source_id": "693288aa4bf7878f04114a6a",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-db25d680c9-case-186",
+                  "business_conversation_key": "user-path-db25d680c9-case-186",
+                  "causal_inbound_event_id": "user-path-db25d680c9-case-186-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "1a1fbab76ed2790d2b97b796"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "6a0049d4b6153caa219ee7da",
+              "owner_user_id": "1a1fbab76ed2790d2b97b796",
+              "title": "fay学习",
+              "schedule": {
+                "anchor_at": "2026-05-11T10:00:00+00:00",
+                "local_date": "2026-05-11",
+                "local_time": "19:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "6a0049d1b6153caa219ee7d5",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-11T10:00:00+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-11T06:24:26+00:00",
+              "updated_at": "2026-05-11T06:24:26+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 5.01
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 186,
+      "input": "今天七点提醒fay学习",
+      "user_id": "1a1fbab76ed2790d2b97b796",
+      "original_from_user": "692e9d234bf7878f0411466e",
+      "input_message_id": "6a0049d090ad041b1d1e5119",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "6a0049d4b6153caa219ee7dc",
+          "expect_output_timestamp": 1778403796,
+          "handled_timestamp": 1778403796,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：fay学习（2026-05-11 19:00）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-db25d680c9",
+            "case_index": 186,
+            "original_from_user": "692e9d234bf7878f0411466e",
+            "source_id": "693288aa4bf7878f04114a6a",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-db25d680c9-case-186",
+              "business_conversation_key": "user-path-db25d680c9-case-186",
+              "causal_inbound_event_id": "user-path-db25d680c9-case-186-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1a1fbab76ed2790d2b97b796"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a0049d4b6153caa219ee7da",
+          "owner_user_id": "1a1fbab76ed2790d2b97b796",
+          "title": "fay学习",
+          "schedule": {
+            "anchor_at": "2026-05-11T10:00:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "19:00:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a0049d1b6153caa219ee7d5",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T10:00:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T06:24:26+00:00",
+          "updated_at": "2026-05-11T06:24:26+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_created"
+  }
+}
