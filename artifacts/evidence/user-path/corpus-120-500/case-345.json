@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-3ed8caa551",
+    "message": null,
+    "offset": 345,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "听起来是个很棒的学习计划呢！祝你晚上学习顺利，一整节内容一定能掌握好的。有什么需要随时可以找我~"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 345,
+      "input": "晚上我准备学习一整节内容！",
+      "user_id": "f6ab0379db20df6554344f90",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a0140a7ce3e6858143c9e5b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0140ac4713f66897e0d6d8",
+          "expect_output_timestamp": 1778466988,
+          "handled_timestamp": 1778466988,
+          "status": "pending",
+          "message_type": "text",
+          "message": "听起来是个很棒的学习计划呢！祝你晚上学习顺利，一整节内容一定能掌握好的。有什么需要随时可以找我~",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-3ed8caa551",
+            "case_index": 345,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693bfcd209af1bf513e836ce",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-3ed8caa551-case-345",
+              "business_conversation_key": "user-path-3ed8caa551-case-345",
+              "causal_inbound_event_id": "user-path-3ed8caa551-case-345-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "f6ab0379db20df6554344f90"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

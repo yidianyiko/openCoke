@@ -2291,6 +2291,22 @@
         }
       ]
     },
+    "344": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks in English for a one-shot reminder at 17:07.",
+      "expected_creates": [
+        {
+          "title": "drinking water",
+          "local_date": "2026-05-11",
+          "local_time": "17:07:00",
+          "recurring": false
+        }
+      ]
+    },
+    "345": {
+      "evaluation_expectation": "discussion",
+      "evaluation_reason": "The user states a study plan for tonight without asking the assistant to create, update, cancel, complete, or list a reminder."
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."

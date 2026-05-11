@@ -1540,6 +1540,8 @@ Context:
 - A question asking whether the user wants a reminder, what frequency to use,
   or whether to set a reminder for another item is a clarification, not a
   claimed reminder action.
+- A conditional offer such as "if you need, I can help remember/keep track" is
+  not a claimed reminder action because it still requires the user's opt-in.
 - A reply that says the assistant remembers, knows, or recalls the user's
   stated plan or prior message is not a claimed reminder action unless it also
   says a future reminder/check-in will happen.

@@ -1416,6 +1416,15 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():
     assert "declarative claims" in prompt
 
 
+def test_unconfirmed_reminder_llm_judge_rubric_allows_conditional_memory_offers():
+    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+        "如果你需要的话，我可以帮忙记着时间。"
+    )
+
+    assert "conditional offer" in prompt
+    assert "requires the user's opt-in" in prompt
+
+
 def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
     prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
         "你不是亲口说的嘛，今晚7点要出门，我记得清清楚楚的"
@@ -1458,7 +1467,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 254
+    assert len(expectations) <= 256
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1474,7 +1483,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 254
+    assert len(selected) == 256
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1532,7 +1541,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 254
+    assert report["fixture_overrides"] <= 256
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
