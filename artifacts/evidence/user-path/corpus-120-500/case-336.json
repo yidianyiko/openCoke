@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-45816ac230",
+    "message": null,
+    "offset": 336,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：继续（2026-05-11 16:54）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a013cdee38aa36682771035",
+        "owner_user_id": "da1facf995eee3ed11d3ab55",
+        "title": "继续",
+        "schedule": {
+          "anchor_at": "2026-05-11T07:54:45+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "16:54:45",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a013cdbe38aa36682771030",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T07:54:45+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T07:49:45+00:00",
+        "updated_at": "2026-05-11T07:49:45+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 336,
+      "input": "五分钟之后提醒我继续",
+      "user_id": "da1facf995eee3ed11d3ab55",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a013cda0a8c24458743fc18",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a013cdee38aa36682771037",
+          "expect_output_timestamp": 1778466014,
+          "handled_timestamp": 1778466014,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：继续（2026-05-11 16:54）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-45816ac230",
+            "case_index": 336,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693bd72909af1bf513e836a3",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-45816ac230-case-336",
+              "business_conversation_key": "user-path-45816ac230-case-336",
+              "causal_inbound_event_id": "user-path-45816ac230-case-336-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "da1facf995eee3ed11d3ab55"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a013cdee38aa36682771035",
+          "owner_user_id": "da1facf995eee3ed11d3ab55",
+          "title": "继续",
+          "schedule": {
+            "anchor_at": "2026-05-11T07:54:45+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "16:54:45",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a013cdbe38aa36682771030",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T07:54:45+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T07:49:45+00:00",
+          "updated_at": "2026-05-11T07:49:45+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
