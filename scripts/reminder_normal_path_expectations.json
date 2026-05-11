@@ -2086,6 +2086,50 @@
         }
       ]
     },
+    "321": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user gives a concrete noon clock time and asks the agent to call/wake them; the bare call verb is valid reminder content.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "local_time": "12:10:00",
+          "recurring": false
+        }
+      ]
+    },
+    "323": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a wake-up reminder at 1:50; because the corpus timestamp is later that day, the bare clock resolves to the next future occurrence.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_time": "01:50:00",
+          "recurring": false
+        }
+      ]
+    },
+    "324": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder at 2:00 to start writing the paper; the bare clock resolves to the next future occurrence.",
+      "expected_creates": [
+        {
+          "title": "开始写论文",
+          "local_time": "02:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "327": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks to be reminded 10 minutes later about the provident-fund task; this is a concrete relative-delay create request.",
+      "expected_creates": [
+        {
+          "title": "搞一下公积金",
+          "local_time": "14:24:00",
+          "recurring": false
+        }
+      ]
+    },
     "333": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",

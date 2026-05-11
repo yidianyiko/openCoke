@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-0bd8134d8f",
+    "message": null,
+    "offset": 326,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "下午要见雪松，还要准备个人陈述，事情不少呢！RL学习得怎么样了，个人陈述有没有什么想法了？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 326,
+      "input": "我在学习RL，下午要见一下雪松，我还要准备一下我的个人陈述",
+      "user_id": "70f6666eb011e1cdeddeb71a",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a013987f617a1713cccff1e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a01398c79d67974a8c763e9",
+          "expect_output_timestamp": 1778465164,
+          "handled_timestamp": 1778465164,
+          "status": "pending",
+          "message_type": "text",
+          "message": "下午要见雪松，还要准备个人陈述，事情不少呢！RL学习得怎么样了，个人陈述有没有什么想法了？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-0bd8134d8f",
+            "case_index": 326,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693bafd909af1bf513e83629",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-0bd8134d8f-case-326",
+              "business_conversation_key": "user-path-0bd8134d8f-case-326",
+              "causal_inbound_event_id": "user-path-0bd8134d8f-case-326-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "70f6666eb011e1cdeddeb71a"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.013
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

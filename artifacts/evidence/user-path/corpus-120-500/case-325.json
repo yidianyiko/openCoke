@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-b07e92c663",
+    "message": null,
+    "offset": 325,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "很高兴你愿意分享今天的计划！我看到你说“这是我今天的计划”，但还没告诉我具体内容呢。\n\n有什么安排或任务需要我帮忙记住吗？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 325,
+      "input": "这是我今天的计划",
+      "user_id": "a52a44d8affb0daeef5c82b1",
+      "original_from_user": "693ba58509af1bf513e8360f",
+      "input_message_id": "6a013977685776956f500093",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a01397979d67974a8c763df",
+          "expect_output_timestamp": 1778465145,
+          "handled_timestamp": 1778465145,
+          "status": "pending",
+          "message_type": "text",
+          "message": "很高兴你愿意分享今天的计划！我看到你说“这是我今天的计划”，但还没告诉我具体内容呢。\n\n有什么安排或任务需要我帮忙记住吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-b07e92c663",
+            "case_index": 325,
+            "original_from_user": "693ba58509af1bf513e8360f",
+            "source_id": "693ba6b009af1bf513e8361b",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-b07e92c663-case-325",
+              "business_conversation_key": "user-path-b07e92c663-case-325",
+              "causal_inbound_event_id": "user-path-b07e92c663-case-325-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a52a44d8affb0daeef5c82b1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

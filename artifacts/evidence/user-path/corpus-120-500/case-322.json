@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-6bade24e09",
+    "message": null,
+    "offset": 322,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，今天的任务安排得很充实呢！要看完6、7、8、9四节网课，一共四节课，踏踏实实学起来吧～\n\n按照你自己的节奏来，学完好好休息！有什么问题随时可以找我哦。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 322,
+      "input": "今天的计划是看完6，7，8，9四节网课",
+      "user_id": "1fba5589f104840ffc0ebe14",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a0138d6328c213dac6de496",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0138da79d67974a8c763a7",
+          "expect_output_timestamp": 1778464986,
+          "handled_timestamp": 1778464986,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，今天的任务安排得很充实呢！要看完6、7、8、9四节网课，一共四节课，踏踏实实学起来吧～\n\n按照你自己的节奏来，学完好好休息！有什么问题随时可以找我哦。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-6bade24e09",
+            "case_index": 322,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693b836e09af1bf513e835e3",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-6bade24e09-case-322",
+              "business_conversation_key": "user-path-6bade24e09-case-322",
+              "causal_inbound_event_id": "user-path-6bade24e09-case-322-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1fba5589f104840ffc0ebe14"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
