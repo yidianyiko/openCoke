@@ -1458,7 +1458,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 213
+    assert len(expectations) <= 214
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1474,7 +1474,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 213
+    assert len(selected) == 214
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1532,7 +1532,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 213
+    assert report["fixture_overrides"] <= 214
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -1869,6 +1869,53 @@ def test_validate_observations_rejects_unexpected_extra_fixture_create():
     )
 
     assert "unexpected_reminder_count_mismatch:2>1" in errors
+
+
+def test_validate_observations_accepts_recurring_output_when_title_contains_comma():
+    case = normal_eval.ReminderNormalPathCase(
+        input="从明天早上7点到晚上11点，每小时提醒一次及时完成任务，及时打卡",
+        expected_intent="reminder",
+        matched_keywords=["每小时", "提醒"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "及时完成任务，及时打卡",
+                    "local_time": "07:00:00",
+                    "recurring": True,
+                    "rrule_contains": ["FREQ=HOURLY", "UNTIL"],
+                }
+            ],
+        },
+    )
+    reminders = [
+        {
+            "title": "及时完成任务，及时打卡",
+            "lifecycle_state": "active",
+            "next_fire_at": datetime(2026, 5, 11, 22, 0, tzinfo=timezone.utc),
+            "schedule": {
+                "local_time": "07:00:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": "FREQ=HOURLY;UNTIL=20260512T140000Z",
+            },
+        }
+    ]
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "已创建提醒：及时完成任务，及时打卡（2026-05-12 07:00，"
+                    "循环规则 FREQ=HOURLY;UNTIL=20260512T140000Z）"
+                )
+            }
+        ],
+        reminders=reminders,
+    )
+
+    assert errors == []
 
 
 def test_validate_observations_accepts_case3_expected_shape():

@@ -988,28 +988,29 @@ def output_segment_for_expected(
     output_text: str,
     expected: ExpectedReminderCreate,
 ) -> str:
-    positions: list[int] = []
+    positions: list[tuple[int, int]] = []
     output_text = normalize_expected_title(output_text.replace("\n", "；"))
     local_time = (expected.local_time or "")[:5]
     if local_time:
         index = output_text.find(local_time)
         if index >= 0:
-            positions.append(index)
+            positions.append((index, index + len(local_time)))
     for variant in expected_title_variants(expected):
         index = output_text.find(variant)
         if index >= 0:
-            positions.append(index)
+            positions.append((index, index + len(variant)))
     if not positions:
         return ""
 
-    position = min(positions)
+    position = min(index for index, _end in positions)
+    matched_end = max(end for index, end in positions if index == position)
     start = 0
     end = len(output_text)
     for separator in "，,。；;！？!?\n":
         left = output_text.rfind(separator, 0, position)
         if left >= start:
             start = left + 1
-        right = output_text.find(separator, position)
+        right = output_text.find(separator, matched_end)
         if right != -1 and right < end:
             end = right
     left_paren = output_text.rfind("（", start, position + 1)

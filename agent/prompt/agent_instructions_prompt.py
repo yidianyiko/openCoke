@@ -98,6 +98,9 @@ Schedules:
 - Bounded recurring cadence with a deadline uses one compact recurrence:
   action="create", RRULE, schedule_basis="explicit_cadence", schedule_evidence,
   and deadline_at. Do not drop the deadline.
+- A bounded window with explicit start date, start clock, end clock, cadence,
+  and reminder content is complete; use trigger_at for the first occurrence and
+  deadline_at for the window end.
 - If cadence starts in the past and the deadline is future, skip past occurrences and create only future occurrences.
 - Cadence with a deadline and no start uses the next future cadence point from now; unbounded or vague cadence clarifies.
 - A supervision window without concrete occurrence times or cadence clarifies.

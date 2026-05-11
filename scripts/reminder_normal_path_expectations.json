@@ -1818,6 +1818,21 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user discusses how reminder delivery/acknowledgement works without asking to create, query, update, or cancel a concrete reminder."
     },
+    "281": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user gives a concrete bounded hourly reminder window with start date, start clock, end clock, cadence, and quoted reminder content, so this is an executable recurring create.",
+      "expected_creates": [
+        {
+          "title": "及时完成任务，及时打卡",
+          "local_time": "07:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=HOURLY",
+            "UNTIL"
+          ]
+        }
+      ]
+    },
     "287": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request."

@@ -127,6 +127,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "manual correction or exception to occurrence times" in prompt
     assert "stops the cadence at or after the same deadline" in prompt
     assert "到/直到/until + clock/date" in prompt
+    assert "bounded window with explicit start date" in prompt
 
 
 def test_retry_prompt_preserves_bare_call_me_clock_contract():
@@ -222,6 +223,22 @@ def test_retry_prompt_preserves_bounded_cadence_end_phrase_contract():
 
     assert "到/直到/until + clock/date" in prompt
     assert "first future occurrence" in prompt
+
+
+def test_retry_prompt_preserves_bounded_window_completion_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "从明天开始从早上7点到晚上11点，每小时提醒一次及时完成任务",
+        _run_context(),
+        reason="primary detector returned invalid structured output",
+    )
+
+    assert "bounded window with explicit start date" in prompt
+    assert "trigger_at for the first occurrence" in prompt
+    assert "deadline_at for the window end" in prompt
 
 
 def test_retry_prompt_preserves_bounded_cadence_stop_boundary_contract():

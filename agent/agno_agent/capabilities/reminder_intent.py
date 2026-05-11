@@ -187,6 +187,7 @@ When the user explicitly lists multiple reminder times and tasks, create each re
 For bounded recurring cadence requests with a deadline, use action="create",
 RRULE, schedule_basis="explicit_cadence", schedule_evidence, and deadline_at.
 Do not drop the deadline.
+A bounded window with explicit start date, start clock, end clock, cadence, and reminder content is complete; use trigger_at for the first occurrence and deadline_at for the window end.
 Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
 Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.
 If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.
