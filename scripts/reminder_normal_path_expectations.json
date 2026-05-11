@@ -2178,6 +2178,17 @@
         }
       ]
     },
+    "334": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user gives a bare local clock and concrete task content; since 07:00 has passed in the late-afternoon corpus timestamp, it resolves to the next local occurrence.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "07:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "335": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders."
