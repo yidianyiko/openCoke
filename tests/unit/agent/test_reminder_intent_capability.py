@@ -104,6 +104,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "One-shot deadline wording" in prompt
     assert "Need/intention statements" in prompt
     assert "Meta discussion or complaints about reminder/alarm behavior" in prompt
+    assert "Plans to test, improve, or discuss reminder functionality" in prompt
     assert "return discussion" in prompt
     assert "Day-of-month wording before the reminder verb" in prompt
     assert (
@@ -1932,6 +1933,65 @@ async def test_reminder_intent_port_treats_behavior_meta_discussion_as_no_action
         command_executor=FakeExecutor(),
     ).run(
         "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_treats_feature_work_topic_as_no_action():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="clarify",
+        action="",
+        clarification_question="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("feature work topic should not retry as reminder")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("feature work topic should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run(
+        "可以呀，明天测试多线程能力，和提醒功能增强",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_does_not_retry_feature_work_discussion():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content={"intent_type": "discussion", "action": ""})
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            raise AssertionError("feature work discussion should not retry")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+    ).run(
+        "可以呀，明天测试多线程能力，和提醒功能增强",
         _run_context(),
     )
 

@@ -171,6 +171,7 @@ One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at
 For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
+Plans to test, improve, or discuss reminder functionality/capability are discussion unless the same message asks for a concrete reminder operation.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
@@ -278,6 +279,10 @@ class ReminderIntentPort:
                 "ReminderDetectAgent timed out in single-Agent runtime: timeout=%.1fs",
                 _agent_runtime_reminder_detect_timeout_seconds(),
             )
+            if _input_is_reminder_feature_work_topic(
+                input_message
+            ) or _input_is_reminder_behavior_meta_discussion(input_message):
+                return _no_action_discussion_result()
             retry_decision = await self._run_retry_detector(
                 input_message,
                 detector_run_context,
@@ -291,6 +296,10 @@ class ReminderIntentPort:
                     _timeout_clarification_result(),
                 )
             decision = retry_decision
+        if _input_is_reminder_feature_work_topic(
+            input_message
+        ) or _input_is_reminder_behavior_meta_discussion(input_message):
+            return _no_action_discussion_result()
         if _is_unrecognized_decision(
             decision
         ) and _input_is_standalone_reminder_opt_out(input_message):
@@ -340,7 +349,11 @@ class ReminderIntentPort:
                 decision = retry_decision
         if _is_clarification_decision(
             decision
-        ) and _input_is_standalone_reminder_opt_out(input_message):
+        ) and (
+            _input_is_standalone_reminder_opt_out(input_message)
+            or _input_is_reminder_behavior_meta_discussion(input_message)
+            or _input_is_reminder_feature_work_topic(input_message)
+        ):
             return _no_action_discussion_result()
         if _is_clarification_decision(decision) and self.retry_agent is not None:
             retry_decision = await self._run_retry_detector(
@@ -475,7 +488,9 @@ class ReminderIntentPort:
             decision
         ) and _input_is_standalone_reminder_acknowledgement(input_message):
             return _no_action_discussion_result()
-        if _input_is_reminder_behavior_meta_discussion(input_message):
+        if _input_is_reminder_behavior_meta_discussion(
+            input_message
+        ) or _input_is_reminder_feature_work_topic(input_message):
             return _no_action_discussion_result()
         workflow_outcome = self._persist_workflow_update(
             decision,
@@ -487,7 +502,9 @@ class ReminderIntentPort:
         if _is_clarification_decision(decision):
             if _input_is_standalone_reminder_opt_out(
                 input_message
-            ) or _input_is_reminder_behavior_meta_discussion(input_message):
+            ) or _input_is_reminder_behavior_meta_discussion(
+                input_message
+            ) or _input_is_reminder_feature_work_topic(input_message):
                 return _no_action_discussion_result()
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
@@ -2116,6 +2133,33 @@ def _input_is_reminder_behavior_meta_discussion(text: str) -> bool:
             r"当.*闹钟|闹钟.*(?:就行|模式)|保持提醒|回复.*提醒|还得回复|"
             r"提醒.*(?:机制|规则|方式|逻辑|怎么|为什么|保持|回复)|"
             r"(?:how|why).*(?:reminder|alarm|notification)",
+            normalized,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _input_is_reminder_feature_work_topic(text: str) -> bool:
+    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
+    if not normalized:
+        return False
+    if _REMINDER_VERB_PATTERN.search(normalized):
+        return False
+    has_feature_reference = bool(
+        re.search(
+            r"提醒\s*(?:功能|能力|系统|模块)|"
+            r"(?:reminder|alarm|notification)\s+"
+            r"(?:feature|functionality|capability|system|module)",
+            normalized,
+            re.IGNORECASE,
+        )
+    )
+    if not has_feature_reference:
+        return False
+    return bool(
+        re.search(
+            r"测试|增强|改进|优化|讨论|研究|能力|功能|"
+            r"\b(?:test|improve|enhance|discuss|research)\b",
             normalized,
             re.IGNORECASE,
         )

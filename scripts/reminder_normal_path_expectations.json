@@ -1889,6 +1889,28 @@
         }
       ]
     },
+    "290": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete research task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "研究poke",
+          "local_time": "16:15:00",
+          "recurring": false
+        }
+      ]
+    },
+    "291": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Tomorrow afternoon three o'clock plus concrete task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "让小吴学习",
+          "local_time": "15:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "292": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder."
