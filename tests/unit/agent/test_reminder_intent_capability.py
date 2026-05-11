@@ -1591,6 +1591,53 @@ async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_corrects_timer_phrase_relative_delay():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 11, 12, 37, 55, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="起来休息，喝水",
+        trigger_at="2026-05-11T09:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_decision.trigger_at == "2026-05-11T13:02:55+00:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：起来休息，喝水"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("开始25分钟计时，计时结束后提醒我起来休息，喝水", run_context)
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：起来休息，喝水"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

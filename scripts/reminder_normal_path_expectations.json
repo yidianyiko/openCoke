@@ -2333,6 +2333,16 @@
         }
       ]
     },
+    "349": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks to start a 25 minute timer and be reminded to get up, rest, and drink water when it ends. The exact local time is run-time dependent.",
+      "expected_creates": [
+        {
+          "title": "起来休息，喝水",
+          "recurring": false
+        }
+      ]
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."

@@ -1201,7 +1201,10 @@ _RELATIVE_DELAY_PATTERN = re.compile(
     r"(?P<prefix_unit>minutes?|mins?|分钟|分|小时|个小时|天|日))"
     r"|(?:(?P<suffix_amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
     r"(?P<suffix_unit>minutes?|mins?|分钟|分|小时|个小时|天|日)\s*"
-    r"(?:后|之后|以后|later))",
+    r"(?:后|之后|以后|later))"
+    r"|(?:(?P<timer_amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
+    r"(?P<timer_unit>minutes?|mins?|分钟|分|小时|个小时|天|日)\s*"
+    r"(?:计时|倒计时))",
     re.IGNORECASE,
 )
 _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
@@ -1263,11 +1266,21 @@ def _single_relative_delay(current_user_text: str) -> timedelta | None:
     if len(matches) != 1:
         return None
     match = matches[0]
-    amount_text = match.group("prefix_amount") or match.group("suffix_amount") or ""
+    amount_text = (
+        match.group("prefix_amount")
+        or match.group("suffix_amount")
+        or match.group("timer_amount")
+        or ""
+    )
     amount = int(amount_text) if amount_text.isdigit() else _parse_chinese_hour(amount_text)
     if amount is None or amount <= 0:
         return None
-    unit = match.group("prefix_unit") or match.group("suffix_unit") or ""
+    unit = (
+        match.group("prefix_unit")
+        or match.group("suffix_unit")
+        or match.group("timer_unit")
+        or ""
+    )
     if unit.lower() in {"分钟", "分", "min", "mins", "minute", "minutes"}:
         return timedelta(minutes=amount)
     if unit in {"小时", "个小时"}:
