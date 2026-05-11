@@ -1122,6 +1122,11 @@ def title_matches_expected_variants(
     if reminder_title in expected_variants:
         return True
     for variant in expected_variants:
+        if len(variant) >= 3 and (
+            reminder_title.startswith(f"{variant}:")
+            or reminder_title.startswith(f"{variant}：")
+        ):
+            return True
         if len(variant) >= 4 and (
             variant in reminder_title or reminder_title in variant
         ):

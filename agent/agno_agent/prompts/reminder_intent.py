@@ -65,6 +65,8 @@ def build_reminder_intent_input(
             "Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.",
             "Plans to test, improve, or discuss reminder functionality/capability are discussion unless the same message asks for a concrete reminder operation.",
             "Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.",
+            "Pomodoro/tomato timer starts are timed reminder requests: if the user asks to start a new Pomodoro/tomato timer and asks to be reminded at the end/time without an explicit duration, use 25 minutes after Time as trigger_at.",
+            "Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Time to trigger_at.",
             "Status-only or referential fragments such as 'not done yet', '还没做', '这件事', or 'that' are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
             "Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.",

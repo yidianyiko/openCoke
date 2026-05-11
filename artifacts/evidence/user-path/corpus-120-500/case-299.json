@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-e431347170",
+    "message": null,
+    "offset": 299,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：番茄钟：论文写作（2026-05-11 11:46）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a012e259b3f741f96e872ab",
+        "owner_user_id": "b4de0657615a6551198c67c7",
+        "title": "番茄钟：论文写作",
+        "schedule": {
+          "anchor_at": "2026-05-11T02:46:00+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "11:46:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a012e219b3f741f96e872a6",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T02:46:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T02:21:38+00:00",
+        "updated_at": "2026-05-11T02:21:38+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 299,
+      "input": "开始新的番茄，进行论文写作，只提醒我时间，别的无需多言",
+      "user_id": "b4de0657615a6551198c67c7",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a012e21b454ee26eafbc518",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a012e259b3f741f96e872ad",
+          "expect_output_timestamp": 1778462245,
+          "handled_timestamp": 1778462245,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：番茄钟：论文写作（2026-05-11 11:46）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-e431347170",
+            "case_index": 299,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693a38c3fe7d911442ed1f65",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-e431347170-case-299",
+              "business_conversation_key": "user-path-e431347170-case-299",
+              "causal_inbound_event_id": "user-path-e431347170-case-299-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "b4de0657615a6551198c67c7"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a012e259b3f741f96e872ab",
+          "owner_user_id": "b4de0657615a6551198c67c7",
+          "title": "番茄钟：论文写作",
+          "schedule": {
+            "anchor_at": "2026-05-11T02:46:00+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "11:46:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a012e219b3f741f96e872a6",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T02:46:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T02:21:38+00:00",
+          "updated_at": "2026-05-11T02:21:38+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

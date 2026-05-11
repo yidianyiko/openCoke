@@ -105,6 +105,8 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "Need/intention statements" in prompt
     assert "Meta discussion or complaints about reminder/alarm behavior" in prompt
     assert "Plans to test, improve, or discuss reminder functionality" in prompt
+    assert "Pomodoro/tomato timer starts are timed reminder requests" in prompt
+    assert "20min later, 过20min" in prompt
     assert "return discussion" in prompt
     assert "Day-of-month wording before the reminder verb" in prompt
     assert (
@@ -1211,6 +1213,53 @@ async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_t
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 11, 2, 20, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="check on 我的结论",
+        trigger_at="2026-05-11T03:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_decision.trigger_at == "2026-05-11T02:40:00+00:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：check on 我的结论"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("yes, 过20min提醒我，check on 我的结论", run_context)
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：check on 我的结论"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -1296,6 +1345,7 @@ async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails
         async def arun(self, *, input, session_state):
             assert "tool rejected past trigger_at" in input
             assert "bare local clock time has already passed" in input
+            assert "Pomodoro/tomato timer" in input
             assert "do not output workflow_update" in input
             assert "workflow_update is not an allowed output field" in input
             return SimpleNamespace(content=retry_decision)

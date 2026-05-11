@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-ef2cebeb47",
+    "message": null,
+    "offset": 293,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：睡觉（2026-05-12 00:04）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a012caf1aba9e64730d9055",
+        "owner_user_id": "2ec51430571fb83ca8b753b6",
+        "title": "睡觉",
+        "schedule": {
+          "anchor_at": "2026-05-11T15:04:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "00:04:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a012cab1aba9e64730d9050",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T15:04:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T15:03:01+00:00",
+        "updated_at": "2026-05-11T15:03:01+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 293,
+      "input": "设置一个00:04的提醒，睡觉",
+      "user_id": "2ec51430571fb83ca8b753b6",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a012cabbf11a71ab400595e",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a012caf1aba9e64730d9057",
+          "expect_output_timestamp": 1778461871,
+          "handled_timestamp": 1778461871,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：睡觉（2026-05-12 00:04）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-ef2cebeb47",
+            "case_index": 293,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693999b530444b69529b5829",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-ef2cebeb47-case-293",
+              "business_conversation_key": "user-path-ef2cebeb47-case-293",
+              "causal_inbound_event_id": "user-path-ef2cebeb47-case-293-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "2ec51430571fb83ca8b753b6"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a012caf1aba9e64730d9055",
+          "owner_user_id": "2ec51430571fb83ca8b753b6",
+          "title": "睡觉",
+          "schedule": {
+            "anchor_at": "2026-05-11T15:04:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "00:04:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a012cab1aba9e64730d9050",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T15:04:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T15:03:01+00:00",
+          "updated_at": "2026-05-11T15:03:01+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -173,7 +173,8 @@ Need/intention statements such as "I need to do X at Y" are discussion, not clar
 Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
 Plans to test, improve, or discuss reminder functionality/capability are discussion unless the same message asks for a concrete reminder operation.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
-Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
+Pomodoro/tomato timer starts are timed reminder requests: if the user asks to start a new Pomodoro/tomato timer and asks to be reminded at the end/time without an explicit duration, use 25 minutes after Time as trigger_at.
+Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.
 Day-of-month wording before the reminder verb and clock, such as "22号早上9点提醒我", is an explicit reminder date; preserve that day in trigger_at.
@@ -595,7 +596,9 @@ class ReminderIntentPort:
                 reason=(
                     "reminder tool rejected past trigger_at; if the user gave a "
                     "bare clock time and did not explicitly say today, resolve the "
-                    "next future occurrence"
+                    "next future occurrence. If the request starts a Pomodoro/tomato "
+                    "timer without an explicit duration, use 25 minutes after Time "
+                    "as trigger_at"
                 ),
             )
             if _should_execute_decision(retry_decision) and not (
@@ -1186,9 +1189,12 @@ _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
     r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
 )
 _RELATIVE_DELAY_PATTERN = re.compile(
-    r"(?P<amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
-    r"(?P<unit>分钟|分|小时|个小时|天|日)\s*"
-    r"(?:后|之后|以后)"
+    r"(?:过\s*(?P<prefix_amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
+    r"(?P<prefix_unit>minutes?|mins?|分钟|分|小时|个小时|天|日))"
+    r"|(?:(?P<suffix_amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
+    r"(?P<suffix_unit>minutes?|mins?|分钟|分|小时|个小时|天|日)\s*"
+    r"(?:后|之后|以后|later))",
+    re.IGNORECASE,
 )
 _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
     r"^(?:都|也|还|这|那|这个|那个|这些|那些|它|事情|事|东西|任务|it|that|this)*"
@@ -1244,12 +1250,12 @@ def _single_relative_delay(current_user_text: str) -> timedelta | None:
     if len(matches) != 1:
         return None
     match = matches[0]
-    amount_text = match.group("amount") or ""
+    amount_text = match.group("prefix_amount") or match.group("suffix_amount") or ""
     amount = int(amount_text) if amount_text.isdigit() else _parse_chinese_hour(amount_text)
     if amount is None or amount <= 0:
         return None
-    unit = match.group("unit") or ""
-    if unit in {"分钟", "分"}:
+    unit = match.group("prefix_unit") or match.group("suffix_unit") or ""
+    if unit.lower() in {"分钟", "分", "min", "mins", "minute", "minutes"}:
         return timedelta(minutes=amount)
     if unit in {"小时", "个小时"}:
         return timedelta(hours=amount)

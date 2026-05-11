@@ -1915,9 +1915,57 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder."
     },
+    "293": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks to set a reminder at 00:04 with sleep as the reminder content.",
+      "expected_creates": [
+        {
+          "title": "睡觉",
+          "local_time": "00:04:00",
+          "recurring": false
+        }
+      ]
+    },
     "294": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request."
+    },
+    "295": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks to set a morning 9:20 reminder with wake-up content.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_time": "09:20:00",
+          "recurring": false
+        }
+      ]
+    },
+    "296": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a concrete noon trigger but no reminder content, so the agent should ask what to remind."
+    },
+    "298": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder after 20 minutes with concrete mixed-language content.",
+      "expected_creates": [
+        {
+          "title": "check on 我的结论",
+          "local_time": "11:40:00",
+          "recurring": false
+        }
+      ]
+    },
+    "299": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Starting a new Pomodoro while asking to be reminded only of the time is a timed reminder request using the 25-minute Pomodoro default.",
+      "expected_creates": [
+        {
+          "title": "番茄钟",
+          "local_time": "11:46:00",
+          "recurring": false
+        }
+      ]
     },
     "313": {
       "evaluation_expectation": "crud",
