@@ -1213,9 +1213,9 @@ _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
 _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
     r"|(?P<hour_only>\d{1,2})\s*(?:点|时)(?P<half>半)?"
-    r"(?:\s*(?P<hour_only_minute>\d{1,2})\s*分)?"
+    r"(?:\s*(?P<hour_only_minute>\d{1,2})\s*分?)?"
     r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
-    r"(?:\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分)?"
+    r"(?:\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?)?"
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚|每晚)")
 

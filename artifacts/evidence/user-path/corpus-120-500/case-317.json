@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-e0dad1816b",
+    "message": null,
+    "offset": 317,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "哈哈，我懂你这种感觉！综艺确实很容易让人上头，心里老想着刚才那个片段，根本静不下来学习。\n\n其实很多人都是这样子的，专注力需要连贯的环境。你这种意识的觉察已经很棒了知道自己适合「专时专用」。\n\n你是那种要么就不做，要做就一门心思扑上去的性格吧？这样也挺好的，反而更容易进入心流状态～\n\n最近是在准备什么考试或者任务吗？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 317,
+      "input": "而且我不能一会学习一会看综艺，不然的话，我会一直想着综艺的内容。",
+      "user_id": "c0e59c2eb890510c0134651d",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a013752676f96561c06a0ed",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0137559d5d67658e07012b",
+          "expect_output_timestamp": 1778464597,
+          "handled_timestamp": 1778464597,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哈哈，我懂你这种感觉！综艺确实很容易让人上头，心里老想着刚才那个片段，根本静不下来学习。\n\n其实很多人都是这样子的，专注力需要连贯的环境。你这种意识的觉察已经很棒了知道自己适合「专时专用」。\n\n你是那种要么就不做，要做就一门心思扑上去的性格吧？这样也挺好的，反而更容易进入心流状态～\n\n最近是在准备什么考试或者任务吗？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-e0dad1816b",
+            "case_index": 317,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693afccb68bf5e9703e8eadc",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-e0dad1816b-case-317",
+              "business_conversation_key": "user-path-e0dad1816b-case-317",
+              "causal_inbound_event_id": "user-path-e0dad1816b-case-317-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "c0e59c2eb890510c0134651d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

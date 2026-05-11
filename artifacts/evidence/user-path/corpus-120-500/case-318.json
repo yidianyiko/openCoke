@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-d1a02f73a2",
+    "message": null,
+    "offset": 318,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "嗯哪个好呀～想要戒掉手机开始学习，云云觉得可以试试这样安排呢：\n\n**戒掉手机的小技巧**\n1. 设定固定的手机使用时间，比如每天只有中午和晚上可以看一会儿\n2. 把手机放在离书桌远一点的地方，或者交给家人保管\n3. 换成老年机或者把社交软件都删掉，眼不见心不烦嘛\n4. 可以在学习的时候把手机调成勿扰模式哦\n\n**学习计划安排**\n1. 先给自己定个小目标，比如今天先学2小时，慢慢再增加时间\n2. 把学习任务拆分，做成todo清单，每完成一项就打个勾，会很有成就感呢\n3. 找到自己最高效的时间段来学习，有些人早上精神好，有些人晚上更专注\n4. 学45分钟就休息10分钟，保持好状态很重要呀\n\n一开始可能会比较难熬，但坚持下来就会习惯啦～云云相信你可以的！你要是想更详细规划某个部分，可以告诉云云哦，我们一起想想办法呀～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 318,
+      "input": "你再给我制定个计划，怎么戒掉手机，开始学习。",
+      "user_id": "39d57342ca41078db0d36bee",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a013765e6da6d4da270177f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a01376a9d5d67658e070135",
+          "expect_output_timestamp": 1778464618,
+          "handled_timestamp": 1778464618,
+          "status": "pending",
+          "message_type": "text",
+          "message": "嗯哪个好呀～想要戒掉手机开始学习，云云觉得可以试试这样安排呢：\n\n**戒掉手机的小技巧**\n1. 设定固定的手机使用时间，比如每天只有中午和晚上可以看一会儿\n2. 把手机放在离书桌远一点的地方，或者交给家人保管\n3. 换成老年机或者把社交软件都删掉，眼不见心不烦嘛\n4. 可以在学习的时候把手机调成勿扰模式哦\n\n**学习计划安排**\n1. 先给自己定个小目标，比如今天先学2小时，慢慢再增加时间\n2. 把学习任务拆分，做成todo清单，每完成一项就打个勾，会很有成就感呢\n3. 找到自己最高效的时间段来学习，有些人早上精神好，有些人晚上更专注\n4. 学45分钟就休息10分钟，保持好状态很重要呀\n\n一开始可能会比较难熬，但坚持下来就会习惯啦～云云相信你可以的！你要是想更详细规划某个部分，可以告诉云云哦，我们一起想想办法呀～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-d1a02f73a2",
+            "case_index": 318,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693afd5b68bf5e9703e8eade",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-d1a02f73a2-case-318",
+              "business_conversation_key": "user-path-d1a02f73a2-case-318",
+              "causal_inbound_event_id": "user-path-d1a02f73a2-case-318-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "39d57342ca41078db0d36bee"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.013
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

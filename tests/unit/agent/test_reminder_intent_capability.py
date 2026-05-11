@@ -1214,6 +1214,53 @@ async def test_reminder_intent_port_preserves_explicit_clock_minutes():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 11, 22, 38, 56, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="内科横向刷题结束",
+        trigger_at="2026-05-12T00:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_decision.trigger_at == "2026-05-12T09:10:00+09:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：内科横向刷题结束"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("9点10提醒我内科横向刷题结束", run_context)
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：内科横向刷题结束"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_treats_every_night_as_pm_clock():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

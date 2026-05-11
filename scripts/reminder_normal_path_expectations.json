@@ -2075,6 +2075,17 @@
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder."
     },
+    "320": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder at 9:10; the omitted Chinese minute suffix still denotes the clock minute.",
+      "expected_creates": [
+        {
+          "title": "内科横向刷题结束",
+          "local_time": "09:10:00",
+          "recurring": false
+        }
+      ]
+    },
     "333": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",

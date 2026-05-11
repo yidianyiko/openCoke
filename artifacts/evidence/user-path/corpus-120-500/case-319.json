@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-0dbdabf33f",
+    "message": null,
+    "offset": 319,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "听起来你晚上休息被打扰了，这真的很让人烦恼呢。是什么原因呢？如果方便的话可以说说，我陪你聊聊。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 319,
+      "input": "但是晚上有人不让我休息。",
+      "user_id": "99664ef8304b21cf560fba6d",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a0137789784d46beacfd7a5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a01377b9d5d67658e07013f",
+          "expect_output_timestamp": 1778464635,
+          "handled_timestamp": 1778464635,
+          "status": "pending",
+          "message_type": "text",
+          "message": "听起来你晚上休息被打扰了，这真的很让人烦恼呢。是什么原因呢？如果方便的话可以说说，我陪你聊聊。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-0dbdabf33f",
+            "case_index": 319,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693afe8068bf5e9703e8eae4",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-0dbdabf33f-case-319",
+              "business_conversation_key": "user-path-0dbdabf33f-case-319",
+              "causal_inbound_event_id": "user-path-0dbdabf33f-case-319-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "99664ef8304b21cf560fba6d"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.006
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
