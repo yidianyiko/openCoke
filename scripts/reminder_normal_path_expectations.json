@@ -2267,6 +2267,18 @@
         }
       ]
     },
+    "342": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder at five past five.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_date": "2026-05-11",
+          "local_time": "17:05:00",
+          "recurring": false
+        }
+      ]
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
