@@ -706,6 +706,7 @@ def validate_observations(
         if not output_is_pure_reminder_clarification(
             outputs,
             case_input=case.input,
+            judge=clarification_judge,
         ):
             errors.append("user_output_implies_unconfirmed_reminder")
     if expectation in {"clarify", "capability", "discussion", "query"}:
@@ -714,6 +715,7 @@ def validate_observations(
         if expectation == "discussion" and output_is_pure_reminder_clarification(
             outputs,
             case_input=case.input,
+            judge=clarification_judge,
         ):
             errors.append("unexpected_reminder_clarification")
         if expectation == "clarify" and not output_mentions_clarification(
@@ -1268,7 +1270,6 @@ def deterministic_output_mentions_clarification(
         r"(已创建提醒|提醒(已经|已)?(设好|设置好了|安排好了)|已经安排好了)", normalized
     ):
         return False
-
     asks_question = bool(
         re.search(
             r"[?？]|请问|告诉我|确认|你希望|你想|想要|要不要|是否|还是|几点|"
@@ -1300,9 +1301,12 @@ def output_is_pure_reminder_clarification(
     outputs: list[dict[str, Any]],
     *,
     case_input: str = "",
+    judge: Callable[[str, str], bool] | None = None,
 ) -> bool:
     output_text = combined_output_text(outputs)
     if not deterministic_output_mentions_clarification(case_input, output_text):
+        return False
+    if not (judge or run_clarification_output_judge)(case_input, output_text):
         return False
     first_segment = next(
         (
@@ -1415,7 +1419,9 @@ a reminder create/update/cancel/complete action. Missing details can include
 date, time, cadence/frequency, reminder content, target reminder, or whether to
 set a related reminder. A proposed option is true if it asks for confirmation.
 Return false for acknowledgements, unrelated chat, capability explanations, or
-promises that a reminder is already set. Answer with the structured schema only.
+conditional future offers such as "if you later need reminders/help, tell me
+anytime" when they do not ask for current missing reminder details. Return
+false for promises that a reminder is already set. Answer with the structured schema only.
 
 User: {case_input}
 Assistant: {output_text}"""

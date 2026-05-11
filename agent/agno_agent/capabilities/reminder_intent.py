@@ -170,6 +170,7 @@ Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD cr
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
+Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
@@ -472,6 +473,8 @@ class ReminderIntentPort:
             decision
         ) and _input_is_standalone_reminder_acknowledgement(input_message):
             return _no_action_discussion_result()
+        if _input_is_reminder_behavior_meta_discussion(input_message):
+            return _no_action_discussion_result()
         workflow_outcome = self._persist_workflow_update(
             decision,
             run_context,
@@ -480,7 +483,9 @@ class ReminderIntentPort:
         if workflow_outcome.concurrent_drop:
             return _fresh_workflow_state_result(workflow_outcome.fresh_workflow)
         if _is_clarification_decision(decision):
-            if _input_is_standalone_reminder_opt_out(input_message):
+            if _input_is_standalone_reminder_opt_out(
+                input_message
+            ) or _input_is_reminder_behavior_meta_discussion(input_message):
                 return _no_action_discussion_result()
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
@@ -1989,6 +1994,36 @@ def _input_is_standalone_reminder_acknowledgement(text: str) -> bool:
         return False
     chinese_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
     return len(chinese_chars) <= 12
+
+
+def _input_is_reminder_behavior_meta_discussion(text: str) -> bool:
+    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
+    if not normalized:
+        return False
+    if (
+        _BARE_CLOCK_PATTERN.search(normalized)
+        or _EXPLICIT_DATE_PATTERN.search(normalized)
+        or _RELATIVE_DELAY_PATTERN.search(normalized)
+        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after|in)\b", normalized)
+    ):
+        return False
+    if not re.search(
+        r"闹钟|提醒|叫我|喊我|alarm|reminder|notification|nudge",
+        normalized,
+        re.IGNORECASE,
+    ):
+        return False
+    if re.search(r"取消|删除|停止|停掉|完成|做完|不用|不要|别提醒|不提醒", normalized):
+        return False
+    return bool(
+        re.search(
+            r"当.*闹钟|闹钟.*(?:就行|模式)|保持提醒|回复.*提醒|还得回复|"
+            r"提醒.*(?:机制|规则|方式|逻辑|怎么|为什么|保持|回复)|"
+            r"(?:how|why).*(?:reminder|alarm|notification)",
+            normalized,
+            re.IGNORECASE,
+        )
+    )
 
 
 def _clarification_result(decision: Any) -> CapabilityResult:

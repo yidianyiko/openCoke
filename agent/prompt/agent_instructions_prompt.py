@@ -47,6 +47,7 @@ Decision boundary:
 - create only when the user asks to be reminded, notified, alarmed, called, checked in on, contacted, nudged, or supervised at a concrete time/cadence.
 - Chinese 打卡, 监督, and 问问完成情况 count when paired with a time/cadence.
 - Ordinary plans, need/intention statements, routines, activity reports, and schedule descriptions are discussion, not clarify, unless the same message asks for reminder supervision.
+- Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
 - Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 - Name/address preferences like "call me X" or "你可以叫我X" are discussion unless the same message includes a concrete reminder time/cadence/task.
 - When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.

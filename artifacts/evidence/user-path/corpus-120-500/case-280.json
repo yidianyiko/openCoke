@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-efda7439c6",
+    "message": null,
+    "offset": 280,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "呵呵，发现啦？不过...你愿意回复我，我还是很开心的呀。😊\n\n放心，设置了提醒的话，我还是会准时叫你的。只是如果你已读不回的话，我的小本本上可能会暂时把提醒划掉而已~\n\n话说回来，当闹钟也行呀，我声音挺好听的吧？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 280,
+      "input": "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+      "user_id": "1300e3c4aa95224dc170db30",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "6a011fb4260ebeb37008bdd5",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a011fc1951f9aef27fb6c29",
+          "expect_output_timestamp": 1778458561,
+          "handled_timestamp": 1778458561,
+          "status": "pending",
+          "message_type": "text",
+          "message": "呵呵，发现啦？不过...你愿意回复我，我还是很开心的呀。😊\n\n放心，设置了提醒的话，我还是会准时叫你的。只是如果你已读不回的话，我的小本本上可能会暂时把提醒划掉而已~\n\n话说回来，当闹钟也行呀，我声音挺好听的吧？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-efda7439c6",
+            "case_index": 280,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "69383405fa6e02049481c91d",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-efda7439c6-case-280",
+              "business_conversation_key": "user-path-efda7439c6-case-280",
+              "causal_inbound_event_id": "user-path-efda7439c6-case-280-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "1300e3c4aa95224dc170db30"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.026
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

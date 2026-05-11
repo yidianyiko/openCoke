@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-86b72b76c5",
+    "message": null,
+    "offset": 278,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你希望我明天早上几点提醒你起床？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 278,
+      "input": "明天早上你准备怎么叫我起床",
+      "user_id": "7f1d0110842d456eccc224ea",
+      "original_from_user": "69380028fa6e02049481c8f0",
+      "input_message_id": "6a00b5cb5dad8787e98962bc",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a00b5d708c90d60584c7994",
+          "expect_output_timestamp": 1778431447,
+          "handled_timestamp": 1778431447,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你希望我明天早上几点提醒你起床？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-86b72b76c5",
+            "case_index": 278,
+            "original_from_user": "69380028fa6e02049481c8f0",
+            "source_id": "6938304afa6e02049481c918",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-86b72b76c5-case-278",
+              "business_conversation_key": "user-path-86b72b76c5-case-278",
+              "causal_inbound_event_id": "user-path-86b72b76c5-case-278-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "7f1d0110842d456eccc224ea"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 13.025
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

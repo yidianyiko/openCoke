@@ -103,6 +103,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "Complete CRUD decisions must omit workflow_update" in prompt
     assert "One-shot deadline wording" in prompt
     assert "Need/intention statements" in prompt
+    assert "Meta discussion or complaints about reminder/alarm behavior" in prompt
     assert "return discussion" in prompt
     assert (
         "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
@@ -1832,6 +1833,37 @@ async def test_reminder_intent_port_suppresses_management_for_alarm_acknowledgem
         retry_agent=None,
         command_executor=FakeExecutor(),
     ).run("谢谢闹钟", _run_context())
+
+    assert result.ok is True
+    assert result.content == {"action": "none", "intent_type": "discussion"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_treats_behavior_meta_discussion_as_no_action():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="clarify",
+        action="",
+        clarification_question="请问你需要我给你创建什么样的提醒？",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("reminder behavior discussion should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run(
+        "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+        _run_context(),
+    )
 
     assert result.ok is True
     assert result.content == {"action": "none", "intent_type": "discussion"}

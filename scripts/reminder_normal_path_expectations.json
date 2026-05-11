@@ -1770,6 +1770,46 @@
         }
       ]
     },
+    "275": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A bare local clock time plus task content is a complete one-shot reminder; if the clock has passed, it resolves to the next future occurrence.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_time": "06:40:00",
+          "recurring": false
+        }
+      ]
+    },
+    "276": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A concrete evening clock time plus study task content is a complete one-shot reminder; preceding task-ending context is not recurrence evidence.",
+      "expected_creates": [
+        {
+          "title": "学雅思",
+          "local_time": "19:30:00",
+          "recurring": false
+        }
+      ]
+    },
+    "277": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Relative delay wording plus concrete stand-up, rest, and drink-water task content is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "站起来休息，喝水",
+          "local_time": "22:10:00",
+          "recurring": false
+        }
+      ]
+    },
+    "278": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Tomorrow morning plus a wake-up request is missing a concrete clock time, so the agent should ask what time.",
+      "expected_clarification_terms": [
+        "几点"
+      ]
+    },
     "279": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."

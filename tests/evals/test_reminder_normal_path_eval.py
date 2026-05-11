@@ -749,6 +749,34 @@ def test_validate_observations_accepts_discussion_with_trailing_reminder_offer()
     assert errors == []
 
 
+def test_validate_observations_accepts_behavior_discussion_with_future_reminder_offer():
+    case = normal_eval.ReminderNormalPathCase(
+        input="我以为把你纯当闹钟就行了，没想到还得回复你你才会保持提醒",
+        expected_intent="reminder",
+        matched_keywords=["闹钟", "提醒"],
+        metadata={"evaluation_expectation": "discussion"},
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[
+            {
+                "message": (
+                    "啊，原来你是这么想的呀。其实提醒功能确实需要一点互动来保持活跃，"
+                    "不然可能会被系统自动清理掉。"
+                    "如果你有特别需要长期提醒的事项，可以随时告诉我。"
+                )
+            }
+        ],
+        reminders=[],
+        clarification_judge=lambda _case_input, _output_text: False,
+    )
+
+    assert "unexpected_reminder_clarification" not in errors
+    assert errors == []
+
+
 def test_validate_observations_does_not_require_crud_for_nickname_request():
     case = normal_eval.ReminderNormalPathCase(
         input="叫我小凡就行了",
@@ -780,6 +808,7 @@ def test_validate_observations_rejects_reminder_clarification_for_nickname_reque
         "handled",
         outputs=[{"message": "提醒设置还没完成。请确认具体提醒时间和提醒内容。"}],
         reminders=[],
+        clarification_judge=lambda _case_input, _output_text: True,
     )
 
     assert "unexpected_reminder_clarification" in errors
@@ -1232,6 +1261,16 @@ def test_clarification_output_llm_judge_rubric_covers_missing_cadence():
     assert "structured schema" in prompt
 
 
+def test_clarification_output_llm_judge_rubric_excludes_conditional_future_offers():
+    prompt = normal_eval.build_clarification_output_judge_prompt(
+        "我以为把你纯当闹钟就行了，没想到还得回复你你才会保持提醒",
+        "如果你有特别需要长期提醒的事项，可以随时告诉我。",
+    )
+
+    assert "conditional future offers" in prompt
+    assert "do not ask for current missing reminder details" in prompt
+
+
 def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
     case = normal_eval.ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
@@ -1419,7 +1458,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 209
+    assert len(expectations) <= 213
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1435,7 +1474,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 209
+    assert len(selected) == 213
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1493,7 +1532,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 209
+    assert report["fixture_overrides"] <= 213
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
