@@ -2311,6 +2311,28 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user agrees to be reminded in half an hour but does not provide reminder content, so the assistant should ask what to remind about."
     },
+    "347": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder 25 minutes later to get up, rest, and drink water. The exact local time is run-time dependent.",
+      "expected_creates": [
+        {
+          "title": "起来休息喝水",
+          "recurring": false
+        }
+      ]
+    },
+    "348": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder tomorrow afternoon at 2 PM.",
+      "expected_creates": [
+        {
+          "title": "码字",
+          "local_date": "2026-05-12",
+          "local_time": "14:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
