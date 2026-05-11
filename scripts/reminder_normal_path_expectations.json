@@ -2152,6 +2152,21 @@
         }
       ]
     },
+    "331": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks for a reminder next Monday but gives no clock time, so the assistant should ask what time before creating anything."
+    },
+    "332": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder five minutes later to come back and continue writing.",
+      "expected_creates": [
+        {
+          "title": "回来继续写作",
+          "local_time": "16:13:00",
+          "recurring": false
+        }
+      ]
+    },
     "333": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The corpus turn is in the late afternoon, so bare '4:37' is expected as 16:37 for the same upcoming occurrence.",

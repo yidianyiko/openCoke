@@ -1218,6 +1218,7 @@ _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?:\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?)?"
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚|每晚)")
+_AM_DAY_PERIOD_PATTERN = re.compile(r"(早上|早晨|上午|凌晨|清晨|今早|明早)")
 
 
 def _normalize_relative_delay_create_trigger(
@@ -1363,6 +1364,14 @@ def _next_future_trigger_at_for_single_bare_clock(
         current_local = current_time.replace(tzinfo=timezone)
     else:
         current_local = current_time.astimezone(timezone)
+    if _should_treat_bare_clock_as_same_afternoon(
+        current_user_text,
+        matches[0],
+        hour=hour,
+        minute=minute,
+        current_local=current_local,
+    ):
+        hour += 12
     candidate = current_local.replace(
         hour=hour,
         minute=minute,
@@ -1372,6 +1381,31 @@ def _next_future_trigger_at_for_single_bare_clock(
     if candidate <= current_local:
         candidate += timedelta(days=1)
     return candidate.isoformat()
+
+
+def _should_treat_bare_clock_as_same_afternoon(
+    current_user_text: str,
+    match: re.Match[str],
+    *,
+    hour: int,
+    minute: int,
+    current_local: datetime,
+) -> bool:
+    if not (1 <= hour < 12 and current_local.hour >= 12):
+        return False
+    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
+    if _AM_DAY_PERIOD_PATTERN.search(prefix) or _PM_DAY_PERIOD_PATTERN.search(prefix):
+        return False
+    pm_hour = hour + 12
+    if pm_hour not in {current_local.hour, current_local.hour + 1}:
+        return False
+    candidate = current_local.replace(
+        hour=pm_hour,
+        minute=minute,
+        second=0,
+        microsecond=0,
+    )
+    return candidate > current_local
 
 
 def _parse_bare_clock_match(

@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-3b6a45ee7b",
+    "message": null,
+    "offset": 332,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：回来继续写作（2026-05-11 16:13）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a013abd79d67974a8c76460",
+        "owner_user_id": "d0aeb7f72ca75c959076460a",
+        "title": "回来继续写作",
+        "schedule": {
+          "anchor_at": "2026-05-11T07:13:17+00:00",
+          "local_date": "2026-05-11",
+          "local_time": "16:13:17",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a013aba79d67974a8c7645b",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-11T07:13:17+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T07:08:17+00:00",
+        "updated_at": "2026-05-11T07:08:17+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 332,
+      "input": "5分钟之后提醒我回来继续写作",
+      "user_id": "d0aeb7f72ca75c959076460a",
+      "original_from_user": "69367b2c94ff180b41ab7454",
+      "input_message_id": "6a013ab9c4e3d085315a0699",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a013abd79d67974a8c76462",
+          "expect_output_timestamp": 1778465469,
+          "handled_timestamp": 1778465469,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：回来继续写作（2026-05-11 16:13）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-3b6a45ee7b",
+            "case_index": 332,
+            "original_from_user": "69367b2c94ff180b41ab7454",
+            "source_id": "693bcd7109af1bf513e83687",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-3b6a45ee7b-case-332",
+              "business_conversation_key": "user-path-3b6a45ee7b-case-332",
+              "causal_inbound_event_id": "user-path-3b6a45ee7b-case-332-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "d0aeb7f72ca75c959076460a"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a013abd79d67974a8c76460",
+          "owner_user_id": "d0aeb7f72ca75c959076460a",
+          "title": "回来继续写作",
+          "schedule": {
+            "anchor_at": "2026-05-11T07:13:17+00:00",
+            "local_date": "2026-05-11",
+            "local_time": "16:13:17",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a013aba79d67974a8c7645b",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-11T07:13:17+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T07:08:17+00:00",
+          "updated_at": "2026-05-11T07:08:17+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 4.009
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
