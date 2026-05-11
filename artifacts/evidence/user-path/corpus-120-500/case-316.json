@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-37d881229a",
+    "message": null,
+    "offset": 316,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "哎呀，都八点半啦？是不是昨晚睡太晚啦？要不要再躺一会儿，还是准备起床啦？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 316,
+      "input": "八点半还没起床",
+      "user_id": "99d0fafb2d24b2b9bbe720fa",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a0136da25dbf75360c22bae",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0136dc9d5d67658e070121",
+          "expect_output_timestamp": 1778464476,
+          "handled_timestamp": 1778464476,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哎呀，都八点半啦？是不是昨晚睡太晚啦？要不要再躺一会儿，还是准备起床啦？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-37d881229a",
+            "case_index": 316,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693af77568bf5e9703e8eabb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-37d881229a-case-316",
+              "business_conversation_key": "user-path-37d881229a-case-316",
+              "causal_inbound_event_id": "user-path-37d881229a-case-316-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "99d0fafb2d24b2b9bbe720fa"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

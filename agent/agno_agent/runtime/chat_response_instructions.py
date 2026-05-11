@@ -25,7 +25,8 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 _REMINDER_TOOL_BOUNDARY = """Reminder tool boundary:
 - Use the reminder tool only when the current user message explicitly asks to create, update, cancel, complete, list, or clarify a reminder/notification/wake-up.
 - A plain plan, schedule, intention, deadline, or activity statement is not by itself a reminder request. Reply normally without proposing or asking whether to set a reminder.
-- If the user says they plan to do something before/after a time but does not ask to be reminded, do not turn it into a reminder clarification or reminder setup offer."""
+- If the user says they plan to do something before/after a time but does not ask to be reminded, do not turn it into a reminder clarification or reminder setup offer.
+- Only speak as if a scheduled reminder is firing when the runtime context is a system reminder trigger; for ordinary user messages that mention a clock time, respond to the reported situation instead of delivering the activity cue."""
 
 
 def _strip_legacy_artifacts(text: str) -> str:

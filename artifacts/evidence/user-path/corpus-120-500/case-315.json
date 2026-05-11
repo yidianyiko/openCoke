@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-e58cc3ad02",
+    "message": null,
+    "offset": 315,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "一小时也很棒呀！能坚持专注这么久说明你很厉害呢。不过也要注意适当休息，让大脑保持最佳状态～\n\n你是打算今天开始用番茄钟还是怎么安排呀？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 315,
+      "input": "万一我一下子学习一小时呢。",
+      "user_id": "98f017647c42648ebff0372b",
+      "original_from_user": "693ae9de68bf5e9703e8ea69",
+      "input_message_id": "6a01361aa01ca6ebcecd6a9b",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a01361fedfa7df50990748f",
+          "expect_output_timestamp": 1778464287,
+          "handled_timestamp": 1778464287,
+          "status": "pending",
+          "message_type": "text",
+          "message": "一小时也很棒呀！能坚持专注这么久说明你很厉害呢。不过也要注意适当休息，让大脑保持最佳状态～\n\n你是打算今天开始用番茄钟还是怎么安排呀？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-e58cc3ad02",
+            "case_index": 315,
+            "original_from_user": "693ae9de68bf5e9703e8ea69",
+            "source_id": "693aefa568bf5e9703e8ea92",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-e58cc3ad02-case-315",
+              "business_conversation_key": "user-path-e58cc3ad02-case-315",
+              "causal_inbound_event_id": "user-path-e58cc3ad02-case-315-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "98f017647c42648ebff0372b"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
