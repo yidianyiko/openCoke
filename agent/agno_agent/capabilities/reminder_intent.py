@@ -1423,11 +1423,11 @@ def _parse_bare_clock_match(
         hour = _parse_chinese_hour(match.group("chinese_hour") or "")
         minute_text = match.group("chinese_minute")
         minute = (
-            _parse_chinese_hour(minute_text)
+            _parse_chinese_minute(minute_text)
             if minute_text
             else (30 if match.group("chinese_half") else 0)
         )
-    if hour is None or not (0 <= hour <= 23 and 0 <= minute <= 59):
+    if hour is None or minute is None or not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None
     prefix = current_user_text[max(0, match.start() - 6) : match.start()]
     if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
@@ -1474,6 +1474,13 @@ def _parse_chinese_hour(value: str) -> int | None:
         if prefix in _CHINESE_DIGIT_VALUES and suffix in _CHINESE_DIGIT_VALUES:
             return _CHINESE_DIGIT_VALUES[prefix] * 10 + _CHINESE_DIGIT_VALUES[suffix]
     return None
+
+
+def _parse_chinese_minute(value: str) -> int | None:
+    text = str(value or "").strip()
+    if len(text) == 2 and text[0] in {"零", "〇"} and text[1] in _CHINESE_DIGIT_VALUES:
+        return _CHINESE_DIGIT_VALUES[text[1]]
+    return _parse_chinese_hour(text)
 
 
 def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:

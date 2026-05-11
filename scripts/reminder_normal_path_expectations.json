@@ -2243,6 +2243,30 @@
         }
       ]
     },
+    "340": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder on December 12 at 17:01.",
+      "expected_creates": [
+        {
+          "title": "早饭",
+          "local_date": "2026-12-12",
+          "local_time": "17:01:00",
+          "recurring": false
+        }
+      ]
+    },
+    "341": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder this afternoon at 17:03.",
+      "expected_creates": [
+        {
+          "title": "出门",
+          "local_date": "2026-05-11",
+          "local_time": "17:03:00",
+          "recurring": false
+        }
+      ]
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
