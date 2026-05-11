@@ -107,6 +107,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "Plans to test, improve, or discuss reminder functionality" in prompt
     assert "Pomodoro/tomato timer starts are timed reminder requests" in prompt
     assert "20min later, 过20min" in prompt
+    assert "Completion-conditioned reminders" in prompt
     assert "return discussion" in prompt
     assert "Day-of-month wording before the reminder verb" in prompt
     assert (
@@ -1461,6 +1462,39 @@ async def test_reminder_intent_port_clarifies_date_only_create():
     assert result.ok is True
     assert result.content["intent_type"] == "clarify"
     assert "几点" in result.content["summary"]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_completion_condition_without_time():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="进入论文研究",
+        trigger_at="2026-05-11T06:00:00+00:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("unschedulable completion condition should clarify")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=FakeExecutor(),
+    ).run("我现在要先看两篇文章，看完继续提醒我进入论文研究", _run_context())
+
+    assert result.ok is True
+    assert result.content == {
+        "action": "clarify",
+        "intent_type": "clarify",
+        "summary": "我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
+    }
 
 
 @pytest.mark.asyncio

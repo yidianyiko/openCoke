@@ -61,6 +61,8 @@ Decision boundary:
 - Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 - One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 - Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Current time to trigger_at.
+- Completion-conditioned reminders such as after I finish/read/watch this are
+  not schedulable without a clock or duration; clarify for when to remind.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
 - Noisy filler before a concrete clock time is not recurrence evidence.
 - Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.

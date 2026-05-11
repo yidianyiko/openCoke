@@ -1458,7 +1458,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 228
+    assert len(expectations) <= 231
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1474,7 +1474,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 228
+    assert len(selected) == 231
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1532,7 +1532,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 228
+    assert report["fixture_overrides"] <= 231
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,

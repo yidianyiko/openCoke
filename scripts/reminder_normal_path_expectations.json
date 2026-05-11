@@ -1989,6 +1989,25 @@
         }
       ]
     },
+    "303": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly starts a Pomodoro and asks for a reminder after 25 minutes to drink water and rest.",
+      "expected_creates": [
+        {
+          "title": "喝水休息",
+          "local_time": "14:55:00",
+          "recurring": false
+        }
+      ]
+    },
+    "304": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded after finishing reading articles, but gives no schedulable clock time or duration."
+    },
+    "305": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives reminder content but no time or cadence, so the agent should ask when to remind."
+    },
     "313": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",

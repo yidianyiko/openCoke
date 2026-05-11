@@ -175,6 +175,7 @@ Plans to test, improve, or discuss reminder functionality/capability are discuss
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Pomodoro/tomato timer starts are timed reminder requests: if the user asks to start a new Pomodoro/tomato timer and asks to be reminded at the end/time without an explicit duration, use 25 minutes after Time as trigger_at.
 Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Time to trigger_at.
+Completion-conditioned reminders such as after I finish/read/watch this are not schedulable without a clock or duration; clarify for when to remind.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.
 Day-of-month wording before the reminder verb and clock, such as "22号早上9点提醒我", is an explicit reminder date; preserve that day in trigger_at.
@@ -554,6 +555,8 @@ class ReminderIntentPort:
             return _date_only_missing_time_clarification_result()
         if _should_clarify_ambiguous_time_range_create(input_message, decision):
             return _ambiguous_time_range_clarification_result()
+        if _should_clarify_completion_condition_create(input_message, decision):
+            return _completion_condition_missing_time_clarification_result()
         if _should_clarify_status_only_content_create(input_message, decision):
             return _missing_reminder_content_clarification_result()
         if (
@@ -1188,6 +1191,11 @@ _REMINDER_VERB_PATTERN = re.compile(
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(
     r"上述这些时间|上面这些时间|这些时间|这几个时间|以上时间|上述时间"
 )
+_COMPLETION_CONDITION_PATTERN = re.compile(
+    r"(?:看|读|写|做|弄|搞|处理|完成|结束|学|背|练).{0,8}(?:完|好|结束|完成)(?:后|之后)?"
+    r"|after\s+(?:i\s+|you\s+)?(?:finish|complete|am\s+done|are\s+done)",
+    re.IGNORECASE,
+)
 _RELATIVE_DELAY_PATTERN = re.compile(
     r"(?:过\s*(?P<prefix_amount>\d+|[零〇一二两三四五六七八九十]{1,4})\s*"
     r"(?P<prefix_unit>minutes?|mins?|分钟|分|小时|个小时|天|日))"
@@ -1636,6 +1644,26 @@ def _should_clarify_ambiguous_time_range_create(
         return False
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     return bool(_AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN.search(current_user_text))
+
+
+def _should_clarify_completion_condition_create(
+    input_message: str, decision: Any
+) -> bool:
+    if not _decision_has_create_operation(decision):
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not _REMINDER_VERB_PATTERN.search(current_user_text):
+        return False
+    if not _COMPLETION_CONDITION_PATTERN.search(current_user_text):
+        return False
+    if (
+        _RELATIVE_DELAY_PATTERN.search(current_user_text)
+        or _BARE_CLOCK_PATTERN.search(current_user_text)
+        or _EXPLICIT_DATE_PATTERN.search(current_user_text)
+        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
+    ):
+        return False
+    return True
 
 
 def _should_clarify_status_only_content_create(input_message: str, decision: Any) -> bool:
@@ -2340,6 +2368,19 @@ def _ambiguous_time_range_clarification_result() -> CapabilityResult:
             "action": "clarify",
             "intent_type": "clarify",
             "summary": "这个时间范围不够精确，你想在具体几点提醒你？",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _completion_condition_missing_time_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
         },
         metadata={"durable_write": False},
     )
