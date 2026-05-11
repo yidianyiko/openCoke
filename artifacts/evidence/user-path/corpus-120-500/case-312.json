@@ -1,0 +1,135 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-f2a850cc02",
+    "message": null,
+    "offset": 312,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：起床（2026-05-12 09:30）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a0134a3e706d82f0e0ee20e",
+        "owner_user_id": "14350622ff23ecf1bd08adba",
+        "title": "起床",
+        "schedule": {
+          "anchor_at": "2026-05-12T00:30:00+00:00",
+          "local_date": "2026-05-12",
+          "local_time": "09:30:00",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a01349fe706d82f0e0ee209",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-12T00:30:00+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-11T14:52:29+00:00",
+        "updated_at": "2026-05-11T14:52:29+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 312,
+      "input": "明天上午9:30提醒我起床",
+      "user_id": "14350622ff23ecf1bd08adba",
+      "original_from_user": "692c14e6a538f0baad5561b6",
+      "input_message_id": "6a01349ed326f7070c50c3c2",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0134a3e706d82f0e0ee210",
+          "expect_output_timestamp": 1778463907,
+          "handled_timestamp": 1778463907,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：起床（2026-05-12 09:30）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-f2a850cc02",
+            "case_index": 312,
+            "original_from_user": "692c14e6a538f0baad5561b6",
+            "source_id": "693ae8bd68bf5e9703e8ea66",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-f2a850cc02-case-312",
+              "business_conversation_key": "user-path-f2a850cc02-case-312",
+              "causal_inbound_event_id": "user-path-f2a850cc02-case-312-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "14350622ff23ecf1bd08adba"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a0134a3e706d82f0e0ee20e",
+          "owner_user_id": "14350622ff23ecf1bd08adba",
+          "title": "起床",
+          "schedule": {
+            "anchor_at": "2026-05-12T00:30:00+00:00",
+            "local_date": "2026-05-12",
+            "local_time": "09:30:00",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a01349fe706d82f0e0ee209",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-12T00:30:00+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-11T14:52:29+00:00",
+          "updated_at": "2026-05-11T14:52:29+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

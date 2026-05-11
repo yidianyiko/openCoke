@@ -1217,7 +1217,7 @@ _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
     r"(?:\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分)?"
 )
-_PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
+_PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚|每晚)")
 
 
 def _normalize_relative_delay_create_trigger(

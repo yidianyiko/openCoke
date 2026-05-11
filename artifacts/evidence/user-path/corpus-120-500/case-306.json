@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-b102c6d4a3",
+    "message": null,
+    "offset": 306,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "十点左右提醒你做什么呢？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 306,
+      "input": "晚一点 十点左右提醒我吧",
+      "user_id": "a55786d8b178a70027f1f0a4",
+      "original_from_user": "6936b2c5fa6e02049481c84e",
+      "input_message_id": "6a01327eb1e6d8ee7a600b67",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a013287e706d82f0e0ee187",
+          "expect_output_timestamp": 1778463367,
+          "handled_timestamp": 1778463367,
+          "status": "pending",
+          "message_type": "text",
+          "message": "十点左右提醒你做什么呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-b102c6d4a3",
+            "case_index": 306,
+            "original_from_user": "6936b2c5fa6e02049481c84e",
+            "source_id": "693a846cfe7d911442ed1f82",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-b102c6d4a3-case-306",
+              "business_conversation_key": "user-path-b102c6d4a3-case-306",
+              "causal_inbound_event_id": "user-path-b102c6d4a3-case-306-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a55786d8b178a70027f1f0a4"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 9.02
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

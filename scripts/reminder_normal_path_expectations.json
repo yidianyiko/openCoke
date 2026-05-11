@@ -2008,6 +2008,54 @@
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user gives reminder content but no time or cadence, so the agent should ask when to remind."
     },
+    "307": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a 25-minute writing-session reminder to stand up, rest, and drink water.",
+      "expected_creates": [
+        {
+          "title": "站起来休息喝水",
+          "local_time": "21:14:00",
+          "recurring": false
+        }
+      ]
+    },
+    "308": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly starts a Pomodoro and asks for a reminder after 25 minutes to drink water.",
+      "expected_creates": [
+        {
+          "title": "喝水",
+          "local_time": "22:13:00",
+          "recurring": false
+        }
+      ]
+    },
+    "309": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded after an indefinite while, which is not a concrete schedulable delay."
+    },
+    "310": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a reminder five minutes later to continue writing.",
+      "expected_creates": [
+        {
+          "title": "继续写作",
+          "local_time": "22:18:00",
+          "recurring": false
+        }
+      ]
+    },
+    "312": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a tomorrow morning 9:30 reminder to wake up.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_time": "09:30:00",
+          "recurring": false
+        }
+      ]
+    },
     "313": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",
