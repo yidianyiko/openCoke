@@ -1967,6 +1967,28 @@
         }
       ]
     },
+    "301": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a tonight 7 PM reminder with concrete departure and wine content.",
+      "expected_creates": [
+        {
+          "title": "出门吃饭，记得带家里的葡萄酒",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "302": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for an afternoon 1:50 reminder to wake up.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_time": "13:50:00",
+          "recurring": false
+        }
+      ]
+    },
     "313": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user explicitly asks for a nightly 22:30 reminder to wash up; this is a concrete recurring daily create request.",

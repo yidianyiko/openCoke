@@ -1205,7 +1205,9 @@ _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
 _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
     r"|(?P<hour_only>\d{1,2})\s*(?:点|时)(?P<half>半)?"
+    r"(?:\s*(?P<hour_only_minute>\d{1,2})\s*分)?"
     r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
+    r"(?:\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分)?"
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚)")
 
@@ -1373,10 +1375,16 @@ def _parse_bare_clock_match(
         minute = int(match.group("minute"))
     elif match.group("hour_only") is not None:
         hour = int(match.group("hour_only"))
-        minute = 30 if match.group("half") else 0
+        minute_text = match.group("hour_only_minute")
+        minute = int(minute_text) if minute_text else (30 if match.group("half") else 0)
     else:
         hour = _parse_chinese_hour(match.group("chinese_hour") or "")
-        minute = 30 if match.group("chinese_half") else 0
+        minute_text = match.group("chinese_minute")
+        minute = (
+            _parse_chinese_hour(minute_text)
+            if minute_text
+            else (30 if match.group("chinese_half") else 0)
+        )
     if hour is None or not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None
     prefix = current_user_text[max(0, match.start() - 6) : match.start()]
