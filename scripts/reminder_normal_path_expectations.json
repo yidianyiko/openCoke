@@ -2204,6 +2204,45 @@
         }
       ]
     },
+    "337": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a weekly Friday 5 PM reminder to exercise.",
+      "expected_creates": [
+        {
+          "title": "去锻炼",
+          "local_time": "17:00:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=WEEKLY",
+            "BYDAY=FR"
+          ]
+        }
+      ]
+    },
+    "338": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder this Friday afternoon at 16:55.",
+      "expected_creates": [
+        {
+          "title": "洗衣服",
+          "local_date": "2026-05-15",
+          "local_time": "16:55:00",
+          "recurring": false
+        }
+      ]
+    },
+    "339": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user explicitly asks for a one-shot reminder on December 13 at 10 AM.",
+      "expected_creates": [
+        {
+          "title": "早饭",
+          "local_date": "2026-12-13",
+          "local_time": "10:00:00",
+          "recurring": false
+        }
+      ]
+    },
     "364": {
       "evaluation_expectation": "discussion",
       "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
