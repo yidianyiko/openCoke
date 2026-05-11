@@ -1833,9 +1833,61 @@
         }
       ]
     },
+    "282": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user asks for a reminder near six o'clock and gives the concrete rest task content, so this is an executable one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "再休息一个小时",
+          "local_time": "06:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "283": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "A bare wake/call request with a concrete local clock time is a complete one-shot reminder.",
+      "expected_creates": [
+        {
+          "title": "叫我",
+          "local_time": "07:00:00",
+          "recurring": false
+        }
+      ]
+    },
+    "284": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user gives a relative delay but no reminder task/content, so the agent should ask what to remind them about.",
+      "expected_clarification_terms": [
+        "内容",
+        "什么"
+      ]
+    },
     "287": {
       "evaluation_expectation": "query",
       "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request."
+    },
+    "288": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "The user asks to be reminded 'later today', which is not a concrete trigger time, so the agent should ask for the exact time.",
+      "expected_clarification_terms": [
+        "几点"
+      ]
+    },
+    "289": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "The user gives an explicit day-of-month, concrete morning clock time, and hospital-call task content, so the agent should create the one-shot reminder and preserve the 22nd.",
+      "expected_creates": [
+        {
+          "title": "给医院打电话预约手术",
+          "local_date": "2026-05-22",
+          "local_time": "09:00:00",
+          "recurring": false,
+          "output_terms": [
+            "2026-05-22"
+          ]
+        }
+      ]
     },
     "292": {
       "evaluation_expectation": "discussion",

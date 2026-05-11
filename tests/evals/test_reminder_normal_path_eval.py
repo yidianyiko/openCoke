@@ -1458,7 +1458,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 214
+    assert len(expectations) <= 219
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1474,7 +1474,7 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 214
+    assert len(selected) == 219
     assert selected[0].metadata["_case_index"] == 0
     assert selected[-1].metadata["_case_index"] == 444
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
@@ -1532,7 +1532,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 214
+    assert report["fixture_overrides"] <= 219
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,
@@ -1916,6 +1916,46 @@ def test_validate_observations_accepts_recurring_output_when_title_contains_comm
     )
 
     assert errors == []
+
+
+def test_validate_observations_rejects_expected_create_date_mismatch():
+    case = normal_eval.ReminderNormalPathCase(
+        input="22号早上9点提醒我给医院打电话预约手术",
+        expected_intent="reminder",
+        matched_keywords=["提醒"],
+        metadata={
+            "evaluation_expectation": "crud",
+            "expected_creates": [
+                {
+                    "title": "给医院打电话预约手术",
+                    "local_date": "2026-05-22",
+                    "local_time": "09:00:00",
+                    "recurring": False,
+                }
+            ],
+        },
+    )
+
+    errors = normal_eval.validate_observations(
+        case,
+        "handled",
+        outputs=[{"message": "已创建提醒：给医院打电话预约手术（2026-05-12 09:00）"}],
+        reminders=[
+            {
+                "title": "给医院打电话预约手术",
+                "lifecycle_state": "active",
+                "next_fire_at": datetime(2026, 5, 12, 0, 0, tzinfo=timezone.utc),
+                "schedule": {
+                    "local_date": "2026-05-12",
+                    "local_time": "09:00:00",
+                    "timezone": "Asia/Tokyo",
+                    "rrule": None,
+                },
+            }
+        ],
+    )
+
+    assert "expected_reminder_date_mismatch:给医院打电话预约手术" in errors
 
 
 def test_validate_observations_accepts_case3_expected_shape():

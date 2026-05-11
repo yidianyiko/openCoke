@@ -175,6 +175,7 @@ Do not ask whether to set a reminder for ordinary plans or need/intention statem
 Relative delays such as after 1 min or in 10 minutes are concrete; resolve them from Time to trigger_at.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.
+Day-of-month wording before the reminder verb and clock, such as "22号早上9点提醒我", is an explicit reminder date; preserve that day in trigger_at.
 Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.
 Use short name/object plus activity as reminder content; ignore filler before a concrete reminder time.
 Noisy filler before a concrete clock time is not recurrence evidence.
@@ -537,6 +538,33 @@ class ReminderIntentPort:
             return _ambiguous_time_range_clarification_result()
         if _should_clarify_status_only_content_create(input_message, decision):
             return _missing_reminder_content_clarification_result()
+        if (
+            _should_retry_for_day_of_month_mismatch(
+                input_message, decision, run_context
+            )
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector dropped an explicit day-of-month date; "
+                    "preserve date wording like 22号 before the reminder clock "
+                    "in trigger_at"
+                ),
+            )
+            if _should_execute_decision(
+                retry_decision
+            ) and not _should_retry_for_day_of_month_mismatch(
+                input_message, retry_decision, run_context
+            ):
+                decision = retry_decision
+            else:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
         result = self.command_executor.execute(decision, run_context)
         if (
             not workflow_outcome.had_update
@@ -1605,6 +1633,73 @@ def _decision_has_create_operation(decision: Any) -> bool:
         if str(_operation_value(operation, "action") or "").strip() == "create":
             return True
     return False
+
+
+def _should_retry_for_day_of_month_mismatch(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> bool:
+    expected_day = _explicit_schedule_day_of_month_before_reminder_verb(input_message)
+    if expected_day is None:
+        return False
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    for trigger_at in _create_trigger_values(decision):
+        try:
+            parsed = datetime.fromisoformat(str(trigger_at).replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if parsed.tzinfo is None:
+            local = parsed.replace(tzinfo=timezone)
+        else:
+            local = parsed.astimezone(timezone)
+        if local.day != expected_day:
+            return True
+    return False
+
+
+def _explicit_schedule_day_of_month_before_reminder_verb(
+    input_message: str,
+) -> int | None:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return None
+    verb_match = _REMINDER_VERB_PATTERN.search(current_user_text)
+    search_end = verb_match.start() if verb_match else len(current_user_text)
+    prefix = current_user_text[:search_end]
+    for match in _STANDALONE_DAY_OF_MONTH_PATTERN.finditer(prefix):
+        after_day = prefix[match.end() :].lstrip()
+        if after_day.startswith(("前", "之前", "以前")):
+            continue
+        try:
+            day = int(re.search(r"\d{1,2}", match.group(0)).group(0))
+        except Exception:
+            continue
+        if not 1 <= day <= 31:
+            continue
+        if _BARE_CLOCK_PATTERN.search(after_day):
+            return day
+    return None
+
+
+def _create_trigger_values(decision: Any) -> tuple[str, ...]:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+        return (trigger_at,) if trigger_at else ()
+    if action != "batch":
+        return ()
+    values: list[str] = []
+    for operation in _decision_value(decision, "operations") or []:
+        if str(_operation_value(operation, "action") or "").strip() != "create":
+            continue
+        trigger_at = str(_operation_value(operation, "trigger_at") or "").strip()
+        if trigger_at:
+            values.append(trigger_at)
+    return tuple(values)
 
 
 def _is_today_time_range_points_incomplete_or_recurring(

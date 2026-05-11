@@ -1,0 +1,77 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-1be5712ea8",
+    "message": null,
+    "offset": 287,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "你希望现在补一个提醒，还是以后每天七点都提醒你？另外，七点提醒你做什么呢？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 287,
+      "input": "天呐🥺你七点都没有开始提醒我欸",
+      "user_id": "0327dc4677275bd2a2e6b5c8",
+      "original_from_user": "6934252e4bf7878f04114b07",
+      "input_message_id": "6a012424bcc1577e22d9417f",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a012441c45a62d5f8414243",
+          "expect_output_timestamp": 1778459713,
+          "handled_timestamp": 1778459713,
+          "status": "pending",
+          "message_type": "text",
+          "message": "你希望现在补一个提醒，还是以后每天七点都提醒你？另外，七点提醒你做什么呢？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-1be5712ea8",
+            "case_index": 287,
+            "original_from_user": "6934252e4bf7878f04114b07",
+            "source_id": "6938ebc08de40b62c685be1e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-1be5712ea8-case-287",
+              "business_conversation_key": "user-path-1be5712ea8-case-287",
+              "causal_inbound_event_id": "user-path-1be5712ea8-case-287-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "0327dc4677275bd2a2e6b5c8"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 30.058
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -105,6 +105,7 @@ def test_build_reminder_intent_input_includes_legacy_few_shot_decisions():
     assert "Need/intention statements" in prompt
     assert "Meta discussion or complaints about reminder/alarm behavior" in prompt
     assert "return discussion" in prompt
+    assert "Day-of-month wording before the reminder verb" in prompt
     assert (
         "Noisy filler before a concrete clock time is not recurrence evidence" in prompt
     )
@@ -1011,6 +1012,58 @@ async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
 
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：思考：工作应该去做“非我不可”的事情"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_when_day_of_month_is_dropped():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "给医院打电话预约手术",
+                    "trigger_at": "2026-05-12T09:00:00+00:00",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "dropped an explicit day-of-month date" in input
+            assert "22号 before the reminder clock" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "给医院打电话预约手术",
+                    "trigger_at": "2026-05-22T09:00:00+00:00",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.trigger_at == "2026-05-22T09:00:00+00:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：给医院打电话预约手术"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run(
+        "然后再book一个22号早上9点提醒我给医院打电话预约手术",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：给医院打电话预约手术"
 
 
 @pytest.mark.asyncio

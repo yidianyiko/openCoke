@@ -86,6 +86,9 @@ Fields:
 - Use the input timezone for local times unless the user names another timezone.
 - Resolve relative and bare local times before output; do not pass relative text.
 - If a bare clock time has passed today and today was not explicit, use the next local occurrence.
+- Day-of-month wording before the reminder verb and clock, such as
+  "22号早上9点提醒我", is an explicit reminder date; preserve that day in
+  trigger_at.
 
 Schedules:
 - schedule_basis is one_shot, explicit_occurrences, or explicit_cadence.

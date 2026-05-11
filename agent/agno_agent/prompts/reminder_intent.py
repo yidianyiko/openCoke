@@ -67,6 +67,7 @@ def build_reminder_intent_input(
             "Status-only or referential fragments such as 'not done yet', '还没做', '这件事', or 'that' are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.",
             "Noisy filler before a concrete clock time is not recurrence evidence.",
             "Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.",
+            "Day-of-month wording before the reminder verb and clock, such as '22号早上9点提醒我', is an explicit reminder date; preserve that day in trigger_at.",
             "Do not use RRULE or explicit_cadence unless the user supplies recurrence frequency or interval wording.",
             "Every batch create decision must include top-level schedule_basis and schedule_evidence; do not put them only inside operations.",
             "Clarify and discussion decisions must use empty action and empty operations.",

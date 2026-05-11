@@ -88,6 +88,7 @@ class ExpectedReminderCreate:
     title: str
     local_time: str | None
     recurring: bool | None
+    local_date: str | None = None
     title_variants: tuple[str, ...] = ()
     rrule_contains: tuple[str, ...] = ()
     output_terms: tuple[str, ...] = ()
@@ -798,6 +799,7 @@ def expected_created_reminders_for_case(
                     title=title,
                     local_time=str(local_time) if local_time else None,
                     recurring=recurring if isinstance(recurring, bool) else None,
+                    local_date=str(item.get("local_date") or "").strip() or None,
                     title_variants=title_variants,
                     rrule_contains=rrule_contains,
                     output_terms=output_terms,
@@ -897,6 +899,13 @@ def validate_expected_creates(
             and not local_time_matches_expected(expected.local_time, actual_local_time)
         ):
             errors.append(f"expected_reminder_time_mismatch:{expected.title}")
+        actual_local_date = str(schedule.get("local_date") or "")
+        if (
+            expected.local_date
+            and actual_local_date
+            and actual_local_date != expected.local_date
+        ):
+            errors.append(f"expected_reminder_date_mismatch:{expected.title}")
         rrule = str(schedule.get("rrule") or "").strip()
         if expected.recurring is True and not rrule:
             errors.append(f"expected_recurring_reminder_not_recurring:{expected.title}")
