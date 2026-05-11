@@ -1213,9 +1213,11 @@ _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
 _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
     r"|(?P<hour_only>\d{1,2})\s*(?:点|时)(?P<half>半)?"
-    r"(?:\s*(?:过)?\s*(?P<hour_only_minute>\d{1,2})\s*分?)?"
+    r"(?:\s*差\s*(?P<hour_only_minus_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?"
+    r"|\s*(?:过)?\s*(?P<hour_only_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?)?"
     r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)(?P<chinese_half>半)?"
-    r"(?:\s*(?:过)?\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?)?"
+    r"(?:\s*差\s*(?P<chinese_minus_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?"
+    r"|\s*(?:过)?\s*(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分?)?"
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚|每晚)")
 _AM_DAY_PERIOD_PATTERN = re.compile(r"(早上|早晨|上午|凌晨|清晨|今早|明早)")
@@ -1412,25 +1414,52 @@ def _parse_bare_clock_match(
     current_user_text: str,
     match: re.Match[str],
 ) -> tuple[int, int] | None:
+    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
+    period_applied = False
     if match.group("hour") is not None:
         hour = int(match.group("hour"))
         minute = int(match.group("minute"))
     elif match.group("hour_only") is not None:
         hour = int(match.group("hour_only"))
+        minus_text = match.group("hour_only_minus_minute")
         minute_text = match.group("hour_only_minute")
-        minute = int(minute_text) if minute_text else (30 if match.group("half") else 0)
+        if minus_text:
+            parsed_minus = _parse_clock_minute(minus_text)
+            if parsed_minus is None or not (1 <= parsed_minus <= 59):
+                return None
+            if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+                hour += 12
+                period_applied = True
+            hour, minute = _subtract_clock_minutes(hour, parsed_minus)
+        else:
+            minute = (
+                _parse_clock_minute(minute_text)
+                if minute_text
+                else (30 if match.group("half") else 0)
+            )
     else:
         hour = _parse_chinese_hour(match.group("chinese_hour") or "")
+        minus_text = match.group("chinese_minus_minute")
         minute_text = match.group("chinese_minute")
-        minute = (
-            _parse_chinese_minute(minute_text)
-            if minute_text
-            else (30 if match.group("chinese_half") else 0)
-        )
+        if hour is None:
+            return None
+        if minus_text:
+            parsed_minus = _parse_clock_minute(minus_text)
+            if parsed_minus is None or not (1 <= parsed_minus <= 59):
+                return None
+            if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+                hour += 12
+                period_applied = True
+            hour, minute = _subtract_clock_minutes(hour, parsed_minus)
+        else:
+            minute = (
+                _parse_chinese_minute(minute_text)
+                if minute_text
+                else (30 if match.group("chinese_half") else 0)
+            )
     if hour is None or minute is None or not (0 <= hour <= 23 and 0 <= minute <= 59):
         return None
-    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
-    if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+    if not period_applied and 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
         hour += 12
     return hour, minute
 
@@ -1481,6 +1510,21 @@ def _parse_chinese_minute(value: str) -> int | None:
     if len(text) == 2 and text[0] in {"零", "〇"} and text[1] in _CHINESE_DIGIT_VALUES:
         return _CHINESE_DIGIT_VALUES[text[1]]
     return _parse_chinese_hour(text)
+
+
+def _parse_clock_minute(value: str) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return int(text)
+    return _parse_chinese_minute(text)
+
+
+def _subtract_clock_minutes(hour: int, minutes_before: int) -> tuple[int, int]:
+    total_minutes = (hour % 24) * 60 - minutes_before
+    total_minutes %= 24 * 60
+    return total_minutes // 60, total_minutes % 60
 
 
 def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:
