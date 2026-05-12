@@ -137,26 +137,31 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_preflights_explicit_reminder_intent(monkeypatch):
-    class FakeReminderPort:
-        async def run(self, input_message, run_context, args=None):
-            assert input_message == "18:05提醒我出门"
-            assert args == {}
-            return CapabilityResult(
+async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypatch):
+    created = {}
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            created["model_input"] = kwargs["input"]
+            return SimpleNamespace(
+                content="ignored",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_agent(**kwargs):
+        created["called"] = True
+        assert kwargs["input_message"] == "18:05提醒我出门"
+        kwargs["tool_results"].append(
+            CapabilityResult(
                 name="reminder",
                 ok=True,
                 content={"summary": "已创建提醒：出门（2026-05-10 18:05）"},
                 metadata={"durable_write": True},
             )
+        )
+        return FakeAgent()
 
-    def fake_default_ports():
-        return {"reminder_intent": FakeReminderPort()}
-
-    def fail_create_agent(**kwargs):
-        raise AssertionError("explicit reminders should route to ReminderDetect first")
-
-    monkeypatch.setattr(agent_runtime, "_default_capability_ports", fake_default_ports)
-    monkeypatch.setattr(agent_runtime, "_create_agent", fail_create_agent)
+    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
 
     agent_input = _agent_input()
     agent_input = type(agent_input)(
@@ -175,51 +180,65 @@ async def test_run_agent_runtime_preflights_explicit_reminder_intent(monkeypatch
 
     assert result.visible_messages[0].content == "已创建提醒：出门（2026-05-10 18:05）"
     assert [tool.name for tool in result.tool_results] == ["reminder"]
-    assert result.trace["status"] == "preflight_reminder_intent"
+    assert result.trace == {"runtime": "agent"}
+    assert created["called"] is True
+    assert "user_message:\n18:05提醒我出门" in created["model_input"]
 
 
-def test_reminder_preflight_routes_call_me_only_with_schedule_context():
+@pytest.mark.asyncio
+async def test_run_agent_runtime_routes_pending_reminder_workflow_directly(monkeypatch):
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args=None):
+            assert input_message == "还要持续到晚上七点"
+            assert args == {}
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "这个提醒流程已经更新，还需要补充：频率。"},
+                metadata={"durable_write": False},
+            )
+
+    def fake_default_ports():
+        return {"reminder_intent": FakeReminderPort()}
+
+    def fail_create_agent(**kwargs):
+        raise AssertionError("active pending reminder workflows bypass chat model")
+
+    monkeypatch.setattr(agent_runtime, "_default_capability_ports", fake_default_ports)
+    monkeypatch.setattr(agent_runtime, "_create_agent", fail_create_agent)
+
     agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="还要持续到晚上七点",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
     run_context = _run_context()
+    run_context = type(run_context)(
+        user=run_context.user,
+        character=run_context.character,
+        conversation=run_context.conversation,
+        relation=run_context.relation,
+        platform=run_context.platform,
+        recent_chat_history=run_context.recent_chat_history,
+        current_time=run_context.current_time,
+        runtime_metadata={
+            **run_context.runtime_metadata,
+            "pending_workflow": {"workflow_id": "wf-1"},
+        },
+    )
 
-    assert agent_runtime._should_preflight_reminder_intent(
+    result = await agent_runtime.run_agent_runtime(
         agent_input=agent_input,
         run_context=run_context,
-        input_message="七点叫我可以么",
     )
-    assert agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message="话说你明早能叫我起床么",
-    )
-    assert agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message="（2026年05月10日 reminder-e2e-user发来了文本消息）18:05提醒我出门",
-    )
-    assert agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message=(
-            "你能每天早上7点询问我当天的规划吗？"
-            "最后在每天晚上23.00告诉我，我今天完成了哪些任务"
-        ),
-    )
-    assert not agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message="叫我小凡就行了",
-    )
-    assert not agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message="（2026年05月10日 reminder-e2e-user发来了文本消息）叫我小凡就行了",
-    )
-    assert not agent_runtime._should_preflight_reminder_intent(
-        agent_input=agent_input,
-        run_context=run_context,
-        input_message="你可以叫我小隼",
-    )
+
+    assert result.visible_messages[0].content == "这个提醒流程已经更新，还需要补充：频率。"
+    assert [tool.name for tool in result.tool_results] == ["reminder"]
+    assert result.trace["status"] == "pending_reminder_workflow"
 
 
 @pytest.mark.asyncio

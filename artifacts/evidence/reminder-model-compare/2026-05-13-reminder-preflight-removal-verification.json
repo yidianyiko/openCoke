@@ -1,0 +1,54 @@
+{
+  "task": "Task F: Remove reminder_intent preflight workaround",
+  "date": "2026-05-13",
+  "worktree": "/data/projects/coke/.worktrees/reminder-detect-followups",
+  "decision": {
+    "removed": [
+      "keyword and regex based explicit-reminder preflight routing",
+      "_should_preflight_reminder_intent",
+      "_preflight_reminder_intent_result",
+      "preflight_reminder_intent trace status"
+    ],
+    "retained": [
+      "active pending_workflow reminder continuation direct route, renamed _pending_reminder_workflow_result"
+    ],
+    "reason": "pending_workflow continuation is functional workflow resumption, not the v1 prompt-overload workaround"
+  },
+  "verification": [
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_agent_runtime_output_rules.py tests/unit/agent/test_reminder_intent_capability.py -q",
+      "result": "passed",
+      "summary": "126 passed"
+    },
+    {
+      "command": "rg -n \"preflight_reminder_intent|_should_preflight_reminder_intent|_preflight_reminder_intent_result|REMINDER_PREFLIGHT|AMBIGUOUS_REMINDER_PREFLIGHT\" agent/agno_agent/runtime tests/unit/agent",
+      "result": "passed",
+      "summary": "no matches"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/agent/ -q",
+      "result": "passed",
+      "summary": "289 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/test_clawscale_only_topology.py -v",
+      "result": "passed",
+      "summary": "7 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/runner/ -q",
+      "result": "passed",
+      "summary": "100 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/test_repo_os_structure.py tests/unit/test_guardrail_scripts.py -q",
+      "result": "passed",
+      "summary": "24 passed"
+    },
+    {
+      "command": "zsh scripts/check",
+      "result": "passed",
+      "summary": "check passed"
+    }
+  ]
+}
