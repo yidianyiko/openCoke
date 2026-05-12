@@ -1,0 +1,199 @@
+{
+  "total_cases": 365,
+  "rows": [
+    {
+      "guard": "_input_has_event_time_with_vague_advance_request",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_is_bounded_cadence_deadline_loss",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_is_unbounded_high_frequency_cadence",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_is_unbounded_high_frequency_rrule",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_normalize_past_bare_create_trigger",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_normalize_relative_delay_create_trigger",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_should_retry_for_bounded_recurring_no_future_failure",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_should_retry_for_day_of_month_mismatch",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_should_retry_for_past_one_shot_failure",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_retry_for_title_schedule_evidence_leak",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_retry_for_ungoverned_single_create_title",
+      "hits": 0,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_retry_for_weekday_mismatch",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_should_treat_bare_clock_as_same_afternoon",
+      "hits": 0,
+      "skipped": 365
+    },
+    {
+      "guard": "_input_has_large_today_time_range_points_request",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_next_whole_hour_reference",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_today_time_range_points_request",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_is_reminder_behavior_meta_discussion",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_is_reminder_feature_work_topic",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_is_standalone_reminder_acknowledgement",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_is_standalone_reminder_opt_out",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_is_today_time_range_points_incomplete_or_recurring",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_clarify_ambiguous_time_range_create",
+      "hits": 1,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_clarify_completion_condition_create",
+      "hits": 2,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_one_shot_deadline_without_trigger",
+      "hits": 5,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_retry_for_quoted_title_loss",
+      "hits": 5,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_bounded_cadence_deadline",
+      "hits": 7,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_high_frequency_without_deadline",
+      "hits": 9,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_relative_delay_and_preceding_task_content",
+      "hits": 16,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_is_plain_schedule_statement_without_reminder_request",
+      "hits": 20,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_date_reference_without_clock",
+      "hits": 23,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_clarify_status_only_content_create",
+      "hits": 23,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_retry_for_missing_scheduled_clauses",
+      "hits": 24,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_concrete_time_without_reminder_content",
+      "hits": 32,
+      "skipped": 0
+    },
+    {
+      "guard": "_should_clarify_date_only_create",
+      "hits": 35,
+      "skipped": 0
+    },
+    {
+      "guard": "_input_has_mixed_clocked_reminder_clause",
+      "hits": 61,
+      "skipped": 0
+    },
+    {
+      "guard": "_drop_batch_operations_without_local_schedule_evidence",
+      "hits": 365,
+      "skipped": 0
+    },
+    {
+      "guard": "_drop_ungoverned_batch_plan_operations",
+      "hits": 365,
+      "skipped": 0
+    },
+    {
+      "guard": "_drop_ungoverned_cadence_task_operations",
+      "hits": 365,
+      "skipped": 0
+    }
+  ],
+  "notes": [
+    "Zero hits are candidates for manual review, not automatic deletion.",
+    "Helpers with skipped > 0 need signature-specific instrumentation."
+  ]
+}

@@ -206,6 +206,13 @@ This decision is recorded in ADR 0004
    23/40 while `clarify` dropped from 5/10 to 3/10. That 20 pp clarify
    loss is above the restore threshold, so the few-shots remain until a
    separate compression experiment can recover clarify behavior.
+7. Guard audit: `scripts/_audit_reminder_guards.py` measured candidate
+   per-helper matches on the 365-case expectation corpus and wrote
+   `artifacts/evidence/reminder-model-compare/2026-05-12-guard-coverage.json`.
+   It found 13 zero-hit candidates and 10 low-hit candidates, but 7 of the
+   zero-hit candidates were skipped for every case because they need
+   signature-specific runtime objects. No guards were pruned from this pass;
+   zero-hit now means "manual review candidate," not deletion proof.
 
 ## What This Test Did Not Prove
 
