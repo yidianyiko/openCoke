@@ -2147,9 +2147,16 @@ def _explicit_scheduled_clause_count(input_message: str) -> int:
         or re.search(r"询问我|告诉我|问问我|check in|report", current_user_text, re.I)
     ):
         return 0
+    # A task range such as "11:30-13:30" names one scheduled task clause:
+    # the start time is the reminder trigger and the end time is context.
+    normalized = re.sub(
+        r"(\d{1,2}[:：]\d{2})\s*[-–—]\s*\d{1,2}[:：]\d{2}",
+        r"\1",
+        current_user_text,
+    )
     matches = {
         re.sub(r"\s+", "", match.group(0))
-        for match in _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text)
+        for match in _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(normalized)
     }
     return len(matches)
 

@@ -195,11 +195,10 @@ This decision is recorded in ADR 0004
    updated for v2 content (no longer encoding the legacy 25-rule list
    as test fixtures).
 5. `test_reminder_intent_port_retries_today_time_range_recurring_compression`
-   marked `xfail` — it failed on `main` before the v2 swap due to a
-   guard-interaction bug (`_should_retry_for_missing_scheduled_clauses`
-   fires after the `today_time_range` retry succeeds because
-   `explicit_scheduled_clause_count` exceeds retry op count). Pre-existing,
-   tracked here as a follow-up.
+   was xfail at the time of commit 8d2a968; fixed in a follow-up commit
+   by making `_explicit_scheduled_clause_count` collapse `HH:MM-HH:MM`
+   ranges to the start clock, so today-task-range retries no longer
+   cascade into `_should_retry_for_missing_scheduled_clauses`.
 
 ## What This Test Did Not Prove
 

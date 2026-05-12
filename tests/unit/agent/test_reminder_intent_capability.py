@@ -2512,15 +2512,6 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
     assert [op.title for op in executor.received[0].operations] == ["打卡"]
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Pre-existing: missing_scheduled_clauses guard fires after the "
-        "today_time_range retry succeeds because explicit_scheduled_clause_count"
-        " (3) > retry op count (2). Bug exists on main pre-v2 swap; tracked as "
-        "follow-up to docs/issues/2026-05-12-reminder-detect-model-bake-off.md."
-    ),
-    strict=False,
-)
 @pytest.mark.asyncio
 async def test_reminder_intent_port_retries_today_time_range_recurring_compression():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
@@ -4112,3 +4103,26 @@ async def test_pending_workflow_high_frequency_guard_runs_before_persistence():
 
     assert result.ok is True
     assert result.content["action"] == "clarify"
+
+
+def test_explicit_scheduled_clause_count_treats_ranges_as_single_clauses():
+    """Today-task-range inputs should count one reminder clause per task.
+
+    The start clock is the trigger; the end clock is the task's deadline, not
+    a separate reminder clause.
+    """
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _explicit_scheduled_clause_count,
+    )
+
+    text = (
+        "这是我今天的任务 11：30-13：30 看法考网课；"
+        "13：30-15：30 健身 请在这些时间点提醒我学习"
+    )
+    assert _explicit_scheduled_clause_count(text) == 2
+
+    plain = "提醒我8点喝水，9点锻炼"
+    assert _explicit_scheduled_clause_count(plain) == 2
+
+    single = "10点提醒我"
+    assert _explicit_scheduled_clause_count(single) == 1
