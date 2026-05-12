@@ -199,6 +199,13 @@ This decision is recorded in ADR 0004
    by making `_explicit_scheduled_clause_count` collapse `HH:MM-HH:MM`
    ranges to the start clock, so today-task-range retries no longer
    cascade into `_should_retry_for_missing_scheduled_clauses`.
+6. Few-shot follow-up validation kept the per-turn few-shot block for now.
+   Removing it improved the 30-case time-accuracy subset to 27/30 exact
+   (90.0%, 0 wrong-time) versus the earlier v2-prod 25/30 exact (83.3%),
+   but the 40-case intent-classification subset held flat overall at
+   23/40 while `clarify` dropped from 5/10 to 3/10. That 20 pp clarify
+   loss is above the restore threshold, so the few-shots remain until a
+   separate compression experiment can recover clarify behavior.
 
 ## What This Test Did Not Prove
 
