@@ -94,7 +94,16 @@ Focused reminder-system command set:
 pytest tests/unit/reminder/ tests/unit/dao/test_reminder_dao.py -v
 pytest tests/unit/runner/test_reminder_scheduler.py tests/unit/runner/test_reminder_event_handler.py -v
 pytest tests/unit/agent/test_visible_reminder_protocol_tool.py tests/unit/test_tool_results_context.py -v
+pytest tests/unit/agent/test_severity_thresholds.py -v
 pytest tests/e2e/test_reminder_system_flow.py -v
+```
+
+Severity-tiered corpus check (run before merging changes to the prompt or
+guard helpers; see `docs/design-docs/reminder-corpus-severity.md`):
+
+```bash
+.venv/bin/python scripts/user_path_normal_eval.py --run-all
+# exit 0 requires critical=100%, important>=95%, nice>=80%.
 ```
 
 Focused pending-workflow command set (feature-flagged, default off):

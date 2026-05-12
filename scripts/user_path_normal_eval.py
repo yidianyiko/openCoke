@@ -31,6 +31,7 @@ from dao.user_dao import UserDAO
 
 DEFAULT_CASES_PATH = Path("scripts/reminder_test_cases.json")
 DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json")
+SEVERITY_THRESHOLDS = {"critical": 1.0, "important": 0.95, "nice": 0.80}
 UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS = float(
     os.environ.get("REMINDER_NORMAL_PATH_JUDGE_TIMEOUT_SECONDS", "20")
 )
@@ -1677,17 +1678,44 @@ def summarize(results: list[ReminderNormalPathResult]) -> dict[str, Any]:
     total = len(results)
     passed = sum(1 for result in results if result.passed)
     by_error: dict[str, int] = {}
+    expectations = load_case_expectations(DEFAULT_EXPECTATIONS_PATH)
+    per_severity: dict[str, dict[str, int | float]] = {
+        severity: {"total": 0, "pass": 0, "failed": 0, "pass_rate": 0.0}
+        for severity in SEVERITY_THRESHOLDS
+    }
     for result in results:
+        severity = str(
+            expectations.get(result.index, {}).get("severity") or "important"
+        ).strip()
+        if severity not in per_severity:
+            severity = "important"
+        per_severity[severity]["total"] += 1
         if result.passed:
+            per_severity[severity]["pass"] += 1
+        else:
+            per_severity[severity]["failed"] += 1
+            for error in result.errors:
+                by_error[error] = by_error.get(error, 0) + 1
+    severity_violations = []
+    for severity, stats in per_severity.items():
+        if stats["total"] == 0:
             continue
-        for error in result.errors:
-            by_error[error] = by_error.get(error, 0) + 1
+        pass_rate = stats["pass"] / stats["total"]
+        stats["pass_rate"] = pass_rate
+        threshold = SEVERITY_THRESHOLDS[severity]
+        if pass_rate < threshold:
+            severity_violations.append(
+                f"{severity}: {pass_rate * 100:.1f}% < {threshold * 100:.0f}%"
+            )
     return {
         "total": total,
         "passed": passed,
         "failed": total - passed,
         "pass_rate": passed / total if total else 0,
         "by_error": dict(sorted(by_error.items())),
+        "per_severity": per_severity,
+        "severity_thresholds": SEVERITY_THRESHOLDS,
+        "severity_violations": severity_violations,
         "failures": [asdict(result) for result in results if not result.passed],
     }
 
@@ -1878,8 +1906,6 @@ def main() -> int:
             )
             batches.append(batch_payload)
             all_results.extend(batch_payload["results"])
-            if batch_payload["summary"]["failed"] > 0 and not args.continue_on_failure:
-                break
         summary = summarize(
             [ReminderNormalPathResult(**result) for result in all_results]
         )
@@ -1935,6 +1961,8 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(text + "\n", encoding="utf-8")
     print(text)
+    if payload["run_all"]:
+        return 0 if not payload["summary"]["severity_violations"] else 1
     return 0 if payload["summary"]["failed"] == 0 else 1
 
 

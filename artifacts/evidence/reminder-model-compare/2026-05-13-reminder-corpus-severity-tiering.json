@@ -1,0 +1,50 @@
+{
+  "task": "Task B: Corpus Severity Tiering",
+  "date": "2026-05-13",
+  "worktree": "/data/projects/coke/.worktrees/reminder-detect-followups",
+  "base": "HEAD before Task B commit",
+  "severity_counts": {
+    "critical": 36,
+    "important": 184,
+    "nice": 145,
+    "total": 365
+  },
+  "verification": [
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/agent/test_severity_thresholds.py -v",
+      "result": "passed",
+      "summary": "4 passed"
+    },
+    {
+      "command": "zsh scripts/check",
+      "result": "passed",
+      "summary": "check passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/test_repo_os_structure.py -v",
+      "result": "passed",
+      "summary": "16 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/test_guardrail_scripts.py -v",
+      "result": "passed",
+      "summary": "8 passed"
+    },
+    {
+      "command": "zsh scripts/suggest-verification --base HEAD",
+      "result": "passed",
+      "summary": "suggested repo-os verification"
+    },
+    {
+      "command": "zsh scripts/review-trigger --base HEAD",
+      "result": "human_review_required",
+      "summary": "sensitive repo-os change and oversized fixture diff; evidence artifact added for verification record"
+    }
+  ],
+  "not_run": [
+    {
+      "command": ".venv/bin/python scripts/user_path_normal_eval.py --run-all",
+      "reason": "Task B changed the gate metadata and summary logic, not runtime reminder behavior. Full corpus runtime eval is documented as the merge-time gate for future prompt or guard changes."
+    }
+  ]
+}

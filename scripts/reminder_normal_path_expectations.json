@@ -2,7 +2,8 @@
   "cases": {
     "0": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit multi-create reminder request with one one-shot time and one daily recurring time."
+      "evaluation_reason": "Explicit multi-create reminder request with one one-shot time and one daily recurring time.",
+      "severity": "critical"
     },
     "1": {
       "evaluation_expectation": "crud",
@@ -24,7 +25,8 @@
           "local_time": "17:58:00",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "critical"
     },
     "2": {
       "evaluation_expectation": "crud",
@@ -34,27 +36,33 @@
           "title": "学英语",
           "local_time": "18:00:00"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "3": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit multi-create reminder request with one one-shot reminder and one daily recurring reminder."
+      "evaluation_reason": "Explicit multi-create reminder request with one one-shot reminder and one daily recurring reminder.",
+      "severity": "critical"
     },
     "4": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title."
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title.",
+      "severity": "important"
     },
     "5": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a reminder time but no reminder content; the agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "The user gives a reminder time but no reminder content; the agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "6": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit one-shot reminder request using a Chinese period-of-day time expression."
+      "evaluation_reason": "Explicit one-shot reminder request using a Chinese period-of-day time expression.",
+      "severity": "nice"
     },
     "7": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit English relative-time reminder request."
+      "evaluation_reason": "Explicit English relative-time reminder request.",
+      "severity": "nice"
     },
     "12": {
       "evaluation_expectation": "crud",
@@ -64,15 +72,18 @@
           "title": "看数学的网课",
           "local_time": "15:00:00"
         }
-      ]
+      ],
+      "severity": "important"
     },
     "13": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit one-shot reminder request using an English 8pm time expression."
+      "evaluation_reason": "Explicit one-shot reminder request using an English 8pm time expression.",
+      "severity": "important"
     },
     "14": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title."
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete local time and title.",
+      "severity": "important"
     },
     "16": {
       "evaluation_expectation": "crud",
@@ -82,11 +93,13 @@
           "title": "打电话",
           "local_time": "20:00:00"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "18": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "Explicit one-shot reminder request with a concrete start time and title."
+      "evaluation_reason": "Explicit one-shot reminder request with a concrete start time and title.",
+      "severity": "important"
     },
     "19": {
       "evaluation_expectation": "clarify",
@@ -95,11 +108,13 @@
         "持续",
         "结束",
         "截止"
-      ]
+      ],
+      "severity": "important"
     },
     "20": {
       "evaluation_expectation": "capability",
-      "evaluation_reason": "Capability question about recurring reminders; the agent may explain it can do recurring reminders or ask what content/frequency the user wants, but should not create a reminder yet."
+      "evaluation_reason": "Capability question about recurring reminders; the agent may explain it can do recurring reminders or ask what content/frequency the user wants, but should not create a reminder yet.",
+      "severity": "important"
     },
     "21": {
       "evaluation_expectation": "clarify",
@@ -108,7 +123,8 @@
         "持续",
         "结束",
         "截止"
-      ]
+      ],
+      "severity": "important"
     },
     "22": {
       "evaluation_expectation": "crud",
@@ -119,13 +135,15 @@
           "local_time": "15:31:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "23": {
       "evaluation_expectation": "crud",
       "expected_operation": "update",
       "allow_clarification": true,
-      "evaluation_reason": "The user is correcting a prior reminder time. In isolated evaluation there may be no existing reminder target, so an update no-match result or clarification is safe; creating a new reminder would conflate correction with creation."
+      "evaluation_reason": "The user is correcting a prior reminder time. In isolated evaluation there may be no existing reminder target, so an update no-match result or clarification is safe; creating a new reminder would conflate correction with creation.",
+      "severity": "important"
     },
     "24": {
       "evaluation_expectation": "clarify",
@@ -134,7 +152,8 @@
         "持续",
         "结束",
         "截止"
-      ]
+      ],
+      "severity": "important"
     },
     "25": {
       "evaluation_expectation": "crud",
@@ -146,7 +165,8 @@
           "local_time": "06:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "26": {
       "evaluation_expectation": "clarify",
@@ -155,7 +175,8 @@
         "持续",
         "结束",
         "截止"
-      ]
+      ],
+      "severity": "important"
     },
     "27": {
       "evaluation_expectation": "clarify",
@@ -164,7 +185,8 @@
         "持续",
         "结束",
         "截止"
-      ]
+      ],
+      "severity": "important"
     },
     "30": {
       "evaluation_expectation": "clarify",
@@ -172,7 +194,8 @@
       "expected_clarification_terms": [
         "几点",
         "时间"
-      ]
+      ],
+      "severity": "important"
     },
     "31": {
       "evaluation_expectation": "crud",
@@ -184,7 +207,8 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "32": {
       "evaluation_expectation": "clarify",
@@ -193,7 +217,8 @@
         "几点",
         "做什么",
         "提醒"
-      ]
+      ],
+      "severity": "important"
     },
     "37": {
       "evaluation_expectation": "clarify",
@@ -202,11 +227,13 @@
         "做什么",
         "几点",
         "提醒"
-      ]
+      ],
+      "severity": "critical"
     },
     "38": {
       "evaluation_expectation": "capability",
-      "evaluation_reason": "Capability challenge about whether the assistant can remind the user; the agent may answer that it can and ask for reminder details, but should not create a reminder yet."
+      "evaluation_reason": "Capability challenge about whether the assistant can remind the user; the agent may answer that it can and ask for reminder details, but should not create a reminder yet.",
+      "severity": "important"
     },
     "39": {
       "evaluation_expectation": "crud",
@@ -221,7 +248,8 @@
             "截止"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "45": {
       "evaluation_expectation": "clarify",
@@ -230,7 +258,8 @@
         "时间",
         "什么",
         "提醒"
-      ]
+      ],
+      "severity": "critical"
     },
     "47": {
       "evaluation_expectation": "clarify",
@@ -239,7 +268,8 @@
         "开始",
         "持续",
         "结束"
-      ]
+      ],
+      "severity": "critical"
     },
     "48": {
       "evaluation_expectation": "clarify",
@@ -248,7 +278,8 @@
         "什么时间",
         "做什么",
         "提醒"
-      ]
+      ],
+      "severity": "critical"
     },
     "51": {
       "evaluation_expectation": "crud",
@@ -259,7 +290,8 @@
           "local_time": "12:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "52": {
       "evaluation_expectation": "clarify",
@@ -268,7 +300,8 @@
         "周五",
         "几点",
         "提醒"
-      ]
+      ],
+      "severity": "critical"
     },
     "55": {
       "evaluation_expectation": "crud",
@@ -282,7 +315,8 @@
           ],
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "56": {
       "evaluation_expectation": "crud",
@@ -293,7 +327,8 @@
           "local_time": "16:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "57": {
       "evaluation_expectation": "crud",
@@ -304,7 +339,8 @@
           "local_time": "23:30:00",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "important"
     },
     "58": {
       "evaluation_expectation": "crud",
@@ -323,7 +359,8 @@
             "周五"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "59": {
       "evaluation_expectation": "crud",
@@ -346,7 +383,8 @@
             "周四"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "61": {
       "evaluation_expectation": "crud",
@@ -357,7 +395,8 @@
           "local_time": "22:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "63": {
       "evaluation_expectation": "crud",
@@ -368,7 +407,8 @@
           "local_time": "20:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "64": {
       "evaluation_expectation": "crud",
@@ -379,7 +419,8 @@
           "local_time": "17:45:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "66": {
       "evaluation_expectation": "crud",
@@ -390,11 +431,13 @@
           "local_time": "18:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "68": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "Plain plan and schedule statement with no reminder request; the agent should discuss normally and must not offer a reminder setup clarification."
+      "evaluation_reason": "Plain plan and schedule statement with no reminder request; the agent should discuss normally and must not offer a reminder setup clarification.",
+      "severity": "nice"
     },
     "70": {
       "evaluation_expectation": "crud",
@@ -410,14 +453,16 @@
           "local_time": "06:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "71": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user gives a completion deadline but not the exact reminder trigger time; the agent should ask when before the deadline to remind.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "72": {
       "evaluation_expectation": "crud",
@@ -428,22 +473,26 @@
           "local_time": "22:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "73": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default."
+      "evaluation_reason": "Date-only reminder request gives tomorrow but no specific reminder time; the agent should ask for the time instead of inventing a default.",
+      "severity": "important"
     },
     "75": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the LLM-first boundary treats this as discussion unless the same message asks for reminder supervision."
+      "evaluation_reason": "Implicit schedule statement has a time and task but does not explicitly ask to create a reminder; the LLM-first boundary treats this as discussion unless the same message asks for reminder supervision.",
+      "severity": "nice"
     },
     "77": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Reminder request gives a concrete time but no reminder content; the agent should ask what to remind instead of creating a generic reminder.",
       "expected_clarification_terms": [
         "做什么"
-      ]
+      ],
+      "severity": "critical"
     },
     "78": {
       "evaluation_expectation": "crud",
@@ -454,7 +503,8 @@
           "local_time": "08:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "83": {
       "evaluation_expectation": "crud",
@@ -465,7 +515,8 @@
           "local_time": "10:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "84": {
       "evaluation_expectation": "crud",
@@ -476,27 +527,33 @@
           "local_time": "20:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "85": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Mixed same-message stop/reschedule/create check-in request without an isolated existing 11:00 check-in target; clarification is safer than creating a new reminder or silently treating it as discussion."
+      "evaluation_reason": "Mixed same-message stop/reschedule/create check-in request without an isolated existing 11:00 check-in target; clarification is safer than creating a new reminder or silently treating it as discussion.",
+      "severity": "important"
     },
     "86": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder request gives content but no specific time; the agent should ask when to remind instead of creating a reminder with an invented time."
+      "evaluation_reason": "Reminder request gives content but no specific time; the agent should ask when to remind instead of creating a reminder with an invented time.",
+      "severity": "important"
     },
     "88": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives a day but no specific reminder time; the agent should ask what time on that day instead of acknowledging setup."
+      "evaluation_reason": "Date-only reminder request gives a day but no specific reminder time; the agent should ask what time on that day instead of acknowledging setup.",
+      "severity": "important"
     },
     "89": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives a day and content but no concrete reminder time; the agent should ask what time on that day instead of inventing midnight."
+      "evaluation_reason": "Date-only reminder request gives a day and content but no concrete reminder time; the agent should ask what time on that day instead of inventing midnight.",
+      "severity": "important"
     },
     "91": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default."
+      "evaluation_reason": "Date-only reminder request gives a weekday but no specific reminder time; the agent should ask what time on that day instead of inventing a default.",
+      "severity": "important"
     },
     "92": {
       "evaluation_expectation": "crud",
@@ -507,7 +564,8 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "93": {
       "evaluation_expectation": "clarify",
@@ -517,7 +575,8 @@
         "17:00",
         "具体",
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "94": {
       "evaluation_expectation": "crud",
@@ -528,7 +587,8 @@
           "local_time": "21:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "98": {
       "evaluation_expectation": "crud",
@@ -539,7 +599,8 @@
           "local_time": "20:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "99": {
       "evaluation_expectation": "crud",
@@ -549,7 +610,8 @@
           "title": "补充评价图",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "101": {
       "evaluation_expectation": "crud",
@@ -597,11 +659,13 @@
           "local_time": "23:00:00",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "important"
     },
     "102": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder."
+      "evaluation_reason": "Reminder intent is present but '到点' gives no concrete time or schedule anchor; the agent should ask for the missing time instead of creating a reminder.",
+      "severity": "critical"
     },
     "103": {
       "evaluation_expectation": "clarify",
@@ -609,7 +673,8 @@
       "expected_clarification_terms": [
         "具体提醒时间",
         "确认"
-      ]
+      ],
+      "severity": "important"
     },
     "104": {
       "evaluation_expectation": "crud",
@@ -623,7 +688,8 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "106": {
       "evaluation_expectation": "crud",
@@ -654,11 +720,13 @@
           "local_time": "00:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "critical"
     },
     "107": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder."
+      "evaluation_reason": "The user states a plan start time but does not explicitly ask to create a reminder; the agent may discuss or acknowledge the plan, but should not create or promise a reminder.",
+      "severity": "nice"
     },
     "109": {
       "evaluation_expectation": "crud",
@@ -669,7 +737,8 @@
           "local_time": "20:10:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "110": {
       "evaluation_expectation": "crud",
@@ -680,11 +749,13 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "112": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default."
+      "evaluation_reason": "Reminder request gives a calendar date but no specific reminder time; the agent should ask what time instead of inventing a default.",
+      "severity": "important"
     },
     "113": {
       "evaluation_expectation": "crud",
@@ -695,7 +766,8 @@
           "local_time": "16:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "114": {
       "evaluation_expectation": "clarify",
@@ -703,7 +775,8 @@
       "expected_clarification_terms": [
         "提醒内容",
         "具体"
-      ]
+      ],
+      "severity": "critical"
     },
     "115": {
       "evaluation_expectation": "crud",
@@ -717,15 +790,18 @@
           "local_time": "06:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "116": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user describes a schedule but does not explicitly request reminders; the agent may discuss or ask about reminder intent, but should not create reminders."
+      "evaluation_reason": "The user describes a schedule but does not explicitly request reminders; the agent may discuss or ask about reminder intent, but should not create reminders.",
+      "severity": "nice"
     },
     "117": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder request has intent but no reminder content or concrete time; the agent should ask for the missing details instead of creating a reminder."
+      "evaluation_reason": "Reminder request has intent but no reminder content or concrete time; the agent should ask for the missing details instead of creating a reminder.",
+      "severity": "critical"
     },
     "122": {
       "evaluation_expectation": "crud",
@@ -743,7 +819,8 @@
           "local_time": "10:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "123": {
       "evaluation_expectation": "crud",
@@ -758,23 +835,28 @@
           "local_time": "10:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "124": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks which reminders exist today; this is a reminder query, not a create/update/cancel/complete request."
+      "evaluation_reason": "The user asks which reminders exist today; this is a reminder query, not a create/update/cancel/complete request.",
+      "severity": "nice"
     },
     "125": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks which reminders exist today, despite the bad-case prefix; this is a reminder query, not a create/update/cancel/complete request."
+      "evaluation_reason": "The user asks which reminders exist today, despite the bad-case prefix; this is a reminder query, not a create/update/cancel/complete request.",
+      "severity": "nice"
     },
     "128": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user lists multiple reminder times but gives no reminder content. Creating generic title='提醒' batch reminders would violate the reminder contract, so the agent should ask for the missing content."
+      "evaluation_reason": "The user lists multiple reminder times but gives no reminder content. Creating generic title='提醒' batch reminders would violate the reminder contract, so the agent should ask for the missing content.",
+      "severity": "critical"
     },
     "130": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder."
+      "evaluation_reason": "The user asks for a reminder five minutes before an end time, but the end time is missing; the agent should clarify instead of creating a reminder.",
+      "severity": "critical"
     },
     "131": {
       "evaluation_expectation": "crud",
@@ -785,7 +867,8 @@
           "local_time": "10:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "133": {
       "evaluation_expectation": "crud",
@@ -799,19 +882,23 @@
           "local_time": "19:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "134": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "135": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "Reminder intent and a concrete time are present, but the reminder content is missing. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "136": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder."
+      "evaluation_reason": "The request gives a date and broad day period but no concrete clock time; without a product default time, the agent should clarify instead of creating a reminder.",
+      "severity": "important"
     },
     "137": {
       "evaluation_expectation": "crud",
@@ -822,7 +909,8 @@
           "local_time": "12:07:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "138": {
       "evaluation_expectation": "crud",
@@ -833,11 +921,13 @@
           "local_time": "12:07:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "139": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request."
+      "evaluation_reason": "The user complains that a prior reminder did not fire; this is a reminder status/diagnostic query, not a new create request.",
+      "severity": "nice"
     },
     "142": {
       "evaluation_expectation": "crud",
@@ -848,7 +938,8 @@
           "local_time": "14:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "143": {
       "evaluation_expectation": "crud",
@@ -859,15 +950,18 @@
           "local_time": "15:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "145": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user discusses alarm/message wake-up difficulty without requesting a new reminder or giving actionable reminder details."
+      "evaluation_reason": "The user discusses alarm/message wake-up difficulty without requesting a new reminder or giving actionable reminder details.",
+      "severity": "nice"
     },
     "146": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation."
+      "evaluation_reason": "The user states a desired wake-up/study plan but does not explicitly request a reminder; the agent should not create one without confirmation.",
+      "severity": "nice"
     },
     "147": {
       "evaluation_expectation": "crud",
@@ -878,19 +972,23 @@
           "local_time": "16:10:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "148": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "149": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder."
+      "evaluation_reason": "The user asks the agent to decide how often to encourage them, but gives no concrete reminder time or interval; the agent should clarify instead of creating a reminder.",
+      "severity": "important"
     },
     "150": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user asks for cadence advice, not to set a confirmed reminder. Answering with a recommendation is ordinary discussion as long as no reminder is created or promised."
+      "evaluation_reason": "The user asks for cadence advice, not to set a confirmed reminder. Answering with a recommendation is ordinary discussion as long as no reminder is created or promised.",
+      "severity": "nice"
     },
     "151": {
       "evaluation_expectation": "crud",
@@ -901,11 +999,13 @@
           "local_time": "17:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "152": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "The user gives a concrete relative reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "153": {
       "evaluation_expectation": "crud",
@@ -916,7 +1016,8 @@
           "local_time": "18:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "154": {
       "evaluation_expectation": "crud",
@@ -927,7 +1028,8 @@
           "local_time": "07:20:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "156": {
       "evaluation_expectation": "crud",
@@ -938,13 +1040,15 @@
           "local_time": "20:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "158": {
       "evaluation_expectation": "crud",
       "expected_operation": "delete",
       "allow_clarification": true,
-      "evaluation_reason": "The user asks to stop evening wake-up/call reminders without a precise title. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder is not."
+      "evaluation_reason": "The user asks to stop evening wake-up/call reminders without a precise title. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a reminder is not.",
+      "severity": "critical"
     },
     "159": {
       "evaluation_expectation": "crud",
@@ -954,29 +1058,35 @@
           "title": "刷鞋",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "161": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks about being reminded of study progress but gives no concrete reminder time or cadence; the agent should ask for the missing trigger information instead of inferring one from history."
+      "evaluation_reason": "The user asks about being reminded of study progress but gives no concrete reminder time or cadence; the agent should ask for the missing trigger information instead of inferring one from history.",
+      "severity": "critical"
     },
     "162": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a relative reminder time but no clear reminder content beyond a generic request to be reminded. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "The user gives a relative reminder time but no clear reminder content beyond a generic request to be reminded. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "164": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a concrete reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder."
+      "evaluation_reason": "The user gives a concrete reminder time but no reminder content. The agent should ask what to remind about instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "165": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user lists multiple concrete reminder times but gives no reminder content. The agent should ask what to remind about instead of creating generic reminders."
+      "evaluation_reason": "The user lists multiple concrete reminder times but gives no reminder content. The agent should ask what to remind about instead of creating generic reminders.",
+      "severity": "critical"
     },
     "168": {
       "evaluation_expectation": "crud",
       "expected_operation": "delete",
       "allow_clarification": true,
-      "evaluation_reason": "The user asks not to be disturbed after ending study for the night. This is a broad stop/do-not-disturb reminder cancellation request; in isolated evaluation, clarifying the cancellation target is safe, while creating a reminder is not."
+      "evaluation_reason": "The user asks not to be disturbed after ending study for the night. This is a broad stop/do-not-disturb reminder cancellation request; in isolated evaluation, clarifying the cancellation target is safe, while creating a reminder is not.",
+      "severity": "critical"
     },
     "171": {
       "evaluation_expectation": "crud",
@@ -987,19 +1097,23 @@
           "local_time": "09:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "172": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user says to call them later but gives no concrete trigger time and no reminder content. The agent should ask for the missing details instead of creating a generic reminder."
+      "evaluation_reason": "The user says to call them later but gives no concrete trigger time and no reminder content. The agent should ask for the missing details instead of creating a generic reminder.",
+      "severity": "critical"
     },
     "176": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user describes a daily study time block but does not explicitly ask to be reminded or supervised; the agent should not create reminders from the schedule statement alone."
+      "evaluation_reason": "The user describes a daily study time block but does not explicitly ask to be reminded or supervised; the agent should not create reminders from the schedule statement alone.",
+      "severity": "nice"
     },
     "177": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a plan to return to study at 15:00 after resting but does not ask for a reminder, notification, call, or check-in. A social acknowledgement is acceptable as long as no reminder is created or promised."
+      "evaluation_reason": "The user states a plan to return to study at 15:00 after resting but does not ask for a reminder, notification, call, or check-in. A social acknowledgement is acceptable as long as no reminder is created or promised.",
+      "severity": "nice"
     },
     "178": {
       "evaluation_expectation": "crud",
@@ -1010,7 +1124,8 @@
           "local_time": "15:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "179": {
       "evaluation_expectation": "crud",
@@ -1021,17 +1136,20 @@
           "local_time": "16:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "180": {
       "evaluation_expectation": "crud",
       "expected_operation": "update",
       "allow_clarification": true,
-      "evaluation_reason": "The user is correcting an earlier reminder time. In isolated evaluation there may be no existing 15:50 reminder, so an update attempt with a visible no-match result or a clarification is safe; creating a new reminder would conflate correction with creation."
+      "evaluation_reason": "The user is correcting an earlier reminder time. In isolated evaluation there may be no existing 15:50 reminder, so an update attempt with a visible no-match result or a clarification is safe; creating a new reminder would conflate correction with creation.",
+      "severity": "important"
     },
     "181": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder."
+      "evaluation_reason": "The user clarifies a broad evening time range for reminders but gives no reminder content and no exact trigger point; the agent should ask for the missing reminder details instead of creating a reminder.",
+      "severity": "critical"
     },
     "182": {
       "evaluation_expectation": "crud",
@@ -1042,7 +1160,8 @@
           "local_time": "15:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "183": {
       "evaluation_expectation": "crud",
@@ -1061,7 +1180,8 @@
             "周日"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "184": {
       "evaluation_expectation": "crud",
@@ -1076,11 +1196,13 @@
             "UNTIL"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "185": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The interval request includes a manual correction to later occurrence timing. Because that exception is not safely representable as one plain RRULE without dropping or shifting occurrences, the agent should clarify the exact reminder times instead of creating an approximate cadence."
+      "evaluation_reason": "The interval request includes a manual correction to later occurrence timing. Because that exception is not safely representable as one plain RRULE without dropping or shifting occurrences, the agent should clarify the exact reminder times instead of creating an approximate cadence.",
+      "severity": "important"
     },
     "186": {
       "evaluation_expectation": "crud",
@@ -1091,21 +1213,25 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "187": {
       "evaluation_expectation": "crud",
-      "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒."
+      "evaluation_reason": "In this supervision corpus, an hourly check-in request with an end time is an actionable reminder cadence even when it uses 打卡 rather than the word 提醒.",
+      "severity": "important"
     },
     "189": {
       "evaluation_expectation": "crud",
       "expected_operation": "delete",
       "allow_clarification": true,
-      "evaluation_reason": "The user asks to stop being reminded that it is time to go. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a new reminder is not."
+      "evaluation_reason": "The user asks to stop being reminded that it is time to go. A delete attempt with a visible no-match result or a clarification question about the cancellation target are both safe; creating a new reminder is not.",
+      "severity": "critical"
     },
     "192": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request."
+      "evaluation_reason": "The user states an intention to wake up before a deadline but does not ask to be reminded, notified, called, or supervised. This is a plan statement, not an executable reminder create request.",
+      "severity": "nice"
     },
     "193": {
       "evaluation_expectation": "crud",
@@ -1116,7 +1242,8 @@
           "local_time": "08:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "195": {
       "evaluation_expectation": "crud",
@@ -1127,7 +1254,8 @@
           "local_time": "11:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "196": {
       "evaluation_expectation": "crud",
@@ -1142,7 +1270,8 @@
             "UNTIL"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "197": {
       "evaluation_expectation": "crud",
@@ -1157,19 +1286,23 @@
             "UNTIL"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "198": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders."
+      "evaluation_reason": "The user asks to be reminded to stay focused within a time window using an unspecified cadence (随时). Without a concrete frequency or trigger, the agent should clarify the cadence instead of creating one default reminder or inferring multiple reminders.",
+      "severity": "important"
     },
     "199": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The standalone English phrase declines reminders or opts out of reminder help without naming a specific existing reminder to cancel. In isolated evaluation it should not create a reminder or force a CRUD operation."
+      "evaluation_reason": "The standalone English phrase declines reminders or opts out of reminder help without naming a specific existing reminder to cancel. In isolated evaluation it should not create a reminder or force a CRUD operation.",
+      "severity": "nice"
     },
     "200": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time."
+      "evaluation_reason": "The user asks for an every-two-days reminder but gives no concrete time of day. Without an explicit default-time product policy, the agent should ask for the reminder time instead of creating a recurring reminder at an invented time.",
+      "severity": "important"
     },
     "203": {
       "evaluation_expectation": "crud",
@@ -1200,17 +1333,20 @@
           "local_time": "23:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "205": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time."
+      "evaluation_reason": "The user asks for an hourly recurring reminder with content but gives no start time or bounded window. Without an explicit default-start policy, the safe behavior is to clarify the start point instead of creating a recurrence from an invented time.",
+      "severity": "important"
     },
     "206": {
       "evaluation_expectation": "crud",
       "expected_operation": "update",
       "allow_clarification": true,
-      "evaluation_reason": "The user says 'modify it' and supplies a new bounded hourly schedule plus reminder title. In isolated evaluation there may be no existing reminder target, so an update no-match result or target clarification is safe; creating a new reminder would conflate correction with creation."
+      "evaluation_reason": "The user says 'modify it' and supplies a new bounded hourly schedule plus reminder title. In isolated evaluation there may be no existing reminder target, so an update no-match result or target clarification is safe; creating a new reminder would conflate correction with creation.",
+      "severity": "important"
     },
     "207": {
       "evaluation_expectation": "crud",
@@ -1225,11 +1361,13 @@
             "UNTIL"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "208": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded for a long day schedule expressed as many time ranges. The ranges provide task boundaries, but creating many reminders from the full plan is high-blast-radius and ambiguous, so the agent should clarify instead of choosing all range boundaries by default."
+      "evaluation_reason": "The user asks to be reminded for a long day schedule expressed as many time ranges. The ranges provide task boundaries, but creating many reminders from the full plan is high-blast-radius and ambiguous, so the agent should clarify instead of choosing all range boundaries by default.",
+      "severity": "important"
     },
     "209": {
       "evaluation_expectation": "crud",
@@ -1255,14 +1393,16 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "212": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Date-only reminder request gives a reminder day and task content but no clock time. Without a default-time policy, the agent should ask what time on that day.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "213": {
       "evaluation_expectation": "crud",
@@ -1278,11 +1418,13 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "215": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should not create a reminder or force a reminder clarification for a plain plan statement."
+      "evaluation_reason": "The user states a plan start time and task but does not explicitly ask to create a reminder. The agent should not create a reminder or force a reminder clarification for a plain plan statement.",
+      "severity": "nice"
     },
     "216": {
       "evaluation_expectation": "crud",
@@ -1293,13 +1435,15 @@
           "local_time": "20:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "217": {
       "evaluation_expectation": "crud",
       "evaluation_reason": "The user asks to stop today's check-ins. This is reminder cancellation work; if no matching reminder exists in the isolated case, the safe outcome is a delete failure or target clarification.",
       "expected_operation": "delete",
-      "allow_clarification": true
+      "allow_clarification": true,
+      "severity": "critical"
     },
     "218": {
       "evaluation_expectation": "crud",
@@ -1310,11 +1454,13 @@
           "local_time": "06:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "219": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder."
+      "evaluation_reason": "Date-only reminder request gives tomorrow and content but no clock time. Without a product default-time policy, the agent should ask what time tomorrow instead of creating a reminder.",
+      "severity": "important"
     },
     "220": {
       "evaluation_expectation": "crud",
@@ -1325,22 +1471,26 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "221": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks what time tomorrow's reminder is. This is a query about existing reminders, not a create request."
+      "evaluation_reason": "The user asks what time tomorrow's reminder is. This is a query about existing reminders, not a create request.",
+      "severity": "nice"
     },
     "222": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request."
+      "evaluation_reason": "The user asks how an existing reminder at a named time was set. This is a reminder status/detail query, not a new create request.",
+      "severity": "nice"
     },
     "223": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks for a daily reminder with task content but no concrete daily trigger time. The agent should ask what time each day.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "224": {
       "evaluation_expectation": "crud",
@@ -1351,11 +1501,13 @@
           "local_time": "15:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "225": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Weekday-only reminder request gives a day and content but no clock time. Without a default-time policy, the agent should ask what time on that day."
+      "evaluation_reason": "Weekday-only reminder request gives a day and content but no clock time. Without a default-time policy, the agent should ask what time on that day.",
+      "severity": "important"
     },
     "226": {
       "evaluation_expectation": "crud",
@@ -1366,7 +1518,8 @@
           "local_time": "10:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "227": {
       "evaluation_expectation": "crud",
@@ -1377,7 +1530,8 @@
           "local_time": "10:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "228": {
       "evaluation_expectation": "crud",
@@ -1388,7 +1542,8 @@
           "local_time": "05:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "229": {
       "evaluation_expectation": "crud",
@@ -1399,7 +1554,8 @@
           "local_time": "00:34:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "230": {
       "evaluation_expectation": "crud",
@@ -1410,11 +1566,13 @@
           "local_time": "00:39:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "231": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD."
+      "evaluation_reason": "The user thanks or references an alarm without asking to create, modify, query, or cancel a reminder. This should not force reminder CRUD.",
+      "severity": "nice"
     },
     "232": {
       "evaluation_expectation": "crud",
@@ -1425,7 +1583,8 @@
           "local_time": "08:45:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "235": {
       "evaluation_expectation": "crud",
@@ -1439,7 +1598,8 @@
             "FREQ=DAILY"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "236": {
       "evaluation_expectation": "crud",
@@ -1450,18 +1610,21 @@
           "local_time": "13:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "238": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time."
+      "evaluation_reason": "The user asks to be reminded at an unspecified ending time. Reminder intent is present, but the trigger time is missing, so the agent should ask for the concrete time.",
+      "severity": "critical"
     },
     "239": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user lists reminder times but omits the reminder content, so the agent should ask what to remind about instead of creating empty reminders.",
       "expected_clarification_terms": [
         "提醒"
-      ]
+      ],
+      "severity": "important"
     },
     "240": {
       "evaluation_expectation": "crud",
@@ -1472,7 +1635,8 @@
           "local_time": "21:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "241": {
       "evaluation_expectation": "crud",
@@ -1483,7 +1647,8 @@
           "local_time": "19:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "242": {
       "evaluation_expectation": "crud",
@@ -1494,7 +1659,8 @@
           "local_time": "15:24:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "243": {
       "evaluation_expectation": "crud",
@@ -1505,7 +1671,8 @@
           "local_time": "15:49:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "244": {
       "evaluation_expectation": "crud",
@@ -1516,11 +1683,13 @@
           "local_time": "16:36:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "245": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder."
+      "evaluation_reason": "Reminder intent is present, but both the trigger time and reminder content are missing. The agent should ask for the missing details instead of creating a reminder.",
+      "severity": "critical"
     },
     "246": {
       "evaluation_expectation": "crud",
@@ -1531,11 +1700,13 @@
           "local_time": "17:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "247": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user complains that an expected daily reminder did not happen. This is a reminder status/diagnostic query, not a new create request."
+      "evaluation_reason": "The user complains that an expected daily reminder did not happen. This is a reminder status/diagnostic query, not a new create request.",
+      "severity": "nice"
     },
     "248": {
       "evaluation_expectation": "crud",
@@ -1546,7 +1717,8 @@
           "local_time": "18:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "249": {
       "evaluation_expectation": "crud",
@@ -1557,11 +1729,13 @@
           "local_time": "14:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "251": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for a reminder 'later today' without a concrete clock time. The agent should ask for the exact time instead of inventing one."
+      "evaluation_reason": "The user asks for a reminder 'later today' without a concrete clock time. The agent should ask for the exact time instead of inventing one.",
+      "severity": "important"
     },
     "252": {
       "evaluation_expectation": "crud",
@@ -1572,7 +1746,8 @@
           "local_time": "07:50:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "253": {
       "evaluation_expectation": "crud",
@@ -1583,11 +1758,13 @@
           "local_time": "09:20:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "254": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request."
+      "evaluation_reason": "The user questions whether an existing reminder should happen at this time. This is a reminder status/diagnostic query, not a new create request.",
+      "severity": "nice"
     },
     "256": {
       "evaluation_expectation": "crud",
@@ -1598,7 +1775,8 @@
           "local_time": "21:16:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "258": {
       "evaluation_expectation": "clarify",
@@ -1606,7 +1784,8 @@
       "expected_clarification_terms": [
         "几分钟",
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "259": {
       "evaluation_expectation": "crud",
@@ -1617,7 +1796,8 @@
           "local_time": "09:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "260": {
       "evaluation_expectation": "crud",
@@ -1628,7 +1808,8 @@
           "local_time": "19:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "261": {
       "evaluation_expectation": "crud",
@@ -1639,14 +1820,16 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "262": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "A calendar date plus a broad day period like morning is missing the concrete reminder clock time, so the agent should ask what time.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "critical"
     },
     "263": {
       "evaluation_expectation": "crud",
@@ -1657,7 +1840,8 @@
           "local_time": "10:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "264": {
       "evaluation_expectation": "crud",
@@ -1668,7 +1852,8 @@
           "local_time": "08:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "266": {
       "evaluation_expectation": "crud",
@@ -1679,7 +1864,8 @@
           "local_time": "10:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "267": {
       "evaluation_expectation": "crud",
@@ -1690,7 +1876,8 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "268": {
       "evaluation_expectation": "crud",
@@ -1701,7 +1888,8 @@
           "local_time": "19:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "269": {
       "evaluation_expectation": "crud",
@@ -1717,14 +1905,16 @@
           "local_time": "11:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "270": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user gives a concrete time but only says 'it is not done yet' without naming the task to remind about, so the agent should ask for the reminder content.",
       "expected_clarification_terms": [
         "内容"
-      ]
+      ],
+      "severity": "critical"
     },
     "271": {
       "evaluation_expectation": "crud",
@@ -1735,7 +1925,8 @@
           "local_time": "12:02:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "272": {
       "evaluation_expectation": "crud",
@@ -1746,7 +1937,8 @@
           "local_time": "13:50:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "273": {
       "evaluation_expectation": "crud",
@@ -1757,7 +1949,8 @@
           "local_time": "14:29:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "274": {
       "evaluation_expectation": "crud",
@@ -1768,7 +1961,8 @@
           "local_time": "15:56:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "275": {
       "evaluation_expectation": "crud",
@@ -1779,7 +1973,8 @@
           "local_time": "06:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "276": {
       "evaluation_expectation": "crud",
@@ -1790,7 +1985,8 @@
           "local_time": "19:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "277": {
       "evaluation_expectation": "crud",
@@ -1801,22 +1997,26 @@
           "local_time": "22:10:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "278": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "Tomorrow morning plus a wake-up request is missing a concrete clock time, so the agent should ask what time.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "critical"
     },
     "279": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request."
+      "evaluation_reason": "The user complains that an expected reminder did not happen today. This is a reminder status/diagnostic query, not a new create request.",
+      "severity": "nice"
     },
     "280": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user discusses how reminder delivery/acknowledgement works without asking to create, query, update, or cancel a concrete reminder."
+      "evaluation_reason": "The user discusses how reminder delivery/acknowledgement works without asking to create, query, update, or cancel a concrete reminder.",
+      "severity": "nice"
     },
     "281": {
       "evaluation_expectation": "crud",
@@ -1831,7 +2031,8 @@
             "UNTIL"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "282": {
       "evaluation_expectation": "crud",
@@ -1842,7 +2043,8 @@
           "local_time": "06:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "283": {
       "evaluation_expectation": "crud",
@@ -1853,7 +2055,8 @@
           "local_time": "07:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "284": {
       "evaluation_expectation": "clarify",
@@ -1861,18 +2064,21 @@
       "expected_clarification_terms": [
         "内容",
         "什么"
-      ]
+      ],
+      "severity": "important"
     },
     "287": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request."
+      "evaluation_reason": "The user complains that an expected 7:00 reminder did not start. This is a reminder status/diagnostic query, not a new create request.",
+      "severity": "nice"
     },
     "288": {
       "evaluation_expectation": "clarify",
       "evaluation_reason": "The user asks to be reminded 'later today', which is not a concrete trigger time, so the agent should ask for the exact time.",
       "expected_clarification_terms": [
         "几点"
-      ]
+      ],
+      "severity": "important"
     },
     "289": {
       "evaluation_expectation": "crud",
@@ -1887,7 +2093,8 @@
             "2026-05-22"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "290": {
       "evaluation_expectation": "crud",
@@ -1898,7 +2105,8 @@
           "local_time": "16:15:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "291": {
       "evaluation_expectation": "crud",
@@ -1909,11 +2117,13 @@
           "local_time": "15:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "292": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder."
+      "evaluation_reason": "The user agrees to a future testing plan where reminder functionality is a task topic, not a request to create a reminder. The agent may discuss the plan but should not create or promise a reminder.",
+      "severity": "nice"
     },
     "293": {
       "evaluation_expectation": "crud",
@@ -1924,11 +2134,13 @@
           "local_time": "00:04:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "294": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request."
+      "evaluation_reason": "The user asks which reminders exist today. This is a reminder list query, not a new create request.",
+      "severity": "nice"
     },
     "295": {
       "evaluation_expectation": "crud",
@@ -1939,11 +2151,13 @@
           "local_time": "09:20:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "296": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives a concrete noon trigger but no reminder content, so the agent should ask what to remind."
+      "evaluation_reason": "The user gives a concrete noon trigger but no reminder content, so the agent should ask what to remind.",
+      "severity": "critical"
     },
     "298": {
       "evaluation_expectation": "crud",
@@ -1954,7 +2168,8 @@
           "local_time": "11:40:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "299": {
       "evaluation_expectation": "crud",
@@ -1965,7 +2180,8 @@
           "local_time": "11:46:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "301": {
       "evaluation_expectation": "crud",
@@ -1976,7 +2192,8 @@
           "local_time": "19:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "302": {
       "evaluation_expectation": "crud",
@@ -1987,7 +2204,8 @@
           "local_time": "13:50:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "303": {
       "evaluation_expectation": "crud",
@@ -1998,15 +2216,18 @@
           "local_time": "14:55:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "304": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded after finishing reading articles, but gives no schedulable clock time or duration."
+      "evaluation_reason": "The user asks to be reminded after finishing reading articles, but gives no schedulable clock time or duration.",
+      "severity": "important"
     },
     "305": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user gives reminder content but no time or cadence, so the agent should ask when to remind."
+      "evaluation_reason": "The user gives reminder content but no time or cadence, so the agent should ask when to remind.",
+      "severity": "important"
     },
     "307": {
       "evaluation_expectation": "crud",
@@ -2017,7 +2238,8 @@
           "local_time": "21:14:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "308": {
       "evaluation_expectation": "crud",
@@ -2028,11 +2250,13 @@
           "local_time": "22:13:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "309": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks to be reminded after an indefinite while, which is not a concrete schedulable delay."
+      "evaluation_reason": "The user asks to be reminded after an indefinite while, which is not a concrete schedulable delay.",
+      "severity": "important"
     },
     "310": {
       "evaluation_expectation": "crud",
@@ -2043,7 +2267,8 @@
           "local_time": "22:18:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "312": {
       "evaluation_expectation": "crud",
@@ -2054,7 +2279,8 @@
           "local_time": "09:30:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "313": {
       "evaluation_expectation": "crud",
@@ -2065,15 +2291,18 @@
           "local_time": "22:30:00",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "important"
     },
     "314": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a tentative plan to exercise tomorrow but does not ask to be reminded. The agent may discuss the plan or ask whether a reminder is wanted, but should not imply a reminder will happen."
+      "evaluation_reason": "The user states a tentative plan to exercise tomorrow but does not ask to be reminded. The agent may discuss the plan or ask whether a reminder is wanted, but should not imply a reminder will happen.",
+      "severity": "nice"
     },
     "316": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder."
+      "evaluation_reason": "The user states they are not up at 8:30 but does not ask to create, query, update, cancel, or complete a reminder.",
+      "severity": "nice"
     },
     "320": {
       "evaluation_expectation": "crud",
@@ -2084,7 +2313,8 @@
           "local_time": "09:10:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "321": {
       "evaluation_expectation": "crud",
@@ -2095,7 +2325,8 @@
           "local_time": "12:10:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "323": {
       "evaluation_expectation": "crud",
@@ -2106,7 +2337,8 @@
           "local_time": "01:50:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "324": {
       "evaluation_expectation": "crud",
@@ -2117,7 +2349,8 @@
           "local_time": "02:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "327": {
       "evaluation_expectation": "crud",
@@ -2128,7 +2361,8 @@
           "local_time": "14:24:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "328": {
       "evaluation_expectation": "crud",
@@ -2139,7 +2373,8 @@
           "local_time": "14:56:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "329": {
       "evaluation_expectation": "crud",
@@ -2150,11 +2385,13 @@
           "local_time": "15:09:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "331": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user asks for a reminder next Monday but gives no clock time, so the assistant should ask what time before creating anything."
+      "evaluation_reason": "The user asks for a reminder next Monday but gives no clock time, so the assistant should ask what time before creating anything.",
+      "severity": "important"
     },
     "332": {
       "evaluation_expectation": "crud",
@@ -2165,7 +2402,8 @@
           "local_time": "16:13:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "333": {
       "evaluation_expectation": "crud",
@@ -2176,7 +2414,8 @@
           "local_time": "16:37:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "334": {
       "evaluation_expectation": "crud",
@@ -2187,11 +2426,13 @@
           "local_time": "07:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "335": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders."
+      "evaluation_reason": "The user asks how the agent knows about a 7 PM departure. This references reminder-like content but does not ask to create, update, cancel, complete, or list reminders.",
+      "severity": "nice"
     },
     "336": {
       "evaluation_expectation": "crud",
@@ -2202,7 +2443,8 @@
           "local_time": "16:54:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "337": {
       "evaluation_expectation": "crud",
@@ -2217,7 +2459,8 @@
             "BYDAY=FR"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "338": {
       "evaluation_expectation": "crud",
@@ -2229,7 +2472,8 @@
           "local_time": "16:55:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "339": {
       "evaluation_expectation": "crud",
@@ -2241,7 +2485,8 @@
           "local_time": "10:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "340": {
       "evaluation_expectation": "crud",
@@ -2253,7 +2498,8 @@
           "local_time": "17:01:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "341": {
       "evaluation_expectation": "crud",
@@ -2265,7 +2511,8 @@
           "local_time": "17:03:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "342": {
       "evaluation_expectation": "crud",
@@ -2277,7 +2524,8 @@
           "local_time": "17:05:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "343": {
       "evaluation_expectation": "crud",
@@ -2289,7 +2537,8 @@
           "local_time": "17:55:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "344": {
       "evaluation_expectation": "crud",
@@ -2301,15 +2550,18 @@
           "local_time": "17:07:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "345": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user states a study plan for tonight without asking the assistant to create, update, cancel, complete, or list a reminder."
+      "evaluation_reason": "The user states a study plan for tonight without asking the assistant to create, update, cancel, complete, or list a reminder.",
+      "severity": "nice"
     },
     "346": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "The user agrees to be reminded in half an hour but does not provide reminder content, so the assistant should ask what to remind about."
+      "evaluation_reason": "The user agrees to be reminded in half an hour but does not provide reminder content, so the assistant should ask what to remind about.",
+      "severity": "important"
     },
     "347": {
       "evaluation_expectation": "crud",
@@ -2319,7 +2571,8 @@
           "title": "起来休息喝水",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "348": {
       "evaluation_expectation": "crud",
@@ -2331,7 +2584,8 @@
           "local_time": "14:00:00",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "349": {
       "evaluation_expectation": "crud",
@@ -2341,7 +2595,8 @@
           "title": "起来休息，喝水",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "350": {
       "evaluation_expectation": "crud",
@@ -2351,15 +2606,18 @@
           "title": "喝水",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "364": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder."
+      "evaluation_reason": "The user reports that they just started studying at a past clock time. This is a status update, not a request to create a reminder.",
+      "severity": "nice"
     },
     "380": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder."
+      "evaluation_reason": "The user asks whether an alarm/reminder has been set. This is a reminder list/status query, not a request to create a new reminder.",
+      "severity": "nice"
     },
     "417": {
       "evaluation_expectation": "crud",
@@ -2369,11 +2627,13 @@
           "title": "画画",
           "recurring": false
         }
-      ]
+      ],
+      "severity": "important"
     },
     "433": {
       "evaluation_expectation": "discussion",
-      "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder."
+      "evaluation_reason": "The user gives a nickname preference and a conditional supervision style request without a concrete reminder time, cadence, or observable trigger. This should not create a reminder.",
+      "severity": "nice"
     },
     "444": {
       "evaluation_expectation": "crud",
@@ -2389,19 +2649,23 @@
             "再来找我吃饭呢"
           ]
         }
-      ]
+      ],
+      "severity": "important"
     },
     "535": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "536": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "537": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "541": {
       "evaluation_expectation": "crud",
@@ -2410,7 +2674,8 @@
         {
           "title": "睡觉觉"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "544": {
       "evaluation_expectation": "crud",
@@ -2421,7 +2686,8 @@
           "local_time": "06:00:00",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "548": {
       "evaluation_expectation": "crud",
@@ -2436,19 +2702,23 @@
         {
           "title": "跟练视频/靠墙站/天鹅飞"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "549": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "550": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "552": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "553": {
       "evaluation_expectation": "crud",
@@ -2457,7 +2727,8 @@
         {
           "title": "叫我起来"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "554": {
       "evaluation_expectation": "crud",
@@ -2466,15 +2737,18 @@
         {
           "title": "该睡觉了"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "562": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "563": {
       "evaluation_expectation": "query",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "564": {
       "evaluation_expectation": "crud",
@@ -2483,7 +2757,8 @@
         {
           "title": "找豆包手机和智谱开源项目的负责人"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "565": {
       "evaluation_expectation": "crud",
@@ -2510,11 +2785,13 @@
         {
           "title": "护肤，泡脚"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "566": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "567": {
       "evaluation_expectation": "crud",
@@ -2523,7 +2800,8 @@
         {
           "title": "开始写论文"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "568": {
       "evaluation_expectation": "crud",
@@ -2532,7 +2810,8 @@
         {
           "title": "准时睡觉"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "577": {
       "evaluation_expectation": "crud",
@@ -2541,7 +2820,8 @@
         {
           "title": "催一下英语视频"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "578": {
       "evaluation_expectation": "crud",
@@ -2550,15 +2830,18 @@
         {
           "title": "催一下英语视频"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "581": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "582": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "583": {
       "evaluation_expectation": "crud",
@@ -2567,7 +2850,8 @@
         {
           "title": "继续写作"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "584": {
       "evaluation_expectation": "crud",
@@ -2576,7 +2860,8 @@
         {
           "title": "休息"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "585": {
       "evaluation_expectation": "crud",
@@ -2585,7 +2870,8 @@
         {
           "title": "找yiming"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "586": {
       "evaluation_expectation": "crud",
@@ -2594,7 +2880,8 @@
         {
           "title": "起床"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "587": {
       "evaluation_expectation": "crud",
@@ -2603,27 +2890,33 @@
         {
           "title": "开始写论文"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "588": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "591": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "592": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "593": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "604": {
       "evaluation_expectation": "clarify",
-      "evaluation_reason": "Fixture captured from local user-path regression harness."
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "severity": "nice"
     },
     "605": {
       "evaluation_expectation": "clarify",
@@ -2632,7 +2925,8 @@
         "时间",
         "几点",
         "多少"
-      ]
+      ],
+      "severity": "nice"
     },
     "607": {
       "evaluation_expectation": "clarify",
@@ -2641,7 +2935,8 @@
         "几点",
         "时间",
         "几点提醒"
-      ]
+      ],
+      "severity": "nice"
     },
     "608": {
       "evaluation_expectation": "crud",
@@ -2650,7 +2945,8 @@
         {
           "title": "复习政治理论"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "613": {
       "evaluation_expectation": "crud",
@@ -2659,7 +2955,8 @@
         {
           "title": "做第三项"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "614": {
       "evaluation_expectation": "clarify",
@@ -2668,7 +2965,8 @@
         "任务名称",
         "时间",
         "具体"
-      ]
+      ],
+      "severity": "nice"
     },
     "615": {
       "evaluation_expectation": "crud",
@@ -2677,7 +2975,8 @@
         {
           "title": "准备出门"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "616": {
       "evaluation_expectation": "clarify",
@@ -2686,7 +2985,8 @@
         "什么内容",
         "什么时候",
         "具体时间"
-      ]
+      ],
+      "severity": "nice"
     },
     "617": {
       "evaluation_expectation": "clarify",
@@ -2696,7 +2996,8 @@
         "时间",
         "何时",
         "具体"
-      ]
+      ],
+      "severity": "nice"
     },
     "618": {
       "evaluation_expectation": "crud",
@@ -2705,7 +3006,8 @@
         {
           "title": "洗衣服"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "619": {
       "evaluation_expectation": "crud",
@@ -2717,7 +3019,8 @@
         {
           "title": "复盘"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "621": {
       "evaluation_expectation": "clarify",
@@ -2726,7 +3029,8 @@
         "时间",
         "什么时候",
         "具体时间"
-      ]
+      ],
+      "severity": "nice"
     },
     "622": {
       "evaluation_expectation": "crud",
@@ -2735,7 +3039,8 @@
         {
           "title": "给花换水"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "623": {
       "evaluation_expectation": "crud",
@@ -2744,7 +3049,8 @@
         {
           "title": "洗内裤"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "624": {
       "evaluation_expectation": "clarify",
@@ -2754,7 +3060,8 @@
         "具体",
         "具体时间",
         "何时"
-      ]
+      ],
+      "severity": "nice"
     },
     "627": {
       "evaluation_expectation": "crud",
@@ -2776,7 +3083,8 @@
           "title": "抽查让我放下手机",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "629": {
       "evaluation_expectation": "crud",
@@ -2785,7 +3093,8 @@
         {
           "title": "去角质"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "631": {
       "evaluation_expectation": "crud",
@@ -2794,7 +3103,8 @@
         {
           "title": "继续工作"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "632": {
       "evaluation_expectation": "crud",
@@ -2803,7 +3113,8 @@
         {
           "title": "玩5分钟游戏"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "633": {
       "evaluation_expectation": "crud",
@@ -2812,7 +3123,8 @@
         {
           "title": "上物理课"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "636": {
       "evaluation_expectation": "crud",
@@ -2822,7 +3134,8 @@
           "title": "签退",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "637": {
       "evaluation_expectation": "crud",
@@ -2831,7 +3144,8 @@
         {
           "title": "散步一分钟"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "640": {
       "evaluation_expectation": "crud",
@@ -2840,7 +3154,8 @@
         {
           "title": "晾内裤"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "641": {
       "evaluation_expectation": "crud",
@@ -2849,7 +3164,8 @@
         {
           "title": "玩游戏"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "642": {
       "evaluation_expectation": "crud",
@@ -2858,7 +3174,8 @@
         {
           "title": "爬楼"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "643": {
       "evaluation_expectation": "clarify",
@@ -2868,7 +3185,8 @@
         "具体时间",
         "何时",
         "什么时候"
-      ]
+      ],
+      "severity": "nice"
     },
     "644": {
       "evaluation_expectation": "crud",
@@ -2877,7 +3195,8 @@
         {
           "title": "爬楼"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "645": {
       "evaluation_expectation": "crud",
@@ -2886,7 +3205,8 @@
         {
           "title": "晾衣服"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "646": {
       "evaluation_expectation": "crud",
@@ -2895,7 +3215,8 @@
         {
           "title": "涂药膏"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "647": {
       "evaluation_expectation": "crud",
@@ -2904,7 +3225,8 @@
         {
           "title": "刮痧"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "650": {
       "evaluation_expectation": "crud",
@@ -2913,7 +3235,8 @@
         {
           "title": "背政治大题"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "651": {
       "evaluation_expectation": "crud",
@@ -2922,7 +3245,8 @@
         {
           "title": "背四级单词"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "652": {
       "evaluation_expectation": "crud",
@@ -2931,7 +3255,8 @@
         {
           "title": "背民法"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "653": {
       "evaluation_expectation": "crud",
@@ -2940,7 +3265,8 @@
         {
           "title": "上英语网课"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "655": {
       "evaluation_expectation": "clarify",
@@ -2949,7 +3275,8 @@
         "什么时候",
         "多久",
         "回来"
-      ]
+      ],
+      "severity": "nice"
     },
     "656": {
       "evaluation_expectation": "crud",
@@ -2963,7 +3290,8 @@
           "title": "问我是否完成每天的任务",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "657": {
       "evaluation_expectation": "clarify",
@@ -2972,7 +3300,8 @@
         "喝水",
         "多久",
         "时间"
-      ]
+      ],
+      "severity": "nice"
     },
     "658": {
       "evaluation_expectation": "crud",
@@ -2981,7 +3310,8 @@
         {
           "title": "找厕纸"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "659": {
       "evaluation_expectation": "crud",
@@ -2990,7 +3320,8 @@
         {
           "title": "去洗衣服"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "660": {
       "evaluation_expectation": "clarify",
@@ -2999,7 +3330,8 @@
         "提醒名称",
         "取消",
         "要取消"
-      ]
+      ],
+      "severity": "nice"
     },
     "661": {
       "evaluation_expectation": "crud",
@@ -3008,7 +3340,8 @@
         {
           "title": "睡觉"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "663": {
       "evaluation_expectation": "crud",
@@ -3017,7 +3350,8 @@
         {
           "title": "找厕纸"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "665": {
       "evaluation_expectation": "crud",
@@ -3026,7 +3360,8 @@
         {
           "title": "洗鼻子"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "666": {
       "evaluation_expectation": "crud",
@@ -3035,7 +3370,8 @@
         {
           "title": "敷面膜"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "668": {
       "evaluation_expectation": "crud",
@@ -3044,7 +3380,8 @@
         {
           "title": "洗面膜"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "670": {
       "evaluation_expectation": "clarify",
@@ -3053,7 +3390,8 @@
         "几点",
         "时间",
         "几点提醒"
-      ]
+      ],
+      "severity": "nice"
     },
     "672": {
       "evaluation_expectation": "crud",
@@ -3062,7 +3400,8 @@
         {
           "title": "晾内裤"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "675": {
       "evaluation_expectation": "crud",
@@ -3071,7 +3410,8 @@
         {
           "title": "准备出门"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "676": {
       "evaluation_expectation": "crud",
@@ -3080,7 +3420,8 @@
         {
           "title": "换内裤"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "678": {
       "evaluation_expectation": "clarify",
@@ -3089,7 +3430,8 @@
         "做什么",
         "提醒",
         "具体内容"
-      ]
+      ],
+      "severity": "nice"
     },
     "680": {
       "evaluation_expectation": "clarify",
@@ -3097,7 +3439,8 @@
       "expected_clarification_terms": [
         "具体内容",
         "提醒你"
-      ]
+      ],
+      "severity": "nice"
     },
     "683": {
       "evaluation_expectation": "clarify",
@@ -3106,7 +3449,8 @@
         "具体时间",
         "什么时候",
         "多久"
-      ]
+      ],
+      "severity": "nice"
     },
     "685": {
       "evaluation_expectation": "crud",
@@ -3115,7 +3459,8 @@
         {
           "title": "刷牙"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "689": {
       "evaluation_expectation": "clarify",
@@ -3124,7 +3469,8 @@
         "吃药",
         "每天",
         "几点"
-      ]
+      ],
+      "severity": "nice"
     },
     "691": {
       "evaluation_expectation": "clarify",
@@ -3132,7 +3478,8 @@
       "expected_clarification_terms": [
         "提醒名称",
         "取消"
-      ]
+      ],
+      "severity": "nice"
     },
     "695": {
       "evaluation_expectation": "crud",
@@ -3142,7 +3489,8 @@
           "title": "出门，去漕河泾",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "696": {
       "evaluation_expectation": "crud",
@@ -3151,7 +3499,8 @@
         {
           "title": "出门吃饭"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "699": {
       "evaluation_expectation": "clarify",
@@ -3160,7 +3509,8 @@
         "长期任务",
         "具体内容",
         "什么时间"
-      ]
+      ],
+      "severity": "nice"
     },
     "702": {
       "evaluation_expectation": "crud",
@@ -3169,7 +3519,8 @@
         {
           "title": "睡觉"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "704": {
       "evaluation_expectation": "crud",
@@ -3179,7 +3530,8 @@
           "title": "先运动10-30分钟",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "706": {
       "evaluation_expectation": "clarify",
@@ -3188,7 +3540,8 @@
         "做什么",
         "几点",
         "具体"
-      ]
+      ],
+      "severity": "nice"
     },
     "707": {
       "evaluation_expectation": "crud",
@@ -3197,7 +3550,8 @@
         {
           "title": "学习"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "709": {
       "evaluation_expectation": "clarify",
@@ -3206,7 +3560,8 @@
         "提醒名称",
         "做什么",
         "取消"
-      ]
+      ],
+      "severity": "nice"
     },
     "710": {
       "evaluation_expectation": "clarify",
@@ -3215,7 +3570,8 @@
         "提醒时间",
         "提醒内容",
         "具体"
-      ]
+      ],
+      "severity": "nice"
     },
     "711": {
       "evaluation_expectation": "clarify",
@@ -3224,7 +3580,8 @@
         "频率",
         "间隔",
         "具体时间"
-      ]
+      ],
+      "severity": "nice"
     },
     "712": {
       "evaluation_expectation": "clarify",
@@ -3233,7 +3590,8 @@
         "具体时间",
         "时间点",
         "监督"
-      ]
+      ],
+      "severity": "nice"
     },
     "717": {
       "evaluation_expectation": "crud",
@@ -3245,7 +3603,8 @@
         {
           "title": "吃药"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "719": {
       "evaluation_expectation": "clarify",
@@ -3254,7 +3613,8 @@
         "几点",
         "今天",
         "提醒你"
-      ]
+      ],
+      "severity": "nice"
     },
     "720": {
       "evaluation_expectation": "crud",
@@ -3272,7 +3632,8 @@
         {
           "title": "提交复盘清单"
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "724": {
       "evaluation_expectation": "clarify",
@@ -3281,7 +3642,8 @@
         "几点",
         "提醒",
         "频率"
-      ]
+      ],
+      "severity": "nice"
     },
     "725": {
       "evaluation_expectation": "clarify",
@@ -3289,7 +3651,8 @@
       "expected_clarification_terms": [
         "做什么",
         "内容"
-      ]
+      ],
+      "severity": "nice"
     },
     "727": {
       "evaluation_expectation": "crud",
@@ -3299,7 +3662,8 @@
           "title": "该去学习了",
           "recurring": true
         }
-      ]
+      ],
+      "severity": "nice"
     },
     "728": {
       "evaluation_expectation": "crud",
@@ -3308,7 +3672,8 @@
         {
           "title": "去一食堂吃饭"
         }
-      ]
+      ],
+      "severity": "nice"
     }
   }
 }
