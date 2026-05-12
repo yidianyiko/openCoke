@@ -2390,6 +2390,925 @@
           ]
         }
       ]
+    },
+    "535": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "536": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "537": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "541": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "睡觉觉"
+        }
+      ]
+    },
+    "544": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "local_time": "06:00:00",
+          "recurring": true
+        }
+      ]
+    },
+    "548": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "跟练视频/靠墙站/天鹅飞"
+        },
+        {
+          "title": "跟练视频/靠墙站/天鹅飞"
+        },
+        {
+          "title": "跟练视频/靠墙站/天鹅飞"
+        }
+      ]
+    },
+    "549": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "550": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "552": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "553": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "叫我起来"
+        }
+      ]
+    },
+    "554": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "该睡觉了"
+        }
+      ]
+    },
+    "562": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "563": {
+      "evaluation_expectation": "query",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "564": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "找豆包手机和智谱开源项目的负责人"
+        }
+      ]
+    },
+    "565": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "吃药喝温水"
+        },
+        {
+          "title": "化妆"
+        },
+        {
+          "title": "书法创作"
+        },
+        {
+          "title": "占星学习"
+        },
+        {
+          "title": "小说创作"
+        },
+        {
+          "title": "AI三件套创作视频"
+        },
+        {
+          "title": "护肤，泡脚"
+        }
+      ]
+    },
+    "566": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "567": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "开始写论文"
+        }
+      ]
+    },
+    "568": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "准时睡觉"
+        }
+      ]
+    },
+    "577": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "催一下英语视频"
+        }
+      ]
+    },
+    "578": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "催一下英语视频"
+        }
+      ]
+    },
+    "581": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "582": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "583": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "继续写作"
+        }
+      ]
+    },
+    "584": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "休息"
+        }
+      ]
+    },
+    "585": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "找yiming"
+        }
+      ]
+    },
+    "586": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "起床"
+        }
+      ]
+    },
+    "587": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "开始写论文"
+        }
+      ]
+    },
+    "588": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "591": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "592": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "593": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "604": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness."
+    },
+    "605": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "时间",
+        "几点",
+        "多少"
+      ]
+    },
+    "607": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "几点",
+        "时间",
+        "几点提醒"
+      ]
+    },
+    "608": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "复习政治理论"
+        }
+      ]
+    },
+    "613": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "做第三项"
+        }
+      ]
+    },
+    "614": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "任务名称",
+        "时间",
+        "具体"
+      ]
+    },
+    "615": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "准备出门"
+        }
+      ]
+    },
+    "616": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "什么内容",
+        "什么时候",
+        "具体时间"
+      ]
+    },
+    "617": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "内容",
+        "时间",
+        "何时",
+        "具体"
+      ]
+    },
+    "618": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "洗衣服"
+        }
+      ]
+    },
+    "619": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "计划"
+        },
+        {
+          "title": "复盘"
+        }
+      ]
+    },
+    "621": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "时间",
+        "什么时候",
+        "具体时间"
+      ]
+    },
+    "622": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "给花换水"
+        }
+      ]
+    },
+    "623": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "洗内裤"
+        }
+      ]
+    },
+    "624": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "提醒内容",
+        "具体",
+        "具体时间",
+        "何时"
+      ]
+    },
+    "627": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "起床",
+          "recurring": true
+        },
+        {
+          "title": "抽查让我放下手机",
+          "recurring": true
+        },
+        {
+          "title": "抽查让我放下手机",
+          "recurring": true
+        },
+        {
+          "title": "抽查让我放下手机",
+          "recurring": true
+        }
+      ]
+    },
+    "629": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "去角质"
+        }
+      ]
+    },
+    "631": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "继续工作"
+        }
+      ]
+    },
+    "632": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "玩5分钟游戏"
+        }
+      ]
+    },
+    "633": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "上物理课"
+        }
+      ]
+    },
+    "636": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "签退",
+          "recurring": true
+        }
+      ]
+    },
+    "637": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "散步一分钟"
+        }
+      ]
+    },
+    "640": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "晾内裤"
+        }
+      ]
+    },
+    "641": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "玩游戏"
+        }
+      ]
+    },
+    "642": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "爬楼"
+        }
+      ]
+    },
+    "643": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "时间",
+        "具体时间",
+        "何时",
+        "什么时候"
+      ]
+    },
+    "644": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "爬楼"
+        }
+      ]
+    },
+    "645": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "晾衣服"
+        }
+      ]
+    },
+    "646": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "涂药膏"
+        }
+      ]
+    },
+    "647": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "刮痧"
+        }
+      ]
+    },
+    "650": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "背政治大题"
+        }
+      ]
+    },
+    "651": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "背四级单词"
+        }
+      ]
+    },
+    "652": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path harness.",
+      "expected_creates": [
+        {
+          "title": "背民法"
+        }
+      ]
+    },
+    "653": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "上英语网课"
+        }
+      ]
+    },
+    "655": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "什么时候",
+        "多久",
+        "回来"
+      ]
+    },
+    "656": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "叫我学习",
+          "recurring": true
+        },
+        {
+          "title": "问我是否完成每天的任务",
+          "recurring": true
+        }
+      ]
+    },
+    "657": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "喝水",
+        "多久",
+        "时间"
+      ]
+    },
+    "658": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "找厕纸"
+        }
+      ]
+    },
+    "659": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "去洗衣服"
+        }
+      ]
+    },
+    "660": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "提醒名称",
+        "取消",
+        "要取消"
+      ]
+    },
+    "661": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "睡觉"
+        }
+      ]
+    },
+    "663": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "找厕纸"
+        }
+      ]
+    },
+    "665": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "洗鼻子"
+        }
+      ]
+    },
+    "666": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "敷面膜"
+        }
+      ]
+    },
+    "668": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "洗面膜"
+        }
+      ]
+    },
+    "670": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "几点",
+        "时间",
+        "几点提醒"
+      ]
+    },
+    "672": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "晾内裤"
+        }
+      ]
+    },
+    "675": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "准备出门"
+        }
+      ]
+    },
+    "676": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "换内裤"
+        }
+      ]
+    },
+    "678": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "做什么",
+        "提醒",
+        "具体内容"
+      ]
+    },
+    "680": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "具体内容",
+        "提醒你"
+      ]
+    },
+    "683": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "具体时间",
+        "什么时候",
+        "多久"
+      ]
+    },
+    "685": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "刷牙"
+        }
+      ]
+    },
+    "689": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "吃药",
+        "每天",
+        "几点"
+      ]
+    },
+    "691": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "提醒名称",
+        "取消"
+      ]
+    },
+    "695": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "出门，去漕河泾",
+          "recurring": true
+        }
+      ]
+    },
+    "696": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "出门吃饭"
+        }
+      ]
+    },
+    "699": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "长期任务",
+        "具体内容",
+        "什么时间"
+      ]
+    },
+    "702": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "睡觉"
+        }
+      ]
+    },
+    "704": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "先运动10-30分钟",
+          "recurring": true
+        }
+      ]
+    },
+    "706": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "做什么",
+        "几点",
+        "具体"
+      ]
+    },
+    "707": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "学习"
+        }
+      ]
+    },
+    "709": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "提醒名称",
+        "做什么",
+        "取消"
+      ]
+    },
+    "710": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "提醒时间",
+        "提醒内容",
+        "具体"
+      ]
+    },
+    "711": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "频率",
+        "间隔",
+        "具体时间"
+      ]
+    },
+    "712": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "具体时间",
+        "时间点",
+        "监督"
+      ]
+    },
+    "717": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "吃药"
+        },
+        {
+          "title": "吃药"
+        }
+      ]
+    },
+    "719": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "几点",
+        "今天",
+        "提醒你"
+      ]
+    },
+    "720": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "抽查任意2个信号词的解题技巧"
+        },
+        {
+          "title": "提交午间打卡反馈"
+        },
+        {
+          "title": "提交晚间学习反馈"
+        },
+        {
+          "title": "提交复盘清单"
+        }
+      ]
+    },
+    "724": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "几点",
+        "提醒",
+        "频率"
+      ]
+    },
+    "725": {
+      "evaluation_expectation": "clarify",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_clarification_terms": [
+        "做什么",
+        "内容"
+      ]
+    },
+    "727": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "该去学习了",
+          "recurring": true
+        }
+      ]
+    },
+    "728": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Fixture captured from local user-path regression harness.",
+      "expected_creates": [
+        {
+          "title": "去一食堂吃饭"
+        }
+      ]
     }
   }
 }

@@ -1425,6 +1425,15 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_conditional_memory_offers(
     assert "requires the user's opt-in" in prompt
 
 
+def test_unconfirmed_reminder_llm_judge_rubric_allows_reminder_capability_offers():
+    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+        "你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
+    )
+
+    assert "Capability offers" in prompt
+    assert "can help set a reminder" in prompt
+
+
 def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
     prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
         "你不是亲口说的嘛，今晚7点要出门，我记得清清楚楚的"
@@ -1467,7 +1476,7 @@ def test_load_cases_applies_normal_path_expectation_fixture():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
 
-    assert len(expectations) <= 261
+    assert len(expectations) <= 380
     for index, expectation in expectations.items():
         for key, value in expectation.items():
             assert cases[index].metadata[key] == value
@@ -1481,12 +1490,1433 @@ def test_load_cases_applies_normal_path_expectation_fixture():
 
 def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
     cases = normal_eval.load_cases()
+    expectations = normal_eval.load_case_expectations(
+        normal_eval.DEFAULT_EXPECTATIONS_PATH
+    )
     selected = normal_eval.select_expectation_cases(cases)
 
-    assert len(selected) == 261
+    assert len(selected) == len(expectations)
     assert selected[0].metadata["_case_index"] == 0
-    assert selected[-1].metadata["_case_index"] == 444
+    assert selected[-1].metadata["_case_index"] == max(expectations)
     assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
+
+
+def test_case_432_explicit_wakeup_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[432]
+
+    assert case.input == "1 点 50 提醒我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "起床",
+            "local_time": "13:50:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_434_two_explicit_reminder_clauses_are_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[434]
+
+    assert case.input == "希望你早上6:00叫我，晚上23:30复盘"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "叫我",
+            "local_time": "06:00:00",
+            "recurring": False,
+        },
+        {
+            "title": "复盘",
+            "local_time": "23:30:00",
+            "recurring": False,
+        },
+    ]
+
+
+def test_case_435_gamma_clock_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[435]
+
+    assert case.input == "晚上十点再提醒我一下gamma这个"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "gamma",
+            "local_time": "22:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_438_relative_delay_writing_break_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[438]
+
+    assert case.input == "开始下午的写作，25分钟后提醒我站起来走动，喝水"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "站起来走动，喝水",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_439_relative_delay_activity_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[439]
+
+    assert case.input == "半个小时后提醒我活动一下吧"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "活动一下",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_440_five_minute_return_to_writing_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[440]
+
+    assert case.input == "好的五分钟之后提醒我回来继续写作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "回来继续写作",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_441_relative_delay_stand_rest_drink_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[441]
+
+    assert case.input == "25分钟之后提醒我站起来休息喝水"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "站起来休息喝水",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_442_five_minute_continue_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[442]
+
+    assert case.input == "五分钟之后提醒我继续"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "继续",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_443_relative_delay_rest_drink_continue_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[443]
+
+    assert case.input == "25分钟之后提醒我休息喝水，继续"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "休息喝水，继续",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_445_date_only_driver_time_change_reminder_clarifies_time():
+    cases = normal_eval.load_cases()
+    case = cases[445]
+
+    assert case.input == "你明天提醒我，需要和今天的包车司机师傅们沟通，修改时间提前"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "几点",
+        "时间",
+        "什么时候",
+    ]
+
+
+def test_case_605_add_annual_summary_to_plan_requires_time_clarification():
+    cases = normal_eval.load_cases()
+    case = cases[605]
+
+    assert case.input == "我下周三之前要完成年度总结的写作，这也请帮我加入计划"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "时间",
+        "几点",
+        "多少",
+    ]
+
+
+def test_case_607_eight_thirty_to_nine_study_time_clarification():
+    cases = normal_eval.load_cases()
+    case = cases[607]
+
+    assert (
+        case.input
+        == "早上八点半到九点之间可以提醒我学习了，我大约七点多起床吃早餐"
+    )
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "几点",
+        "时间",
+        "几点提醒",
+    ]
+
+
+def test_case_614_task_schedule_clarifies_content_and_task_names():
+    cases = normal_eval.load_cases()
+    case = cases[614]
+
+    assert (
+        case.input
+        == "请按照计划中的时间，在每个任务开始和结束时提醒我"
+    )
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "任务名称",
+        "时间",
+        "具体",
+    ]
+
+
+def test_case_616_memorable_reminder_requires_content_and_time():
+    cases = normal_eval.load_cases()
+    case = cases[616]
+
+    assert case.input == "记得提醒我"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "什么内容",
+        "什么时候",
+        "具体时间",
+    ]
+
+
+def test_case_621_supervision_with_date_clarifies_time():
+    cases = normal_eval.load_cases()
+    case = cases[621]
+
+    assert case.input == "好的 请监督我学习 你知道今天是什么日期嘛"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "时间",
+        "什么时候",
+        "具体时间",
+    ]
+
+
+def test_case_624_drug_reminder_still_clarifies_complete_input():
+    cases = normal_eval.load_cases()
+    case = cases[624]
+
+    assert case.input == "7点钟提醒我吃膝盖的药"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "具体",
+        "具体时间",
+        "何时",
+    ]
+
+
+def test_case_631_ten_minute_work_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[631]
+
+    assert case.input == "10分钟后提醒我继续工作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "继续工作",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_632_hourly_game_break_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[632]
+
+    assert case.input == "一个小时后提醒我玩5分钟游戏"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "玩5分钟游戏",
+            "recurring": False,
+        }
+    ]
+
+
+
+def test_case_633_physics_class_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[633]
+
+    assert case.input == "7:30提醒我上物理课"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "上物理课",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_636_weekday_signout_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[636]
+
+    assert case.input == "对了每个工作日的十点可以提醒我签退吗"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "签退",
+            "recurring": True,
+        }
+    ]
+
+
+def test_case_637_short_walk_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[637]
+
+    assert case.input == "5分钟后提醒我散步一分钟"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "散步一分钟",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_640_hang_clothes_integration_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[640]
+
+    assert case.input == "一个小时之后提醒我晾内裤"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "晾内裤",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_641_game_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[641]
+
+    assert case.input == "一个小时后提醒我玩游戏"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "玩游戏",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_642_climb_stairs_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[642]
+
+    assert case.input == "20分钟之后提醒我爬楼"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "爬楼",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_643_midway_walk_reminder_requires_time():
+    cases = normal_eval.load_cases()
+    case = cases[643]
+
+    assert case.input == "记得提醒我中途站起来走走"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "时间",
+        "具体时间",
+        "何时",
+        "什么时候",
+    ]
+
+
+def test_case_644_half_hour_stairs_climb_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[644]
+
+    assert case.input == "半个小时之后提醒我爬楼"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "爬楼",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_645_half_hour_dry_clothes_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[645]
+
+    assert case.input == "50分钟之后提醒我晾衣服"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "晾衣服",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_646_ten_pm_ointment_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[646]
+
+    assert case.input == "晚上10点提醒我涂药膏"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "涂药膏",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_647_nine_thirty_scraping_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[647]
+
+    assert case.input == "晚上9:30提醒我刮痧"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "刮痧",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_650_hourly_politics_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[650]
+
+    assert case.input == "一个小时后提醒我背政治大题"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "背政治大题",
+            "recurring": False,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("case_index", "input_contains", "expected_creates"),
+    [
+        (651, "中午十二点十分提醒我背四级单词", [{"title": "背四级单词"}]),
+        (652, "然后下午一点提醒我背民法", [{"title": "背民法"}]),
+        (653, "晚上六点提醒我上英语网课", [{"title": "上英语网课"}]),
+        (
+            656,
+            "上午十一点开始叫我学习",
+            [
+                {"title": "叫我学习", "recurring": True},
+                {"title": "问我是否完成每天的任务", "recurring": True},
+            ],
+        ),
+        (658, "10分钟之后提醒我找厕纸", [{"title": "找厕纸"}]),
+        (659, "40分钟之后提醒我去洗衣服", [{"title": "去洗衣服"}]),
+        (661, "我只需要你提醒我十点半睡觉", [{"title": "睡觉"}]),
+        (663, "30分钟之后提醒我找厕纸", [{"title": "找厕纸"}]),
+        (665, "半个小时之后提醒我洗鼻子", [{"title": "洗鼻子"}]),
+        (666, "5分钟后提醒我敷面膜", [{"title": "敷面膜"}]),
+        (668, "14分钟后提醒我洗面膜", [{"title": "洗面膜"}]),
+        (672, "10分钟后提醒我晾内裤", [{"title": "晾内裤"}]),
+        (675, "明天六点半提醒我准备出门", [{"title": "准备出门"}]),
+        (676, "20分钟后提醒我换内裤", [{"title": "换内裤"}]),
+        (685, "20分钟后提醒我刷牙", [{"title": "刷牙"}]),
+        (695, "周日下午五点半提醒我出门，去漕河泾", [{"title": "出门，去漕河泾", "recurring": True}]),
+        (696, "明天下午一点提醒我出门吃饭", [{"title": "出门吃饭"}]),
+        (702, "十二点半提醒我睡觉吧", [{"title": "睡觉"}]),
+        (704, "我周一到周五下午18:00到家，可以提醒我先运动10-30分钟", [{"title": "先运动10-30分钟", "recurring": True}]),
+        (707, "明天九点提醒我学习", [{"title": "学习"}]),
+        (717, "药已经吃过啦", [{"title": "吃药"}, {"title": "吃药"}]),
+        (
+            720,
+            "抽查任意2个信号词的解题技巧",
+            [
+                {"title": "抽查任意2个信号词的解题技巧"},
+                {"title": "提交午间打卡反馈"},
+                {"title": "提交晚间学习反馈"},
+                {"title": "提交复盘清单"},
+            ],
+        ),
+        (727, "每天晚上八点你可以提醒我该去学习了", [{"title": "该去学习了", "recurring": True}]),
+        (728, "11点半提醒我去一食堂吃饭", [{"title": "去一食堂吃饭"}]),
+    ],
+)
+def test_case_6xx_7xx_crud_fixture_is_loaded(
+    case_index, input_contains, expected_creates
+):
+    cases = normal_eval.load_cases()
+    case = cases[case_index]
+
+    assert input_contains in case.input
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == expected_creates
+
+
+@pytest.mark.parametrize(
+    ("case_index", "input_contains", "expected_clarification_terms"),
+    [
+        (655, "如果我没回来你要喊我", ["什么时候", "多久", "回来"]),
+        (657, "中途还是要提醒我喝水", ["喝水", "多久", "时间"]),
+        (660, "不需要提醒我", ["提醒名称", "取消", "要取消"]),
+        (670, "明天记得喊我学习", ["几点", "时间", "几点提醒"]),
+        (678, "7:00喊我", ["做什么", "提醒", "具体内容"]),
+        (680, "记得提醒我", ["具体内容", "提醒你"]),
+        (683, "容易看短剧的时间段前提醒我一堆任务没做", ["具体时间", "什么时候", "多久"]),
+        (689, "每天提醒我吃药啊，最近我老忘吃药", ["吃药", "每天", "几点"]),
+        (691, "今天所有任务都取消，睡觉", ["提醒名称", "取消"]),
+        (699, "还有你忘了要提醒我长期任务了", ["长期任务", "具体内容", "什么时间"]),
+        (706, "明天八点叫我", ["做什么", "几点", "具体"]),
+        (709, "你八点没叫我", ["提醒名称", "做什么", "取消"]),
+        (710, "改成九点半提醒我学习吧", ["提醒时间", "提醒内容", "具体"]),
+        (711, "因为今天是周末，全天都要提醒我不要看短剧喔", ["频率", "间隔", "具体时间"]),
+        (712, "中间怕自己偷懒，偷偷看短剧，忘掉了自己今天要做的事", ["具体时间", "时间点", "监督"]),
+        (724, "汇报时间一般是晚上，大概晚上十一点多的样子", ["几点", "提醒", "频率"]),
+        (725, "设置晚上十一点半提醒吧", ["做什么", "内容"]),
+    ],
+)
+def test_case_6xx_7xx_clarification_fixture_is_loaded(
+    case_index, input_contains, expected_clarification_terms
+):
+    cases = normal_eval.load_cases()
+    case = cases[case_index]
+
+    assert input_contains in case.input
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == expected_clarification_terms
+
+
+def test_case_446_relative_delay_activity_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[446]
+
+    assert case.input == "正在画～20分钟后提醒我活动一下吧"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "活动一下吧",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_447_five_minute_write_paper_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[447]
+
+    assert case.input == "5分钟后提醒我开始写论文"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "开始写论文",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_448_relative_delay_water_rest_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[448]
+
+    assert case.input == "okk，25分钟之后，提醒我起来喝水休息"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "起来喝水休息",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_449_daily_planning_and_summary_reminders_are_crud_batch():
+    cases = normal_eval.load_cases()
+    case = cases[449]
+
+    assert "每天早上7点询问我当天的规划" in case.input
+    assert "每天晚上23.00告诉我" in case.input
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "询问当天规划",
+            "title_variants": ["当天规划", "询问我当天的规划", "询问当天的规划"],
+            "local_time": "07:00:00",
+            "recurring": True,
+            "rrule_contains": ["FREQ=DAILY"],
+        },
+        {
+            "title": "告诉今天完成了哪些任务",
+            "title_variants": [
+                "今日完成任务总结",
+                "告诉我今天完成了哪些任务",
+                "我今天完成了哪些任务",
+            ],
+            "local_time": "23:00:00",
+            "recurring": True,
+            "rrule_contains": ["FREQ=DAILY"],
+        },
+    ]
+
+
+def test_case_450_five_minute_wakeup_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[450]
+
+    assert case.input == "五分钟提醒我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "起床",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_452_schedule_list_creates_all_time_blocks():
+    cases = normal_eval.load_cases()
+    case = cases[452]
+
+    assert "09:00提醒吃药喝温水" in case.input
+    assert "22:00提醒护肤，泡脚" in case.input
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {"title": "吃药喝温水", "local_time": "09:00:00", "recurring": False},
+        {"title": "化妆", "local_time": "09:10:00", "recurring": False},
+        {"title": "国画创作", "local_time": "10:00:00", "recurring": False},
+        {"title": "占星学习", "local_time": "13:30:00", "recurring": False},
+        {"title": "小说创作", "local_time": "15:00:00", "recurring": False},
+        {"title": "AI三件套创作视频", "local_time": "20:00:00", "recurring": False},
+        {"title": "护肤，泡脚", "local_time": "22:00:00", "recurring": False},
+    ]
+
+
+def test_case_453_drops_date_only_reminder_task_and_keeps_21_clock():
+    cases = normal_eval.load_cases()
+    case = cases[453]
+
+    assert case.input == "明天除了提醒任务之后，到晚上9:00要收起我全天学习的作业哦"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "收起全天学习的作业",
+            "local_date": "2026-05-12",
+            "local_time": "21:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_458_cancel_wakeup_without_existing_match_allows_clarification():
+    cases = normal_eval.load_cases()
+    case = cases[458]
+
+    assert case.input == "不要6:00叫我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_operation"] == "delete"
+    assert case.metadata["allow_clarification"] is True
+
+
+def test_case_459_bare_call_wakeup_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[459]
+
+    assert case.input == "9:00叫我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "叫我起床",
+            "title_variants": ["起床"],
+            "local_time": "09:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_460_tomorrow_morning_start_writing_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[460]
+
+    assert case.input == "我搞完了，明天早上9点提醒我开始写作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "开始写作",
+            "local_date": "2026-05-12",
+            "local_time": "09:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_461_clock_without_reminder_content_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[461]
+
+    assert case.input == "那你1:00提醒我一下"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_464_physics_checkin_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[464]
+
+    assert case.input == "记得2:00问问我物理题做的怎么样"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "问问物理题做的怎么样",
+            "local_date": "2026-05-12",
+            "local_time": "02:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_465_sleep_nudge_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[465]
+
+    assert case.input == "不管我2:00搞的怎么样了都催我睡觉"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "催我睡觉",
+            "title_variants": ["睡觉"],
+            "local_date": "2026-05-12",
+            "local_time": "02:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_467_tomorrow_wakeup_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[467]
+
+    assert case.input == "明天6:30喊我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "喊我起床",
+            "title_variants": ["起床"],
+            "local_date": "2026-05-13",
+            "local_time": "06:30:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_468_bare_wakeup_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[468]
+
+    assert case.input == "6:30喊我起床"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "喊我起床",
+            "title_variants": ["起床"],
+            "local_date": "2026-05-12",
+            "local_time": "06:30:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_469_relative_breakfast_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[469]
+
+    assert case.input == "5分钟后提醒我去吃早饭"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "去吃早饭",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_471_approximate_eleven_writing_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[471]
+
+    assert case.input == "11 点左右提醒我开始写作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "开始写作",
+            "local_date": "2026-05-12",
+            "local_time": "11:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_473_referential_start_time_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[473]
+
+    assert case.input == "对的，从9:10开始提醒我吧"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_474_chinese_painting_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[474]
+
+    assert case.input == "10:00开始提醒我国画创作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "国画创作",
+            "local_date": "2026-05-12",
+            "local_time": "10:00:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_476_relative_feishu_reply_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[476]
+
+    assert case.input == "过一小时提醒我回复飞书的消息"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "回复飞书的消息",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_479_thesis_writing_pomodoro_rest_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[479]
+
+    assert case.input == "开始一个论文的写作番茄，25分钟之后提醒我休息"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "论文写作休息",
+            "title_variants": ["休息"],
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_480_afternoon_departure_clock_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[480]
+
+    assert case.input == "下午1:40提醒我出门"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "出门",
+            "local_date": "2026-05-12",
+            "local_time": "13:40:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_481_missing_timetable_clarifies_schedule():
+    cases = normal_eval.load_cases()
+    case = cases[481]
+
+    assert case.input == "你只需要根据我发的时间表提醒我什么时间学习就好了"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "时间表",
+        "几点",
+        "学习",
+    ]
+
+
+def test_case_482_bare_clock_meet_junior_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[482]
+
+    assert case.input == "3:30提醒我见学弟"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "见学弟",
+            "local_date": "2026-05-13",
+            "local_time": "03:30:00",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_484_clock_without_content_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[484]
+
+    assert case.input == "4点需要你提醒"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_485_pomodoro_rest_water_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[485]
+
+    assert case.input == "开始新的番茄，25分钟之后提醒我休息喝水"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "休息喝水",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_486_missed_three_oclock_reminder_is_query():
+    cases = normal_eval.load_cases()
+    case = cases[486]
+
+    assert case.input == "你为啥3点没来提醒我？"
+    assert normal_eval.case_evaluation_expectation(case) == "query"
+
+
+def test_case_562_missed_ten_oclock_reminder_query():
+    cases = normal_eval.load_cases()
+    case = cases[562]
+
+    assert case.input == "今天怎么没有叫我起床？"
+    assert normal_eval.case_evaluation_expectation(case) == "query"
+
+
+def test_case_563_missed_noon_reminder_query():
+    cases = normal_eval.load_cases()
+    case = cases[563]
+
+    assert case.input == "今天怎么没有叫我起来吃药喝温水？"
+    assert normal_eval.case_evaluation_expectation(case) == "query"
+
+
+def test_case_692_exam_plan_discussion():
+    cases = normal_eval.load_cases()
+    case = cases[692]
+
+    assert (
+        case.input
+        == "明天我上班时间想要看到你对我的整个考研的一个规划 比如哪个月完成哪些部分"
+    )
+    assert normal_eval.case_evaluation_expectation(case) == "discussion"
+
+
+def test_case_693_week_plan_discussion():
+    cases = normal_eval.load_cases()
+    case = cases[693]
+
+    assert (
+        case.input
+        == "现在就想要一个一周的计划 然后我对它进行微调 明天上班时间需要你完成一个一个月的计划"
+    )
+    assert normal_eval.case_evaluation_expectation(case) == "discussion"
+
+
+def test_case_487_pomodoro_get_up_water_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[487]
+
+    assert case.input == "开始25分钟的番茄，25分钟之后提醒我起来喝水"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "起来喝水",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_488_relative_rest_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[488]
+
+    assert case.input == "25分钟之后提醒我休息"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "休息",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_490_time_correction_without_target_allows_clarification():
+    cases = normal_eval.load_cases()
+    case = cases[490]
+
+    assert case.input == "你更正一下时间，你这边的时间和我相差27分钟3点钟，你都是3:27才提醒我"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_operation"] == "update"
+    assert case.metadata["allow_clarification"] is True
+
+
+def test_case_492_preceding_paper_task_relative_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[492]
+
+    assert case.input == "我现在准备开始写论文了，25分钟之后提醒我"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "写论文",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_494_relative_continue_writing_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[494]
+
+    assert case.input == "5分钟之后提醒我继续写作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "继续写作",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_495_relative_delay_without_content_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[495]
+
+    assert case.input == "好的好的，25分钟提醒我哦，谢谢你！你真好~"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_496_relative_return_continue_writing_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[496]
+
+    assert case.input == "好的，5分钟之后提醒我回来继续写作"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "回来继续写作",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_497_tomorrow_clock_without_content_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[497]
+
+    assert case.input == "明天上午10点提醒我吧"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_498_clock_without_content_clarifies_content():
+    cases = normal_eval.load_cases()
+    case = cases[498]
+
+    assert case.input == "6点再提醒吧"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == [
+        "提醒内容",
+        "提醒什么",
+        "具体",
+    ]
+
+
+def test_case_499_relative_get_up_rest_water_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[499]
+
+    assert case.input == "25分钟之后，提醒我起来休息、喝水"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "起来休息、喝水",
+            "title_variants": ["起来休息喝水"],
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_501_evening_reminder_content_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[501]
+
+    assert case.input == "晚上7点 提醒我收拾衣服 挂起来。"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "收拾衣服挂起来",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_502_evening_half_hour_reminder_is_crud_create():
+    cases = normal_eval.load_cases()
+    case = cases[502]
+
+    assert case.input == "晚上7点半提醒我继续写论文"
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == [
+        {
+            "title": "继续写论文",
+            "recurring": False,
+        }
+    ]
+
+
+def test_case_503_clockless_content_only_reminder_clarifies_time():
+    cases = normal_eval.load_cases()
+    case = cases[503]
+
+    assert case.input == "提醒我整理书籍，并且打印部分内容"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+    assert case.metadata["expected_clarification_terms"] == ["时间", "几点", "什么时候"]
+
+
+@pytest.mark.parametrize(
+    "case_index,expected_input,expected_creates",
+    [
+        (505, "7:30提醒我开会呢", [{"title": "开会"}]),
+        (
+            508,
+            "今晚23点提醒我睡觉",
+            [{"title": "睡觉"}],
+        ),
+        (
+            509,
+            "明天7点半提醒我起床",
+            [{"title": "起床"}],
+        ),
+        (
+            510,
+            "09:00提醒吃药喝温水\n09:10提醒化妆\n10:00-12:00提醒国画创作\n13:30-14:30提醒占星学习\n15:00-18:30提醒小说创作\n20:00-21:00 AI三件套创作视频\n22:00提醒护肤，泡脚",
+            [
+                {"title": "吃药喝温水"},
+                {"title": "化妆"},
+                {"title": "国画创作"},
+                {"title": "占星学习"},
+                {"title": "小说创作"},
+                {"title": "AI三件套创作视频"},
+                {"title": "护肤，泡脚"},
+            ],
+        ),
+        (
+            511,
+            "09:00提醒吃药喝温水\n09:10提醒化妆\n10:00-12:00提醒书法创作\n13:30-14:30提醒占星学习\n15:00-18:30提醒小说创作\n20:00-21:00 AI三件套创作视频\n22:00提醒护肤，泡脚",
+            [
+                {"title": "吃药喝温水"},
+                {"title": "化妆"},
+                {"title": "书法创作"},
+                {"title": "占星学习"},
+                {"title": "小说创作"},
+                {"title": "AI三件套创作视频"},
+                {"title": "护肤，泡脚"},
+            ],
+        ),
+        (513, "周六上午十点提醒我找一下jianfeng", [{"title": "找一下jianfeng"}]),
+        (514, "明天上午十点半提醒我出门健身", [{"title": "出门健身"}]),
+        (521, "12点提醒我吃饭", [{"title": "吃饭"}]),
+        (522, "下午四点提醒我resume", [{"title": "resume"}]),
+        (524, "  明天上午十点半提醒我出门健身", [{"title": "出门健身"}]),
+        (541, "监督我十点半睡觉觉", [{"title": "睡觉觉"}]),
+        (
+            548,
+            "背单词：每天早上10点的时候提醒我一次，然后晚上8点的时候提醒我一次\n\n跟练视频/靠墙站/天鹅飞：一日三餐，每次饭点的时候提醒我（我试试看，能不能看到，吃完饭就去做）",
+            [
+                {"title": "跟练视频/靠墙站/天鹅飞"},
+                {"title": "跟练视频/靠墙站/天鹅飞"},
+                {"title": "跟练视频/靠墙站/天鹅飞"},
+            ],
+        ),
+        (553, "或者你七点叫我起来", [{"title": "叫我起来"}]),
+        (554, "晚上十一点的时候，提醒我该睡觉了[破涕为笑]", [{"title": "该睡觉了"}]),
+        (564, "晚一点提醒我下周找豆包手机和智谱开源项目的负责人吧", [{"title": "找豆包手机和智谱开源项目的负责人"}]),
+        (
+            565,
+            "每天提醒以下计划。\n09:00提醒吃药喝温水\n09:10提醒化妆\n10:00-12:00提醒书法创作\n13:30-14:30提醒占星学习\n15:00-18:30提醒小说创作\n20:00-21:00 AI三件套创作视频\n22:00提醒护肤，泡脚",
+            [
+                {"title": "吃药喝温水"},
+                {"title": "化妆"},
+                {"title": "书法创作"},
+                {"title": "占星学习"},
+                {"title": "小说创作"},
+                {"title": "AI三件套创作视频"},
+                {"title": "护肤，泡脚"},
+            ],
+        ),
+        (567, "10 点钟提醒我开始写论文", [{"title": "开始写论文"}]),
+        (568, "你好 希望你晚上监督我00:00准时睡觉 ", [{"title": "准时睡觉"}]),
+        (
+            577,
+            "英语视频在11：45的时候来催一下我就好。\n《最好不好》干音在下午5点前要录好。模块任务就好\n今天做完普通话",
+            [{"title": "催一下英语视频"}],
+        ),
+        (574, "明天6点半起床，7点开始学习直到8点结束  学习一个小时", [{"title": "起床"}]),
+        (
+            578,
+            "英语视频在11：45的时候来催一下我就好。\n《最好不好》干音在下午5点前要录好。\n今天做完普通话模块任务就好",
+            [{"title": "催一下英语视频"}],
+        ),
+        (
+            608,
+            "晚上的复盘我打算专攻政治理论部分，你提醒我复习政治理论就行了",
+            [{"title": "复习政治理论"}],
+        ),
+        (583, "5分钟之后提醒我继续写作", [{"title": "继续写作"}]),
+        (584, "好的，25分钟之后提醒我休息", [{"title": "休息"}]),
+        (585, "明天上午十点，提醒我找yiming", [{"title": "找yiming"}]),
+        (586, "下午1点50分提醒我起床", [{"title": "起床"}]),
+        (587, "下午两点提醒我开始写论文", [{"title": "开始写论文"}]),
+        (613, "一个小时后提醒我做第三项", [{"title": "做第三项"}]),
+        (615, "明天早上6：30提醒我准备出门", [{"title": "准备出门"}]),
+        (618, "半小时后提醒我洗衣服", [{"title": "洗衣服"}]),
+        (619, "计划提醒放到下午1 点，复盘放到晚上9点", [{"title": "计划"}, {"title": "复盘"}]),
+        (622, "2小时后提醒我给花换水", [{"title": "给花换水"}]),
+        (623, "1小时后提醒我洗内裤", [{"title": "洗内裤"}]),
+        (624, "7点钟提醒我吃膝盖的药", [{"title": "吃膝盖的药"}]),
+        (627, "从明天开始每天早上7点提醒我起床\n中午13点抽查让我放下手机\n晚上19点抽查让我放下手机\n晚上23点抽查让我放下手机", [{"title": "起床", "recurring": True}, {"title": "抽查让我放下手机", "recurring": True}, {"title": "抽查让我放下手机", "recurring": True}, {"title": "抽查让我放下手机", "recurring": True}]),
+        (629, "8.30提醒我去角质", [{"title": "去角质"}]),
+        (631, "10分钟后提醒我继续工作", [{"title": "继续工作"}]),
+        (632, "一个小时后提醒我玩5分钟游戏", [{"title": "玩5分钟游戏"}]),
+        (633, "7:30提醒我上物理课", [{"title": "上物理课"}]),
+        (634, "对了每个工作日的十点可以提醒我签退吗", [{"title": "签退", "recurring": True}]),
+        (637, "5分钟后提醒我散步一分钟", [{"title": "散步一分钟"}]),
+        (640, "一个小时之后提醒我晾内裤", [{"title": "晾内裤"}]),
+        (641, "一个小时后提醒我玩游戏", [{"title": "玩游戏"}]),
+        (642, "20分钟之后提醒我爬楼", [{"title": "爬楼"}]),
+        (646, "晚上10点提醒我涂药膏", [{"title": "涂药膏"}]),
+        (647, "晚上9:30提醒我刮痧", [{"title": "刮痧"}]),
+        (644, "半个小时之后提醒我爬楼", [{"title": "爬楼"}]),
+        (645, "50分钟之后提醒我晾衣服", [{"title": "晾衣服"}]),
+        (651, "中午十二点十分提醒我背四级单词", [{"title": "背四级单词"}]),
+        (652, "然后下午一点提醒我背民法", [{"title": "背民法"}]),
+        (653, "晚上六点提醒我上英语网课", [{"title": "上英语网课"}]),
+        (658, "10分钟之后提醒我找厕纸", [{"title": "找厕纸"}]),
+        (659, "40分钟之后提醒我去洗衣服", [{"title": "去洗衣服"}]),
+        (661, "我只需要你提醒我十点半睡觉", [{"title": "睡觉"}]),
+        (663, "30分钟之后提醒我找厕纸", [{"title": "找厕纸"}]),
+        (665, "半个小时之后提醒我洗鼻子", [{"title": "洗鼻子"}]),
+        (666, "5分钟后提醒我敷面膜", [{"title": "敷面膜"}]),
+        (668, "14分钟后提醒我洗面膜", [{"title": "洗面膜"}]),
+        (672, "10分钟后提醒我晾内裤", [{"title": "晾内裤"}]),
+        (675, "明天六点半提醒我准备出门", [{"title": "准备出门"}]),
+        (676, "20分钟后提醒我换内裤", [{"title": "换内裤"}]),
+        (678, "7:00喊我", [{"title": "叫我"}]),
+        (679, "明天早上六点十分起床", [{"title": "起床"}]),
+        (685, "20分钟后提醒我刷牙", [{"title": "刷牙"}]),
+        (689, "每天提醒我吃药啊，最近我老忘吃药。", [{"title": "吃药"}]),
+        (695, "周日下午五点半提醒我出门，去漕河泾", [{"title": "出门，去漕河泾"}]),
+        (696, "明天下午一点提醒我出门吃饭", [{"title": "出门吃饭"}]),
+        (702, "十二点半提醒我睡觉吧", [{"title": "睡觉"}]),
+        (704, "我周一到周五下午18:00到家，可以提醒我先运动10-30分钟，最近身体机能有些差。【周一要开例会，也可能晚一些到家】", [{"title": "先运动10-30分钟"}]),
+        (707, "明天九点提醒我学习", [{"title": "学习"}]),
+        (717, "药已经吃过啦，中午和晚上你再提醒一下哈", [{"title": "吃药"}, {"title": "吃药"}]),
+        (727, "行，那我上班了。对了每天晚上八点你可以提醒我该去学习了", [{"title": "该去学习了"}]),
+        (728, "11点半提醒我去一食堂吃饭", [{"title": "去一食堂吃饭"}]),
+        (733, "我今天需要备课，然后出去兼职上课，请你11:10提醒我备课", [{"title": "备课"}]),
+        (750, "20分钟之后提醒我坐下", [{"title": "坐下"}]),
+        (752, "10分钟之后提醒我散步", [{"title": "散步"}]),
+        (751, "20分钟之后提醒我坐下", [{"title": "坐下"}]),
+        (753, "一个小时之后提醒我吃中药", [{"title": "吃中药"}]),
+        (755, "一点半提醒我去考场", [{"title": "去考场"}]),
+        (757, "提醒我下午一点去考场", [{"title": "去考场"}]),
+        (760, "记得下午提醒我占星课", [{"title": "占星课"}]),
+        (762, "一点提醒我学习", [{"title": "学习"}]),
+        (772, "半个小时之后提醒我再爬一下楼", [{"title": "再爬一下楼"}]),
+        (773, "40分钟后提醒我二洗衣服", [{"title": "二洗衣服"}]),
+        (774, "10分钟后提醒我贴膏药", [{"title": "贴膏药"}]),
+        (776, "15分钟后提醒我冥想5分钟", [{"title": "冥想5分钟"}]),
+        (779, "晚上10：00提醒我洗脚", [{"title": "洗脚"}]),
+        (781, "晚上10：01提醒我洗PG", [{"title": "洗PG"}]),
+        (784, "还少了一个任务，10：00提醒我洗脚", [{"title": "洗脚"}]),
+        (787, "好滴好滴 两点的时候提醒我出门", [{"title": "出门"}]),
+        (789, "40分钟之后提醒我晾衣服", [{"title": "晾衣服"}]),
+        (793, "晚上10:30提醒我刮痧", [{"title": "刮痧"}]),
+        (795, "三个小时之后提醒我吃饭", [{"title": "吃饭"}]),
+        (800, "一小时后提醒我散步", [{"title": "散步"}]),
+    ],
+)
+def test_case_index_fixtures_marked_crud_create(
+    case_index: int, expected_input: str, expected_creates: list[dict[str, object]]
+):
+    cases = normal_eval.load_cases()
+    case = cases[case_index]
+    assert case.input == expected_input
+    assert normal_eval.case_evaluation_expectation(case) == "crud"
+    assert case.metadata["expected_creates"] == expected_creates
+
+
+@pytest.mark.parametrize(
+    "case_index,expected_input",
+    [
+        (506, "估计半小时后完成，第二节完成，提醒我打包垃圾"),
+        (512, "内容明天还要再看看 你可以提醒我复习"),
+        (515, "你好coke，这是我明天的计划，请监督我并帮助我复盘改善，多多鼓励我哟"),
+        (517, "还是按照我昨天发你那个计划来，每天准时提醒我就好了"),
+        (523, "每个半小时提醒我喝水 "),
+        (526, "我要是一玩手机就会给你发信息，然后你需要提醒我去学习，让我放下手机"),
+        (529, "请提醒我做这些"),
+        (531, "二点提醒我吧"),
+        (532, "你定时间吧"),
+        (533, "现在画三个小时，每小时整点提醒我活动一下"),
+        (535, "需要，需要提醒我学习"),
+        (536, "提醒我准备开题报告"),
+        (537, "请你只在20:00点提醒我就好，其余的消息不必发"),
+        (
+            549,
+            "背单词：每天早上10点的时候提醒我一次，然后晚上8点的时候提醒我一次\n\n跟练视频/靠墙站/天鹅飞：中午12点半的时候、下午五点半，晚上九点提醒我",
+        ),
+        (566, "青工委的推文 审核好了 下午4点正式推送 你提醒我一下"),
+        (581, "你要记得提醒人家哦"),
+        (582, "总之你要记得提醒人家哦，每分钟一次，现在开始"),
+        (588, "好的 我吃完饭继续，完成这个任务后奖励自己玩一局狼人杀。记得提醒我"),
+        (590, "下午按时提醒"),
+        (591, "你该提醒我学习占星了呀"),
+        (592, "你会记得提醒我每天指定第二天的计划吗"),
+        (593, "每晚11:30提醒我"),
+        (598, "长期任务不要白天提醒，每天晚上提醒我做计划的时候给我提醒"),
+        (
+            604,
+            "状态一般，心态有点丧。监督学习和写作\n活跃时间是上午八点到晚上十一点\n复盘时间晚上十点",
+        ),
+        (605, "我下周三之前要完成年度总结的写作，这也请帮我加入计划"),
+        (607, "早上八点半到九点之间可以提醒我学习了，我大约七点多起床吃早餐"),
+        (608, "晚上的复盘我打算专攻政治理论部分，你提醒我复习政治理论就行了"),
+        (643, "记得提醒我中途站起来走走"),
+        (616, "记得提醒我"),
+        (617, "记得提醒我"),
+        (680, "记得提醒我"),
+        (691, "今天所有任务都取消，睡觉"),
+        (621, "好的 请监督我学习 你知道今天是什么日期嘛"),
+        (625, "这几天你都不提醒我学习"),
+        (636, "对了每个工作日的十点可以提醒我签退吗"),
+        (650, "一个小时后提醒我背政治大题"),
+        (655, "如果我没回来你要喊我"),
+        (656, "嗯嗯，上午十一点开始叫我学习，然后晚上10点问我是否完成每天的任务"),
+        (657, "中途还是要提醒我喝水"),
+        (662, "十点半之后来给我发消息看看我是否睡觉啦"),
+        (669, "习惯（每天）：6:20起床、6:30洗漱、6:45吃早餐、7:00练习英语口语（练25分钟）、7:30开始早读（45分钟）、8:30开始上网课（我明天开始每天把我一天要学的计划发给你）、11:00我要煮饭、11:50我要做饭、13:00我要眯半个小时、13:30起来我要开始上网课、17:00我要出去散步、17:40我要煮饭、煮完饭后我再上一节课，后面我吃完晚饭散步回来大概20:00，我要开始背书、23:30睡觉"),
+        (670, "明天记得喊我学习"),
+        (699, "还有你忘了要提醒我长期任务了"),
+        (700, "我想复习期末考，不需要监督，就我想学的时候告诉你我想在几点学，提醒我学然后时不时抽查什么的就行，要是有奖励和惩罚就更好了"),
+        (709, "你八点没叫我"),
+        (706, "明天八点叫我"),
+        (710, "改成九点半提醒我学习吧"),
+        (711, "因为今天是周末，全天都要提醒我不要看短剧喔"),
+        (712, "中间怕自己偷懒，偷偷看短剧，忘掉了自己今天要做的事，所以让你来多次来监督。提醒我一下，看我有没有做到。"),
+        (715, "你一定要记得多来监督提醒我今天有这些事情要做哈。我怕自己看短剧摸鱼偷懒。"),
+        (719, "今天下午提醒我复习专业课捏"),
+        (725, "设置晚上十一点半提醒吧"),
+        (724, "汇报时间一般是晚上，大概晚上十一点多的样子，当然你也可以提醒我来汇报进度。如果我是凌晨给你汇报的，那都算在前一天里，我有时候会学到凌晨"),
+        (734, "1:30开始，我会在1:05出门，请你1:00提醒我出门"),
+        (736, "考试时间大概是28.29.30号记得提醒我今天看书"),
+        (737, "记得提醒我什么时候该休息什么时候要学习"),
+        (739, "记得提醒我什么时候该休息什么时候要学习"),
+        (754, "提醒我两点之前背完12篇问诊"),
+        (743, "60分钟后提醒我爬楼"),
+        (744, "那在每天晚上9点问我明日的计划吧"),
+        (745, "记得提醒我"),
+        (748, "你上午没有提醒我哦"),
+        (749, "你要合理分配时间并提醒我"),
+        (761, "记得提醒我"),
+        (764, "你可以在13:20提醒我"),
+        (768, "你现在 监督我起床 然后下去吃饭 下午的目标是打开电脑，修改场景插画，下单冰箱贴和方卡，完成周三海报"),
+        (769, "你早上会叫我起床吗"),
+        (768, "你现在 监督我起床 然后下去吃饭 下午的目标是打开电脑，修改场景插画，下单冰箱贴和方卡，完成周三海报"),
+        (785, "期间半小时提醒我一次"),
+        (790, "好的，准时提醒我"),
+        (720, "时段\t科目\t具体任务\t限时要求\t督学检查要点\t\n9:00-9:30\t职测\t1. 默写言语理解四大类信号词：   - 转折：但是、然而、其实、事实上   - 因果：因此、所以、故而、正因如此   - 对策：必须、需要、应当、亟待   - 并列：同时、此外、一方面…另一方面…2. 复述对应易错点：转折前是干扰项、并列要全面概括\t30min\t抽查任意2个信号词的解题技巧，要求脱口而出\t\n9:30-10:15\t职测\t刷言语理解整套题（选词填空20题+中心理解30题+语句表达10题），总题量60题要求：用“？”标记不确定题目，不核对答案，严格限时\t45min\t检查是否完成60题，不确定题是否标注，有无超时\t\n10:15-10:30\t-\t休息15min，远眺放松，禁止看手机、翻资料\t15min\t强制休息，避免疲劳刷题影响正确率\t\n10:30-11:30\t职测\t错题初筛，逐题标注3类具体错误类型（禁止写“不会做”）：1. 信号词遗漏（如漏看“因此”）2. 选项辨析错误（如搭配不当/片面表述）3. 语句表达逻辑混乱（如语序/衔接不当）\t60min\t检查错误类型标注是否精准，是否每道错题都对应技巧漏洞\t\n12:30\t-\t提交午间打卡反馈\t5min\t反馈示例：“言语刷题用时42min，正确率78%，集中错并列文段片面选项” \t\n14:20-16:20\t综应\t观看概念分析题专项课程（2课时），按模块记录笔记：1. 关键词定位技巧：高频词定位法、首尾句定位法、关联词定位法（附课程示例）2. 要素提取类型：内涵类、特征类、措施类（区分不同类型的答题侧重点）3. 规范表述要求：分点用“一是/二是”、关键词前置、每点不超过15字\t120min\t检查笔记是否分模块记录，是否附课程典型例子，逻辑是否清晰\t\n16:20-17:20\t综应\t整理概念分析题型框架手账（1张A4纸），内容包含：左侧：技巧清单（定位+提取+表述）右侧：课程示例（1道简单例题的完整答题步骤）\t60min\t检查手账是否简洁实用，能否直接作为后续做题的参考模板\t\n19:00-20:00\t职测\t补练触发条件与任务：→ 若言语正确率＜75%：加练并列文段专项题20道，必须套用“全面概括”技巧→ 若正确率≥75%：复盘上午错题，补充速记卡中并列题型的易错点\t60min\t补练题需标注技巧应用痕迹，禁止凭语感做题\t\n20:00\t-\t提交晚间反馈\t5min\t如实反馈综应课程学习和笔记整理情况，是否有未理解的知识点\t\n20:00-21:00\t职测\t1. 整理言语错题规律，重点补充并列题型的易错点（如“片面表述”“无中生有”）2. 更新言语理解速记卡，新增并列题型的解题口诀\t60min\t检查速记卡是否更新完善，口诀是否简洁好记\t\n21:00-22:00\t综应\t1. 背诵概念分析关键词定位口诀：“高频词优先找，首尾句跑不了，关联词是信号，要素提炼准又巧”2. 默写概念分析答题框架（定位→提取→表述），确保无遗漏\t60min\t检查是否能熟练背诵口诀、完整默写框架\t\n21:30\t-\t提交复盘清单\t5min\t提交示例：“职测易错点：并列词‘此外’后内容易忽略；综应干货技巧：概念分析先划材料高频词”"),
+    ],
+)
+def test_case_index_fixtures_marked_reminder_clarification(
+    case_index: int, expected_input: str
+):
+    cases = normal_eval.load_cases()
+    case = cases[case_index]
+    if case_index == 720:
+        assert case.input.startswith(
+            "时段\t科目\t具体任务\t限时要求\t督学检查要点"
+        )
+        assert "21:30\t-\t提交复盘清单\t5min" in case.input
+    else:
+        assert case.input == expected_input
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+
+
+def test_case_731_fixtures_marked_reminder_clarification_input():
+    case = normal_eval.load_cases()[731]
+    assert case.input == "而且中间我还会上班，可能会穿插一些工作上的事情需要你监督提醒我"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
+
+
+def test_case_732_fixtures_marked_reminder_clarification_input():
+    case = normal_eval.load_cases()[732]
+    assert case.input == "我明年考研哦，从今天开始倒数365天，你要监督我每天学习哦"
+    assert normal_eval.case_evaluation_expectation(case) == "clarify"
 
 
 def test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence():
@@ -1541,7 +2971,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
     report = build_report()
 
-    assert report["fixture_overrides"] <= 261
+    assert report["fixture_overrides"] <= 380
     assert report["workflow_regex_fast_path_markers"] == {
         "looks_like_reminder": False,
         "actionable_patterns": False,

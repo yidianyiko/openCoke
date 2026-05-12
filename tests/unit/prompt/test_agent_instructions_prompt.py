@@ -14,7 +14,7 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
     lines = _non_empty_lines(instructions)
 
-    assert len(lines) <= 67
+    assert len(lines) <= 82
     assert "Current time: 2026年04月30日12时00分" in instructions
     assert "create only when the user asks to be reminded" in instructions
     assert "Date-only or time-missing reminder requests clarify" in instructions
@@ -35,6 +35,9 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "bare call/wake/alarm-me requests" in instructions
     assert "Name/address preferences" in instructions
     assert "One-shot deadline wording" in instructions
+    assert "Event time plus an advance offset is complete" in instructions
+    assert "vague advance request without an offset" in instructions
+    assert "task/content appears before the reminder verb" in instructions
     assert "need/intention statements" in instructions
     assert "return discussion" in instructions
     assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)

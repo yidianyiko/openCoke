@@ -197,6 +197,14 @@ def test_reminder_preflight_routes_call_me_only_with_schedule_context():
         run_context=run_context,
         input_message="（2026年05月10日 reminder-e2e-user发来了文本消息）18:05提醒我出门",
     )
+    assert agent_runtime._should_preflight_reminder_intent(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=(
+            "你能每天早上7点询问我当天的规划吗？"
+            "最后在每天晚上23.00告诉我，我今天完成了哪些任务"
+        ),
+    )
     assert not agent_runtime._should_preflight_reminder_intent(
         agent_input=agent_input,
         run_context=run_context,

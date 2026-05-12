@@ -43,6 +43,9 @@ _REMINDER_PREFLIGHT_KEYWORDS = (
     "wake me",
 )
 _REMINDER_CALL_WORD_PATTERN = r"(叫我|喊我|call me|wake me)"
+_REMINDER_CHECK_WORD_PATTERN = (
+    r"(询问我|问问我|问我|告诉我|check in|tell me|report to me)"
+)
 _REMINDER_TIME_ANCHOR_PATTERN = (
     r"(?:"
     r"\d{1,2}\s*[:：.]\s*\d{1,2}|"
@@ -65,6 +68,14 @@ _AMBIGUOUS_REMINDER_PREFLIGHT_PATTERNS = (
     re.compile(
         rf"{_REMINDER_CALL_WORD_PATTERN}.{{0,24}}"
         rf"(?:{_REMINDER_TIME_ANCHOR_PATTERN}|{_REMINDER_CALL_CONTEXT_PATTERN})",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"{_REMINDER_TIME_ANCHOR_PATTERN}.{{0,32}}{_REMINDER_CHECK_WORD_PATTERN}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"{_REMINDER_CHECK_WORD_PATTERN}.{{0,32}}{_REMINDER_TIME_ANCHOR_PATTERN}",
         re.IGNORECASE,
     ),
 )

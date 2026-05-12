@@ -330,7 +330,7 @@ def test_agent_runtime_reminder_detect_default_timeout_allows_agent_runtime_llm_
     assert reminder_intent._agent_runtime_reminder_detect_timeout_seconds() == 30.0
 
 
-def test_agent_runtime_reminder_detect_timeout_retry_default_budget_covers_live_retry_latency(
+def test_agent_runtime_reminder_detect_timeout_retry_default_budget_leaves_user_path_slack(
     monkeypatch,
 ):
     from agent.agno_agent.capabilities import reminder_intent
@@ -341,7 +341,7 @@ def test_agent_runtime_reminder_detect_timeout_retry_default_budget_covers_live_
     )
 
     assert (
-        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 80.0
+        reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds() == 45.0
     )
 
 
@@ -355,7 +355,7 @@ def test_agent_runtime_reminder_detect_retry_default_budget_covers_live_retry_la
     )
 
     assert (
-        reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 80.0
+        reminder_intent._agent_runtime_reminder_detect_retry_timeout_seconds() == 20.0
     )
 
 
@@ -377,7 +377,7 @@ def test_agent_runtime_reminder_detect_primary_timeout_leaves_user_path_budget(
         + reminder_intent._agent_runtime_reminder_detect_timeout_retry_seconds()
     )
 
-    assert total_timeout_budget <= 110.0
+    assert total_timeout_budget <= 75.0
 
 
 @pytest.mark.asyncio
@@ -554,6 +554,297 @@ async def test_reminder_intent_port_retries_when_primary_has_no_executable_decis
 
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：喝水"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_single_create_title_before_reminder_verb():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "网球",
+                    "trigger_at": "2026-05-18T11:30:00+09:00",
+                    "schedule_evidence": "下周一中午12点，提前半小时",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "title is not governed by the reminder verb" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "出门",
+                    "trigger_at": "2026-05-18T11:30:00+09:00",
+                    "schedule_evidence": "下周一中午12点，提前半小时提醒我出门",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "出门"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：出门"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("网球帮我设置到下周一中午12点，提前半小时提醒我出门", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：出门"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_timeout_retry_with_bad_title_and_weekday():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            raise asyncio.TimeoutError
+
+    class RetryAgent:
+        def __init__(self):
+            self.calls = 0
+
+        async def arun(self, *, input, session_state):
+            self.calls += 1
+            if self.calls == 1:
+                assert "primary detector timed out" in input
+                return SimpleNamespace(
+                    content={
+                        "intent_type": "crud",
+                        "action": "create",
+                        "title": "网球提前半小时提醒出门",
+                        "trigger_at": "2026-05-17T11:30:00+09:00",
+                        "schedule_evidence": "下周一中午12点，提前半小时提醒我出门",
+                    }
+                )
+            assert "weekday" in input or "schedule evidence" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "网球出门",
+                    "trigger_at": "2026-05-18T11:30:00+09:00",
+                    "schedule_evidence": "下周一中午12点，提前半小时提醒我出门",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "网球出门"
+            assert received_decision.trigger_at == "2026-05-18T11:30:00+09:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：网球出门"},
+                error=None,
+                metadata={},
+            )
+
+    retry_agent = RetryAgent()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=retry_agent,
+        command_executor=FakeExecutor(),
+    ).run("网球帮我设置到下周一中午12点，提前半小时提醒我出门", _run_context())
+
+    assert retry_agent.calls == 2
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：网球出门"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_clarified_relative_delay_with_preceding_task():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "relative-delay reminder" in input
+            assert "task/content appears before the reminder verb" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "开始写作",
+                    "trigger_at": "2026-04-30T12:25:00+00:00",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "开始写作"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：开始写作"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("开始写作，请25分钟之后提醒我", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：开始写作"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_next_whole_hour_misread_as_cadence():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "画画",
+                    "trigger_at": "2026-05-06T11:00:00+00:00",
+                    "rrule": "FREQ=HOURLY",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "下个整点",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "next whole hour" in input
+            assert "one-shot" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "画画",
+                    "trigger_at": "2026-05-06T11:00:00+00:00",
+                    "schedule_basis": "one_shot",
+                    "schedule_evidence": "下个整点",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.rrule == ""
+            assert received_decision.title == "画画"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：画画"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("画画，下个整点再叫我吧", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：画画"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_when_multiple_scheduled_clauses_are_dropped():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "询问当天规划",
+                    "trigger_at": "2026-05-12T07:00:00+09:00",
+                    "rrule": "FREQ=DAILY",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每天早上7点",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "fewer create operations than explicit scheduled" in input
+            assert "23.00" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "batch",
+                    "schedule_basis": "explicit_occurrences",
+                    "schedule_evidence": "每天早上7点；每天晚上23.00",
+                    "operations": [
+                        {
+                            "action": "create",
+                            "title": "询问当天规划",
+                            "trigger_at": "2026-05-12T07:00:00+09:00",
+                            "rrule": "FREQ=DAILY",
+                        },
+                        {
+                            "action": "create",
+                            "title": "告诉今天完成了哪些任务",
+                            "trigger_at": "2026-05-11T23:00:00+09:00",
+                            "rrule": "FREQ=DAILY",
+                        },
+                    ],
+                }
+            )
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            assert received_decision.action == "batch"
+            assert [op.title for op in received_decision.operations] == [
+                "询问当天规划",
+                "告诉今天完成了哪些任务",
+            ]
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：询问当天规划；已创建提醒：告诉今天完成了哪些任务"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=executor,
+    ).run(
+        "你能每天早上7点询问我当天的规划吗？最后在每天晚上23.00告诉我，我今天完成了哪些任务",
+        _run_context(),
+    )
+
+    assert result.ok is True
+    assert len(executor.received) == 1
 
 
 @pytest.mark.asyncio
@@ -1990,6 +2281,111 @@ async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb(
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_drops_batch_operation_without_local_schedule_evidence():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        schedule_basis="explicit_occurrences",
+        schedule_evidence="明天；晚上9:00",
+        operations=[
+            SimpleNamespace(
+                action="create",
+                title="提醒任务",
+                trigger_at="2026-05-12T09:00:00+09:00",
+            ),
+            SimpleNamespace(
+                action="create",
+                title="收起全天学习的作业",
+                trigger_at="2026-05-12T21:00:00+09:00",
+            ),
+        ],
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：收起全天学习的作业"},
+                error=None,
+                metadata={},
+            )
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=None,
+        command_executor=executor,
+    ).run("明天除了提醒任务之后，到晚上9:00要收起我全天学习的作业哦", _run_context())
+
+    assert result.ok is True
+    assert len(executor.received) == 1
+    assert [op.title for op in executor.received[0].operations] == [
+        "收起全天学习的作业"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_clarification_for_mixed_clocked_clause():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "具体什么时间提醒你？",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "concrete clock-governed reminder clauses" in input
+            assert "drop date-only or no-clock clauses" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "收起全天学习的作业",
+                    "trigger_at": "2026-05-12T21:00:00+09:00",
+                    "schedule_basis": "one_shot",
+                    "schedule_evidence": "明天晚上9:00",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "收起全天学习的作业"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：收起全天学习的作业"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("明天除了提醒任务之后，到晚上9:00要收起我全天学习的作业哦", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：收起全天学习的作业"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence_batch():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
@@ -2951,6 +3347,23 @@ def test_fallback_clarification_for_concrete_time_without_content_asks_task():
     assert result.content["summary"] == "你想让我提醒你做什么？"
 
 
+def test_fallback_for_event_time_with_vague_advance_asks_lead_time():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _fallback_clarification_for_input,
+        _invalid_decision_clarification_result,
+    )
+
+    result = _fallback_clarification_for_input(
+        "明天下午五点半我有个会议，记得提前提醒我",
+        _invalid_decision_clarification_result(),
+    )
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "你想提前多久提醒你？"
+
+
 @pytest.mark.asyncio
 async def test_reminder_intent_port_returns_noop_for_non_reminder():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
@@ -2986,6 +3399,36 @@ async def test_reminder_intent_port_surfaces_clarification_question():
     result = await ReminderIntentPort(detector_agent=FakeAgent()).run(
         "晚上10:00提醒我", _run_context()
     )
+
+    assert result.ok is True
+    assert result.content["action"] == "clarify"
+    assert result.content["summary"] == "你想让我提醒你做什么？"
+    assert result.metadata["durable_write"] is False
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clarifies_generic_remind_me_particle_title():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="提醒我吧",
+        trigger_at="2026-05-12T10:00:00+00:00",
+    )
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(content=decision)
+
+    class FailingExecutor:
+        def execute(self, decision, run_context):
+            raise AssertionError("generic reminder should not execute")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FailingExecutor(),
+    ).run("明天上午10点提醒我吧", _run_context())
 
     assert result.ok is True
     assert result.content["action"] == "clarify"

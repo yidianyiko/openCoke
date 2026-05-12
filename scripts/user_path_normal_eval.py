@@ -1542,6 +1542,10 @@ Context:
   claimed reminder action.
 - A conditional offer such as "if you need, I can help remember/keep track" is
   not a claimed reminder action because it still requires the user's opt-in.
+- Capability offers such as "I can help set a reminder" or "send the plan and I
+  can help organize it or set reminders" are not claimed reminder actions unless
+  they say the assistant will remind, notify, call, nudge, or check in at a
+  concrete time or cadence.
 - A reply that says the assistant remembers, knows, or recalls the user's
   stated plan or prior message is not a claimed reminder action unless it also
   says a future reminder/check-in will happen.

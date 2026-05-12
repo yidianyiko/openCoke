@@ -60,7 +60,8 @@ Decision boundary:
 - A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 - Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 - One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
-- Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Current time to trigger_at.
+- Event time plus an advance offset is complete: if the user says an event is at T and asks to remind X before/提前X提醒, set trigger_at to T minus X; a vague advance request without an offset clarifies for how long before the event.
+- Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Current time to trigger_at. If task/content appears before the reminder verb in the same message, use it as title.
 - Completion-conditioned reminders such as after I finish/read/watch this are
   not schedulable without a clock or duration; clarify for when to remind.
 - A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.

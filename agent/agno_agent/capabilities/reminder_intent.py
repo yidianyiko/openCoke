@@ -32,8 +32,8 @@ from dao.pending_workflow_dao import PendingWorkflowDAO
 
 logger = logging.getLogger(__name__)
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS = 30.0
-_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 80.0
-_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 80.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 45.0
+_DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
 
 
 @dataclass(frozen=True)
@@ -168,13 +168,14 @@ A reminder request with concrete time but no reminder content clarifies, except 
 Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
+Event time plus an advance offset is complete: if the user says an event is at T and asks to remind X before/提前X提醒, set trigger_at to T minus X; a vague advance request without an offset clarifies for how long before the event.
 For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
 Plans to test, improve, or discuss reminder functionality/capability are discussion unless the same message asks for a concrete reminder operation.
 Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
 Pomodoro/tomato timer starts are timed reminder requests: if the user asks to start a new Pomodoro/tomato timer and asks to be reminded at the end/time without an explicit duration, use 25 minutes after Time as trigger_at.
-Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Time to trigger_at.
+Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Time to trigger_at. If task/content appears before the reminder verb in the same message, use it as title.
 Completion-conditioned reminders such as after I finish/read/watch this are not schedulable without a clock or duration; clarify for when to remind.
 If a bare local clock time has already passed and the user did not explicitly say today, resolve the next future occurrence.
 Undesignated local clock times attached to a reminder task are concrete; if the clock has passed, resolve the next future local occurrence and do not ask for date or trigger_at.
@@ -285,11 +286,18 @@ class ReminderIntentPort:
                 input_message
             ) or _input_is_reminder_behavior_meta_discussion(input_message):
                 return _no_action_discussion_result()
+            retry_reason = "primary detector timed out"
+            if _input_has_relative_delay_and_preceding_task_content(input_message):
+                retry_reason = (
+                    "primary detector timed out on a relative-delay reminder whose "
+                    "task/content appears before the reminder verb; use the preceding "
+                    "task/content as the create title and resolve the relative delay"
+                )
             retry_decision = await self._run_retry_detector(
                 input_message,
                 detector_run_context,
                 session_state,
-                reason="primary detector timed out",
+                reason=retry_reason,
                 timeout_seconds=_agent_runtime_reminder_detect_timeout_retry_seconds(),
             )
             if retry_decision is None:
@@ -358,11 +366,27 @@ class ReminderIntentPort:
         ):
             return _no_action_discussion_result()
         if _is_clarification_decision(decision) and self.retry_agent is not None:
+            retry_reason = "primary detector returned no executable decision"
+            if _input_has_relative_delay_and_preceding_task_content(input_message):
+                retry_reason = (
+                    "primary detector returned clarification for a relative-delay "
+                    "reminder whose task/content appears before the reminder verb; "
+                    "use the preceding task/content as the create title and resolve "
+                    "the relative delay"
+                )
+            elif _input_has_mixed_clocked_reminder_clause(input_message):
+                retry_reason = (
+                    "primary detector returned clarification even though the current "
+                    "message contains concrete clock-governed reminder clauses; "
+                    "return executable create/batch operations for concrete "
+                    "clock-governed reminder clauses and drop date-only or no-clock "
+                    "clauses instead of inventing default times"
+                )
             retry_decision = await self._run_retry_detector(
                 input_message,
                 detector_run_context,
                 session_state,
-                reason="primary detector returned no executable decision",
+                reason=retry_reason,
                 timeout_seconds=_float_env(
                     "COKE_AGENT_RUNTIME_REMINDER_CLARIFICATION_RETRY_TIMEOUT_SECONDS",
                     30.0,
@@ -385,11 +409,27 @@ class ReminderIntentPort:
                     return _fresh_workflow_state_result(fallback_outcome.fresh_workflow)
                 return _clarification_result(decision)
         if not _should_execute_decision(decision) and self.retry_agent is not None:
+            retry_reason = "primary detector returned no executable decision"
+            if _input_has_relative_delay_and_preceding_task_content(input_message):
+                retry_reason = (
+                    "primary detector returned no executable decision for a "
+                    "relative-delay reminder whose task/content appears before the "
+                    "reminder verb; use the preceding task/content as the create "
+                    "title and resolve the relative delay"
+                )
+            elif _input_has_mixed_clocked_reminder_clause(input_message):
+                retry_reason = (
+                    "primary detector returned no executable decision even though "
+                    "the current message contains concrete clock-governed reminder "
+                    "clauses; return executable create/batch operations for concrete "
+                    "clock-governed reminder clauses and drop date-only or no-clock "
+                    "clauses instead of inventing default times"
+                )
             retry_decision = await self._run_retry_detector(
                 input_message,
                 detector_run_context,
                 session_state,
-                reason="primary detector returned no executable decision",
+                reason=retry_reason,
             )
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
@@ -475,6 +515,33 @@ class ReminderIntentPort:
                 )
             else:
                 return _bounded_cadence_deadline_loss_clarification_result(decision)
+        if (
+            _should_execute_decision(decision)
+            and _input_has_next_whole_hour_reference(input_message)
+            and _is_unbounded_high_frequency_cadence(decision, input_message=input_message)
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector treated a next whole hour reference as an "
+                    "hourly cadence; next whole hour is a one-shot reminder, not "
+                    "a recurring schedule"
+                ),
+            )
+            if _should_execute_decision(retry_decision) and not (
+                _is_unbounded_high_frequency_cadence(
+                    retry_decision,
+                    input_message=input_message,
+                )
+            ):
+                decision = retry_decision
+            else:
+                return _unbounded_high_frequency_cadence_clarification_result(
+                    decision
+                )
         if _should_execute_decision(decision) and _is_unbounded_high_frequency_cadence(
             decision, input_message=input_message
         ):
@@ -551,6 +618,9 @@ class ReminderIntentPort:
             run_context,
         )
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
+        decision = _drop_batch_operations_without_local_schedule_evidence(
+            input_message, decision
+        )
         if _should_clarify_date_only_create(input_message, decision):
             return _date_only_missing_time_clarification_result()
         if _should_clarify_ambiguous_time_range_create(input_message, decision):
@@ -559,6 +629,63 @@ class ReminderIntentPort:
             return _completion_condition_missing_time_clarification_result()
         if _should_clarify_status_only_content_create(input_message, decision):
             return _missing_reminder_content_clarification_result()
+        if (
+            (
+                _should_retry_for_title_schedule_evidence_leak(decision)
+                or _should_retry_for_weekday_mismatch(
+                    input_message, decision, run_context
+                )
+            )
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector returned schedule evidence inside the title "
+                    "or a trigger_at weekday that conflicts with the user's weekday; "
+                    "keep schedule evidence out of title and preserve weekday"
+                ),
+            )
+            if (
+                _should_execute_decision(retry_decision)
+                and not _should_retry_for_title_schedule_evidence_leak(retry_decision)
+                and not _should_retry_for_weekday_mismatch(
+                    input_message, retry_decision, run_context
+                )
+            ):
+                decision = retry_decision
+            else:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
+        if (
+            _should_retry_for_ungoverned_single_create_title(input_message, decision)
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector chose a create title is not governed by "
+                    "the reminder verb because it appears before the reminder verb; "
+                    "use the task governed by the reminder verb as the title"
+                ),
+            )
+            if _should_execute_decision(
+                retry_decision
+            ) and not _should_retry_for_ungoverned_single_create_title(
+                input_message, retry_decision
+            ):
+                decision = retry_decision
+            else:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
         if (
             _should_retry_for_day_of_month_mismatch(
                 input_message, decision, run_context
@@ -579,6 +706,32 @@ class ReminderIntentPort:
                 retry_decision
             ) and not _should_retry_for_day_of_month_mismatch(
                 input_message, retry_decision, run_context
+            ):
+                decision = retry_decision
+            else:
+                return _fallback_clarification_for_input(
+                    input_message,
+                    _invalid_decision_clarification_result(),
+                )
+        if (
+            _should_retry_for_missing_scheduled_clauses(input_message, decision)
+            and self.retry_agent is not None
+        ):
+            retry_decision = await self._run_retry_detector(
+                input_message,
+                detector_run_context,
+                session_state,
+                reason=(
+                    "primary detector returned fewer create operations than explicit "
+                    "scheduled reminder/check-in/report clauses in the current "
+                    "message; preserve each explicit scheduled clause, including "
+                    "dot-separated times like 23.00, as a create operation"
+                ),
+            )
+            if _should_execute_decision(
+                retry_decision
+            ) and not _should_retry_for_missing_scheduled_clauses(
+                input_message, retry_decision
             ):
                 decision = retry_decision
             else:
@@ -1207,6 +1360,11 @@ _RELATIVE_DELAY_PATTERN = re.compile(
     r"(?:计时|倒计时))",
     re.IGNORECASE,
 )
+_VAGUE_ADVANCE_REMINDER_PATTERN = re.compile(
+    r"提前\s*(?:提醒我|提醒一下我|提醒一下|提醒|叫我|喊我|通知我|"
+    r"remind me|notify me|nudge me)",
+    re.IGNORECASE,
+)
 _STATUS_ONLY_REMINDER_TITLE_PATTERN = re.compile(
     r"^(?:都|也|还|这|那|这个|那个|这些|那些|它|事情|事|东西|任务|it|that|this)*"
     r"(?:还没|还没有|没|没有|未|尚未|not)"
@@ -1288,6 +1446,50 @@ def _single_relative_delay(current_user_text: str) -> timedelta | None:
     if unit in {"天", "日"}:
         return timedelta(days=amount)
     return None
+
+
+def _input_has_relative_delay_and_preceding_task_content(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    delay_match = _RELATIVE_DELAY_PATTERN.search(current_user_text)
+    reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
+    if delay_match is None or reminder_match is None:
+        return False
+    prefix = current_user_text[: min(delay_match.start(), reminder_match.start())]
+    prefix = re.sub(
+        r"(?:\bok+\b|好的|好|行|嗯|请|麻烦|帮我|记得|please|[,，。；;、\s])+",
+        "",
+        prefix,
+        flags=re.IGNORECASE,
+    )
+    return bool(prefix)
+
+
+_NEXT_WHOLE_HOUR_PATTERN = re.compile(
+    r"(?:下个|下一个|下次|next)\s*(?:整点|whole hour)",
+    re.IGNORECASE,
+)
+
+
+def _input_has_next_whole_hour_reference(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    return bool(_NEXT_WHOLE_HOUR_PATTERN.search(current_user_text))
+
+
+def _input_has_mixed_clocked_reminder_clause(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return False
+    if not _BARE_CLOCK_PATTERN.search(current_user_text):
+        return False
+    if not (
+        _REMINDER_VERB_PATTERN.search(current_user_text)
+        or re.search(r"要|询问我|问问我|告诉我", current_user_text)
+    ):
+        return False
+    return bool(
+        _EXPLICIT_DATE_PATTERN.search(current_user_text)
+        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
+    )
 
 
 def _relative_delay_trigger_at(
@@ -1624,6 +1826,34 @@ def _drop_ungoverned_batch_plan_operations(input_message: str, decision: Any) ->
     return _drop_ungoverned_cadence_task_operations(current_user_text, decision)
 
 
+def _drop_batch_operations_without_local_schedule_evidence(
+    input_message: str, decision: Any
+) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "batch":
+        return decision
+    operations = list(_decision_value(decision, "operations") or [])
+    if len(operations) <= 1:
+        return decision
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    kept_operations = []
+    changed = False
+    for operation in operations:
+        if str(_operation_value(operation, "action") or "").strip() != "create":
+            kept_operations.append(operation)
+            continue
+        title = str(_operation_value(operation, "title") or "").strip()
+        if not title or current_user_text.find(title) < 0:
+            kept_operations.append(operation)
+            continue
+        if _title_has_local_schedule_context(current_user_text, title):
+            kept_operations.append(operation)
+            continue
+        changed = True
+    if not changed or not kept_operations:
+        return decision
+    return _copy_decision_with_operations(decision, kept_operations)
+
+
 def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
     if str(_decision_value(decision, "action") or "").strip() != "batch":
         return decision
@@ -1684,6 +1914,22 @@ def _title_has_local_cadence_context(text: str, title: str) -> bool:
         clause_end = _next_clause_boundary(text, position + len(title))
         clause = text[clause_start:clause_end]
         if _is_high_frequency_evidence(clause):
+            return True
+        start = position + len(title)
+
+
+def _title_has_local_schedule_context(text: str, title: str) -> bool:
+    start = 0
+    while True:
+        position = text.find(title, start)
+        if position < 0:
+            return False
+        clause_start = _previous_clause_boundary(text, position)
+        clause_end = _next_clause_boundary(text, position + len(title))
+        clause = text[clause_start:clause_end]
+        if _BARE_CLOCK_PATTERN.search(clause) or _RELATIVE_DELAY_PATTERN.search(
+            clause
+        ):
             return True
         start = position + len(title)
 
@@ -1772,11 +2018,102 @@ def _should_clarify_status_only_content_create(input_message: str, decision: Any
         return False
     if not _BARE_CLOCK_PATTERN.search(current_user_text):
         return False
+    if _input_has_concrete_time_without_reminder_content(current_user_text):
+        return True
     for title in _decision_titles(decision):
         normalized_title = re.sub(r"\s+", "", title).strip().lower()
         if _STATUS_ONLY_REMINDER_TITLE_PATTERN.fullmatch(normalized_title):
             return True
     return False
+
+
+def _should_retry_for_ungoverned_single_create_title(
+    input_message: str, decision: Any
+) -> bool:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
+    if reminder_match is None:
+        return False
+    title = str(_decision_value(decision, "title") or "").strip()
+    if not title:
+        return False
+    first_title_at = current_user_text.find(title)
+    if first_title_at < 0 or first_title_at >= reminder_match.start():
+        return False
+    if _input_has_relative_delay_and_preceding_task_content(input_message):
+        return False
+    if _input_has_next_whole_hour_reference(input_message):
+        return False
+    if current_user_text.find(title, reminder_match.start()) >= 0:
+        return False
+    return not _title_has_local_reminder_verb_context(current_user_text, title)
+
+
+def _should_retry_for_title_schedule_evidence_leak(decision: Any) -> bool:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return False
+    title = str(_decision_value(decision, "title") or "").strip()
+    return bool(title and re.search(r"提前", title))
+
+
+_CHINESE_WEEKDAY_INDEX = {
+    "一": 0,
+    "1": 0,
+    "二": 1,
+    "2": 1,
+    "三": 2,
+    "3": 2,
+    "四": 3,
+    "4": 3,
+    "五": 4,
+    "5": 4,
+    "六": 5,
+    "6": 5,
+    "日": 6,
+    "天": 6,
+    "7": 6,
+}
+_EXPLICIT_WEEKDAY_PATTERN = re.compile(r"(?:下周|本周|这周|这星期|下星期|星期|周)([一二三四五六日天1-7])")
+
+
+def _should_retry_for_weekday_mismatch(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> bool:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return False
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    weekday = _explicit_weekday_index(current_user_text)
+    if weekday is None:
+        return False
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    if not trigger_at:
+        return False
+    try:
+        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        try:
+            parsed = parsed.replace(tzinfo=ZoneInfo(run_context.user.timezone or "UTC"))
+        except ZoneInfoNotFoundError:
+            return False
+    else:
+        try:
+            parsed = parsed.astimezone(ZoneInfo(run_context.user.timezone or "UTC"))
+        except ZoneInfoNotFoundError:
+            return False
+    return parsed.weekday() != weekday
+
+
+def _explicit_weekday_index(text: str) -> int | None:
+    match = _EXPLICIT_WEEKDAY_PATTERN.search(text)
+    if match is None:
+        return None
+    return _CHINESE_WEEKDAY_INDEX.get(match.group(1))
 
 
 def _decision_has_create_operation(decision: Any) -> bool:
@@ -1790,6 +2127,44 @@ def _decision_has_create_operation(decision: Any) -> bool:
         if str(_operation_value(operation, "action") or "").strip() == "create":
             return True
     return False
+
+
+def _should_retry_for_missing_scheduled_clauses(
+    input_message: str, decision: Any
+) -> bool:
+    expected_count = _explicit_scheduled_clause_count(input_message)
+    if expected_count < 2:
+        return False
+    return _decision_create_operation_count(decision) < expected_count
+
+
+def _explicit_scheduled_clause_count(input_message: str) -> int:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return 0
+    if not (
+        _REMINDER_VERB_PATTERN.search(current_user_text)
+        or re.search(r"询问我|告诉我|问问我|check in|report", current_user_text, re.I)
+    ):
+        return 0
+    matches = {
+        re.sub(r"\s+", "", match.group(0))
+        for match in _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text)
+    }
+    return len(matches)
+
+
+def _decision_create_operation_count(decision: Any) -> int:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        return 1
+    if action != "batch":
+        return 0
+    return sum(
+        1
+        for operation in (_decision_value(decision, "operations") or [])
+        if str(_operation_value(operation, "action") or "").strip() == "create"
+    )
 
 
 def _should_retry_for_day_of_month_mismatch(
@@ -2098,6 +2473,8 @@ def _is_high_frequency_evidence(evidence: str) -> bool:
 
 def _input_has_high_frequency_without_deadline(text: str) -> bool:
     normalized = str(text or "").strip().lower()
+    if _input_has_next_whole_hour_reference(normalized):
+        return False
     if not _is_high_frequency_evidence(normalized):
         return False
     deadline_tokens = (
@@ -2155,10 +2532,22 @@ def _input_has_concrete_time_without_reminder_content(text: str) -> bool:
         return False
     return bool(
         re.search(
-            r"(?:提醒我|提醒一下我|提醒一下|提醒|叫我|喊我)[。.!！?？\s]*$",
+            r"(?:提醒我一下|提醒我|提醒一下我|提醒一下|提醒|叫我|喊我)"
+            r"(?:吧|哦|噢|啊|呀|啦|哈|呢)?[。.!！?？~～\s]*$",
             normalized,
         )
     )
+
+
+def _input_has_event_time_with_vague_advance_request(text: str) -> bool:
+    normalized = str(text or "").strip().lower()
+    if not normalized:
+        return False
+    if not _VAGUE_ADVANCE_REMINDER_PATTERN.search(normalized):
+        return False
+    if not _BARE_CLOCK_PATTERN.search(normalized):
+        return False
+    return bool(_REMINDER_VERB_PATTERN.search(normalized))
 
 
 def _input_is_plain_schedule_statement_without_reminder_request(text: str) -> bool:
@@ -2388,6 +2777,11 @@ def _fallback_clarification_for_input(
         "ReminderDetectTimeout",
     } and _input_has_date_reference_without_clock(input_message):
         return _date_only_missing_time_clarification_result()
+    if fallback.error in {
+        "ReminderDetectInvalidDecision",
+        "ReminderDetectTimeout",
+    } and _input_has_event_time_with_vague_advance_request(input_message):
+        return _advance_offset_missing_clarification_result()
     if fallback.error == "ReminderDetectInvalidDecision":
         if _input_has_concrete_time_without_reminder_content(input_message):
             return _missing_reminder_content_clarification_result()
@@ -2479,6 +2873,19 @@ def _completion_condition_missing_time_clarification_result() -> CapabilityResul
             "action": "clarify",
             "intent_type": "clarify",
             "summary": "我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
+        },
+        metadata={"durable_write": False},
+    )
+
+
+def _advance_offset_missing_clarification_result() -> CapabilityResult:
+    return CapabilityResult(
+        name="reminder",
+        ok=True,
+        content={
+            "action": "clarify",
+            "intent_type": "clarify",
+            "summary": "你想提前多久提醒你？",
         },
         metadata={"durable_write": False},
     )
