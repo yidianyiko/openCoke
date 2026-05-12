@@ -17,6 +17,7 @@ surfaces:
       - agent/reminder/**
       - dao/reminder_dao.py
       - dao/deferred_action_*.py
+      - dao/pending_workflow_dao.py
 
   - name: bridge
     paths:

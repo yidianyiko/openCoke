@@ -55,6 +55,7 @@ Use when changing:
 - `agent/agno_agent/tools/deferred_action/`
 - `agent/agno_agent/tools/reminder_protocol/`
 - `dao/deferred_action_*.py`
+- `dao/pending_workflow_dao.py`
 - `agent/prompt/`
 
 Baseline commands:
@@ -94,6 +95,12 @@ pytest tests/unit/reminder/ tests/unit/dao/test_reminder_dao.py -v
 pytest tests/unit/runner/test_reminder_scheduler.py tests/unit/runner/test_reminder_event_handler.py -v
 pytest tests/unit/agent/test_visible_reminder_protocol_tool.py tests/unit/test_tool_results_context.py -v
 pytest tests/e2e/test_reminder_system_flow.py -v
+```
+
+Focused pending-workflow command set (feature-flagged, default off):
+
+```bash
+pytest tests/unit/agent/test_pending_workflow_models.py tests/unit/dao/test_pending_workflow_dao.py -v
 ```
 
 ## Bridge

@@ -27,6 +27,11 @@ repo-local map, not a product roadmap and not a replacement for
     `agent/agno_agent/tools/reminder_protocol/`
   - durable state in MongoDB `reminders`
   - fired-event handoff through `ReminderFireEventHandler`
+  - feature-flagged pending-workflow side channel: typed envelope in
+    `agent/agno_agent/runtime/pending_workflow.py`, persistence through
+    `dao/pending_workflow_dao.py` against the `pending_workflows` collection;
+    runtime gated by `pending_workflow.reminders.enabled` and
+    `pending_workflow.reminders.execution_envelope.enabled` (both default off)
 - Deferred Actions
   - durable state in MongoDB `deferred_actions` and
     `deferred_action_occurrences`
