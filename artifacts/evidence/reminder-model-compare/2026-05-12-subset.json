@@ -1,0 +1,119 @@
+{
+  "buckets": {
+    "chinese_clock_nightly": [
+      5,
+      16,
+      39
+    ],
+    "chinese_clock_past_X": [
+      55,
+      114,
+      116
+    ],
+    "chinese_clock_before_X": [
+      343
+    ],
+    "relative_delay": [
+      7,
+      64,
+      159,
+      229,
+      230
+    ],
+    "bare_clock": [
+      83,
+      110,
+      123,
+      153
+    ],
+    "batch_multi": [
+      0,
+      1,
+      3
+    ],
+    "weekly_recurrence": [
+      52,
+      58,
+      59
+    ],
+    "monthly_or_dayofmonth": [
+      89,
+      212
+    ],
+    "bounded_window": [
+      19,
+      21,
+      24
+    ],
+    "clarify_date_only": [
+      102,
+      219,
+      225
+    ],
+    "clarify_completion": [
+      73,
+      304
+    ],
+    "clarify_status_only": [
+      270
+    ],
+    "clarify_ambiguous_time": [
+      181,
+      208
+    ],
+    "discussion_meta": [
+      75,
+      85
+    ],
+    "discussion_intent": [
+      78
+    ],
+    "plain_crud_baseline": [
+      4,
+      14
+    ]
+  },
+  "selected_indices": [
+    0,
+    1,
+    3,
+    4,
+    5,
+    7,
+    14,
+    16,
+    19,
+    21,
+    24,
+    39,
+    52,
+    55,
+    58,
+    59,
+    64,
+    73,
+    75,
+    78,
+    83,
+    85,
+    89,
+    102,
+    110,
+    114,
+    116,
+    123,
+    153,
+    159,
+    181,
+    208,
+    212,
+    219,
+    225,
+    229,
+    230,
+    270,
+    304,
+    343
+  ],
+  "total": 40
+}

@@ -11,37 +11,27 @@ def _non_empty_lines(text: str) -> list[str]:
 
 
 def test_reminder_detect_instructions_are_small_positive_boundary():
+    """v2 prompt: ~600-1000 token budget, focused on intent + ISO time output.
+
+    Avoid asserting individual edge-case rule wording — those are exactly
+    the kind of accumulated text that ADR 0004 forbids. Assert only the
+    structural sections and the load-bearing AM/PM disambiguation rule.
+    """
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
     lines = _non_empty_lines(instructions)
 
-    assert len(lines) <= 82
+    # Structure: must stay under ~60 non-empty lines.
+    assert len(lines) <= 60
+    # Carries the dynamic timestamp.
     assert "Current time: 2026年04月30日12时00分" in instructions
-    assert "create only when the user asks to be reminded" in instructions
-    assert "Date-only or time-missing reminder requests clarify" in instructions
-    assert "Bounded recurring cadence with a deadline uses one compact recurrence" in (
-        instructions
-    )
-    assert "Cadence with a deadline and no start uses the next future" in (instructions)
-    assert "Preserve all meaningful title text" in instructions
-    assert "Exclude sentence-final modal particles" in instructions
-    assert 'Any decision with operations must use top-level action="batch"' in (
-        instructions
-    )
-    assert "one operation per listed time" in instructions
-    assert "contacted, nudged, or supervised at a concrete time/cadence" in instructions
-    assert "A task time range is a work block" in instructions
-    assert "clarify before creating any reminder from that message" in instructions
-    assert "use the task governed by the reminder verb" in instructions
-    assert "bare call/wake/alarm-me requests" in instructions
-    assert "Name/address preferences" in instructions
-    assert "One-shot deadline wording" in instructions
-    assert "Event time plus an advance offset is complete" in instructions
-    assert "vague advance request without an offset" in instructions
-    assert "task/content appears before the reminder verb" in instructions
-    assert "need/intention statements" in instructions
-    assert "return discussion" in instructions
-    assert "schedule_evidence may summarize the concrete cadence/time" in (instructions)
-    assert "include every listed weekday in" in instructions
+    # Four intent classes appear by name.
+    for intent in ("crud", "clarify", "query", "discussion"):
+        assert f"- {intent}:" in instructions
+    # Time output is the critical contract.
+    assert "ISO 8601" in instructions
+    # AM/PM disambiguation is load-bearing (Phase 0 v2 evidence).
+    assert "prefer PM same day" in instructions
+    # Output discipline.
     assert "Output only the structured decision" in instructions
 
 

@@ -38,89 +38,56 @@ def get_reminder_detect_instructions(current_time_str: str = None) -> str:
         current_time_str = now.strftime("%Y年%m月%d日%H时%M分")
 
     return f"""<instructions>
-You analyze the current user message plus recent conversation context and output a structured ReminderDetectDecision. The runtime executes CRUD/query decisions from your structured fields; do not write ordinary chat replies.
+You analyze the user message and output a structured ReminderDetectDecision. The runtime executes the structured fields; never write chat text.
 
 Current time: {current_time_str}
 
-Decision boundary:
-- Always return ReminderDetectDecision; never write chat text.
-- create only when the user asks to be reminded, notified, alarmed, called, checked in on, contacted, nudged, or supervised at a concrete time/cadence.
-- Chinese 打卡, 监督, and 问问完成情况 count when paired with a time/cadence.
-- Ordinary plans, need/intention statements, routines, activity reports, and schedule descriptions are discussion, not clarify, unless the same message asks for reminder supervision.
-- Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
-- Plans to test, improve, or discuss reminder functionality/capability are
-  discussion unless the same message asks for a concrete reminder operation.
-- Do not ask whether to set a reminder for ordinary plans or need/intention statements; return discussion.
-- Pomodoro/tomato timer starts are timed reminder requests: if the user asks to
-  start a new Pomodoro/tomato timer and asks to be reminded at the end/time
-  without an explicit duration, use 25 minutes after Time as trigger_at.
-- Name/address preferences like "call me X" or "你可以叫我X" are discussion unless the same message includes a concrete reminder time/cadence/task.
-- When the user explicitly lists multiple reminder times and tasks, create one operation per listed time even if times are close; do not ask whether to merge them.
-- Date-only or time-missing reminder requests clarify; weekday-only too. Never invent default time.
-- A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
-- Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
-- One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
-- Event time plus an advance offset is complete: if the user says an event is at T and asks to remind X before/提前X提醒, set trigger_at to T minus X; a vague advance request without an offset clarifies for how long before the event.
-- Relative delays such as after 1 min, 20min later, 过20min, or in 10 minutes are concrete; resolve them from Current time to trigger_at. If task/content appears before the reminder verb in the same message, use it as title.
-- Completion-conditioned reminders such as after I finish/read/watch this are
-  not schedulable without a clock or duration; clarify for when to remind.
-- A short name/object plus activity is enough reminder content; ignore filler before a concrete reminder time.
-- Noisy filler before a concrete clock time is not recurrence evidence.
-- Do not ask for frequency confirmation unless the user explicitly requests a cadence or recurrence.
-- Exclude sentence-final modal particles from reminder titles; Preserve all meaningful title text after the time, including text inside quotes.
-- Concrete "need you to remind me" requests create directly; do not ask confirmation.
-- Bare clock times and "next whole hour" resolve to the next local occurrence.
-- List/view/check existing reminders uses intent_type="query" and action="list".
-- Update/delete/complete need a clear target keyword; unclear targets clarify.
-- Broad stop, cancel, and do-not-disturb requests are delete intent when the target is identifiable; otherwise clarify. Never convert them to create.
-- If one same-message reminder clause is missing required details, clarify before creating any reminder from that message; do not partially execute other timed clauses.
-- For title, use the task governed by the reminder verb; bare call/wake/alarm-me requests may use that verb as the title. Trailing context/reason after a pause is not the title unless it is the requested task.
+## Intent
 
-Fields:
-- Do not invent, rename, merge, or concatenate schema field names.
-- Never output keys like intentaction; use intent_type and action separately.
-- action must be exactly one of create, update, delete, complete, batch, list, or empty.
-- crud actions are create, update, delete, complete, and batch.
-- query uses action="list"; clarify and discussion leave action empty.
-- Clarify, query, and discussion leave reminder write fields empty.
-- workflow_update is only for pending clarification workflows. Complete CRUD decisions must omit workflow_update.
-- Never attach workflow_update to create, update, delete, complete, batch, or list decisions.
-- Single create uses top-level title and trigger_at, not operations.
-- Multiple reminder operations use action="batch" with flat operation objects.
-- Any decision with operations must use top-level action="batch".
-- Never return action="batch" with operations=[].
-- Omit optional empty fields instead of sending blank strings.
-- trigger_at, new_trigger_at, and deadline_at are timezone-aware ISO 8601.
-- Use the input timezone for local times unless the user names another timezone.
-- Resolve relative and bare local times before output; do not pass relative text.
-- If a bare clock time has passed today and today was not explicit, use the next local occurrence.
-- Day-of-month wording before the reminder verb and clock, such as
-  "22号早上9点提醒我", is an explicit reminder date; preserve that day in
-  trigger_at.
+- crud: user asks to be reminded/notified/woken/called/checked-on/supervised at a concrete time or cadence (including Chinese 打卡/监督/问问完成情况). action ∈ create/update/delete/complete/batch.
+- clarify: reminder intent present but title or time is missing/ambiguous; status-only or referential content ("还没做", "这件事") clarifies for the task.
+- query: user asks to view existing reminders. action=list.
+- discussion: ordinary plans, intentions, routines, activity reports, name/address preferences, meta talk about reminder behavior. No action.
 
-Schedules:
-- schedule_basis is one_shot, explicit_occurrences, or explicit_cadence.
-- schedule_evidence may summarize the concrete cadence/time; it no longer needs to be a substring of the user message.
-- Batch, bounded schedules, and recurrence include schedule_basis and schedule_evidence.
-- Recurrence uses RFC 5545 RRULE only when the user asks for recurrence or listed habitual/routine times.
-- Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
-- Use schedule_basis="explicit_occurrences" for listed habitual/routine times;
-  those operations may include RRULE such as FREQ=DAILY.
-- Bounded recurring cadence with a deadline uses one compact recurrence:
-  action="create", RRULE, schedule_basis="explicit_cadence", schedule_evidence,
-  and deadline_at. Do not drop the deadline.
-- A bounded window with explicit start date, start clock, end clock, cadence,
-  and reminder content is complete; use trigger_at for the first occurrence and
-  deadline_at for the window end.
-- If cadence starts in the past and the deadline is future, skip past occurrences and create only future occurrences.
-- Cadence with a deadline and no start uses the next future cadence point from now; unbounded or vague cadence clarifies.
-- A supervision window without concrete occurrence times or cadence clarifies.
-- A task time range is a work block unless start/end boundaries are requested; "these time points" over ranges still clarifies.
-- A same-message stop boundary can define deadline_at for a new bounded cadence.
-- Habitual schedule reminders should be recurring only, without duplicate same-day one-shot operations.
-- When the same-message request is fully executable, preserve user order in batch operations and do not drop safe listed clauses.
-- Write clarification_question in the same language as the current message.
-- Use recent context only to resolve explicit current-turn references.
+## Time output (CRITICAL)
+
+trigger_at is timezone-aware ISO 8601 in the user's timezone.
+
+For a bare clock ("7点", "10:30", "晚上九点"):
+1. Use the period marker if present: 早上/上午=AM, 下午/晚上=PM, 凌晨=00-05, 中午=12.
+2. No period marker AND bare hour < current_hour: prefer PM same day (add 12h) if PM is within 12 hours of current_time. So at 16:34, "七点" resolves to 19:00 same day, not 07:00 next day.
+3. No period marker AND bare hour > current_hour: use as-is on current date.
+4. Bare hour equals current_hour: use next occurrence.
+
+Relative delays ("after 1 min", "20min later", "过20min"): add to current_time. Pomodoro start without duration = 25 min from current_time.
+
+Multi-clock inputs ("1点睡觉，明天6点半叫我起床"): trigger_at is the reminder time (attached to 叫/提醒/醒), not other clocks mentioned.
+
+Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_at = T minus Y. Vague advance without offset clarifies.
+
+## Edge rules
+
+- Date-only or weekday-only with no time: clarify. Never invent default time.
+- Time but no title clarifies, except bare wake/call/alarm-me where the verb is the title.
+- Completion-conditioned ("读完后") without clock or duration: clarify.
+- One-shot deadline wording ("before 22:30"): clarify for when, unless user says remind at the deadline.
+- If any clause in a multi-clause message is missing details, clarify the whole message; do not partial-execute.
+- Day-of-month before reminder verb ("22号早上9点提醒我"): preserve that day.
+- Stop/cancel/do-not-disturb requests are delete when target is identifiable; otherwise clarify. Never convert to create.
+
+## Schema
+
+- intent_type and action are separate keys; never merge.
+- action ∈ "" / create / update / delete / complete / batch / list.
+- Single reminder: top-level title + trigger_at. Multiple: action=batch + operations.
+- batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).
+- Weekly recurrence with listed weekdays: BYDAY includes all of them; do not keep only the first.
+- Bounded cadence with end clock/date: use deadline_at; trigger_at = first occurrence.
+- Recurrence uses RRULE only when the user supplies frequency/interval/listed routine times.
+- clarify and discussion leave action and write fields empty.
+- workflow_update only for pending clarification workflows.
+- Exclude trailing modal particles from titles; preserve quoted/parenthetical text.
+- clarification_question uses the same language as the user message.
 - Output only the structured decision.
 </instructions>"""
 
