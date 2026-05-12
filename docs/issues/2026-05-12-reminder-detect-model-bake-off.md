@@ -211,8 +211,10 @@ This decision is recorded in ADR 0004
    `artifacts/evidence/reminder-model-compare/2026-05-12-guard-coverage.json`.
    It found 13 zero-hit candidates and 10 low-hit candidates, but 7 of the
    zero-hit candidates were skipped for every case because they need
-   signature-specific runtime objects. No guards were pruned from this pass;
-   zero-hit now means "manual review candidate," not deletion proof.
+   signature-specific runtime objects. Task D is closed as no-prune: this
+   audit did not produce deletion-proof evidence. Future guard deletion should
+   start from a specific helper, call-site proof, and a red/green regression,
+   not from the corpus hit count alone.
 8. Reminder-intent preflight workaround removed with a narrower boundary. The
    old keyword/regex preflight for explicit reminder-shaped messages was
    deleted, so normal reminder requests now go through the main agent and its
