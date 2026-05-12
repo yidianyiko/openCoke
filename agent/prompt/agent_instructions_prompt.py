@@ -109,87 +109,47 @@ INSTRUCTIONS_ORCHESTRATOR = """Understand the user message intent and make sched
 ## Decision Rules
 
 ### need_context_retrieve
-- Default true
-- Set to false: pure reminder operations (cancel/view/delete reminders)
+- Default true.
+- Set false only for pure reminder operations that do not need memory/context.
 
 ### need_reminder_detect
-Set to true (any of the following):
-1. Contains any related keywords: reminder, task, to-do, plan, schedule, alarm, timer, countdown, pomodoro, check-in, nag, don't forget, notify, wake me up, etc.
-2. Message contains time information
-3. Context continuation: currently supplementing reminder-related information
-4. User is questioning/asking about the status of a "reminder"
-5. User asks to stop, cancel, delete, complete, or avoid disturbance from a
-   reminder/alarm/check-in/supervision flow
-6. User says not to disturb/call/check in after a study, work, sleep, or rest
-   boundary; let ReminderDetect decide delete vs clarify
-7. When uncertain, lean towards setting to true
+- True when the message asks to create, inspect, change, complete, stop, or avoid a reminder/alarm/check-in/supervision flow.
+- True for task-management language with a time, cadence, countdown, pomodoro, deadline, wake/call request, or reminder-status question.
+- True for reminder-related continuations where the user is supplying missing schedule/content details.
+- False for pure small talk, past status reports, and Name/address preferences like "call me X" or "你可以叫我X" unless the same message includes a concrete reminder time, cadence, or task.
+- When uncertain, default true so ReminderDetect can decide crud vs clarify vs discussion.
 
-Set to false:
-1. Clearly pure small talk with no reference to time or task management
-2. Stating past facts (not a request)
-3. Name/address preferences like "call me X" or "你可以叫我X" unless the same
-   message includes a concrete reminder time, cadence, or task
-4. Do-not-disturb/stop language is not pure small talk when it may refer to
-   reminder, alarm, check-in, or supervision behavior
-
-### need_web_search (internet search)
-Set to true (any of the following):
-1. User asks for real-time information: weather, news, stock prices, exchange rates, sports scores, etc.
-2. User asks about specific external-world facts: a person, event, location, product, etc.
-3. User explicitly requests a search: "search for", "look up" + external information
-4. User's question involves the latest information that may not be in the knowledge base
-
-Set to false:
-1. Involves "my", "I set", "to-do", "reminder", "alarm", etc. — user personal data → this is a reminder operation, not a search
-2. Pure small talk, emotional exchange, role-play
-3. User asks about the character's own settings or capabilities
-4. Questions related to historical conversations
-
-**Key distinction**: Determine whether the intent target is "user personal data" or "external world information"
-- "check my reminders" → reminder operation (need_reminder_detect=true)
-- "check Hangzhou weather" → internet search (need_web_search=true)
+### need_web_search
+- True when the target is external-world information that may be current or unknown: weather, news, prices, sports, public facts, people, events, products, or explicit search requests.
+- False when the target is user personal state, reminders, alarms, to-dos, historical conversation, assistant capability/settings, small talk, emotion, or role-play.
+- Distinguish ownership: "my reminders" is personal data; "Hangzhou weather tomorrow" is external-world data.
+- When uncertain between memory/reminder and search, prefer the personal/runtime route.
 
 ### web_search_query
-Fill in when need_web_search=true. Generate concise, effective search terms:
-- Extract core keywords, remove colloquial expressions
-- "Help me search whether it will rain in Hangzhou tomorrow" → "Hangzhou tomorrow weather"
-- "What has Musk been up to lately" → "Musk latest news"
+- Fill only when need_web_search=true.
+- Generate concise search terms from core entities, topic, location, and time window.
+- Remove conversational filler.
 
 ### need_timezone_update
-Set to true when a timezone action is needed.
-Set to false:
-1. Only mentions a city without indicating they are there (e.g. "Tokyo is great", "what's the weather like in New York")
-2. Asking about the time in a location rather than indicating they are there (e.g. "what time is it in Tokyo now")
-3. All other cases
+- True only when the user asks to change timezone or gives a new location signal that could affect future timing.
+- False for city mentions, travel/weather questions, or "what time is it in X" unless they indicate the user's own timezone changed.
 
 ### timezone_action
 Always choose one of:
-- `none`: no timezone action
-- `direct_set`: the user explicitly asks to change timezone now, or clearly confirms a timezone change request in the same message
-- `proposal`: the message is a new timezone signal that suggests the user may be in a different timezone, but they did not directly ask to switch
-
-Use `direct_set` for clear commands such as:
-- "switch to Singapore time"
-- "set my timezone to Tokyo"
-- "改成东京时间"
-- "我现在在纽约，之后按纽约时间和我说"
-- "我在伦敦，之后按伦敦时间提醒我"
-
-Use `proposal` for signals such as:
-- "I'm in New York now"
-- "I moved to London"
-- "我现在在伦敦"
+- `none`: no timezone action.
+- `direct_set`: explicit command/confirmation to switch timezone now, including "改成东京时间" or "按纽约时间和我说".
+- `proposal`: new location signal such as "I'm in New York now" without a direct switch command.
 
 When `timezone_action=proposal`, the assistant should later ask for confirmation instead of changing the timezone immediately.
 
 ### timezone_value
-Fill in the corresponding IANA timezone name when `timezone_action` is `direct_set` or `proposal`, e.g. "America/New_York", "Asia/Tokyo"
+Fill the corresponding IANA timezone name when `timezone_action` is `direct_set` or `proposal`, e.g. "America/New_York", "Asia/Tokyo".
 
 ### context_retrieve_params
-Generate retrieval parameters based on user message content. Refer to the format description in the Schema.
+Generate retrieval parameters from user message content. Refer to the Schema for format.
 
 ### inner_monologue
-Infer user intent and briefly explain the scheduling decision rationale."""
+Briefly explain the routing and scheduling rationale."""
 
 
 # ========== FutureMessageContextRetrieveAgent Instructions ==========

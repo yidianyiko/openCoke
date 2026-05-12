@@ -1,0 +1,54 @@
+{
+  "task": "Task E: Diet INSTRUCTIONS_ORCHESTRATOR",
+  "date": "2026-05-13",
+  "worktree": "/data/projects/coke/.worktrees/reminder-detect-followups",
+  "token_counts": {
+    "INSTRUCTIONS_ORCHESTRATOR_before": 989,
+    "INSTRUCTIONS_ORCHESTRATOR_after": 603,
+    "budget_before": 1100,
+    "budget_after": 800
+  },
+  "verification": [
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/prompt/test_prompt_token_budgets.py -v",
+      "result": "passed",
+      "summary": "2 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/prompt/test_agent_instructions_prompt.py::test_orchestrator_does_not_route_name_preferences_to_reminder_detect -v",
+      "result": "passed",
+      "summary": "1 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/prompt/ -q",
+      "result": "passed",
+      "summary": "22 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/agent/ -q",
+      "result": "passed",
+      "summary": "289 passed"
+    },
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/test_clawscale_only_topology.py -v",
+      "result": "passed",
+      "summary": "7 passed"
+    },
+    {
+      "command": "zsh scripts/suggest-verification --base HEAD",
+      "result": "passed",
+      "summary": "suggested worker-runtime verification"
+    },
+    {
+      "command": "zsh scripts/review-trigger --base HEAD",
+      "result": "human_review_required",
+      "summary": "evidence gap before this artifact was added"
+    }
+  ],
+  "not_run": [
+    {
+      "command": ".venv/bin/python -m pytest tests/unit/runner/ -v",
+      "reason": "Task E changed only static orchestrator prompt text and prompt-budget tests. Agent and prompt suites cover the touched prompt surface; runner tests were not rerun."
+    }
+  ]
+}
