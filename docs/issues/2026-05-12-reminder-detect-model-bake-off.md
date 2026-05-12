@@ -213,6 +213,12 @@ This decision is recorded in ADR 0004
    zero-hit candidates were skipped for every case because they need
    signature-specific runtime objects. No guards were pruned from this pass;
    zero-hit now means "manual review candidate," not deletion proof.
+8. Reminder-intent preflight removal was deferred. The preflight path is not
+   only an old explicit-reminder routing workaround: it also forces active
+   `pending_workflow` reminder continuations into `ReminderIntentPort` before
+   the chat-response model. That path is functional and was not proven
+   replaceable by the main agent in this plan, so deleting the preflight would
+   be unsafe without a narrower design.
 
 ## What This Test Did Not Prove
 
