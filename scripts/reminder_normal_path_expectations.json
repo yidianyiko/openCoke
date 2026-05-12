@@ -3747,6 +3747,68 @@
         }
       ],
       "severity": "important"
+    },
+    "1009": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit relative-delay reminder request with concrete content.",
+      "expected_creates": [
+        {
+          "title": "爬楼",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1010": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request using a CJK clock separator, nighttime period marker, and concrete content.",
+      "expected_creates": [
+        {
+          "title": "收东西并且早点睡觉",
+          "local_time": "01:40:00",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1012": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit relative-delay reminder request with concrete content.",
+      "expected_creates": [
+        {
+          "title": "爬楼",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1013": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit relative-delay reminder request with concrete content.",
+      "expected_creates": [
+        {
+          "title": "刷牙洗脸洗脚洗屁股",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1027": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit two-create reminder request with concrete tomorrow exam times and contents.",
+      "expected_creates": [
+        {
+          "title": "考医学细胞生物学实验",
+          "local_time": "09:30:00",
+          "recurring": false
+        },
+        {
+          "title": "考无机化学",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
     }
   }
 }

@@ -2803,6 +2803,11 @@ def test_case_503_clockless_content_only_reminder_clarifies_time():
         (1003, "7点的时候提醒我去看老师给的资料", [{"title": "去看老师给的资料", "local_time": "19:00:00", "recurring": False}]),
         (1006, "19点30分，我要开始背诵毛概，请提醒我", [{"title": "背诵毛概", "title_variants": ["开始背诵毛概"], "local_time": "19:30:00", "recurring": False}]),
         (1008, "10分钟后提醒我坐下", [{"title": "坐下", "recurring": False}]),
+        (1009, "30分钟后提醒我爬楼", [{"title": "爬楼", "recurring": False}]),
+        (1010, "今晚1∶40分提醒我收东西并且早点睡觉", [{"title": "收东西并且早点睡觉", "local_time": "01:40:00", "recurring": False}]),
+        (1012, "半个小时之后提醒我爬楼", [{"title": "爬楼", "recurring": False}]),
+        (1013, "40分钟后提醒我刷牙洗脸洗脚洗屁股", [{"title": "刷牙洗脸洗脚洗屁股", "recurring": False}]),
+        (1027, "准备休息了，明天满课，请提醒我明天早上9:30考医学细胞生物学实验，晚上19:00要考无机化学", [{"title": "考医学细胞生物学实验", "local_time": "09:30:00", "recurring": False}, {"title": "考无机化学", "local_time": "19:00:00", "recurring": False}]),
     ],
 )
 def test_case_index_fixtures_marked_crud_create(
