@@ -199,6 +199,37 @@ def test_retry_prompt_preserves_weekday_recurrence_contract():
     assert "do not ask which calendar date" in prompt
 
 
+def test_retry_prompt_preserves_weekday_range_and_chinese_clock_separator_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "每个星期一到星期五的晚上22∶12提醒我洗澡",
+        _run_context(),
+        reason="primary detector clarified a complete recurring reminder",
+    )
+
+    assert "Chinese clock separators such as" in prompt
+    assert "Weekday ranges such as" in prompt
+    assert "BYDAY=MO,TU,WE,TH,FR" in prompt
+    assert "### Reminder Few-Shot Decisions" in prompt
+    assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
+
+
+def test_reminder_intent_input_includes_weekday_range_fullwidth_clock_few_shot():
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
+
+    prompt = build_reminder_intent_input(
+        "每个星期一到星期五的晚上22∶12提醒我洗澡",
+        _run_context(),
+    )
+
+    assert "每天22∶12提醒我洗澡" in prompt
+    assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
+    assert "BYDAY=MO,TU,WE,TH,FR" in prompt
+
+
 def test_retry_prompt_preserves_corrected_interval_sequence_contract():
     from agent.agno_agent.capabilities.reminder_intent import (
         _build_reminder_retry_input,
@@ -553,6 +584,59 @@ async def test_reminder_intent_port_retries_when_primary_has_no_executable_decis
 
     assert result.ok is True
     assert result.content["summary"] == "已创建提醒：喝水"
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_complete_weekday_range_clarification():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "你想在那天几点提醒你？",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "complete weekday-range recurring reminder" in input
+            assert "BYDAY=MO,TU,WE,TH,FR" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "洗澡",
+                    "trigger_at": "2026-05-08T22:12:00+09:00",
+                    "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每个星期一到星期五的晚上22∶12",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.action == "create"
+            assert received_decision.title == "洗澡"
+            assert received_decision.rrule == "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：洗澡（每周一、周二、周三、周四、周五 22:12）"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("每个星期一到星期五的晚上22∶12提醒我洗澡", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"].startswith("已创建提醒：洗澡")
 
 
 @pytest.mark.asyncio

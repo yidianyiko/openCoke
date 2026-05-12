@@ -52,6 +52,7 @@ Current time: {current_time_str}
 ## Time output (CRITICAL)
 
 trigger_at is timezone-aware ISO 8601 in the user's timezone.
+Chinese clock separators such as "：" and "∶" are concrete local time separators; parse "22∶12" the same as "22:12".
 
 For a bare clock ("7点", "10:30", "晚上九点"):
 1. Use the period marker if present: 早上/上午=AM, 下午/晚上=PM, 凌晨=00-05, 中午=12.
@@ -82,6 +83,7 @@ Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_
 - Single reminder: top-level title + trigger_at. Multiple: action=batch + operations.
 - batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).
 - Weekly recurrence with listed weekdays: BYDAY includes all of them; do not keep only the first.
+- Weekday ranges such as 周一到周五 or 星期一到星期五 are listed weekdays; expand them in BYDAY, for example BYDAY=MO,TU,WE,TH,FR.
 - Bounded cadence with end clock/date: use deadline_at; trigger_at = first occurrence.
 - Recurrence uses RRULE only when the user supplies frequency/interval/listed routine times.
 - clarify and discussion leave action and write fields empty.

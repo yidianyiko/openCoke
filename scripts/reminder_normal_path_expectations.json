@@ -3674,6 +3674,41 @@
         }
       ],
       "severity": "nice"
+    },
+    "1000": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Daily recurring reminder request with a concrete CJK clock separator, local time, and content.",
+      "expected_creates": [
+        {
+          "title": "洗澡",
+          "local_time": "22:12:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=DAILY"
+          ]
+        }
+      ],
+      "severity": "important"
+    },
+    "1001": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Weekday-range recurring reminder request with explicit weekdays, local time, and content.",
+      "expected_creates": [
+        {
+          "title": "洗澡",
+          "local_time": "22:12:00",
+          "recurring": true,
+          "rrule_contains": [
+            "FREQ=WEEKLY",
+            "MO",
+            "TU",
+            "WE",
+            "TH",
+            "FR"
+          ]
+        }
+      ],
+      "severity": "important"
     }
   }
 }

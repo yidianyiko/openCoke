@@ -27,6 +27,7 @@ from agent.agno_agent.runtime.pending_workflow import (
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
+from agent.prompt.reminder_few_shot import format_reminder_few_shots_for_prompt
 from conf.config import CONF
 from dao.pending_workflow_dao import PendingWorkflowDAO
 
@@ -164,6 +165,7 @@ Never attach workflow_update to create, update, delete, complete, batch, or list
 All batch create decisions require top-level schedule_basis and schedule_evidence; do not put them only inside operations.
 Clarify and discussion retries must return empty action and empty operations.
 Do not use conversation history or infer missing details from prior turns.
+Chinese clock separators such as "：" and "∶" are concrete local time separators; parse "22∶12" the same as "22:12".
 A reminder request with concrete time but no reminder content clarifies, except bare call/wake/alarm-me requests where the reminder verb is the content. Do not create a generic title="提醒" reminder.
 Status-only or referential fragments such as "not done yet", "还没做", "这件事", or "that" are not reminder content unless current-turn task text or recent context names the task; clarify for the task/content.
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
@@ -194,10 +196,14 @@ RRULE, schedule_basis="explicit_cadence", schedule_evidence, and deadline_at.
 Do not drop the deadline.
 A bounded window with explicit start date, start clock, end clock, cadence, and reminder content is complete; use trigger_at for the first occurrence and deadline_at for the window end.
 Weekly recurrence with listed weekdays must include every listed weekday in BYDAY; do not keep only the first weekday.
+Weekday ranges such as 周一到周五 or 星期一到星期五 are listed weekdays; expand them in BYDAY, for example BYDAY=MO,TU,WE,TH,FR.
 Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.
 If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.
 For a bounded cadence, wording that stops the cadence at or after the same deadline is the deadline boundary, not a manual correction or occurrence-time exception.
 {workflow_block}
+
+### Reminder Few-Shot Decisions
+{format_reminder_few_shots_for_prompt()}
 
 ### 当前用户消息
 {input_message}"""
@@ -367,7 +373,15 @@ class ReminderIntentPort:
             return _no_action_discussion_result()
         if _is_clarification_decision(decision) and self.retry_agent is not None:
             retry_reason = "primary detector returned no executable decision"
-            if _input_has_relative_delay_and_preceding_task_content(input_message):
+            if _input_has_complete_weekday_range_recurring_reminder(input_message):
+                retry_reason = (
+                    "primary detector returned clarification for a complete "
+                    "weekday-range recurring reminder; the weekday range, clock, "
+                    "and reminder content are present, so return a CRUD create "
+                    "with weekly RRULE BYDAY=MO,TU,WE,TH,FR instead of asking "
+                    "which day or time"
+                )
+            elif _input_has_relative_delay_and_preceding_task_content(input_message):
                 retry_reason = (
                     "primary detector returned clarification for a relative-delay "
                     "reminder whose task/content appears before the reminder verb; "
@@ -410,7 +424,15 @@ class ReminderIntentPort:
                 return _clarification_result(decision)
         if not _should_execute_decision(decision) and self.retry_agent is not None:
             retry_reason = "primary detector returned no executable decision"
-            if _input_has_relative_delay_and_preceding_task_content(input_message):
+            if _input_has_complete_weekday_range_recurring_reminder(input_message):
+                retry_reason = (
+                    "primary detector returned no executable decision for a "
+                    "complete weekday-range recurring reminder; the weekday range, "
+                    "clock, and reminder content are present, so return a CRUD "
+                    "create with weekly RRULE BYDAY=MO,TU,WE,TH,FR instead of "
+                    "asking which day or time"
+                )
+            elif _input_has_relative_delay_and_preceding_task_content(input_message):
                 retry_reason = (
                     "primary detector returned no executable decision for a "
                     "relative-delay reminder whose task/content appears before the "
@@ -1318,7 +1340,7 @@ def _should_retry_for_bounded_recurring_no_future_failure(
 
 
 _BARE_CLOCK_PATTERN = re.compile(
-    r"(\d{1,2}\s*[:：.]\s*\d{1,2}|\d{1,2}\s*(?:点|时)|"
+    r"(\d{1,2}\s*[:：∶.]\s*\d{1,2}|\d{1,2}\s*(?:点|时)|"
     r"[零一二两三四五六七八九十百半]+\s*(?:点|时))"
 )
 _AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN = re.compile(
@@ -1326,8 +1348,8 @@ _AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN = re.compile(
     r"|(?:\d{1,2})\s*(?:-|~|到|至)\s*(?:\d{1,2})\s*(?:点|时)"
 )
 _CLOCK_RANGE_PATTERN = re.compile(
-    r"\d{1,2}\s*(?:[:：]\s*\d{1,2})?\s*(?:-|~|到|至)\s*"
-    r"\d{1,2}\s*(?:[:：]\s*\d{1,2})?"
+    r"\d{1,2}\s*(?:[:：∶]\s*\d{1,2})?\s*(?:-|~|到|至)\s*"
+    r"\d{1,2}\s*(?:[:：∶]\s*\d{1,2})?"
 )
 _EXPLICIT_DATE_PATTERN = re.compile(
     r"(今天|今日|今晚|今早|明天|明早|后天|大后天|周[一二三四五六日天]|星期[一二三四五六日天]|"
@@ -1335,6 +1357,10 @@ _EXPLICIT_DATE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _STANDALONE_DAY_OF_MONTH_PATTERN = re.compile(r"(?<!\d)\d{1,2}\s*[日号](?!\d)")
+_WEEKDAY_RANGE_PATTERN = re.compile(
+    r"(?:周|星期|礼拜)([一二三四五六日天1-7])\s*(?:到|至|-|—|~)\s*"
+    r"(?:周|星期|礼拜)([一二三四五六日天1-7])"
+)
 _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 _REMINDER_VERB_PATTERN = re.compile(
     r"提醒我|叫我|喊我|通知我|监督我|问我|检查我|"
@@ -1490,6 +1516,17 @@ def _input_has_mixed_clocked_reminder_clause(input_message: str) -> bool:
         _EXPLICIT_DATE_PATTERN.search(current_user_text)
         or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
     )
+
+
+def _input_has_complete_weekday_range_recurring_reminder(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return False
+    if not _WEEKDAY_RANGE_PATTERN.search(current_user_text):
+        return False
+    if not _BARE_CLOCK_PATTERN.search(current_user_text):
+        return False
+    return bool(_REMINDER_VERB_PATTERN.search(current_user_text))
 
 
 def _relative_delay_trigger_at(
@@ -2086,6 +2123,8 @@ def _should_retry_for_weekday_mismatch(
     if str(_decision_value(decision, "action") or "").strip() != "create":
         return False
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if _WEEKDAY_RANGE_PATTERN.search(current_user_text):
+        return False
     weekday = _explicit_weekday_index(current_user_text)
     if weekday is None:
         return False

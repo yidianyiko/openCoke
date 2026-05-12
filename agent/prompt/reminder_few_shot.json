@@ -49,6 +49,32 @@
     }
   },
   {
+    "decision_class": "crud.create",
+    "input": "每天22∶12提醒我洗澡",
+    "decision": {
+      "intent_type": "crud",
+      "action": "create",
+      "title": "洗澡",
+      "trigger_at": "2026-05-01T22:12:00+09:00",
+      "rrule": "FREQ=DAILY",
+      "schedule_basis": "explicit_cadence",
+      "schedule_evidence": "每天22∶12"
+    }
+  },
+  {
+    "decision_class": "crud.create",
+    "input": "每个星期一到星期五的晚上22∶12提醒我洗澡",
+    "decision": {
+      "intent_type": "crud",
+      "action": "create",
+      "title": "洗澡",
+      "trigger_at": "2026-05-01T22:12:00+09:00",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+      "schedule_basis": "explicit_cadence",
+      "schedule_evidence": "每个星期一到星期五的晚上22∶12"
+    }
+  },
+  {
     "decision_class": "crud.update",
     "input": "nono 不是15:50，而是15:00提醒我看书",
     "decision": {

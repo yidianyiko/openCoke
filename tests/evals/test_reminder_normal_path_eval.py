@@ -2798,6 +2798,8 @@ def test_case_503_clockless_content_only_reminder_clarifies_time():
         (793, "晚上10:30提醒我刮痧", [{"title": "刮痧"}]),
         (795, "三个小时之后提醒我吃饭", [{"title": "吃饭"}]),
         (800, "一小时后提醒我散步", [{"title": "散步"}]),
+        (1000, "每天22∶12提醒我洗澡", [{"title": "洗澡", "local_time": "22:12:00", "recurring": True, "rrule_contains": ["FREQ=DAILY"]}]),
+        (1001, "每个星期一到星期五的晚上22∶12提醒我洗澡", [{"title": "洗澡", "local_time": "22:12:00", "recurring": True, "rrule_contains": ["FREQ=WEEKLY", "MO", "TU", "WE", "TH", "FR"]}]),
     ],
 )
 def test_case_index_fixtures_marked_crud_create(
