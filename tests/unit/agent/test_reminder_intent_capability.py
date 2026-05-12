@@ -217,6 +217,21 @@ def test_retry_prompt_preserves_weekday_range_and_chinese_clock_separator_contra
     assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
 
 
+def test_retry_prompt_preserves_clocked_task_before_trailing_reminder_contract():
+    from agent.agno_agent.capabilities.reminder_intent import (
+        _build_reminder_retry_input,
+    )
+
+    prompt = _build_reminder_retry_input(
+        "19点30分，我要开始背诵毛概，请提醒我",
+        _run_context(),
+        reason="primary detector clarified a complete clocked task reminder",
+    )
+
+    assert "Clocked task text before a trailing reminder verb" in prompt
+    assert "19点30分，我要开始背诵毛概，请提醒我" in prompt
+
+
 def test_reminder_intent_input_includes_weekday_range_fullwidth_clock_few_shot():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
@@ -228,6 +243,18 @@ def test_reminder_intent_input_includes_weekday_range_fullwidth_clock_few_shot()
     assert "每天22∶12提醒我洗澡" in prompt
     assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
     assert "BYDAY=MO,TU,WE,TH,FR" in prompt
+
+
+def test_reminder_intent_input_includes_clocked_task_before_trailing_reminder_few_shot():
+    from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
+
+    prompt = build_reminder_intent_input(
+        "19点30分，我要开始背诵毛概，请提醒我",
+        _run_context(),
+    )
+
+    assert "19点30分，我要开始背诵毛概，请提醒我" in prompt
+    assert '"title": "背诵毛概"' in prompt
 
 
 def test_retry_prompt_preserves_corrected_interval_sequence_contract():
@@ -637,6 +664,56 @@ async def test_reminder_intent_port_retries_complete_weekday_range_clarification
 
     assert result.ok is True
     assert result.content["summary"].startswith("已创建提醒：洗澡")
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_retries_clocked_task_before_trailing_reminder():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_question": "你想让我提醒你做什么？",
+                }
+            )
+
+    class RetryAgent:
+        async def arun(self, *, input, session_state):
+            assert "complete clocked task reminder" in input
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "背诵毛概",
+                    "trigger_at": "2026-05-06T19:30:00+00:00",
+                    "schedule_basis": "one_shot",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.action == "create"
+            assert received_decision.title == "背诵毛概"
+            assert received_decision.trigger_at == "2026-05-06T19:30:00+00:00"
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：背诵毛概"},
+                error=None,
+                metadata={},
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        retry_agent=RetryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("19点30分，我要开始背诵毛概，请提醒我", _run_context())
+
+    assert result.ok is True
+    assert result.content["summary"] == "已创建提醒：背诵毛概"
 
 
 @pytest.mark.asyncio

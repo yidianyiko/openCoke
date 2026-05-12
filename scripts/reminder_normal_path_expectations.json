@@ -3709,6 +3709,44 @@
         }
       ],
       "severity": "important"
+    },
+    "1003": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit one-shot reminder request with a bare local clock time and reminder content.",
+      "expected_creates": [
+        {
+          "title": "去看老师给的资料",
+          "local_time": "19:00:00",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1006": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit clocked reminder request where the task appears before a trailing reminder verb.",
+      "expected_creates": [
+        {
+          "title": "背诵毛概",
+          "title_variants": [
+            "开始背诵毛概"
+          ],
+          "local_time": "19:30:00",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
+    },
+    "1008": {
+      "evaluation_expectation": "crud",
+      "evaluation_reason": "Explicit relative-delay reminder request with concrete content.",
+      "expected_creates": [
+        {
+          "title": "坐下",
+          "recurring": false
+        }
+      ],
+      "severity": "important"
     }
   }
 }

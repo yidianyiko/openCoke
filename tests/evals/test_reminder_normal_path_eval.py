@@ -2800,6 +2800,9 @@ def test_case_503_clockless_content_only_reminder_clarifies_time():
         (800, "一小时后提醒我散步", [{"title": "散步"}]),
         (1000, "每天22∶12提醒我洗澡", [{"title": "洗澡", "local_time": "22:12:00", "recurring": True, "rrule_contains": ["FREQ=DAILY"]}]),
         (1001, "每个星期一到星期五的晚上22∶12提醒我洗澡", [{"title": "洗澡", "local_time": "22:12:00", "recurring": True, "rrule_contains": ["FREQ=WEEKLY", "MO", "TU", "WE", "TH", "FR"]}]),
+        (1003, "7点的时候提醒我去看老师给的资料", [{"title": "去看老师给的资料", "local_time": "19:00:00", "recurring": False}]),
+        (1006, "19点30分，我要开始背诵毛概，请提醒我", [{"title": "背诵毛概", "title_variants": ["开始背诵毛概"], "local_time": "19:30:00", "recurring": False}]),
+        (1008, "10分钟后提醒我坐下", [{"title": "坐下", "recurring": False}]),
     ],
 )
 def test_case_index_fixtures_marked_crud_create(

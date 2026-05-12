@@ -63,6 +63,7 @@ For a bare clock ("7点", "10:30", "晚上九点"):
 Relative delays ("after 1 min", "20min later", "过20min"): add to current_time. Pomodoro start without duration = 25 min from current_time.
 
 Multi-clock inputs ("1点睡觉，明天6点半叫我起床"): trigger_at is the reminder time (attached to 叫/提醒/醒), not other clocks mentioned.
+Clocked task text before a trailing reminder verb is complete, for example "19点30分，我要开始背诵毛概，请提醒我"; use the clock as trigger_at and the task text as title.
 
 Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_at = T minus Y. Vague advance without offset clarifies.
 

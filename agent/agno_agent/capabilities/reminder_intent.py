@@ -171,6 +171,7 @@ Status-only or referential fragments such as "not done yet", "还没做", "这�
 Bare call/wake/alarm-me with a concrete clock time is complete: return a CRUD create decision, use the call/wake/alarm verb phrase as title, resolve bare clocks to the next future local occurrence, and do not ask for reminder content or date.
 One-shot deadline wording such as "before/by 22:30" is not a concrete trigger_at; clarify for when to remind unless the user explicitly says to remind at that deadline.
 Event time plus an advance offset is complete: if the user says an event is at T and asks to remind X before/提前X提醒, set trigger_at to T minus X; a vague advance request without an offset clarifies for how long before the event.
+Clocked task text before a trailing reminder verb is complete, for example "19点30分，我要开始背诵毛概，请提醒我"; use the clock as trigger_at and the task text as title.
 For recurring cadence wording with an end phrase such as "到/直到/until + clock/date", treat that end phrase as deadline_at. Use trigger_at for the first future occurrence in the cadence, not for the ending deadline unless it is also the first occurrence.
 Need/intention statements such as "I need to do X at Y" are discussion, not clarify, unless the user asks you to remind, notify, alarm, call, check in, nudge, or supervise.
 Meta discussion or complaints about reminder/alarm behavior, acknowledgement, whether replies are required, or how reminders stay active are discussion unless the same message asks for a concrete reminder operation.
@@ -381,6 +382,13 @@ class ReminderIntentPort:
                     "with weekly RRULE BYDAY=MO,TU,WE,TH,FR instead of asking "
                     "which day or time"
                 )
+            elif _input_has_clocked_task_before_trailing_reminder_verb(input_message):
+                retry_reason = (
+                    "primary detector returned clarification for a complete "
+                    "clocked task reminder; the clock and task text appear before "
+                    "a trailing reminder verb, so use the clock as trigger_at and "
+                    "the task text as the create title"
+                )
             elif _input_has_relative_delay_and_preceding_task_content(input_message):
                 retry_reason = (
                     "primary detector returned clarification for a relative-delay "
@@ -431,6 +439,13 @@ class ReminderIntentPort:
                     "clock, and reminder content are present, so return a CRUD "
                     "create with weekly RRULE BYDAY=MO,TU,WE,TH,FR instead of "
                     "asking which day or time"
+                )
+            elif _input_has_clocked_task_before_trailing_reminder_verb(input_message):
+                retry_reason = (
+                    "primary detector returned no executable decision for a "
+                    "complete clocked task reminder; the clock and task text appear "
+                    "before a trailing reminder verb, so use the clock as "
+                    "trigger_at and the task text as the create title"
                 )
             elif _input_has_relative_delay_and_preceding_task_content(input_message):
                 retry_reason = (
@@ -1529,6 +1544,37 @@ def _input_has_complete_weekday_range_recurring_reminder(input_message: str) -> 
     return bool(_REMINDER_VERB_PATTERN.search(current_user_text))
 
 
+def _input_has_clocked_task_before_trailing_reminder_verb(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
+    if reminder_match is None:
+        return False
+    suffix = current_user_text[reminder_match.end() :]
+    suffix = re.sub(
+        r"(?:一下|我|吧|哦|噢|啊|呀|啦|哈|呢|么|吗|[。.!！?？~～,，；;\s])+",
+        "",
+        suffix,
+    )
+    if suffix:
+        return False
+    prefix = current_user_text[: reminder_match.start()]
+    if not _BARE_CLOCK_PATTERN.search(prefix):
+        return False
+    task_text = _BARE_CLOCK_PATTERN.sub("", prefix, count=1)
+    task_text = re.sub(
+        r"(?:我要|我会|我想|准备|打算|开始|请|麻烦|帮我|[,，。；;、\s])+",
+        "",
+        task_text,
+    )
+    task_text = re.sub(
+        r"(?:今天|今日|今晚|明天|明早|后天|上午|早上|下午|晚上|中午|凌晨|"
+        r"点|时|分|半|左右|的时候)+",
+        "",
+        task_text,
+    )
+    return bool(task_text.strip())
+
+
 def _relative_delay_trigger_at(
     run_context: AgentRunContext,
     delay: timedelta,
@@ -2055,6 +2101,8 @@ def _should_clarify_status_only_content_create(input_message: str, decision: Any
         return False
     if not _BARE_CLOCK_PATTERN.search(current_user_text):
         return False
+    if _input_has_clocked_task_before_trailing_reminder_verb(input_message):
+        return False
     if _input_has_concrete_time_without_reminder_content(current_user_text):
         return True
     for title in _decision_titles(decision):
@@ -2080,6 +2128,8 @@ def _should_retry_for_ungoverned_single_create_title(
     if first_title_at < 0 or first_title_at >= reminder_match.start():
         return False
     if _input_has_relative_delay_and_preceding_task_content(input_message):
+        return False
+    if _input_has_clocked_task_before_trailing_reminder_verb(input_message):
         return False
     if _input_has_next_whole_hour_reference(input_message):
         return False

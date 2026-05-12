@@ -75,6 +75,17 @@
     }
   },
   {
+    "decision_class": "crud.create",
+    "input": "19点30分，我要开始背诵毛概，请提醒我",
+    "decision": {
+      "intent_type": "crud",
+      "action": "create",
+      "title": "背诵毛概",
+      "trigger_at": "2026-05-01T19:30:00+09:00",
+      "schedule_basis": "one_shot"
+    }
+  },
+  {
     "decision_class": "crud.update",
     "input": "nono 不是15:50，而是15:00提醒我看书",
     "decision": {
