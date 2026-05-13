@@ -6,60 +6,54 @@ repository state instead of chat memory.
 
 ## Reading Order
 
-When starting work in this repository, read in this order:
+Do staged reading. Do not open every canonical document by default.
+
+For every task, read only:
 
 1. This file (`AGENTS.md`) for routing and operating constraints.
 2. `docs/design-docs/index.md` for the canonical repo-OS map.
 3. `docs/design-docs/human-ai-working-contract.md` for the critical
    human/AI collaboration contract.
-4. `docs/ARCHITECTURE.md` for the canonical runtime topology and boundaries.
-5. `docs/roadmap.md` for product and platform direction.
-6. `docs/fitness/README.md` for verification expectations.
-7. `docs/design-docs/coke-working-contract.md` for Coke-specific work surfaces.
-8. `docs/fitness/coke-verification-matrix.md` for surface-to-command mapping.
-9. Task-specific execution context in `docs/superpowers/specs/` (design)
-   and `docs/superpowers/plans/` (execution). Both directories carry a mix
-   of active and dated artifacts; verify any spec or plan against current
-   `main`, `docs/ARCHITECTURE.md`, and the touched code before relying on
-   it as truth. Keep `docs/superpowers/plans/` flat for
-   `superpowers:writing-plans` compatibility; plan lifecycle belongs in file
-   status metadata, not `active/` or `completed/` subdirectories.
-10. `docs/deploy.md` or `docs/clawscale_bridge.md` when touching deployment,
-   bridge behavior, or operational flows.
+
+Then add the smallest task-specific slice:
+
+- Runtime or boundary work: `docs/ARCHITECTURE.md` and
+  `docs/design-docs/coke-working-contract.md`.
+- Product/API/route discovery: `docs/product-specs/FEATURE_TREE.md`, then
+  `docs/roadmap.md` only when product direction matters.
+- Verification routing: start with `zsh scripts/suggest-verification --base
+  HEAD~1`; open `docs/fitness/README.md`,
+  `docs/fitness/coke-verification-matrix.md`, or
+  `docs/fitness/surfaces.yaml` only if the suggested command needs review.
+- Deployment, bridge operations, or rollout: `docs/deploy.md` and/or
+  `docs/clawscale_bridge.md`.
+- Task-specific execution context in `docs/superpowers/specs/` (design)
+  and `docs/superpowers/plans/` (execution) only when the task names that
+  context or is multi-step/risky. Both directories carry a mix of active and
+  dated artifacts; verify any spec or plan against current `main`,
+  `docs/ARCHITECTURE.md`, and the touched code before relying on it as truth.
+  Keep `docs/superpowers/plans/` flat for `superpowers:writing-plans`
+  compatibility; plan lifecycle belongs in file status metadata, not
+  `active/` or `completed/` subdirectories.
 
 ## Repository Map
 
-- `agent/`: Agno workflows, prompts, tools, and runner code.
-- `connector/clawscale_bridge/`: Coke-specific bridge runtime and outbound
-  dispatch.
-- `gateway/`: web UI, channel-facing API, and shared platform surfaces.
-- `dao/`, `entity/`, `util/`, `framework/`: Coke runtime state and helpers.
-- `docs/design-docs/`: canonical repository-level beliefs and rules.
-- `docs/design-docs/human-ai-working-contract.md`: critical rules for
-  human/AI collaboration, verification trust levels, and guardrail skepticism.
-- `docs/design-docs/coke-working-contract.md`: the actual work surfaces inside
-  Coke.
-- `docs/adr/`: durable workflow and structure decisions.
-- `docs/superpowers/plans/`: canonical flat home for multi-step execution
-  plans. Matches the `superpowers:writing-plans` skill default; lifecycle is
-  tracked by file status metadata, not subdirectories. See ADR 0003 for the
-  consolidation history.
-- `docs/superpowers/specs/`: canonical home for design specs (active and dated). Verify against current code before treating any individual spec as truth.
-- `docs/fitness/`: verification rules and evidence model.
-- `docs/fitness/coke-verification-matrix.md`: project-specific verification
-  commands by surface.
-- `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
-  map for Coke-native guardrail scripts.
-- `docs/issues/`: local issue, incident, runbook, and investigation records.
-- `docs/product-specs/FEATURE_TREE.md`: product, route, and API surface index.
-- `docs/release-guide.md`: release and rollout workflow.
-- `docs/RELEASE_CHECKLIST.md`: release closeout checklist.
-- `artifacts/evidence/`: generated verification and eval evidence.
-- `docs/roadmap.md`: product and platform direction.
-- `docs/ARCHITECTURE.md`: canonical runtime reference for the code that exists
-  today. `docs/architecture.md` is a compatibility symlink.
-- `docs/deploy.md`: operational deployment and smoke-check instructions.
-- `docs/clawscale_bridge.md`: bridge and personal-channel rollout notes.
+- Runtime code: `agent/`, `connector/clawscale_bridge/`, `gateway/`, `dao/`,
+  `entity/`, `util/`, `framework/`.
+- Repo-OS map: `docs/design-docs/index.md`; collaboration contract:
+  `docs/design-docs/human-ai-working-contract.md`; Coke work surfaces:
+  `docs/design-docs/coke-working-contract.md`; ADRs: `docs/adr/`.
+- Current runtime truth: `docs/ARCHITECTURE.md`
+  (`docs/architecture.md` is a compatibility symlink); product direction:
+  `docs/roadmap.md`; deployment/bridge operations: `docs/deploy.md`,
+  `docs/clawscale_bridge.md`.
+- Verification: `docs/fitness/README.md`,
+  `docs/fitness/coke-verification-matrix.md`, `docs/fitness/surfaces.yaml`;
+  generated evidence: `artifacts/evidence/`.
+- Work records: `docs/issues/`, `docs/superpowers/specs/`,
+  `docs/superpowers/plans/`.
+- Product and release surfaces: `docs/product-specs/FEATURE_TREE.md`,
+  `docs/release-guide.md`, `docs/RELEASE_CHECKLIST.md`.
 
 ## Documentation Rules
 
@@ -117,6 +111,9 @@ When starting work in this repository, read in this order:
   corresponding canonical docs in the same change. Do not leave stale docs
   behind as "historical context" unless they are explicitly marked dated or
   superseded.
+- Do not duplicate volatile current-state facts across README files, routing
+  docs, architecture docs, and feature indexes. Put the fact in its canonical
+  home and link to it from local docs.
 - Use isolated git worktrees when concurrent implementation is real.
 
 ## Validation
@@ -131,6 +128,9 @@ When starting work in this repository, read in this order:
 - For non-trivial changes, run diff-aware routing before hand-picking tests:
   `zsh scripts/suggest-verification --base HEAD~1`, then
   `zsh scripts/review-trigger --base HEAD~1`.
+- For docs-only repo-OS edits, prefer the lighter `repo-os-docs` surface
+  suggested by the guardrails. Use the heavier `repo-os` surface when changing
+  guardrail scripts, `docs/fitness/surfaces.yaml`, or verification tooling.
 - Run `scripts/check` when repository structure, templates, routing docs, or
   workflow rules change.
 - Run the relevant runtime tests for the surfaces you touched.

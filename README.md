@@ -49,68 +49,26 @@ ssh gcp-coke 'cd ~/coke && docker compose -f docker-compose.prod.yml up -d --bui
 ## Testing
 
 ```bash
-pytest tests/unit/ -v
-pytest tests/e2e/ -v
-zsh scripts/check
-zsh scripts/verify-surface repo-os
 zsh scripts/suggest-verification --base HEAD~1
 zsh scripts/review-trigger --base HEAD~1
 ```
 
-## Repository Structure
-
-```
-AGENTS.md                  # routing layer for agents
-docs/design-docs/          # durable repository workflow intent
-docs/design-docs/human-ai-working-contract.md
-                           # human/AI collaboration and verification trust rules
-docs/design-docs/coke-working-contract.md
-                           # Coke-specific work surfaces and planning contract
-docs/adr/                  # durable workflow and structure decisions
-docs/superpowers/specs/    # canonical home for design specs (active + dated)
-docs/superpowers/plans/    # flat canonical home for execution plans
-docs/fitness/              # verification rulebook
-docs/fitness/coke-verification-matrix.md
-                           # project-specific verification commands by surface
-docs/fitness/surfaces.yaml # machine-readable surface and review trigger map
-docs/issues/               # local issue, incident, runbook, and investigation records
-docs/product-specs/FEATURE_TREE.md
-                           # product, route, and API surface index
-docs/release-guide.md      # release and rollout workflow
-docs/RELEASE_CHECKLIST.md  # release closeout checklist
-artifacts/evidence/        # generated verification and eval evidence
-docs/roadmap.md            # product and platform direction
-docs/ARCHITECTURE.md       # canonical runtime architecture
-docs/architecture.md       # compatibility symlink to docs/ARCHITECTURE.md
-docs/deploy.md             # deployment and smoke checks
-docs/clawscale_bridge.md   # bridge and channel rollout notes
-scripts/check              # repository structure verification entrypoint
-scripts/suggest-verification
-                           # diff-aware verification suggestion entrypoint
-scripts/review-trigger     # diff-aware review escalation entrypoint
-```
+Run the suggested surface command instead of defaulting to the full unit or E2E
+suite. For repository-structure or workflow-doc edits, `repo-os-docs` usually
+means `zsh scripts/check`; runtime, deploy, and user-visible behavior still need
+the stronger commands named by the guardrails.
 
 ## Documentation
 
-- `AGENTS.md`: routing layer and reading order
-- `docs/design-docs/index.md`: canonical repo-OS map
-- `docs/design-docs/human-ai-working-contract.md`: critical human/AI working
-  contract and verification trust levels
-- `docs/design-docs/coke-working-contract.md`: project-specific work surfaces
-- `docs/roadmap.md`: high-level status and migration direction
-- `docs/ARCHITECTURE.md`: current canonical runtime architecture
-- `docs/deploy.md`: deployment and startup notes
-- `docs/fitness/README.md`: verification expectations
-- `docs/fitness/coke-verification-matrix.md`: what to run for worker, bridge,
-  gateway, deploy, and repo-OS changes
-- `docs/fitness/surfaces.yaml`: machine-readable surface and review-trigger
-  map used by the guardrail scripts
-- `docs/superpowers/specs/`: canonical home for design specs (active and dated)
-- `docs/superpowers/plans/`: flat canonical home for execution plans; matches
-  the `superpowers:writing-plans` skill default, so lifecycle is tracked in
-  file status metadata instead of subdirectories
-- `docs/issues/`: local issue, incident, runbook, and investigation records
-- `docs/product-specs/FEATURE_TREE.md`: product, route, and API surface index
-- `docs/release-guide.md` and `docs/RELEASE_CHECKLIST.md`: release workflow
-  and closeout checklist
-- `artifacts/evidence/`: generated verification and eval evidence
+Use `AGENTS.md` for staged reading rules and `docs/design-docs/index.md` for
+the canonical repo-OS map. Keep current-state details in their canonical homes
+instead of copying them into this README:
+
+- Runtime topology: `docs/ARCHITECTURE.md`
+- Verification: `docs/fitness/README.md`,
+  `docs/fitness/coke-verification-matrix.md`, `docs/fitness/surfaces.yaml`
+- Product/API surfaces: `docs/product-specs/FEATURE_TREE.md`
+- Issues and runbooks: `docs/issues/`
+- Specs and plans: `docs/superpowers/specs/`, `docs/superpowers/plans/`
+- Release and rollout: `docs/release-guide.md`, `docs/RELEASE_CHECKLIST.md`
+- Evidence: `artifacts/evidence/`

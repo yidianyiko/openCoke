@@ -44,8 +44,8 @@ def test_suggest_verification_deduplicates_and_orders_surfaces_by_config():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "changed_surfaces: gateway-web repo-os" in result.stdout
-    assert "zsh scripts/verify-surface gateway-web repo-os" in result.stdout
+    assert "changed_surfaces: repo-os-docs gateway-web" in result.stdout
+    assert "zsh scripts/verify-surface repo-os-docs gateway-web" in result.stdout
 
 
 def test_suggest_verification_maps_agent_runtime_core_to_worker_surface():
@@ -72,8 +72,8 @@ def test_suggest_verification_maps_superpowers_history_to_repo_os_surface():
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "changed_surfaces: repo-os" in result.stdout
-    assert "zsh scripts/verify-surface repo-os" in result.stdout
+    assert "changed_surfaces: repo-os-docs" in result.stdout
+    assert "zsh scripts/verify-surface repo-os-docs" in result.stdout
 
 
 def test_suggest_verification_maps_routa_style_doc_surfaces_to_repo_os():
@@ -87,6 +87,20 @@ def test_suggest_verification_maps_routa_style_doc_surfaces_to_repo_os():
         "docs/product-specs/FEATURE_TREE.md",
         "--files",
         "docs/release-guide.md",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "changed_surfaces: repo-os-docs" in result.stdout
+    assert "zsh scripts/verify-surface repo-os-docs" in result.stdout
+
+
+def test_suggest_verification_maps_guardrail_tooling_to_full_repo_os_surface():
+    result = run_script(
+        "scripts/suggest-verification",
+        "--files",
+        "docs/fitness/surfaces.yaml",
+        "--files",
+        "scripts/guardrails.py",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -140,3 +154,15 @@ def test_review_trigger_accepts_evidence_for_nontrivial_changes():
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "human_review_required: no" in result.stdout
+
+
+def test_review_trigger_does_not_require_artifact_for_gateway_gitlink_doc_change():
+    result = run_script(
+        "scripts/review-trigger",
+        "--files",
+        "gateway",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "human_review_required: no" in result.stdout
+    assert "evidence_gap" not in result.stdout

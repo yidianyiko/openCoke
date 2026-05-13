@@ -12,18 +12,38 @@ zsh scripts/verify-surface <surface>
 Use `--dry-run` when you want to inspect the command mapping without executing
 it.
 
-## Repo OS And Workflow Docs
+## Repo OS Docs
 
 Use when changing:
 
 - `AGENTS.md`, `CLAUDE.md`, `README.md`
 - `docs/ARCHITECTURE.md` and compatibility symlink `docs/architecture.md`
-- `docs/design-docs/`, `docs/adr/`, `docs/fitness/`, `docs/superpowers/`,
+- `docs/design-docs/`, `docs/adr/`, `docs/superpowers/`,
 - `docs/issues/`, `docs/product-specs/`
 - `docs/design-docs/human-ai-working-contract.md`
+- `docs/fitness/README.md`
+- `docs/fitness/coke-verification-matrix.md`
 - `docs/release-guide.md`, `docs/RELEASE_CHECKLIST.md`
 - `artifacts/evidence/`
+
+Commands:
+
+```bash
+zsh scripts/check
+```
+
+## Repo OS Tooling
+
+Use when changing:
+
+- `docs/fitness/surfaces.yaml`
 - `scripts/check`
+- `scripts/verify-surface`
+- `scripts/suggest-verification`
+- `scripts/review-trigger`
+- `scripts/guardrails.py`
+- `tests/unit/test_repo_os_structure.py`
+- `tests/unit/test_guardrail_scripts.py`
 
 Commands:
 

@@ -100,7 +100,6 @@ def test_claude_md_is_agents_md_symlink():
 def test_root_docs_reference_repo_os_map():
     agents_text = (ROOT / "AGENTS.md").read_text()
     claude_text = (ROOT / "CLAUDE.md").read_text()
-    readme_text = (ROOT / "README.md").read_text()
 
     for needle in [
         "docs/design-docs/index.md",
@@ -119,7 +118,19 @@ def test_root_docs_reference_repo_os_map():
     ]:
         assert needle in agents_text
         assert needle in claude_text
-        assert needle in readme_text
+
+
+def test_readme_points_to_canonical_repo_os_map_without_full_duplication():
+    readme_text = (ROOT / "README.md").read_text()
+
+    assert "AGENTS.md" in readme_text
+    assert "docs/design-docs/index.md" in readme_text
+    assert "Use `AGENTS.md` for staged reading rules" in readme_text
+    assert "docs/ARCHITECTURE.md" in readme_text
+    assert "docs/product-specs/FEATURE_TREE.md" in readme_text
+    assert "docs/release-guide.md" in readme_text
+    assert "docs/RELEASE_CHECKLIST.md" in readme_text
+    assert "docs/clawscale_bridge.md   # bridge and channel rollout notes" not in readme_text
 
 
 def test_agents_md_requires_diff_aware_routing_before_manual_test_selection():
@@ -137,6 +148,14 @@ def test_agents_md_requires_diff_aware_routing_before_manual_test_selection():
     assert agents_text.index(review_command) < agents_text.index(
         "Use `docs/fitness/coke-verification-matrix.md`"
     )
+
+
+def test_agents_md_uses_staged_reading_to_reduce_context_load():
+    agents_text = (ROOT / "AGENTS.md").read_text()
+
+    assert "Do staged reading. Do not open every canonical document by default." in agents_text
+    assert "Then add the smallest task-specific slice:" in agents_text
+    assert "For docs-only repo-OS edits, prefer the lighter `repo-os-docs` surface" in agents_text
 
 
 def test_agents_md_uses_venv_python_for_pytest_commands():
@@ -157,7 +176,7 @@ def test_agents_md_locates_specs_and_plans_under_superpowers():
     assert "docs/superpowers/plans/" in agents_text
     assert "Put new execution plans in `docs/superpowers/plans/" in agents_text
     assert "Do not create\n  lifecycle subdirectories" in agents_text
-    assert "plan lifecycle belongs in file\n   status metadata" in agents_text
+    assert "plan lifecycle belongs in file status metadata" in agents_text
     assert "Put new design specs in `docs/superpowers/specs/" in agents_text
     # Freshness must still be verified per file, even if location is canonical.
     assert "verify a spec or plan against current `main`" in agents_text

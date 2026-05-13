@@ -56,7 +56,9 @@ runtime behavior:
 
 Use [`coke-verification-matrix.md`](./coke-verification-matrix.md) when you
 need the repository-specific command mapping for worker, bridge, gateway, or
-deploy changes.
+deploy changes. For docs-only repo-OS edits, prefer the `repo-os-docs` surface;
+it keeps verification to structure/routing checks. Use the heavier `repo-os`
+surface for guardrail scripts, `surfaces.yaml`, or verification tooling.
 
 ## Coke Guardrails
 

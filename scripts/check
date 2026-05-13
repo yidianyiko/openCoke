@@ -131,10 +131,19 @@ for needle in \
   "docs/superpowers/specs/" \
   "artifacts/evidence/"
 do
-  if rg -q "$needle" AGENTS.md CLAUDE.md README.md; then
+  if rg -q "$needle" AGENTS.md CLAUDE.md; then
     print "OK  root docs reference $needle"
   else
     print "MISS root docs reference $needle"
+    missing=1
+  fi
+done
+
+for needle in "AGENTS.md" "docs/design-docs/index.md"; do
+  if rg -q "$needle" README.md; then
+    print "OK  README points to $needle"
+  else
+    print "MISS README points to $needle"
     missing=1
   fi
 done

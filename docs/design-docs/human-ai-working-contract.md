@@ -74,6 +74,13 @@ For generated run evidence, use `artifacts/evidence/`.
    superseded.
 7. Prefer short, focused docs over sprawling catch-all notes. Add structure only
    when it reduces ambiguity, improves handoff, or strengthens verification.
+8. Avoid duplicating the same current-state fact across multiple documents.
+   Put volatile lists, route inventories, runtime topology, and product/API
+   surfaces in their canonical homes, and let local README files link there
+   instead of copying details that will drift.
+9. Prefer staged reading over exhaustive startup reading. Agents should load
+   the common routing contract first, then only the surface-specific docs
+   needed for the current task.
 
 ## Verification Trust Levels
 
@@ -109,7 +116,7 @@ to a stronger claim.
 AI agents working in this repository must:
 
 - read `AGENTS.md`, `docs/design-docs/index.md`, this file,
-  `docs/ARCHITECTURE.md`, and the task-specific surface docs before broad work
+  and the task-specific surface docs before broad work
 - use `docs/fitness/surfaces.yaml` and `docs/fitness/coke-verification-matrix.md`
   as routing aids, not as unquestioned proof of correctness
 - update the surface map and tests when code ownership moves

@@ -26,6 +26,9 @@ surface_commands() {
   local surface="$1"
 
   case "$surface" in
+    repo-os-docs)
+      print "zsh scripts/check"
+      ;;
     repo-os)
       print "$pytest_cmd tests/unit/test_repo_os_structure.py -v"
       print "$pytest_cmd tests/unit/test_guardrail_scripts.py -v"
