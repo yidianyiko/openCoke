@@ -49,3 +49,63 @@ Result: passed.
 This closeout used focused unit/component/API/build evidence. It did not run a
 live browser smoke against a deployed customer account session, and it did not
 deploy production.
+
+## Production Deployment
+
+Pushed commits:
+
+```text
+gateway: 19398e3 feat(reminders): add customer reminder board
+root: d0f1542 docs(reminders): close customer reminder board delivery
+```
+
+Deploy command:
+
+```bash
+./scripts/deploy-compose-to-gcp.sh --restart
+```
+
+Result: deploy script completed after rebuilding the compose stack and running
+its built-in health/public-site checks.
+
+Remote compose status:
+
+```text
+coke-coke-agent-1    Up
+coke-coke-bridge-1   Up (healthy)
+coke-gateway-1       Up (healthy)
+coke-mongo-1         Up (healthy)
+coke-postgres-1      Up (healthy)
+coke-redis-1         Up (healthy)
+```
+
+Production reminder web smoke:
+
+```bash
+curl -ksS -D - https://coke.keep4oforever.com/account/reminders
+```
+
+Result: HTTP 200, body contained `Weekly reminder board`,
+`/account/reminders`, and the `Reminders` customer navigation link.
+
+Production customer reminder API auth-boundary smoke:
+
+```bash
+curl -ksS -D - 'https://coke.keep4oforever.com/api/customer/reminders?from=2026-05-11&to=2026-05-17'
+```
+
+Result: HTTP 401 with `{"ok":false,"error":"unauthorized"}`.
+
+Production bridge internal reminder auth-boundary smoke:
+
+```bash
+ssh gcp-coke "curl -sS -D - 'http://127.0.0.1:8090/bridge/internal/reminders?customer_id=test&from=2026-05-11&to=2026-05-17'"
+```
+
+Result: HTTP 401 with `{"error":"unauthorized","ok":false}`.
+
+## Production Limits
+
+Production verification proved deployment, page availability, and reminder API
+auth boundaries. It did not exercise an authenticated customer reminder CRUD
+flow against a real customer token.
