@@ -190,6 +190,30 @@ class ReminderService:
         )
         return [self._map_document(document) for document in documents]
 
+    def list_for_user_in_local_date_range(
+        self,
+        *,
+        owner_user_id: str,
+        from_date: date,
+        to_date: date,
+        lifecycle_states: list[str],
+    ) -> list[Reminder]:
+        if from_date > to_date:
+            raise InvalidArgument(
+                "Reminder date range is invalid",
+                detail={
+                    "from_date": from_date.isoformat(),
+                    "to_date": to_date.isoformat(),
+                },
+            )
+        documents = self.reminder_dao.list_for_owner_in_local_date_range(
+            owner_user_id,
+            from_date=from_date,
+            to_date=to_date,
+            lifecycle_states=lifecycle_states,
+        )
+        return [self._map_document(document) for document in documents]
+
     def execute_batch(
         self,
         *,

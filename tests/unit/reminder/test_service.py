@@ -63,6 +63,25 @@ class InMemoryReminderDAO:
             ]
         return results
 
+    def list_for_owner_in_local_date_range(
+        self,
+        owner_user_id: str,
+        *,
+        from_date: date,
+        to_date: date,
+        lifecycle_states: list[str],
+    ) -> list[dict]:
+        results = []
+        for document in self.documents.values():
+            if document["owner_user_id"] != owner_user_id:
+                continue
+            if document["lifecycle_state"] not in lifecycle_states:
+                continue
+            local_date = date.fromisoformat(document["schedule"]["local_date"])
+            if from_date <= local_date <= to_date:
+                results.append(dict(document))
+        return results
+
     def replace_reminder(
         self,
         reminder_id: str,
@@ -73,7 +92,10 @@ class InMemoryReminderDAO:
         document = self.documents.get(reminder_id)
         if document is None or document["owner_user_id"] != owner_user_id:
             return False
-        if lifecycle_state is not None and document["lifecycle_state"] != lifecycle_state:
+        if (
+            lifecycle_state is not None
+            and document["lifecycle_state"] != lifecycle_state
+        ):
             return False
         document.update(updates)
         return True
@@ -284,6 +306,42 @@ def test_list_for_user_returns_owner_scoped_reminders():
     )
 
     assert reminders == [user_reminder]
+
+
+def test_list_for_user_in_local_date_range_scopes_by_owner_and_state():
+    service, _, _ = make_service()
+    service.create(owner_user_id="user-1", command=create_command(title="in range"))
+    service.create(owner_user_id="user-2", command=create_command(title="other user"))
+    cancelled = service.create(
+        owner_user_id="user-1", command=create_command(title="cancelled")
+    )
+    service.cancel(reminder_id=cancelled.id, owner_user_id="user-1")
+
+    reminders = service.list_for_user_in_local_date_range(
+        owner_user_id="user-1",
+        from_date=date(2026, 4, 29),
+        to_date=date(2026, 4, 29),
+        lifecycle_states=["active"],
+    )
+
+    assert [reminder.title for reminder in reminders] == ["in range"]
+
+
+def test_list_for_user_in_local_date_range_can_include_terminal_states():
+    service, _, _ = make_service()
+    reminder = service.create(
+        owner_user_id="user-1", command=create_command(title="done")
+    )
+    service.complete(reminder_id=reminder.id, owner_user_id="user-1")
+
+    reminders = service.list_for_user_in_local_date_range(
+        owner_user_id="user-1",
+        from_date=date(2026, 4, 29),
+        to_date=date(2026, 4, 29),
+        lifecycle_states=["completed"],
+    )
+
+    assert [reminder.title for reminder in reminders] == ["done"]
 
 
 def test_update_rejects_owner_mismatch_as_not_found():

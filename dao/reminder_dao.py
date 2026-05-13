@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """MongoDB access for reminders."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Dict, List, Optional
 
 from bson import ObjectId
@@ -31,6 +31,14 @@ class ReminderDAO:
         self.collection.create_index(
             [("owner_user_id", 1), ("lifecycle_state", 1), ("created_at", 1)]
         )
+        self.collection.create_index(
+            [
+                ("owner_user_id", 1),
+                ("lifecycle_state", 1),
+                ("schedule.local_date", 1),
+                ("schedule.local_time", 1),
+            ]
+        )
         self.collection.create_index([("lifecycle_state", 1), ("next_fire_at", 1)])
 
     def insert_reminder(self, document: Dict) -> str:
@@ -54,6 +62,28 @@ class ReminderDAO:
         if lifecycle_states is not None:
             selector["lifecycle_state"] = {"$in": lifecycle_states}
         return list(self.collection.find(selector))
+
+    def list_for_owner_in_local_date_range(
+        self,
+        owner_user_id: str,
+        *,
+        from_date: date,
+        to_date: date,
+        lifecycle_states: List[str],
+    ) -> List[Dict]:
+        selector: Dict = {
+            "owner_user_id": owner_user_id,
+            "lifecycle_state": {"$in": lifecycle_states},
+            "schedule.local_date": {
+                "$gte": from_date.isoformat(),
+                "$lte": to_date.isoformat(),
+            },
+        }
+        return list(
+            self.collection.find(selector).sort(
+                [("schedule.local_date", 1), ("schedule.local_time", 1)]
+            )
+        )
 
     def list_due_active(self) -> List[Dict]:
         return list(

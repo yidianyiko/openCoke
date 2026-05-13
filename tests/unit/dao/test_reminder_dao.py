@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Unit tests for ReminderDAO."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -62,6 +62,17 @@ class TestReminderDAO:
 
         assert (
             ([("owner_user_id", 1), ("lifecycle_state", 1), ("created_at", 1)],),
+            {},
+        ) in calls
+        assert (
+            (
+                [
+                    ("owner_user_id", 1),
+                    ("lifecycle_state", 1),
+                    ("schedule.local_date", 1),
+                    ("schedule.local_time", 1),
+                ],
+            ),
             {},
         ) in calls
         assert (([("lifecycle_state", 1), ("next_fire_at", 1)],), {}) in calls
@@ -140,6 +151,37 @@ class TestReminderDAO:
 
         assert result == expected
         mock_collection.find.assert_called_once_with({"owner_user_id": "user_1"})
+
+    @pytest.mark.unit
+    def test_list_for_owner_in_local_date_range_filters_owner_state_and_dates(
+        self, reminder_dao, mock_collection
+    ):
+        expected = [{"_id": ObjectId(), "owner_user_id": "user_1"}]
+        cursor = MagicMock()
+        cursor.sort.return_value = expected
+        mock_collection.find.return_value = cursor
+
+        result = reminder_dao.list_for_owner_in_local_date_range(
+            "user_1",
+            from_date=date(2026, 5, 13),
+            to_date=date(2026, 5, 19),
+            lifecycle_states=["active"],
+        )
+
+        assert result == expected
+        mock_collection.find.assert_called_once_with(
+            {
+                "owner_user_id": "user_1",
+                "lifecycle_state": {"$in": ["active"]},
+                "schedule.local_date": {
+                    "$gte": "2026-05-13",
+                    "$lte": "2026-05-19",
+                },
+            }
+        )
+        cursor.sort.assert_called_once_with(
+            [("schedule.local_date", 1), ("schedule.local_time", 1)]
+        )
 
     @pytest.mark.unit
     def test_list_due_active_filters_active_reminders_with_next_fire_at(
