@@ -98,6 +98,16 @@ pytest tests/unit/agent/test_severity_thresholds.py -v
 pytest tests/e2e/test_reminder_system_flow.py -v
 ```
 
+Customer reminder web management command set:
+
+```bash
+.venv/bin/python -m pytest tests/unit/reminder/test_service.py tests/unit/dao/test_reminder_dao.py tests/unit/connector/clawscale_bridge/test_reminder_management_service.py tests/unit/connector/clawscale_bridge/test_bridge_app.py -k "reminder or reminders" -v
+cd gateway/packages/api && npm test -- src/lib/reminder-runtime-client.test.ts src/routes/customer-reminder-routes.test.ts
+cd gateway/packages/web && npm test -- lib/customer-reminders.test.ts app/'(customer)'/account/reminders/page.test.tsx app/'(customer)'/account/layout.test.tsx
+cd gateway/packages/api && npm run build
+cd gateway/packages/web && npm run lint -- app/'(customer)'/account/reminders/page.tsx lib/customer-reminders.ts components/customer-shell.tsx app/'(customer)'/account/layout.test.tsx
+```
+
 Severity-tiered corpus check (run before merging changes to the prompt or
 guard helpers; see `docs/design-docs/reminder-corpus-severity.md`):
 

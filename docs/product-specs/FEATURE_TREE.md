@@ -27,6 +27,10 @@ repo-local map, not a product roadmap and not a replacement for
     `agent/agno_agent/tools/reminder_protocol/`
   - durable state in MongoDB `reminders`
   - fired-event handoff through `ReminderFireEventHandler`
+  - owner-scoped reminder management service:
+    `connector/clawscale_bridge/reminder_management_service.py`
+  - bridge internal reminder management API:
+    `/bridge/internal/reminders`
   - feature-flagged pending-workflow side channel: typed envelope in
     `agent/agno_agent/runtime/pending_workflow.py`, persistence through
     `dao/pending_workflow_dao.py` against the `pending_workflows` collection;
@@ -53,10 +57,12 @@ repo-local map, not a product roadmap and not a replacement for
 - Gateway web
   - `gateway/packages/web`
   - public homepage and customer account/channel surfaces
+  - customer reminder board: `/account/reminders`
 - Gateway API
   - `gateway/packages/api`
   - shared-channel webhook normalization
   - outbound delivery route
+  - customer reminder management API: `/api/customer/reminders`
   - Google Calendar import and customer claim flows
 
 ## Operations Surfaces

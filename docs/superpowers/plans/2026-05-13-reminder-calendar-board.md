@@ -1,8 +1,10 @@
 # Reminder Calendar Board Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build `/account/reminders` as a customer weekly calendar board for listing, creating, editing, completing, and cancelling visible reminders.
+
+**Status:** complete
 
 **Architecture:** The customer web app calls gateway customer routes. Gateway authenticates the customer and forwards reminder commands to bridge-internal routes. The Python bridge executes against the existing ReminderService/ReminderDAO so Mongo `reminders` and scheduler behavior remain owned by the Reminder System.
 
@@ -42,7 +44,7 @@
 - Test: `tests/unit/dao/test_reminder_dao.py`
 - Test: `tests/unit/reminder/test_service.py`
 
-- [ ] **Step 1: Add failing ReminderService range tests**
+- [x] **Step 1: Add failing ReminderService range tests**
 
 Append tests to `tests/unit/reminder/test_service.py` using the existing `InMemoryReminderDAO`.
 
@@ -104,7 +106,7 @@ def test_list_for_user_in_local_date_range_can_include_terminal_states():
     assert [reminder.title for reminder in reminders] == ["done"]
 ```
 
-- [ ] **Step 2: Run service tests and verify failure**
+- [x] **Step 2: Run service tests and verify failure**
 
 Run:
 
@@ -114,7 +116,7 @@ Run:
 
 Expected: FAIL because `ReminderService.list_for_user_in_local_date_range` does not exist.
 
-- [ ] **Step 3: Implement ReminderService method**
+- [x] **Step 3: Implement ReminderService method**
 
 Add to `agent/reminder/service.py`:
 
@@ -141,11 +143,11 @@ Add to `agent/reminder/service.py`:
         return [self._map_document(document) for document in documents]
 ```
 
-- [ ] **Step 4: Add DAO range query tests**
+- [x] **Step 4: Add DAO range query tests**
 
 In `tests/unit/dao/test_reminder_dao.py`, add coverage using the existing DAO test pattern. Insert documents directly into the test collection with `owner_user_id`, `schedule.local_date`, `lifecycle_state`, and `next_fire_at`. Assert that `list_for_owner_in_local_date_range("user-1", from_date=date(2026, 5, 13), to_date=date(2026, 5, 19), lifecycle_states=["active"])` returns only that owner and state.
 
-- [ ] **Step 5: Run DAO test and verify failure**
+- [x] **Step 5: Run DAO test and verify failure**
 
 Run:
 
@@ -155,7 +157,7 @@ Run:
 
 Expected: FAIL because the DAO method does not exist.
 
-- [ ] **Step 6: Implement DAO method**
+- [x] **Step 6: Implement DAO method**
 
 Add to `dao/reminder_dao.py`:
 
@@ -181,7 +183,7 @@ Add to `dao/reminder_dao.py`:
 
 Also import `date` from `datetime`. This first implementation intentionally uses `schedule.local_date`; recurrence expansion beyond the current stored reminder is out of scope.
 
-- [ ] **Step 7: Run focused tests**
+- [x] **Step 7: Run focused tests**
 
 Run:
 
@@ -199,7 +201,7 @@ Expected: PASS.
 - Test: `tests/unit/connector/clawscale_bridge/test_reminder_management_service.py`
 - Test: `tests/unit/connector/clawscale_bridge/test_bridge_app.py`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Create `tests/unit/connector/clawscale_bridge/test_reminder_management_service.py`.
 
@@ -211,7 +213,7 @@ Cover:
 - `update_reminder`, `complete_reminder`, and `cancel_reminder` pass `owner_user_id`.
 - invalid timezone or past one-shot maps to `ValueError("invalid_schedule")`.
 
-- [ ] **Step 2: Run service tests and verify failure**
+- [x] **Step 2: Run service tests and verify failure**
 
 Run:
 
@@ -221,7 +223,7 @@ Run:
 
 Expected: FAIL because the module does not exist.
 
-- [ ] **Step 3: Implement bridge reminder management service**
+- [x] **Step 3: Implement bridge reminder management service**
 
 Create `connector/clawscale_bridge/reminder_management_service.py` with:
 
@@ -234,7 +236,7 @@ Create `connector/clawscale_bridge/reminder_management_service.py` with:
 
 Use `ReminderCreateCommand`, `ReminderPatch`, `ReminderSchedule`, and `AgentOutputTarget` from `agent.reminder.models`.
 
-- [ ] **Step 4: Write failing bridge route tests**
+- [x] **Step 4: Write failing bridge route tests**
 
 Append tests to `tests/unit/connector/clawscale_bridge/test_bridge_app.py`:
 
@@ -246,7 +248,7 @@ Append tests to `tests/unit/connector/clawscale_bridge/test_bridge_app.py`:
 - `POST /bridge/internal/reminders/rem-1/cancel` forwards cancel.
 - service `ValueError("conversation_required")` maps to HTTP 400 `{ok:false,error:"conversation_required"}`.
 
-- [ ] **Step 5: Run route tests and verify failure**
+- [x] **Step 5: Run route tests and verify failure**
 
 Run:
 
@@ -256,7 +258,7 @@ Run:
 
 Expected: FAIL because routes are not wired.
 
-- [ ] **Step 6: Wire app routes**
+- [x] **Step 6: Wire app routes**
 
 Modify `connector/clawscale_bridge/app.py`:
 
@@ -266,7 +268,7 @@ Modify `connector/clawscale_bridge/app.py`:
 - normalize missing service to `bridge_service_not_wired`
 - reuse `require_bridge_auth`
 
-- [ ] **Step 7: Run bridge tests**
+- [x] **Step 7: Run bridge tests**
 
 Run:
 
@@ -285,7 +287,7 @@ Expected: PASS.
 - Create: `gateway/packages/api/src/routes/customer-reminder-routes.test.ts`
 - Modify: `gateway/packages/api/src/index.ts`
 
-- [ ] **Step 1: Write failing runtime client tests**
+- [x] **Step 1: Write failing runtime client tests**
 
 Create tests for:
 
@@ -294,7 +296,7 @@ Create tests for:
 - list sends `customer_id`, date range, and states to `/bridge/internal/reminders`.
 - create/update/complete/cancel send the expected method/path/body.
 
-- [ ] **Step 2: Run runtime client tests and verify failure**
+- [x] **Step 2: Run runtime client tests and verify failure**
 
 Run:
 
@@ -304,7 +306,7 @@ cd gateway/packages/api && npm test -- src/lib/reminder-runtime-client.test.ts
 
 Expected: FAIL because the client module does not exist.
 
-- [ ] **Step 3: Implement runtime client**
+- [x] **Step 3: Implement runtime client**
 
 Create `gateway/packages/api/src/lib/reminder-runtime-client.ts` using the same bridge base/header helpers as `google-calendar-runtime-client.ts`. Export:
 
@@ -314,7 +316,7 @@ Create `gateway/packages/api/src/lib/reminder-runtime-client.ts` using the same 
 - `completeRuntimeReminder`
 - `cancelRuntimeReminder`
 
-- [ ] **Step 4: Write failing customer route tests**
+- [x] **Step 4: Write failing customer route tests**
 
 Create `gateway/packages/api/src/routes/customer-reminder-routes.test.ts`.
 
@@ -333,7 +335,7 @@ Cover:
 - create maps `conversation_required` to 409 or 400 with same error code.
 - update/complete/cancel forward reminder id and authenticated customer id.
 
-- [ ] **Step 5: Run route tests and verify failure**
+- [x] **Step 5: Run route tests and verify failure**
 
 Run:
 
@@ -343,7 +345,7 @@ cd gateway/packages/api && npm test -- src/routes/customer-reminder-routes.test.
 
 Expected: FAIL because routes do not exist.
 
-- [ ] **Step 6: Implement customer reminder routes**
+- [x] **Step 6: Implement customer reminder routes**
 
 Create `gateway/packages/api/src/routes/customer-reminder-routes.ts`:
 
@@ -359,7 +361,7 @@ Mount in `gateway/packages/api/src/index.ts`:
 app.route('/api/customer/reminders', customerReminderRouter);
 ```
 
-- [ ] **Step 7: Run gateway tests**
+- [x] **Step 7: Run gateway tests**
 
 Run:
 
@@ -380,7 +382,7 @@ Expected: PASS.
 - Create: `gateway/packages/web/app/(customer)/account/reminders/page.test.tsx`
 - Modify: `gateway/packages/web/app/public-site.css`
 
-- [ ] **Step 1: Write failing web API wrapper tests**
+- [x] **Step 1: Write failing web API wrapper tests**
 
 Create `gateway/packages/web/lib/customer-reminders.test.ts` and mock `customerApi`.
 
@@ -391,7 +393,7 @@ Cover:
 - `updateCustomerReminder` uses `customerApi.patch`.
 - `completeCustomerReminder` and `cancelCustomerReminder` post to action routes.
 
-- [ ] **Step 2: Run wrapper tests and verify failure**
+- [x] **Step 2: Run wrapper tests and verify failure**
 
 Run:
 
@@ -401,13 +403,13 @@ cd gateway/packages/web && npm test -- lib/customer-reminders.test.ts
 
 Expected: FAIL because wrapper and `customerApi.patch` do not exist.
 
-- [ ] **Step 3: Implement web API wrapper**
+- [x] **Step 3: Implement web API wrapper**
 
 Add `patch` to `gateway/packages/web/lib/customer-api.ts`.
 
 Create `gateway/packages/web/lib/customer-reminders.ts` with exported types and functions used by the page.
 
-- [ ] **Step 4: Write failing page tests**
+- [x] **Step 4: Write failing page tests**
 
 Create `gateway/packages/web/app/(customer)/account/reminders/page.test.tsx`.
 
@@ -424,7 +426,7 @@ Cover:
 - save calls `updateCustomerReminder`.
 - complete and cancel call their actions.
 
-- [ ] **Step 5: Run page test and verify failure**
+- [x] **Step 5: Run page test and verify failure**
 
 Run:
 
@@ -434,7 +436,7 @@ cd gateway/packages/web && npm test -- app/'(customer)'/account/reminders/page.t
 
 Expected: FAIL because page does not exist.
 
-- [ ] **Step 6: Implement weekly board page**
+- [x] **Step 6: Implement weekly board page**
 
 Create `gateway/packages/web/app/(customer)/account/reminders/page.tsx`:
 
@@ -456,7 +458,7 @@ Modify `gateway/packages/web/components/customer-shell.tsx` to add:
 
 Add scoped CSS classes for the calendar board, day columns, reminder buttons, drawer, and form in `public-site.css`.
 
-- [ ] **Step 7: Run web tests**
+- [x] **Step 7: Run web tests**
 
 Run:
 
@@ -472,7 +474,7 @@ Expected: PASS.
 - Modify: `docs/product-specs/FEATURE_TREE.md`
 - Modify: `docs/fitness/coke-verification-matrix.md`
 
-- [ ] **Step 1: Update product surface docs**
+- [x] **Step 1: Update product surface docs**
 
 Add `/account/reminders` under the customer/account web surfaces in `docs/product-specs/FEATURE_TREE.md`, and mention the gateway customer reminder API plus bridge internal reminder API under Reminder System surfaces.
 
@@ -483,7 +485,7 @@ cd gateway/packages/api && npm test -- src/lib/reminder-runtime-client.test.ts s
 cd gateway/packages/web && npm test -- lib/customer-reminders.test.ts app/'(customer)'/account/reminders/page.test.tsx app/'(customer)'/account/layout.test.tsx
 ```
 
-- [ ] **Step 2: Run focused verification**
+- [x] **Step 2: Run focused verification**
 
 Run:
 
@@ -495,7 +497,7 @@ cd gateway/packages/web && npm test -- lib/customer-reminders.test.ts app/'(cust
 
 Expected: all focused tests pass.
 
-- [ ] **Step 3: Run diff-aware routing**
+- [x] **Step 3: Run diff-aware routing**
 
 From repo root:
 
@@ -506,7 +508,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 Run any additional commands they recommend for touched surfaces.
 
-- [ ] **Step 4: Run structure check if docs/routing changed**
+- [x] **Step 4: Run structure check if docs/routing changed**
 
 Run:
 
@@ -516,7 +518,7 @@ zsh scripts/check
 
 Expected: PASS or document unrelated failures with evidence.
 
-- [ ] **Step 5: Final git review**
+- [x] **Step 5: Final git review**
 
 Run:
 

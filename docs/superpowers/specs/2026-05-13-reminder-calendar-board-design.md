@@ -1,6 +1,6 @@
 # Reminder Calendar Board Design
 
-**Status:** draft for review
+**Status:** implemented
 **Date:** 2026-05-13
 **Owner:** Codex
 
