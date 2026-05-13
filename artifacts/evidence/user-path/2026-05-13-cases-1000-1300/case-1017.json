@@ -1,0 +1,103 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-bd7d1e02e1",
+    "message": null,
+    "offset": 1017,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，我理解您提到之前约好了9点找我问明日计划。让我确认一下当前的情况——我这里没有看到之前设置的提醒记录。\n\n现在已经是21:35了，确实已经过了您说的9点时间。这是有什么误会吗？会不会是提醒没有被正确设置？不过现在说这些也没意义——您想现在问我明日计划吗？我可以帮您安排。"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "per_severity": {
+        "critical": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        },
+        "important": {
+          "total": 1,
+          "pass": 1,
+          "failed": 0,
+          "pass_rate": 1.0
+        },
+        "nice": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        }
+      },
+      "severity_thresholds": {
+        "critical": 1.0,
+        "important": 0.95,
+        "nice": 0.8
+      },
+      "severity_violations": [],
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 1017,
+      "input": "我不是和你说了9点准时找我问明日计划的吗",
+      "user_id": "22b406c3a55ce99747d4c3e1",
+      "original_from_user": "69461863f09e7d5a55ada004",
+      "input_message_id": "6a0364d0fde15b165e2671ab",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0364d4410c63cc7a1de928",
+          "expect_output_timestamp": 1778607316,
+          "handled_timestamp": 1778607316,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，我理解您提到之前约好了9点找我问明日计划。让我确认一下当前的情况——我这里没有看到之前设置的提醒记录。\n\n现在已经是21:35了，确实已经过了您说的9点时间。这是有什么误会吗？会不会是提醒没有被正确设置？不过现在说这些也没意义——您想现在问我明日计划吗？我可以帮您安排。",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-bd7d1e02e1",
+            "case_index": 1017,
+            "original_from_user": "69461863f09e7d5a55ada004",
+            "source_id": "6947f78cf09e7d5a55adab91",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-bd7d1e02e1-case-1017",
+              "business_conversation_key": "user-path-bd7d1e02e1-case-1017",
+              "causal_inbound_event_id": "user-path-bd7d1e02e1-case-1017-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "22b406c3a55ce99747d4c3e1"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.011
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-6849d777cf",
+    "message": null,
+    "offset": 1020,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "今天也辛苦啦！能坚持每天认真复习真的很棒呢。复习得怎么样了，有没有什么地方比较难理解的？"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "per_severity": {
+        "critical": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        },
+        "important": {
+          "total": 1,
+          "pass": 1,
+          "failed": 0,
+          "pass_rate": 1.0
+        },
+        "nice": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        }
+      },
+      "severity_thresholds": {
+        "critical": 1.0,
+        "important": 0.95,
+        "nice": 0.8
+      },
+      "severity_violations": [],
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 1020,
+      "input": "今天也认真复习了",
+      "user_id": "a62c2cdcd310b6ef2f3c83b2",
+      "original_from_user": "69440377709458dc324aa05d",
+      "input_message_id": "6a036558899504ade8b89a94",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a03655b410c63cc7a1de945",
+          "expect_output_timestamp": 1778607451,
+          "handled_timestamp": 1778607451,
+          "status": "pending",
+          "message_type": "text",
+          "message": "今天也辛苦啦！能坚持每天认真复习真的很棒呢。复习得怎么样了，有没有什么地方比较难理解的？",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-6849d777cf",
+            "case_index": 1020,
+            "original_from_user": "69440377709458dc324aa05d",
+            "source_id": "6947fa18f09e7d5a55adab9e",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-6849d777cf-case-1020",
+              "business_conversation_key": "user-path-6849d777cf-case-1020",
+              "causal_inbound_event_id": "user-path-6849d777cf-case-1020-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "a62c2cdcd310b6ef2f3c83b2"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 3.007
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

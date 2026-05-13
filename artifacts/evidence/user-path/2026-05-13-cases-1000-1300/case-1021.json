@@ -1,0 +1,103 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-354a5d89e8",
+    "message": null,
+    "offset": 1021,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "哎呀，真抱歉让你困惑了！让我确认一下情况——\n\n我们这次的对话好像还没有设置过任务提醒呢。你说的提醒是指今天要完成什么任务呀？能不能告诉我具体是什么，我帮你看看是什么情况～"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "per_severity": {
+        "critical": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        },
+        "important": {
+          "total": 1,
+          "pass": 1,
+          "failed": 0,
+          "pass_rate": 1.0
+        },
+        "nice": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        }
+      },
+      "severity_thresholds": {
+        "critical": 1.0,
+        "important": 0.95,
+        "nice": 0.8
+      },
+      "severity_violations": [],
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 1021,
+      "input": "今天怎么回事，没有提醒我完成任务嘞",
+      "user_id": "446597eeab8e7e7a4b5e9638",
+      "original_from_user": "6945f896f09e7d5a55ad9ef7",
+      "input_message_id": "6a036563adb38c2659f20909",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a036568410c63cc7a1de94f",
+          "expect_output_timestamp": 1778607464,
+          "handled_timestamp": 1778607464,
+          "status": "pending",
+          "message_type": "text",
+          "message": "哎呀，真抱歉让你困惑了！让我确认一下情况——\n\n我们这次的对话好像还没有设置过任务提醒呢。你说的提醒是指今天要完成什么任务呀？能不能告诉我具体是什么，我帮你看看是什么情况～",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-354a5d89e8",
+            "case_index": 1021,
+            "original_from_user": "6945f896f09e7d5a55ad9ef7",
+            "source_id": "6947fa1cf09e7d5a55adab9f",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-354a5d89e8-case-1021",
+              "business_conversation_key": "user-path-354a5d89e8-case-1021",
+              "causal_inbound_event_id": "user-path-354a5d89e8-case-1021-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "446597eeab8e7e7a4b5e9638"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 5.01
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}

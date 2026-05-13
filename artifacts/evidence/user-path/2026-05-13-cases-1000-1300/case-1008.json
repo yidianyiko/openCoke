@@ -1,0 +1,241 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-4313f0107b",
+    "message": null,
+    "offset": 1008,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "已创建提醒：坐下（2026-05-13 20:28）"
+    ],
+    "created_reminders": [
+      {
+        "_id": "6a036157557579146c1cecdf",
+        "owner_user_id": "4825446eb2f01f16ddd6a20c",
+        "title": "坐下",
+        "schedule": {
+          "anchor_at": "2026-05-13T11:28:01+00:00",
+          "local_date": "2026-05-13",
+          "local_time": "20:28:01",
+          "timezone": "Asia/Tokyo",
+          "rrule": null
+        },
+        "agent_output_target": {
+          "conversation_id": "6a036131557579146c1cecda",
+          "character_id": "69eeeee7e7ef890c105124bf",
+          "route_key": null
+        },
+        "created_by_system": "agent",
+        "lifecycle_state": "active",
+        "next_fire_at": "2026-05-13T11:28:01+00:00",
+        "last_fired_at": null,
+        "last_event_ack_at": null,
+        "last_error": null,
+        "created_at": "2026-05-13T11:18:01+00:00",
+        "updated_at": "2026-05-13T11:18:01+00:00",
+        "completed_at": null,
+        "cancelled_at": null,
+        "failed_at": null
+      }
+    ],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [
+      "unexpected_reminder_created"
+    ],
+    "summary": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "pass_rate": 0.0,
+      "by_error": {
+        "unexpected_reminder_created": 1
+      },
+      "per_severity": {
+        "critical": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        },
+        "important": {
+          "total": 1,
+          "pass": 0,
+          "failed": 1,
+          "pass_rate": 0.0
+        },
+        "nice": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        }
+      },
+      "severity_thresholds": {
+        "critical": 1.0,
+        "important": 0.95,
+        "nice": 0.8
+      },
+      "severity_violations": [
+        "important: 0.0% < 95%"
+      ],
+      "failures": [
+        {
+          "index": 1008,
+          "input": "10分钟后提醒我坐下",
+          "user_id": "4825446eb2f01f16ddd6a20c",
+          "original_from_user": "69450c4af09e7d5a55ad9b28",
+          "input_message_id": "6a0361316ee1a3d30a3d3c4f",
+          "input_status": "handled",
+          "passed": false,
+          "errors": [
+            "unexpected_reminder_created"
+          ],
+          "outputs": [
+            {
+              "_id": "6a036157557579146c1cece1",
+              "expect_output_timestamp": 1778606423,
+              "handled_timestamp": 1778606423,
+              "status": "pending",
+              "message_type": "text",
+              "message": "已创建提醒：坐下（2026-05-13 20:28）",
+              "metadata": {
+                "source": "clawscale",
+                "batch_id": "user-path-4313f0107b",
+                "case_index": 1008,
+                "original_from_user": "69450c4af09e7d5a55ad9b28",
+                "source_id": "6947e57af09e7d5a55adab45",
+                "source_eval": "reminder_normal_path_eval",
+                "delivery_mode": "request_response",
+                "business_protocol": {
+                  "delivery_mode": "request_response",
+                  "gateway_conversation_id": "user-path-4313f0107b-case-1008",
+                  "business_conversation_key": "user-path-4313f0107b-case-1008",
+                  "causal_inbound_event_id": "user-path-4313f0107b-case-1008-inbound"
+                }
+              },
+              "from_user": "69eeeee7e7ef890c105124bf",
+              "platform": "business",
+              "to_user": "4825446eb2f01f16ddd6a20c"
+            }
+          ],
+          "reminders": [
+            {
+              "_id": "6a036157557579146c1cecdf",
+              "owner_user_id": "4825446eb2f01f16ddd6a20c",
+              "title": "坐下",
+              "schedule": {
+                "anchor_at": "2026-05-13T11:28:01+00:00",
+                "local_date": "2026-05-13",
+                "local_time": "20:28:01",
+                "timezone": "Asia/Tokyo",
+                "rrule": null
+              },
+              "agent_output_target": {
+                "conversation_id": "6a036131557579146c1cecda",
+                "character_id": "69eeeee7e7ef890c105124bf",
+                "route_key": null
+              },
+              "created_by_system": "agent",
+              "lifecycle_state": "active",
+              "next_fire_at": "2026-05-13T11:28:01+00:00",
+              "last_fired_at": null,
+              "last_event_ack_at": null,
+              "last_error": null,
+              "created_at": "2026-05-13T11:18:01+00:00",
+              "updated_at": "2026-05-13T11:18:01+00:00",
+              "completed_at": null,
+              "cancelled_at": null,
+              "failed_at": null
+            }
+          ],
+          "elapsed_seconds": 39.074
+        }
+      ]
+    }
+  },
+  "raw_results": [
+    {
+      "index": 1008,
+      "input": "10分钟后提醒我坐下",
+      "user_id": "4825446eb2f01f16ddd6a20c",
+      "original_from_user": "69450c4af09e7d5a55ad9b28",
+      "input_message_id": "6a0361316ee1a3d30a3d3c4f",
+      "input_status": "handled",
+      "passed": false,
+      "errors": [
+        "unexpected_reminder_created"
+      ],
+      "outputs": [
+        {
+          "_id": "6a036157557579146c1cece1",
+          "expect_output_timestamp": 1778606423,
+          "handled_timestamp": 1778606423,
+          "status": "pending",
+          "message_type": "text",
+          "message": "已创建提醒：坐下（2026-05-13 20:28）",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-4313f0107b",
+            "case_index": 1008,
+            "original_from_user": "69450c4af09e7d5a55ad9b28",
+            "source_id": "6947e57af09e7d5a55adab45",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-4313f0107b-case-1008",
+              "business_conversation_key": "user-path-4313f0107b-case-1008",
+              "causal_inbound_event_id": "user-path-4313f0107b-case-1008-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "4825446eb2f01f16ddd6a20c"
+        }
+      ],
+      "reminders": [
+        {
+          "_id": "6a036157557579146c1cecdf",
+          "owner_user_id": "4825446eb2f01f16ddd6a20c",
+          "title": "坐下",
+          "schedule": {
+            "anchor_at": "2026-05-13T11:28:01+00:00",
+            "local_date": "2026-05-13",
+            "local_time": "20:28:01",
+            "timezone": "Asia/Tokyo",
+            "rrule": null
+          },
+          "agent_output_target": {
+            "conversation_id": "6a036131557579146c1cecda",
+            "character_id": "69eeeee7e7ef890c105124bf",
+            "route_key": null
+          },
+          "created_by_system": "agent",
+          "lifecycle_state": "active",
+          "next_fire_at": "2026-05-13T11:28:01+00:00",
+          "last_fired_at": null,
+          "last_event_ack_at": null,
+          "last_error": null,
+          "created_at": "2026-05-13T11:18:01+00:00",
+          "updated_at": "2026-05-13T11:18:01+00:00",
+          "completed_at": null,
+          "cancelled_at": null,
+          "failed_at": null
+        }
+      ],
+      "elapsed_seconds": 39.074
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "failure_layer": "functional_side_effect",
+    "reason": "unexpected_reminder_created"
+  }
+}

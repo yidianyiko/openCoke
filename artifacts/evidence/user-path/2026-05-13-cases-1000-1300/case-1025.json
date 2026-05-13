@@ -1,0 +1,103 @@
+{
+  "input": {
+    "mode": "corpus",
+    "runtime": "local",
+    "transport": "business-clawscale",
+    "batch_id": "user-path-f9f7890285",
+    "message": null,
+    "offset": 1025,
+    "limit": 1,
+    "run_all": false
+  },
+  "observed": {
+    "input_status": "handled",
+    "user_visible_replies": [
+      "好的，我每天提醒你！不过需要确认一下：\n\n1. **提醒什么内容呢？**（比如喝水、运动、看书、服药等）\n2. **每天几点提醒？**（比如早上9点、晚上8点等）\n\n告诉我这些，我就能帮你设置好每日提醒啦~"
+    ],
+    "created_reminders": [],
+    "updated_reminders": [],
+    "fired_events": [],
+    "errors": [],
+    "summary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "pass_rate": 1.0,
+      "by_error": {},
+      "per_severity": {
+        "critical": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        },
+        "important": {
+          "total": 1,
+          "pass": 1,
+          "failed": 0,
+          "pass_rate": 1.0
+        },
+        "nice": {
+          "total": 0,
+          "pass": 0,
+          "failed": 0,
+          "pass_rate": 0.0
+        }
+      },
+      "severity_thresholds": {
+        "critical": 1.0,
+        "important": 0.95,
+        "nice": 0.8
+      },
+      "severity_violations": [],
+      "failures": []
+    }
+  },
+  "raw_results": [
+    {
+      "index": 1025,
+      "input": "你就负责每天提醒我吧",
+      "user_id": "6ad8461e92645fbe42df3742",
+      "original_from_user": "6947b507f09e7d5a55adaa39",
+      "input_message_id": "6a03659b2fdeb600c78898e6",
+      "input_status": "handled",
+      "passed": true,
+      "errors": [],
+      "outputs": [
+        {
+          "_id": "6a0365a0410c63cc7a1de977",
+          "expect_output_timestamp": 1778607520,
+          "handled_timestamp": 1778607520,
+          "status": "pending",
+          "message_type": "text",
+          "message": "好的，我每天提醒你！不过需要确认一下：\n\n1. **提醒什么内容呢？**（比如喝水、运动、看书、服药等）\n2. **每天几点提醒？**（比如早上9点、晚上8点等）\n\n告诉我这些，我就能帮你设置好每日提醒啦~",
+          "metadata": {
+            "source": "clawscale",
+            "batch_id": "user-path-f9f7890285",
+            "case_index": 1025,
+            "original_from_user": "6947b507f09e7d5a55adaa39",
+            "source_id": "6947fd87f09e7d5a55adabcb",
+            "source_eval": "reminder_normal_path_eval",
+            "delivery_mode": "request_response",
+            "business_protocol": {
+              "delivery_mode": "request_response",
+              "gateway_conversation_id": "user-path-f9f7890285-case-1025",
+              "business_conversation_key": "user-path-f9f7890285-case-1025",
+              "causal_inbound_event_id": "user-path-f9f7890285-case-1025-inbound"
+            }
+          },
+          "from_user": "69eeeee7e7ef890c105124bf",
+          "platform": "business",
+          "to_user": "6ad8461e92645fbe42df3742"
+        }
+      ],
+      "reminders": [],
+      "elapsed_seconds": 6.013
+    }
+  ],
+  "verdict": {
+    "passed": true,
+    "failure_layer": null,
+    "reason": "passed"
+  }
+}
