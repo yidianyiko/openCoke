@@ -56,6 +56,11 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     monkeypatch.setattr(
         bridge_app, "_build_google_calendar_import_service", lambda: MagicMock()
     )
+    monkeypatch.setattr(
+        bridge_app, "_build_reminder_management_service", lambda: MagicMock()
+    )
+    monkeypatch.setattr(bridge_app, "_build_output_dispatcher", lambda: MagicMock())
+    monkeypatch.setattr(bridge_app, "_start_output_dispatcher", lambda dispatcher: None)
 
     app = bridge_app.create_app(testing=False)
 
@@ -89,6 +94,9 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
     )
     monkeypatch.setattr(
         bridge_app, "_build_google_calendar_import_service", lambda: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_reminder_management_service", lambda: MagicMock()
     )
     monkeypatch.setattr(bridge_app, "MongoDBBase", lambda **kwargs: MagicMock())
 
@@ -221,6 +229,348 @@ def test_bridge_inbound_rejects_missing_bearer_token():
     response = client.post("/bridge/inbound", json={"messages": []})
 
     assert response.status_code == 401
+
+
+def test_bridge_internal_reminders_rejects_missing_bearer_token():
+    from connector.clawscale_bridge.app import create_app
+
+    response = (
+        create_app(testing=True)
+        .test_client()
+        .get("/bridge/internal/reminders?customer_id=customer-1")
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "unauthorized"}
+
+
+def test_bridge_internal_reminders_get_returns_service_reminders(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.list_reminders.return_value = [{"id": "rem-1", "title": "standup"}]
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().get(
+        "/bridge/internal/reminders"
+        "?customer_id=customer-1"
+        "&from=2026-05-13"
+        "&to=2026-05-19"
+        "&state=active"
+        "&state=completed",
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": [{"id": "rem-1", "title": "standup"}],
+    }
+    service.list_reminders.assert_called_once_with(
+        customer_id="customer-1",
+        from_date="2026-05-13",
+        to_date="2026-05-19",
+        lifecycle_states=["active", "completed"],
+    )
+
+
+def test_bridge_internal_reminders_invalid_query_returns_stable_error(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.list_reminders.side_effect = ValueError("invalid_body")
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().get(
+        "/bridge/internal/reminders"
+        "?customer_id=customer-1"
+        "&from=2026-05-01"
+        "&to=2026-06-01",
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_body"}
+
+
+def test_bridge_internal_reminders_post_forwards_customer_id_and_body(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.create_reminder.return_value = {"id": "rem-1"}
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    body = {
+        "customer_id": "customer-1",
+        "title": "standup",
+        "localDate": "2026-05-13",
+        "localTime": "09:30",
+        "timezone": "Asia/Tokyo",
+    }
+    response = app.test_client().post(
+        "/bridge/internal/reminders",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=body,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "data": {"id": "rem-1"}}
+    service.create_reminder.assert_called_once_with(
+        customer_id="customer-1",
+        body=body,
+    )
+
+
+def test_bridge_internal_reminders_post_forwards_conversation_hints(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.create_reminder.return_value = {"id": "rem-1"}
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    body = {
+        "customer_id": "customer-1",
+        "title": "standup",
+        "localDate": "2026-05-13",
+        "localTime": "09:30",
+        "timezone": "Asia/Tokyo",
+        "businessConversationKey": "bc-1",
+        "gateway_conversation_id": "gw-1",
+    }
+    response = app.test_client().post(
+        "/bridge/internal/reminders",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=body,
+    )
+
+    assert response.status_code == 200
+    service.create_reminder.assert_called_once_with(
+        customer_id="customer-1",
+        body=body,
+    )
+
+
+def test_bridge_internal_reminders_patch_forwards_update(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.update_reminder.return_value = {"id": "rem-1", "title": "updated"}
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    body = {"customer_id": "customer-1", "title": "updated"}
+    response = app.test_client().patch(
+        "/bridge/internal/reminders/rem-1",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=body,
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {"id": "rem-1", "title": "updated"},
+    }
+    service.update_reminder.assert_called_once_with(
+        customer_id="customer-1",
+        reminder_id="rem-1",
+        body=body,
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        (
+            "post",
+            "/bridge/internal/reminders",
+            {
+                "customer_id": "customer-1",
+                "title": "x" * 201,
+                "localDate": "2026-05-13",
+                "localTime": "09:30",
+                "timezone": "Asia/Tokyo",
+            },
+        ),
+        (
+            "patch",
+            "/bridge/internal/reminders/rem-1",
+            {"customer_id": "customer-1", "title": "x" * 201},
+        ),
+    ],
+)
+def test_bridge_internal_reminders_overlong_title_returns_invalid_body(
+    monkeypatch,
+    method,
+    path,
+    body,
+):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.create_reminder.side_effect = ValueError("invalid_body")
+    service.update_reminder.side_effect = ValueError("invalid_body")
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = getattr(app.test_client(), method)(
+        path,
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=body,
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_body"}
+
+
+def test_bridge_internal_reminders_complete_forwards_complete(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.complete_reminder.return_value = {
+        "id": "rem-1",
+        "lifecycleState": "completed",
+    }
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/reminders/rem-1/complete",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "customer-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {"id": "rem-1", "lifecycleState": "completed"},
+    }
+    service.complete_reminder.assert_called_once_with(
+        customer_id="customer-1",
+        reminder_id="rem-1",
+    )
+
+
+def test_bridge_internal_reminders_cancel_forwards_cancel(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.cancel_reminder.return_value = {
+        "id": "rem-1",
+        "lifecycleState": "cancelled",
+    }
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/reminders/rem-1/cancel",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "customer-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {"id": "rem-1", "lifecycleState": "cancelled"},
+    }
+    service.cancel_reminder.assert_called_once_with(
+        customer_id="customer-1",
+        reminder_id="rem-1",
+    )
+
+
+def test_bridge_internal_reminders_maps_conversation_required(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.create_reminder.side_effect = ValueError("conversation_required")
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/reminders",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "customer-1", "title": "standup"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "conversation_required"}
+
+
+@pytest.mark.parametrize(
+    ("service_method", "method", "path", "body", "expected_error"),
+    [
+        (
+            "create_reminder",
+            "post",
+            "/bridge/internal/reminders",
+            {"customer_id": "customer-1"},
+            "invalid_body",
+        ),
+        (
+            "create_reminder",
+            "post",
+            "/bridge/internal/reminders",
+            {"customer_id": "customer-1"},
+            "invalid_schedule",
+        ),
+        (
+            "update_reminder",
+            "patch",
+            "/bridge/internal/reminders/rem-1",
+            {"customer_id": "customer-1"},
+            "invalid_reminder",
+        ),
+        (
+            "cancel_reminder",
+            "post",
+            "/bridge/internal/reminders/rem-1/cancel",
+            {"customer_id": "customer-1"},
+            "reminder_not_found",
+        ),
+    ],
+)
+def test_bridge_internal_reminders_maps_stable_service_errors(
+    monkeypatch,
+    service_method,
+    method,
+    path,
+    body,
+    expected_error,
+):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    getattr(service, service_method).side_effect = ValueError(expected_error)
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = getattr(app.test_client(), method)(
+        path,
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json=body,
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": expected_error}
+
+
+def test_bridge_internal_reminders_missing_service_returns_stable_error():
+    from connector.clawscale_bridge.app import create_app
+
+    response = create_app(testing=True).test_client().get(
+        "/bridge/internal/reminders?customer_id=customer-1&from=2026-05-13&to=2026-05-19",
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 500
+    assert response.get_json() == {
+        "ok": False,
+        "error": "bridge_service_not_wired",
+    }
 
 
 def test_bridge_healthz_malformed_origin_port_uses_configured_cors_origin():

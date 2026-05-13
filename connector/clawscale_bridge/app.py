@@ -587,6 +587,14 @@ def _build_google_calendar_import_service():
     return GoogleCalendarImportService()
 
 
+def _build_reminder_management_service():
+    from connector.clawscale_bridge.reminder_management_service import (
+        ReminderManagementService,
+    )
+
+    return ReminderManagementService()
+
+
 def _resolve_google_calendar_import_target(service, payload: dict) -> dict:
     customer_id = payload.get("customer_id")
     conversation_id = payload.get("target_conversation_id")
@@ -667,6 +675,7 @@ def create_app(testing: bool = False):
         app.config["COKE_BRIDGE_API_KEY"] = _require_bridge_setting("api_key")
         app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
         app.config["GOOGLE_CALENDAR_IMPORT_SERVICE"] = _build_google_calendar_import_service()
+        app.config["REMINDER_MANAGEMENT_SERVICE"] = _build_reminder_management_service()
         app.config["COKE_WEB_ALLOWED_ORIGIN"] = _require_bridge_setting(
             "web_allowed_origin"
         )
@@ -682,8 +691,50 @@ def create_app(testing: bool = False):
             request.headers.get("Origin"),
         )
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = (
+            "GET, POST, PATCH, DELETE, OPTIONS"
+        )
         return response
+
+    def _require_internal_bridge_auth():
+        from connector.clawscale_bridge.auth import require_bridge_auth
+
+        ok, error = require_bridge_auth(app.config["COKE_BRIDGE_API_KEY"])
+        if not ok:
+            body, status = error
+            return jsonify(body), status
+        return None
+
+    def _reminder_service_or_error():
+        service = app.config.get("REMINDER_MANAGEMENT_SERVICE")
+        if service is None:
+            return None, (
+                jsonify({"ok": False, "error": "bridge_service_not_wired"}),
+                500,
+            )
+        return service, None
+
+    def _get_json_body():
+        try:
+            payload = request.get_json(force=True) or {}
+        except BadRequest:
+            raise ValueError("invalid_body")
+        if not isinstance(payload, dict):
+            raise ValueError("invalid_body")
+        return payload
+
+    def _reminder_error_response(exc: ValueError):
+        stable_errors = {
+            "conversation_required",
+            "invalid_body",
+            "invalid_schedule",
+            "invalid_reminder",
+            "reminder_not_found",
+        }
+        error = str(exc)
+        if error not in stable_errors:
+            error = "invalid_body"
+        return jsonify({"ok": False, "error": error}), 400
 
     @app.get("/bridge/healthz")
     def healthz():
@@ -763,6 +814,108 @@ def create_app(testing: bool = False):
             )
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "data": result})
+
+    @app.get("/bridge/internal/reminders")
+    def bridge_internal_list_reminders():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            result = service.list_reminders(
+                customer_id=request.args.get("customer_id"),
+                from_date=request.args.get("from"),
+                to_date=request.args.get("to"),
+                lifecycle_states=request.args.getlist("state") or None,
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
+    @app.post("/bridge/internal/reminders")
+    def bridge_internal_create_reminder():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            result = service.create_reminder(
+                customer_id=payload.get("customer_id"),
+                body=payload,
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
+    @app.patch("/bridge/internal/reminders/<reminder_id>")
+    def bridge_internal_update_reminder(reminder_id):
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            result = service.update_reminder(
+                customer_id=payload.get("customer_id"),
+                reminder_id=reminder_id,
+                body=payload,
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
+    @app.post("/bridge/internal/reminders/<reminder_id>/complete")
+    def bridge_internal_complete_reminder(reminder_id):
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            result = service.complete_reminder(
+                customer_id=payload.get("customer_id"),
+                reminder_id=reminder_id,
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
+    @app.post("/bridge/internal/reminders/<reminder_id>/cancel")
+    def bridge_internal_cancel_reminder(reminder_id):
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            result = service.cancel_reminder(
+                customer_id=payload.get("customer_id"),
+                reminder_id=reminder_id,
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
         return jsonify({"ok": True, "data": result})
 
     @app.post("/bridge/internal/google-calendar-import/run")
