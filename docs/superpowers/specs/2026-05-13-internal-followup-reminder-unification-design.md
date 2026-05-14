@@ -63,15 +63,12 @@ prompt: optional string
 metadata: optional object
 ```
 
-Default existing documents on read:
-
-```text
-origin = user
-visibility = visible
-fire_mode = notify
-prompt = null
-metadata = {}
-```
+Do not add long-lived schema-on-read compatibility for reminders that lack
+these fields. After this change, reminder rows are expected to carry explicit
+`origin`, `visibility`, `fire_mode`, `prompt`, and `metadata` values. Rows that
+do not carry the new fields are legacy data and should be handled by an
+operator-approved one-time cleanup decision, not by permanent runtime defaults
+or broadened query selectors.
 
 Do not introduce `ScheduledAction`, generalized future-action types, task
 tables, or a second abstraction layer. The existing `ReminderService`,
@@ -144,19 +141,19 @@ Validation rules:
   counters. The only initially expected key is `proactive_times`; do not put
   user-facing task fields, goal fields, or arbitrary product state in it.
 
-Schema-on-read defaults are enough for existing reminder rows. No mandatory
-Mongo migration is required before deployment.
+No Legacy Compatibility:
 
-Query rules must also preserve legacy visible reminders. Any DAO or service
-query for visible reminders must treat missing `visibility` as visible:
-
-```text
-visibility selector = {"$or": [{"visibility": "visible"}, {"visibility": {"$exists": false}}]}
-```
-
-Do not implement visible-reminder queries as `{"visibility": "visible"}` only,
-because pre-change reminder documents do not have this field and would
-disappear from user-facing lists.
+- Do not support legacy reminder rows by treating missing `visibility` as
+  visible.
+- Do not add schema-on-read defaults that make missing `origin`,
+  `visibility`, `fire_mode`, `prompt`, or `metadata` look like current data.
+- User-facing reminder queries should filter explicitly on
+  `visibility="visible"`.
+- Internal follow-up queries should filter explicitly on
+  `visibility="internal"` and `fire_mode="followup"`.
+- If old rows without these fields must be preserved, handle that with a
+  one-time operator-approved backfill before rollout. Otherwise they may stop
+  appearing in new reminder-management surfaces.
 
 ## Service API
 
@@ -282,7 +279,7 @@ This change should be forward-only and avoid long-lived dual runtime paths.
 
 Implementation phases:
 
-1. Add reminder fields with schema-on-read defaults.
+1. Add required reminder fields without schema-on-read compatibility defaults.
 2. Add internal follow-up service helpers and DAO query/update support.
 3. Switch `PostAnalyzeWorkflow` to write internal reminders.
 4. Switch reminder fire handling to support `fire_mode=followup`.
@@ -309,9 +306,12 @@ visible in logs/tests and should not silently reintroduce the old mechanism.
 
 Before deleting the old proactive follow-up handler, inspect local and
 production data for active `deferred_actions.kind=proactive_followup` rows.
-If any active rows exist, clear or migrate them before deleting the handler.
-The final state must be: no active proactive rows, no scanner branch that tries
-to execute that kind, and no unknown-kind log noise from historical rows.
+This change does not need to preserve those rows. If any active rows exist,
+cancel or delete them through an explicit operator step before deleting the
+handler; do not migrate them into reminders unless a human separately chooses
+to preserve a specific row. The final state must be: no active proactive rows,
+no scanner branch that tries to execute that kind, and no unknown-kind log
+noise from historical rows.
 
 ## Validation
 
@@ -325,8 +325,7 @@ Minimum tests:
 - the active internal follow-up lookup uses the new index/selector shape and
   enforces one active follow-up per owner+conversation.
 - visible reminder list/update/cancel/complete excludes internal reminders.
-- visible reminder list/query still includes legacy reminder rows where
-  `visibility` is missing.
+- visible reminder list/query excludes rows where `visibility` is missing.
 - `PostAnalyzeWorkflow` writes internal reminders for follow-up create/replace
   and clears them for clear or `reminder_created_with_time`.
 - no `deferred_actions.kind=proactive_followup` write happens from
@@ -340,7 +339,9 @@ Minimum tests:
 - `/api/customer/reminders` and `/account/reminders` do not expose internal
   follow-ups.
 - before deleting old proactive code, data inspection proves there are no
-  active `deferred_actions.kind=proactive_followup` rows left to execute.
+  active `deferred_actions.kind=proactive_followup` rows left to execute; any
+  existing active rows are cancelled or deleted, not compatibility-migrated by
+  default.
 
 Recommended commands after implementation:
 
@@ -392,6 +393,9 @@ unrelated surface was broken.
   deletion.
 - Architecture docs and tests no longer describe proactive follow-up as a live
   `deferred_actions` responsibility.
+- Missing-field legacy reminder rows are not supported by runtime
+  compatibility selectors; preserving them requires a one-time explicit
+  operator cleanup/backfill decision before rollout.
 
 ## Out Of Scope
 
