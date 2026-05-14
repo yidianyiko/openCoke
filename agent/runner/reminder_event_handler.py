@@ -111,6 +111,13 @@ class ReminderFireEventHandler:
             if self.runtime_event_handler is not None:
                 return await self._handle_with_typed_runtime(event, context)
 
+            if event.fire_mode == "followup":
+                return self._failure(
+                    event,
+                    "RuntimeRequired",
+                    "internal follow-up fire requires typed runtime handler",
+                )
+
             output = self.output_writer(
                 context,
                 f"提醒：{event.title}",
@@ -156,11 +163,24 @@ class ReminderFireEventHandler:
             "reminder_id": event.reminder_id,
             "scheduled_for": event.scheduled_for.isoformat(),
             "fire_at": event.fire_at.isoformat(),
+            "fire_mode": event.fire_mode,
         }
+        if event.fire_mode == "followup":
+            reminder_metadata = dict(event.metadata or {})
+            event_metadata["kind"] = "internal_followup"
+            event_metadata["reminder_metadata"] = reminder_metadata
+            if "proactive_times" in reminder_metadata:
+                event_metadata["proactive_times"] = reminder_metadata[
+                    "proactive_times"
+                ]
+            input_text = event.prompt or event.title
+        else:
+            input_text = f"提醒：{event.title}"
+
         agent_input = AgentInput(
             input_type="reminder.fired",
             conversation_id=event.agent_output_target.conversation_id,
-            text=f"提醒：{event.title}",
+            text=input_text,
             payload=ReminderFirePayload(
                 fire_id=event.fire_id,
                 reminder_id=event.reminder_id,

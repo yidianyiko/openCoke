@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -20,9 +21,9 @@ def build_event(**overrides):
         fire_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         scheduled_for=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         agent_output_target=AgentOutputTarget("conv-1", "char-1", None),
-        fire_mode="notify",
-        prompt=None,
-        metadata={},
+        fire_mode=overrides.pop("fire_mode", "notify"),
+        prompt=overrides.pop("prompt", None),
+        metadata=overrides.pop("metadata", {}),
     )
     for key, value in overrides.items():
         setattr(event, key, value)
@@ -545,3 +546,128 @@ async def test_replay_lookup_failure_logs_exception(caplog):
         and record.exc_info
         for record in caplog.records
     )
+
+
+@pytest.mark.asyncio
+async def test_followup_fire_uses_prompt_and_internal_followup_metadata_in_typed_runtime():
+    event = build_event(
+        fire_mode="followup",
+        prompt="ask whether the user started",
+        metadata={"proactive_times": 1},
+    )
+    runtime_event_handler = Mock(
+        return_value=SimpleNamespace(
+            visible_messages=[
+                SimpleNamespace(
+                    content="Did you get started?",
+                    message_type="text",
+                    metadata={"runtime_visible": True},
+                )
+            ]
+        )
+    )
+    output_writer = Mock(return_value={"_id": "out-1"})
+    handler = build_handler(output_writer)
+    handler.runtime_event_handler = runtime_event_handler
+
+    result = await handler.handle(event)
+
+    assert result.ok is True
+    agent_input = runtime_event_handler.call_args.kwargs["agent_input"]
+    assert agent_input.input_type == "reminder.fired"
+    assert agent_input.text == "ask whether the user started"
+    assert agent_input.payload.title == "drink water"
+    assert agent_input.payload.metadata["fire_mode"] == "followup"
+    assert agent_input.payload.metadata["kind"] == "internal_followup"
+    assert agent_input.payload.metadata["proactive_times"] == 1
+    assert agent_input.metadata["kind"] == "internal_followup"
+    assert agent_input.metadata["proactive_times"] == 1
+    assert runtime_event_handler.call_args.kwargs["message_source"] == "reminder"
+    assert runtime_event_handler.call_args.kwargs["metadata"]["kind"] == (
+        "internal_followup"
+    )
+    assert runtime_event_handler.call_args.kwargs["metadata"]["proactive_times"] == 1
+    output_writer.assert_called_once()
+    assert output_writer.call_args.args[1] == "Did you get started?"
+    assert output_writer.call_args.args[1] != "提醒：drink water"
+    assert output_writer.call_args.kwargs["metadata"]["runtime_visible"] is True
+    assert output_writer.call_args.kwargs["metadata"]["kind"] == "internal_followup"
+
+
+@pytest.mark.asyncio
+async def test_followup_metadata_collisions_cannot_overwrite_trusted_event_metadata():
+    event = build_event(
+        fire_mode="followup",
+        prompt="ask whether the user started",
+        metadata={
+            "kind": "user_supplied_kind",
+            "fire_id": "user-supplied-fire-id",
+            "reminder_id": "user-supplied-reminder-id",
+            "event_id": "user-supplied-event-id",
+            "fire_mode": "notify",
+            "proactive_times": 2,
+            "custom": "preserved",
+        },
+    )
+    runtime_event_handler = Mock(
+        return_value=SimpleNamespace(
+            visible_messages=[
+                SimpleNamespace(
+                    content="Did you get started?",
+                    message_type="text",
+                    metadata={},
+                )
+            ]
+        )
+    )
+    output_writer = Mock(return_value={"_id": "out-1"})
+    handler = build_handler(output_writer)
+    handler.runtime_event_handler = runtime_event_handler
+
+    result = await handler.handle(event)
+
+    assert result.ok is True
+    agent_input = runtime_event_handler.call_args.kwargs["agent_input"]
+    metadata = agent_input.payload.metadata
+    assert metadata["kind"] == "internal_followup"
+    assert metadata["fire_id"] == event.fire_id
+    assert metadata["reminder_id"] == event.reminder_id
+    assert metadata["event_id"] == event.event_id
+    assert metadata["fire_mode"] == "followup"
+    assert metadata["proactive_times"] == 2
+    assert metadata["reminder_metadata"] == {
+        "kind": "user_supplied_kind",
+        "fire_id": "user-supplied-fire-id",
+        "reminder_id": "user-supplied-reminder-id",
+        "event_id": "user-supplied-event-id",
+        "fire_mode": "notify",
+        "proactive_times": 2,
+        "custom": "preserved",
+    }
+    assert runtime_event_handler.call_args.kwargs["metadata"] == metadata
+    assert agent_input.metadata["kind"] == "internal_followup"
+    assert agent_input.metadata["fire_id"] == event.fire_id
+    assert agent_input.metadata["reminder_metadata"]["custom"] == "preserved"
+    assert output_writer.call_args.kwargs["metadata"]["kind"] == "internal_followup"
+    assert output_writer.call_args.kwargs["metadata"]["fire_id"] == event.fire_id
+    assert output_writer.call_args.kwargs["metadata"]["reminder_metadata"][
+        "fire_id"
+    ] == "user-supplied-fire-id"
+
+
+@pytest.mark.asyncio
+async def test_followup_fire_without_typed_runtime_fails_without_visible_output():
+    event = build_event(
+        fire_mode="followup",
+        prompt="ask whether the user started",
+        metadata={"proactive_times": 1},
+    )
+    output_writer = Mock(return_value={"_id": "out-1"})
+    handler = build_handler(output_writer)
+
+    result = await handler.handle(event)
+
+    assert result.ok is False
+    assert result.error_code == "RuntimeRequired"
+    assert result.error_message == "internal follow-up fire requires typed runtime handler"
+    output_writer.assert_not_called()
