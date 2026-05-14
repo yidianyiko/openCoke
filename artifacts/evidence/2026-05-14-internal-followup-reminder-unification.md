@@ -98,3 +98,109 @@ Result: passed.
   read-only production Mongo inspection path was used in this task.
 - Gateway dependencies were installed locally under the initialized submodule
   to run the requested tests; no gateway source files were changed.
+
+## Final Branch Verification
+
+After Task 6 approval, final verification also included:
+
+```bash
+zsh scripts/suggest-verification --base HEAD~6
+```
+
+Result: suggested `repo-os-docs` and `worker-runtime`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/reminder/ tests/unit/dao/test_reminder_dao.py -v
+```
+
+Result: passed, `97 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/runner/test_reminder_scheduler.py \
+  tests/unit/runner/test_reminder_event_handler.py -v
+```
+
+Result: passed, `29 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/agent/test_visible_reminder_protocol_tool.py \
+  tests/unit/test_tool_results_context.py -v
+```
+
+Initial result: failed because an existing prompt contract test expected
+`RFC 5545 RRULE` and `Multiple reminder operations`, while the prompt only
+said `RRULE` and `Multiple`. The branch fixed that pre-existing drift in a
+separate follow-up commit, then the command passed with `50 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/e2e/test_reminder_system_flow.py -v
+```
+
+Result: passed, `5 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/runner/test_deferred_action_policy.py \
+  tests/unit/runner/test_deferred_action_scheduler.py \
+  tests/unit/runner/test_agent_runner_deferred_actions.py \
+  tests/unit/runner/test_deferred_action_executor.py \
+  tests/unit/runner/test_deferred_action_message_source.py \
+  tests/unit/runner/test_background_handler_deferred_only.py \
+  tests/unit/runner/test_background_conversation_participants.py -v
+```
+
+Result: passed, `50 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/agent/test_deferred_action_service.py \
+  tests/unit/test_context_retrieve_deferred_reminders.py \
+  tests/unit/agent/test_agent_handler.py \
+  tests/unit/test_clawscale_only_topology.py -v
+```
+
+Result: passed, `37 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/e2e/test_deferred_actions_flow.py -v
+```
+
+Result: passed, `2 passed`.
+
+```bash
+zsh scripts/check
+```
+
+Result: passed.
+
+```bash
+zsh scripts/verify-surface worker-runtime
+```
+
+Result: `tests/unit/runner/ -v` passed with `103 passed`, then
+`tests/unit/agent/ -v` failed on the first collected test while importing
+`agent.runner.agent_handler`: `MongoDBLockManager.__init__` attempted to create
+an index on local Mongo at `127.0.0.1:27017` and hit
+`ServerSelectionTimeoutError`. Classified as the same local Mongo availability
+limit recorded above, not a code-path assertion failure.
+
+```bash
+zsh scripts/review-trigger --base HEAD~7
+```
+
+Result: `human_review_required: yes` for sensitive repo-OS changes and
+oversized diff size.
+
+```bash
+git diff --check
+git status --short --branch
+git -C gateway status --short --branch
+```
+
+Result: diff check passed. Root tracked status was clean. Gateway tracked
+status was clean on detached `HEAD`.
