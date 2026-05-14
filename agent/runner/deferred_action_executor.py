@@ -19,6 +19,9 @@ from dao.lock import MongoDBLockManager
 from dao.user_dao import UserDAO
 
 
+UNSUPPORTED_DEFERRED_ACTION_KINDS = {"proactive_followup"}
+
+
 def _load_handle_message() -> Callable[..., Any]:
     from agent.runner.agent_handler import handle_message
 
@@ -78,6 +81,8 @@ class DeferredActionExecutor:
             or action.get("next_run_at") != scheduled_for
         ):
             return "stale"
+        if action.get("kind") in UNSUPPORTED_DEFERRED_ACTION_KINDS:
+            return "unsupported_kind"
 
         lock_id = await self.lock_manager.acquire_lock_async(
             "conversation",

@@ -210,7 +210,7 @@ class ReminderFireEventHandler:
                 context,
                 visible_message.content,
                 message_type=visible_message.message_type,
-                metadata={**event_metadata, **dict(visible_message.metadata)},
+                metadata={**dict(visible_message.metadata), **event_metadata},
             )
             if inspect.isawaitable(output):
                 output = await output

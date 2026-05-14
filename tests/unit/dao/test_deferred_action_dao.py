@@ -200,7 +200,9 @@ class TestDeferredActionDAO:
         )
 
     @pytest.mark.unit
-    def test_list_active_actions_sorts_by_next_run_at(self, deferred_action_dao, mock_collection):
+    def test_list_active_actions_sorts_by_next_run_at_and_excludes_old_proactive_followups(
+        self, deferred_action_dao, mock_collection
+    ):
         expected = [{"_id": ObjectId()}]
         cursor = MagicMock()
         cursor.sort.return_value = expected
@@ -209,7 +211,12 @@ class TestDeferredActionDAO:
         result = deferred_action_dao.list_active_actions()
 
         assert result == expected
-        mock_collection.find.assert_called_once_with({"lifecycle_state": "active"})
+        mock_collection.find.assert_called_once_with(
+            {
+                "lifecycle_state": "active",
+                "kind": {"$ne": "proactive_followup"},
+            }
+        )
         cursor.sort.assert_called_once_with("next_run_at", 1)
 
     @pytest.mark.unit

@@ -656,6 +656,47 @@ async def test_followup_metadata_collisions_cannot_overwrite_trusted_event_metad
 
 
 @pytest.mark.asyncio
+async def test_followup_visible_message_metadata_cannot_overwrite_trusted_output_metadata():
+    event = build_event(
+        fire_mode="followup",
+        prompt="ask whether the user started",
+        metadata={"proactive_times": 2},
+    )
+    runtime_event_handler = Mock(
+        return_value=SimpleNamespace(
+            visible_messages=[
+                SimpleNamespace(
+                    content="Did you get started?",
+                    message_type="text",
+                    metadata={
+                        "kind": "runtime_kind",
+                        "fire_id": "runtime-fire",
+                        "reminder_id": "runtime-reminder",
+                        "event_id": "runtime-event",
+                        "fire_mode": "notify",
+                        "runtime_visible": True,
+                    },
+                )
+            ]
+        )
+    )
+    output_writer = Mock(return_value={"_id": "out-1"})
+    handler = build_handler(output_writer)
+    handler.runtime_event_handler = runtime_event_handler
+
+    result = await handler.handle(event)
+
+    assert result.ok is True
+    output_metadata = output_writer.call_args.kwargs["metadata"]
+    assert output_metadata["kind"] == "internal_followup"
+    assert output_metadata["fire_id"] == event.fire_id
+    assert output_metadata["reminder_id"] == event.reminder_id
+    assert output_metadata["event_id"] == event.event_id
+    assert output_metadata["fire_mode"] == "followup"
+    assert output_metadata["runtime_visible"] is True
+
+
+@pytest.mark.asyncio
 async def test_followup_fire_without_typed_runtime_fails_without_visible_output():
     event = build_event(
         fire_mode="followup",

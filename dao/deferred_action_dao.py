@@ -111,7 +111,14 @@ class DeferredActionDAO:
         return result.modified_count > 0
 
     def list_active_actions(self) -> List[Dict]:
-        return list(self.collection.find({"lifecycle_state": "active"}).sort("next_run_at", 1))
+        return list(
+            self.collection.find(
+                {
+                    "lifecycle_state": "active",
+                    "kind": {"$ne": "proactive_followup"},
+                }
+            ).sort("next_run_at", 1)
+        )
 
     def list_visible_actions(self, user_id: str) -> List[Dict]:
         return list(

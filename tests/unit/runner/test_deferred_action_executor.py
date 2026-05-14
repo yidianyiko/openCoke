@@ -113,6 +113,32 @@ class TestDeferredActionExecutor:
         assert result == "stale"
         lock_manager.acquire_lock_async.assert_not_called()
 
+    async def test_old_proactive_followup_action_is_rejected_before_lock_acquisition(
+        self,
+    ):
+        action = build_action(kind="proactive_followup")
+        lock_manager = Mock(acquire_lock_async=AsyncMock())
+        executor = executor_module.DeferredActionExecutor(
+            action_dao=Mock(get_action=Mock(return_value=action)),
+            occurrence_dao=Mock(),
+            scheduler=Mock(),
+            lock_manager=lock_manager,
+            conversation_dao=Mock(),
+            user_dao=Mock(),
+            handle_message_fn=AsyncMock(),
+            context_builder=Mock(),
+            now_provider=lambda: datetime(2026, 4, 21, 9, 0, tzinfo=UTC),
+        )
+
+        result = await executor.execute_due_action(
+            action_id="action-1",
+            scheduled_for=action["next_run_at"],
+            revision=action["revision"],
+        )
+
+        assert result == "unsupported_kind"
+        lock_manager.acquire_lock_async.assert_not_called()
+
     async def test_conversation_lock_is_acquired_before_handle_message(self):
         now = datetime(2026, 4, 21, 9, 0, tzinfo=UTC)
         action = build_action()

@@ -18,6 +18,10 @@
 - Production active `deferred_actions.kind=proactive_followup` count: not run.
   A safe read-only production inspection path was not already set up in this
   task, and production Mongo must not be mutated.
+- Runtime protection for old rows: added after final review. The deferred-action
+  scheduler DAO excludes active rows with `kind="proactive_followup"`, and the
+  deferred-action executor rejects any already queued old proactive follow-up
+  job before acquiring the conversation lock.
 - Operator action: none.
 
 ## Task 1-5 Verification Available In This Branch
@@ -204,3 +208,56 @@ git -C gateway status --short --branch
 
 Result: diff check passed. Root tracked status was clean. Gateway tracked
 status was clean on detached `HEAD`.
+
+## Final Review Fix Verification
+
+Final code review requested runtime protection for old active
+`deferred_actions.kind=proactive_followup` rows and trusted metadata protection
+when runtime visible messages include colliding metadata keys. The branch added:
+
+- `DeferredActionDAO.list_active_actions()` filters out
+  `kind="proactive_followup"`.
+- `DeferredActionExecutor.execute_due_action()` returns `unsupported_kind` for
+  already queued `proactive_followup` jobs before lock acquisition.
+- `ReminderFireEventHandler` preserves trusted reminder event metadata over
+  runtime visible-message metadata collisions.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/dao/test_deferred_action_dao.py \
+  tests/unit/runner/test_deferred_action_executor.py \
+  tests/unit/runner/test_deferred_action_scheduler.py \
+  tests/unit/runner/test_reminder_event_handler.py -v
+```
+
+Result: passed, `56 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/agent/test_internal_followup_no_deferred_action_path.py \
+  tests/e2e/test_deferred_actions_flow.py \
+  tests/e2e/test_reminder_system_flow.py -v
+```
+
+Result: passed, `8 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/runner/test_deferred_action_policy.py \
+  tests/unit/runner/test_deferred_action_scheduler.py \
+  tests/unit/runner/test_agent_runner_deferred_actions.py \
+  tests/unit/runner/test_deferred_action_executor.py \
+  tests/unit/runner/test_deferred_action_message_source.py \
+  tests/unit/runner/test_background_handler_deferred_only.py \
+  tests/unit/runner/test_background_conversation_participants.py -v
+```
+
+Result: passed, `51 passed`.
+
+```bash
+/data/projects/coke/.venv/bin/python -m pytest \
+  tests/unit/runner/test_reminder_scheduler.py \
+  tests/unit/runner/test_reminder_event_handler.py -v
+```
+
+Result: passed, `30 passed`.
