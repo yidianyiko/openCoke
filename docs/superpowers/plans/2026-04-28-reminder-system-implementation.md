@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> Status: historical and superseded for internal proactive follow-up ownership.
+> The current design unifies visible reminders and internal proactive follow-ups
+> under the `reminders` collection and Reminder System path. See
+> `docs/superpowers/specs/2026-05-13-internal-followup-reminder-unification-design.md`.
+> `deferred_actions` remains only for non-proactive deferred-action consumers.
+
 **Goal:** Implement the V1 Reminder System as a system boundary separate from Agent System, with structured command input, durable Mongo reminder state, APScheduler wake-ups, and structured fired events consumed by Agent System.
 
 **Architecture:** Build a new `agent/reminder/` package for Reminder System domain, persistence, command handling, scheduling, and fired-event protocol. Keep Agent System integration in `agent/agno_agent/tools/` and `agent/runner/` so the LLM and chat output pipeline remain outside Reminder System. V1 uses an in-process fired-event handler and does not add a public MCP server, durable outbox, retry table, or per-occurrence history.
@@ -22,7 +28,9 @@ The implementation should stay simple in V1:
 - Use an in-process `ReminderFireEventHandler` instead of webhook or queue transport.
 - Store one Mongo document per reminder in `reminders`.
 - Do not create `reminder_occurrences`, `delivery_attempts`, durable outbox, leases, retries, or multi-worker claiming.
-- Leave existing `deferred_actions` runtime in place for internal proactive follow-up until its own redesign.
+- Historical note: this V1 plan left `deferred_actions` in place for internal
+  proactive follow-up. The May 2026 internal follow-up unification supersedes
+  that split and routes proactive follow-up through Reminder System.
 - Cut only user-visible reminder creation/list/update/cancel/complete to the new Reminder System.
 
 ## File Map
@@ -65,13 +73,17 @@ Modify existing files:
 - Modify: `agent/runner/agent_runner.py`
   Boot `ReminderScheduler` alongside existing deferred-action scheduler.
 - Modify: `agent/agno_agent/tools/deferred_action/service.py`
-  Keep internal proactive follow-up behavior; stop using it for visible reminder operations.
+  Historical scope: this plan kept internal proactive follow-up behavior there
+  while stopping visible reminder operations. That ownership is now superseded.
 - Modify: `agent/agno_agent/tools/timezone_tools.py`
   Stop realigning V1 reminders on timezone change; V1 snapshots reminder timezone.
 - Modify: `agent/agno_agent/tools/deferred_action/__init__.py`
-  Keep deferred-action exports for proactive follow-up callers only.
+  Historical scope: this plan kept deferred-action exports for proactive
+  follow-up callers only. That ownership is now superseded.
 - Modify: `docs/architecture.md`
-  Document new Reminder System and note `deferred_actions` remains for proactive follow-up only.
+  Historical scope: this plan documented `deferred_actions` as proactive
+  follow-up only. Current architecture documents Reminder System ownership for
+  both visible reminders and internal proactive follow-up.
 - Modify: `docs/fitness/coke-verification-matrix.md`
   Add focused reminder-system verification commands.
 - Modify: `tasks/2026-04-28-reminder-system-protocol-boundary.md`
@@ -774,7 +786,8 @@ Implement `ReminderFireEventHandler` so V1 uses the existing output path without
 
 Modify `agent/runner/agent_runner.py`:
 
-- Keep `bootstrap_deferred_action_runtime()` for internal proactive follow-up.
+- Historical note: this task kept `bootstrap_deferred_action_runtime()` for
+  internal proactive follow-up. That proactive ownership is now superseded.
 - Add `bootstrap_reminder_runtime()` for new visible reminders.
 - Start both runtimes in `main()`.
 - Shut both down in `finally`.
@@ -816,6 +829,8 @@ Update tests to assert:
 - ReminderDetectAgent instructions say use batch for multiple operations.
 - ChatWorkflow still refuses to claim reminder success when `need_reminder_detect=true` and no reminder tool result exists.
 - `reminder_created_with_time=True` still suppresses internal proactive follow-up.
+  Current ownership for that follow-up path is Reminder System, not
+  `deferred_actions`.
 - Timezone changes do not realign V1 reminders.
 
 - [ ] **Step 2: Run focused tests and verify failures**
@@ -836,6 +851,8 @@ Apply these behavior rules:
 - ReminderDetectAgent remains the only agent-facing reminder write path.
 - ChatResponseAgent never writes reminders directly.
 - PostAnalyze skips internal proactive follow-up when `session_state["reminder_created_with_time"]` is true.
+  Current ownership for that follow-up path is Reminder System, not
+  `deferred_actions`.
 - Timezone tool updates user timezone but does not call reminder realignment for new V1 reminders.
 
 - [ ] **Step 4: Run focused tests and commit**
@@ -874,7 +891,8 @@ Create `tests/e2e/test_reminder_system_flow.py` covering:
 - One-shot fired event enters Agent System event handler and completes the reminder.
 - Recurring reminder advances `next_fire_at`.
 - Failed event handling marks reminder failed.
-- Existing internal proactive follow-up tests still use `deferred_actions`.
+- Historical expectation: existing internal proactive follow-up tests still used
+  `deferred_actions`. Current tests should assert Reminder System ownership.
 
 - [ ] **Step 2: Run E2E tests and verify failures**
 
@@ -892,7 +910,9 @@ Update `docs/architecture.md`:
 
 - Add Reminder System under worker runtime.
 - State `reminders` collection stores visible reminders.
-- State `deferred_actions` remains for internal proactive follow-up until that redesign.
+- Historical scope: this plan stated `deferred_actions` remained for internal
+  proactive follow-up until a later redesign. That later redesign is the May
+  2026 internal follow-up unification.
 - State Reminder fired events return to Agent System for final output.
 
 Update `docs/fitness/coke-verification-matrix.md` with focused reminder commands:
@@ -942,7 +962,9 @@ zsh scripts/check
 Expected evidence:
 
 - New reminder domain, DAO, service, scheduler, event handler, and adapter tests pass.
-- Existing deferred-action tests for internal proactive follow-up still pass.
+- Historical expectation: deferred-action tests for internal proactive follow-up
+  still passed at the time. Current proactive follow-up coverage belongs to the
+  Reminder System path.
 - E2E reminder flow uses `reminders` for visible reminders.
 - Repo documentation checks pass.
 
@@ -959,10 +981,14 @@ Spec coverage:
 - Agent-owned final output: Task 6.
 - No direct Agent Mongo writes: Tasks 3, 4, 8.
 - PostAnalyze suppression: Task 7.
-- Existing proactive follow-up preserved: Tasks 6, 8.
+- Historical proactive follow-up preservation belonged to Tasks 6 and 8. Current
+  ownership is Reminder System under the May 2026 unification.
 
 Implementation risks:
 
-- The old `deferred_actions` code currently mixes visible reminders and internal proactive follow-up. Task 8 must prove visible reminders moved to `reminders` while proactive follow-up remains stable.
+- At the time of this plan, the old `deferred_actions` code mixed visible
+  reminders and internal proactive follow-up. Task 8 proved visible reminders
+  moved to `reminders` while proactive follow-up remained stable. The later May
+  2026 unification moved proactive follow-up to `reminders` as well.
 - The fired-event handler needs a narrow output boundary. If the existing output helper is not isolated enough, split the handler behind an injected callable before touching broader chat workflow code.
 - Google Calendar import currently has historical hooks into deferred visible reminders. This plan intentionally leaves Google Calendar import out of scope; if current production code depends on it, handle that in a separate import redesign before deleting old import helpers.

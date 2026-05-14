@@ -146,12 +146,16 @@ Each worker:
 - batching pending messages for the same conversation
 - final status updates
 
-The Reminder System owns the new assistant-created, agent-facing visible
-reminder protocol path:
+The Reminder System owns assistant-created reminders and internal follow-ups:
 
-- `reminders` stores visible reminder state created through the
-  `agent.agno_agent.tools.reminder_protocol` adapter, including schedule data,
-  output target, lifecycle, and the next durable wake-up in `next_fire_at`
+- `reminders` stores visible user reminders and internal agent follow-ups.
+  Visible reminders are created through the
+  `agent.agno_agent.tools.reminder_protocol` adapter. Internal follow-ups use
+  `visibility=internal` and `fire_mode=followup`, are hidden from customer
+  management surfaces, and fire through `ReminderFireEventHandler` into the
+  normal Agent System runtime.
+- reminder documents include schedule data, output target, lifecycle, and the
+  next durable wake-up in `next_fire_at`
 - `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
   startup and keeps APScheduler as an in-process wake-up mechanism only
 - fired reminders are emitted as structured events and return to the Agent
@@ -181,11 +185,8 @@ side channel that lives outside the visible reminder protocol:
 
 The deferred-action runtime remains active outside that new protocol boundary:
 
-- `deferred_actions` stores internal proactive follow-up state, recurrence,
-  `next_run_at`, and visibility for legacy follow-up behavior
-- historical/import visible deferred-action APIs can still contain
-  `kind=user_reminder` records and are out of scope for this Reminder System
-  protocol cutover until a separate migration removes or redirects them
+- `deferred_actions` remains for non-proactive deferred-action consumers such
+  as imported calendar reminders and historical deferred-action flows
 - `deferred_action_occurrences` stores per-occurrence claim/success/failure
   audit
 - APScheduler holds only the next concrete in-process wake-up for each active

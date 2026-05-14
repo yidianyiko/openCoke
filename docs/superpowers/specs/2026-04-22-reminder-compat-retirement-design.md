@@ -1,10 +1,24 @@
 # Reminder Compatibility Retirement Design
 
+> Status note (2026-05-14): This compatibility-retirement design is
+> superseded for reminder and proactive follow-up ownership. The current
+> architecture stores visible reminders and internal proactive follow-ups in
+> `reminders`; `deferred_actions` remains only for non-proactive
+> deferred-action consumers. Historical statements below about
+> `deferred_actions` being the only live reminder runtime or owning proactive
+> scheduling are not current.
+
 ## Summary
 
-`coke` has already moved reminder execution to `deferred_actions`, but the repository still carries compatibility artifacts from the split `future` / `reminder` runtime. Those artifacts are now harmful: they imply old data is still live, keep tests and audits pointed at dead collections, and leave stale fields in new documents.
+This historical design retired compatibility artifacts from the split `future`
+/ `reminder` runtime. At the time, it moved reminder execution to
+`deferred_actions`; that ownership decision has since been superseded by the
+Reminder System and internal follow-up unification.
 
-This change retires those artifacts completely. After it lands, `deferred_actions` and `deferred_action_occurrences` are the only live reminder runtime and reminder audit surfaces.
+The current state is: `reminders` owns visible reminders and internal
+proactive follow-ups, while `deferred_actions` and
+`deferred_action_occurrences` remain only for non-proactive deferred-action
+surfaces.
 
 ## Goals
 
@@ -52,7 +66,10 @@ Conversation documents will no longer contain `conversation_info.future` by defa
 - `photo_history`
 - `turn_sent_contents`
 
-This makes conversation state match the live runtime boundary: proactive scheduling is owned by `deferred_actions`, not embedded in conversation metadata.
+This design's proactive-scheduling ownership statement is superseded by
+`2026-05-13-internal-followup-reminder-unification-design.md`. Conversation
+state still must not own future scheduling metadata, but proactive follow-up is
+now owned by internal `reminders` rows, not `deferred_actions`.
 
 ### 2. Audit model
 
@@ -79,11 +96,12 @@ Renaming instead of immediate hard-drop keeps the cleanup reversible while still
 
 ### 4. Documentation policy
 
-Canonical docs must describe only the final state:
+Canonical docs must describe only the current final state:
 
-- deferred actions own all reminder/proactive scheduling
+- reminders own visible reminders and internal proactive follow-ups
+- deferred actions own only remaining non-proactive deferred-action consumers
 - no runtime path depends on `conversation_info.future`
-- the legacy `reminders` collection is retired
+- the legacy pre-Reminder-System compatibility collection is retired
 
 Transitional docs will be trimmed or annotated when they still read like live instructions. Historical docs that merely mention the old design as history can stay, but stale "pending cleanup" wording should be removed.
 

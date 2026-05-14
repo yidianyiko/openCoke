@@ -26,6 +26,8 @@ repo-local map, not a product roadmap and not a replacement for
   - visible reminder command protocol through
     `agent/agno_agent/tools/reminder_protocol/`
   - durable state in MongoDB `reminders`
+  - internal agent follow-up state in MongoDB `reminders` with
+    `visibility=internal` and `fire_mode=followup`
   - fired-event handoff through `ReminderFireEventHandler`
   - owner-scoped reminder management service:
     `connector/clawscale_bridge/reminder_management_service.py`

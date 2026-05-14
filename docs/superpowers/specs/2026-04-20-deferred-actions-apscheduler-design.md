@@ -1,11 +1,12 @@
 # Deferred Actions APScheduler Design
 
-> Status note (2026-04-22): This design is now implemented. The live runtime
-> uses `deferred_actions` for reminder and proactive follow-up scheduling, no
-> active worker path reads or writes `conversation_info.future`, and
-> `scripts/retire_legacy_reminder_compat.py` performs the remaining one-time
-> data cleanup for retired compatibility fields and the legacy `reminders`
-> collection.
+> Status note (2026-05-14): This design is superseded for reminder and
+> proactive follow-up ownership. The live direction is now
+> `docs/superpowers/specs/2026-05-13-internal-followup-reminder-unification-design.md`:
+> visible reminders and internal proactive follow-ups live in `reminders`.
+> `deferred_actions` remains only for non-proactive deferred-action consumers.
+> Historical details below describe the earlier APScheduler design and should
+> not be read as current proactive follow-up ownership.
 
 ## Summary
 

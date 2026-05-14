@@ -2,7 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove all remaining legacy reminder/future compatibility fields, audits, and stale docs so `deferred_actions` is the only live reminder runtime.
+> Status: historical and partially superseded for reminder runtime ownership.
+> The current owner for visible reminders and internal proactive follow-ups is
+> the `reminders` collection and Reminder System path described in
+> `docs/superpowers/specs/2026-05-13-internal-followup-reminder-unification-design.md`.
+> `deferred_actions` remains only for non-proactive deferred-action consumers.
+
+**Historical goal:** Remove all remaining legacy reminder/future compatibility fields, audits, and stale docs. The old target state said `deferred_actions` was the only live reminder runtime; that runtime ownership claim is superseded by the internal follow-up unification design.
 
 **Architecture:** Retire compatibility in three layers: runtime state, audit surfaces, and documentation/operations. Runtime and tests stop creating legacy fields, audits move from `reminders` to `deferred_actions`, and a dedicated cleanup script retires live Mongo remnants by unsetting `conversation_info.future` and archiving the old `reminders` collection.
 
@@ -217,7 +223,9 @@ Trim or rewrite wording that still frames legacy reminder cleanup as pending. Ke
 
 ```md
 - no runtime path depends on `conversation_info.future`
-- legacy `reminders` collection references have been retired in favor of `deferred_actions`
+- legacy compatibility references were retired; the May 2026 internal follow-up
+  unification later restored `reminders` as the owner for visible reminders and
+  internal proactive follow-ups.
 ```
 
 - [ ] **Step 3: Run final verification**

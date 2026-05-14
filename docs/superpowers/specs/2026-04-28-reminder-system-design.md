@@ -1,9 +1,15 @@
 # Reminder System Design
 
-**Status:** draft for review
+**Status:** superseded for internal follow-up ownership
 **Date:** 2026-04-28
 **Supersedes:** the Reminder System portions of the pre-split reminder core
 redesign draft, plus the now-merged agent integration draft.
+
+> Status note (2026-05-14): This design still describes the base Reminder
+> System concepts, but its proactive-follow-up boundary is superseded by
+> `2026-05-13-internal-followup-reminder-unification-design.md`. Internal
+> proactive follow-up is no longer a separate runtime concern; it is represented
+> as an internal reminder with `visibility=internal` and `fire_mode=followup`.
 
 ## Summary
 
@@ -32,8 +38,9 @@ conversation output.
 
 V1 is a clean replacement, not a compatibility migration. Existing reminder
 rows in `deferred_actions` may be dropped during rollout because the system
-has not been materially used in production. Proactive follow-up remains a
-separate runtime concern until its own redesign replaces it.
+has not been materially used in production. The later internal-follow-up
+unification replaces this draft's former boundary that proactive follow-up was
+a separate runtime concern.
 
 ## Goals
 
