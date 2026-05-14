@@ -51,6 +51,12 @@ class InMemoryReminderDAO:
             return None
         return dict(document)
 
+    def get_reminder(self, reminder_id: str) -> dict | None:
+        document = self.documents.get(reminder_id)
+        if document is None:
+            return None
+        return dict(document)
+
     def list_for_owner(
         self, owner_user_id: str, lifecycle_states: list[str] | None = None
     ) -> list[dict]:
@@ -95,12 +101,13 @@ class InMemoryReminderDAO:
         owner_user_id: str,
         updates: dict,
         lifecycle_state: str | None = None,
+        visibility: str = "visible",
     ) -> bool:
         document = self.documents.get(reminder_id)
         if (
             document is None
             or document["owner_user_id"] != owner_user_id
-            or document.get("visibility") != "visible"
+            or document.get("visibility") != visibility
         ):
             return False
         if (
@@ -111,6 +118,24 @@ class InMemoryReminderDAO:
         document.update(updates)
         return True
 
+    def find_active_internal_followup(
+        self,
+        *,
+        owner_user_id: str,
+        conversation_id: str,
+    ) -> dict | None:
+        for document in self.documents.values():
+            if (
+                document["owner_user_id"] == owner_user_id
+                and document.get("agent_output_target", {}).get("conversation_id")
+                == conversation_id
+                and document.get("visibility") == "internal"
+                and document.get("fire_mode") == "followup"
+                and document.get("lifecycle_state") == "active"
+            ):
+                return dict(document)
+        return None
+
 
 class BSONEncodingReminderDAO(InMemoryReminderDAO):
     def insert_reminder(self, document: dict) -> str:
@@ -119,6 +144,11 @@ class BSONEncodingReminderDAO(InMemoryReminderDAO):
 
 
 class InvalidIdReminderDAO(InMemoryReminderDAO):
+    def get_reminder(self, reminder_id: str) -> dict | None:
+        if reminder_id == "not-an-object-id":
+            raise InvalidId("not-an-object-id is not a valid ObjectId")
+        return super().get_reminder(reminder_id)
+
     def get_reminder_for_owner(
         self, reminder_id: str, owner_user_id: str
     ) -> dict | None:
@@ -132,6 +162,7 @@ class InvalidIdReminderDAO(InMemoryReminderDAO):
         owner_user_id: str,
         updates: dict,
         lifecycle_state: str | None = None,
+        visibility: str = "visible",
     ) -> bool:
         if reminder_id == "not-an-object-id":
             raise InvalidId("not-an-object-id is not a valid ObjectId")
@@ -140,6 +171,7 @@ class InvalidIdReminderDAO(InMemoryReminderDAO):
             owner_user_id,
             updates,
             lifecycle_state=lifecycle_state,
+            visibility=visibility,
         )
 
 
@@ -154,6 +186,7 @@ class TerminalRaceReminderDAO(InMemoryReminderDAO):
         owner_user_id: str,
         updates: dict,
         lifecycle_state: str | None = None,
+        visibility: str = "visible",
     ) -> bool:
         self.replace_attempted = True
         self.documents[reminder_id].update(
@@ -168,6 +201,7 @@ class TerminalRaceReminderDAO(InMemoryReminderDAO):
             owner_user_id,
             updates,
             lifecycle_state=lifecycle_state,
+            visibility=visibility,
         )
 
 
@@ -661,3 +695,168 @@ def test_timed_update_calls_scheduler_reschedule_reminder():
     assert updated.schedule == new_schedule
     assert updated.next_fire_at == datetime(2026, 4, 30, 1, 0, tzinfo=UTC)
     scheduler.reschedule_reminder.assert_called_once_with(updated)
+
+
+def test_create_internal_followup_writes_internal_reminder_and_registers_scheduler():
+    service, dao, scheduler = make_service()
+
+    reminder = service.create_or_replace_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key="wechat_personal:primary",
+        title="check progress",
+        prompt="ask whether the user started",
+        schedule=schedule(),
+        metadata={"proactive_times": 0},
+    )
+
+    assert reminder.origin == "agent"
+    assert reminder.visibility == "internal"
+    assert reminder.fire_mode == "followup"
+    assert reminder.prompt == "ask whether the user started"
+    assert reminder.metadata == {"proactive_times": 0}
+    assert dao.documents[reminder.id]["created_by_system"] == "agent"
+    assert dao.documents[reminder.id]["agent_output_target"]["conversation_id"] == "conv-1"
+    scheduler.register_reminder.assert_called_once_with(reminder)
+
+
+def test_create_internal_followup_replaces_existing_owner_conversation_followup():
+    service, _, scheduler = make_service()
+    first = service.create_or_replace_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key=None,
+        title="first",
+        prompt="first prompt",
+        schedule=schedule(),
+        metadata={"proactive_times": 0},
+    )
+    scheduler.reset_mock()
+    later = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 30, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 4, 30),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule=None,
+    )
+
+    second = service.create_or_replace_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key=None,
+        title="second",
+        prompt="second prompt",
+        schedule=later,
+        metadata={"proactive_times": 1},
+    )
+
+    assert second.id == first.id
+    assert second.title == "second"
+    assert second.prompt == "second prompt"
+    assert second.metadata == {"proactive_times": 1}
+    assert second.next_fire_at == datetime(2026, 4, 30, 1, 0, tzinfo=UTC)
+    scheduler.reschedule_reminder.assert_called_once_with(second)
+
+
+def test_internal_followup_visible_reminder_in_same_conversation_is_not_replaced():
+    service, dao, scheduler = make_service()
+    visible = service.create(
+        owner_user_id="user-1",
+        command=create_command(title="visible reminder"),
+    )
+    scheduler.reset_mock()
+
+    internal = service.create_or_replace_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key=None,
+        title="internal followup",
+        prompt="ask later",
+        schedule=schedule(),
+    )
+
+    assert internal.id != visible.id
+    assert dao.documents[visible.id]["visibility"] == "visible"
+    assert dao.documents[visible.id]["title"] == "visible reminder"
+    assert dao.documents[internal.id]["visibility"] == "internal"
+    scheduler.register_reminder.assert_called_once_with(internal)
+
+
+def test_clear_internal_followup_requires_owner_and_cancels_scheduler_job():
+    service, dao, scheduler = make_service()
+    reminder = service.create_or_replace_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key=None,
+        title="check",
+        prompt="ask",
+        schedule=schedule(),
+    )
+    scheduler.reset_mock()
+
+    cleared = service.clear_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+    )
+
+    assert cleared is not None
+    assert cleared.id == reminder.id
+    assert cleared.lifecycle_state == "cancelled"
+    assert cleared.cancelled_at == NOW
+    assert cleared.next_fire_at is None
+    assert dao.documents[reminder.id]["cancelled_at"] == NOW
+    assert dao.documents[reminder.id]["next_fire_at"] is None
+    scheduler.remove_reminder.assert_called_once_with(reminder.id)
+
+
+def test_clear_internal_followup_returns_none_when_no_active_followup_exists():
+    service, _, scheduler = make_service()
+    service.create(owner_user_id="user-1", command=create_command(title="visible"))
+    scheduler.reset_mock()
+
+    cleared = service.clear_internal_followup(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+    )
+
+    assert cleared is None
+    scheduler.remove_reminder.assert_not_called()
+
+
+def test_internal_followup_rejects_rrule():
+    service, _, scheduler = make_service()
+
+    with pytest.raises(InvalidArgument):
+        service.create_or_replace_internal_followup(
+            owner_user_id="user-1",
+            conversation_id="conv-1",
+            character_id="char-1",
+            route_key=None,
+            title="check",
+            prompt="ask",
+            schedule=schedule(rrule="FREQ=DAILY"),
+        )
+
+    scheduler.register_reminder.assert_not_called()
+
+
+def test_internal_followup_rejects_empty_prompt():
+    service, _, scheduler = make_service()
+
+    with pytest.raises(InvalidArgument):
+        service.create_or_replace_internal_followup(
+            owner_user_id="user-1",
+            conversation_id="conv-1",
+            character_id="char-1",
+            route_key=None,
+            title="check",
+            prompt="   ",
+            schedule=schedule(),
+        )
+
+    scheduler.register_reminder.assert_not_called()

@@ -219,6 +219,134 @@ class ReminderService:
         )
         return [self._map_document(document) for document in documents]
 
+    def create_or_replace_internal_followup(
+        self,
+        *,
+        owner_user_id: str,
+        conversation_id: str,
+        character_id: str,
+        route_key: str | None,
+        title: str,
+        prompt: str,
+        schedule: ReminderSchedule,
+        metadata: dict | None = None,
+    ) -> Reminder:
+        self._validate_title(title)
+        self._validate_prompt(prompt)
+        target = AgentOutputTarget(
+            conversation_id=conversation_id,
+            character_id=character_id,
+            route_key=route_key,
+        )
+        self._validate_output_target(target)
+        if schedule.rrule is not None:
+            raise InvalidArgument(
+                "Internal follow-up reminders do not support RRULE",
+                detail={"field": "schedule.rrule"},
+            )
+
+        now = self._now()
+        next_fire_at = compute_initial_next_fire_at(schedule, now)
+        updates = {
+            "title": title,
+            "schedule": self._schedule_to_document(schedule),
+            "agent_output_target": self._target_to_document(target),
+            "origin": "agent",
+            "visibility": "internal",
+            "fire_mode": "followup",
+            "prompt": prompt,
+            "metadata": metadata or {},
+            "next_fire_at": next_fire_at,
+            "updated_at": now,
+        }
+        existing = self.reminder_dao.find_active_internal_followup(
+            owner_user_id=owner_user_id,
+            conversation_id=conversation_id,
+        )
+        if existing is not None:
+            reminder_id = str(existing["_id"])
+            if not self.reminder_dao.replace_reminder(
+                reminder_id,
+                owner_user_id,
+                updates,
+                lifecycle_state="active",
+                visibility="internal",
+            ):
+                raise InvalidArgument(
+                    "Active internal follow-up mutation was rejected",
+                    detail={"conversation_id": conversation_id},
+                )
+            updated = self._map_document(
+                self._get_document_for_owner_and_visibility(
+                    reminder_id,
+                    owner_user_id,
+                    visibility="internal",
+                )
+            )
+            if updated.next_fire_at is not None:
+                self._call_scheduler("reschedule_reminder", updated)
+            return updated
+
+        document = {
+            "owner_user_id": owner_user_id,
+            "created_by_system": "agent",
+            "lifecycle_state": "active",
+            "last_fired_at": None,
+            "last_event_ack_at": None,
+            "last_error": None,
+            "created_at": now,
+            "completed_at": None,
+            "cancelled_at": None,
+            "failed_at": None,
+            **updates,
+        }
+        reminder_id = self.reminder_dao.insert_reminder(document)
+        document["_id"] = reminder_id
+        reminder = self._map_document(document)
+        if reminder.next_fire_at is not None:
+            self._call_scheduler("register_reminder", reminder)
+        return reminder
+
+    def clear_internal_followup(
+        self,
+        *,
+        owner_user_id: str,
+        conversation_id: str,
+    ) -> Reminder | None:
+        existing = self.reminder_dao.find_active_internal_followup(
+            owner_user_id=owner_user_id,
+            conversation_id=conversation_id,
+        )
+        if existing is None:
+            return None
+
+        now = self._now()
+        reminder_id = str(existing["_id"])
+        if not self.reminder_dao.replace_reminder(
+            reminder_id,
+            owner_user_id,
+            {
+                "lifecycle_state": "cancelled",
+                "cancelled_at": now,
+                "next_fire_at": None,
+                "updated_at": now,
+            },
+            lifecycle_state="active",
+            visibility="internal",
+        ):
+            raise InvalidArgument(
+                "Active internal follow-up mutation was rejected",
+                detail={"conversation_id": conversation_id, "action": "clear"},
+            )
+        self._call_scheduler("remove_reminder", reminder_id)
+        return self._map_document(
+            self._get_document_for_owner_and_visibility(
+                reminder_id,
+                owner_user_id,
+                visibility="internal",
+            )
+        )
+
     def execute_batch(
         self,
         *,
@@ -369,6 +497,31 @@ class ReminderService:
             )
         return document
 
+    def _get_document_for_owner_and_visibility(
+        self,
+        reminder_id: str,
+        owner_user_id: str,
+        *,
+        visibility: str,
+    ) -> dict:
+        try:
+            document = self.reminder_dao.get_reminder(reminder_id)
+        except InvalidId as exc:
+            raise ReminderNotFound(
+                "Reminder not found",
+                detail={"reminder_id": reminder_id},
+            ) from exc
+        if (
+            document is None
+            or document["owner_user_id"] != owner_user_id
+            or document["visibility"] != visibility
+        ):
+            raise ReminderNotFound(
+                "Reminder not found",
+                detail={"reminder_id": reminder_id},
+            )
+        return document
+
     def _validate_create_command(self, command: ReminderCreateCommand) -> None:
         self._validate_title(command.title)
         self._validate_output_target(command.agent_output_target)
@@ -378,6 +531,13 @@ class ReminderService:
             raise InvalidArgument(
                 "Reminder title must be non-empty",
                 detail={"field": "title"},
+            )
+
+    def _validate_prompt(self, prompt: str) -> None:
+        if not prompt or not prompt.strip():
+            raise InvalidArgument(
+                "Internal follow-up prompt must be non-empty",
+                detail={"field": "prompt"},
             )
 
     def _ensure_active_for_mutation(self, document: dict, *, action: str) -> None:

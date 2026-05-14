@@ -112,17 +112,34 @@ class ReminderDAO:
             ).sort("next_fire_at", 1)
         )
 
+    def find_active_internal_followup(
+        self,
+        *,
+        owner_user_id: str,
+        conversation_id: str,
+    ) -> Optional[Dict]:
+        return self.collection.find_one(
+            {
+                "owner_user_id": owner_user_id,
+                "agent_output_target.conversation_id": conversation_id,
+                "visibility": "internal",
+                "fire_mode": "followup",
+                "lifecycle_state": "active",
+            }
+        )
+
     def replace_reminder(
         self,
         reminder_id: str,
         owner_user_id: str,
         updates: Dict,
         lifecycle_state: Optional[str] = None,
+        visibility: str = "visible",
     ) -> bool:
         selector: Dict = {
             "_id": ObjectId(reminder_id),
             "owner_user_id": owner_user_id,
-            "visibility": "visible",
+            "visibility": visibility,
         }
         if lifecycle_state is not None:
             selector["lifecycle_state"] = lifecycle_state

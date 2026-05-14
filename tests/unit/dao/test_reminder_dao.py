@@ -228,6 +228,56 @@ class TestReminderDAO:
         cursor.sort.assert_called_once_with("next_fire_at", 1)
 
     @pytest.mark.unit
+    def test_find_active_internal_followup_filters_owner_conversation_and_internal_shape(
+        self, reminder_dao, mock_collection
+    ):
+        expected = {"_id": ObjectId(), "title": "ask progress"}
+        mock_collection.find_one.return_value = expected
+
+        result = reminder_dao.find_active_internal_followup(
+            owner_user_id="user_1",
+            conversation_id="conv_1",
+        )
+
+        assert result == expected
+        mock_collection.find_one.assert_called_once_with(
+            {
+                "owner_user_id": "user_1",
+                "agent_output_target.conversation_id": "conv_1",
+                "visibility": "internal",
+                "fire_mode": "followup",
+                "lifecycle_state": "active",
+            }
+        )
+
+    @pytest.mark.unit
+    def test_replace_reminder_can_filter_by_internal_visibility(
+        self, reminder_dao, mock_collection
+    ):
+        mock_collection.update_one.return_value = MagicMock(matched_count=1)
+        reminder_id = ObjectId()
+        updates = {"title": "updated"}
+
+        result = reminder_dao.replace_reminder(
+            str(reminder_id),
+            "user_1",
+            updates,
+            lifecycle_state="active",
+            visibility="internal",
+        )
+
+        assert result is True
+        mock_collection.update_one.assert_called_once_with(
+            {
+                "_id": reminder_id,
+                "owner_user_id": "user_1",
+                "visibility": "internal",
+                "lifecycle_state": "active",
+            },
+            {"$set": updates},
+        )
+
+    @pytest.mark.unit
     def test_replace_reminder_filters_by_id_and_owner(
         self, reminder_dao, mock_collection
     ):
