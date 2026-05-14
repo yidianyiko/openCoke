@@ -120,6 +120,9 @@ class ReminderScheduler:
             fire_at=fired_at,
             scheduled_for=expected_next_fire_at,
             agent_output_target=reminder.agent_output_target,
+            fire_mode=reminder.fire_mode,
+            prompt=reminder.prompt,
+            metadata=reminder.metadata,
         )
 
         try:
@@ -232,6 +235,11 @@ class ReminderScheduler:
                 route_key=target.get("route_key"),
             ),
             created_by_system=document["created_by_system"],
+            origin=document["origin"],
+            visibility=document["visibility"],
+            fire_mode=document["fire_mode"],
+            prompt=document["prompt"],
+            metadata=document["metadata"],
             lifecycle_state=document["lifecycle_state"],
             next_fire_at=document.get("next_fire_at"),
             last_fired_at=document.get("last_fired_at"),

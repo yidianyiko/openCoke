@@ -30,6 +30,11 @@ def build_reminder(**overrides):
         schedule=build_schedule(),
         agent_output_target=AgentOutputTarget("conv-1", "char-1", None),
         created_by_system="agent",
+        origin="user",
+        visibility="visible",
+        fire_mode="notify",
+        prompt=None,
+        metadata={},
         lifecycle_state="active",
         next_fire_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         last_fired_at=None,
@@ -64,6 +69,11 @@ def reminder_document(reminder):
             "route_key": reminder.agent_output_target.route_key,
         },
         "created_by_system": reminder.created_by_system,
+        "origin": reminder.origin,
+        "visibility": reminder.visibility,
+        "fire_mode": reminder.fire_mode,
+        "prompt": reminder.prompt,
+        "metadata": reminder.metadata,
         "lifecycle_state": reminder.lifecycle_state,
         "next_fire_at": reminder.next_fire_at,
         "last_fired_at": reminder.last_fired_at,
@@ -154,14 +164,22 @@ async def test_stale_wakeup_does_not_emit_event():
 async def test_successful_one_shot_completes_reminder_and_clears_next_fire_at():
     scheduled_for = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
     finished_at = datetime(2026, 4, 29, 1, 0, 3, tzinfo=UTC)
-    stored_reminder = reminder_document(build_reminder(next_fire_at=scheduled_for))
+    stored_reminder = reminder_document(
+        build_reminder(
+            next_fire_at=scheduled_for,
+            fire_mode="followup",
+            prompt="ask whether the user started",
+            metadata={"proactive_times": 0},
+        )
+    )
+    fire_event_handler = AsyncMock(return_value=fire_result())
     dao = Mock(
         get_reminder=Mock(return_value=stored_reminder),
         atomic_apply_fire_success=Mock(return_value=True),
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(return_value=fire_result()),
+        fire_event_handler=fire_event_handler,
         scheduler=Mock(remove_job=Mock()),
         now_provider=lambda: finished_at,
     )
@@ -175,6 +193,10 @@ async def test_successful_one_shot_completes_reminder_and_clears_next_fire_at():
     assert updates["last_fired_at"] == scheduled_for
     assert updates["last_event_ack_at"] == finished_at
     assert updates["last_error"] is None
+    event = fire_event_handler.call_args.args[0]
+    assert event.fire_mode == "followup"
+    assert event.prompt == "ask whether the user started"
+    assert event.metadata == {"proactive_times": 0}
     scheduler.remove_reminder.assert_called_once_with("rem-1")
 
 

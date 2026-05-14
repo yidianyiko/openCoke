@@ -20,6 +20,9 @@ def build_event(**overrides):
         fire_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         scheduled_for=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         agent_output_target=AgentOutputTarget("conv-1", "char-1", None),
+        fire_mode="notify",
+        prompt=None,
+        metadata={},
     )
     for key, value in overrides.items():
         setattr(event, key, value)

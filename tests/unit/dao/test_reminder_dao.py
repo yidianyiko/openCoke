@@ -76,6 +76,22 @@ class TestReminderDAO:
             {},
         ) in calls
         assert (([("lifecycle_state", 1), ("next_fire_at", 1)],), {}) in calls
+        assert (
+            (
+                [
+                    ("owner_user_id", 1),
+                    ("agent_output_target.conversation_id", 1),
+                ],
+            ),
+            {
+                "unique": True,
+                "partialFilterExpression": {
+                    "visibility": "internal",
+                    "fire_mode": "followup",
+                    "lifecycle_state": "active",
+                },
+            },
+        ) in calls
 
     @pytest.mark.unit
     def test_insert_reminder_returns_inserted_id(self, reminder_dao, mock_collection):
@@ -118,7 +134,11 @@ class TestReminderDAO:
 
         assert result == expected
         mock_collection.find_one.assert_called_once_with(
-            {"_id": reminder_id, "owner_user_id": "user_1"}
+            {
+                "_id": reminder_id,
+                "owner_user_id": "user_1",
+                "visibility": "visible",
+            }
         )
 
     @pytest.mark.unit
@@ -136,6 +156,7 @@ class TestReminderDAO:
         mock_collection.find.assert_called_once_with(
             {
                 "owner_user_id": "user_1",
+                "visibility": "visible",
                 "lifecycle_state": {"$in": ["active", "paused"]},
             }
         )
@@ -150,7 +171,9 @@ class TestReminderDAO:
         result = reminder_dao.list_for_owner("user_1")
 
         assert result == expected
-        mock_collection.find.assert_called_once_with({"owner_user_id": "user_1"})
+        mock_collection.find.assert_called_once_with(
+            {"owner_user_id": "user_1", "visibility": "visible"}
+        )
 
     @pytest.mark.unit
     def test_list_for_owner_in_local_date_range_filters_owner_state_and_dates(
@@ -172,6 +195,7 @@ class TestReminderDAO:
         mock_collection.find.assert_called_once_with(
             {
                 "owner_user_id": "user_1",
+                "visibility": "visible",
                 "lifecycle_state": {"$in": ["active"]},
                 "schedule.local_date": {
                     "$gte": "2026-05-13",
@@ -215,7 +239,11 @@ class TestReminderDAO:
 
         assert result is True
         mock_collection.update_one.assert_called_once_with(
-            {"_id": reminder_id, "owner_user_id": "user_1"},
+            {
+                "_id": reminder_id,
+                "owner_user_id": "user_1",
+                "visibility": "visible",
+            },
             {"$set": updates},
         )
 
@@ -239,6 +267,7 @@ class TestReminderDAO:
             {
                 "_id": reminder_id,
                 "owner_user_id": "user_1",
+                "visibility": "visible",
                 "lifecycle_state": "active",
             },
             {"$set": updates},

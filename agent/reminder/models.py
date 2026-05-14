@@ -31,6 +31,11 @@ class Reminder:
     schedule: ReminderSchedule
     agent_output_target: AgentOutputTarget
     created_by_system: Literal["agent"]
+    origin: Literal["user", "agent", "web"]
+    visibility: Literal["visible", "internal"]
+    fire_mode: Literal["notify", "followup"]
+    prompt: str | None
+    metadata: dict | None
     lifecycle_state: Literal["active", "completed", "cancelled", "failed"]
     next_fire_at: datetime | None
     last_fired_at: datetime | None
@@ -103,6 +108,9 @@ class ReminderFiredEvent:
     fire_at: datetime
     scheduled_for: datetime
     agent_output_target: AgentOutputTarget
+    fire_mode: Literal["notify", "followup"]
+    prompt: str | None
+    metadata: dict | None
 
 
 @dataclass

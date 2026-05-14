@@ -40,6 +40,18 @@ class ReminderDAO:
             ]
         )
         self.collection.create_index([("lifecycle_state", 1), ("next_fire_at", 1)])
+        self.collection.create_index(
+            [
+                ("owner_user_id", 1),
+                ("agent_output_target.conversation_id", 1),
+            ],
+            unique=True,
+            partialFilterExpression={
+                "visibility": "internal",
+                "fire_mode": "followup",
+                "lifecycle_state": "active",
+            },
+        )
 
     def insert_reminder(self, document: Dict) -> str:
         result = self.collection.insert_one(document)
@@ -52,13 +64,17 @@ class ReminderDAO:
         self, reminder_id: str, owner_user_id: str
     ) -> Optional[Dict]:
         return self.collection.find_one(
-            {"_id": ObjectId(reminder_id), "owner_user_id": owner_user_id}
+            {
+                "_id": ObjectId(reminder_id),
+                "owner_user_id": owner_user_id,
+                "visibility": "visible",
+            }
         )
 
     def list_for_owner(
         self, owner_user_id: str, lifecycle_states: Optional[List[str]] = None
     ) -> List[Dict]:
-        selector: Dict = {"owner_user_id": owner_user_id}
+        selector: Dict = {"owner_user_id": owner_user_id, "visibility": "visible"}
         if lifecycle_states is not None:
             selector["lifecycle_state"] = {"$in": lifecycle_states}
         return list(self.collection.find(selector))
@@ -73,6 +89,7 @@ class ReminderDAO:
     ) -> List[Dict]:
         selector: Dict = {
             "owner_user_id": owner_user_id,
+            "visibility": "visible",
             "lifecycle_state": {"$in": lifecycle_states},
             "schedule.local_date": {
                 "$gte": from_date.isoformat(),
@@ -102,7 +119,11 @@ class ReminderDAO:
         updates: Dict,
         lifecycle_state: Optional[str] = None,
     ) -> bool:
-        selector: Dict = {"_id": ObjectId(reminder_id), "owner_user_id": owner_user_id}
+        selector: Dict = {
+            "_id": ObjectId(reminder_id),
+            "owner_user_id": owner_user_id,
+            "visibility": "visible",
+        }
         if lifecycle_state is not None:
             selector["lifecycle_state"] = lifecycle_state
         result = self.collection.update_one(

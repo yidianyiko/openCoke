@@ -33,6 +33,11 @@ def test_reminder_model_contains_protocol_boundary_fields():
         schedule=schedule,
         agent_output_target=target,
         created_by_system="agent",
+        origin="user",
+        visibility="visible",
+        fire_mode="notify",
+        prompt=None,
+        metadata={},
         lifecycle_state="active",
         next_fire_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         last_fired_at=None,
@@ -70,6 +75,9 @@ def test_fired_event_and_result_use_fire_id_boundary():
         fire_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         scheduled_for=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
         agent_output_target=AgentOutputTarget("conv-1", "char-1", None),
+        fire_mode="notify",
+        prompt=None,
+        metadata={},
     )
     result = ReminderFireResult(
         ok=True,

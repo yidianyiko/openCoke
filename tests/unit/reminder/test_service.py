@@ -43,7 +43,11 @@ class InMemoryReminderDAO:
         self, reminder_id: str, owner_user_id: str
     ) -> dict | None:
         document = self.documents.get(reminder_id)
-        if document is None or document["owner_user_id"] != owner_user_id:
+        if (
+            document is None
+            or document["owner_user_id"] != owner_user_id
+            or document.get("visibility") != "visible"
+        ):
             return None
         return dict(document)
 
@@ -54,6 +58,7 @@ class InMemoryReminderDAO:
             dict(document)
             for document in self.documents.values()
             if document["owner_user_id"] == owner_user_id
+            and document.get("visibility") == "visible"
         ]
         if lifecycle_states is not None:
             results = [
@@ -75,6 +80,8 @@ class InMemoryReminderDAO:
         for document in self.documents.values():
             if document["owner_user_id"] != owner_user_id:
                 continue
+            if document.get("visibility") != "visible":
+                continue
             if document["lifecycle_state"] not in lifecycle_states:
                 continue
             local_date = date.fromisoformat(document["schedule"]["local_date"])
@@ -90,7 +97,11 @@ class InMemoryReminderDAO:
         lifecycle_state: str | None = None,
     ) -> bool:
         document = self.documents.get(reminder_id)
-        if document is None or document["owner_user_id"] != owner_user_id:
+        if (
+            document is None
+            or document["owner_user_id"] != owner_user_id
+            or document.get("visibility") != "visible"
+        ):
             return False
         if (
             lifecycle_state is not None
@@ -234,6 +245,23 @@ def test_create_validates_output_target_and_writes_next_fire_at():
     scheduler.register_reminder.assert_called_once_with(reminder)
 
 
+def test_create_visible_reminder_writes_required_classification_fields():
+    service, dao, _ = make_service()
+
+    reminder = service.create(owner_user_id="user-1", command=create_command())
+
+    assert reminder.origin == "user"
+    assert reminder.visibility == "visible"
+    assert reminder.fire_mode == "notify"
+    assert reminder.prompt is None
+    assert reminder.metadata == {}
+    assert dao.documents[reminder.id]["origin"] == "user"
+    assert dao.documents[reminder.id]["visibility"] == "visible"
+    assert dao.documents[reminder.id]["fire_mode"] == "notify"
+    assert dao.documents[reminder.id]["prompt"] is None
+    assert dao.documents[reminder.id]["metadata"] == {}
+
+
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
     from agent.runner.reminder_scheduler import set_reminder_scheduler_instance
 
@@ -306,6 +334,79 @@ def test_list_for_user_returns_owner_scoped_reminders():
     )
 
     assert reminders == [user_reminder]
+
+
+def test_list_for_user_excludes_internal_and_missing_visibility_rows():
+    service, dao, _ = make_service()
+    visible = service.create(
+        owner_user_id="user-1",
+        command=create_command(title="visible"),
+    )
+    internal_doc = {
+        **dao.documents[visible.id],
+        "_id": "rem-internal",
+        "title": "internal",
+        "origin": "agent",
+        "visibility": "internal",
+        "fire_mode": "followup",
+        "prompt": "ask about progress",
+        "metadata": {"proactive_times": 0},
+    }
+    legacy_doc = {
+        **dao.documents[visible.id],
+        "_id": "rem-legacy",
+        "title": "legacy without visibility",
+    }
+    for key in ("origin", "visibility", "fire_mode", "prompt", "metadata"):
+        legacy_doc.pop(key, None)
+    dao.documents["rem-internal"] = internal_doc
+    dao.documents["rem-legacy"] = legacy_doc
+
+    reminders = service.list_for_user(
+        owner_user_id="user-1",
+        query=ReminderQuery(lifecycle_states=["active"]),
+    )
+
+    assert [reminder.title for reminder in reminders] == ["visible"]
+
+
+@pytest.mark.parametrize("action", ["get", "update", "cancel", "complete"])
+def test_visible_user_paths_reject_internal_reminders_as_not_found(action):
+    service, dao, scheduler = make_service()
+    visible = service.create(
+        owner_user_id="user-1",
+        command=create_command(title="visible"),
+    )
+    internal_doc = {
+        **dao.documents[visible.id],
+        "_id": "rem-internal",
+        "title": "internal",
+        "origin": "agent",
+        "visibility": "internal",
+        "fire_mode": "followup",
+        "prompt": "ask about progress",
+        "metadata": {"proactive_times": 0},
+    }
+    dao.documents["rem-internal"] = internal_doc
+    scheduler.reset_mock()
+
+    with pytest.raises(ReminderNotFound):
+        if action == "get":
+            service.get(reminder_id="rem-internal", owner_user_id="user-1")
+        elif action == "update":
+            service.update(
+                reminder_id="rem-internal",
+                owner_user_id="user-1",
+                patch=ReminderPatch(title="updated"),
+            )
+        elif action == "cancel":
+            service.cancel(reminder_id="rem-internal", owner_user_id="user-1")
+        else:
+            service.complete(reminder_id="rem-internal", owner_user_id="user-1")
+
+    assert dao.documents["rem-internal"] == internal_doc
+    scheduler.remove_reminder.assert_not_called()
+    scheduler.reschedule_reminder.assert_not_called()
 
 
 def test_list_for_user_in_local_date_range_scopes_by_owner_and_state():
