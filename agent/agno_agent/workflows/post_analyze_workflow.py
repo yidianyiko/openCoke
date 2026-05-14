@@ -21,13 +21,12 @@ Requirements: 5.3
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
 
 from agent.agno_agent.agents import post_analyze_agent
 from agent.agno_agent.model_factory import create_llm_model
-from agent.agno_agent.tools.deferred_action.service import DeferredActionService
 from agent.agno_agent.utils.usage_tracker import usage_tracker
 from agent.prompt.chat_contextprompt import (
     CONTEXTPROMPT_人物资料,
@@ -41,9 +40,21 @@ from agent.prompt.chat_taskprompt import (
     TASKPROMPT_总结,
     get_post_analyze_prompt,
 )
+from agent.reminder.models import ReminderSchedule
+from agent.reminder.service import ReminderService
 from util.time_util import get_default_timezone, str2timestamp
 
 logger = logging.getLogger(__name__)
+
+
+def _first_non_empty_string(*values: Any) -> str:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
 
 
 class PostAnalyzeWorkflow:
@@ -226,17 +237,41 @@ class PostAnalyzeWorkflow:
 
     def _handle_followup_plan(self, content: Dict, session_state: Dict) -> None:
         """Create, replace, or clear the internal proactive follow-up action."""
-        conversation_id = str(session_state.get("conversation", {}).get("_id", "")).strip()
+        conversation = session_state.get("conversation", {})
+        conversation_info = conversation.get("conversation_info", {})
+        conversation_id = _first_non_empty_string(
+            conversation.get("_id"),
+            conversation.get("id"),
+            session_state.get("conversation_id"),
+        )
         if not conversation_id:
             return
 
-        service = DeferredActionService()
+        service = ReminderService()
+        owner_user_id = _first_non_empty_string(
+            session_state.get("user", {}).get("id"),
+            session_state.get("user", {}).get("_id"),
+        )
+        character_id = _first_non_empty_string(
+            session_state.get("character", {}).get("_id"),
+            session_state.get("character", {}).get("id"),
+        )
+        route_key = _first_non_empty_string(
+            session_state.get("route_key"),
+            session_state.get("delivery_route_key"),
+            conversation.get("route_key"),
+            conversation_info.get("route_key"),
+            conversation_info.get("delivery_route_key"),
+        ) or None
 
         if session_state.get("reminder_created_with_time"):
             logger.info(
                 "[FollowupPlan] 本轮已创建定时提醒，清理内部 proactive follow-up"
             )
-            service.clear_internal_followup(conversation_id)
+            service.clear_internal_followup(
+                owner_user_id=owner_user_id,
+                conversation_id=conversation_id,
+            )
             return
 
         plan = content.get("FollowupPlan", {})
@@ -258,7 +293,10 @@ class PostAnalyzeWorkflow:
             or not followup_prompt
             or followup_prompt == "无"
         ):
-            service.clear_internal_followup(conversation_id)
+            service.clear_internal_followup(
+                owner_user_id=owner_user_id,
+                conversation_id=conversation_id,
+            )
             logger.info("[FollowupPlan] 未设置内部 proactive follow-up")
             return
 
@@ -267,7 +305,10 @@ class PostAnalyzeWorkflow:
         followup_timestamp = str2timestamp(followup_time_str, tz=resolved_tz)
         if followup_timestamp is None:
             logger.warning("[FollowupPlan] 无法解析 FollowupTime: %s", followup_time_str)
-            service.clear_internal_followup(conversation_id)
+            service.clear_internal_followup(
+                owner_user_id=owner_user_id,
+                conversation_id=conversation_id,
+            )
             return
 
         proactive_times = int(session_state.get("proactive_times", 0) or 0)
@@ -275,19 +316,26 @@ class PostAnalyzeWorkflow:
         deferred_kind = session_state.get("system_message_metadata", {}).get("kind")
         next_proactive_times = (
             proactive_times + 1
-            if message_source == "deferred_action" and deferred_kind == "proactive_followup"
+            if message_source == "reminder" and deferred_kind == "internal_followup"
             else 0
         )
         dtstart = datetime.fromtimestamp(followup_timestamp, tz=resolved_tz)
+        reminder_schedule = ReminderSchedule(
+            anchor_at=dtstart.astimezone(timezone.utc),
+            local_date=dtstart.date(),
+            local_time=dtstart.time().replace(tzinfo=None),
+            timezone=getattr(resolved_tz, "key", str(resolved_tz)),
+            rrule=None,
+        )
         service.create_or_replace_internal_followup(
+            owner_user_id=owner_user_id,
             conversation_id=conversation_id,
-            user_id=str(session_state.get("user", {}).get("id", "")),
-            character_id=str(session_state.get("character", {}).get("_id", "")),
+            character_id=character_id,
+            route_key=route_key,
             title=followup_prompt[:48],
             prompt=followup_prompt,
-            dtstart=dtstart,
-            timezone=getattr(resolved_tz, "key", str(resolved_tz)),
-            payload_metadata={"proactive_times": next_proactive_times},
+            schedule=reminder_schedule,
+            metadata={"proactive_times": next_proactive_times},
         )
         logger.info(
             "[FollowupPlan] 设置内部 proactive follow-up: action=%s time=%s",
