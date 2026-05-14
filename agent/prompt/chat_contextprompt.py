@@ -26,6 +26,11 @@ This is a scenario where you are initiating the conversation — not a message s
 You need to proactively send a message to {user_label} based on the planned action.
 [NOTE] You are the initiator of this message, not replying to the user."""
 
+CONTEXTPROMPT_DEFERRED_ACTION_NEUTRAL = """### Message Source
+This is a system-triggered deferred action — not a message sent by {user_label}.
+Use the deferred action payload as system context for this turn.
+[NOTE] Do not treat the deferred action payload as something the user said."""
+
 
 def get_message_source_context(message_source: str, context: dict) -> str:
     """
@@ -47,7 +52,7 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         template = (
             CONTEXTPROMPT_消息来源_提醒触发
             if deferred_kind == "user_reminder"
-            else CONTEXTPROMPT_消息来源_主动消息
+            else CONTEXTPROMPT_DEFERRED_ACTION_NEUTRAL
         )
     elif message_source == "user":
         template = CONTEXTPROMPT_消息来源_用户消息
@@ -65,9 +70,9 @@ This is a system-triggered scheduled reminder — not a message sent by {_user_n
 You need to proactively send a reminder message to {_user_nickname} based on the reminder content.
 [NOTE] Do not treat the reminder content as something the user said and reply to it."""
             return f"""### Message Source
-This is a scenario where you are initiating the conversation — not a message sent by {_user_nickname}.
-You need to proactively send a message to {_user_nickname} based on the planned action.
-[NOTE] You are the initiator of this message, not replying to the user."""
+This is a system-triggered deferred action — not a message sent by {_user_nickname}.
+Use the deferred action payload as system context for this turn.
+[NOTE] Do not treat the deferred action payload as something the user said."""
         if message_source == "user":
             return f"""### Message Source
 This is a real message sent to you by {_user_nickname} via this chat channel. Please reply normally."""

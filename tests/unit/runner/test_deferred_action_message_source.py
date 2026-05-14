@@ -15,12 +15,12 @@ def test_deferred_action_message_source_context_uses_reminder_template():
     assert "not a message sent by Alice" in rendered
 
 
-def test_deferred_action_message_source_context_uses_followup_template():
+def test_deferred_action_message_source_context_uses_neutral_template_for_unknown_kind():
     from agent.prompt import chat_contextprompt
 
     context = {
         "user": {"nickname": "Alice"},
-        "system_message_metadata": {"kind": "proactive_followup"},
+        "system_message_metadata": {"kind": "calendar_reminder"},
     }
 
     rendered = chat_contextprompt.get_message_source_context(
@@ -28,11 +28,13 @@ def test_deferred_action_message_source_context_uses_followup_template():
         context,
     )
 
-    assert "initiating the conversation" in rendered
+    assert "deferred action" in rendered
+    assert "initiating the conversation" not in rendered
+    assert "proactively send" not in rendered
     assert "not a message sent by Alice" in rendered
 
 
-def test_message_util_treats_deferred_actions_as_proactive_outputs(
+def test_message_util_treats_deferred_actions_as_push_outputs(
     sample_context, monkeypatch
 ):
     from agent.util import message_util

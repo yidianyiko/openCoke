@@ -127,16 +127,6 @@ class InMemoryActionDAO:
             and action.get("visibility") == "visible"
         ]
 
-    def find_active_internal_followup(self, conversation_id: str) -> dict | None:
-        for action in self._actions.values():
-            if (
-                action.get("conversation_id") == conversation_id
-                and action.get("kind") == "proactive_followup"
-                and action.get("lifecycle_state") == "active"
-            ):
-                return copy.deepcopy(action)
-        return None
-
 
 class InMemoryOccurrenceDAO:
     def __init__(self) -> None:
@@ -318,28 +308,12 @@ async def test_recurring_visible_reminder_survives_restart_and_reschedules():
         2026, 4, 22, 9, 0, tzinfo=UTC
     )
 
-    service_after_restart = DeferredActionService(
+    visible = DeferredActionService(
         action_dao=action_dao,
         scheduler=scheduler_after_restart,
         now_provider=lambda: current_time["value"],
-    )
-    internal = service_after_restart.create_or_replace_internal_followup(
-        conversation_id="conv-1",
-        user_id="user-1",
-        character_id="char-1",
-        title="跟进喝水情况",
-        prompt="问问用户今天有没有按时喝水",
-        dtstart=datetime(2026, 4, 22, 12, 0, tzinfo=UTC),
-        timezone="UTC",
-    )
-
-    # Internal proactive follow-up remains on the legacy deferred_actions
-    # boundary until that subsystem is redesigned.
-    assert action_dao.get_action(internal["_id"])["kind"] == "proactive_followup"
-    visible = service_after_restart.list_visible_reminders("user-1")
+    ).list_visible_reminders("user-1")
     assert [item["_id"] for item in visible] == ["action-1"]
-    with pytest.raises(ValueError, match="visible user reminders only"):
-        service_after_restart.delete_visible_reminder(str(internal["_id"]), "user-1")
 
 
 @pytest.mark.e2e

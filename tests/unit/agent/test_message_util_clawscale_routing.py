@@ -17,13 +17,13 @@ def _stub_prompt_formatter_dependencies(monkeypatch):
     )
 
 
-def test_message_util_emits_business_only_output_doc_for_clawscale_proactive_message(
+def test_message_util_emits_business_only_output_doc_for_deferred_action_message(
     sample_context, monkeypatch
 ):
     from agent.util import message_util
 
     sample_context["message_source"] = "deferred_action"
-    sample_context["system_message_metadata"] = {"kind": "proactive_followup"}
+    sample_context["system_message_metadata"] = {"kind": "calendar_reminder"}
     sample_context["conversation"]["chatroom_name"] = None
     sample_context["conversation"]["platform"] = "wechat_personal"
     sample_context["conversation"]["conversation_info"]["input_messages"] = [
@@ -185,14 +185,14 @@ def test_clawscale_redacted_inline_data_marker_prompt_keeps_attachment_fallback(
     assert "data:" not in rendered
 
 
-def test_message_util_marks_proactive_output_failed_when_business_key_missing(
+def test_message_util_marks_deferred_action_output_failed_when_business_key_missing(
     sample_context, monkeypatch
 ):
     from agent.util import message_util
 
     now_ts = 1710000000
     sample_context["message_source"] = "deferred_action"
-    sample_context["system_message_metadata"] = {"kind": "proactive_followup"}
+    sample_context["system_message_metadata"] = {"kind": "calendar_reminder"}
     sample_context["conversation"]["chatroom_name"] = None
     sample_context["conversation"]["platform"] = "wechat"
     sample_context["conversation"]["conversation_info"]["input_messages"] = []

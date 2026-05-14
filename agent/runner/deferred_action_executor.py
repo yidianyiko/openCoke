@@ -507,8 +507,6 @@ class DeferredActionExecutor:
 
     def _build_input_message(self, action: dict[str, Any]) -> str:
         prompt = (action.get("payload") or {}).get("prompt") or action.get("title") or ""
-        if action.get("kind") == "proactive_followup":
-            return f"[系统延迟跟进触发] {prompt}"
         return f"[系统提醒触发] {prompt}"
 
     def _build_trigger_key(self, action_id: str, scheduled_for: datetime) -> str:

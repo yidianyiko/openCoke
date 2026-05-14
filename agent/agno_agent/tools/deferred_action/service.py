@@ -317,60 +317,6 @@ class DeferredActionService:
     def complete_visible_reminder(self, action_id: str, user_id: str) -> dict[str, Any]:
         return self._finish_visible_reminder(action_id, user_id, lifecycle_state="completed")
 
-    def create_or_replace_internal_followup(
-        self,
-        *,
-        conversation_id: str,
-        user_id: str,
-        character_id: str,
-        title: str,
-        prompt: str,
-        dtstart: datetime,
-        timezone: str,
-        rrule: str | None = None,
-        payload_metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        existing = self.action_dao.find_active_internal_followup(conversation_id)
-        if existing:
-            return self._update_internal_followup(
-                existing,
-                title=title,
-                prompt=prompt,
-                dtstart=dtstart,
-                timezone=timezone,
-                rrule=rrule,
-                payload_metadata=payload_metadata,
-            )
-        return self._create_internal_followup(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            character_id=character_id,
-            title=title,
-            prompt=prompt,
-            dtstart=dtstart,
-            timezone=timezone,
-            rrule=rrule,
-            payload_metadata=payload_metadata,
-        )
-
-    def clear_internal_followup(self, conversation_id: str) -> dict[str, Any] | None:
-        existing = self.action_dao.find_active_internal_followup(conversation_id)
-        if not existing:
-            return None
-        now = self.now_provider()
-        self.action_dao.update_action(
-            str(existing["_id"]),
-            updates={
-                "lifecycle_state": "cancelled",
-                "next_run_at": None,
-            },
-            expected_revision=existing["revision"],
-            now=now,
-        )
-        if self.scheduler is not None:
-            self.scheduler.remove_action(str(existing["_id"]))
-        return {**existing, "lifecycle_state": "cancelled", "next_run_at": None}
-
     def _finish_visible_reminder(
         self,
         action_id: str,
@@ -405,56 +351,6 @@ class DeferredActionService:
             or action.get("visibility") != "visible"
         ):
             raise ValueError("visible user reminders only")
-        return action
-
-    def _create_internal_followup(
-        self,
-        *,
-        conversation_id: str,
-        user_id: str,
-        character_id: str,
-        title: str,
-        prompt: str,
-        dtstart: datetime,
-        timezone: str,
-        rrule: str | None = None,
-        payload_metadata: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        now = self.now_provider()
-        action = {
-            "conversation_id": conversation_id,
-            "user_id": user_id,
-            "character_id": character_id,
-            "kind": "proactive_followup",
-            "source": "llm_inferred",
-            "visibility": "internal",
-            "lifecycle_state": "active",
-            "revision": 0,
-            "title": title,
-            "payload": {"prompt": prompt, "metadata": payload_metadata or {}},
-            "timezone": timezone,
-            "dtstart": dtstart,
-            "rrule": rrule,
-            "next_run_at": None,
-            "last_run_at": None,
-            "run_count": 0,
-            "max_runs": None,
-            "expires_at": None,
-            "retry_policy": dict(DEFAULT_RETRY_POLICY),
-            "lease": {
-                "token": None,
-                "leased_at": None,
-                "lease_expires_at": None,
-            },
-            "last_error": None,
-            "created_at": now,
-            "updated_at": now,
-        }
-        action["next_run_at"] = policy.compute_initial_next_run_at(action, now)
-        action_id = self.action_dao.create_action(action)
-        action["_id"] = action_id
-        if self.scheduler is not None:
-            self.scheduler.register_action(action)
         return action
 
     def _create_imported_reminder(
@@ -522,42 +418,3 @@ class DeferredActionService:
         if dtstart > now:
             return dtstart
         return recurrence.after(now, inc=False)
-
-    def _update_internal_followup(
-        self,
-        action: dict[str, Any],
-        *,
-        title: str,
-        prompt: str,
-        dtstart: datetime,
-        timezone: str,
-        rrule: str | None,
-        payload_metadata: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        now = self.now_provider()
-        updated = {
-            **action,
-            "title": title,
-            "payload": {"prompt": prompt, "metadata": payload_metadata or {}},
-            "dtstart": dtstart,
-            "timezone": timezone,
-            "rrule": rrule,
-        }
-        updated["next_run_at"] = policy.compute_initial_next_run_at(updated, now)
-        self.action_dao.update_action(
-            str(action["_id"]),
-            updates={
-                "title": updated["title"],
-                "payload": updated["payload"],
-                "dtstart": updated["dtstart"],
-                "timezone": updated["timezone"],
-                "rrule": updated["rrule"],
-                "next_run_at": updated["next_run_at"],
-            },
-            expected_revision=action["revision"],
-            now=now,
-        )
-        updated["revision"] = action["revision"] + 1
-        if self.scheduler is not None:
-            self.scheduler.reschedule_action(updated)
-        return updated

@@ -72,17 +72,6 @@ class TestDeferredActionDAO:
             ),
             {},
         ) in calls
-        assert (
-            ([("conversation_id", 1), ("kind", 1), ("lifecycle_state", 1)],),
-            {
-                "unique": True,
-                "partialFilterExpression": {
-                    "kind": "proactive_followup",
-                    "lifecycle_state": "active",
-                },
-            },
-        ) in calls
-
     @pytest.mark.unit
     def test_create_action_returns_inserted_id(self, deferred_action_dao, mock_collection):
         inserted_id = ObjectId()

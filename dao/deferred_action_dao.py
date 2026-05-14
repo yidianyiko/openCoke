@@ -43,14 +43,6 @@ class DeferredActionDAO:
                 ("payload.metadata.source_original_start_time", 1),
             ]
         )
-        self.collection.create_index(
-            [("conversation_id", 1), ("kind", 1), ("lifecycle_state", 1)],
-            unique=True,
-            partialFilterExpression={
-                "kind": "proactive_followup",
-                "lifecycle_state": "active",
-            },
-        )
 
     def create_action(self, document: Dict) -> str:
         result = self.collection.insert_one(document)
@@ -131,16 +123,6 @@ class DeferredActionDAO:
                     "lifecycle_state": {"$in": ["active", "completed", "cancelled"]},
                 }
             ).sort("next_run_at", 1)
-        )
-
-    def find_active_internal_followup(self, conversation_id: str) -> Optional[Dict]:
-        return self.collection.find_one(
-            {
-                "conversation_id": conversation_id,
-                "kind": "proactive_followup",
-                "visibility": "internal",
-                "lifecycle_state": "active",
-            }
         )
 
     def find_imported_reminder_duplicate(

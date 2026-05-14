@@ -269,14 +269,13 @@ class TestDeferredActionService:
         assert action["next_run_at"] is None
         scheduler.register_action.assert_not_called()
 
-    def test_list_visible_reminders_filters_internal_followups(self):
+    def test_list_visible_reminders_filters_non_visible_actions(self):
         action_dao = Mock(
             list_visible_actions=Mock(
                 return_value=[
                     build_action(_id="visible-1", visibility="visible"),
                     build_action(
-                        _id="internal-1",
-                        kind="proactive_followup",
+                        _id="hidden-1",
                         visibility="internal",
                     ),
                 ]
@@ -366,9 +365,8 @@ class TestDeferredActionService:
         assert completed["lifecycle_state"] == "completed"
         assert scheduler.remove_action.call_count == 2
 
-    def test_visible_management_rejects_internal_followups(self):
+    def test_visible_management_rejects_non_visible_reminders(self):
         internal = build_action(
-            kind="proactive_followup",
             visibility="internal",
         )
         action_dao = Mock(get_action=Mock(return_value=internal))
