@@ -11,6 +11,10 @@ class _StubUserDAO:
     pass
 
 
+def _stub_lock_manager(*args, **kwargs):
+    return types.SimpleNamespace(renew_lock=lambda *a, **k: None)
+
+
 def _install_agent_handler_agno_stubs(monkeypatch):
     agno = types.ModuleType("agno")
     agno.__path__ = []
@@ -84,12 +88,14 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "dao.lock",
-        types.SimpleNamespace(
-            MongoDBLockManager=lambda *args, **kwargs: types.SimpleNamespace(
-                renew_lock=lambda *a, **k: None
-            )
-        ),
+        types.SimpleNamespace(MongoDBLockManager=_stub_lock_manager),
     )
+    if "agent.runner.message_processor" in sys.modules:
+        monkeypatch.setattr(
+            sys.modules["agent.runner.message_processor"],
+            "MongoDBLockManager",
+            _stub_lock_manager,
+        )
 
     apscheduler = types.ModuleType("apscheduler")
     apscheduler.__path__ = []
