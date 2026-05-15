@@ -1,0 +1,211 @@
+from __future__ import annotations
+
+from datetime import UTC, date, datetime, time
+
+from agent.reminder.models import (
+    AgentOutputTarget,
+    ReminderPatch,
+    ReminderQuery,
+    ReminderSchedule,
+)
+from agent.reminder.runtime_contract import ReminderRuntimeContract
+
+
+class RecordingReminderService:
+    def __init__(self) -> None:
+        self.calls = []
+        self.result = object()
+
+    def create(self, **kwargs):
+        self.calls.append(("create", kwargs))
+        return self.result
+
+    def update(self, **kwargs):
+        self.calls.append(("update", kwargs))
+        return self.result
+
+    def cancel(self, **kwargs):
+        self.calls.append(("cancel", kwargs))
+        return self.result
+
+    def complete(self, **kwargs):
+        self.calls.append(("complete", kwargs))
+        return self.result
+
+    def list_for_user(self, **kwargs):
+        self.calls.append(("list_for_user", kwargs))
+        return [self.result]
+
+    def list_for_user_in_local_date_range(self, **kwargs):
+        self.calls.append(("list_for_user_in_local_date_range", kwargs))
+        return [self.result]
+
+    def create_or_replace_internal_followup(self, **kwargs):
+        self.calls.append(("create_or_replace_internal_followup", kwargs))
+        return self.result
+
+    def clear_internal_followup(self, **kwargs):
+        self.calls.append(("clear_internal_followup", kwargs))
+        return self.result
+
+
+def sample_schedule() -> ReminderSchedule:
+    return ReminderSchedule(
+        anchor_at=datetime(2026, 5, 16, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 5, 16),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule=None,
+    )
+
+
+def sample_target() -> AgentOutputTarget:
+    return AgentOutputTarget(
+        conversation_id="conv-1",
+        character_id="char-1",
+        route_key="route-1",
+    )
+
+
+def test_create_visible_reminder_builds_visible_create_command():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+
+    result = contract.create_visible_reminder(
+        owner_user_id="user-1",
+        title="weekly report",
+        schedule=sample_schedule(),
+        target=sample_target(),
+    )
+
+    assert result is service.result
+    assert service.calls[0][0] == "create"
+    kwargs = service.calls[0][1]
+    assert kwargs["owner_user_id"] == "user-1"
+    assert kwargs["command"].title == "weekly report"
+    assert kwargs["command"].schedule == sample_schedule()
+    assert kwargs["command"].agent_output_target == sample_target()
+    assert kwargs["command"].created_by_system == "agent"
+
+
+def test_visible_mutation_methods_delegate_to_service():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+    patch = ReminderPatch(title="new title")
+    query = ReminderQuery(lifecycle_states=["active"])
+
+    assert (
+        contract.update_visible_reminder(
+            owner_user_id="user-1",
+            reminder_id="rem-1",
+            patch=patch,
+        )
+        is service.result
+    )
+    assert (
+        contract.cancel_visible_reminder(
+            owner_user_id="user-1",
+            reminder_id="rem-1",
+        )
+        is service.result
+    )
+    assert (
+        contract.complete_visible_reminder(
+            owner_user_id="user-1",
+            reminder_id="rem-1",
+        )
+        is service.result
+    )
+    assert (
+        contract.list_visible_reminders(
+            owner_user_id="user-1",
+            query=query,
+        )
+        == [service.result]
+    )
+
+    assert service.calls[0] == (
+        "update",
+        {"owner_user_id": "user-1", "reminder_id": "rem-1", "patch": patch},
+    )
+    assert service.calls[1] == (
+        "cancel",
+        {"owner_user_id": "user-1", "reminder_id": "rem-1"},
+    )
+    assert service.calls[2] == (
+        "complete",
+        {"owner_user_id": "user-1", "reminder_id": "rem-1"},
+    )
+    assert service.calls[3] == (
+        "list_for_user",
+        {"owner_user_id": "user-1", "query": query},
+    )
+
+
+def test_list_visible_reminders_in_local_date_range_delegates_to_service():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+
+    result = contract.list_visible_reminders_in_local_date_range(
+        owner_user_id="user-1",
+        from_date=date(2026, 5, 11),
+        to_date=date(2026, 5, 17),
+        lifecycle_states=["active"],
+    )
+
+    assert result == [service.result]
+    assert service.calls == [
+        (
+            "list_for_user_in_local_date_range",
+            {
+                "owner_user_id": "user-1",
+                "from_date": date(2026, 5, 11),
+                "to_date": date(2026, 5, 17),
+                "lifecycle_states": ["active"],
+            },
+        )
+    ]
+
+
+def test_internal_followup_methods_delegate_to_service():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+
+    assert (
+        contract.create_or_replace_internal_followup(
+            owner_user_id="user-1",
+            conversation_id="conv-1",
+            character_id="char-1",
+            route_key="route-1",
+            title="check progress",
+            prompt="Ask whether the user has started.",
+            schedule=sample_schedule(),
+            metadata={"proactive_times": 1},
+        )
+        is service.result
+    )
+    assert (
+        contract.clear_internal_followup(
+            owner_user_id="user-1",
+            conversation_id="conv-1",
+        )
+        is service.result
+    )
+
+    assert service.calls[0] == (
+        "create_or_replace_internal_followup",
+        {
+            "owner_user_id": "user-1",
+            "conversation_id": "conv-1",
+            "character_id": "char-1",
+            "route_key": "route-1",
+            "title": "check progress",
+            "prompt": "Ask whether the user has started.",
+            "schedule": sample_schedule(),
+            "metadata": {"proactive_times": 1},
+        },
+    )
+    assert service.calls[1] == (
+        "clear_internal_followup",
+        {"owner_user_id": "user-1", "conversation_id": "conv-1"},
+    )
