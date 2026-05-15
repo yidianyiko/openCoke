@@ -209,3 +209,25 @@ def test_internal_followup_methods_delegate_to_service():
         "clear_internal_followup",
         {"owner_user_id": "user-1", "conversation_id": "conv-1"},
     )
+
+
+def test_reminder_protocol_builds_runtime_contract_with_current_time(monkeypatch):
+    from agent.agno_agent.tools.reminder_protocol import tool as reminder_tool
+
+    captured = {}
+
+    class FakeContract:
+        def __init__(self, *, reminder_service):
+            captured["service"] = reminder_service
+
+    monkeypatch.setattr(reminder_tool, "ReminderRuntimeContract", FakeContract)
+
+    runtime = reminder_tool._build_reminder_runtime(
+        {"current_time": "2026-05-15T10:00:00+09:00"}
+    )
+
+    assert isinstance(runtime, FakeContract)
+    assert (
+        captured["service"].now_provider().isoformat()
+        == "2026-05-15T01:00:00+00:00"
+    )

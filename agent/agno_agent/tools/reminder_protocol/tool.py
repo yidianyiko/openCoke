@@ -14,10 +14,10 @@ from agent.reminder.errors import InvalidArgument, InvalidOutputTarget, Reminder
 from agent.reminder.models import (
     AgentOutputTarget,
     Reminder,
-    ReminderCreateCommand,
     ReminderPatch,
     ReminderQuery,
 )
+from agent.reminder.runtime_contract import ReminderRuntimeContract
 from agent.reminder.schedule import build_schedule_from_anchor
 from agent.reminder.service import ReminderService
 from util.time_util import get_default_timezone
@@ -96,9 +96,9 @@ def _execute_visible_reminder_tool_action(
         return context_failure
 
     try:
-        service = _build_reminder_service(session_state)
+        runtime = _build_reminder_runtime(session_state)
     except Exception:
-        logger.exception("ReminderService adapter initialization failed")
+        logger.exception("ReminderRuntimeContract adapter initialization failed")
         return _append_failure(
             session_state,
             action=canonical_action,
@@ -111,13 +111,13 @@ def _execute_visible_reminder_tool_action(
             # The adapter batches operation-by-operation so keyword resolution and
             # ChatWorkflow-visible tool results are preserved for each item.
             return _execute_batch_operations(
-                service=service,
+                runtime=runtime,
                 session_state=session_state,
                 operations=operations or [],
             )
 
         return _run_operation(
-            service=service,
+            runtime=runtime,
             session_state=session_state,
             action=canonical_action,
             title=title,
@@ -158,7 +158,7 @@ def _validate_runtime_context_for_action(
 
 def _execute_batch_operations(
     *,
-    service: ReminderService,
+    runtime: ReminderRuntimeContract,
     session_state: dict,
     operations: list[dict[str, Any]],
 ) -> str:
@@ -178,7 +178,7 @@ def _execute_batch_operations(
             continue
         summaries.append(
             _run_operation(
-                service=service,
+                runtime=runtime,
                 session_state=session_state,
                 action=str(operation.get("action") or ""),
                 title=operation.get("title"),
@@ -260,7 +260,7 @@ def _normalize_batch_create_title(value: Any) -> str:
 
 def _run_operation(
     *,
-    service: ReminderService,
+    runtime: ReminderRuntimeContract,
     session_state: dict,
     action: str,
     title: str | None = None,
@@ -274,7 +274,7 @@ def _run_operation(
     canonical_action = _canonical_action(action)
     try:
         summary, timed_write = _execute_one(
-            service=service,
+            runtime=runtime,
             session_state=session_state,
             action=canonical_action,
             title=title,
@@ -351,7 +351,7 @@ def _user_safe_reminder_error_message(exc: ReminderError) -> str:
 
 def _execute_one(
     *,
-    service: ReminderService,
+    runtime: ReminderRuntimeContract,
     session_state: dict,
     action: str,
     title: str | None,
@@ -370,20 +370,16 @@ def _execute_one(
                 "Create reminder requires title and trigger_at",
                 detail={"action": action},
             )
-        command = ReminderCreateCommand(
+        created = runtime.create_visible_reminder(
+            owner_user_id=context.owner_user_id,
             title=title,
             schedule=_schedule_from_iso(trigger_at, context.timezone, rrule),
-            agent_output_target=context.target,
-            created_by_system="agent",
-        )
-        created = service.create(
-            owner_user_id=context.owner_user_id,
-            command=command,
+            target=context.target,
         )
         return f"已创建提醒：{_format_reminder_with_schedule(created)}", True
 
     if action == "list":
-        reminders = service.list_for_user(
+        reminders = runtime.list_visible_reminders(
             owner_user_id=context.owner_user_id,
             query=ReminderQuery(lifecycle_states=["active"]),
         )
@@ -391,7 +387,7 @@ def _execute_one(
 
     if action == "update":
         target_id = _resolve_reminder_id(
-            service=service,
+            runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
@@ -403,7 +399,7 @@ def _execute_one(
             timezone=context.timezone,
             rrule=rrule,
         )
-        updated = service.update(
+        updated = runtime.update_visible_reminder(
             reminder_id=target_id,
             owner_user_id=context.owner_user_id,
             patch=patch,
@@ -415,13 +411,13 @@ def _execute_one(
 
     if action == "cancel":
         target_id = _resolve_reminder_id(
-            service=service,
+            runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
             action=action,
         )
-        cancelled = service.cancel(
+        cancelled = runtime.cancel_visible_reminder(
             reminder_id=target_id,
             owner_user_id=context.owner_user_id,
         )
@@ -429,13 +425,13 @@ def _execute_one(
 
     if action == "complete":
         target_id = _resolve_reminder_id(
-            service=service,
+            runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
             action=action,
         )
-        completed = service.complete(
+        completed = runtime.complete_visible_reminder(
             reminder_id=target_id,
             owner_user_id=context.owner_user_id,
         )
@@ -515,16 +511,17 @@ def _parse_current_time(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-def _build_reminder_service(session_state: dict) -> ReminderService:
+def _build_reminder_runtime(session_state: dict) -> ReminderRuntimeContract:
     current_time = _parse_current_time(session_state.get("current_time"))
     if current_time is None:
-        return ReminderService()
+        return ReminderRuntimeContract(reminder_service=ReminderService())
     try:
-        return ReminderService(now_provider=lambda: current_time)
+        service = ReminderService(now_provider=lambda: current_time)
     except TypeError as exc:
         if "now_provider" not in str(exc):
             raise
-        return ReminderService()
+        service = ReminderService()
+    return ReminderRuntimeContract(reminder_service=service)
 
 
 def _canonical_action(action: str) -> str:
@@ -576,7 +573,7 @@ def _build_patch(
 
 def _resolve_reminder_id(
     *,
-    service: ReminderService,
+    runtime: ReminderRuntimeContract,
     owner_user_id: str,
     reminder_id: str | None,
     keyword: str | None,
@@ -590,7 +587,7 @@ def _resolve_reminder_id(
             detail={"action": action, "reason": "missing_target"},
         )
 
-    reminders = service.list_for_user(
+    reminders = runtime.list_visible_reminders(
         owner_user_id=owner_user_id,
         query=ReminderQuery(lifecycle_states=["active"]),
     )
