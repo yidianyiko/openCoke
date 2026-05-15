@@ -209,6 +209,13 @@ remains responsible for locks, rollback, output writes, replay checks,
 scheduler boot, and delivery state transitions. The former prepare/chat
 workflow runtime and legacy multi-agent runtime have been retired.
 
+Agent-facing external capabilities should follow
+`docs/design-docs/agent-capability-contract.md`: tool wrappers, HTTP routes,
+future MCP tools, future CLI commands, and web UI surfaces are adapters over a
+stable domain contract, not separate owners of business behavior. Reminder is
+the first capability expected to follow this rule as it moves toward a
+Reminder Runtime Contract.
+
 ## 5. Outbound Path
 
 Outbound replies now follow:

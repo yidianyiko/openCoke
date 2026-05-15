@@ -14,6 +14,8 @@ sessions.
   skepticism.
 - [`coke-working-contract.md`](./coke-working-contract.md): the Coke-specific
   work surfaces and planning contract.
+- [`agent-capability-contract.md`](./agent-capability-contract.md): the design
+  rule for agent-facing external capability contracts and their adapters.
 - [`interface-contract.md`](./interface-contract.md): the canonical public and
   internal route namespace contract.
 
