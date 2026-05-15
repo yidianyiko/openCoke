@@ -18,6 +18,7 @@ from agent.reminder.models import (
     ReminderPatch,
     ReminderSchedule,
 )
+from agent.reminder.runtime_contract import ReminderRuntimeContract
 from agent.reminder.schedule import validate_rrule_subset, validate_timezone
 
 _ALLOWED_LIFECYCLE_STATES = {"active", "completed", "cancelled", "failed"}
@@ -86,15 +87,19 @@ class ReminderManagementService:
     def __init__(
         self,
         *,
+        reminder_runtime=None,
         reminder_service=None,
         conversation_dao=None,
         character_id_provider=None,
         now_provider=None,
     ) -> None:
-        if reminder_service is None:
-            from agent.reminder.service import ReminderService
-
-            reminder_service = ReminderService()
+        if reminder_runtime is None:
+            if reminder_service is None:
+                reminder_runtime = ReminderRuntimeContract()
+            else:
+                reminder_runtime = ReminderRuntimeContract(
+                    reminder_service=reminder_service
+                )
         if conversation_dao is None:
             from dao.conversation_dao import ConversationDAO
 
@@ -104,7 +109,7 @@ class ReminderManagementService:
 
             character_id_provider = ensure_default_character_seeded
 
-        self.reminder_service = reminder_service
+        self.reminder_runtime = reminder_runtime
         self.conversation_dao = conversation_dao
         self.character_id_provider = character_id_provider
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
@@ -127,11 +132,13 @@ class ReminderManagementService:
                 parsed_to_date - parsed_from_date
             ).days + 1 > _MAX_LIST_RANGE_DAYS_INCLUSIVE:
                 raise ValueError("invalid_body")
-            reminders = self.reminder_service.list_for_user_in_local_date_range(
-                owner_user_id=_require_string(customer_id, "customer_id"),
-                from_date=parsed_from_date,
-                to_date=parsed_to_date,
-                lifecycle_states=parsed_states,
+            reminders = (
+                self.reminder_runtime.list_visible_reminders_in_local_date_range(
+                    owner_user_id=_require_string(customer_id, "customer_id"),
+                    from_date=parsed_from_date,
+                    to_date=parsed_to_date,
+                    lifecycle_states=parsed_states,
+                )
             )
         except InvalidArgument as exc:
             raise ValueError("invalid_body") from exc
@@ -175,9 +182,11 @@ class ReminderManagementService:
             created_by_system="agent",
         )
         try:
-            reminder = self.reminder_service.create(
+            reminder = self.reminder_runtime.create_visible_reminder(
                 owner_user_id=customer_id,
-                command=command,
+                title=command.title,
+                schedule=command.schedule,
+                target=command.agent_output_target,
             )
         except (InvalidSchedule, RRULENotSupported) as exc:
             raise ValueError("invalid_schedule") from exc
@@ -202,7 +211,7 @@ class ReminderManagementService:
             schedule=schedule,
         )
         try:
-            reminder = self.reminder_service.update(
+            reminder = self.reminder_runtime.update_visible_reminder(
                 reminder_id=_require_string(reminder_id, "reminder_id"),
                 owner_user_id=_require_string(customer_id, "customer_id"),
                 patch=patch,
@@ -219,7 +228,7 @@ class ReminderManagementService:
         self, *, customer_id: str, reminder_id: str
     ) -> dict[str, Any]:
         try:
-            reminder = self.reminder_service.complete(
+            reminder = self.reminder_runtime.complete_visible_reminder(
                 owner_user_id=_require_string(customer_id, "customer_id"),
                 reminder_id=_require_string(reminder_id, "reminder_id"),
             )
@@ -231,7 +240,7 @@ class ReminderManagementService:
 
     def cancel_reminder(self, *, customer_id: str, reminder_id: str) -> dict[str, Any]:
         try:
-            reminder = self.reminder_service.cancel(
+            reminder = self.reminder_runtime.cancel_visible_reminder(
                 owner_user_id=_require_string(customer_id, "customer_id"),
                 reminder_id=_require_string(reminder_id, "reminder_id"),
             )
