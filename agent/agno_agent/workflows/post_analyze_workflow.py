@@ -41,7 +41,7 @@ from agent.prompt.chat_taskprompt import (
     get_post_analyze_prompt,
 )
 from agent.reminder.models import ReminderSchedule
-from agent.reminder.service import ReminderService
+from agent.reminder.runtime_contract import ReminderRuntimeContract
 from util.time_util import get_default_timezone, str2timestamp
 
 logger = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ class PostAnalyzeWorkflow:
         if not conversation_id:
             return
 
-        service = ReminderService()
+        service = ReminderRuntimeContract()
         owner_user_id = _first_non_empty_string(
             session_state.get("user", {}).get("id"),
             session_state.get("user", {}).get("_id"),

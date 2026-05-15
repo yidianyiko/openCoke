@@ -52,7 +52,10 @@ async def test_post_analyze_creates_internal_followup(monkeypatch):
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
     )
-    monkeypatch.setattr(workflow_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(
+        "agent.agno_agent.workflows.post_analyze_workflow.ReminderRuntimeContract",
+        lambda: service,
+    )
     monkeypatch.setattr(
         workflow_module.post_analyze_agent,
         "arun",
@@ -115,7 +118,10 @@ async def test_post_analyze_replaces_internal_followup_after_proactive_message(
     state["message_source"] = "reminder"
     state["system_message_metadata"] = {"kind": "internal_followup"}
     state["proactive_times"] = 1
-    monkeypatch.setattr(workflow_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(
+        "agent.agno_agent.workflows.post_analyze_workflow.ReminderRuntimeContract",
+        lambda: service,
+    )
     monkeypatch.setattr(
         workflow_module.post_analyze_agent,
         "arun",
@@ -162,7 +168,10 @@ async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
             "chat_history": [],
         },
     }
-    monkeypatch.setattr(workflow_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(
+        "agent.agno_agent.workflows.post_analyze_workflow.ReminderRuntimeContract",
+        lambda: service,
+    )
     monkeypatch.setattr(
         workflow_module.post_analyze_agent,
         "arun",
@@ -197,7 +206,10 @@ async def test_post_analyze_clears_internal_followup(monkeypatch):
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
     )
-    monkeypatch.setattr(workflow_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(
+        "agent.agno_agent.workflows.post_analyze_workflow.ReminderRuntimeContract",
+        lambda: service,
+    )
     monkeypatch.setattr(
         workflow_module.post_analyze_agent,
         "arun",
@@ -235,7 +247,10 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
     )
     state = build_session_state()
     state["reminder_created_with_time"] = True
-    monkeypatch.setattr(workflow_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(
+        "agent.agno_agent.workflows.post_analyze_workflow.ReminderRuntimeContract",
+        lambda: service,
+    )
     monkeypatch.setattr(
         workflow_module.post_analyze_agent,
         "arun",
