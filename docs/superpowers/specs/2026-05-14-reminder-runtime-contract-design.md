@@ -1,6 +1,6 @@
 # Reminder Runtime Contract Design
 
-**Status:** draft, reviewed against internal follow-up unification
+**Status:** implemented as in-process contract facade
 **Date:** 2026-05-14
 **Owner:** Codex
 **Reviewed against code:** 2026-05-15
@@ -9,6 +9,10 @@
 
 Define a stable Reminder Runtime Contract after internal follow-up is unified
 into the Reminder System.
+
+The first implementation keeps Reminder in-process and routes current Agno,
+PostAnalyze, and bridge/web management adapters through
+`agent/reminder/runtime_contract.py`.
 
 The contract turns Reminder from a Coke-internal feature into an
 agent-facing domain runtime:

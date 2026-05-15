@@ -154,6 +154,10 @@ The Reminder System owns assistant-created reminders and internal follow-ups:
   `visibility=internal` and `fire_mode=followup`, are hidden from customer
   management surfaces, and fire through `ReminderFireEventHandler` into the
   normal Agent System runtime.
+- `agent/reminder/runtime_contract.py` is the in-process Reminder Runtime
+  Contract. Agno tools, PostAnalyze follow-up creation, and bridge reminder
+  management adapters call this contract instead of owning reminder business
+  behavior.
 - reminder documents include schedule data, output target, lifecycle, and the
   next durable wake-up in `next_fire_at`
 - `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
