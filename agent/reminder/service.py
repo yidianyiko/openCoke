@@ -42,9 +42,10 @@ class ReminderService:
 
     def _get_runtime_scheduler(self):
         try:
-            from agent.runner.reminder_scheduler import get_reminder_scheduler_instance
+            from agent.reminder.runtime import get_reminder_runtime_instance
 
-            return get_reminder_scheduler_instance()
+            runtime = get_reminder_runtime_instance()
+            return runtime.scheduler if runtime is not None else None
         except Exception:
             return None
 

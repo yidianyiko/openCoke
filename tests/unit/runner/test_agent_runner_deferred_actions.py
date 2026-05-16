@@ -150,9 +150,12 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
 
     reminder_dao = Mock()
     handler = Mock()
+    fire_consumer = Mock()
+    service = Mock()
     scheduler = Mock(start=Mock(), shutdown=Mock())
-    set_instance = Mock()
-    get_instance = Mock(return_value=None)
+    set_runtime_instance = Mock()
+    set_scheduler_instance = Mock()
+    get_runtime_instance = Mock(return_value=None)
     created = {}
 
     monkeypatch.setattr(agent_runner, "ReminderDAO", lambda: reminder_dao)
@@ -163,20 +166,45 @@ def test_bootstrap_reminder_runtime_starts_single_scheduler(monkeypatch):
     )
     monkeypatch.setattr(
         agent_runner,
+        "CokeReminderFireConsumer",
+        lambda created_handler: created.update({"consumer_handler": created_handler})
+        or fire_consumer,
+    )
+    monkeypatch.setattr(
+        agent_runner,
         "ReminderScheduler",
         lambda **kwargs: created.update({"scheduler_kwargs": kwargs}) or scheduler,
     )
-    monkeypatch.setattr(agent_runner, "set_reminder_scheduler_instance", set_instance)
-    monkeypatch.setattr(agent_runner, "get_reminder_scheduler_instance", get_instance)
+    monkeypatch.setattr(
+        agent_runner,
+        "ReminderService",
+        lambda **kwargs: created.update({"service_kwargs": kwargs}) or service,
+    )
+    monkeypatch.setattr(
+        agent_runner, "set_reminder_runtime_instance", set_runtime_instance
+    )
+    monkeypatch.setattr(
+        agent_runner, "set_reminder_scheduler_instance", set_scheduler_instance
+    )
+    monkeypatch.setattr(
+        agent_runner, "get_reminder_runtime_instance", get_runtime_instance
+    )
 
     runtime = agent_runner.bootstrap_reminder_runtime()
 
-    assert runtime is scheduler
+    assert runtime.scheduler is scheduler
+    assert runtime.fire_consumer is fire_consumer
     scheduler.start.assert_called_once()
-    set_instance.assert_called_once_with(scheduler)
+    set_runtime_instance.assert_called_once_with(runtime)
+    set_scheduler_instance.assert_called_once_with(scheduler)
     assert "runtime_event_handler" in created["handler_kwargs"]
+    assert created["consumer_handler"] is handler
     assert created["scheduler_kwargs"]["reminder_dao"] is reminder_dao
-    assert created["scheduler_kwargs"]["fire_event_handler"] is handler
+    assert created["scheduler_kwargs"]["fire_consumer"] is fire_consumer
+    assert created["service_kwargs"] == {
+        "reminder_dao": reminder_dao,
+        "scheduler": scheduler,
+    }
 
 
 def test_bootstrap_reminder_runtime_cleans_up_when_start_raises(monkeypatch):
@@ -186,7 +214,8 @@ def test_bootstrap_reminder_runtime_cleans_up_when_start_raises(monkeypatch):
         start=Mock(side_effect=RuntimeError("reminder start failed")),
         shutdown=Mock(),
     )
-    set_instance = Mock()
+    set_runtime_instance = Mock()
+    set_scheduler_instance = Mock()
 
     monkeypatch.setattr(agent_runner, "ReminderDAO", Mock(return_value=Mock()))
     monkeypatch.setattr(
@@ -196,13 +225,27 @@ def test_bootstrap_reminder_runtime_cleans_up_when_start_raises(monkeypatch):
     )
     monkeypatch.setattr(
         agent_runner,
+        "CokeReminderFireConsumer",
+        Mock(return_value=Mock()),
+    )
+    monkeypatch.setattr(
+        agent_runner,
         "ReminderScheduler",
         Mock(return_value=scheduler),
     )
-    monkeypatch.setattr(agent_runner, "set_reminder_scheduler_instance", set_instance)
     monkeypatch.setattr(
         agent_runner,
-        "get_reminder_scheduler_instance",
+        "set_reminder_runtime_instance",
+        set_runtime_instance,
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "set_reminder_scheduler_instance",
+        set_scheduler_instance,
+    )
+    monkeypatch.setattr(
+        agent_runner,
+        "get_reminder_runtime_instance",
         Mock(return_value=None),
     )
 
@@ -210,10 +253,8 @@ def test_bootstrap_reminder_runtime_cleans_up_when_start_raises(monkeypatch):
         agent_runner.bootstrap_reminder_runtime()
 
     scheduler.shutdown.assert_called_once()
-    assert set_instance.call_args_list == [
-        call(scheduler),
-        call(None),
-    ]
+    assert set_runtime_instance.call_args_list[-1] == call(None)
+    assert set_scheduler_instance.call_args_list == [call(scheduler), call(None)]
 
 
 @pytest.mark.asyncio
@@ -224,6 +265,7 @@ async def test_main_cleans_up_deferred_scheduler_when_reminder_startup_fails(
 
     deferred_scheduler = Mock(shutdown=Mock())
     set_deferred_instance = Mock()
+    set_reminder_runtime_instance = Mock()
     set_reminder_instance = Mock()
 
     monkeypatch.setattr(
@@ -242,6 +284,11 @@ async def test_main_cleans_up_deferred_scheduler_when_reminder_startup_fails(
         set_deferred_instance,
     )
     monkeypatch.setattr(
+        agent_runner,
+        "set_reminder_runtime_instance",
+        set_reminder_runtime_instance,
+    )
+    monkeypatch.setattr(
         agent_runner, "set_reminder_scheduler_instance", set_reminder_instance
     )
 
@@ -250,6 +297,7 @@ async def test_main_cleans_up_deferred_scheduler_when_reminder_startup_fails(
 
     deferred_scheduler.shutdown.assert_called_once()
     set_deferred_instance.assert_called_once_with(None)
+    set_reminder_runtime_instance.assert_called_once_with(None)
     set_reminder_instance.assert_called_once_with(None)
 
 
@@ -262,6 +310,7 @@ async def test_main_shutdowns_schedulers_independently_when_one_shutdown_raises(
     deferred_scheduler = Mock(shutdown=Mock(side_effect=RuntimeError("deferred boom")))
     reminder_scheduler = Mock(shutdown=Mock())
     set_deferred_instance = Mock()
+    set_reminder_runtime_instance = Mock()
     set_reminder_instance = Mock()
 
     async def failing_gather(*workers):
@@ -286,6 +335,11 @@ async def test_main_shutdowns_schedulers_independently_when_one_shutdown_raises(
         set_deferred_instance,
     )
     monkeypatch.setattr(
+        agent_runner,
+        "set_reminder_runtime_instance",
+        set_reminder_runtime_instance,
+    )
+    monkeypatch.setattr(
         agent_runner, "set_reminder_scheduler_instance", set_reminder_instance
     )
 
@@ -295,4 +349,5 @@ async def test_main_shutdowns_schedulers_independently_when_one_shutdown_raises(
     deferred_scheduler.shutdown.assert_called_once()
     reminder_scheduler.shutdown.assert_called_once()
     set_deferred_instance.assert_called_once_with(None)
+    set_reminder_runtime_instance.assert_called_once_with(None)
     set_reminder_instance.assert_called_once_with(None)

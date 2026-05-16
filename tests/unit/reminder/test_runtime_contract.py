@@ -212,6 +212,7 @@ def test_internal_followup_methods_delegate_to_service():
 
 
 def test_reminder_protocol_builds_runtime_contract_with_current_time(monkeypatch):
+    from agent.agno_agent.adapters import coke_reminder_adapter
     from agent.agno_agent.tools.reminder_protocol import tool as reminder_tool
 
     captured = {}
@@ -220,7 +221,7 @@ def test_reminder_protocol_builds_runtime_contract_with_current_time(monkeypatch
         def __init__(self, *, reminder_service):
             captured["service"] = reminder_service
 
-    monkeypatch.setattr(reminder_tool, "ReminderRuntimeContract", FakeContract)
+    monkeypatch.setattr(coke_reminder_adapter, "ReminderRuntimeContract", FakeContract)
 
     runtime = reminder_tool._build_reminder_runtime(
         {"current_time": "2026-05-15T10:00:00+09:00"}
@@ -231,3 +232,56 @@ def test_reminder_protocol_builds_runtime_contract_with_current_time(monkeypatch
         captured["service"].now_provider().isoformat()
         == "2026-05-15T01:00:00+00:00"
     )
+
+
+def test_reminder_runtime_starts_loads_and_shuts_down_scheduler():
+    from agent.reminder.runtime import ReminderRuntime
+
+    class RecordingScheduler:
+        def __init__(self):
+            self.calls = []
+
+        def start(self):
+            self.calls.append("start")
+
+        def load_from_storage(self):
+            self.calls.append("load_from_storage")
+
+        def shutdown(self):
+            self.calls.append("shutdown")
+
+    scheduler = RecordingScheduler()
+    runtime = ReminderRuntime(
+        contract=ReminderRuntimeContract(reminder_service=RecordingReminderService()),
+        scheduler=scheduler,
+        fire_consumer=object(),
+    )
+
+    runtime.start()
+    runtime.load_from_storage()
+    runtime.shutdown()
+
+    assert scheduler.calls == ["start", "load_from_storage", "shutdown"]
+
+
+def test_current_reminder_runtime_registry_is_used_by_default_service_scheduler():
+    from agent.reminder.runtime import (
+        ReminderRuntime,
+        get_reminder_runtime_instance,
+        set_reminder_runtime_instance,
+    )
+    from agent.reminder.service import ReminderService
+
+    previous = get_reminder_runtime_instance()
+    scheduler = object()
+    runtime = ReminderRuntime(
+        contract=ReminderRuntimeContract(reminder_service=RecordingReminderService()),
+        scheduler=scheduler,
+        fire_consumer=object(),
+    )
+    try:
+        set_reminder_runtime_instance(runtime)
+        service = ReminderService(reminder_dao=object())
+        assert service.scheduler is scheduler
+    finally:
+        set_reminder_runtime_instance(previous)

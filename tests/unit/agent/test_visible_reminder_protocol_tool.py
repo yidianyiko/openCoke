@@ -13,6 +13,7 @@ from agent.reminder.models import (
     ReminderQuery,
     ReminderSchedule,
 )
+from agent.reminder.runtime_contract import ReminderRuntimeContract
 
 NOW = datetime(2026, 4, 28, 1, 0, tzinfo=UTC)
 
@@ -183,21 +184,95 @@ def call_tool(**kwargs: Any) -> str:
 
 
 def install_service(monkeypatch: pytest.MonkeyPatch, service: FakeReminderService):
-    import agent.agno_agent.tools.reminder_protocol.tool as tool_module
+    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
 
-    monkeypatch.setattr(tool_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(adapter_module, "ReminderService", lambda: service)
 
 
 def install_service_factory(monkeypatch: pytest.MonkeyPatch, factory):
-    import agent.agno_agent.tools.reminder_protocol.tool as tool_module
+    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
 
-    monkeypatch.setattr(tool_module, "ReminderService", factory)
+    monkeypatch.setattr(adapter_module, "ReminderService", factory)
 
 
 def set_session_state(session_state: dict) -> None:
     from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
 
     set_reminder_session_state(session_state)
+
+
+def test_coke_reminder_adapter_derives_context_from_session_state():
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+
+    context = CokeReminderAdapter().derive_context(
+        {
+            "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+            "character": {"id": "char-1"},
+            "conversation": {"id": "conv-1", "route_key": "route-1"},
+            "current_time": "2026-05-15T10:00:00+09:00",
+        }
+    )
+
+    assert context.owner_user_id == "user-1"
+    assert context.target.conversation_id == "conv-1"
+    assert context.target.character_id == "char-1"
+    assert context.target.route_key == "route-1"
+    assert context.timezone == "Asia/Tokyo"
+    assert context.current_time == datetime(2026, 5, 15, 1, 0, tzinfo=UTC)
+
+
+def test_coke_reminder_adapter_prefers_current_runtime_contract():
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+    from agent.reminder.runtime import (
+        ReminderRuntime,
+        get_reminder_runtime_instance,
+        set_reminder_runtime_instance,
+    )
+
+    previous = get_reminder_runtime_instance()
+    contract = ReminderRuntimeContract(reminder_service=FakeReminderService())
+    runtime = ReminderRuntime(
+        contract=contract,
+        scheduler=object(),
+        fire_consumer=object(),
+    )
+
+    try:
+        set_reminder_runtime_instance(runtime)
+
+        assert CokeReminderAdapter().reminder_contract({}) is contract
+    finally:
+        set_reminder_runtime_instance(previous)
+
+
+def test_coke_reminder_adapter_current_runtime_contract_overrides_current_time(
+    monkeypatch,
+):
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+    from agent.reminder.runtime import (
+        ReminderRuntime,
+        get_reminder_runtime_instance,
+        set_reminder_runtime_instance,
+    )
+
+    previous = get_reminder_runtime_instance()
+    runtime_contract = ReminderRuntimeContract(reminder_service=FakeReminderService())
+    runtime = ReminderRuntime(
+        contract=runtime_contract,
+        scheduler=object(),
+        fire_consumer=object(),
+    )
+
+    try:
+        set_reminder_runtime_instance(runtime)
+
+        contract = CokeReminderAdapter().reminder_contract(
+            {"current_time": "2026-05-15T10:00:00+09:00"}
+        )
+
+        assert contract is runtime_contract
+    finally:
+        set_reminder_runtime_instance(previous)
 
 
 def test_create_derives_owner_target_and_timezone_from_session_state(monkeypatch):
@@ -295,7 +370,10 @@ def test_create_formats_weekly_interval_rrule_as_every_two_weeks(monkeypatch):
         rrule="FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,TH;UNTIL=20260625T110000Z",
     )
 
-    assert result == "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-25 20:00）"
+    assert (
+        result
+        == "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-25 20:00）"
+    )
     assert session_state["tool_results"][0]["result_summary"] == result
 
 

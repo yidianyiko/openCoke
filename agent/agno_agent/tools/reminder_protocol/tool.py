@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextvars
 import re
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -10,17 +9,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from agno.tools import tool
 
 from agent.agno_agent.tools.tool_result import append_tool_result
-from agent.reminder.errors import InvalidArgument, InvalidOutputTarget, ReminderError
+from agent.reminder.errors import InvalidArgument, ReminderError
 from agent.reminder.models import (
-    AgentOutputTarget,
     Reminder,
     ReminderPatch,
     ReminderQuery,
 )
 from agent.reminder.runtime_contract import ReminderRuntimeContract
 from agent.reminder.schedule import build_schedule_from_anchor
-from agent.reminder.service import ReminderService
-from util.time_util import get_default_timezone
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -31,14 +27,6 @@ _SUPPORTED_ACTIONS = {"create", "update", "cancel", "complete", "list", "batch"}
 _context_session_state: contextvars.ContextVar[dict] = contextvars.ContextVar(
     "reminder_session_state", default={}
 )
-
-
-@dataclass(frozen=True)
-class _RuntimeContext:
-    owner_user_id: str
-    target: AgentOutputTarget
-    timezone: str
-    current_time: datetime | None
 
 
 class _KeywordResolutionError(Exception):
@@ -443,85 +431,16 @@ def _execute_one(
     )
 
 
-def _derive_runtime_context(session_state: dict) -> _RuntimeContext:
-    user = session_state.get("user") or {}
-    character = session_state.get("character") or {}
-    conversation = session_state.get("conversation") or {}
+def _derive_runtime_context(session_state: dict):
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
 
-    owner_user_id = _string_value(user.get("id") or user.get("_id"))
-    character_id = _string_value(character.get("_id") or character.get("id"))
-    conversation_id = _string_value(
-        conversation.get("_id")
-        or conversation.get("id")
-        or session_state.get("conversation_id")
-    )
-    route_key = (
-        session_state.get("route_key")
-        or session_state.get("delivery_route_key")
-        or conversation.get("route_key")
-    )
-    timezone = _string_value(
-        user.get("effective_timezone")
-        or user.get("timezone")
-        or get_default_timezone().key
-    )
-    if not owner_user_id:
-        raise InvalidArgument(
-            "Reminder owner_user_id is missing",
-            detail={"field": "owner_user_id"},
-        )
-    if not conversation_id:
-        raise InvalidOutputTarget(
-            "Reminder output target conversation_id must be non-empty",
-            detail={"field": "conversation_id"},
-        )
-    if not character_id:
-        raise InvalidOutputTarget(
-            "Reminder output target character_id must be non-empty",
-            detail={"field": "character_id"},
-        )
-    return _RuntimeContext(
-        owner_user_id=owner_user_id,
-        target=AgentOutputTarget(
-            conversation_id=conversation_id,
-            character_id=character_id,
-            route_key=_string_value(route_key) if route_key else None,
-        ),
-        timezone=timezone,
-        current_time=_parse_current_time(session_state.get("current_time")),
-    )
-
-
-def _string_value(value: Any) -> str:
-    return "" if value is None else str(value)
-
-
-def _parse_current_time(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, str) and value.strip():
-        try:
-            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        return None
-    return parsed.astimezone(UTC)
+    return CokeReminderAdapter().derive_context(session_state)
 
 
 def _build_reminder_runtime(session_state: dict) -> ReminderRuntimeContract:
-    current_time = _parse_current_time(session_state.get("current_time"))
-    if current_time is None:
-        return ReminderRuntimeContract(reminder_service=ReminderService())
-    try:
-        service = ReminderService(now_provider=lambda: current_time)
-    except TypeError as exc:
-        if "now_provider" not in str(exc):
-            raise
-        service = ReminderService()
-    return ReminderRuntimeContract(reminder_service=service)
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+
+    return CokeReminderAdapter().reminder_contract(session_state)
 
 
 def _canonical_action(action: str) -> str:

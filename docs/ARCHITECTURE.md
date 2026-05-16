@@ -13,12 +13,17 @@ The production stack consists of:
 
 - `agent/runner/agent_runner.py`
   - runs Coke message workers
-  - boots the reminder scheduler
+  - boots the in-process reminder runtime
   - boots the deferred-action scheduler
   - runs background maintenance jobs
+- `agent/reminder/runtime.py`
+  - owns the in-process Reminder Runtime object
+  - holds the runtime contract, scheduler, and fire consumer wired by Coke
 - `agent/runner/reminder_scheduler.py`
   - rebuilds APScheduler reminder jobs from MongoDB `reminders.next_fire_at`
-  - emits structured reminder fired events to the Agent System event handler
+  - emits structured reminder fired events to the configured fire consumer
+- `agent/runner/reminder_fire_consumer.py`
+  - adapts Reminder fired events to Coke's existing continuation handler
 - `agent/runner/reminder_event_handler.py`
   - resolves the reminder output target back into conversation context
   - writes final reminder output through the Agent System output boundary
@@ -56,7 +61,9 @@ flowchart LR
     subgraph Coke
         BRIDGE[ClawScale Bridge :8090]
         RUNNER[agent_runner.py]
+        RRUNTIME[ReminderRuntime]
         RSCHED[ReminderScheduler]
+        RFCONSUMER[CokeReminderFireConsumer]
         RHANDLER[ReminderFireEventHandler]
         SCHED[DeferredActionScheduler]
         EXEC[DeferredActionExecutor]
@@ -74,8 +81,10 @@ flowchart LR
     API --> BRIDGE
     BRIDGE --> RUNNER
     BRIDGE --> API
-    RUNNER --> RSCHED
-    RSCHED --> RHANDLER
+    RUNNER --> RRUNTIME
+    RRUNTIME --> RSCHED
+    RSCHED --> RFCONSUMER
+    RFCONSUMER --> RHANDLER
     RUNNER --> SCHED
     SCHED --> EXEC
     RUNNER --> MONGO
@@ -158,13 +167,17 @@ The Reminder System owns assistant-created reminders and internal follow-ups:
   Contract. Agno tools, PostAnalyze follow-up creation, and bridge reminder
   management adapters call this contract instead of owning reminder business
   behavior.
+- `agent/reminder/runtime.py` is the in-process Reminder Runtime object owned
+  by the worker runtime. It holds the runtime contract, scheduler, and fire
+  consumer.
 - reminder documents include schedule data, output target, lifecycle, and the
   next durable wake-up in `next_fire_at`
 - `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
   startup and keeps APScheduler as an in-process wake-up mechanism only
-- fired reminders are emitted as structured events and return to the Agent
-  System through `ReminderFireEventHandler` for conversation resolution and
-  final user-visible output
+- `ReminderScheduler` emits `ReminderFiredEvent` objects to a
+  `ReminderFireConsumer`; Coke wires `CokeReminderFireConsumer` to the
+  existing `ReminderFireEventHandler` so conversation lookup, locks, Agno
+  `AgentInput`, and output delivery remain Coke continuation concerns.
 - successful one-shot fired events complete the reminder, successful recurring
   fired events advance `next_fire_at`, and failed event handling marks the
   reminder failed

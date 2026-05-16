@@ -264,7 +264,7 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
 def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    import agent.agno_agent.tools.reminder_protocol.tool as tool_module
+    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
 
     service = FakeReminderService()
     captured_service_kwargs = {}
@@ -273,7 +273,7 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
         captured_service_kwargs.update(kwargs)
         return service
 
-    monkeypatch.setattr(tool_module, "ReminderService", service_factory)
+    monkeypatch.setattr(adapter_module, "ReminderService", service_factory)
 
     result = ReminderCommandExecutor(_visible_reminder_raw_function()).execute(
         SimpleNamespace(

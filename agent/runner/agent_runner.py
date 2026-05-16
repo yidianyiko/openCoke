@@ -9,6 +9,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from agent.agno_agent.runtime import run_agent_runtime_event
+from agent.reminder.runtime import (
+    ReminderRuntime,
+    get_reminder_runtime_instance,
+    set_reminder_runtime_instance,
+)
+from agent.reminder.runtime_contract import ReminderRuntimeContract
+from agent.reminder.service import ReminderService
 from agent.runner.deferred_action_executor import DeferredActionExecutor
 from agent.runner.deferred_action_scheduler import (
     DeferredActionScheduler,
@@ -16,9 +23,9 @@ from agent.runner.deferred_action_scheduler import (
     set_deferred_action_scheduler_instance,
 )
 from agent.runner.reminder_event_handler import ReminderFireEventHandler
+from agent.runner.reminder_fire_consumer import CokeReminderFireConsumer
 from agent.runner.reminder_scheduler import (
     ReminderScheduler,
-    get_reminder_scheduler_instance,
     set_reminder_scheduler_instance,
 )
 from util.log_util import get_logger, setup_logging
@@ -76,27 +83,38 @@ def bootstrap_deferred_action_runtime():
 
 
 def bootstrap_reminder_runtime():
-    existing = get_reminder_scheduler_instance()
+    existing = get_reminder_runtime_instance()
     if existing is not None:
         return existing
 
     reminder_dao = ReminderDAO()
     handler = ReminderFireEventHandler(runtime_event_handler=run_agent_runtime_event)
+    fire_consumer = CokeReminderFireConsumer(handler)
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=handler,
+        fire_consumer=fire_consumer,
     )
+    contract = ReminderRuntimeContract(
+        reminder_service=ReminderService(reminder_dao=reminder_dao, scheduler=scheduler)
+    )
+    runtime = ReminderRuntime(
+        contract=contract,
+        scheduler=scheduler,
+        fire_consumer=fire_consumer,
+    )
+    set_reminder_runtime_instance(runtime)
     set_reminder_scheduler_instance(scheduler)
     try:
-        scheduler.start()
+        runtime.start()
     except Exception:
         _shutdown_runtime(
-            "reminder scheduler",
-            scheduler,
-            set_reminder_scheduler_instance,
+            "reminder runtime",
+            runtime,
+            set_reminder_runtime_instance,
         )
+        set_reminder_scheduler_instance(None)
         raise
-    return scheduler
+    return runtime
 
 
 async def run_main_agent(worker_id: int):
@@ -144,10 +162,10 @@ async def run_background_agent():
 
 async def main():
     deferred_action_scheduler = None
-    reminder_scheduler = None
+    reminder_runtime = None
     try:
         deferred_action_scheduler = bootstrap_deferred_action_runtime()
-        reminder_scheduler = bootstrap_reminder_runtime()
+        reminder_runtime = bootstrap_reminder_runtime()
         workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
         workers.append(run_background_agent())
 
@@ -160,10 +178,11 @@ async def main():
             set_deferred_action_scheduler_instance,
         )
         _shutdown_runtime(
-            "reminder scheduler",
-            reminder_scheduler,
-            set_reminder_scheduler_instance,
+            "reminder runtime",
+            reminder_runtime,
+            set_reminder_runtime_instance,
         )
+        set_reminder_scheduler_instance(None)
 
 
 def _shutdown_runtime(name, scheduler, clear_instance):

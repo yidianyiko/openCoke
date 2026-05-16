@@ -1,6 +1,6 @@
 # Reminder Python Plugin Boundary Design
 
-**Status:** draft for review
+**Status:** reviewed for phase-one execution
 **Date:** 2026-05-15
 **Owner:** Codex
 
@@ -48,6 +48,9 @@ That is a good contract boundary. It is not yet a plugin boundary:
 - fire handling is still centered on `ReminderFireEventHandler`, which knows
   Coke conversation locks, conversation lookup, character lookup, Agno runtime
   inputs, and output delivery
+- `ReminderService._get_runtime_scheduler()` reaches into
+  `agent.runner.reminder_scheduler`, so the reminder domain contract still has
+  an implicit runner dependency when no scheduler is injected
 - Reminder's first target language is still Coke-shaped, which is acceptable
   for the first plugin phase but should stay out of future public adapters
 - there is no single `ReminderRuntime` object that Coke can own and start as a
@@ -144,13 +147,21 @@ It should own Coke-specific concerns:
 - constructing the current `AgentOutputTarget`
 - deciding which Reminder contract operation to call
 
-Existing Agno tool code, PostAnalyze follow-up creation, and bridge management
-may migrate to call this adapter instead of constructing Reminder runtime
-dependencies independently.
+Phase one should keep this adapter narrow. The Agno reminder tool and
+PostAnalyze follow-up path should use it for session/context mapping and
+runtime selection. Bridge reminder management is already a transport adapter
+over the runtime contract; it should be wired to the same runtime object when
+available, but it should not be forced through an Agno-shaped adapter.
 
 This adapter can still pass `AgentOutputTarget` in phase one. The point is not
 to hide that Coke is currently the only consumer. The point is to put Coke
 translation in one place.
+
+One phase-one exception remains: `create_or_replace_internal_followup()` may
+still accept `conversation_id`, `character_id`, and `route_key` because that is
+the existing runtime contract shape. The first implementation should not claim
+full target neutralization until a later phase introduces an internal-followup
+command that accepts `AgentOutputTarget` or a neutral target model directly.
 
 ### ReminderFireConsumer
 
@@ -160,9 +171,15 @@ Initial shape:
 
 ```python
 class ReminderFireConsumer:
-    async def handle_fire_event(self, event: ReminderFireEvent) -> ReminderFireResult:
+    async def handle_fire_event(self, event: ReminderFiredEvent) -> ReminderFireResult:
         ...
 ```
+
+The current scheduler dispatches to `.handle(event)` or a callable handler.
+Phase one should migrate that dispatch to `handle_fire_event(event)` with
+focused tests for success, returned failure, thrown exception, one-shot
+completion, and recurring reschedule. Keeping the old `.handle()` behavior as
+the primary seam would hide the new boundary.
 
 Coke's implementation may delegate to the current `ReminderFireEventHandler`
 at first. That keeps behavior stable while making the ownership explicit:
@@ -179,24 +196,30 @@ Over time, Coke-specific conversation locking and agent continuation can move
 behind the Coke consumer instead of remaining the apparent owner of Reminder
 runtime firing.
 
-### ReminderFireEvent
+The first implementation should add a `CokeReminderFireConsumer` wrapper
+rather than rename `ReminderFireEventHandler`. The handler remains the proven
+Coke continuation implementation; the wrapper is the plugin callback boundary.
 
-Phase one can reuse the existing event payload shape and `AgentOutputTarget`
-fields. A neutral target model is not required yet.
+### ReminderFiredEvent
+
+Phase one must reuse the existing `ReminderFiredEvent` payload shape and
+`AgentOutputTarget` fields. A neutral target model is not required yet.
 
 The event boundary should still be explicit:
 
 ```text
+event_type
+event_id
+fire_id
 reminder_id
 owner_user_id
 title
-schedule
+fire_at
+scheduled_for
 agent_output_target
 fire_mode
 prompt
 metadata
-scheduled_for
-fired_at
 ```
 
 The event means "Reminder fired." It does not mean "Coke has completed the
@@ -225,11 +248,16 @@ behavior.
 
 Work:
 
-- introduce `CokeReminderAdapter`
-- introduce `ReminderRuntime` as an in-process object
-- introduce `ReminderFireConsumer`
+- introduce `CokeReminderAdapter` for Agno/PostAnalyze context mapping and
+  runtime selection
+- introduce `ReminderRuntime` as an in-process object with explicit
+  `start()`, `shutdown()`, and `load_from_storage()` lifecycle methods
+- introduce `ReminderFireConsumer` as the scheduler callback interface
 - wire the scheduler fire path through the consumer seam
-- allow the Coke consumer to delegate to the current `ReminderFireEventHandler`
+- add `CokeReminderFireConsumer` and allow it to delegate to the current
+  `ReminderFireEventHandler`
+- make the default `ReminderService` scheduler lookup depend on the current
+  `ReminderRuntime`, not directly on the runner scheduler module
 - keep current `AgentOutputTarget` and reminder document shape
 - keep current Agno, PostAnalyze, bridge, and web behavior
 
@@ -323,11 +351,12 @@ The first plugin boundary is complete when:
 
 ## Review Questions
 
-- Is `CokeReminderAdapter` the right name, or should it be scoped to the Agno
-  runtime and bridge separately?
-- Should `ReminderRuntime` own scheduler boot immediately, or only wrap the
-  contract and fire consumer in phase one?
-- Should the first fire consumer delegate to `ReminderFireEventHandler`, or
-  should `ReminderFireEventHandler` itself become Coke's consumer
-  implementation?
-
+- `CokeReminderAdapter` remains the right phase-one name, but its scope is
+  Agno/PostAnalyze Coke context mapping. Bridge management remains its own
+  transport adapter over the runtime contract.
+- `ReminderRuntime` should own scheduler lifecycle immediately, because
+  `agent_runner.py` already boots the reminder scheduler as one in-process
+  runtime capability.
+- The first consumer should be `CokeReminderFireConsumer`, delegating to
+  `ReminderFireEventHandler`. Do not rename or split the proven handler until
+  the callback seam is verified.

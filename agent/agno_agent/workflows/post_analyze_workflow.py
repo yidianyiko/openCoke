@@ -40,21 +40,11 @@ from agent.prompt.chat_taskprompt import (
     TASKPROMPT_总结,
     get_post_analyze_prompt,
 )
+from agent.reminder.errors import ReminderError
 from agent.reminder.models import ReminderSchedule
-from agent.reminder.runtime_contract import ReminderRuntimeContract
 from util.time_util import get_default_timezone, str2timestamp
 
 logger = logging.getLogger(__name__)
-
-
-def _first_non_empty_string(*values: Any) -> str:
-    for value in values:
-        if value is None:
-            continue
-        text = str(value).strip()
-        if text:
-            return text
-    return ""
 
 
 class PostAnalyzeWorkflow:
@@ -237,41 +227,20 @@ class PostAnalyzeWorkflow:
 
     def _handle_followup_plan(self, content: Dict, session_state: Dict) -> None:
         """Create, replace, or clear the internal proactive follow-up action."""
-        conversation = session_state.get("conversation", {})
-        conversation_info = conversation.get("conversation_info", {})
-        conversation_id = _first_non_empty_string(
-            conversation.get("_id"),
-            conversation.get("id"),
-            session_state.get("conversation_id"),
-        )
-        if not conversation_id:
-            return
+        from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
 
-        service = ReminderRuntimeContract()
-        owner_user_id = _first_non_empty_string(
-            session_state.get("user", {}).get("id"),
-            session_state.get("user", {}).get("_id"),
-        )
-        character_id = _first_non_empty_string(
-            session_state.get("character", {}).get("_id"),
-            session_state.get("character", {}).get("id"),
-        )
-        route_key = _first_non_empty_string(
-            session_state.get("route_key"),
-            session_state.get("delivery_route_key"),
-            conversation.get("route_key"),
-            conversation_info.get("route_key"),
-            conversation_info.get("delivery_route_key"),
-        ) or None
+        adapter = CokeReminderAdapter()
 
         if session_state.get("reminder_created_with_time"):
             logger.info(
                 "[FollowupPlan] 本轮已创建定时提醒，清理内部 proactive follow-up"
             )
-            service.clear_internal_followup(
-                owner_user_id=owner_user_id,
-                conversation_id=conversation_id,
-            )
+            try:
+                adapter.clear_internal_followup(session_state=session_state)
+            except ReminderError as exc:
+                logger.warning(
+                    "[FollowupPlan] 无法清理内部 follow-up: %s", exc.user_message
+                )
             return
 
         plan = content.get("FollowupPlan", {})
@@ -293,10 +262,12 @@ class PostAnalyzeWorkflow:
             or not followup_prompt
             or followup_prompt == "无"
         ):
-            service.clear_internal_followup(
-                owner_user_id=owner_user_id,
-                conversation_id=conversation_id,
-            )
+            try:
+                adapter.clear_internal_followup(session_state=session_state)
+            except ReminderError as exc:
+                logger.warning(
+                    "[FollowupPlan] 无法清理内部 follow-up: %s", exc.user_message
+                )
             logger.info("[FollowupPlan] 未设置内部 proactive follow-up")
             return
 
@@ -304,11 +275,15 @@ class PostAnalyzeWorkflow:
         resolved_tz = get_default_timezone() if not user_tz else ZoneInfo(user_tz)
         followup_timestamp = str2timestamp(followup_time_str, tz=resolved_tz)
         if followup_timestamp is None:
-            logger.warning("[FollowupPlan] 无法解析 FollowupTime: %s", followup_time_str)
-            service.clear_internal_followup(
-                owner_user_id=owner_user_id,
-                conversation_id=conversation_id,
+            logger.warning(
+                "[FollowupPlan] 无法解析 FollowupTime: %s", followup_time_str
             )
+            try:
+                adapter.clear_internal_followup(session_state=session_state)
+            except ReminderError as exc:
+                logger.warning(
+                    "[FollowupPlan] 无法清理内部 follow-up: %s", exc.user_message
+                )
             return
 
         proactive_times = int(session_state.get("proactive_times", 0) or 0)
@@ -327,16 +302,19 @@ class PostAnalyzeWorkflow:
             timezone=getattr(resolved_tz, "key", str(resolved_tz)),
             rrule=None,
         )
-        service.create_or_replace_internal_followup(
-            owner_user_id=owner_user_id,
-            conversation_id=conversation_id,
-            character_id=character_id,
-            route_key=route_key,
-            title=followup_prompt[:48],
-            prompt=followup_prompt,
-            schedule=reminder_schedule,
-            metadata={"proactive_times": next_proactive_times},
-        )
+        try:
+            adapter.create_or_replace_internal_followup(
+                session_state=session_state,
+                title=followup_prompt[:48],
+                prompt=followup_prompt,
+                schedule=reminder_schedule,
+                metadata={"proactive_times": next_proactive_times},
+            )
+        except ReminderError as exc:
+            logger.warning(
+                "[FollowupPlan] 无法设置内部 follow-up: %s", exc.user_message
+            )
+            return
         logger.info(
             "[FollowupPlan] 设置内部 proactive follow-up: action=%s time=%s",
             followup_action,

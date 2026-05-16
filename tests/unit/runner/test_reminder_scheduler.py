@@ -97,12 +97,24 @@ def fire_result(ok=True, fire_id="rem-1:2026-04-29T01:00:00+00:00"):
     )
 
 
+_DEFAULT_FIRE_RESULT = object()
+
+
+def build_fire_consumer(result=_DEFAULT_FIRE_RESULT, side_effect=None):
+    consumer = Mock()
+    consumer.handle_fire_event = AsyncMock(
+        return_value=fire_result() if result is _DEFAULT_FIRE_RESULT else result,
+        side_effect=side_effect,
+    )
+    return consumer
+
+
 def test_startup_scans_active_reminders_and_registers_jobs():
     reminder = build_reminder()
     dao = Mock(list_due_active=Mock(return_value=[reminder_document(reminder)]))
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(),
+        fire_consumer=build_fire_consumer(),
         scheduler=Mock(start=Mock()),
         now_provider=lambda: datetime(2026, 4, 28, 1, 0, tzinfo=UTC),
     )
@@ -120,7 +132,7 @@ def test_register_reminder_uses_stable_job_id_and_payload():
     scheduler_backend = Mock()
     scheduler = ReminderScheduler(
         reminder_dao=Mock(),
-        fire_event_handler=AsyncMock(),
+        fire_consumer=build_fire_consumer(),
         scheduler=scheduler_backend,
         now_provider=lambda: datetime(2026, 4, 28, 1, 0, tzinfo=UTC),
     )
@@ -145,19 +157,46 @@ async def test_stale_wakeup_does_not_emit_event():
         build_reminder(next_fire_at=scheduled_for + timedelta(minutes=5))
     )
     dao = Mock(get_reminder=Mock(return_value=stored_reminder))
-    handler = AsyncMock()
+    consumer = build_fire_consumer()
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=handler,
+        fire_consumer=consumer,
         scheduler=Mock(),
         now_provider=lambda: scheduled_for,
     )
 
     await scheduler._execute_job("rem-1", scheduled_for)
 
-    handler.assert_not_called()
+    consumer.handle_fire_event.assert_not_called()
     dao.atomic_apply_fire_success.assert_not_called()
     dao.atomic_apply_fire_failure.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_scheduler_dispatches_fired_event_to_fire_consumer_handle_fire_event():
+    scheduled_for = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
+    finished_at = datetime(2026, 4, 29, 1, 0, 3, tzinfo=UTC)
+    stored_reminder = reminder_document(build_reminder(next_fire_at=scheduled_for))
+    consumer = Mock()
+    consumer.handle_fire_event = AsyncMock(return_value=fire_result())
+    dao = Mock(
+        get_reminder=Mock(return_value=stored_reminder),
+        atomic_apply_fire_success=Mock(return_value=True),
+    )
+    scheduler = ReminderScheduler(
+        reminder_dao=dao,
+        fire_consumer=consumer,
+        scheduler=Mock(),
+        now_provider=lambda: finished_at,
+    )
+    scheduler.remove_reminder = Mock()
+
+    await scheduler._execute_job("rem-1", scheduled_for)
+
+    consumer.handle_fire_event.assert_awaited_once()
+    event = consumer.handle_fire_event.call_args.args[0]
+    assert event.fire_id == "rem-1:2026-04-29T01:00:00+00:00"
+    assert event.fire_at == finished_at
 
 
 @pytest.mark.asyncio
@@ -172,14 +211,14 @@ async def test_successful_one_shot_completes_reminder_and_clears_next_fire_at():
             metadata={"proactive_times": 0},
         )
     )
-    fire_event_handler = AsyncMock(return_value=fire_result())
+    fire_consumer = build_fire_consumer()
     dao = Mock(
         get_reminder=Mock(return_value=stored_reminder),
         atomic_apply_fire_success=Mock(return_value=True),
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=fire_event_handler,
+        fire_consumer=fire_consumer,
         scheduler=Mock(remove_job=Mock()),
         now_provider=lambda: finished_at,
     )
@@ -193,7 +232,7 @@ async def test_successful_one_shot_completes_reminder_and_clears_next_fire_at():
     assert updates["last_fired_at"] == scheduled_for
     assert updates["last_event_ack_at"] == finished_at
     assert updates["last_error"] is None
-    event = fire_event_handler.call_args.args[0]
+    event = fire_consumer.handle_fire_event.call_args.args[0]
     assert event.fire_mode == "followup"
     assert event.prompt == "ask whether the user started"
     assert event.metadata == {"proactive_times": 0}
@@ -214,7 +253,7 @@ async def test_successful_recurring_event_advances_next_fire_at():
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(return_value=fire_result()),
+        fire_consumer=build_fire_consumer(),
         scheduler=Mock(),
         now_provider=lambda: finished_at,
     )
@@ -241,7 +280,7 @@ async def test_failed_fire_result_marks_reminder_failed_and_clears_next_fire_at(
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(return_value=fire_result(ok=False)),
+        fire_consumer=build_fire_consumer(result=fire_result(ok=False)),
         scheduler=Mock(),
         now_provider=lambda: finished_at,
     )
@@ -273,7 +312,7 @@ async def test_handler_exception_marks_reminder_failed_and_removes_job():
 
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=failing_handler,
+        fire_consumer=build_fire_consumer(side_effect=failing_handler),
         scheduler=Mock(),
         now_provider=lambda: finished_at,
     )
@@ -298,7 +337,7 @@ async def test_invalid_handler_result_marks_reminder_failed_and_removes_job():
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(return_value=None),
+        fire_consumer=build_fire_consumer(result=None),
         scheduler=Mock(),
         now_provider=lambda: finished_at,
     )
@@ -327,7 +366,7 @@ async def test_successful_recurring_event_completes_when_count_exhausted():
     )
     scheduler = ReminderScheduler(
         reminder_dao=dao,
-        fire_event_handler=AsyncMock(return_value=fire_result()),
+        fire_consumer=build_fire_consumer(),
         scheduler=Mock(),
         now_provider=lambda: finished_at,
     )

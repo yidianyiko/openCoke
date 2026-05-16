@@ -40,12 +40,12 @@ class ReminderScheduler:
     def __init__(
         self,
         reminder_dao: Any,
-        fire_event_handler: Any,
+        fire_consumer: Any,
         scheduler: AsyncIOScheduler | None = None,
         now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self.reminder_dao = reminder_dao
-        self.fire_event_handler = fire_event_handler
+        self.fire_consumer = fire_consumer
         self.scheduler = scheduler or AsyncIOScheduler(timezone=UTC)
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
@@ -191,11 +191,7 @@ class ReminderScheduler:
         return f"reminder:{reminder_id}"
 
     async def _fire_event(self, event: ReminderFiredEvent) -> ReminderFireResult:
-        handle = getattr(self.fire_event_handler, "handle", None)
-        if callable(handle) and "handle" in dir(type(self.fire_event_handler)):
-            result = handle(event)
-        else:
-            result = self.fire_event_handler(event)
+        result = self.fire_consumer.handle_fire_event(event)
         if inspect.isawaitable(result):
             result = await result
         if not isinstance(result, ReminderFireResult):

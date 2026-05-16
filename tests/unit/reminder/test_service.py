@@ -297,12 +297,22 @@ def test_create_visible_reminder_writes_required_classification_fields():
 
 
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
-    from agent.runner.reminder_scheduler import set_reminder_scheduler_instance
+    from agent.reminder.runtime import (
+        ReminderRuntime,
+        get_reminder_runtime_instance,
+        set_reminder_runtime_instance,
+    )
 
     dao = InMemoryReminderDAO()
     scheduler = Mock()
-    set_reminder_scheduler_instance(scheduler)
+    previous_runtime = get_reminder_runtime_instance()
+    runtime = ReminderRuntime(
+        contract=object(),
+        scheduler=scheduler,
+        fire_consumer=object(),
+    )
     try:
+        set_reminder_runtime_instance(runtime)
         service = ReminderService(
             reminder_dao=dao,
             now_provider=lambda: NOW,
@@ -312,7 +322,7 @@ def test_create_uses_global_scheduler_when_scheduler_not_injected():
 
         scheduler.register_reminder.assert_called_once_with(reminder)
     finally:
-        set_reminder_scheduler_instance(None)
+        set_reminder_runtime_instance(previous_runtime)
 
 
 def test_create_writes_bson_encodable_schedule_document():

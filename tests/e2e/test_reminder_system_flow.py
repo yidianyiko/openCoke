@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from datetime import UTC, date, datetime, time
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from apscheduler.jobstores.base import JobLookupError
@@ -15,6 +15,7 @@ from agent.reminder.models import (
 from agent.reminder.service import ReminderService
 from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
 from agent.runner.reminder_event_handler import ReminderFireEventHandler
+from agent.runner.reminder_fire_consumer import CokeReminderFireConsumer
 from agent.runner.reminder_scheduler import ReminderScheduler
 
 
@@ -258,6 +259,12 @@ def _event_handler(
     )
 
 
+def _fire_consumer(result=None):
+    consumer = Mock()
+    consumer.handle_fire_event = AsyncMock(return_value=result)
+    return consumer
+
+
 @pytest.mark.e2e
 def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_actions(
     monkeypatch,
@@ -268,7 +275,7 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
     scheduler_backend = RecordingSchedulerBackend()
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=Mock(),
+        fire_consumer=_fire_consumer(),
         scheduler=scheduler_backend,
         now_provider=lambda: now,
     )
@@ -280,10 +287,10 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
 
     import agent.agno_agent.tools.deferred_action.service as legacy_service_module
     import agent.agno_agent.tools.deferred_action.tool as legacy_tool_module
-    import agent.agno_agent.tools.reminder_protocol.tool as reminder_tool_module
+    import agent.agno_agent.adapters.coke_reminder_adapter as reminder_adapter_module
     from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
-    monkeypatch.setattr(reminder_tool_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(reminder_adapter_module, "ReminderService", lambda: service)
     monkeypatch.setattr(
         legacy_service_module,
         "DeferredActionService",
@@ -336,7 +343,7 @@ def test_scheduler_restart_reconstructs_jobs_from_reminders_next_fire_at():
     reminder_dao = InMemoryReminderDAO()
     first_scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=Mock(),
+        fire_consumer=_fire_consumer(),
         scheduler=RecordingSchedulerBackend(),
         now_provider=lambda: now,
     )
@@ -353,7 +360,7 @@ def test_scheduler_restart_reconstructs_jobs_from_reminders_next_fire_at():
     restarted_backend = RecordingSchedulerBackend()
     restarted_scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=Mock(),
+        fire_consumer=_fire_consumer(),
         scheduler=restarted_backend,
         now_provider=lambda: now,
     )
@@ -380,9 +387,11 @@ async def test_one_shot_fired_event_enters_agent_handler_and_completes_reminder(
     existing_output_lookup = Mock(return_value=None)
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=_event_handler(
-            output_writer,
-            existing_output_lookup=existing_output_lookup,
+        fire_consumer=CokeReminderFireConsumer(
+            _event_handler(
+                output_writer,
+                existing_output_lookup=existing_output_lookup,
+            )
         ),
         scheduler=RecordingSchedulerBackend(),
         now_provider=lambda: fired_at,
@@ -420,7 +429,9 @@ async def test_recurring_reminder_advances_next_fire_at_after_success():
     scheduler_backend = RecordingSchedulerBackend()
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=_event_handler(Mock(return_value={"_id": "out-1"})),
+        fire_consumer=CokeReminderFireConsumer(
+            _event_handler(Mock(return_value={"_id": "out-1"}))
+        ),
         scheduler=scheduler_backend,
         now_provider=lambda: fired_at,
     )
@@ -454,13 +465,15 @@ async def test_failed_event_handling_marks_reminder_failed():
     scheduler_backend = RecordingSchedulerBackend()
     scheduler = ReminderScheduler(
         reminder_dao=reminder_dao,
-        fire_event_handler=_event_handler(
-            Mock(
-                return_value={
-                    "_id": "out-1",
-                    "status": "failed",
-                    "last_error": "no route",
-                }
+        fire_consumer=CokeReminderFireConsumer(
+            _event_handler(
+                Mock(
+                    return_value={
+                        "_id": "out-1",
+                        "status": "failed",
+                        "last_error": "no route",
+                    }
+                )
             )
         ),
         scheduler=scheduler_backend,
