@@ -193,9 +193,25 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
         "明天早上九点我来叫你。",
     ],
 )
-async def test_direct_reminder_promise_without_tool_result_fails_closed(
+async def test_direct_reminder_promise_fails_closed_when_recovery_has_no_output(
     monkeypatch, model_text
 ):
+    class NoopReminderPort:
+        async def run(self, input_message, run_context, args):
+            del input_message, run_context, args
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"action": "none"},
+                metadata={"durable_write": False},
+            )
+
+    monkeypatch.setattr(
+        agent_runtime,
+        "_default_capability_ports",
+        lambda: {"reminder_intent": NoopReminderPort()},
+    )
+
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": model_text}],
         tool_results=[],

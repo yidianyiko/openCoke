@@ -464,6 +464,64 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_recovers_unconfirmed_reminder_promise(monkeypatch):
+    class FakeReminderPort:
+        async def run(self, input_message, run_context, args):
+            assert input_message == "今天17:57提醒我喝水呀"
+            assert args == {}
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"summary": "已创建提醒：喝水（2026-05-16 17:57）"},
+                metadata={"durable_write": True},
+            )
+
+    monkeypatch.setattr(
+        agent_runtime,
+        "_default_capability_ports",
+        lambda: {"reminder_intent": FakeReminderPort()},
+    )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="",
+                messages=[
+                    SimpleNamespace(
+                        role="assistant",
+                        content=(
+                            "好的呀！17:57 我会提醒你喝水，"
+                            "还有什么需要我帮忙的吗？"
+                        ),
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="今天17:57提醒我喝水呀",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：喝水（2026-05-16 17:57）"
+    ]
+    assert [tool.name for tool in result.tool_results] == ["reminder"]
+    assert result.trace["status"] == "recovered_unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
 async def test_reminder_fired_input_marks_system_delivery_for_model(monkeypatch):
     model_inputs = []
 

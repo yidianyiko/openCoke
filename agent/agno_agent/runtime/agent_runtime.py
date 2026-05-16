@@ -267,16 +267,78 @@ def _check_unconfirmed_durable_write_promise(
         return None
     if any(result.ok and result.durable_write for result in tool_results):
         return None
-    if "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text:
+    matched = [
+        pattern
+        for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
+        if pattern.search(final_text)
+    ]
+    if not matched:
         return None
-    if not any(
-        pattern.search(final_text) for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
-    ):
-        return None
+    has_question = "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text
+    if has_question:
+        direct_promise_patterns = (
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[0],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[2],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[3],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[4],
+        )
+        if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
+            return None
     return RuntimeErrorDisposition(
         code="unconfirmed_durable_write_promise",
         retryable=False,
         metadata={"input_type": agent_input.input_type},
+    )
+
+
+async def _recover_unconfirmed_durable_write_promise(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    tool_results: list[CapabilityResult],
+) -> AgentRunResult | None:
+    reminder_port = _default_capability_ports().get("reminder_intent")
+    if reminder_port is None:
+        return None
+    try:
+        result = await _run_capability_port(
+            reminder_port,
+            input_message=input_message,
+            run_context=run_context,
+            args={},
+        )
+    except Exception:
+        logger.exception("Reminder intent recovery failed")
+        return None
+
+    tool_results.append(result)
+    captured_tool_results = tuple(tool_results)
+    durable_write_error = _check_durable_write_contract(captured_tool_results)
+    visible_text = _resolve_visible_text("", captured_tool_results)
+    if durable_write_error is not None:
+        visible_text = ""
+    if not visible_text:
+        return None
+
+    return AgentRunResult(
+        visible_messages=(VisibleMessage(message_type="text", content=visible_text),),
+        post_analyze_input={
+            "input_message": input_message,
+            "message_source": _message_source(agent_input, run_context),
+        }
+        if durable_write_error is None
+        else None,
+        tool_results=captured_tool_results,
+        metrics={"capability_result_count": len(captured_tool_results)},
+        trace={
+            "runtime": "agent",
+            "status": "recovered_unconfirmed_durable_write_promise",
+        },
+        output_disposition=OutputDisposition(
+            status="ok" if durable_write_error is None else "empty"
+        ),
+        error_disposition=durable_write_error,
     )
 
 
@@ -476,14 +538,24 @@ async def run_agent_runtime(
                 timeout_seconds=timeout_seconds,
                 tool_results=tool_results,
             )
-        captured_tool_results = tuple(tool_results)
-        durable_write_error = _check_durable_write_contract(captured_tool_results)
         final_text = _extract_final_text(run_output)
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
             final_text=final_text,
-            tool_results=captured_tool_results,
+            tool_results=tool_results,
         )
+        if unconfirmed_promise_error is not None:
+            recovered_result = await _recover_unconfirmed_durable_write_promise(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+                tool_results=tool_results,
+            )
+            if recovered_result is not None:
+                return recovered_result
+
+        captured_tool_results = tuple(tool_results)
+        durable_write_error = _check_durable_write_contract(captured_tool_results)
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
         visible_text = _resolve_visible_text(final_text, captured_tool_results)
         if runtime_contract_error is not None:
