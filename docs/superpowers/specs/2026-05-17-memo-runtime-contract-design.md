@@ -101,6 +101,11 @@ MemoRuntimeConfig(
 Callers must not implement storage rules. Coke, frontend APIs, future MCP
 tools, and any CLI adapter should all call the same Memo Runtime Contract.
 
+The first Coke integration pins the package as a local submodule at
+`memo-runtime/` and installs it into Coke's Python environment with
+`pip install -e memo-runtime`. Adapter tests must not depend on sibling
+directory imports or implicit `PYTHONPATH` behavior.
+
 ## Contract Shape
 
 The first contract should expose a small synchronous Python API:
@@ -209,6 +214,26 @@ Fields:
 Events record creation, edits, archives, deletes, review actions, proposal
 acceptance/rejection, and agent extraction context. Events are where adapter
 provenance belongs.
+
+### MemoMutationRecord
+
+`MemoMutationRecord` stores idempotency replay state for externally repeatable
+writes. It is separate from events because an idempotent retry must return the
+original domain object, not merely prove that an event row exists.
+
+Fields:
+
+- `owner_id`
+- `operation`
+- `idempotency_key`
+- `result_type`
+- `result_id`
+- `created_at`
+
+The unique key is `(owner_id, operation, idempotency_key)`. Operations that
+accept idempotency keys must check this table before mutating state and return
+the recorded card, proposal, or review item when a retry repeats the same
+operation.
 
 ### MemoEmbedding
 
@@ -364,6 +389,12 @@ Review actions:
 The review system should record events so the agent can later explain why a
 card was resurfaced without inventing provenance.
 
+`record_review_action()` is a write contract, not a UI-only convenience. The
+first version must support `mark_reviewed` and `dismiss` directly. If the
+review action accepts or rejects a proposal, it may delegate to the proposal
+contract methods, but it must still record a review event and participate in
+idempotency replay.
+
 ## Adapter Requirements
 
 ### Coke Agent Adapter
@@ -381,6 +412,11 @@ The agent adapter must not:
 - expose private cards unless the contract request authorizes it
 - silently accept proposals that materially change user memory
 - turn every chat message into a memo
+- infer an owner from an unauthenticated or missing runtime context
+
+The Coke adapter must map Coke runtime identity to `owner_id` through an
+explicit identity mapper. Missing owner identity fails closed with a stable
+capability error; it must not issue a memo query with an empty owner.
 
 ### Web/API Adapter
 
@@ -407,6 +443,7 @@ not introduce new product behavior unless the contract is updated first.
 The contract should return stable errors:
 
 - `memo_invalid_request`
+- `memo_owner_required`
 - `memo_not_found`
 - `memo_permission_denied`
 - `memo_conflict`
@@ -443,8 +480,13 @@ The first implementation should prove:
 - agent retrieval excludes private cards
 - review queue is deterministic enough to test with an injected clock and
   seeded random source
+- review actions update card review state, create events, and support
+  idempotent retry
 - proposals require explicit accept/reject transitions
 - Coke adapters call the Memo Runtime Contract instead of storage directly
+- Postgres storage either passes the same contract tests under
+  `MEMO_RUNTIME_DATABASE_URL` or is explicitly deferred from the completion
+  claim
 
 Expected verification surfaces:
 
@@ -453,13 +495,14 @@ Expected verification surfaces:
 - Coke adapter unit tests
 - repo-OS docs checks after submodule/contract docs are added
 
-## Open Decisions For Implementation
+## Implementation Decisions
 
-- exact external repository name
-- exact Postgres migration tool
-- whether first embedding provider is OpenAI, Aliyun, or an adapter protocol
-- whether Coke initially pins the package as a submodule or as a package
-  dependency
+- The local package repository is `/data/projects/coke-memo-runtime`.
+- Coke pins it as a local submodule at `memo-runtime/` for the first
+  implementation and installs it with `pip install -e memo-runtime`.
+- The first migration format is raw SQL stored in the package.
+- The first embedding integration is an adapter protocol with a deterministic
+  test provider; production provider selection can be configured later.
 
 These do not change the product boundary: memo-runtime stays headless,
 embedded, contract-first, and owned by its own package.
