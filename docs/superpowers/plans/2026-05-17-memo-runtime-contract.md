@@ -986,9 +986,21 @@ def test_review_action_can_accept_or_reject_proposals_with_events_and_idempotenc
             idempotency_key="review-reject-1",
         )
     )
+    replayed_rejected_item = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            owner_id="owner-1",
+            card_id="proposal:" + rejected_proposal.id,
+            action="reject_proposal",
+            actor_type="user",
+            actor_id="u1",
+            proposal_id=rejected_proposal.id,
+            idempotency_key="review-reject-1",
+        )
+    )
 
     assert replayed_item.id == accepted_item.id
     assert rejected_item.status == "dismissed"
+    assert replayed_rejected_item.id == rejected_item.id
     assert [event.event_type for event in runtime.storage.events][-2:] == [
         "review.accept_proposal",
         "review.reject_proposal",
@@ -1235,10 +1247,23 @@ def test_postgres_storage_satisfies_card_contract():
         )
     )
     updated = runtime.update_card(
-        UpdateMemoCardRequest("owner-pg-test", card.id, "Updated", None, None, None, "user", "u1")
+        UpdateMemoCardRequest("owner-pg-test", card.id, "Updated", None, None, None, "user", "u1", idempotency_key="pg-update-1")
     )
-    archived = runtime.archive_card(ArchiveMemoCardRequest("owner-pg-test", card.id, "user", "u1"))
-    deleted = runtime.delete_card(DeleteMemoCardRequest("owner-pg-test", card.id, "user", "u1"))
+    updated_replay = runtime.update_card(
+        UpdateMemoCardRequest("owner-pg-test", card.id, "Updated", None, None, None, "user", "u1", idempotency_key="pg-update-1")
+    )
+    archived = runtime.archive_card(
+        ArchiveMemoCardRequest("owner-pg-test", card.id, "user", "u1", idempotency_key="pg-archive-1")
+    )
+    archived_replay = runtime.archive_card(
+        ArchiveMemoCardRequest("owner-pg-test", card.id, "user", "u1", idempotency_key="pg-archive-1")
+    )
+    deleted = runtime.delete_card(
+        DeleteMemoCardRequest("owner-pg-test", card.id, "user", "u1", idempotency_key="pg-delete-1")
+    )
+    deleted_replay = runtime.delete_card(
+        DeleteMemoCardRequest("owner-pg-test", card.id, "user", "u1", idempotency_key="pg-delete-1")
+    )
     search = runtime.search_cards(SearchMemoCardsRequest("owner-pg-test", "Updated", (), (), True, 10))
     review = runtime.record_review_action(
         RecordMemoReviewActionRequest(
@@ -1286,8 +1311,11 @@ def test_postgres_storage_satisfies_card_contract():
 
     assert replayed.id == card.id
     assert updated.title == "Updated"
+    assert updated_replay.id == updated.id
     assert archived.lifecycle == "archived"
+    assert archived_replay.id == archived.id
     assert deleted.lifecycle == "deleted"
+    assert deleted_replay.id == deleted.id
     assert search.hits
     assert review_replay.id == review.id
     assert accepted.title == "Proposal card"
@@ -1443,6 +1471,25 @@ async def test_memo_capability_adapter_fails_closed_without_owner():
 
     assert result.ok is False
     assert result.error == "memo_owner_required"
+
+
+@pytest.mark.asyncio
+async def test_memo_capability_adapter_rejects_flat_owner_attributes():
+    from agent.agno_agent.capabilities.memo import MemoCapabilityPort, RuntimeOwnerMapper
+
+    port = MemoCapabilityPort(
+        contract_factory=lambda _context: None,
+        owner_mapper=RuntimeOwnerMapper(),
+    )
+
+    result = await port.run(
+        "memo review",
+        run_context=type("Context", (), {"user_id": "untrusted-flat-user"})(),
+        args={"query": "memo review"},
+    )
+
+    assert result.ok is False
+    assert result.error == "memo_owner_required"
 ```
 
 - [ ] **Step 2: Verify the adapter test fails**
@@ -1474,10 +1521,6 @@ class RuntimeOwnerMapper:
         trusted_user_id = str(getattr(trusted_user, "id", "") or "").strip()
         if trusted_user_id:
             return trusted_user_id
-        for attr in ("owner_user_id", "customer_id", "user_id"):
-            value = str(getattr(run_context, attr, "") or "").strip()
-            if value:
-                return value
         return ""
 
 
