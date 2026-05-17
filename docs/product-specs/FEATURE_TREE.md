@@ -38,6 +38,11 @@ repo-local map, not a product roadmap and not a replacement for
     `dao/pending_workflow_dao.py` against the `pending_workflows` collection;
     runtime gated by `pending_workflow.reminders.enabled` and
     `pending_workflow.reminders.execution_envelope.enabled` (both default off)
+- Memo runtime contract
+  - headless embedded package: `memo-runtime/`
+  - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`
+  - product behavior: memo cards, search, review queue, and agent proposals
+  - frontend implementation is a consumer and must not own memo business rules
 - Deferred Actions
   - durable state in MongoDB `deferred_actions` and
     `deferred_action_occurrences`

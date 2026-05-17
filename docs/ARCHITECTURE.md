@@ -233,6 +233,13 @@ stable domain contract, not separate owners of business behavior. Reminder is
 the first capability expected to follow this rule as it moves toward a
 Reminder Runtime Contract.
 
+The Memo Runtime follows the same contract-first boundary as a headless
+embedded Python package at `memo-runtime/`. Coke agent adapters and future
+frontend/API adapters must call the Memo Runtime Contract instead of writing
+memo storage directly. The package owns memo cards, events, proposals, search,
+review, and storage migrations; frontend implementation is intentionally a
+separate consumer.
+
 ## 5. Outbound Path
 
 Outbound replies now follow:
