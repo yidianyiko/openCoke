@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
-from types import SimpleNamespace
 
 import pytest
-from bson import ObjectId
 
-from scripts import user_path_normal_eval as normal_eval
+from scripts.reminder_eval import judges
+from scripts.reminder_eval import scoring as normal_eval
+from scripts.reminder_eval.dataset import (
+    DEFAULT_EXPECTATIONS_PATH,
+    ExpectedReminderCreate,
+    ReminderNormalPathCase,
+)
 
-_ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE = normal_eval.run_clarification_output_judge
+_ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE = judges.run_clarification_output_judge
 
 
 @pytest.fixture(autouse=True)
@@ -25,468 +28,8 @@ def disable_live_reminder_eval_judges(monkeypatch):
     )
 
 
-def test_normal_path_user_id_isolates_valid_original_user_by_batch_and_case():
-    case = normal_eval.ReminderNormalPathCase(
-        input="18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={
-            "source_id": "692c1546a538f0baad5561bb",
-            "from_user": "692c14e6a538f0baad5561b6",
-        },
-    )
-
-    first = normal_eval.normal_path_user_id(case, 2, batch_id="batch-a")
-    second = normal_eval.normal_path_user_id(case, 2, batch_id="batch-a")
-    other_batch = normal_eval.normal_path_user_id(case, 2, batch_id="batch-b")
-
-    assert first == second
-    assert first != "692c14e6a538f0baad5561b6"
-    assert other_batch != first
-    assert ObjectId.is_valid(first)
-
-
-def test_normal_path_user_id_has_deterministic_fallback_for_invalid_metadata():
-    case = normal_eval.ReminderNormalPathCase(
-        input="18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"source_id": "conv-a", "from_user": "user-a"},
-    )
-
-    first = normal_eval.normal_path_user_id(case, 5, batch_id="batch-a")
-    second = normal_eval.normal_path_user_id(case, 5, batch_id="batch-a")
-
-    assert first == second
-    assert ObjectId.is_valid(first)
-
-
-def test_normal_path_relation_seed_marks_eval_user_as_existing_contact():
-    relation = normal_eval.normal_path_relation_seed(
-        user_id="user-1",
-        character_id="char-1",
-        case_index=161,
-    )
-
-    assert relation["uid"] == "user-1"
-    assert relation["cid"] == "char-1"
-    assert relation["user_info"]["hobbyname"] == "reminder-e2e-user-161"
-    assert relation["relationship"]["closeness"] >= 50
-    assert relation["character_info"]["status"] == "空闲"
-    assert relation["relationship"]["status"] == "空闲"
-    assert "already-known" in relation["relationship"]["description"]
-
-
-def test_normal_path_user_seed_sets_eval_timezone():
-    user = normal_eval.normal_path_user_seed(
-        user_id="user-1",
-        case_index=162,
-        timezone_name="Asia/Tokyo",
-    )
-
-    assert user["timezone"] == "Asia/Tokyo"
-    assert user["effective_timezone"] == "Asia/Tokyo"
-    assert user["user_info"]["status"]["place"] == "test"
-
-
-def test_iter_case_batches_preserves_json_order_in_fixed_chunks():
-    batches = list(
-        normal_eval.iter_case_batches(
-            total_count=70, offset=0, limit=None, batch_size=32
-        )
-    )
-
-    assert batches == [
-        normal_eval.CaseBatch(offset=0, limit=32),
-        normal_eval.CaseBatch(offset=32, limit=32),
-        normal_eval.CaseBatch(offset=64, limit=6),
-    ]
-
-
-def test_iter_case_batches_applies_total_limit_before_chunking():
-    batches = list(
-        normal_eval.iter_case_batches(
-            total_count=70, offset=10, limit=33, batch_size=32
-        )
-    )
-
-    assert batches == [
-        normal_eval.CaseBatch(offset=10, limit=32),
-        normal_eval.CaseBatch(offset=42, limit=1),
-    ]
-
-
-def test_default_evidence_path_sanitizes_run_id():
-    assert normal_eval.default_evidence_path(run_id="batch/id:1").as_posix() == (
-        "artifacts/evidence/reminder-normal/batch-id-1.json"
-    )
-
-
-def test_main_writes_default_evidence_and_uses_serial_batches(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-
-    class FakeClient:
-        admin = SimpleNamespace(command=lambda _command: None)
-
-        def __getitem__(self, _name):
-            return object()
-
-    captured = {}
-
-    def fake_run_batch(**kwargs):
-        captured["serial"] = kwargs["serial"]
-        return {
-            "offset": kwargs["offset"],
-            "limit": kwargs["limit"],
-            "batch_id": kwargs["batch_id"],
-            "platform": kwargs["platform"],
-            "character_id": "char-1",
-            "user_ids": [],
-            "serial": kwargs["serial"],
-            "summary": {
-                "total": 0,
-                "passed": 0,
-                "failed": 0,
-                "pass_rate": 0,
-                "by_error": {},
-                "failures": [],
-            },
-            "results": [],
-        }
-
-    monkeypatch.setattr(
-        normal_eval,
-        "_parse_args",
-        lambda: SimpleNamespace(
-            cases=normal_eval.DEFAULT_CASES_PATH,
-            offset=0,
-            limit=1,
-            run_all=False,
-            batch_size=32,
-            continue_on_failure=False,
-            parallel_submit=False,
-            timeout_seconds=180,
-            timezone="Asia/Tokyo",
-            use_case_timestamps=False,
-            platform=None,
-            transport="business-clawscale",
-            batch_id="unit evidence",
-            character_alias=None,
-            output=None,
-        ),
-    )
-    monkeypatch.setattr(normal_eval, "load_cases", lambda _path: [])
-    monkeypatch.setattr(normal_eval, "mongo_client", lambda: FakeClient())
-    monkeypatch.setattr(
-        normal_eval, "run_batch", lambda *args, **kwargs: fake_run_batch(**kwargs)
-    )
-
-    assert normal_eval.main() == 0
-    assert captured["serial"] is True
-    evidence_path = tmp_path / "artifacts/evidence/reminder-normal/unit-evidence.json"
-    assert evidence_path.exists()
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    assert evidence["pending_workflow_two_turn_eval"]["name"] == (
-        "pending-workflow-hourly-checkin-two-turn"
-    )
-
-
-def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(
-    monkeypatch,
-):
-    case = normal_eval.ReminderNormalPathCase(
-        input="今天18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"timestamp": "2025-11-30 17:55:53"},
-    )
-    monkeypatch.setattr(normal_eval.time, "time", lambda: 1777413600)
-
-    assert normal_eval.case_input_timestamp(
-        case,
-        timezone_name="Asia/Tokyo",
-        use_case_timestamp=False,
-    ) == int(
-        datetime(
-            2026, 4, 29, 17, 55, 53, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
-        ).timestamp()
-    )
-
-
-def test_case_input_timestamp_rolls_passed_wall_clock_to_next_day(monkeypatch):
-    case = normal_eval.ReminderNormalPathCase(
-        input="你还需要在15：30提醒我吃饭；16：40提醒我洗澡",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"timestamp": "2025-11-30 09:50:19"},
-    )
-    monkeypatch.setattr(
-        normal_eval.time,
-        "time",
-        lambda: int(
-            datetime(
-                2026, 4, 29, 18, 59, 13, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
-            ).timestamp()
-        ),
-    )
-
-    assert normal_eval.case_input_timestamp(
-        case,
-        timezone_name="Asia/Tokyo",
-        use_case_timestamp=False,
-    ) == int(
-        datetime(
-            2026, 4, 30, 9, 50, 19, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
-        ).timestamp()
-    )
-
-
-def test_case_input_timestamp_can_use_corpus_timestamp_when_requested():
-    case = normal_eval.ReminderNormalPathCase(
-        input="今天18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"timestamp": "2025-11-30 17:55:53"},
-    )
-
-    assert normal_eval.case_input_timestamp(
-        case,
-        timezone_name="Asia/Tokyo",
-        use_case_timestamp=True,
-    ) == int(
-        datetime(
-            2025, 11, 30, 17, 55, 53, tzinfo=normal_eval.ZoneInfo("Asia/Tokyo")
-        ).timestamp()
-    )
-
-
-class RecordingCollection:
-    def __init__(self) -> None:
-        self.documents = []
-
-    def insert_one(self, document):
-        self.documents.append(document)
-
-        class Result:
-            inserted_id = ObjectId("692c14aaa538f0baad5561b4")
-
-        return Result()
-
-
-class RecordingDB:
-    def __init__(self) -> None:
-        self.inputmessages = RecordingCollection()
-
-
-class QueryResult(list):
-    def sort(self, key, direction=None):
-        if isinstance(key, list):
-            sort_key, direction = key[0]
-        else:
-            sort_key = key
-        return QueryResult(
-            sorted(
-                self,
-                key=lambda document: dotted_get(document, sort_key),
-                reverse=direction == -1,
-            )
-        )
-
-
-class QueryCollection:
-    def __init__(self, documents):
-        self.documents = documents
-        self.queries = []
-
-    def find(self, query):
-        self.queries.append(query)
-        return QueryResult(
-            [
-                document
-                for document in self.documents
-                if document_matches_query(document, query)
-            ]
-        )
-
-
-class QueryDB:
-    def __init__(self, *, outputs, reminders, conversations=None):
-        self.outputmessages = QueryCollection(outputs)
-        self.reminders = QueryCollection(reminders)
-        self.conversations = QueryCollection(conversations or [])
-
-
-def dotted_get(document, path):
-    return dotted_get_parts(document, path.split("."))
-
-
-def dotted_get_parts(document, parts):
-    if not parts:
-        return document
-    current = document
-    part = parts[0]
-    if isinstance(current, list):
-        values = []
-        for item in current:
-            value = dotted_get_parts(item, parts)
-            if isinstance(value, list):
-                values.extend(value)
-            elif value is not None:
-                values.append(value)
-        return values
-    if not isinstance(current, dict):
-        return None
-    return dotted_get_parts(current.get(part), parts[1:])
-
-
-def document_matches_query(document, query):
-    for key, expected in query.items():
-        if key == "$or":
-            if not any(document_matches_query(document, option) for option in expected):
-                return False
-            continue
-        actual = dotted_get(document, key)
-        if isinstance(expected, dict):
-            if "$gte" in expected and not (
-                actual is not None and actual >= expected["$gte"]
-            ):
-                return False
-            if "$in" in expected and actual not in expected["$in"]:
-                return False
-            if "$all" in expected:
-                actual_values = actual if isinstance(actual, list) else [actual]
-                if not all(item in actual_values for item in expected["$all"]):
-                    return False
-            continue
-        if actual != expected:
-            return False
-    return True
-
-
-def test_submit_cases_can_write_clawscale_request_response_envelope(monkeypatch):
-    db = RecordingDB()
-    case = normal_eval.ReminderNormalPathCase(
-        input="18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"from_user": "692c14e6a538f0baad5561b6"},
-    )
-    monkeypatch.setattr(normal_eval.time, "time", lambda: 1777413600)
-
-    normal_eval.submit_cases(
-        db,
-        [case],
-        offset=7,
-        character_id="69eeeee7e7ef890c105124bf",
-        platform="business",
-        batch_id="manual-reminder-test",
-        timezone_name="Asia/Tokyo",
-        use_case_timestamp=False,
-        transport="business-clawscale",
-    )
-
-    document = db.inputmessages.documents[0]
-    assert document["platform"] == "business"
-    assert document["metadata"]["source"] == "clawscale"
-    assert document["metadata"]["source_eval"] == "reminder_normal_path_eval"
-    assert document["metadata"]["delivery_mode"] == "request_response"
-    assert document["metadata"]["business_protocol"] == {
-        "delivery_mode": "request_response",
-        "gateway_conversation_id": "manual-reminder-test-case-7",
-        "business_conversation_key": "manual-reminder-test-case-7",
-        "causal_inbound_event_id": "manual-reminder-test-case-7-inbound",
-    }
-
-
-def test_build_result_isolates_outputs_and_reminders_to_current_case():
-    case = normal_eval.ReminderNormalPathCase(
-        input="18:00提醒我喝水",
-        expected_intent="reminder",
-        matched_keywords=["提醒"],
-        metadata={"from_user": "692c14e6a538f0baad5561b6"},
-    )
-    submitted_wall_at = datetime(2026, 4, 29, 8, 0, tzinfo=timezone.utc)
-    db = QueryDB(
-        outputs=[
-            {
-                "platform": "business",
-                "from_user": "char-1",
-                "to_user": "user-1",
-                "expect_output_timestamp": 1777449600,
-                "message": "已创建提醒：错误的上一例",
-                "metadata": {"batch_id": "batch-a", "case_index": 11},
-            },
-            {
-                "platform": "business",
-                "from_user": "char-1",
-                "to_user": "user-1",
-                "expect_output_timestamp": 1777449601,
-                "message": "已创建提醒：喝水",
-                "metadata": {"batch_id": "batch-a", "case_index": 12},
-            },
-        ],
-        reminders=[
-            {
-                "owner_user_id": "user-1",
-                "title": "错误的上一例",
-                "lifecycle_state": "active",
-                "next_fire_at": submitted_wall_at,
-                "created_at": submitted_wall_at,
-                "updated_at": submitted_wall_at,
-                "agent_output_target": {"conversation_id": "conv-11"},
-            },
-            {
-                "owner_user_id": "user-1",
-                "title": "喝水",
-                "lifecycle_state": "active",
-                "next_fire_at": submitted_wall_at,
-                "created_at": submitted_wall_at,
-                "updated_at": submitted_wall_at,
-                "agent_output_target": {"conversation_id": "692c14aaa538f0baad556112"},
-            },
-        ],
-        conversations=[
-            {
-                "_id": ObjectId("692c14aaa538f0baad556112"),
-                "platform": "business",
-                "chatroom_name": None,
-                "talkers": [
-                    {"id": "clawscale:batch-a-case-12"},
-                    {"id": "clawscale-character:char-1"},
-                ],
-            }
-        ],
-    )
-
-    result = normal_eval.build_result(
-        db,
-        case_index=12,
-        item={
-            "case": case,
-            "user_id": "user-1",
-            "input_message_id": "692c14aaa538f0baad5561b4",
-            "submitted_at": 1777449600,
-            "submitted_wall_at": submitted_wall_at,
-            "batch_id": "batch-a",
-            "conversation_key": "batch-a-case-12",
-        },
-        input_status="handled",
-        character_id="char-1",
-        platform="business",
-        elapsed_seconds=1.5,
-    )
-
-    assert [output["message"] for output in result.outputs] == ["已创建提醒：喝水"]
-    assert [reminder["title"] for reminder in result.reminders] == ["喝水"]
-    assert db.outputmessages.queries[0]["metadata.batch_id"] == "batch-a"
-    assert db.outputmessages.queries[0]["metadata.case_index"] == 12
-    assert db.reminders.queries[0]["agent_output_target.conversation_id"] == {
-        "$in": ["692c14aaa538f0baad556112"]
-    }
-
-
 def test_validate_observations_requires_user_visible_crud_ack():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -511,7 +54,7 @@ def test_validate_observations_requires_user_visible_crud_ack():
 
 
 def test_validate_observations_defaults_unannotated_cases_to_discussion():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="最近要学习llya的一篇文章 明天下班前必须学完",
         expected_intent="reminder",
         matched_keywords=["明天", "下班", "学习"],
@@ -529,7 +72,7 @@ def test_validate_observations_defaults_unannotated_cases_to_discussion():
 
 
 def test_validate_observations_accepts_delete_crud_without_created_reminder():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上不用叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -550,7 +93,7 @@ def test_validate_observations_accepts_delete_crud_without_created_reminder():
 
 
 def test_validate_observations_accepts_allowed_delete_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上不用叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -572,7 +115,7 @@ def test_validate_observations_accepts_allowed_delete_clarification():
 
 
 def test_validate_observations_rejects_create_clarification_for_delete_request():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="今天学习结束，晚安，不要打扰我了",
         expected_intent="reminder",
         matched_keywords=["不要打扰"],
@@ -594,7 +137,7 @@ def test_validate_observations_rejects_create_clarification_for_delete_request()
 
 
 def test_validate_observations_accepts_cancel_target_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上不用叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -612,7 +155,7 @@ def test_validate_observations_accepts_cancel_target_clarification():
 
 
 def test_validate_observations_accepts_what_reminder_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上不用叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -630,7 +173,7 @@ def test_validate_observations_accepts_what_reminder_clarification():
 
 
 def test_validate_observations_accepts_confirmation_style_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上不用叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -652,7 +195,7 @@ def test_validate_observations_accepts_confirmation_style_clarification():
 
 
 def test_validate_observations_accepts_explicit_delete_target_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="今天学习结束，晚安，不要打扰我了",
         expected_intent="reminder",
         matched_keywords=["不要打扰"],
@@ -678,7 +221,7 @@ def test_validate_observations_accepts_explicit_delete_target_question():
 
 
 def test_validate_observations_does_not_require_crud_for_unschedulable_label():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="我这周一和周五是全天兼职，这两天估计要插空学习",
         expected_intent="reminder",
         matched_keywords=["周一", "周五", "学习"],
@@ -696,7 +239,7 @@ def test_validate_observations_does_not_require_crud_for_unschedulable_label():
 
 
 def test_validate_observations_accepts_planning_detail_question_as_discussion():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="还有就是规划一下，我这今天半天和明天半天我要怎么安排我的时间才能差不多做完",
         expected_intent="reminder",
         matched_keywords=["今天", "明天", "时间"],
@@ -723,7 +266,7 @@ def test_validate_observations_accepts_planning_detail_question_as_discussion():
 
 
 def test_validate_observations_accepts_discussion_with_trailing_reminder_offer():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="我希望可以7点起床早读",
         expected_intent="reminder",
         matched_keywords=["7点", "起床"],
@@ -750,7 +293,7 @@ def test_validate_observations_accepts_discussion_with_trailing_reminder_offer()
 
 
 def test_validate_observations_accepts_behavior_discussion_with_future_reminder_offer():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="我以为把你纯当闹钟就行了，没想到还得回复你你才会保持提醒",
         expected_intent="reminder",
         matched_keywords=["闹钟", "提醒"],
@@ -778,7 +321,7 @@ def test_validate_observations_accepts_behavior_discussion_with_future_reminder_
 
 
 def test_validate_observations_does_not_require_crud_for_nickname_request():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="叫我小凡就行了",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -796,7 +339,7 @@ def test_validate_observations_does_not_require_crud_for_nickname_request():
 
 
 def test_validate_observations_rejects_reminder_clarification_for_nickname_request():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="叫我小凡就行了",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -815,7 +358,7 @@ def test_validate_observations_rejects_reminder_clarification_for_nickname_reque
 
 
 def test_validate_observations_rejects_wrong_clarification_focus():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="冥想可以每个小时提醒我做一次冥想吗",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -836,7 +379,7 @@ def test_validate_observations_rejects_wrong_clarification_focus():
 
 
 def test_validate_observations_does_not_require_crud_for_vague_capability_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="你可以循环提醒我吗",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -854,7 +397,7 @@ def test_validate_observations_does_not_require_crud_for_vague_capability_questi
 
 
 def test_validate_observations_does_not_require_crud_for_frustrated_capability_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="怎么这样！那你到底会不会提醒我",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -872,7 +415,7 @@ def test_validate_observations_does_not_require_crud_for_frustrated_capability_q
 
 
 def test_validate_observations_does_not_require_crud_for_missed_reminder_complaint():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="今天下午怎么不提醒我？",
         expected_intent="reminder",
         matched_keywords=["提醒我", "今天", "下午"],
@@ -890,7 +433,7 @@ def test_validate_observations_does_not_require_crud_for_missed_reminder_complai
 
 
 def test_validate_observations_does_not_require_crud_for_underspecified_reminder_request():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="你提醒我一下",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -908,7 +451,7 @@ def test_validate_observations_does_not_require_crud_for_underspecified_reminder
 
 
 def test_validate_observations_does_not_require_crud_for_reminder_time_query():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="那你打算几点提醒我",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -926,7 +469,7 @@ def test_validate_observations_does_not_require_crud_for_reminder_time_query():
 
 
 def test_validate_observations_requires_fixture_for_date_only_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
         expected_intent="reminder",
         matched_keywords=["提醒我", "明天", "学习"],
@@ -944,7 +487,7 @@ def test_validate_observations_requires_fixture_for_date_only_clarification():
 
 
 def test_validate_observations_rejects_reminder_for_clarification_fixture():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="明天继续提醒我看文章，要看完，然后要写学习笔记。小说明天也继续写！",
         expected_intent="reminder",
         matched_keywords=["提醒我", "明天", "学习"],
@@ -969,7 +512,7 @@ def test_validate_observations_rejects_reminder_for_clarification_fixture():
 
 
 def test_clarification_output_accepts_cadence_confirmation_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -987,7 +530,7 @@ def test_clarification_output_accepts_cadence_confirmation_question():
 
 
 def test_clarification_output_accepts_proposed_cadence_confirmation():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1007,7 +550,7 @@ def test_clarification_output_accepts_proposed_cadence_confirmation():
 
 
 def test_clarification_output_accepts_cadence_adoption_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="那你建议我多久来提醒我呢？",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1025,7 +568,7 @@ def test_clarification_output_accepts_cadence_adoption_question():
 
 
 def test_clarification_output_accepts_frequency_question_wording():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="10点到11点写作，随时提醒我专注",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1044,7 +587,7 @@ def test_clarification_output_accepts_frequency_question_wording():
 
 
 def test_clarification_output_accepts_when_question_with_injected_judge():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="可以提醒我喝水哦",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -1078,7 +621,7 @@ def test_clarification_output_accepts_when_question_with_injected_judge():
 
 
 def test_clarification_output_accepts_every_how_long_wording():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="10点到11点写作，随时提醒我专注",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1097,7 +640,7 @@ def test_clarification_output_accepts_every_how_long_wording():
 
 
 def test_clarification_output_accepts_how_often_remind_wording():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="10点到11点写作，随时提醒我专注",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1116,7 +659,7 @@ def test_clarification_output_accepts_how_often_remind_wording():
 
 
 def test_clarification_output_accepts_how_often_remind_you_wording():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="10点到11点写作，随时提醒我专注",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1135,7 +678,7 @@ def test_clarification_output_accepts_how_often_remind_you_wording():
 
 
 def test_clarification_output_accepts_llm_judged_frequency_question():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="我10：13-11：00要写个个人陈述，随时提醒我让我专注。11：00点个外卖",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1228,30 +771,27 @@ def test_clarification_output_llm_judge_timeout_returns_false(monkeypatch):
             time.sleep(1)
 
     monkeypatch.setattr(
-        normal_eval,
+        judges,
         "CLARIFICATION_OUTPUT_JUDGE_TIMEOUT_SECONDS",
         0.01,
     )
-    monkeypatch.setattr(normal_eval, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
+    monkeypatch.setattr(judges, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
     monkeypatch.setattr(
-        normal_eval,
+        judges,
         "_clarification_output_judge_agent",
         lambda: SlowJudge(),
     )
     monkeypatch.setattr(
-        normal_eval,
+        judges,
         "run_clarification_output_judge",
         _ORIGINAL_RUN_CLARIFICATION_OUTPUT_JUDGE,
     )
 
-    assert (
-        normal_eval.run_clarification_output_judge("提醒我写作", "几点提醒你？")
-        is False
-    )
+    assert judges.run_clarification_output_judge("提醒我写作", "几点提醒你？") is False
 
 
 def test_clarification_output_llm_judge_rubric_covers_missing_cadence():
-    prompt = normal_eval.build_clarification_output_judge_prompt(
+    prompt = judges.build_clarification_output_judge_prompt(
         "10点到11点写作，随时提醒我专注",
         "专注提醒的频率是多少呢？",
     )
@@ -1262,7 +802,7 @@ def test_clarification_output_llm_judge_rubric_covers_missing_cadence():
 
 
 def test_clarification_output_llm_judge_rubric_excludes_conditional_future_offers():
-    prompt = normal_eval.build_clarification_output_judge_prompt(
+    prompt = judges.build_clarification_output_judge_prompt(
         "我以为把你纯当闹钟就行了，没想到还得回复你你才会保持提醒",
         "如果你有特别需要长期提醒的事项，可以随时告诉我。",
     )
@@ -1272,7 +812,7 @@ def test_clarification_output_llm_judge_rubric_excludes_conditional_future_offer
 
 
 def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="你觉得多久提醒我一下鼓励我学习呢",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1293,7 +833,7 @@ def test_clarification_output_rejects_unconfirmed_future_reminder_commitment():
 
 
 def test_discussion_output_rejects_unconfirmed_future_reminder_commitment():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="还想继续休息一会",
         expected_intent="reminder",
         matched_keywords=["一会", "休息"],
@@ -1312,7 +852,7 @@ def test_discussion_output_rejects_unconfirmed_future_reminder_commitment():
 
 
 def test_clarification_question_is_not_treated_as_unconfirmed_reminder_commitment():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="晚上10点提醒我",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1355,18 +895,18 @@ def test_unconfirmed_reminder_llm_judge_timeout_returns_false(monkeypatch):
             time.sleep(1)
 
     monkeypatch.setattr(
-        normal_eval,
+        judges,
         "UNCONFIRMED_REMINDER_JUDGE_TIMEOUT_SECONDS",
         0.01,
     )
-    monkeypatch.setattr(normal_eval, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
+    monkeypatch.setattr(judges, "LLM_JUDGE_PROCESS_START_METHOD", "fork")
     monkeypatch.setattr(
-        normal_eval,
+        judges,
         "_unconfirmed_reminder_judge_agent",
         lambda: SlowJudge(),
     )
 
-    assert normal_eval.run_unconfirmed_reminder_judge("我会提醒你") is False
+    assert judges.run_unconfirmed_reminder_judge("我会提醒你") is False
 
 
 def test_llm_judge_timeout_process_uses_spawn_by_default(monkeypatch):
@@ -1400,14 +940,14 @@ def test_llm_judge_timeout_process_uses_spawn_by_default(monkeypatch):
         calls.append(method)
         return FakeContext()
 
-    monkeypatch.setattr(normal_eval, "get_context", fake_get_context)
+    monkeypatch.setattr(judges, "get_context", fake_get_context)
 
-    assert normal_eval._run_clarification_output_judge_with_timeout("prompt") is True
+    assert judges._run_clarification_output_judge_with_timeout("prompt") is True
     assert calls == ["spawn"]
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "多久提醒你一次？另外，点外卖需要我设置一个提醒吗？"
     )
 
@@ -1417,7 +957,7 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_clarification_questions():
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_conditional_memory_offers():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "如果你需要的话，我可以帮忙记着时间。"
     )
 
@@ -1426,7 +966,7 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_conditional_memory_offers(
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_reminder_capability_offers():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
     )
 
@@ -1435,7 +975,7 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_reminder_capability_offers
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "你不是亲口说的嘛，今晚7点要出门，我记得清清楚楚的"
     )
 
@@ -1444,16 +984,14 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_memory_references():
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_social_return_acknowledgement():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
-        "下午3点见，一起继续学习"
-    )
+    prompt = judges.build_unconfirmed_reminder_judge_prompt("下午3点见，一起继续学习")
 
     assert "Social acknowledgements" in prompt
     assert "see you at" in prompt
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_user_self_advice():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "十分钟很快就到了，记得起来活动活动再继续干活～"
     )
 
@@ -1462,7 +1000,7 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_user_self_advice():
 
 
 def test_unconfirmed_reminder_llm_judge_rubric_allows_future_profile_tracking():
-    prompt = normal_eval.build_unconfirmed_reminder_judge_prompt(
+    prompt = judges.build_unconfirmed_reminder_judge_prompt(
         "我会在每次对话中告知您当前的等级和经验值。"
     )
 
@@ -1470,107 +1008,8 @@ def test_unconfirmed_reminder_llm_judge_rubric_allows_future_profile_tracking():
     assert "future conversations" in prompt
 
 
-def test_load_cases_applies_normal_path_expectation_fixture():
-    cases = normal_eval.load_cases()
-    expectations = normal_eval.load_case_expectations(
-        normal_eval.DEFAULT_EXPECTATIONS_PATH
-    )
-    merged_metadata_keys = {
-        "evaluation_expectation",
-        "evaluation_reason",
-        "expected_operation",
-        "allow_clarification",
-        "expected_creates",
-        "expected_clarification_terms",
-    }
-
-    assert len(expectations) <= 380
-    for index, expectation in expectations.items():
-        for key, value in expectation.items():
-            if key not in merged_metadata_keys:
-                assert key == "severity"
-                continue
-            assert cases[index].metadata[key] == value
-
-    classes = {
-        expectation.get("evaluation_expectation", "crud")
-        for expectation in expectations.values()
-    }
-    assert {"crud", "query", "clarify", "discussion", "capability"}.issubset(classes)
-
-
-def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
-    cases = normal_eval.load_cases()
-    expectations = normal_eval.load_case_expectations(
-        normal_eval.DEFAULT_EXPECTATIONS_PATH
-    )
-    selected = normal_eval.select_expectation_cases(cases)
-    expected_indices = sorted(expectations)
-
-    assert len(selected) == len(expectations)
-    assert [case.metadata["_case_index"] for case in selected] == expected_indices
-    assert (
-        normal_eval.runtime_case_index(selected[0], fallback_index=-1)
-        == expected_indices[0]
-    )
-
-
-def test_expectation_fixture_cases_are_current_and_well_formed():
-    cases = normal_eval.load_cases()
-    expectations = normal_eval.load_case_expectations(
-        normal_eval.DEFAULT_EXPECTATIONS_PATH
-    )
-    allowed_keys = {
-        "evaluation_expectation",
-        "evaluation_reason",
-        "expected_operation",
-        "allow_clarification",
-        "expected_creates",
-        "expected_clarification_terms",
-        "severity",
-    }
-    allowed_expectations = {"crud", "query", "clarify", "discussion", "capability"}
-
-    assert expectations
-    for index, expectation in expectations.items():
-        assert 0 <= index < len(cases)
-        assert set(expectation).issubset(allowed_keys)
-        assert expectation["evaluation_expectation"] in allowed_expectations
-        assert expectation["evaluation_reason"].strip()
-        assert expectation["severity"] in normal_eval.SEVERITY_THRESHOLDS
-        assert (
-            normal_eval.case_evaluation_expectation(cases[index])
-            == expectation["evaluation_expectation"]
-        )
-
-        for expected_create in expectation.get("expected_creates", []):
-            assert expected_create["title"].strip()
-        if expectation.get("expected_clarification_terms"):
-            assert all(
-                term.strip() for term in expectation["expected_clarification_terms"]
-            )
-
-
-def test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence():
-    manifest = normal_eval.pending_workflow_two_turn_eval_manifest()
-
-    assert manifest["name"] == "pending-workflow-hourly-checkin-two-turn"
-    assert manifest["turns"] == [
-        "每个整点喊我打卡吧",
-        "从现在到晚上七点",
-    ]
-    assert manifest["guard_modes"] == [
-        "high_frequency_guards_enabled",
-        "high_frequency_guards_bypassed",
-    ]
-    assert manifest["transport"] == "business-clawscale"
-    assert manifest["evidence_status"] == (
-        "open_real_model_business_clawscale_run_required"
-    )
-
-
 def test_validate_observations_still_requires_crud_for_call_me_with_time():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="七点叫我可以么",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -1588,7 +1027,7 @@ def test_validate_observations_still_requires_crud_for_call_me_with_time():
 
 
 def test_case_evaluation_expectation_does_not_use_regex_fallbacks():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -1615,7 +1054,7 @@ def test_reminder_drift_report_tracks_fixture_and_regex_metrics():
 
 
 def test_validate_observations_allows_clarification_for_implicit_time_task():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="因为我就是6点钟醒了，我还得摸一下，大概6:15开始背书",
         expected_intent="reminder",
         matched_keywords=["点钟", "开始", "背书"],
@@ -1633,7 +1072,7 @@ def test_validate_observations_allows_clarification_for_implicit_time_task():
 
 
 def test_validate_observations_accepts_colloquial_when_clarification():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="到点提醒我，中间转一下我有没有摸鱼",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -1651,7 +1090,7 @@ def test_validate_observations_accepts_colloquial_when_clarification():
 
 
 def test_validate_observations_accepts_optional_confirmation_for_schedule_statement():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="七点半开始正式学习",
         expected_intent="reminder",
         matched_keywords=["点半", "开始", "学习"],
@@ -1669,7 +1108,7 @@ def test_validate_observations_accepts_optional_confirmation_for_schedule_statem
 
 
 def test_validate_observations_allows_min_call_me_reminder():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="15min后喊我！",
         expected_intent="reminder",
         matched_keywords=["喊我", "min"],
@@ -1694,7 +1133,7 @@ def test_validate_observations_allows_min_call_me_reminder():
 
 
 def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -1719,7 +1158,7 @@ def test_validate_observations_accepts_created_reminder_and_matching_user_ack():
 
 
 def test_validate_observations_allows_minute_precision_for_expected_local_time():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="过5分钟叫我",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -1757,12 +1196,12 @@ def test_expected_created_reminders_infers_multi_create_titles_and_recurrence():
     )
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="喝水",
             local_time="18:02:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="吃饭",
             local_time="18:04:00",
             recurring=True,
@@ -1774,7 +1213,7 @@ def test_expected_created_reminders_strips_modal_reminder_prefix():
     expected = normal_eval.expected_created_reminders("明天早上6:30可以提醒我起床吗")
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="起床",
             local_time="06:30:00",
             recurring=False,
@@ -1786,7 +1225,7 @@ def test_expected_created_reminders_uses_title_after_de_reminder_clause():
     expected = normal_eval.expected_created_reminders("设置一个00:04的提醒，睡觉")
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="睡觉",
             local_time="00:04:00",
             recurring=False,
@@ -1798,7 +1237,7 @@ def test_expected_created_reminders_strips_nominal_reminder_suffix():
     expected = normal_eval.expected_created_reminders("唔 设置一个上午9:20 起床的提醒")
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="起床",
             local_time="09:20:00",
             recurring=False,
@@ -1814,37 +1253,37 @@ def test_expected_created_reminders_handles_time_ranges_without_dash_titles():
     )
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="吃饭",
             local_time="11:30:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="看法考网课",
             local_time="13:30:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="健身",
             local_time="15:30:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="吃饭",
             local_time="16:40:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="洗澡",
             local_time="17:20:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="看法考网课和做题",
             local_time="19:00:00",
             recurring=False,
         ),
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="练腹",
             local_time="20:00:00",
             recurring=False,
@@ -1853,7 +1292,7 @@ def test_expected_created_reminders_handles_time_ranges_without_dash_titles():
 
 
 def test_validate_observations_rejects_case3_false_positive_shape():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
@@ -1884,7 +1323,7 @@ def test_validate_observations_rejects_case3_false_positive_shape():
 
 
 def test_validate_observations_rejects_unexpected_extra_fixture_create():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="15点-16点起床，开始帮我每小时打卡，打卡持续到20点",
         expected_intent="reminder",
         matched_keywords=["打卡"],
@@ -1943,7 +1382,7 @@ def test_validate_observations_rejects_unexpected_extra_fixture_create():
 
 
 def test_validate_observations_accepts_recurring_output_when_title_contains_comma():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="从明天早上7点到晚上11点，每小时提醒一次及时完成任务，及时打卡",
         expected_intent="reminder",
         matched_keywords=["每小时", "提醒"],
@@ -1990,7 +1429,7 @@ def test_validate_observations_accepts_recurring_output_when_title_contains_comm
 
 
 def test_validate_observations_rejects_expected_create_date_mismatch():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="22号早上9点提醒我给医院打电话预约手术",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -2030,7 +1469,7 @@ def test_validate_observations_rejects_expected_create_date_mismatch():
 
 
 def test_validate_observations_accepts_case3_expected_shape():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
@@ -2077,7 +1516,7 @@ def test_validate_observations_accepts_case3_expected_shape():
 
 
 def test_validate_observations_normalizes_title_punctuation_and_quotes():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="另外10:40提醒思考一个问题：工作应该去做“非我不可”的事情",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -2121,7 +1560,7 @@ def test_validate_observations_normalizes_title_punctuation_and_quotes():
 
 
 def test_validate_observations_tolerates_common_leading_come_verb_in_title():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="20:00提醒我来法考记忆和做题",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -2152,7 +1591,7 @@ def test_validate_observations_tolerates_common_leading_come_verb_in_title():
 
 def test_title_normalizer_keeps_short_lai_nouns_intact():
     assert normal_eval.expected_title_variants(
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="来信",
             local_time="20:00:00",
             recurring=False,
@@ -2161,7 +1600,7 @@ def test_title_normalizer_keeps_short_lai_nouns_intact():
 
 
 def test_title_matching_accepts_colon_qualified_short_title():
-    expected = normal_eval.ExpectedReminderCreate(
+    expected = ExpectedReminderCreate(
         title="番茄钟",
         local_time="11:46:00",
         recurring=False,
@@ -2179,7 +1618,7 @@ def test_title_matching_accepts_colon_qualified_short_title():
 
 
 def test_output_title_matching_reuses_created_title_variant_semantics():
-    expected = normal_eval.ExpectedReminderCreate(
+    expected = ExpectedReminderCreate(
         title="约面试",
         title_variants=("去面试对方（约对方）",),
         local_time="11:00:00",
@@ -2193,7 +1632,7 @@ def test_output_title_matching_reuses_created_title_variant_semantics():
 
 
 def test_validate_observations_tolerates_trailing_light_action_particle():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="5点叫我一下",
         expected_intent="reminder",
         matched_keywords=["叫我"],
@@ -2232,7 +1671,7 @@ def test_validate_observations_tolerates_trailing_light_action_particle():
 
 
 def test_validate_observations_allows_light_action_prefix_title_match():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="16：00提醒我开始写论文文献综述（国外研究现状）",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -2275,7 +1714,7 @@ def test_validate_observations_allows_light_action_prefix_title_match():
 
 
 def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="如果可以的话 你8:40提醒我一下回复刘冲、Eva，约一下袁琳、浩然",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -2309,7 +1748,7 @@ def test_validate_observations_tolerates_polite_light_prefix_and_longer_title():
 
 
 def test_validate_observations_tolerates_light_connector_in_title():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="下午 1:50 提醒我起床并开始准备论文写作",
         expected_intent="reminder",
         matched_keywords=["提醒"],
@@ -2339,7 +1778,7 @@ def test_validate_observations_tolerates_light_connector_in_title():
 
 
 def test_validate_observations_tolerates_structural_de_omission_in_title():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="明天下午3点左右提醒我看数学的网课",
         expected_intent="reminder",
         matched_keywords=["提醒我"],
@@ -2381,7 +1820,7 @@ def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
     expected = normal_eval.expected_created_reminders("下午2:30提醒我起来走一走")
 
     assert expected == [
-        normal_eval.ExpectedReminderCreate(
+        ExpectedReminderCreate(
             title="起来走一走",
             local_time="14:30:00",
             recurring=False,
@@ -2390,7 +1829,7 @@ def test_expected_created_reminders_applies_afternoon_marker_to_colon_time():
 
 
 def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input=(
             "我一般7:15起床，23:00睡觉。早上8:00开始学习，下午13:00开始健身 "
             "下午16:00开始学习。晚上20:00开始学习。我需要你在上述这些时间提醒我"
@@ -2469,7 +1908,7 @@ def test_validate_observations_uses_fixture_expected_creates_for_daily_schedule(
 
 
 def test_validate_observations_enforces_bounded_recurring_deadline_fixture():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="12月7号前，每天晚上八点提醒我跑步",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
@@ -2509,7 +1948,7 @@ def test_validate_observations_enforces_bounded_recurring_deadline_fixture():
 
 
 def test_validate_observations_rejects_user_output_recurrence_mismatch():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="哦对还有，今天18:02提醒我喝水，每天18:04提醒我吃饭呢",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
@@ -2557,7 +1996,7 @@ def test_validate_observations_rejects_user_output_recurrence_mismatch():
 
 
 def test_validate_observations_keeps_newline_separated_batch_ack_segments():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="今天17:57提醒我喝水，每天17:58提醒我锻炼",
         expected_intent="reminder",
         matched_keywords=["提醒", "每天"],
@@ -2605,7 +2044,7 @@ def test_validate_observations_keeps_newline_separated_batch_ack_segments():
 
 
 def test_validate_observations_accepts_every_two_weeks_as_recurring_ack():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="每个奇数周周三周四晚上八点，提醒我开例会，直到17周",
         expected_intent="reminder",
         matched_keywords=["提醒", "周三", "周四"],
@@ -2650,7 +2089,7 @@ def test_validate_observations_accepts_every_two_weeks_as_recurring_ack():
 
 
 def test_validate_observations_accepts_rrule_text_as_recurring_ack():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="开始帮我每小时打卡持续到20点",
         expected_intent="reminder",
         matched_keywords=["每小时", "打卡"],
@@ -2689,7 +2128,7 @@ def test_validate_observations_accepts_rrule_text_as_recurring_ack():
 
 
 def test_validate_observations_rejects_duplicate_reminders():
-    case = normal_eval.ReminderNormalPathCase(
+    case = ReminderNormalPathCase(
         input="18:00提醒我喝水",
         expected_intent="reminder",
         matched_keywords=["提醒"],

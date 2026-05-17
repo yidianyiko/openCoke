@@ -90,7 +90,7 @@ Do not let normal-path fixes become another case-by-case parser.
   expectations to `scripts/reminder_normal_path_expectations.json` or a dedicated
   fixture.
 - Treat prompt changes like code changes: prefer compact positive boundaries that describe a class of inputs and expected decision, and add prompt tests for that boundary. Do not let the prompt accumulate one-case `Avoid X` clauses or narrow examples as a substitute for improving the decision boundary.
-- `scripts/user_path_normal_eval.py::output_implies_unconfirmed_reminder`
+- `scripts/reminder_eval/scoring.py::output_implies_unconfirmed_reminder`
   must remain an LLM judge boundary, not a handwritten regex blacklist. If it is
   wrong, fix the judge rubric or fixture evidence rather than adding more regex
   phrases.
@@ -101,7 +101,7 @@ Do not let normal-path fixes become another case-by-case parser.
 - Treat title matching as shared evaluation policy. Add `title_variants` only when the variant is a legitimate semantic paraphrase that the shared normalizer cannot reasonably infer; otherwise improve the normalizer or expected-title rule once for the class.
 - For cancellation/stop/no-disturb requests, route the turn to ReminderDetectAgent and let the LLM decide whether to delete or clarify. Do not convert broad quieting language into a create request or ask for create time/content.
 - Every change to `chat_contextprompt.py`, ReminderDetectAgent instructions, or
-  reminder detect schemas requires `pytest tests/evals/test_reminder_normal_path_eval.py -q`
+  reminder detect schemas requires `pytest tests/evals/test_reminder_eval_*.py -q`
   plus the full normal-path eval before merging or resuming the corpus loop.
 - After a run of case fixes, produce a drift report before continuing if prompt constraints or title aliases are growing quickly.
 
@@ -188,6 +188,6 @@ After preserving the needed excerpt, clear the runtime logs:
 After harness or reminder-runtime changes, run focused tests before rerunning live cases:
 
 ```bash
-pytest tests/evals/test_reminder_normal_path_eval.py -v
+pytest tests/evals/test_reminder_eval_*.py -v
 pytest tests/unit/agent/test_agent_handler.py::test_handle_message_finishes_sync_business_text_after_first_reply -v
 ```

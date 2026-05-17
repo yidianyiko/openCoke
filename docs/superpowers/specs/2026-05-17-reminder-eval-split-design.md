@@ -105,8 +105,10 @@ fallbacks (see Dependency Graph below).
 
 ### `scoring.py`
 
-Pure-function verdicts over `(case, outputs, reminders)`. No I/O. No
-processes.
+Verdicts over `(case, outputs, reminders)`. Most functions are pure, but the
+clarification and unconfirmed-reminder helpers keep their existing default LLM
+judge fallbacks. Those fallbacks can start judge subprocesses when no test
+callable is injected.
 
 - Entry points: `validate_observations`, `summarize`.
 - Constants: `SEVERITY_THRESHOLDS` (moves here because `summarize` is
@@ -212,9 +214,19 @@ runtime wiring.
 
 The `disable_live_reminder_eval_judges` fixture moves into
 `test_reminder_eval_scoring.py` only, not into a shared `conftest.py`.
-Runner and dataset tests do not invoke `validate_observations`, so
-they do not need judge stubs. Keeping the fixture local makes the
-scope honest.
+Runner and dataset tests do not invoke the scoring helpers that can
+fall back to live judges, so they do not need judge stubs. Keeping the
+fixture local makes the scope honest.
+
+The fixture-loader and manifest tests at old lines L1473-L1570 are
+dataset/fixture tests, not scoring tests:
+
+- `test_load_cases_applies_normal_path_expectation_fixture`
+- `test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices`
+- `test_expectation_fixture_cases_are_current_and_well_formed`
+- `test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence`
+
+Move those into `test_reminder_eval_dataset.py`.
 
 No dedicated `test_reminder_eval_judges.py` is created: the judge
 layer has no dedicated unit tests today, only the scoring-side
@@ -248,6 +260,9 @@ stubbing. Creating an empty file would add noise without value.
    `scripts/user_path_normal_eval.py::output_implies_unconfirmed_reminder`
    with
    `scripts/reminder_eval/scoring.py::output_implies_unconfirmed_reminder`.
+   Also replace its regression-test commands that point at the deleted
+   `tests/evals/test_reminder_normal_path_eval.py` with the split test glob:
+   `pytest tests/evals/test_reminder_eval_*.py -v`.
 6. `docs/superpowers/plans/2026-05-12-reminder-detect-prompt-diet-followups.md`
    — left untouched. Dated execution plan; CLAUDE.md's
    "historical context, dated or superseded" exception applies.
@@ -265,11 +280,47 @@ Behaviour-preservation is the only standard.
 2. Smoke subset run (matches the user's standing 30–50 case
    preference recorded in memory):
    ```
+   .venv/bin/python scripts/user_path_normal_eval.py --limit 30 \
+       --output artifacts/evidence/reminder-normal/pre-split-eval-split-baseline.json
    .venv/bin/python scripts/run_reminder_eval.py --limit 30
    ```
-   Expected: per-case verdicts identical to a pre-split run on the
-   same git base.
-3. Import health:
+   These are live-model smoke runs; separate executions can legitimately
+   produce different user-visible outputs. Do not treat different live
+   verdicts as split-regression proof unless the captured observations are the
+   same.
+3. Deterministic scorer preservation:
+   ```
+   git show HEAD:scripts/user_path_normal_eval.py > /tmp/user_path_normal_eval_pre_split.py
+   .venv/bin/python - <<'PY'
+   import importlib.util, json, sys
+   from pathlib import Path
+   from scripts.reminder_eval import scoring as new_scoring
+   from scripts.reminder_eval.dataset import ReminderNormalPathCase
+
+   spec = importlib.util.spec_from_file_location("pre_split_eval", "/tmp/user_path_normal_eval_pre_split.py")
+   old = importlib.util.module_from_spec(spec)
+   sys.modules["pre_split_eval"] = old
+   spec.loader.exec_module(old)
+
+   payload = json.loads(Path("artifacts/evidence/reminder-normal/post-split-eval-split-baseline.json").read_text())
+   old_cases = old.load_cases()
+   new_cases = [
+       ReminderNormalPathCase(case.input, case.expected_intent, case.matched_keywords, case.metadata)
+       for case in old_cases
+   ]
+   clarification_judge = lambda _case_input, output_text: any(marker in output_text for marker in ("?", "？", "吗", "呢"))
+   unconfirmed_judge = lambda _text: False
+   for result in payload["results"]:
+       index = result["index"]
+       old_errors = old.validate_observations(old_cases[index], result["input_status"], result["outputs"], result["reminders"], clarification_judge=clarification_judge, unconfirmed_reminder_judge=unconfirmed_judge)
+       new_errors = new_scoring.validate_observations(new_cases[index], result["input_status"], result["outputs"], result["reminders"], clarification_judge=clarification_judge, unconfirmed_reminder_judge=unconfirmed_judge)
+       assert old_errors == new_errors, (index, old_errors, new_errors)
+   print(f"matched old/new scorer verdicts for {len(payload['results'])} captured cases")
+   PY
+   ```
+   Expected: the old monolith scorer and the new split scorer produce identical
+   errors over the same captured observations.
+4. Import health:
    ```
    python -c "from scripts.reminder_eval import dataset, runner, scoring, judges"
    python scripts/run_reminder_eval.py --help
@@ -278,7 +329,7 @@ Behaviour-preservation is the only standard.
    `run_reminder_eval.py` guards its entry point with
    `if __name__ == "__main__": sys.exit(runner.main())`, so `--help`
    exercises the wiring without testing it as an importable module.
-4. Repo-OS guardrails:
+5. Repo-OS guardrails:
    ```
    zsh scripts/check
    zsh scripts/suggest-verification --base HEAD~1
@@ -294,11 +345,12 @@ post-split layout for "good enough."
    re-implements a slice of the runtime's Chinese clock parser. Every
    time the runtime parser learns a new form, the scorer must learn it
    too or it produces false negatives. The growing
-   `title_variants` / `output_terms` / `rrule_contains` fields in
-   `expectations.json` (218 of 376 cases) are partly compensating for
-   this. The clean fix is to forbid the scorer from re-deriving
-   expectations from `case.input` and require all expectations to
-   come from the dataset file. B-tier work.
+   `expected_creates` fields in `expectations.json` (218 of 376 cases)
+   are partly compensating for this. The narrower scorer-hint fields
+   `title_variants`, `output_terms`, and `rrule_contains` currently
+   appear in 25 cases. The clean fix is to forbid the scorer from
+   re-deriving expectations from `case.input` and require all
+   expectations to come from the dataset file. B-tier work.
 2. **`expectations.json` mixes three roles.** It conflates ground
    truth labels (`evaluation_expectation`), triage metadata
    (`severity`, `evaluation_reason`), and per-case scorer hints

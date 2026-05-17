@@ -132,7 +132,7 @@ Severity-tiered corpus check (run before merging changes to the prompt or
 guard helpers; see `docs/design-docs/reminder-corpus-severity.md`):
 
 ```bash
-.venv/bin/python scripts/user_path_normal_eval.py --run-all
+.venv/bin/python scripts/run_reminder_eval.py --run-all
 # exit 0 requires critical=100%, important>=95%, nice>=80%.
 ```
 

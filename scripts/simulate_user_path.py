@@ -13,7 +13,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts import user_path_normal_eval as normal_eval
+from conf.config import CONF
+from scripts.reminder_eval import dataset, runner
+from scripts.reminder_eval.dataset import ReminderNormalPathCase
 
 DEFAULT_EVIDENCE_DIR = Path("artifacts/evidence/user-path")
 
@@ -23,9 +25,7 @@ def default_evidence_path(*, run_id: str) -> Path:
     return DEFAULT_EVIDENCE_DIR / f"{safe_run_id}.json"
 
 
-def build_message_case(
-    *, message: str, expectation: str
-) -> normal_eval.ReminderNormalPathCase:
+def build_message_case(*, message: str, expectation: str) -> ReminderNormalPathCase:
     metadata: dict[str, Any] = {"_case_index": 0, "source_id": "manual-user-path"}
     if expectation == "reminder_created":
         metadata.update(
@@ -46,7 +46,7 @@ def build_message_case(
         metadata["evaluation_expectation"] = "clarify"
     else:
         metadata["evaluation_expectation"] = "discussion"
-    return normal_eval.ReminderNormalPathCase(
+    return ReminderNormalPathCase(
         input=message,
         expected_intent="reminder" if "reminder" in expectation else "",
         matched_keywords=[],
@@ -132,13 +132,13 @@ def classify_failure_layer(errors: list[str]) -> str | None:
 def run_local(args: argparse.Namespace) -> dict[str, Any]:
     run_id = args.batch_id or f"user-path-{uuid.uuid4().hex[:10]}"
     platform = "business"
-    client = normal_eval.mongo_client()
+    client = runner.mongo_client()
     client.admin.command("ping")
-    db = client[normal_eval.CONF["mongodb"]["mongodb_name"]]
+    db = client[CONF["mongodb"]["mongodb_name"]]
 
     if args.message:
         cases = [build_message_case(message=args.message, expectation=args.expect)]
-        batch_payload = normal_eval.run_batch(
+        batch_payload = runner.run_batch(
             db,
             cases,
             offset=0,
@@ -159,11 +159,11 @@ def run_local(args: argparse.Namespace) -> dict[str, Any]:
             **batch_payload,
         }
 
-    all_cases = normal_eval.load_cases(args.cases)
+    all_cases = dataset.load_cases(args.cases)
     offset = args.case_index if args.case_index is not None else args.offset
     if args.run_all:
-        all_cases = normal_eval.select_expectation_cases(all_cases)
-    batch_payload = normal_eval.run_batch(
+        all_cases = dataset.select_expectation_cases(all_cases)
+    batch_payload = runner.run_batch(
         db,
         all_cases,
         offset=offset,
@@ -200,7 +200,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="reply",
         help="Expected behavior for --message mode.",
     )
-    parser.add_argument("--cases", type=Path, default=normal_eval.DEFAULT_CASES_PATH)
+    parser.add_argument("--cases", type=Path, default=dataset.DEFAULT_CASES_PATH)
     parser.add_argument("--case-index", type=int)
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument("--limit", type=int)

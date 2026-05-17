@@ -22,9 +22,9 @@ def test_severity_distribution_is_roughly_balanced():
     counts = {"critical": 0, "important": 0, "nice": 0}
     for case in data["cases"].values():
         counts[case["severity"]] += 1
-    assert all(n >= 10 for n in counts.values()), (
-        f"each tier should have >=10 cases: {counts}"
-    )
+    assert all(
+        n >= 10 for n in counts.values()
+    ), f"each tier should have >=10 cases: {counts}"
 
 
 def test_severity_standard_doc_exists():
@@ -37,7 +37,8 @@ def test_severity_standard_doc_exists():
 
 
 def test_summarize_reports_severity_threshold_violations():
-    from scripts.user_path_normal_eval import ReminderNormalPathResult, summarize
+    from scripts.reminder_eval.dataset import ReminderNormalPathResult
+    from scripts.reminder_eval.scoring import summarize
 
     data = json.loads(EXP.read_text(encoding="utf-8"))
     by_severity = {"critical": None, "important": None, "nice": None}
