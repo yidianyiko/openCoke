@@ -905,7 +905,13 @@ Create `/data/projects/coke-memo-runtime/tests/test_proposals.py`:
 from datetime import UTC, datetime
 
 from memo_runtime.config import MemoRuntimeConfig
-from memo_runtime.contract import AcceptMemoProposalRequest, CreateMemoProposalRequest, MemoRuntimeContract, RejectMemoProposalRequest
+from memo_runtime.contract import (
+    AcceptMemoProposalRequest,
+    CreateMemoProposalRequest,
+    MemoRuntimeContract,
+    RecordMemoReviewActionRequest,
+    RejectMemoProposalRequest,
+)
 from memo_runtime.errors import MemoProposalNotPending
 from memo_runtime.storage.memory import InMemoryMemoStorage
 
@@ -940,6 +946,53 @@ def test_rejected_proposal_cannot_be_accepted():
         pass
     else:
         raise AssertionError("rejected proposal should not be accepted")
+
+
+def test_review_action_can_accept_or_reject_proposals_with_events_and_idempotency():
+    runtime = MemoRuntimeContract(MemoRuntimeConfig(clock=lambda: datetime(2026, 5, 17, tzinfo=UTC)), storage=InMemoryMemoStorage())
+    accepted_proposal = runtime.create_proposal(CreateMemoProposalRequest("owner-1", "create_card", {"kind": "note", "title": "Accepted", "body": "", "tags": [], "visibility": "agent_visible"}, None, "reason", "agent"))
+    rejected_proposal = runtime.create_proposal(CreateMemoProposalRequest("owner-1", "create_card", {"kind": "note", "title": "Rejected", "body": "", "tags": [], "visibility": "agent_visible"}, None, "reason", "agent"))
+
+    accepted_item = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            owner_id="owner-1",
+            card_id="proposal:" + accepted_proposal.id,
+            action="accept_proposal",
+            actor_type="user",
+            actor_id="u1",
+            proposal_id=accepted_proposal.id,
+            idempotency_key="review-accept-1",
+        )
+    )
+    replayed_item = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            owner_id="owner-1",
+            card_id="proposal:" + accepted_proposal.id,
+            action="accept_proposal",
+            actor_type="user",
+            actor_id="u1",
+            proposal_id=accepted_proposal.id,
+            idempotency_key="review-accept-1",
+        )
+    )
+    rejected_item = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            owner_id="owner-1",
+            card_id="proposal:" + rejected_proposal.id,
+            action="reject_proposal",
+            actor_type="user",
+            actor_id="u1",
+            proposal_id=rejected_proposal.id,
+            idempotency_key="review-reject-1",
+        )
+    )
+
+    assert replayed_item.id == accepted_item.id
+    assert rejected_item.status == "dismissed"
+    assert [event.event_type for event in runtime.storage.events][-2:] == [
+        "review.accept_proposal",
+        "review.reject_proposal",
+    ]
 ```
 
 - [ ] **Step 2: Implement proposal transitions**
@@ -949,6 +1002,9 @@ The proposal request dataclasses were created in Task 2. Implement
 
 For `create_card` proposals, `accept_proposal` must validate the candidate
 fields and call the same internal card-creation path as user-created cards.
+`record_review_action()` must support `accept_proposal` and `reject_proposal`
+by delegating to the proposal methods, writing `review.accept_proposal` or
+`review.reject_proposal` events, and replaying by `idempotency_key`.
 
 - [ ] **Step 3: Run tests and commit**
 
@@ -1122,13 +1178,19 @@ Create `/data/projects/coke-memo-runtime/tests/test_postgres_contract.py`:
 import os
 
 import pytest
+from datetime import UTC, datetime
 
 from memo_runtime.config import MemoRuntimeConfig
 from memo_runtime.contract import (
+    AcceptMemoProposalRequest,
     ArchiveMemoCardRequest,
+    CreateMemoProposalRequest,
     CreateMemoCardRequest,
     DeleteMemoCardRequest,
     MemoRuntimeContract,
+    RecordMemoReviewActionRequest,
+    RejectMemoProposalRequest,
+    SearchMemoCardsRequest,
     UpdateMemoCardRequest,
 )
 from memo_runtime.storage.postgres import PostgresMemoStorage
@@ -1177,11 +1239,59 @@ def test_postgres_storage_satisfies_card_contract():
     )
     archived = runtime.archive_card(ArchiveMemoCardRequest("owner-pg-test", card.id, "user", "u1"))
     deleted = runtime.delete_card(DeleteMemoCardRequest("owner-pg-test", card.id, "user", "u1"))
+    search = runtime.search_cards(SearchMemoCardsRequest("owner-pg-test", "Updated", (), (), True, 10))
+    review = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            "owner-pg-test",
+            card.id,
+            "mark_reviewed",
+            "user",
+            "u1",
+            idempotency_key="pg-review-1",
+        )
+    )
+    review_replay = runtime.record_review_action(
+        RecordMemoReviewActionRequest(
+            "owner-pg-test",
+            card.id,
+            "mark_reviewed",
+            "user",
+            "u1",
+            idempotency_key="pg-review-1",
+        )
+    )
+    proposal = runtime.create_proposal(
+        CreateMemoProposalRequest(
+            "owner-pg-test",
+            "create_card",
+            {"kind": "note", "title": "Proposal card", "body": "", "tags": [], "visibility": "agent_visible"},
+            None,
+            "verify proposal storage",
+            "agent",
+            idempotency_key="pg-proposal-1",
+        )
+    )
+    accepted = runtime.accept_proposal(AcceptMemoProposalRequest("owner-pg-test", proposal.id, "user", "u1", idempotency_key="pg-accept-1"))
+    rejectable = runtime.create_proposal(
+        CreateMemoProposalRequest(
+            "owner-pg-test",
+            "create_card",
+            {"kind": "note", "title": "Reject card", "body": "", "tags": [], "visibility": "agent_visible"},
+            None,
+            "verify rejection",
+            "agent",
+        )
+    )
+    rejected = runtime.reject_proposal(RejectMemoProposalRequest("owner-pg-test", rejectable.id, "user", "u1", idempotency_key="pg-reject-1"))
 
     assert replayed.id == card.id
     assert updated.title == "Updated"
     assert archived.lifecycle == "archived"
     assert deleted.lifecycle == "deleted"
+    assert search.hits
+    assert review_replay.id == review.id
+    assert accepted.title == "Proposal card"
+    assert rejected.status == "rejected"
 ```
 
 `PostgresMemoStorage.apply_migrations()` runs packaged SQL migrations.
@@ -1273,6 +1383,13 @@ import pytest
 @pytest.mark.asyncio
 async def test_memo_capability_adapter_calls_contract_search_only():
     from agent.agno_agent.capabilities.memo import MemoCapabilityPort, RuntimeOwnerMapper
+    from agent.agno_agent.runtime.context import (
+        AgentRunContext,
+        TrustedCharacterContext,
+        TrustedConversationContext,
+        TrustedRelationContext,
+        TrustedUserContext,
+    )
 
     class RecordingContract:
         def __init__(self):
@@ -1288,9 +1405,19 @@ async def test_memo_capability_adapter_calls_contract_search_only():
         owner_mapper=RuntimeOwnerMapper(),
     )
 
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="owner-1", nickname="User", timezone="UTC"),
+        character=TrustedCharacterContext(id="character-1", nickname="Coke"),
+        conversation=TrustedConversationContext(id="conversation-1", platform="business", route_key=None),
+        relation=TrustedRelationContext(uid="owner-1", cid="character-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 17, tzinfo=UTC),
+    )
+
     result = await port.run(
         "what did I say about memo review?",
-        run_context=type("Context", (), {"user_id": "owner-1"})(),
+        run_context=run_context,
         args={"query": "memo review", "limit": 5},
     )
 
@@ -1343,6 +1470,10 @@ from agent.agno_agent.runtime.result import CapabilityResult
 
 class RuntimeOwnerMapper:
     def owner_id(self, run_context: Any) -> str:
+        trusted_user = getattr(run_context, "user", None)
+        trusted_user_id = str(getattr(trusted_user, "id", "") or "").strip()
+        if trusted_user_id:
+            return trusted_user_id
         for attr in ("owner_user_id", "customer_id", "user_id"):
             value = str(getattr(run_context, attr, "") or "").strip()
             if value:
