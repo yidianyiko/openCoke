@@ -1505,11 +1505,14 @@ def test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices():
         normal_eval.DEFAULT_EXPECTATIONS_PATH
     )
     selected = normal_eval.select_expectation_cases(cases)
+    expected_indices = sorted(expectations)
 
     assert len(selected) == len(expectations)
-    assert selected[0].metadata["_case_index"] == 0
-    assert selected[-1].metadata["_case_index"] == max(expectations)
-    assert normal_eval.runtime_case_index(selected[0], fallback_index=0) == 0
+    assert [case.metadata["_case_index"] for case in selected] == expected_indices
+    assert (
+        normal_eval.runtime_case_index(selected[0], fallback_index=-1)
+        == expected_indices[0]
+    )
 
 
 def test_expectation_fixture_cases_are_current_and_well_formed():
