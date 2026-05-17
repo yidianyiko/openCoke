@@ -6,6 +6,7 @@ from typing import Any
 from agent.agno_agent.runtime.result import CapabilityResult
 
 DEFAULT_MEMO_SEARCH_LIMIT = 5
+MAX_MEMO_SEARCH_LIMIT = 20
 
 
 class RuntimeOwnerMapper:
@@ -77,7 +78,7 @@ def _positive_limit(value: Any) -> int:
         return DEFAULT_MEMO_SEARCH_LIMIT
     if limit <= 0:
         return DEFAULT_MEMO_SEARCH_LIMIT
-    return limit
+    return min(limit, MAX_MEMO_SEARCH_LIMIT)
 
 
 def _string_tuple(value: Any) -> tuple[str, ...]:

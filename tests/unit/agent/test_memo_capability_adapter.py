@@ -147,3 +147,20 @@ def test_memo_capability_adapter_ignores_caller_supplied_owner_and_defaults_limi
     request = contract.calls[0][1]
     assert request.owner_id == "trusted-owner"
     assert request.limit > 0
+
+
+def test_memo_capability_adapter_caps_caller_supplied_limit():
+    from agent.agno_agent.capabilities.memo import MemoCapabilityPort
+
+    contract = RecordingContract()
+    port = MemoCapabilityPort(contract_factory=lambda _context: contract)
+
+    result = port.run(
+        "memo review",
+        run_context=_run_context("trusted-owner"),
+        args={"query": "memo review", "limit": 10_000},
+    )
+
+    assert result.ok is True
+    request = contract.calls[0][1]
+    assert request.limit == 20
