@@ -5,6 +5,11 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
+python_cmd="python3"
+if [[ -x ".venv/bin/python" ]]; then
+  python_cmd=".venv/bin/python"
+fi
+
 typeset -a required_files=(
   "AGENTS.md"
   "CLAUDE.md"
@@ -107,6 +112,10 @@ if [[ "$unexpected_root_docs" -ne 0 ]]; then
   missing=1
 else
   print "OK  docs root markdown allowlist"
+fi
+
+if ! "$python_cmd" scripts/guardrails.py check-import-boundaries; then
+  missing=1
 fi
 
 if git ls-tree HEAD gateway | rg -q '[[:space:]]gateway$'; then

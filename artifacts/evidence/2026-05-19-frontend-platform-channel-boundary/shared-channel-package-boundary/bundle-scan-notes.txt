@@ -1,0 +1,16 @@
+2026-05-20 shared-channel-package-boundary bundle scan note
+
+The first bundle scan failed because it scanned stale .next/dev chunks from an
+older development build and used an over-broad appId/token/baseUrl regex that
+also matched the current admin form payload construction.
+
+The final script removes .next before production build and scans for
+backend-only schema-shaped sentinels:
+- CHANNEL_CONFIG_SCHEMA
+- provider-config-schema
+- schema object key arrays for whatsapp_business and wechat_ecloud
+
+The current frontend still contains provider-specific admin form payload keys
+for existing channel setup flows. This plan moved the shared provider schema
+out of @clawscale/shared and prevents schema/module imports into web; it did
+not remove all provider-specific form field names from the frontend.

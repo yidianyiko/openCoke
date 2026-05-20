@@ -166,3 +166,175 @@ def test_review_trigger_does_not_require_artifact_for_gateway_gitlink_doc_change
     assert result.returncode == 0, result.stdout + result.stderr
     assert "human_review_required: no" in result.stdout
     assert "evidence_gap" not in result.stdout
+
+
+def test_check_import_boundaries_rejects_backend_path_import():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/lib/bad.ts": (
+            "import { CHANNEL_CONFIG_SCHEMA } "
+            "from '../../api/src/channel/provider-config-schema';\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert any("imports backend-only channel internals" in e for e in errors)
+
+
+def test_check_import_boundaries_rejects_multiline_backend_path_import():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/lib/bad-multiline.ts": (
+            "import {\n"
+            "  buildPublicLinqConfig,\n"
+            "} from '../../api/src/channel/linq-config';\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert any("imports backend-only channel internals" in e for e in errors)
+
+
+def test_check_import_boundaries_rejects_dynamic_backend_path_import():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/lib/bad-dynamic.ts": (
+            "export async function load() {\n"
+            "  return import('../../api/src/channel/provider-config-schema');\n"
+            "}\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert any("imports backend-only channel internals" in e for e in errors)
+
+
+def test_check_import_boundaries_rejects_named_import_via_alias():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/lib/bad-alias.ts": (
+            "import { CHANNEL_CONFIG_SCHEMA } from '@coke/api-channel';\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert any("CHANNEL_CONFIG_SCHEMA" in e for e in errors)
+
+
+def test_check_import_boundaries_rejects_namespace_and_default_alias_imports():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/lib/bad-namespace.ts": (
+            "import * as ChannelApi from '@coke/api-channel';\n"
+        ),
+        "gateway/packages/web/lib/bad-default.ts": (
+            "import ChannelApi from '@coke/api-channel';\n"
+        ),
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert any("bad-namespace.ts imports backend-only channel alias" in e for e in errors)
+    assert any("bad-default.ts imports backend-only channel alias" in e for e in errors)
+
+
+def test_check_import_boundaries_allows_user_visible_copy():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/web/app/help.tsx": (
+            "export function Help() {\n"
+            "  // Explanation of CHANNEL_CONFIG_SCHEMA appears in admin help text.\n"
+            "  return <p>Configure your channel under settings.</p>;\n"
+            "}\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert errors == []
+
+
+def test_check_import_boundaries_ignores_non_web_files():
+    from scripts import guardrails
+
+    files = {
+        "gateway/packages/api/src/routes/x.ts": (
+            "import { CHANNEL_CONFIG_SCHEMA } "
+            "from '../channel/provider-config-schema';\n"
+        )
+    }
+    errors = guardrails.check_import_boundaries(list(files), read_text=files.__getitem__)
+    assert errors == []
+
+
+def test_collect_tracked_web_files_reads_nested_gateway_repo(monkeypatch):
+    from scripts import guardrails
+
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs.get("cwd")))
+        return SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "packages/web/app/page.tsx\n"
+                "packages/web/lib/admin-api.ts\n"
+                "packages/api/src/index.ts\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(guardrails.subprocess, "run", fake_run)
+
+    assert guardrails.collect_tracked_web_files() == [
+        "gateway/packages/web/app/page.tsx",
+        "gateway/packages/web/lib/admin-api.ts",
+    ]
+    assert calls == [
+        (["git", "ls-files", "packages/web"], ROOT / "gateway")
+    ]
+
+
+def test_collect_tracked_web_files_reports_nested_gateway_git_failure(monkeypatch):
+    from scripts import guardrails
+
+    def fake_run(_command, **_kwargs):
+        return SimpleNamespace(returncode=128, stdout="", stderr="not a git repo\n")
+
+    monkeypatch.setattr(guardrails.subprocess, "run", fake_run)
+
+    try:
+        guardrails.collect_tracked_web_files()
+    except RuntimeError as error:
+        assert "failed to list nested gateway web files" in str(error)
+        assert "not a git repo" in str(error)
+    else:
+        raise AssertionError("expected nested gateway git failure to be reported")
+
+
+def test_check_import_boundaries_fails_when_nested_web_file_list_is_empty(monkeypatch, capsys):
+    from scripts import guardrails
+
+    monkeypatch.setattr(guardrails, "collect_tracked_web_files", lambda: [])
+
+    result = guardrails.cmd_check_import_boundaries(SimpleNamespace(files=[], base="HEAD"))
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "no tracked gateway web files found" in captured.out
+
+
+def test_check_import_boundaries_reports_nested_gateway_collector_failure(
+    monkeypatch, capsys
+):
+    from scripts import guardrails
+
+    monkeypatch.setattr(
+        guardrails,
+        "collect_tracked_web_files",
+        lambda: (_ for _ in ()).throw(RuntimeError("failed to list nested gateway web files: boom")),
+    )
+
+    result = guardrails.cmd_check_import_boundaries(SimpleNamespace(files=[], base="HEAD"))
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "failed to list nested gateway web files: boom" in captured.out

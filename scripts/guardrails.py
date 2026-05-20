@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import re
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -13,6 +14,40 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "docs" / "fitness" / "surfaces.yaml"
+
+_STATIC_IMPORT_RE = re.compile(
+    r"""
+    ^[ \t]*
+    import\b
+    (?P<body>[\s\S]*?)
+    ['"]([^'"\n]+)['"]
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
+_STATIC_EXPORT_RE = re.compile(
+    r"""
+    ^[ \t]*
+    export\s+(?:\*|\{[\s\S]*?\})\s+from\s*
+    ['"]([^'"\n]+)['"]
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
+_DYNAMIC_IMPORT_RE = re.compile(
+    r"""
+    ^[ \t]*
+    (?:(?:return|await)\s+|(?:const|let|var)\s+\w+\s*=\s*(?:await\s*)?)?
+    import\s*\(\s*['"]([^'"\n]+)['"]
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
+_REQUIRE_RE = re.compile(
+    r"""
+    ^[ \t]*
+    (?:(?:const|let|var)\s+[\w{}\s,*]+\s*=\s*)?
+    require\s*\(\s*['"]([^'"\n]+)['"]
+    """,
+    re.MULTILINE | re.VERBOSE,
+)
 
 
 @dataclass(frozen=True)
@@ -86,6 +121,85 @@ def collect_changed_files(base: str) -> list[str]:
             seen.add(file_path)
             deduped.append(file_path)
     return deduped
+
+
+def collect_tracked_web_files() -> list[str]:
+    gateway_root = ROOT / "gateway"
+    result = subprocess.run(
+        ["git", "ls-files", "packages/web"],
+        cwd=gateway_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        raise RuntimeError(f"failed to list nested gateway web files: {detail}")
+    files: list[str] = []
+    for line in result.stdout.splitlines():
+        normalized = line.strip().lstrip("./")
+        if normalized.startswith("packages/web/"):
+            files.append(f"gateway/{normalized}")
+    return files
+
+
+def is_forbidden_backend_channel_target(target: str) -> bool:
+    normalized = target.replace("\\", "/")
+    forbidden_path_fragments = (
+        "api/src/channel",
+        "gateway/packages/api/src/channel",
+    )
+    forbidden_aliases = ("@coke/api-channel",)
+    return (
+        any(fragment in normalized for fragment in forbidden_path_fragments)
+        or normalized in forbidden_aliases
+    )
+
+
+def check_import_boundaries(
+    files: list[str],
+    read_text=lambda path: (ROOT / path).read_text(encoding="utf-8"),
+) -> list[str]:
+    errors: list[str] = []
+    forbidden_named_symbols = ("CHANNEL_CONFIG_SCHEMA", "ChannelConfigField")
+    for file_path in files:
+        normalized = file_path.strip().lstrip("./")
+        if not normalized.startswith("gateway/packages/web/"):
+            continue
+        if not normalized.endswith((".ts", ".tsx", ".mts")):
+            continue
+        text = read_text(normalized)
+        # Backend-only paths are forbidden in frontend import statements.
+        for match in _STATIC_IMPORT_RE.finditer(text):
+            target = match.group(2)
+            if is_forbidden_backend_channel_target(target):
+                if target == "@coke/api-channel":
+                    errors.append(
+                        f"{normalized} imports backend-only channel alias: {target}"
+                    )
+                else:
+                    errors.append(
+                        f"{normalized} imports backend-only channel internals: {target}"
+                    )
+            for symbol in forbidden_named_symbols:
+                if re.search(rf"\b{re.escape(symbol)}\b", match.group("body")):
+                    errors.append(
+                        f"{normalized} imports backend-only channel symbol: {symbol}"
+                    )
+        for pattern in (_STATIC_EXPORT_RE, _DYNAMIC_IMPORT_RE, _REQUIRE_RE):
+            for match in pattern.finditer(text):
+                target = match.group(1)
+                if not is_forbidden_backend_channel_target(target):
+                    continue
+                if target == "@coke/api-channel":
+                    errors.append(
+                        f"{normalized} imports backend-only channel alias: {target}"
+                    )
+                    continue
+                errors.append(
+                    f"{normalized} imports backend-only channel internals: {target}"
+                )
+    return errors
 
 
 def resolve_files(args: argparse.Namespace) -> list[str]:
@@ -288,18 +402,42 @@ def cmd_review_trigger(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_check_import_boundaries(args: argparse.Namespace) -> int:
+    try:
+        files = resolve_files(args) if args.files else collect_tracked_web_files()
+    except RuntimeError as error:
+        print(error)
+        return 1
+    if not files:
+        print("MISS no tracked gateway web files found for import-boundary check")
+        return 1
+    errors = check_import_boundaries(files)
+    if not errors:
+        print("OK import boundaries")
+        return 0
+    for error in errors:
+        print(error)
+    return 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Coke-native guardrail helpers.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    for name in ("suggest-verification", "review-trigger"):
+    for name in (
+        "suggest-verification",
+        "review-trigger",
+        "check-import-boundaries",
+    ):
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--base", default="HEAD")
         subparser.add_argument("--files", action="append", default=[])
         if name == "suggest-verification":
             subparser.set_defaults(func=cmd_suggest_verification)
-        else:
+        elif name == "review-trigger":
             subparser.set_defaults(func=cmd_review_trigger)
+        else:
+            subparser.set_defaults(func=cmd_check_import_boundaries)
 
     return parser
 
