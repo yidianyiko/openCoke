@@ -143,7 +143,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
 
 def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
-    from agent.runner.agent_handler import _chat_response_timeout_fallback
+    from agent.runner.output_delivery import _chat_response_timeout_fallback
 
     reply = _chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
 

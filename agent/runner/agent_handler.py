@@ -21,30 +21,50 @@ import sys
 
 sys.path.append(".")
 import copy
-import random
 import time
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
 
+import agent.runner.output_delivery as output_delivery
 from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
 from agent.runner.agent_hardcode_handler import handle_hardcode
 from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
+from agent.runner.message_history import (
+    extract_recent_chat_history,
+    record_sent_messages_to_history,
+    store_messages_background,
+    store_messages_for_retrieval_sync,
+)
+from agent.runner.rollback_detection import (
+    is_new_message_coming_in,
+    merge_pending_messages,
+)
+from agent.runner.runtime_lock import (
+    LOCK_TIMEOUT,
+    agent_runtime_lock_heartbeat_interval_seconds,
+    await_with_agent_runtime_lock_heartbeat,
+    lock_manager,
+    verify_lock_ownership,
+)
+from agent.runner.output_delivery import (
+    OutboundSendInterrupted,
+    chat_response_timeout_fallback,
+    send_chat_response_fallback,
+    send_single_message,
+)
 from agent.tool.image import upload_image
 from agent.tool.voice import character_voice
 from agent.util.message_util import send_message_via_context
 from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
-from dao.lock import MongoDBLockManager
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
-from entity.message import read_all_inputmessages
 from util.message_log_util import (
     preview_text,
     should_log_full_message_content,
@@ -57,68 +77,48 @@ post_analyze_workflow = PostAnalyzeWorkflow()
 max_handle_age = 3600 * 12  # 只处理12小时以内的消息
 MAX_RETRIES = 3  # 最大重试次数
 MAX_ROLLBACK = 4  # 最大 rollback 次数
-LOCK_TIMEOUT = 180  # 锁超时时间（秒）- 增加到 180 秒以覆盖完整处理周期
 HOLD_TIMEOUT = 3600  # hold 超时时间（1小时）
 target_user_alias = CONF.get("default_character_alias", "coke")
-typing_speed = 2.2
 # V2.7 优化：减少历史对话保留轮数，从 20 降低到 15，减少 token 消耗
 max_conversation_round = 15
 
 
-def _agent_runtime_lock_heartbeat_interval_seconds() -> float:
-    raw_value = os.environ.get("COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS")
-    default = min(60.0, max(1.0, LOCK_TIMEOUT / 3))
-    if raw_value is None:
-        return default
-    try:
-        value = float(raw_value)
-    except ValueError:
-        logger.warning(
-            "COKE_AGENT_RUNTIME_LOCK_HEARTBEAT_SECONDS=%r is invalid; using %.1fs",
-            raw_value,
-            default,
-        )
-        return default
-    return value if value > 0 else default
+_agent_runtime_lock_heartbeat_interval_seconds = (
+    agent_runtime_lock_heartbeat_interval_seconds
+)
+_await_with_agent_runtime_lock_heartbeat = await_with_agent_runtime_lock_heartbeat
+_verify_lock_ownership = verify_lock_ownership
 
 
-async def _await_with_agent_runtime_lock_heartbeat(
-    awaitable,
-    *,
-    lock_id: Optional[str],
-    conversation_id: Optional[str],
-    worker_tag: str,
-):
-    if not lock_id or not conversation_id:
-        return await awaitable
+async def await_with_agent_runtime_lock_heartbeat(*args, **kwargs):
+    return await _await_with_agent_runtime_lock_heartbeat(*args, **kwargs)
 
-    done = asyncio.Event()
 
-    async def _heartbeat() -> None:
-        interval = _agent_runtime_lock_heartbeat_interval_seconds()
-        while not done.is_set():
-            await asyncio.sleep(interval)
-            if done.is_set():
-                return
-            renewed = lock_manager.renew_lock(
-                "conversation", conversation_id, lock_id, timeout=LOCK_TIMEOUT
-            )
-            if renewed:
-                logger.debug(f"{worker_tag} 锁续期成功 (single-Agent runtime heartbeat)")
-            else:
-                logger.warning(f"{worker_tag} single-Agent runtime heartbeat 续期失败")
-                return
+def verify_lock_ownership(*args, **kwargs):
+    return _verify_lock_ownership(*args, **kwargs)
 
-    heartbeat_task = asyncio.create_task(_heartbeat())
-    try:
-        return await awaitable
-    finally:
-        done.set()
-        heartbeat_task.cancel()
-        try:
-            await heartbeat_task
-        except asyncio.CancelledError:
-            pass
+
+_OutboundSendInterrupted = OutboundSendInterrupted
+_chat_response_timeout_fallback = chat_response_timeout_fallback
+_send_chat_response_fallback = send_chat_response_fallback
+_send_single_message = send_single_message
+
+
+def _sync_output_delivery_dependencies() -> None:
+    output_delivery.character_voice = character_voice
+    output_delivery.upload_image = upload_image
+    output_delivery.send_message_via_context = send_message_via_context
+    output_delivery._send_single_message = _send_single_message
+
+
+def send_single_message(*args, **kwargs):
+    _sync_output_delivery_dependencies()
+    return _send_single_message(*args, **kwargs)
+
+
+def send_chat_response_fallback(*args, **kwargs):
+    _sync_output_delivery_dependencies()
+    return _send_chat_response_fallback(*args, **kwargs)
 
 
 def _agent_runtime_should_skip_post_analyze() -> bool:
@@ -155,75 +155,10 @@ async def _run_agent_runtime_event(
 # ========== DAO 实例 ==========
 conversation_dao = ConversationDAO()
 user_dao = UserDAO()
-lock_manager = MongoDBLockManager()
 mongo = MongoDBBase()
 
-# Thread pool for background embedding storage
-_embedding_executor = ThreadPoolExecutor(max_workers=4)
-
-
-def _store_messages_for_retrieval_sync(context: dict, resp_messages: list):
-    """
-    Store messages as embeddings for future retrieval (sync, runs in background thread).
-    """
-    from util.embedding_util import store_chat_message
-
-    character_id = get_agent_entity_id(context.get("character"))
-    user_id = get_agent_entity_id(context.get("user"))
-
-    try:
-        # Store user's input messages
-        input_messages = (
-            context.get("conversation", {})
-            .get("conversation_info", {})
-            .get("input_messages", [])
-        )
-        for msg in input_messages:
-            message_content = msg.get("message", "")
-            if message_content:
-                store_chat_message(
-                    message=message_content,
-                    from_user=msg.get("from_user", ""),
-                    to_user=msg.get("to_user", ""),
-                    character_id=character_id,
-                    user_id=user_id,
-                    timestamp=msg.get("input_timestamp", 0),
-                    message_type=msg.get("message_type", "text"),
-                )
-
-        # Store character's responses
-        for msg in resp_messages:
-            message_content = msg.get("message", "")
-            if message_content:
-                store_chat_message(
-                    message=message_content,
-                    from_user=character_id,
-                    to_user=user_id,
-                    character_id=character_id,
-                    user_id=user_id,
-                    timestamp=msg.get("expect_output_timestamp", 0),
-                    message_type=msg.get("message_type", "text"),
-                )
-
-        logger.debug(
-            f"Stored {len(input_messages) + len(resp_messages)} messages for semantic retrieval"
-        )
-    except Exception as e:
-        logger.warning(f"Failed to store messages for retrieval: {e}")
-
-
-def store_messages_background(context: dict, resp_messages: list):
-    """Submit message storage to background thread pool.
-
-    BUG-008 fix: Use deep copy to prevent concurrent modification of context
-    while the background thread is accessing it.
-    """
-    # Deep copy to avoid race condition with concurrent context modifications
-    context_copy = copy.deepcopy(context)
-    resp_messages_copy = copy.deepcopy(resp_messages)
-    _embedding_executor.submit(
-        _store_messages_for_retrieval_sync, context_copy, resp_messages_copy
-    )
+_store_messages_for_retrieval_sync = store_messages_for_retrieval_sync
+_extract_recent_chat_history = extract_recent_chat_history
 
 
 async def _run_post_analyze_background(
@@ -264,81 +199,6 @@ async def _run_post_analyze_background(
         logger.warning(f"{worker_tag} [BG] PostAnalyzeWorkflow 失败: {e}")
 
 
-def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
-    """
-    从聊天历史中提取最近的对话（包括用户和角色的消息）
-    用于主动消息/提醒消息场景，避免传入过长的历史对话
-
-    Args:
-        chat_history: 聊天历史列表
-        limit: 提取的消息数量（默认6条，约3轮对话）
-
-    Returns:
-        格式化的最近对话字符串
-    """
-    if not chat_history:
-        return "（无历史消息）"
-
-    # 取最近的 limit 条消息
-    recent_messages = (
-        chat_history[-limit:] if len(chat_history) > limit else chat_history
-    )
-
-    if not recent_messages:
-        return "（无历史消息）"
-
-    # 格式化输出，保持与原始 chat_history_str 类似的格式
-    result_lines = []
-    for msg in recent_messages:
-        msg_from = msg.get("from_nickname", "") or msg.get("from", "")
-        msg_content = msg.get("message", "") or msg.get("content", "")
-        msg_time = msg.get("time_str", "")
-        msg_type = msg.get("message_type", "text")
-
-        if msg_content:
-            # 截断过长的消息
-            if len(msg_content) > 150:
-                msg_content = msg_content[:150] + "..."
-
-            if msg_time:
-                result_lines.append(
-                    f"（{msg_time} {msg_from}发来了{msg_type}消息）{msg_content}"
-                )
-            else:
-                result_lines.append(f"（{msg_from}发来了{msg_type}消息）{msg_content}")
-
-    return "\n".join(result_lines)
-
-
-def _verify_lock_ownership(conversation_id: str, lock_id: str) -> bool:
-    """
-    验证当前是否仍然持有锁
-
-    解决问题：锁超时后继续执行导致重复发送消息
-
-    Args:
-        conversation_id: 会话ID
-        lock_id: 锁ID
-
-    Returns:
-        bool: 是否仍然持有锁
-    """
-    if not conversation_id or not lock_id:
-        return True  # 没有锁信息时默认允许（向后兼容）
-
-    lock_info = lock_manager.get_lock_info("conversation", conversation_id)
-    if lock_info is None:
-        logger.warning(f"锁已不存在: conversation_id={conversation_id}")
-        return False
-    if lock_info.get("lock_id") != lock_id:
-        logger.warning(
-            f"锁已被其他 Worker 获取: conversation_id={conversation_id}, "
-            f"expected={lock_id[:8]}, actual={lock_info.get('lock_id', 'N/A')[:8]}"
-        )
-        return False
-    return True
-
-
 def _latest_input_message_timestamp(context: dict) -> int | None:
     input_messages = (
         context.get("conversation", {})
@@ -366,138 +226,6 @@ def _derive_agent_runtime_user_turn_occurred_at(context: dict) -> datetime:
     except (OverflowError, OSError, ValueError):
         return wall_now
     return max(wall_now, message_time)
-
-
-class _OutboundSendInterrupted(Exception):
-    """Raised when a newer user message arrives between outbound writes."""
-
-    def __init__(self, sent_messages: list[dict] | None = None) -> None:
-        super().__init__("outbound send interrupted")
-        self.sent_messages = sent_messages or []
-
-
-def _send_single_message(
-    context,
-    multimodal_response,
-    expect_output_timestamp,
-    is_first=False,
-    interrupt_check: Callable[[], bool] | None = None,
-):
-    """发送单条多模态消息"""
-    outputmessage = None
-    sent_messages = []
-    msg_type = multimodal_response.get("type", "text")
-    content = multimodal_response.get("content", "")
-
-    # ========== 去重检查：跳过 rollback 恢复场景中已发送的内容 ==========
-    turn_sent = (
-        context.get("conversation", {})
-        .get("conversation_info", {})
-        .get("turn_sent_contents", [])
-    )
-    if turn_sent and content in turn_sent:
-        logger.info(f"[去重] 跳过已发送内容: {content[:30]}...")
-        return None, expect_output_timestamp
-
-    if msg_type == "voice":
-        voice_messages = character_voice(
-            content, multimodal_response.get("emotion", "无")
-        )
-        for voice_url, voice_length in voice_messages:
-            if interrupt_check is not None:
-                if interrupt_check():
-                    raise _OutboundSendInterrupted(sent_messages)
-            if not is_first:
-                expect_output_timestamp += int(voice_length / 1000) + random.randint(
-                    2, 5
-                )
-            outputmessage = send_message_via_context(
-                context,
-                message=content,
-                message_type="voice",
-                expect_output_timestamp=expect_output_timestamp,
-                metadata={"url": voice_url, "voice_length": voice_length},
-            )
-            if outputmessage is not None:
-                sent_messages.append(outputmessage)
-    elif msg_type == "photo":
-        photo_id = (
-            str(content).replace("「", "").replace("」", "").replace("照片", "", 1)
-        )
-        image_url = upload_image(photo_id)
-        if image_url is not None:
-            context["conversation"]["conversation_info"]["photo_history"].append(
-                photo_id
-            )
-            if len(context["conversation"]["conversation_info"]["photo_history"]) > 12:
-                context["conversation"]["conversation_info"]["photo_history"] = context[
-                    "conversation"
-                ]["conversation_info"]["photo_history"][-12:]
-            if not is_first:
-                expect_output_timestamp += random.randint(2, 8)
-            if interrupt_check is not None:
-                if interrupt_check():
-                    raise _OutboundSendInterrupted(sent_messages)
-            outputmessage = send_message_via_context(
-                context,
-                message=content,
-                message_type="image",
-                expect_output_timestamp=expect_output_timestamp,
-                metadata={"url": image_url},
-            )
-    else:  # text
-        text_message = str(content).replace("<换行>", "\n")
-        if not is_first:
-            expect_output_timestamp += int(len(text_message) / typing_speed)
-        if interrupt_check is not None:
-            if interrupt_check():
-                raise _OutboundSendInterrupted(sent_messages)
-        outputmessage = send_message_via_context(
-            context,
-            message=text_message,
-            message_type="text",
-            expect_output_timestamp=expect_output_timestamp,
-        )
-    return outputmessage, expect_output_timestamp
-
-
-def _chat_response_timeout_fallback(
-    input_message: str, context: dict | None = None
-) -> str:
-    context = context or {}
-    if (
-        context.get("prepare_reminder_intent_hint") == "stop_or_cancel"
-        and context.get("orchestrator", {}).get("need_reminder_detect") is True
-        and not any(
-            result.get("tool_name") == "提醒操作"
-            for result in context.get("tool_results") or []
-            if isinstance(result, dict)
-        )
-    ):
-        return "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
-    if "计划" in str(input_message or ""):
-        return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
-    return "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
-
-
-def _send_chat_response_fallback(
-    *,
-    context: dict,
-    input_message: str,
-    expect_output_timestamp: int,
-    all_multimodal_responses: list,
-) -> Tuple[Optional[dict], int]:
-    multimodal_response = {
-        "type": "text",
-        "content": _chat_response_timeout_fallback(input_message, context),
-    }
-    all_multimodal_responses.append(multimodal_response)
-    return _send_single_message(
-        context=context,
-        multimodal_response=multimodal_response,
-        expect_output_timestamp=expect_output_timestamp,
-        is_first=True,
-    )
 
 
 # ========== 核心消息处理函数 ==========
@@ -564,7 +292,7 @@ async def handle_message(
 
     # 提取最近的对话历史（精简版），用于主动消息/提醒消息场景
     conversation = context.get("conversation", {})
-    recent_chat_history = _extract_recent_chat_history(
+    recent_chat_history = extract_recent_chat_history(
         conversation.get("conversation_info", {}).get("chat_history", []),
         limit=6,  # 最近6条消息，约3轮对话
     )
@@ -620,7 +348,7 @@ async def handle_message(
             occurred_at=_derive_agent_runtime_user_turn_occurred_at(context),
             metadata={"message_source": message_source, "worker_tag": worker_tag},
         )
-        result = await _await_with_agent_runtime_lock_heartbeat(
+        result = await await_with_agent_runtime_lock_heartbeat(
             _run_agent_runtime_event(
                 agent_input=agent_input,
                 context=context,
@@ -638,7 +366,7 @@ async def handle_message(
         if (
             lock_id
             and conversation_id
-            and not _verify_lock_ownership(conversation_id, lock_id)
+            and not verify_lock_ownership(conversation_id, lock_id)
         ):
             logger.warning(f"{worker_tag} 锁已丢失，停止接受 single-Agent runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
@@ -657,13 +385,13 @@ async def handle_message(
             }
 
             if lock_id and conversation_id:
-                if not _verify_lock_ownership(conversation_id, lock_id):
+                if not verify_lock_ownership(conversation_id, lock_id):
                     logger.warning(f"{worker_tag} 锁已丢失，停止发送 runtime 消息")
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
 
             try:
-                outputmessage, expect_output_timestamp = _send_single_message(
+                outputmessage, expect_output_timestamp = send_single_message(
                     context=context,
                     multimodal_response=multimodal_response,
                     expect_output_timestamp=expect_output_timestamp,
@@ -679,7 +407,7 @@ async def handle_message(
                     if check_new_message and message_source == "user"
                     else None,
                 )
-            except _OutboundSendInterrupted as exc:
+            except OutboundSendInterrupted as exc:
                 resp_messages.extend(exc.sent_messages)
                 if exc.sent_messages:
                     all_multimodal_responses.append(multimodal_response)
@@ -703,7 +431,7 @@ async def handle_message(
             if (
                 lock_id
                 and conversation_id
-                and not _verify_lock_ownership(conversation_id, lock_id)
+                and not verify_lock_ownership(conversation_id, lock_id)
             ):
                 logger.warning(f"{worker_tag} 锁已丢失，跳过 runtime 兜底回复")
                 context["MultiModalResponses"] = all_multimodal_responses
@@ -722,7 +450,7 @@ async def handle_message(
                     context["MultiModalResponses"] = all_multimodal_responses
                     return resp_messages, context, True, False
 
-            outputmessage, expect_output_timestamp = _send_chat_response_fallback(
+            outputmessage, expect_output_timestamp = send_chat_response_fallback(
                 context=context,
                 input_message=input_message_str,
                 expect_output_timestamp=expect_output_timestamp,
@@ -768,59 +496,6 @@ async def handle_message(
         raise
 
     return resp_messages, context, is_rollback, is_content_blocked
-
-
-def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = None):
-    """
-    检测是否有新消息到达（排除当前正在处理的消息）
-
-    Args:
-        u_id: 用户ID
-        c_id: 角色ID
-        platform: 平台
-        current_message_ids: 当前正在处理的消息ID列表（字符串格式）
-
-    Returns:
-        bool: 是否有新消息
-    """
-    input_messages = read_all_inputmessages(u_id, c_id, platform, "pending")
-
-    # 排除当前正在处理的消息
-    if current_message_ids:
-        current_ids_set = set(current_message_ids)
-        input_messages = [
-            m for m in input_messages if str(m.get("_id", "")) not in current_ids_set
-        ]
-
-    return len(input_messages) > 0
-
-
-def merge_pending_messages(current_messages: list, new_messages: list) -> list:
-    """合并待处理消息"""
-    seen_ids = set()
-    merged = []
-    for msg in current_messages + new_messages:
-        msg_id = str(msg.get("_id", ""))
-        if msg_id and msg_id not in seen_ids:
-            seen_ids.add(msg_id)
-            merged.append(msg)
-        elif not msg_id:
-            merged.append(msg)
-    merged.sort(key=lambda x: x.get("timestamp", 0))
-    return merged
-
-
-def record_sent_messages_to_history(conversation: dict, sent_messages: list) -> dict:
-    """将已发送的消息记录到对话历史"""
-    if not sent_messages:
-        return conversation
-    chat_history = conversation.get("conversation_info", {}).get("chat_history", [])
-    for msg in sent_messages:
-        if msg and msg not in chat_history:
-            chat_history.append(msg)
-    conversation["conversation_info"]["chat_history"] = chat_history
-    logger.info(f"[消息打断] 已记录 {len(sent_messages)} 条已发送消息到对话历史")
-    return conversation
 
 
 def create_handler(worker_id: int = 0):

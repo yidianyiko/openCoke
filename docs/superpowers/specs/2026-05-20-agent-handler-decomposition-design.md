@@ -43,6 +43,8 @@ Owns everything that puts bytes on the wire for a single agent turn.
 - `_chat_response_timeout_fallback(input_message, context=None) -> str`
 - `_send_chat_response_fallback(*, context, input_message, expect_output_timestamp, all_multimodal_responses) -> tuple[dict | None, int]`
 - `_send_single_message(context, multimodal_response, expect_output_timestamp, is_first=False, interrupt_check=None) -> tuple[dict | None, int]`
+- Module-level constant: `typing_speed = 2.2` (moves with `_send_single_message`,
+  which is its only caller).
 
 **Public surface** (no leading underscore after move):
 - `OutboundSendInterrupted` (exception)
@@ -51,7 +53,7 @@ Owns everything that puts bytes on the wire for a single agent turn.
 - `send_single_message(...)`
 
 **Dependencies:** `random`, `typing.Callable`, `typing.Optional`, `typing.Tuple`,
-module logger, module `typing_speed`, `agent.tool.image.upload_image`,
+module logger, `agent.tool.image.upload_image`,
 `agent.tool.voice.character_voice`, `agent.util.message_util.send_message_via_context`.
 
 ---
@@ -60,34 +62,47 @@ module logger, module `typing_speed`, `agent.tool.image.upload_image`,
 
 Owns the in-turn lock heartbeat loop and ownership verification. The module
 holds the singleton `lock_manager = MongoDBLockManager()` so nothing else
-needs to instantiate it.
+needs to instantiate it, and owns the `LOCK_TIMEOUT` constant.
 
 **Moved in:**
 - `_agent_runtime_lock_heartbeat_interval_seconds() -> float`
 - `_await_with_agent_runtime_lock_heartbeat(awaitable, *, lock_id, conversation_id, worker_tag) -> Any`
 - `_verify_lock_ownership(conversation_id, lock_id) -> bool`
 - Module-level: `lock_manager = MongoDBLockManager()`
+- Module-level constant: `LOCK_TIMEOUT = 180` (currently in `agent_handler.py`
+  line 60; runtime_lock is the only structural consumer).
 
 **Public surface:**
 - `agent_runtime_lock_heartbeat_interval_seconds(...)`
 - `await_with_agent_runtime_lock_heartbeat(...)`
 - `verify_lock_ownership(...)`
-- `lock_manager` (re-imported where needed)
+- `lock_manager`
+- `LOCK_TIMEOUT`
+
+`agent_handler.py` re-imports `lock_manager` and `LOCK_TIMEOUT` from
+`runtime_lock` so existing references (e.g. `handle_message` calling
+`lock_manager.renew_lock(...)` directly, and tests reading
+`agent_handler.LOCK_TIMEOUT` / patching `agent_handler.lock_manager`) keep
+working without an explicit re-export shim.
 
 **Dependencies:** `asyncio`, `os`, `typing.Optional`, module logger,
-module `LOCK_TIMEOUT`, `dao.lock.MongoDBLockManager`.
+`dao.lock.MongoDBLockManager`.
 
 ---
 
 ### `message_history.py`
 
-Owns retrieval-storage writes and the in-memory chat-history extractor.
+Owns chat-history reads (extractor for prompt building) and writes
+(embedding-storage background submission, sent-message append). Both
+directions are grouped here because they share the conversation/chat_history
+shape and nothing else touches them.
 
 **Moved in:**
 - `_embedding_executor = ThreadPoolExecutor(max_workers=4)`
 - `_store_messages_for_retrieval_sync(context, resp_messages)`
 - `store_messages_background(context, resp_messages)`
 - `record_sent_messages_to_history(conversation, sent_messages) -> dict`
+  (currently dead code — see Audit Notes; preserved on the move.)
 - `_extract_recent_chat_history(chat_history, limit) -> str`
 
 **Public surface:**
@@ -109,8 +124,14 @@ Owns the "is a new message racing in?" detection and pending-message merge.
 **Moved in:**
 - `is_new_message_coming_in(u_id, c_id, platform, current_message_ids) -> bool`
 - `merge_pending_messages(current_messages, new_messages) -> list`
+  (currently dead code — see Audit Notes; preserved on the move.)
 
 **Public surface:** both functions (already public in the original).
+
+`agent_handler.py` re-imports `is_new_message_coming_in` from
+`rollback_detection` so `handle_message` keeps calling it unqualified and
+existing `monkeypatch.setattr(agent_handler, "is_new_message_coming_in", …)`
+patches continue to take effect.
 
 **Dependencies:** `entity.message.read_all_inputmessages`.
 
@@ -158,14 +179,62 @@ async def handle_message(context, input_message_str, ...):
 
 ## Import Updates
 
-All callers that currently import from `agent_handler` will be updated to the
-new canonical source. No compatibility re-exports.
+All callers that currently import a moved function from `agent_handler` will
+be updated to its new canonical module. `agent_handler.py` keeps thin
+re-imports only for the bindings that `handle_message` itself still calls
+unqualified (`lock_manager`, `LOCK_TIMEOUT`, `is_new_message_coming_in`) — not
+as backwards-compatibility shims for external callers.
 
-Files to audit for import changes:
-- `agent/runner/agent_runner.py`
-- `agent/runner/deferred_action_executor.py`
-- `tests/unit/runner/test_agent_handler_inflight_interrupt.py`
+Production callers (single source of truth: the new module):
+- `agent/runner/agent_runner.py` — currently `from agent.runner.agent_handler
+  import create_handler`. Stays on `agent_handler` (factory is not moving).
+- `agent/runner/deferred_action_executor.py` — currently `from
+  agent.runner.agent_handler import handle_message`. Stays on `agent_handler`
+  (orchestrator is not moving).
+
+### Test migration
+
+The existing tests rely on `monkeypatch.setattr(agent_handler, "<name>", …)`
+to swap moved helpers. After the split, the underscore-prefixed names
+(`_send_single_message`, `_send_chat_response_fallback`,
+`_chat_response_timeout_fallback`, `_verify_lock_ownership`) no longer exist
+on `agent_handler`. The fix is **not just import paths**; the patches must
+target the new modules at the call site. For each moved helper called by
+`handle_message`, the option matrix is:
+
+1. Patch the new module directly:
+   `monkeypatch.setattr("agent.runner.output_delivery.send_single_message", …)`.
+   Requires `handle_message` to call `output_delivery.send_single_message(...)`
+   (or import-and-rebind the name on `agent_handler`).
+2. Have `agent_handler.py` `from agent.runner.output_delivery import
+   send_single_message` and call it unqualified; tests patch
+   `agent_handler.send_single_message`.
+
+This plan picks option (2) for the helpers `handle_message` calls directly,
+because it preserves the existing test patch pattern with just a rename. The
+following test files must be updated:
+
 - `tests/unit/agent/test_agent_handler.py`
+  - Replace `from agent.runner.agent_handler import _chat_response_timeout_fallback`
+    with `from agent.runner.output_delivery import chat_response_timeout_fallback`.
+  - Replace `monkeypatch.setattr(agent_handler, "_send_single_message", …)` with
+    `monkeypatch.setattr(agent_handler, "send_single_message", …)`.
+  - Replace `monkeypatch.setattr(agent_handler, "_send_chat_response_fallback", …)`
+    with `monkeypatch.setattr(agent_handler, "send_chat_response_fallback", …)`.
+  - Replace `monkeypatch.setattr(agent_handler, "_verify_lock_ownership", …)` with
+    `monkeypatch.setattr(agent_handler, "verify_lock_ownership", …)`.
+  - `agent_handler.lock_manager`, `agent_handler.LOCK_TIMEOUT`,
+    `agent_handler.asyncio`, `agent_handler._run_agent_runtime_event`,
+    `agent_handler._derive_agent_runtime_user_turn_occurred_at`,
+    `agent_handler._agent_runtime_should_skip_post_analyze` remain valid
+    after the refactor (re-imported or kept in place); no test change
+    needed for these.
+- `tests/unit/runner/test_agent_handler_inflight_interrupt.py` — same set of
+  underscore-to-no-underscore patch target renames.
+
+`tests/unit/test_clawscale_only_topology.py` reads `agent_handler.py` as text
+to check it imports nothing from the legacy ClawScale surface; verify the
+post-refactor file still satisfies that assertion.
 
 ## Verification
 
@@ -178,8 +247,12 @@ Files to audit for import changes:
 
 - `message_processor.py` is not touched in this change.
 - No behaviour changes. This is a pure structural refactor.
-- No new tests beyond fixing broken import paths in existing tests.
+- No new test coverage. Existing tests get import-path updates and
+  monkeypatch-target renames as described in **Test migration**; no new
+  cases added.
 - `_run_agent_runtime_event` wrapper removal is a follow-up, not in scope.
+- Deleting dead code (`merge_pending_messages`,
+  `record_sent_messages_to_history`) is out of scope. See **Audit Notes**.
 
 ## Audit Notes
 
@@ -197,8 +270,8 @@ Files to audit for import changes:
   leading underscore, including
   `await_with_agent_runtime_lock_heartbeat(...)`.
 - Corrected runtime-lock dependencies to `asyncio`, `os`, `Optional`, logger,
-  `LOCK_TIMEOUT`, and `MongoDBLockManager`; `CONF` is not used by these
-  functions.
+  and `MongoDBLockManager`; `LOCK_TIMEOUT` is now owned by `runtime_lock.py`
+  itself (see below), and `CONF` is not used by these functions.
 - Corrected message-history dependencies to the actual embedding, copy, thread
   pool, logger, and identity helpers, and added
   `store_messages_for_retrieval_sync(...)` to the moved public surface.
@@ -219,3 +292,19 @@ Files to audit for import changes:
   `agent_runner.py`, `deferred_action_executor.py`,
   `tests/unit/runner/test_agent_handler_inflight_interrupt.py`, and
   `tests/unit/agent/test_agent_handler.py`.
+- Flagged `merge_pending_messages` and `record_sent_messages_to_history` as
+  having zero callers in the active tree (grep on the whole repo confirms
+  only their own definitions in `agent_handler.py`). They are preserved on
+  the move so this refactor stays purely structural; a follow-up should
+  decide whether to delete them.
+- Flagged that the existing test patch pattern (`monkeypatch.setattr(
+  agent_handler, "_send_single_message", …)` and similar) breaks after the
+  rename to public names. The **Test migration** subsection enumerates the
+  required patch-target updates per file.
+- Located `typing_speed = 2.2` (currently `agent_handler.py:63`); it is used
+  only by `_send_single_message`, so it moves with that function into
+  `output_delivery.py`.
+- Located `LOCK_TIMEOUT = 180` (currently `agent_handler.py:60`); after the
+  move it lives in `runtime_lock.py` and is re-imported by `agent_handler`
+  so existing references — including the test assertion on
+  `agent_handler.LOCK_TIMEOUT` — keep working.
