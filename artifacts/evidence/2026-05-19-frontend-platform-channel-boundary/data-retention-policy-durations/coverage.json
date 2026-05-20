@@ -1,0 +1,64 @@
+{
+  "policies": [
+    {
+      "duration": "365 days",
+      "evidence": "import run count by cutoff",
+      "owner": "Calendar Import System",
+      "policy": "calendar_import_retention"
+    },
+    {
+      "duration": "180 days",
+      "evidence": "input/output message count by owner and cutoff",
+      "owner": "Agent Runtime System",
+      "policy": "conversation_retention"
+    },
+    {
+      "duration": "7 days",
+      "evidence": "lock/batch state count",
+      "owner": "Agent Runtime System",
+      "policy": "ephemeral_runtime_retention"
+    },
+    {
+      "duration": "24 hours",
+      "evidence": "Redis key or stream trim evidence",
+      "owner": "Agent Runtime System",
+      "policy": "ephemeral_trigger_retention"
+    },
+    {
+      "duration": "14 days after expiry",
+      "evidence": "handoff session count by cutoff",
+      "owner": "Calendar Import System",
+      "policy": "handoff_session_retention"
+    },
+    {
+      "duration": "account lifetime plus 30 days",
+      "evidence": "memo card count by owner and cutoff",
+      "owner": "Memo System",
+      "policy": "memo_retention"
+    },
+    {
+      "duration": "90 days after migration closeout",
+      "evidence": "migration evidence path and archive count",
+      "owner": "Owning migration plan",
+      "policy": "migration_retention"
+    },
+    {
+      "duration": "30 days after terminal workflow state",
+      "evidence": "workflow count by terminal state",
+      "owner": "Reminder System",
+      "policy": "short_lived_workflow_retention"
+    },
+    {
+      "duration": "account lifetime plus 30 days",
+      "evidence": "owner ids and changed settings count",
+      "owner": "Timezone System",
+      "policy": "timezone_state_retention"
+    },
+    {
+      "duration": "account lifetime plus 30 days",
+      "evidence": "deletion run id, affected owner ids, dry-run count",
+      "owner": "Reminder System",
+      "policy": "user_content_retention"
+    }
+  ]
+}
