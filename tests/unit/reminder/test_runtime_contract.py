@@ -211,29 +211,6 @@ def test_internal_followup_methods_delegate_to_service():
     )
 
 
-def test_reminder_protocol_builds_runtime_contract_with_current_time(monkeypatch):
-    from agent.agno_agent.adapters import coke_reminder_adapter
-    from agent.agno_agent.tools.reminder_protocol import tool as reminder_tool
-
-    captured = {}
-
-    class FakeContract:
-        def __init__(self, *, reminder_service):
-            captured["service"] = reminder_service
-
-    monkeypatch.setattr(coke_reminder_adapter, "ReminderRuntimeContract", FakeContract)
-
-    runtime = reminder_tool._build_reminder_runtime(
-        {"current_time": "2026-05-15T10:00:00+09:00"}
-    )
-
-    assert isinstance(runtime, FakeContract)
-    assert (
-        captured["service"].now_provider().isoformat()
-        == "2026-05-15T01:00:00+00:00"
-    )
-
-
 def test_reminder_runtime_starts_loads_and_shuts_down_scheduler():
     from agent.reminder.runtime import ReminderRuntime
 

@@ -264,16 +264,16 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
 def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
+    from agent.reminder import runtime as runtime_module
+    from agent.reminder.runtime import ReminderRuntime
+    from agent.reminder.runtime_contract import ReminderRuntimeContract
 
     service = FakeReminderService()
-    captured_service_kwargs = {}
-
-    def service_factory(**kwargs):
-        captured_service_kwargs.update(kwargs)
-        return service
-
-    monkeypatch.setattr(adapter_module, "ReminderService", service_factory)
+    contract = ReminderRuntimeContract(reminder_service=service)
+    runtime = ReminderRuntime(
+        contract=contract, scheduler=object(), fire_consumer=object()
+    )
+    monkeypatch.setattr(runtime_module, "_runtime_instance", runtime)
 
     result = ReminderCommandExecutor(_visible_reminder_raw_function()).execute(
         SimpleNamespace(
@@ -295,9 +295,6 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
         conversation_id="conv-1",
         character_id="char-1",
         route_key="route-1",
-    )
-    assert captured_service_kwargs["now_provider"]() == datetime(
-        2026, 5, 1, 1, 0, tzinfo=UTC
     )
 
 

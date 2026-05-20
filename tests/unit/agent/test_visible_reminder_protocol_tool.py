@@ -183,16 +183,36 @@ def call_tool(**kwargs: Any) -> str:
     return entrypoint(**kwargs)
 
 
-def install_service(monkeypatch: pytest.MonkeyPatch, service: FakeReminderService):
-    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
+def _install_runtime(monkeypatch: pytest.MonkeyPatch, runtime) -> None:
+    from agent.reminder import runtime as runtime_module
 
-    monkeypatch.setattr(adapter_module, "ReminderService", lambda: service)
+    monkeypatch.setattr(runtime_module, "_runtime_instance", runtime)
+
+
+def install_service(monkeypatch: pytest.MonkeyPatch, service: FakeReminderService):
+    from agent.reminder.runtime import ReminderRuntime
+
+    contract = ReminderRuntimeContract(reminder_service=service)
+    runtime = ReminderRuntime(
+        contract=contract, scheduler=object(), fire_consumer=object()
+    )
+    _install_runtime(monkeypatch, runtime)
+
+
+class _RaisingContractRuntime:
+    def __init__(self, factory):
+        self._factory = factory
+        self.scheduler = object()
+        self.fire_consumer = object()
+
+    @property
+    def contract(self):
+        self._factory()
+        raise AssertionError("factory was expected to raise")
 
 
 def install_service_factory(monkeypatch: pytest.MonkeyPatch, factory):
-    import agent.agno_agent.adapters.coke_reminder_adapter as adapter_module
-
-    monkeypatch.setattr(adapter_module, "ReminderService", factory)
+    _install_runtime(monkeypatch, _RaisingContractRuntime(factory))
 
 
 def set_session_state(session_state: dict) -> None:
@@ -219,6 +239,22 @@ def test_coke_reminder_adapter_derives_context_from_session_state():
     assert context.target.route_key == "route-1"
     assert context.timezone == "Asia/Tokyo"
     assert context.current_time == datetime(2026, 5, 15, 1, 0, tzinfo=UTC)
+
+
+def test_coke_reminder_adapter_raises_when_runtime_missing():
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+    from agent.reminder.runtime import (
+        get_reminder_runtime_instance,
+        set_reminder_runtime_instance,
+    )
+
+    previous = get_reminder_runtime_instance()
+    set_reminder_runtime_instance(None)
+    try:
+        with pytest.raises(RuntimeError, match="Reminder runtime is not initialized"):
+            CokeReminderAdapter().reminder_contract({})
+    finally:
+        set_reminder_runtime_instance(previous)
 
 
 def test_coke_reminder_adapter_prefers_current_runtime_contract():

@@ -44,18 +44,15 @@ def build_session_state():
 
 
 def install_reminder_service(monkeypatch, service):
-    from agent.agno_agent.adapters import coke_reminder_adapter
+    from agent.reminder import runtime as runtime_module
+    from agent.reminder.runtime import ReminderRuntime
+    from agent.reminder.runtime_contract import ReminderRuntimeContract
 
-    monkeypatch.setattr(
-        coke_reminder_adapter,
-        "ReminderRuntimeContract",
-        lambda *, reminder_service: reminder_service,
+    contract = ReminderRuntimeContract(reminder_service=service)
+    runtime = ReminderRuntime(
+        contract=contract, scheduler=object(), fire_consumer=object()
     )
-    monkeypatch.setattr(
-        coke_reminder_adapter,
-        "ReminderService",
-        lambda *args, **kwargs: service,
-    )
+    monkeypatch.setattr(runtime_module, "_runtime_instance", runtime)
 
 
 @pytest.mark.asyncio

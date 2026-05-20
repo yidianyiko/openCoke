@@ -8,7 +8,6 @@ from agent.reminder.errors import InvalidArgument, InvalidOutputTarget
 from agent.reminder.models import AgentOutputTarget, ReminderSchedule
 from agent.reminder.runtime import get_reminder_runtime_instance
 from agent.reminder.runtime_contract import ReminderRuntimeContract
-from agent.reminder.service import ReminderService
 from util.time_util import get_default_timezone
 
 
@@ -84,20 +83,12 @@ class CokeReminderAdapter:
         self, session_state: dict[str, Any]
     ) -> ReminderRuntimeContract:
         runtime = get_reminder_runtime_instance()
-        if runtime is not None:
-            return runtime.contract
-
-        current_time = self.parse_current_time(session_state.get("current_time"))
-        if current_time is not None:
-            try:
-                service = ReminderService(now_provider=lambda: current_time)
-            except TypeError as exc:
-                if "now_provider" not in str(exc):
-                    raise
-                service = ReminderService()
-            return ReminderRuntimeContract(reminder_service=service)
-
-        return ReminderRuntimeContract(reminder_service=ReminderService())
+        if runtime is None:
+            raise RuntimeError(
+                "Reminder runtime is not initialized; "
+                "call set_reminder_runtime_instance() during boot or test setup."
+            )
+        return runtime.contract
 
     def create_or_replace_internal_followup(
         self,

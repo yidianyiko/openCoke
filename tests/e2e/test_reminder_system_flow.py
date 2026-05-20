@@ -287,10 +287,16 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
 
     import agent.agno_agent.tools.deferred_action.service as legacy_service_module
     import agent.agno_agent.tools.deferred_action.tool as legacy_tool_module
-    import agent.agno_agent.adapters.coke_reminder_adapter as reminder_adapter_module
     from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
+    from agent.reminder import runtime as reminder_runtime_module
+    from agent.reminder.runtime import ReminderRuntime
+    from agent.reminder.runtime_contract import ReminderRuntimeContract
 
-    monkeypatch.setattr(reminder_adapter_module, "ReminderService", lambda: service)
+    contract = ReminderRuntimeContract(reminder_service=service)
+    runtime = ReminderRuntime(
+        contract=contract, scheduler=object(), fire_consumer=object()
+    )
+    monkeypatch.setattr(reminder_runtime_module, "_runtime_instance", runtime)
     monkeypatch.setattr(
         legacy_service_module,
         "DeferredActionService",
