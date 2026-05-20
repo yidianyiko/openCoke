@@ -19,7 +19,6 @@ from agent.reminder.models import (
     ReminderSchedule,
 )
 from agent.reminder.runtime_contract import ReminderRuntimeContract
-from agent.reminder.schedule import validate_rrule_subset, validate_timezone
 
 _ALLOWED_LIFECYCLE_STATES = {"active", "completed", "cancelled", "failed"}
 _MAX_LIST_RANGE_DAYS_INCLUSIVE = 31
@@ -67,8 +66,9 @@ def build_schedule(
     parsed_date = _parse_local_date(local_date)
     parsed_time = _parse_local_time(local_time)
     try:
-        timezone = validate_timezone(timezone)
-        rrule = validate_rrule_subset(rrule)
+        ReminderRuntimeContract.validate_timezone(timezone)
+        if rrule is not None:
+            ReminderRuntimeContract.validate_rrule(rrule)
         local_zone = ZoneInfo(timezone)
     except (InvalidSchedule, RRULENotSupported, ZoneInfoNotFoundError) as exc:
         raise ValueError("invalid_schedule") from exc

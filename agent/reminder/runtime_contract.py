@@ -15,6 +15,18 @@ from agent.reminder.models import (
 class ReminderRuntimeContract:
     """In-process domain contract for reminder runtime adapters."""
 
+    @staticmethod
+    def validate_rrule(rrule_str: str) -> None:
+        from agent.reminder.schedule import validate_rrule_subset
+
+        validate_rrule_subset(rrule_str)
+
+    @staticmethod
+    def validate_timezone(tz: str) -> None:
+        from agent.reminder.schedule import validate_timezone
+
+        validate_timezone(tz)
+
     def __init__(self, *, reminder_service=None) -> None:
         if reminder_service is None:
             from agent.reminder.service import ReminderService
