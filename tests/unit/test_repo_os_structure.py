@@ -1,8 +1,18 @@
-from pathlib import Path
 import subprocess
+from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[2]
+BOUNDARY_SPEC = "docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md"
+REQUIRED_OWNERS = [
+    ("agent/reminder/OWNERS.md", "Reminder System"),
+    ("memo-runtime/OWNERS.md", "Memo System"),
+    ("connector/clawscale_bridge/OWNERS.md", "Bridge System"),
+    ("agent/agno_agent/OWNERS.md", "Agent Runtime"),
+    ("gateway/packages/api/src/channel/OWNERS.md", "Channel System"),
+    ("gateway/packages/web/OWNERS.md", "Frontend App"),
+]
 
 
 def test_repo_os_required_files_exist():
@@ -33,6 +43,13 @@ def test_repo_os_required_files_exist():
         ROOT / "scripts" / "suggest-verification",
         ROOT / "scripts" / "review-trigger",
         ROOT / "scripts" / "guardrails.py",
+        ROOT / "docs" / "fitness" / "ownership-registry.yaml",
+        ROOT / "agent" / "reminder" / "OWNERS.md",
+        ROOT / "memo-runtime" / "OWNERS.md",
+        ROOT / "connector" / "clawscale_bridge" / "OWNERS.md",
+        ROOT / "agent" / "agno_agent" / "OWNERS.md",
+        ROOT / "gateway" / "packages" / "api" / "src" / "channel" / "OWNERS.md",
+        ROOT / "gateway" / "packages" / "web" / "OWNERS.md",
     ]
 
     missing = [str(path.relative_to(ROOT)) for path in required if not path.exists()]
@@ -41,6 +58,47 @@ def test_repo_os_required_files_exist():
 
 def test_retired_exec_plans_directory_stays_absent():
     assert not (ROOT / "docs" / "exec-plans").exists()
+
+
+def test_primary_ownership_directories_have_owners_metadata():
+    missing = [path for path, _ in REQUIRED_OWNERS if not (ROOT / path).exists()]
+    assert missing == []
+
+
+def test_owners_files_reference_boundary_spec():
+    for path, _ in REQUIRED_OWNERS:
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert BOUNDARY_SPEC in text, f"{path} missing reference to {BOUNDARY_SPEC}"
+
+
+def test_owners_files_name_expected_system():
+    for path, expected_system in REQUIRED_OWNERS:
+        text = (ROOT / path).read_text(encoding="utf-8")
+        assert re.search(
+            rf"Ownership system:\s*{re.escape(expected_system)}", text
+        ), f"{path} does not declare ownership system {expected_system!r}"
+
+
+def test_owners_systems_appear_in_registry():
+    """Every system named in OWNERS.md must exist in the ownership registry."""
+    import yaml
+
+    registry_path = ROOT / "docs" / "fitness" / "ownership-registry.yaml"
+    registry = yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+    systems = {str(s) for s in registry.get("systems", [])}
+    mapping = {
+        "Reminder System": "reminder",
+        "Memo System": "memo",
+        "Bridge System": "bridge",
+        "Agent Runtime": "agent-runtime",
+        "Channel System": "channel",
+        "Frontend App": "frontend-app",
+    }
+    for path, expected_system in REQUIRED_OWNERS:
+        registry_id = mapping.get(expected_system)
+        assert registry_id in systems, (
+            f"system {expected_system!r} (declared in {path}) not in registry"
+        )
 
 
 def test_architecture_has_routa_style_canonical_entrypoint():
