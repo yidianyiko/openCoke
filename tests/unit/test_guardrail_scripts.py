@@ -338,3 +338,62 @@ def test_check_import_boundaries_reports_nested_gateway_collector_failure(
     captured = capsys.readouterr()
     assert result == 1
     assert "failed to list nested gateway web files: boom" in captured.out
+
+
+def test_validate_ownership_registry_reports_invalid_missing_and_omitted_route(
+    monkeypatch,
+):
+    from scripts import guardrails
+
+    monkeypatch.setattr(
+        guardrails,
+        "expected_route_registry_paths",
+        lambda: {
+            "gateway/packages/api/src/routes/customer-auth-routes.ts",
+            "gateway/packages/api/src/routes/customer-subscription-routes.ts",
+        },
+    )
+
+    registry = {
+        "systems": ["platform"],
+        "routes": [
+            {
+                "path": "gateway/packages/api/src/routes/customer-auth-routes.ts",
+                "owner": "made-up",
+            },
+            {
+                "path": "gateway/packages/api/src/routes/missing.ts",
+                "owner": "platform",
+            },
+        ],
+        "contracts": [],
+    }
+
+    errors = guardrails.validate_ownership_registry(registry)
+
+    assert (
+        "ownership registry missing route entry: "
+        "gateway/packages/api/src/routes/customer-subscription-routes.ts"
+    ) in errors
+    assert (
+        "ownership registry route missing file: "
+        "gateway/packages/api/src/routes/missing.ts"
+    ) in errors
+    assert (
+        "ownership registry invalid owner made-up for "
+        "gateway/packages/api/src/routes/customer-auth-routes.ts"
+    ) in errors
+
+
+def test_check_ownership_registry_reports_clean_registry(capsys):
+    from scripts import guardrails
+
+    result = guardrails.cmd_check_ownership_registry(
+        SimpleNamespace(registry="", base="HEAD", files=[])
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "OK ownership registry" in captured.out
+
+

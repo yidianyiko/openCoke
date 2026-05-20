@@ -66,6 +66,13 @@ surface for guardrail scripts, `surfaces.yaml`, or verification tooling.
 It keeps the Coke-specific boundaries close to the human-readable verification
 matrix without replacing the existing command runner.
 
+## Ownership Registry
+
+`docs/fitness/ownership-registry.yaml` maps route and contract files to the
+ownership systems defined in
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
+It complements planning surfaces; it does not replace `surfaces.yaml`.
+
 Use these helpers from the repository root:
 
 ```bash

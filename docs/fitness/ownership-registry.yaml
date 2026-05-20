@@ -1,0 +1,79 @@
+schema: coke-ownership-registry-v1
+
+# First-pass ownership registry for current route files and selected
+# cross-system contracts.
+#
+# Deferred Scope:
+# - `gateway/packages/api/src/gateway/**`
+# - `gateway/packages/api/src/adapters/**`
+#
+# Those paths are advisory in the boundary spec for now. Expanding this check
+# beyond route files needs a separate file-pattern handler and follow-up plan.
+
+systems:
+  - frontend-app
+  - platform
+  - channel
+  - reminder
+  - memo
+  - calendar-import
+  - timezone
+  - other-capability
+  - bridge
+  - agent-runtime
+  - state-infrastructure
+
+routes:
+  - path: gateway/packages/api/src/routes/admin-admins.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/admin-auth-routes.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/admin-customers.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/admin-deliveries.ts
+    owner: channel
+    secondary_owner: platform
+  - path: gateway/packages/api/src/routes/admin-shared-channels.ts
+    owner: channel
+    secondary_owner: platform
+  - path: gateway/packages/api/src/routes/calendar-import-handoff-routes.ts
+    owner: calendar-import
+  - path: gateway/packages/api/src/routes/coke-bindings.ts
+    owner: platform
+    secondary_owner: bridge
+  - path: gateway/packages/api/src/routes/coke-delivery-routes.ts
+    owner: channel
+    secondary_owner: bridge
+  - path: gateway/packages/api/src/routes/coke-user-provision.ts
+    owner: platform
+    secondary_owner: bridge
+  - path: gateway/packages/api/src/routes/customer-auth-routes.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/customer-channel-routes.ts
+    owner: platform
+    secondary_owner: channel
+  - path: gateway/packages/api/src/routes/customer-claim-routes.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts
+    owner: calendar-import
+  - path: gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts
+    owner: calendar-import
+  - path: gateway/packages/api/src/routes/customer-reminder-routes.ts
+    owner: reminder
+  - path: gateway/packages/api/src/routes/customer-subscription-routes.ts
+    owner: platform
+  - path: gateway/packages/api/src/routes/outbound.ts
+    owner: channel
+  - path: gateway/packages/api/src/routes/user-wechat-channel.ts
+    owner: channel
+    secondary_owner: platform
+
+contracts:
+  - path: agent/reminder/runtime_contract.py
+    owner: reminder
+  - path: memo-runtime/memo_runtime/contract.py
+    owner: memo
+  - path: agent/agno_agent/capabilities/timezone_port.py
+    owner: timezone
+  - path: agent/agno_agent/capabilities/calendar_import_port.py
+    owner: calendar-import

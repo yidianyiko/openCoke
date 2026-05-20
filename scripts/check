@@ -35,6 +35,7 @@ typeset -a required_files=(
   "docs/fitness/README.md"
   "docs/fitness/coke-verification-matrix.md"
   "docs/fitness/surfaces.yaml"
+  "docs/fitness/ownership-registry.yaml"
   "scripts/check"
   "scripts/verify-surface"
   "scripts/suggest-verification"
@@ -115,6 +116,10 @@ else
 fi
 
 if ! "$python_cmd" scripts/guardrails.py check-import-boundaries; then
+  missing=1
+fi
+
+if ! "$python_cmd" scripts/guardrails.py check-ownership-registry; then
   missing=1
 fi
 

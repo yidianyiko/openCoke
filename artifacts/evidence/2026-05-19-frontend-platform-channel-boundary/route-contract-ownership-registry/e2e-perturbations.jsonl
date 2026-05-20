@@ -1,0 +1,3 @@
+{"scenario":"invalid-owner","exit_code":1,"matched_error":true}
+{"scenario":"missing-file","exit_code":1,"matched_error":true}
+{"scenario":"unregistered-route","exit_code":1,"matched_error":true}

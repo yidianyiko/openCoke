@@ -14,6 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT / "docs" / "fitness" / "surfaces.yaml"
+OWNERSHIP_REGISTRY_PATH = ROOT / "docs" / "fitness" / "ownership-registry.yaml"
 
 _STATIC_IMPORT_RE = re.compile(
     r"""
@@ -199,6 +200,49 @@ def check_import_boundaries(
                 errors.append(
                     f"{normalized} imports backend-only channel internals: {target}"
                 )
+    return errors
+
+
+def load_ownership_registry(path: Path | None = None) -> dict[str, Any]:
+    registry_path = path or OWNERSHIP_REGISTRY_PATH
+    return yaml.safe_load(registry_path.read_text(encoding="utf-8")) or {}
+
+
+def expected_route_registry_paths() -> set[str]:
+    routes_root = ROOT / "gateway" / "packages" / "api" / "src" / "routes"
+    return {
+        str(path.relative_to(ROOT))
+        for path in routes_root.glob("*.ts")
+        if not path.name.endswith(".test.ts")
+    }
+
+
+def validate_ownership_registry(
+    registry: dict[str, Any] | None = None,
+) -> list[str]:
+    data = registry or load_ownership_registry()
+    systems = {str(system) for system in data.get("systems", [])}
+    errors: list[str] = []
+    registered_route_paths: set[str] = set()
+
+    for section in ("routes", "contracts"):
+        for item in data.get(section, []):
+            path = str(item.get("path", ""))
+            owner = str(item.get("owner", ""))
+            if section == "routes" and path:
+                registered_route_paths.add(path)
+            if path and not (ROOT / path).exists():
+                errors.append(f"ownership registry {section[:-1]} missing file: {path}")
+            if owner not in systems:
+                errors.append(f"ownership registry invalid owner {owner} for {path}")
+            secondary = item.get("secondary_owner")
+            if secondary is not None and str(secondary) not in systems:
+                errors.append(
+                    f"ownership registry invalid secondary_owner {secondary} for {path}"
+                )
+
+    for path in sorted(expected_route_registry_paths() - registered_route_paths):
+        errors.append(f"ownership registry missing route entry: {path}")
     return errors
 
 
@@ -402,6 +446,17 @@ def cmd_review_trigger(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_check_ownership_registry(args: argparse.Namespace) -> int:
+    registry_path = Path(args.registry) if args.registry else None
+    errors = validate_ownership_registry(load_ownership_registry(registry_path))
+    if not errors:
+        print("OK ownership registry")
+        return 0
+    for error in errors:
+        print(error)
+    return 1
+
+
 def cmd_check_import_boundaries(args: argparse.Namespace) -> int:
     try:
         files = resolve_files(args) if args.files else collect_tracked_web_files()
@@ -428,16 +483,21 @@ def build_parser() -> argparse.ArgumentParser:
         "suggest-verification",
         "review-trigger",
         "check-import-boundaries",
+        "check-ownership-registry",
     ):
         subparser = subparsers.add_parser(name)
         subparser.add_argument("--base", default="HEAD")
         subparser.add_argument("--files", action="append", default=[])
+        if name == "check-ownership-registry":
+            subparser.add_argument("--registry", default="")
         if name == "suggest-verification":
             subparser.set_defaults(func=cmd_suggest_verification)
         elif name == "review-trigger":
             subparser.set_defaults(func=cmd_review_trigger)
-        else:
+        elif name == "check-import-boundaries":
             subparser.set_defaults(func=cmd_check_import_boundaries)
+        else:
+            subparser.set_defaults(func=cmd_check_ownership_registry)
 
     return parser
 
