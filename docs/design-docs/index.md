@@ -18,6 +18,8 @@ sessions.
   rule for agent-facing external capability contracts and their adapters.
 - [`interface-contract.md`](./interface-contract.md): the canonical public and
   internal route namespace contract.
+- [`channel-field-inventory.md`](./channel-field-inventory.md): frontend-safe
+  and backend-only Channel field classification.
 
 ## Canonical Neighbors
 
