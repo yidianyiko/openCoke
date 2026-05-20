@@ -18,7 +18,6 @@ The production stack consists of:
 - `agent/runner/agent_runner.py`
   - runs Coke message workers
   - boots the in-process reminder runtime
-  - boots the deferred-action scheduler
   - runs background maintenance jobs
 - `agent/reminder/runtime.py`
   - owns the in-process Reminder Runtime object
@@ -31,13 +30,6 @@ The production stack consists of:
 - `agent/runner/reminder_event_handler.py`
   - resolves the reminder output target back into conversation context
   - writes final reminder output through the Agent System output boundary
-- `agent/runner/deferred_action_scheduler.py`
-  - rebuilds APScheduler jobs from MongoDB state
-  - reconciles expired leases on startup
-- `agent/runner/deferred_action_executor.py`
-  - claims due actions
-  - acquires the normal conversation lock boundary
-  - routes triggered actions through `handle_message()`
 - `connector/clawscale_bridge/app.py`
   - validates bridge/internal integration requests
   - adapts Coke ingress and egress protocol traffic
@@ -49,8 +41,7 @@ The production stack consists of:
   - hosts Platform, Channel, Reminder customer API, and Calendar Import routes in one process
   - keeps provider webhook normalization and outbound dispatch under Channel ownership
 - data services
-  - MongoDB for Coke runtime state, including visible `reminders`,
-    `deferred_actions`, `deferred_action_occurrences`, and the
+  - MongoDB for Coke runtime state, including visible `reminders` and the
     feature-flagged `pending_workflows` side channel for in-flight reminder
     intent state
   - Redis for stream wake-up / trigger events
@@ -71,8 +62,6 @@ flowchart LR
         RSCHED[ReminderScheduler]
         RFCONSUMER[CokeReminderFireConsumer]
         RHANDLER[ReminderFireEventHandler]
-        SCHED[DeferredActionScheduler]
-        EXEC[DeferredActionExecutor]
         BG[background_handler]
     end
 
@@ -91,13 +80,10 @@ flowchart LR
     RRUNTIME --> RSCHED
     RSCHED --> RFCONSUMER
     RFCONSUMER --> RHANDLER
-    RUNNER --> SCHED
-    SCHED --> EXEC
     RUNNER --> MONGO
     RUNNER -. stream trigger .-> REDIS
     RSCHED --> MONGO
-    SCHED --> MONGO
-    EXEC --> MONGO
+    RHANDLER --> MONGO
     BG --> MONGO
     API --> PG
 ```
@@ -141,12 +127,11 @@ Key points:
 
 ## 3. Worker Runtime
 
-`agent/runner/agent_runner.py` now has four responsibilities:
+`agent/runner/agent_runner.py` now has three responsibilities:
 
 1. run N message workers
 2. boot one in-process Reminder System scheduler
-3. boot one in-process deferred-action scheduler/executor runtime
-4. run the background handler loop
+3. run the background handler loop
 
 Each worker:
 
@@ -206,38 +191,34 @@ side channel that lives outside the visible reminder protocol:
   turn and persists updates through `ReminderIntentPort` after the turn;
   when disabled, the runtime path is unchanged
 
-The deferred-action runtime remains active outside that new protocol boundary:
-
-- `deferred_actions` remains for non-proactive deferred-action consumers such
-  as imported calendar reminders and historical deferred-action flows
-- `deferred_action_occurrences` stores per-occurrence claim/success/failure
-  audit
-- APScheduler holds only the next concrete in-process wake-up for each active
-  action
-- no live runtime path depends on `conversation_info.future`
-- `agent_background_handler.py` no longer polls legacy reminder or future
-  queues
-- `scripts/retire_legacy_reminder_compat.py` is the one-time operational
-  cleanup path that unsets retired conversation compatibility fields and
-  archives the legacy `reminders` collection to a timestamped backup name
+The deferred-action stack has been fully retired. All scheduled events, including
+imported calendar reminders, now go through the Reminder Runtime. The
+`deferred_actions` and `deferred_action_occurrences` MongoDB collections are
+no longer written to; existing documents are inert.
 
 ## 4. Turn Processing Pipeline
 
 The default turn pipeline is the single-Agent runtime defined in
 `agent/agno_agent/runtime/agent_runtime.py`. The runner constructs an Agno
-`Agent` per turn and registers four async tool wrappers (`reminder_intent`,
-`timezone`, `calendar_import`, `url_context`) that capture typed
+`Agent` per turn and registers async tool wrappers (`reminder_intent`,
+`timezone`, `calendar_import`, `url_context`, `memo`) that capture typed
 `CapabilityResult` objects for deterministic visible-output rules. The runner
 remains responsible for locks, rollback, output writes, replay checks,
 scheduler boot, and delivery state transitions. The former prepare/chat
 workflow runtime and legacy multi-agent runtime have been retired.
 
-Agent-facing external capabilities should follow
+`agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
+concerns are split across four focused modules:
+
+- `agent/runner/rollback_detection.py` — new-message race detection
+- `agent/runner/runtime_lock.py` — lock lifecycle and heartbeat
+- `agent/runner/message_history.py` — chat history reads and embedding writes
+- `agent/runner/output_delivery.py` — outbound message delivery
+
+Agent-facing external capabilities follow
 `docs/design-docs/agent-capability-contract.md`: tool wrappers, HTTP routes,
 future MCP tools, future CLI commands, and web UI surfaces are adapters over a
-stable domain contract, not separate owners of business behavior. Reminder is
-the first capability expected to follow this rule as it moves toward a
-Reminder Runtime Contract.
+stable domain contract, not separate owners of business behavior.
 
 The Memo Runtime follows the same contract-first boundary as a headless
 embedded Python package at `memo-runtime/`. Coke agent adapters and future
