@@ -6,58 +6,32 @@ Usage Tracker - LLM Token 用量追踪
 使用 Agno RunOutput.metrics 中的数据。
 """
 
-from dataclasses import asdict, dataclass
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Optional
 
+from agent.agno_agent.capabilities.usage import UsageCapabilityPort, UsageRecord
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
-
-
-@dataclass
-class UsageRecord:
-    """单次调用的用量记录"""
-
-    timestamp: datetime
-    agent_name: str
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-    duration: Optional[float] = None
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
-    workflow_name: Optional[str] = None
-
-    def to_dict(self) -> dict:
-        """转换为字典，用于 MongoDB 存储"""
-        return asdict(self)
 
 
 class UsageTracker:
     """
     用量追踪器
 
-    负责记录和持久化 Agent 调用的 token 用量。
+    负责记录 Agent 调用 token 用量，并通过 UsageCapabilityPort 持久化。
     """
 
-    def __init__(self, persist_enabled: bool = True):
-        """
-        初始化用量追踪器
-
-        Args:
-            persist_enabled: 是否启用持久化到 MongoDB
-        """
+    def __init__(
+        self,
+        persist_enabled: bool = True,
+        *,
+        port: UsageCapabilityPort | None = None,
+    ):
         self._persist_enabled = persist_enabled
-        self._dao = None
-
-    def _get_dao(self):
-        """懒加载 DAO，避免循环导入"""
-        if self._dao is None:
-            from dao.usage_dao import UsageDAO
-
-            self._dao = UsageDAO()
-        return self._dao
+        self._port = port or UsageCapabilityPort()
 
     def record_from_metrics(
         self,
@@ -69,28 +43,16 @@ class UsageTracker:
     ) -> Optional[UsageRecord]:
         """
         从 Agno Metrics 对象记录用量
-
-        Args:
-            agent_name: Agent 名称
-            metrics: Agno RunOutput.metrics 对象
-            user_id: 用户 ID
-            session_id: 会话 ID
-            workflow_name: Workflow 名称
-
-        Returns:
-            创建的 UsageRecord，如果 metrics 无效则返回 None
         """
         if metrics is None:
             logger.debug(f"[UsageTracker] {agent_name} metrics is None, skipping")
             return None
 
-        # 从 Agno Metrics 提取数据
         input_tokens = getattr(metrics, "input_tokens", 0) or 0
         output_tokens = getattr(metrics, "output_tokens", 0) or 0
         total_tokens = getattr(metrics, "total_tokens", 0) or 0
         duration = getattr(metrics, "duration", None)
 
-        # 如果没有 token 数据，跳过记录
         if total_tokens == 0:
             logger.debug(f"[UsageTracker] {agent_name} total_tokens=0, skipping record")
             return None
@@ -115,15 +77,12 @@ class UsageTracker:
             f"total={total_tokens}"
         )
 
-        # 持久化
-        if self._persist_enabled:
-            try:
-                self._get_dao().insert_usage_record(record.to_dict())
-            except Exception as e:
-                logger.warning(f"[UsageTracker] Failed to persist record: {e}")
+        try:
+            self._port.record(record, persist_enabled=self._persist_enabled)
+        except Exception as exc:
+            logger.warning(f"[UsageTracker] Failed to persist record: {exc}")
 
         return record
 
 
-# 全局实例
 usage_tracker = UsageTracker()
