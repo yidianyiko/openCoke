@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Agent background handler for non-deferred runtime work.
+Agent background handler for non-reminder runtime work.
 
-Deferred reminder and follow-up execution now lives in the deferred-actions
-runtime. This module keeps only unrelated background maintenance work:
+Reminder and follow-up execution now lives in the reminder runtime. This module
+keeps only unrelated background maintenance work:
 
 - relationship decay
 - hold-message recovery

@@ -10,7 +10,9 @@ import sys
 import time
 import types
 import importlib.util
+from datetime import UTC, date, time as dt_time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
@@ -245,19 +247,37 @@ def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
     mock_realign_reminders.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.deferred_action.service.DeferredActionService")
-def test_realign_visible_reminders_helper_calls_service_with_keywords(
-    mock_service_class,
-):
-    from agent.agno_agent.tools.timezone_tools import (
+@patch("agent.reminder.runtime.get_reminder_runtime_instance")
+def test_realign_visible_reminders_helper_updates_reminder_service(mock_runtime):
+    from agent.agno_agent.capabilities.timezone import (
         _realign_visible_reminders_for_timezone_change,
+    )
+
+    service = MagicMock()
+    service.list_for_user.return_value = [
+        SimpleNamespace(
+            id="rem-1",
+            schedule=SimpleNamespace(
+                local_date=date(2026, 4, 21),
+                local_time=dt_time(9, 30),
+                rrule=None,
+            ),
+        )
+    ]
+    mock_runtime.return_value = SimpleNamespace(
+        contract=SimpleNamespace(reminder_service=service)
     )
 
     _realign_visible_reminders_for_timezone_change("acct-1", "Asia/Tokyo")
 
-    mock_service_class.return_value.realign_visible_reminders_for_timezone_change.assert_called_once_with(
-        user_id="acct-1",
-        timezone="Asia/Tokyo",
+    service.list_for_user.assert_called_once()
+    service.update.assert_called_once()
+    update_kwargs = service.update.call_args.kwargs
+    assert update_kwargs["reminder_id"] == "rem-1"
+    assert update_kwargs["owner_user_id"] == "acct-1"
+    assert update_kwargs["patch"].schedule.timezone == "Asia/Tokyo"
+    assert update_kwargs["patch"].schedule.anchor_at.isoformat() == (
+        "2026-04-21T00:30:00+00:00"
     )
 
 

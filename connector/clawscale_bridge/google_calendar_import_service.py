@@ -4,6 +4,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from agent.reminder.models import (
+    AgentOutputTarget,
+    ReminderCreateCommand,
+    ReminderSchedule,
+)
 from agent.role.bootstrap import ensure_default_character_seeded
 from dao.conversation_dao import ConversationDAO
 from dao.user_dao import UserDAO
@@ -15,20 +20,18 @@ class GoogleCalendarImportService:
         self,
         *,
         conversation_dao: ConversationDAO | None = None,
-        deferred_action_service=None,
+        reminder_service=None,
         character_id_provider=None,
         user_dao: UserDAO | None = None,
         default_timezone_provider=None,
         now_provider=None,
     ) -> None:
-        if deferred_action_service is None:
-            from agent.agno_agent.tools.deferred_action.service import (
-                DeferredActionService,
-            )
+        if reminder_service is None:
+            from agent.reminder.service import ReminderService
 
-            deferred_action_service = DeferredActionService()
+            reminder_service = ReminderService()
         self.conversation_dao = conversation_dao or ConversationDAO()
-        self.deferred_action_service = deferred_action_service
+        self.reminder_service = reminder_service
         self.character_id_provider = character_id_provider or ensure_default_character_seeded
         self.user_dao = user_dao or UserDAO()
         self.default_timezone_provider = default_timezone_provider or get_default_timezone
@@ -188,38 +191,51 @@ class GoogleCalendarImportService:
             title = (event.get("summary") or "").strip() or "Google Calendar event"
 
             if event.get("recurrence"):
-                self.deferred_action_service.create_imported_recurring_reminder(
-                    user_id=target["user_id"],
-                    character_id=target["character_id"],
-                    conversation_id=target["conversation_id"],
+                command = self._build_create_command(
                     title=title,
                     dtstart=dtstart,
-                    timezone=timezone_name,
+                    timezone_name=timezone_name,
+                    character_id=target["character_id"],
+                    conversation_id=target["conversation_id"],
                     rrule=self._normalize_rrule(event.get("recurrence")),
-                    metadata=metadata,
+                )
+                self.reminder_service.create_imported_reminder(
+                    owner_user_id=target["user_id"],
+                    command=command,
+                    import_metadata=metadata,
                 )
                 result["imported_count"] += 1
                 continue
 
             if dtstart >= self.now_provider():
-                self.deferred_action_service.create_imported_future_reminder(
-                    user_id=target["user_id"],
-                    character_id=target["character_id"],
-                    conversation_id=target["conversation_id"],
+                command = self._build_create_command(
                     title=title,
                     dtstart=dtstart,
-                    timezone=timezone_name,
-                    metadata=metadata,
+                    timezone_name=timezone_name,
+                    character_id=target["character_id"],
+                    conversation_id=target["conversation_id"],
+                    rrule=None,
+                )
+                self.reminder_service.create_imported_reminder(
+                    owner_user_id=target["user_id"],
+                    command=command,
+                    import_metadata=metadata,
                 )
             else:
-                self.deferred_action_service.create_imported_historical_reminder(
-                    user_id=target["user_id"],
-                    character_id=target["character_id"],
-                    conversation_id=target["conversation_id"],
+                self.reminder_service.record_historical_import(
+                    owner_user_id=target["user_id"],
                     title=title,
-                    dtstart=dtstart,
-                    timezone=timezone_name,
-                    metadata=metadata,
+                    schedule=self._build_schedule(
+                        dtstart=dtstart,
+                        timezone_name=timezone_name,
+                        rrule=None,
+                    ),
+                    agent_output_target=AgentOutputTarget(
+                        conversation_id=target["conversation_id"],
+                        character_id=target["character_id"],
+                        route_key=None,
+                    ),
+                    import_metadata=metadata,
                 )
             result["imported_count"] += 1
 
@@ -244,14 +260,55 @@ class GoogleCalendarImportService:
         source_event_id: str,
         source_original_start_time: str,
     ) -> dict[str, Any] | None:
-        action_dao = getattr(self.deferred_action_service, "action_dao", None)
-        if action_dao is None or not hasattr(action_dao, "find_imported_reminder_duplicate"):
+        reminder_dao = getattr(self.reminder_service, "reminder_dao", None)
+        if reminder_dao is None or not hasattr(reminder_dao, "find_imported_duplicate"):
             return None
-        return action_dao.find_imported_reminder_duplicate(
-            user_id=user_id,
+        return reminder_dao.find_imported_duplicate(
+            owner_user_id=user_id,
             import_provider="google_calendar",
             source_event_id=source_event_id,
             source_original_start_time=source_original_start_time,
+        )
+
+    def _build_create_command(
+        self,
+        *,
+        title: str,
+        dtstart: datetime,
+        timezone_name: str,
+        character_id: str,
+        conversation_id: str,
+        rrule: str | None,
+    ) -> ReminderCreateCommand:
+        return ReminderCreateCommand(
+            title=title,
+            schedule=self._build_schedule(
+                dtstart=dtstart,
+                timezone_name=timezone_name,
+                rrule=rrule,
+            ),
+            agent_output_target=AgentOutputTarget(
+                conversation_id=conversation_id,
+                character_id=character_id,
+                route_key=None,
+            ),
+            created_by_system="agent",
+        )
+
+    def _build_schedule(
+        self,
+        *,
+        dtstart: datetime,
+        timezone_name: str,
+        rrule: str | None,
+    ) -> ReminderSchedule:
+        local_start = dtstart.astimezone(ZoneInfo(timezone_name))
+        return ReminderSchedule(
+            anchor_at=dtstart.astimezone(UTC),
+            local_date=local_start.date(),
+            local_time=local_start.time().replace(tzinfo=None),
+            timezone=timezone_name,
+            rrule=rrule,
         )
 
     def _effective_reminder_datetime(

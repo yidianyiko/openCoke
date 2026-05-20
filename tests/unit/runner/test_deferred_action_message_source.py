@@ -1,4 +1,4 @@
-def test_deferred_action_message_source_context_uses_reminder_template():
+def test_reminder_message_source_context_uses_reminder_template():
     from agent.prompt import chat_contextprompt
 
     context = {
@@ -7,7 +7,7 @@ def test_deferred_action_message_source_context_uses_reminder_template():
     }
 
     rendered = chat_contextprompt.get_message_source_context(
-        "deferred_action",
+        "reminder",
         context,
     )
 
@@ -15,7 +15,7 @@ def test_deferred_action_message_source_context_uses_reminder_template():
     assert "not a message sent by Alice" in rendered
 
 
-def test_deferred_action_message_source_context_uses_neutral_template_for_unknown_kind():
+def test_reminder_message_source_context_uses_neutral_template_for_unknown_kind():
     from agent.prompt import chat_contextprompt
 
     context = {
@@ -24,7 +24,7 @@ def test_deferred_action_message_source_context_uses_neutral_template_for_unknow
     }
 
     rendered = chat_contextprompt.get_message_source_context(
-        "deferred_action",
+        "reminder",
         context,
     )
 
@@ -34,12 +34,12 @@ def test_deferred_action_message_source_context_uses_neutral_template_for_unknow
     assert "not a message sent by Alice" in rendered
 
 
-def test_message_util_treats_deferred_actions_as_push_outputs(
+def test_message_util_treats_reminders_as_push_outputs(
     sample_context, monkeypatch
 ):
     from agent.util import message_util
 
-    sample_context["message_source"] = "deferred_action"
+    sample_context["message_source"] = "reminder"
     sample_context["system_message_metadata"] = {"kind": "user_reminder"}
     sample_context["conversation"]["chatroom_name"] = None
     sample_context["conversation"]["platform"] = "wechat_personal"

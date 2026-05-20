@@ -7,7 +7,6 @@ from agent.agno_agent.runtime.context import (
 )
 from agent.agno_agent.runtime.inputs import (
     AgentInput,
-    DeferredActionPayload,
     ReminderFirePayload,
     UserTurnPayload,
 )
@@ -25,7 +24,6 @@ __all__ = [
     "AgentRunContext",
     "AgentRunResult",
     "CapabilityResult",
-    "DeferredActionPayload",
     "OutputDisposition",
     "ReminderFirePayload",
     "RuntimeErrorDisposition",

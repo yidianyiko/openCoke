@@ -245,14 +245,14 @@ async def handle_message(
     """
     核心消息处理逻辑-Phase 1 → 2 → 3
 
-    统一处理用户消息和系统消息（提醒、主动消息、deferred actions），复用完整的 Workflow 流程.
+    统一处理用户消息和系统消息（提醒、主动消息），复用完整的 Workflow 流程.
 
     Args:
         context: 已构建好的上下文（由 context_prepare 生成）
         input_message_str: 输入消息字符串
         message_source: 消息来源
            -"user": 用户消息（默认）
-           -"deferred_action": 统一延迟动作触发
+           -"reminder": 统一提醒触发
         metadata: 额外元数据（如 reminder_id、proactive_times 等）
         check_new_message: 是否检测新消息（系统消息通常设为 False）
         worker_tag: 日志标签

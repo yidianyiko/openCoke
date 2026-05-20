@@ -89,4 +89,4 @@ async def test_reminder_event_handler_can_route_through_typed_runtime():
     assert typed_input.metadata["owner_user_id"] == "user-1"
     assert captured["message_source"] == "reminder"
     assert captured["context"]["conversation"]["_id"] == "conv-1"
-    assert captured["context"]["message_source"] == "deferred_action"
+    assert captured["context"]["message_source"] == "reminder"

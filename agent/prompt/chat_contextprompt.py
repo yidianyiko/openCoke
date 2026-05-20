@@ -37,7 +37,7 @@ def get_message_source_context(message_source: str, context: dict) -> str:
     Return the appropriate source annotation context based on message source.
 
     Args:
-        message_source: Message source — "user" / "deferred_action"
+        message_source: Message source — "user" / "reminder"
         context: Full context dict used to render templates
 
     Returns:
@@ -48,7 +48,7 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         if isinstance(context, dict)
         else None
     )
-    if message_source == "deferred_action":
+    if message_source == "reminder":
         template = (
             CONTEXTPROMPT_消息来源_提醒触发
             if deferred_kind == "user_reminder"
@@ -63,7 +63,7 @@ def get_message_source_context(message_source: str, context: dict) -> str:
         return render_prompt_template(template, context)
     except KeyError:
         _user_nickname = resolve_profile_label(context.get("user"), "user")
-        if message_source == "deferred_action":
+        if message_source == "reminder":
             if deferred_kind == "user_reminder":
                 return f"""### Message Source
 This is a system-triggered scheduled reminder — not a message sent by {_user_nickname}.

@@ -16,12 +16,6 @@ from agent.reminder.runtime import (
 )
 from agent.reminder.runtime_contract import ReminderRuntimeContract
 from agent.reminder.service import ReminderService
-from agent.runner.deferred_action_executor import DeferredActionExecutor
-from agent.runner.deferred_action_scheduler import (
-    DeferredActionScheduler,
-    get_deferred_action_scheduler_instance,
-    set_deferred_action_scheduler_instance,
-)
 from agent.runner.reminder_event_handler import ReminderFireEventHandler
 from agent.runner.reminder_fire_consumer import CokeReminderFireConsumer
 from agent.runner.reminder_scheduler import (
@@ -36,8 +30,6 @@ logger = get_logger(__name__)
 from agent.runner.agent_background_handler import background_handler
 from agent.runner.agent_handler import create_handler
 from agent.runner.message_processor import consume_stream_batch, get_queue_mode
-from dao.deferred_action_dao import DeferredActionDAO
-from dao.deferred_action_occurrence_dao import DeferredActionOccurrenceDAO
 from dao.reminder_dao import ReminderDAO
 from dao.mongo import MongoDBBase
 from util.redis_client import RedisClient
@@ -49,37 +41,6 @@ except ImportError:  # pragma: no cover - optional dependency until redis is ins
 
 
 NUM_WORKERS = int(os.environ.get("AGENT_WORKERS", 3))
-
-
-def bootstrap_deferred_action_runtime():
-    existing = get_deferred_action_scheduler_instance()
-    if existing is not None:
-        return existing
-
-    action_dao = DeferredActionDAO()
-    occurrence_dao = DeferredActionOccurrenceDAO()
-    executor = DeferredActionExecutor(
-        action_dao=action_dao,
-        occurrence_dao=occurrence_dao,
-        scheduler=None,
-        runtime_fire_handler=run_agent_runtime_event,
-    )
-    scheduler = DeferredActionScheduler(
-        action_dao=action_dao,
-        executor=executor.execute_due_action,
-    )
-    executor.scheduler = scheduler
-    set_deferred_action_scheduler_instance(scheduler)
-    try:
-        scheduler.start()
-    except Exception:
-        _shutdown_runtime(
-            "deferred action scheduler",
-            scheduler,
-            set_deferred_action_scheduler_instance,
-        )
-        raise
-    return scheduler
 
 
 def bootstrap_reminder_runtime():
@@ -161,10 +122,8 @@ async def run_background_agent():
 
 
 async def main():
-    deferred_action_scheduler = None
     reminder_runtime = None
     try:
-        deferred_action_scheduler = bootstrap_deferred_action_runtime()
         reminder_runtime = bootstrap_reminder_runtime()
         workers = [run_main_agent(i) for i in range(NUM_WORKERS)]
         workers.append(run_background_agent())
@@ -172,11 +131,6 @@ async def main():
         logger.info(f"启动 {NUM_WORKERS} 个消息处理 worker")
         await asyncio.gather(*workers)
     finally:
-        _shutdown_runtime(
-            "deferred action scheduler",
-            deferred_action_scheduler,
-            set_deferred_action_scheduler_instance,
-        )
         _shutdown_runtime(
             "reminder runtime",
             reminder_runtime,

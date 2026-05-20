@@ -89,6 +89,83 @@ class ReminderService:
             self._call_scheduler("register_reminder", reminder)
         return reminder
 
+    def create_imported_reminder(
+        self,
+        *,
+        owner_user_id: str,
+        command: ReminderCreateCommand,
+        import_metadata: dict,
+    ) -> Reminder:
+        self._validate_create_command(command)
+        now = self._now()
+        next_fire_at = compute_initial_next_fire_at(command.schedule, now)
+        document = {
+            "owner_user_id": owner_user_id,
+            "title": command.title,
+            "schedule": self._schedule_to_document(command.schedule),
+            "agent_output_target": self._target_to_document(
+                command.agent_output_target
+            ),
+            "created_by_system": "agent",
+            "origin": "user",
+            "visibility": "visible",
+            "fire_mode": "notify",
+            "prompt": None,
+            "metadata": dict(import_metadata),
+            "lifecycle_state": "active",
+            "next_fire_at": next_fire_at,
+            "last_fired_at": None,
+            "last_event_ack_at": None,
+            "last_error": None,
+            "created_at": now,
+            "updated_at": now,
+            "completed_at": None,
+            "cancelled_at": None,
+            "failed_at": None,
+        }
+        reminder_id = self.reminder_dao.insert_reminder(document)
+        document["_id"] = reminder_id
+        reminder = self._map_document(document)
+        if reminder.next_fire_at is not None:
+            self._call_scheduler("register_reminder", reminder)
+        return reminder
+
+    def record_historical_import(
+        self,
+        *,
+        owner_user_id: str,
+        title: str,
+        schedule: ReminderSchedule,
+        agent_output_target: AgentOutputTarget,
+        import_metadata: dict,
+    ) -> Reminder:
+        now = self._now()
+        document = {
+            "owner_user_id": owner_user_id,
+            "title": title,
+            "schedule": self._schedule_to_document(schedule),
+            "agent_output_target": self._target_to_document(agent_output_target),
+            "created_by_system": "agent",
+            "origin": "user",
+            "visibility": "visible",
+            "fire_mode": "notify",
+            "prompt": None,
+            "metadata": dict(import_metadata),
+            "lifecycle_state": "completed",
+            "next_fire_at": None,
+            "last_fired_at": None,
+            "last_event_ack_at": None,
+            "last_error": None,
+            "created_at": now,
+            "updated_at": now,
+            "completed_at": now,
+            "cancelled_at": None,
+            "failed_at": None,
+        }
+        reminder_id = self.reminder_dao.insert_reminder(document)
+        document["_id"] = reminder_id
+        return self._map_document(document)
+
     def update(
         self,
         *,

@@ -131,13 +131,6 @@ class InMemoryReminderDAO:
         return True
 
 
-class FailFastDeferredActionService:
-    def __init__(self, *args, **kwargs) -> None:
-        raise AssertionError(
-            "visible reminder protocol must not touch deferred_actions"
-        )
-
-
 class RecordingSchedulerBackend:
     def __init__(self) -> None:
         self.jobs: dict[str, dict] = {}
@@ -266,7 +259,7 @@ def _fire_consumer(result=None):
 
 
 @pytest.mark.e2e
-def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_actions(
+def test_agent_visible_reminder_tool_create_writes_reminders(
     monkeypatch,
 ):
     now = datetime(2026, 4, 28, 1, 0, tzinfo=UTC)
@@ -285,8 +278,6 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
         now=now,
     )
 
-    import agent.agno_agent.tools.deferred_action.service as legacy_service_module
-    import agent.agno_agent.tools.deferred_action.tool as legacy_tool_module
     from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
     from agent.reminder import runtime as reminder_runtime_module
     from agent.reminder.runtime import ReminderRuntime
@@ -297,16 +288,6 @@ def test_agent_visible_reminder_tool_create_writes_reminders_not_deferred_action
         contract=contract, scheduler=object(), fire_consumer=object()
     )
     monkeypatch.setattr(reminder_runtime_module, "_runtime_instance", runtime)
-    monkeypatch.setattr(
-        legacy_service_module,
-        "DeferredActionService",
-        FailFastDeferredActionService,
-    )
-    monkeypatch.setattr(
-        legacy_tool_module,
-        "DeferredActionService",
-        FailFastDeferredActionService,
-    )
     set_reminder_session_state(
         {
             "user": {"id": "user-1", "effective_timezone": "UTC"},

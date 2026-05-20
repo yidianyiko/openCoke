@@ -12,7 +12,6 @@ from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.inputs import (
     AgentInput,
-    DeferredActionPayload,
     ReminderFirePayload,
 )
 from agent.agno_agent.runtime.result import (
@@ -25,7 +24,7 @@ from agent.agno_agent.runtime.result import (
 
 logger = logging.getLogger(__name__)
 
-_SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired", "deferred_action.fire"}
+_SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired"}
 _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
@@ -199,8 +198,6 @@ def _input_message(agent_input: AgentInput) -> str:
         return agent_input.text or ""
     if agent_input.input_type == "reminder.fired":
         return agent_input.text or agent_input.payload.title
-    if agent_input.input_type == "deferred_action.fire":
-        return agent_input.text or agent_input.payload.prompt
     raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
 
@@ -247,16 +244,6 @@ def _model_input(
                 f"fire_id: {agent_input.payload.fire_id}",
             ]
         )
-    elif isinstance(agent_input.payload, DeferredActionPayload):
-        lines.extend(
-            [
-                f"deferred_action_id: {agent_input.payload.action_id}",
-                f"deferred_action_kind: {agent_input.payload.kind}",
-                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
-                f"revision: {agent_input.payload.revision}",
-            ]
-        )
-
     if run_context.recent_chat_history:
         lines.extend(["recent_chat_history:", run_context.recent_chat_history])
 

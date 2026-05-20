@@ -254,7 +254,10 @@ def send_message_via_context(
 
     status = "pending"
     handled_timestamp = expect_output_timestamp
-    is_proactive_message = context.get("message_source") == "deferred_action"
+    is_proactive_message = context.get("message_source") in {
+        "deferred_action",
+        "reminder",
+    }
     account_id = None
     append_to_existing_sync_reply = False
     if not is_proactive_message:

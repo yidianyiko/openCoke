@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
+from agent.reminder.models import ReminderPatch, ReminderQuery, ReminderSchedule
 from agent.timezone_service import TimezoneService
 from dao.user_dao import UserDAO
 from util.time_util import get_default_timezone
@@ -437,14 +439,33 @@ def _realign_visible_reminders_for_timezone_change(user_id: str, timezone: str) 
         return
 
     try:
-        from agent.agno_agent.tools.deferred_action.service import (
-            DeferredActionService,
-        )
+        from agent.reminder.runtime import get_reminder_runtime_instance
 
-        DeferredActionService().realign_visible_reminders_for_timezone_change(
-            user_id=user_id,
-            timezone=timezone,
-        )
+        runtime = get_reminder_runtime_instance()
+        if runtime is not None:
+            service = runtime.contract.reminder_service
+            reminders = service.list_for_user(
+                owner_user_id=user_id,
+                query=ReminderQuery(lifecycle_states=["active"]),
+            )
+            for reminder in reminders:
+                new_anchor = datetime.combine(
+                    reminder.schedule.local_date,
+                    reminder.schedule.local_time,
+                    tzinfo=ZoneInfo(timezone),
+                ).astimezone(UTC)
+                new_schedule = ReminderSchedule(
+                    anchor_at=new_anchor,
+                    local_date=reminder.schedule.local_date,
+                    local_time=reminder.schedule.local_time,
+                    timezone=timezone,
+                    rrule=reminder.schedule.rrule,
+                )
+                service.update(
+                    reminder_id=reminder.id,
+                    owner_user_id=user_id,
+                    patch=ReminderPatch(schedule=new_schedule),
+                )
     except Exception:
         logger.exception(
             "realign_visible_reminders_for_timezone_change failed for user %s",

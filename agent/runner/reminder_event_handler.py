@@ -107,7 +107,7 @@ class ReminderFireEventHandler:
 
             context = self.context_builder(owner, character, conversation)
             if isinstance(context, dict):
-                context.setdefault("message_source", "deferred_action")
+                context.setdefault("message_source", "reminder")
             if self.runtime_event_handler is not None:
                 return await self._handle_with_typed_runtime(event, context)
 

@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.result import CapabilityResult
-from dao.deferred_action_dao import DeferredActionDAO
 from dao.mongo import MongoDBBase
 from util.embedding_util import embedding_by_aliyun
 from util.log_util import get_logger
@@ -46,12 +45,8 @@ class ContextRetrieveDomainContract:
         self,
         *,
         mongo: MongoDBBase | None = None,
-        deferred_action_dao_factory: Callable[[], Any] | None = None,
     ) -> None:
         self.mongo = mongo or MongoDBBase()
-        self.deferred_action_dao_factory = (
-            deferred_action_dao_factory or DeferredActionDAO
-        )
 
     def retrieve(self, request: dict[str, Any]) -> dict[str, Any]:
         return_resp = {
@@ -145,9 +140,14 @@ class ContextRetrieveDomainContract:
 
     def _retrieve_confirmed_reminders(self, user_id: str) -> str:
         try:
-            action_dao = self.deferred_action_dao_factory()
+            from dao.reminder_dao import ReminderDAO
+
+            reminder_dao = ReminderDAO()
             current_time = datetime.now(UTC)
-            all_reminders = action_dao.list_visible_actions(user_id)
+            all_reminders = reminder_dao.list_for_owner(
+                owner_user_id=user_id,
+                lifecycle_states=["active"],
+            )
 
             lines = []
             for action in all_reminders[:30]:
@@ -155,17 +155,17 @@ class ContextRetrieveDomainContract:
                     continue
 
                 title = str(action.get("title", ""))
-                next_run_at = action.get("next_run_at")
-                if not next_run_at or next_run_at <= current_time:
+                next_fire_at = action.get("next_fire_at")
+                if not next_fire_at or next_fire_at <= current_time:
                     continue
 
-                ts = int(next_run_at.timestamp())
+                ts = int(next_fire_at.timestamp())
                 time_str = format_time_friendly(ts) if ts > 0 else ""
                 line = title
                 if time_str:
                     line = line + " · " + time_str
                 lines.append(line)
-            action_dao.close()
+            reminder_dao.close()
             return "\n".join(lines)
         except Exception as exc:
             logger.warning("Failed to retrieve reminders: %s", exc)

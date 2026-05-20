@@ -27,7 +27,7 @@ def test_preflight_returns_target_conversation_identity_and_timezone():
 
     service = GoogleCalendarImportService(
         conversation_dao=conversation_dao,
-        deferred_action_service=MagicMock(),
+        reminder_service=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=user_dao,
     )
@@ -62,7 +62,7 @@ def test_preflight_prefers_whatsapp_business_conversation_key_when_present():
 
     service = GoogleCalendarImportService(
         conversation_dao=conversation_dao,
-        deferred_action_service=MagicMock(),
+        reminder_service=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=user_dao,
     )
@@ -96,7 +96,7 @@ def test_preflight_raises_conversation_required_when_missing():
         conversation_dao=MagicMock(
             find_latest_private_conversation_by_db_user_ids=MagicMock(return_value=None)
         ),
-        deferred_action_service=MagicMock(),
+        reminder_service=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(get_user_by_id=MagicMock(return_value={"_id": "ck_1"})),
     )
@@ -112,17 +112,14 @@ def test_import_events_creates_future_single_event_with_event_timezone_override(
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(return_value=None)
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(return_value=None)
     )
-    deferred_action_service.create_imported_future_reminder.return_value = {
-        "_id": "action-1"
-    }
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -166,15 +163,15 @@ def test_import_events_creates_future_single_event_with_event_timezone_override(
     assert result["skipped_count"] == 0
     assert result["warning_count"] == 0
     assert result["warnings"] == []
-    deferred_action_service.create_imported_future_reminder.assert_called_once()
-    kwargs = deferred_action_service.create_imported_future_reminder.call_args.kwargs
-    assert kwargs["user_id"] == "ck_1"
-    assert kwargs["character_id"] == "char_1"
-    assert kwargs["conversation_id"] == "conv-1"
-    assert kwargs["title"] == "Team sync"
-    assert kwargs["timezone"] == "America/New_York"
-    assert kwargs["dtstart"] == datetime(2026, 4, 23, 12, 30, tzinfo=UTC)
-    assert kwargs["metadata"] == {
+    reminder_service.create_imported_reminder.assert_called_once()
+    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
+    assert kwargs["owner_user_id"] == "ck_1"
+    assert kwargs["command"].agent_output_target.character_id == "char_1"
+    assert kwargs["command"].agent_output_target.conversation_id == "conv-1"
+    assert kwargs["command"].title == "Team sync"
+    assert kwargs["command"].schedule.timezone == "America/New_York"
+    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 23, 12, 30, tzinfo=UTC)
+    assert kwargs["import_metadata"] == {
         "import_provider": "google_calendar",
         "import_run_id": "run-1",
         "provider_account_email": "alice@example.com",
@@ -188,16 +185,16 @@ def test_import_events_skips_duplicate_and_uses_all_day_target_timezone():
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(
             side_effect=[{"_id": "existing-1"}, None]
         )
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -234,11 +231,11 @@ def test_import_events_skips_duplicate_and_uses_all_day_target_timezone():
     assert result["imported_count"] == 1
     assert result["skipped_count"] == 1
     assert result["warning_count"] == 1
-    deferred_action_service.create_imported_future_reminder.assert_called_once()
-    kwargs = deferred_action_service.create_imported_future_reminder.call_args.kwargs
-    assert kwargs["timezone"] == "Asia/Tokyo"
-    assert kwargs["dtstart"] == datetime(2026, 4, 24, 0, 0, tzinfo=UTC)
-    assert kwargs["metadata"]["source_event_id"] == "evt-all-day"
+    reminder_service.create_imported_reminder.assert_called_once()
+    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
+    assert kwargs["command"].schedule.timezone == "Asia/Tokyo"
+    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 24, 0, 0, tzinfo=UTC)
+    assert kwargs["import_metadata"]["source_event_id"] == "evt-all-day"
     assert result["warnings"] == [
         {"event_id": "evt-dup", "reason": "duplicate_existing_reminder"}
     ]
@@ -249,14 +246,14 @@ def test_import_events_skips_exception_bearing_recurring_series_with_warning():
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(return_value=None)
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(return_value=None)
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -298,7 +295,7 @@ def test_import_events_skips_exception_bearing_recurring_series_with_warning():
     assert result["warnings"] == [
         {"event_id": "evt-series", "reason": "unsupported_recurring_exceptions"}
     ]
-    deferred_action_service.create_imported_recurring_reminder.assert_not_called()
+    reminder_service.create_imported_reminder.assert_not_called()
 
 
 def test_import_events_imports_recurring_master_when_only_exception_is_tombstone_cancel():
@@ -306,14 +303,14 @@ def test_import_events_imports_recurring_master_when_only_exception_is_tombstone
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(return_value=None)
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(return_value=None)
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -351,7 +348,7 @@ def test_import_events_imports_recurring_master_when_only_exception_is_tombstone
     assert result["skipped_count"] == 0
     assert result["warning_count"] == 0
     assert result["warnings"] == []
-    deferred_action_service.create_imported_recurring_reminder.assert_called_once()
+    reminder_service.create_imported_reminder.assert_called_once()
 
 
 def test_import_events_ignores_tombstone_only_cancellation_artifacts():
@@ -359,14 +356,14 @@ def test_import_events_ignores_tombstone_only_cancellation_artifacts():
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(return_value=None)
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(return_value=None)
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
     )
@@ -404,17 +401,14 @@ def test_import_events_does_not_use_calendar_defaults_when_use_default_false_wit
         GoogleCalendarImportService,
     )
 
-    deferred_action_service = MagicMock()
-    deferred_action_service.action_dao = MagicMock(
-        find_imported_reminder_duplicate=MagicMock(return_value=None)
+    reminder_service = MagicMock()
+    reminder_service.reminder_dao = MagicMock(
+        find_imported_duplicate=MagicMock(return_value=None)
     )
-    deferred_action_service.create_imported_future_reminder.return_value = {
-        "_id": "action-2"
-    }
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        deferred_action_service=deferred_action_service,
+        reminder_service=reminder_service,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -449,5 +443,5 @@ def test_import_events_does_not_use_calendar_defaults_when_use_default_false_wit
 
     assert result["imported_count"] == 1
     assert result["warning_count"] == 0
-    kwargs = deferred_action_service.create_imported_future_reminder.call_args.kwargs
-    assert kwargs["dtstart"] == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
+    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)

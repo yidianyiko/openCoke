@@ -13,7 +13,6 @@ from agent.agno_agent.runtime.context import (
 )
 from agent.agno_agent.runtime.inputs import (
     AgentInput,
-    DeferredActionPayload,
     ReminderFirePayload,
     UserTurnPayload,
 )
@@ -56,29 +55,6 @@ def test_reminder_fire_payload_carries_required_fire_fields():
     assert payload.title == "drink water"
     assert payload.scheduled_for == scheduled_for
     assert payload.metadata["event_type"] == "reminder.fired"
-
-
-def test_deferred_action_payload_can_be_used_as_agent_input():
-    scheduled_for = datetime(2026, 5, 1, 2, 0, tzinfo=UTC)
-
-    event = AgentInput(
-        input_type="deferred_action.fire",
-        conversation_id="conv-1",
-        text=None,
-        payload=DeferredActionPayload(
-            action_id="action-1",
-            kind="follow_up",
-            scheduled_for=scheduled_for,
-            revision=2,
-            prompt="Follow up with the user.",
-        ),
-        occurred_at=scheduled_for,
-        metadata={"source": "deferred-action-service"},
-    )
-
-    assert event.input_type == "deferred_action.fire"
-    assert event.payload.action_id == "action-1"
-    assert event.metadata["source"] == "deferred-action-service"
 
 
 def test_run_context_uses_trusted_context_objects():
@@ -287,23 +263,17 @@ def test_metadata_mappings_are_read_only_after_construction():
     [
         (
             "user.turn",
-            DeferredActionPayload(
-                action_id="action-1",
-                kind="follow_up",
-                scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
-                revision=1,
-                prompt="Follow up.",
-            ),
-        ),
-        ("reminder.fired", UserTurnPayload()),
-        (
-            "deferred_action.fire",
             ReminderFirePayload(
                 fire_id="rem-1:2026-05-01T01:00:00+00:00",
                 reminder_id="rem-1",
                 title="drink water",
                 scheduled_for=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
             ),
+        ),
+        ("reminder.fired", UserTurnPayload()),
+        (
+            "unsupported.fire",
+            UserTurnPayload(),
         ),
     ],
 )

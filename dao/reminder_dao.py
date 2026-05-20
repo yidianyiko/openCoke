@@ -128,6 +128,23 @@ class ReminderDAO:
             }
         )
 
+    def find_imported_duplicate(
+        self,
+        *,
+        owner_user_id: str,
+        import_provider: str,
+        source_event_id: str,
+        source_original_start_time: str,
+    ) -> Optional[Dict]:
+        return self.collection.find_one(
+            {
+                "owner_user_id": owner_user_id,
+                "metadata.import_provider": import_provider,
+                "metadata.source_event_id": source_event_id,
+                "metadata.source_original_start_time": source_original_start_time,
+            }
+        )
+
     def replace_reminder(
         self,
         reminder_id: str,

@@ -36,24 +36,11 @@ class ReminderFirePayload:
 
 
 @dataclass(frozen=True)
-class DeferredActionPayload:
-    action_id: str
-    kind: str
-    scheduled_for: datetime
-    revision: int
-    prompt: str
-    metadata: Mapping[str, Any] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "metadata", freeze_mapping(self.metadata))
-
-
-@dataclass(frozen=True)
 class AgentInput:
-    input_type: Literal["user.turn", "reminder.fired", "deferred_action.fire"]
+    input_type: Literal["user.turn", "reminder.fired"]
     conversation_id: str
     text: str | None
-    payload: UserTurnPayload | ReminderFirePayload | DeferredActionPayload
+    payload: UserTurnPayload | ReminderFirePayload
     occurred_at: datetime
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
@@ -61,7 +48,6 @@ class AgentInput:
         expected_payload_type = {
             "user.turn": UserTurnPayload,
             "reminder.fired": ReminderFirePayload,
-            "deferred_action.fire": DeferredActionPayload,
         }.get(self.input_type)
         if expected_payload_type is None:
             raise ValueError(f"Unsupported agent input type: {self.input_type}")
