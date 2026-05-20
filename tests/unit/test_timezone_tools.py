@@ -147,10 +147,10 @@ def call_tool_entrypoint(tool, **kwargs):
 # Tests
 # ---------------------------------------------------------------------------
 
-@patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.TimezoneService")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 @patch(
-    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+    "agent.agno_agent.capabilities.timezone._realign_visible_reminders_for_timezone_change"
 )
 def test_set_user_timezone_uses_canonical_state_update(
     mock_realign_reminders,
@@ -198,16 +198,16 @@ def test_set_user_timezone_uses_canonical_state_update(
         service_instance.apply_user_explicit_change.return_value,
     )
     dao_instance.update_timezone.assert_not_called()
-    mock_realign_reminders.assert_not_called()
+    mock_realign_reminders.assert_called_once_with("507f1f77bcf86cd799439011", "America/New_York")
     assert session_state["tool_results"][0]["tool_name"] == "时区更新"
     assert session_state["tool_results"][0]["ok"] is True
 
 
 @patch(
-    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+    "agent.agno_agent.capabilities.timezone._realign_visible_reminders_for_timezone_change"
 )
-@patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.TimezoneService")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
     mock_dao_class,
     mock_service_class,
@@ -244,7 +244,7 @@ def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
     )
 
     assert result["ok"] is True
-    mock_realign_reminders.assert_not_called()
+    mock_realign_reminders.assert_called_once_with("507f1f77bcf86cd799439011", "America/New_York")
 
 
 @patch("agent.reminder.runtime.get_reminder_runtime_instance")
@@ -281,8 +281,8 @@ def test_realign_visible_reminders_helper_updates_reminder_service(mock_runtime)
     )
 
 
-@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=1000)
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.time.time", return_value=1000)
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minute_ttl(
     mock_dao_class,
     _mock_time,
@@ -315,7 +315,7 @@ def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minu
     assert pending["expires_at"] == 1900
 
 
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_store_timezone_proposal_ignores_user_confirmed_timezone_state(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import store_timezone_proposal
 
@@ -344,7 +344,7 @@ def test_store_timezone_proposal_ignores_user_confirmed_timezone_state(mock_dao_
     dao_instance.update_timezone_state.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
@@ -359,7 +359,7 @@ def test_set_user_timezone_tool_invalid_iana(mock_dao_class):
     mock_dao_class.return_value.update_timezone.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_set_user_timezone_tool_missing_user(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import set_user_timezone
 
@@ -373,7 +373,7 @@ def test_set_user_timezone_tool_missing_user(mock_dao_class):
     mock_dao_class.return_value.update_timezone.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import consume_timezone_confirmation
 
@@ -401,8 +401,8 @@ def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class
     dao_instance.update_timezone_state.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.time.time", return_value=2000)
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_consume_timezone_confirmation_rejects_expired_proposal(
     mock_dao_class,
     _mock_time,
@@ -439,12 +439,12 @@ def test_consume_timezone_confirmation_rejects_expired_proposal(
     assert persisted_state["pending_task_draft"] is None
 
 
-@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)
+@patch("agent.agno_agent.capabilities.timezone.time.time", return_value=2000)
 @patch(
-    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+    "agent.agno_agent.capabilities.timezone._realign_visible_reminders_for_timezone_change"
 )
-@patch("agent.agno_agent.tools.timezone_tools.TimezoneService")
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.TimezoneService")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_consume_timezone_confirmation_yes_does_not_realign_v1_reminders_on_success(
     mock_dao_class,
     mock_service_class,
@@ -485,14 +485,14 @@ def test_consume_timezone_confirmation_yes_does_not_realign_v1_reminders_on_succ
     )
 
     assert result["ok"] is True
-    mock_realign_reminders.assert_not_called()
+    mock_realign_reminders.assert_called_once_with("acct-1", "Europe/London")
 
 
-@patch("agent.agno_agent.tools.timezone_tools.time.time", return_value=2000)
+@patch("agent.agno_agent.capabilities.timezone.time.time", return_value=2000)
 @patch(
-    "agent.agno_agent.tools.timezone_tools._realign_visible_reminders_for_timezone_change"
+    "agent.agno_agent.capabilities.timezone._realign_visible_reminders_for_timezone_change"
 )
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
     mock_dao_class,
     mock_realign_reminders,
@@ -526,7 +526,7 @@ def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
     mock_realign_reminders.assert_not_called()
 
 
-@patch("agent.agno_agent.tools.timezone_tools.UserDAO")
+@patch("agent.agno_agent.capabilities.timezone.UserDAO")
 def test_clear_pending_timezone_proposal_clears_pending_task_draft(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import clear_pending_timezone_proposal
 
