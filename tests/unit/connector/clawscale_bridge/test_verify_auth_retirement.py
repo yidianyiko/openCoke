@@ -207,7 +207,7 @@ def test_verify_auth_retirement_allows_empty_business_collections_without_failin
     }
 
 
-def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_user_id():
+def test_verify_auth_retirement_discovers_account_id_only_from_reminders_owner_user_id():
     script = _load_script_module()
 
     class EmptyCollection:
@@ -219,9 +219,9 @@ def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_
             assert count == 50
             return []
 
-    class DeferredActionsCollection(EmptyCollection):
+    class RemindersCollection(EmptyCollection):
         def __init__(self):
-            self.documents = [{"_id": "defer_1", "user_id": "acct_333"}]
+            self.documents = [{"_id": "reminder_1", "owner_user_id": "acct_333"}]
 
         def limit(self, count):
             assert count == 50
@@ -234,7 +234,7 @@ def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_
                 "user_profiles": EmptyCollection(),
                 "coke_settings": EmptyCollection(),
                 "outputmessages": EmptyCollection(),
-                "deferred_actions": DeferredActionsCollection(),
+                "reminders": RemindersCollection(),
                 "conversations": EmptyCollection(),
             }
 
@@ -263,7 +263,7 @@ def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_
         def get_user_by_account_id(self, account_id):
             self.lookups.append(account_id)
             assert account_id == "acct_333"
-            return {"account_id": account_id, "display_name": "Deferred"}
+            return {"account_id": account_id, "display_name": "Reminder"}
 
         def close(self):
             return None
@@ -321,8 +321,7 @@ def test_verify_auth_retirement_discovers_account_id_only_from_deferred_actions_
         "resolved": True,
     }
     assert user_dao_instances[0].lookups == ["acct_333"]
-    assert "deferred_actions" in mongo_client_instances[0]._db.requested_collections
-    assert "reminders" not in mongo_client_instances[0]._db.requested_collections
+    assert "reminders" in mongo_client_instances[0]._db.requested_collections
 
 
 def test_verify_auth_retirement_checks_multiple_discovered_account_ids_when_business_docs_exist():

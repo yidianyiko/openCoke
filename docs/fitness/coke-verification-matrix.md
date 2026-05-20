@@ -60,7 +60,6 @@ Use when changing:
 - `agent/runner/agent_runner.py`
 - `agent/runner/message_processor.py`
 - `agent/runner/agent_handler.py`
-- `agent/runner/deferred_action_*.py`
 - `agent/runner/reminder_scheduler.py`
 - `agent/runner/reminder_event_handler.py`
 - `agent/agno_agent/runtime/`
@@ -72,9 +71,7 @@ Use when changing:
 - `agent/agno_agent/tools/`
 - `agent/reminder/`
 - `dao/reminder_dao.py`
-- `agent/agno_agent/tools/deferred_action/`
 - `agent/agno_agent/tools/reminder_protocol/`
-- `dao/deferred_action_*.py`
 - `dao/pending_workflow_dao.py`
 - `agent/prompt/`
 
@@ -99,20 +96,11 @@ Single-Agent runtime commands:
 .venv/bin/python scripts/simulate_user_path.py --case-index 0
 ```
 
-Focused deferred-actions command set:
-
-```bash
-pytest tests/unit/dao/test_deferred_action_dao.py tests/unit/dao/test_deferred_action_occurrence_dao.py -v
-pytest tests/unit/runner/test_deferred_action_policy.py tests/unit/runner/test_deferred_action_scheduler.py tests/unit/runner/test_agent_runner_deferred_actions.py tests/unit/runner/test_deferred_action_executor.py tests/unit/runner/test_deferred_action_message_source.py tests/unit/runner/test_background_handler_deferred_only.py tests/unit/runner/test_background_conversation_participants.py -v
-pytest tests/unit/agent/test_deferred_action_service.py tests/unit/agent/test_post_analyze_deferred_actions.py tests/unit/test_context_retrieve_deferred_reminders.py tests/unit/agent/test_agent_handler.py tests/unit/test_clawscale_only_topology.py -v
-pytest tests/e2e/test_deferred_actions_flow.py -v
-```
-
 Focused reminder-system command set:
 
 ```bash
 pytest tests/unit/reminder/ tests/unit/dao/test_reminder_dao.py -v
-pytest tests/unit/runner/test_reminder_scheduler.py tests/unit/runner/test_reminder_event_handler.py -v
+pytest tests/unit/runner/test_reminder_scheduler.py tests/unit/runner/test_reminder_event_handler.py tests/unit/runner/test_reminder_message_source.py -v
 pytest tests/unit/agent/test_visible_reminder_protocol_tool.py tests/unit/test_tool_results_context.py -v
 pytest tests/unit/agent/test_severity_thresholds.py -v
 pytest tests/e2e/test_reminder_system_flow.py -v
@@ -201,7 +189,7 @@ Commands:
 
 ```bash
 pytest tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py tests/unit/connector/clawscale_bridge/test_bridge_app.py -v
-pytest tests/unit/dao/test_conversation_dao_calendar_import.py tests/unit/dao/test_deferred_action_dao.py tests/unit/agent/test_deferred_action_service.py -v
+pytest tests/unit/dao/test_conversation_dao_calendar_import.py tests/unit/dao/test_reminder_dao_find_imported_duplicate.py tests/unit/reminder/test_service_create_imported.py tests/unit/reminder/test_service_historical_import.py -v
 ```
 
 ## Gateway Web

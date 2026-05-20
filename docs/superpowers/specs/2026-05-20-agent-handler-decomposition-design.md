@@ -188,9 +188,6 @@ as backwards-compatibility shims for external callers.
 Production callers (single source of truth: the new module):
 - `agent/runner/agent_runner.py` — currently `from agent.runner.agent_handler
   import create_handler`. Stays on `agent_handler` (factory is not moving).
-- `agent/runner/deferred_action_executor.py` — currently `from
-  agent.runner.agent_handler import handle_message`. Stays on `agent_handler`
-  (orchestrator is not moving).
 
 ### Test migration
 
@@ -289,9 +286,8 @@ post-refactor file still satisfies that assertion.
   re-export; the local wrapper itself calls
   `agent.agno_agent.runtime.event_adapter.run_agent_runtime_event`.
 - Corrected the import audit list to the files returned by the required grep:
-  `agent_runner.py`, `deferred_action_executor.py`,
-  `tests/unit/runner/test_agent_handler_inflight_interrupt.py`, and
-  `tests/unit/agent/test_agent_handler.py`.
+  `agent_runner.py`, `tests/unit/runner/test_agent_handler_inflight_interrupt.py`,
+  and `tests/unit/agent/test_agent_handler.py`.
 - Flagged `merge_pending_messages` and `record_sent_messages_to_history` as
   having zero callers in the active tree (grep on the whole repo confirms
   only their own definitions in `agent_handler.py`). They are preserved on

@@ -28,7 +28,8 @@ def test_reminder_message_source_context_uses_neutral_template_for_unknown_kind(
         context,
     )
 
-    assert "deferred action" in rendered
+    assert "scheduled reminder" in rendered
+    assert "deferred action" not in rendered
     assert "initiating the conversation" not in rendered
     assert "proactively send" not in rendered
     assert "not a message sent by Alice" in rendered

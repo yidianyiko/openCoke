@@ -235,10 +235,9 @@ is_proactive_message = context.get("message_source") == "deferred_action"
 ```
 to
 ```python
-is_proactive_message = context.get("message_source") in {"deferred_action", "reminder"}
+is_proactive_message = context.get("message_source") == "reminder"
 ```
-This preserves existing behavior during any transition and is correct after
-retirement (both fire paths use `"reminder"`).
+Only the Reminder Runtime fire path remains.
 
 ---
 
@@ -319,7 +318,7 @@ Remove:
 | `tests/unit/agent/test_deferred_action_service.py` | DELETE — tests deleted service |
 | `tests/unit/runner/test_agent_runner_deferred_actions.py` | DELETE — tests deleted bootstrap |
 | `tests/unit/agent/test_agent_runtime_types.py` | REWRITE — remove `DeferredActionPayload` type assertions; retain other runtime-type tests |
-| `tests/unit/test_context_retrieve_deferred_reminders.py` | REWRITE — update expectations to use `ReminderDAO.list_for_owner` and `next_fire_at` |
+| `tests/unit/test_context_retrieve_reminders.py` | REWRITE — update expectations to use `ReminderDAO.list_for_owner` and `next_fire_at` |
 | `tests/unit/test_timezone_tools.py` | REWRITE — update expectations to use `ReminderService.update` |
 | `tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py` | REWRITE — update to inject `ReminderService`; assert import metadata in reminder documents |
 | `tests/e2e/test_reminder_system_flow.py` | RETAIN AND UPDATE — remove any `deferred_action` import or patch; keep reminder system assertions |
@@ -373,10 +372,8 @@ grep -rn "from .*deferred_action\|import.*DeferredAction" \
   agent/ connector/ dao/ tests/ --include="*.py" | grep -v __pycache__
 ```
 
-Note: `message_source == "deferred_action"` string literals in
-`reminder_event_handler.py`, `chat_contextprompt.py`, and `message_util.py`
-are addressed by the module contracts above and will not appear after this
-change.
+Note: runtime `message_source` string literals were updated to the canonical
+`"reminder"` source during cleanup.
 
 ---
 

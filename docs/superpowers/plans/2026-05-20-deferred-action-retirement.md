@@ -37,7 +37,7 @@ spec: docs/superpowers/specs/2026-05-20-deferred-action-retirement-design.md
 **Verify:** `python -c "import agent.runner.reminder_event_handler"` after each step
 
 ### Step 7 — Fix prompt and message utility message source strings
-**Action:** Replace prompt references to `deferred_action` with `reminder`, and allow `message_util` proactive detection to accept both transition strings.
+**Action:** Replace prompt references to `deferred_action` with `reminder`, and keep `message_util` proactive detection on the canonical `reminder` message source only.
 **Files:** `agent/prompt/chat_contextprompt.py`, `agent/util/message_util.py`
 **Verify:** `python -c "import agent.prompt.chat_contextprompt; import agent.util.message_util"` after each step
 
@@ -68,7 +68,7 @@ spec: docs/superpowers/specs/2026-05-20-deferred-action-retirement-design.md
 
 ### Step 13 — Delete or rewrite deferred-action tests
 **Action:** Delete tests that only cover retired modules, then rewrite retained tests to remove deferred-action references while preserving their remaining assertions.
-**Files:** `tests/unit/runner/test_deferred_action_executor.py`, `tests/unit/runner/test_deferred_action_scheduler.py`, `tests/unit/runner/test_deferred_action_policy.py`, `tests/unit/dao/test_deferred_action_dao.py`, `tests/unit/dao/test_deferred_action_occurrence_dao.py`, `tests/e2e/test_deferred_actions_flow.py`, `tests/unit/agent/test_visible_reminder_time_parser.py`, `tests/unit/agent/test_deferred_action_service.py`, `tests/unit/runner/test_agent_runner_deferred_actions.py`, `tests/unit/agent/test_agent_runtime_types.py`, `tests/unit/test_context_retrieve_deferred_reminders.py`, `tests/unit/test_timezone_tools.py`, `tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py`, `tests/e2e/test_reminder_system_flow.py`
+**Files:** `tests/unit/runner/test_deferred_action_executor.py`, `tests/unit/runner/test_deferred_action_scheduler.py`, `tests/unit/runner/test_deferred_action_policy.py`, `tests/unit/dao/test_deferred_action_dao.py`, `tests/unit/dao/test_deferred_action_occurrence_dao.py`, `tests/e2e/test_deferred_actions_flow.py`, `tests/unit/agent/test_visible_reminder_time_parser.py`, `tests/unit/agent/test_deferred_action_service.py`, `tests/unit/runner/test_agent_runner_deferred_actions.py`, `tests/unit/agent/test_agent_runtime_types.py`, `tests/unit/test_context_retrieve_reminders.py`, `tests/unit/test_timezone_tools.py`, `tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py`, `tests/e2e/test_reminder_system_flow.py`
 **Verify:** `python -c "import agent.agno_agent.runtime.inputs; import connector.clawscale_bridge.google_calendar_import_service"` after each step
 
 ### Step 14 — Write reminder import tests

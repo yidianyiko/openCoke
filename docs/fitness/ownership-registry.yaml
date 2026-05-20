@@ -30,6 +30,8 @@ routes:
     owner: platform
   - path: gateway/packages/api/src/routes/admin-customers.ts
     owner: platform
+  - path: gateway/packages/api/src/routes/admin-dashboard.ts
+    owner: platform
   - path: gateway/packages/api/src/routes/admin-deliveries.ts
     owner: channel
     secondary_owner: platform

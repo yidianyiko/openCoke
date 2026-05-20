@@ -23,8 +23,6 @@ directory alone.
   - `agent/runner/message_processor.py`
   - `agent/runner/reminder_scheduler.py`
   - `agent/runner/reminder_event_handler.py`
-  - `agent/runner/deferred_action_scheduler.py`
-  - `agent/runner/deferred_action_executor.py`
   - `agent/agno_agent/runtime/`
   - `agent/agno_agent/capabilities/`
 - Reminder System
@@ -48,28 +46,12 @@ directory alone.
   - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`
   - product behavior: memo cards, search, review queue, and agent proposals
   - frontend implementation is a consumer and must not own memo business rules
-- Calendar Import System
-  - customer API:
-    `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`
-  - customer callback API:
-    `gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts`
-  - handoff API:
-    `gateway/packages/api/src/routes/calendar-import-handoff-routes.ts`
-  - bridge adapter:
-    `connector/clawscale_bridge/google_calendar_import_service.py`
-  - agent capability and handoff tool:
-    `agent/agno_agent/capabilities/calendar_import_port.py`,
-    `agent/agno_agent/tools/calendar_import_handoff.py`
 - Timezone System
   - domain service: `agent/timezone_service.py`
   - runtime port: `agent/agno_agent/capabilities/timezone_port.py`
   - tool adapter: `agent/agno_agent/tools/timezone_tools.py`
   - runtime identity resolution: `agent/runner/identity.py`
   - durable state read/write: `dao/user_dao.py`
-- Deferred Actions
-  - durable state in MongoDB `deferred_actions` and
-    `deferred_action_occurrences`
-  - executor handoff through normal conversation locking and `handle_message()`
 
 ## Bridge Surfaces
 
@@ -91,6 +73,18 @@ directory alone.
   - `gateway/packages/api/src/routes/customer-auth-routes.ts`
   - `gateway/packages/api/src/routes/customer-claim-routes.ts`
   - subscription and account-management routes
+- Calendar Import Integration
+  - customer API:
+    `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`
+  - customer callback API:
+    `gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts`
+  - handoff API:
+    `gateway/packages/api/src/routes/calendar-import-handoff-routes.ts`
+  - bridge adapter:
+    `connector/clawscale_bridge/google_calendar_import_service.py`
+  - agent capability and handoff tool:
+    `agent/agno_agent/capabilities/calendar_import_port.py`,
+    `agent/agno_agent/tools/calendar_import_handoff.py`
 
 ## Channel Surfaces
 

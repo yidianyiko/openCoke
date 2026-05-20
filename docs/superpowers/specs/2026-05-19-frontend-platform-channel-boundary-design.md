@@ -595,8 +595,7 @@ meaning and allowed transitions belong to backend contracts.
   through `agent/runner/reminder_event_handler.py` as
   `kind="internal_followup"`, and planned each turn by the FollowupPlan
   step in `agent/agno_agent/workflows/post_analyze_workflow.py`. This
-  subsumes the previous Deferred Action `proactive_followup` path; see
-  [Deferred Action Retirement](#deferred-action-retirement).
+  subsumes the previous scheduled-action follow-up path.
 - Reminder fire event contract.
 - Reminder domain state and state transitions.
 
@@ -664,36 +663,6 @@ Current code anchors:
 - Customer-facing routes: `gateway/packages/api/src/routes/customer-reminder-routes.ts`.
 - Durable state: MongoDB `reminders` (and feature-flagged `pending_workflows`
   for in-flight reminder intent).
-
-### Deferred Action Retirement
-
-`deferred_actions` was originally a separate scheduling capability with its
-own scheduler, executor, DAO layer, and MongoDB collections. The
-`proactive_followup` kind has already migrated to Reminder System internal
-reminders — see
-`UNSUPPORTED_DEFERRED_ACTION_KINDS = {"proactive_followup"}` in
-`agent/runner/deferred_action_executor.py`. The remaining deferred-action
-kinds are reminder-shaped (schedule a future return into the conversation
-with a typed payload), so this spec retires Deferred Action as a separate
-capability:
-
-- New internal scheduled callbacks must use Reminder System internal
-  reminders (`visibility="internal"`, `fire_mode="followup"`) via the
-  Runtime Reminder Contract. Do not introduce new deferred-action kinds.
-- The following modules and collections should be retired alongside the
-  migration of any remaining live kinds:
-  - `agent/runner/deferred_action_scheduler.py`
-  - `agent/runner/deferred_action_executor.py`
-  - `agent/runner/deferred_action_policy.py`
-  - `dao/deferred_action_dao.py`
-  - `dao/deferred_action_occurrence_dao.py`
-  - `agent/agno_agent/adapters/deferred_action_result.py`
-  - MongoDB `deferred_actions` and `deferred_action_occurrences` collections
-- Until that retirement is complete, the live Deferred Action code is
-  Reminder-System-owned for contract direction (Reminder owns the
-  contract that replaces it) and Agent-Runtime-hosted for scheduling
-  mechanics (because the executor still runs there). No new ownership
-  ambiguity remains.
 
 ## System 5: Memo System
 
@@ -910,10 +879,6 @@ Calendar Import has been promoted to
   Other Capability unless it gains durable state, customer management, or a
   second non-agent consumer.
 
-Deferred Action is **not** in this list. It is being retired into Reminder
-System internal reminders — see
-[Deferred Action Retirement](#deferred-action-retirement).
-
 Interim capabilities follow the [Ownership Lifecycle](#ownership-lifecycle)
 when graduating to first-class systems.
 
@@ -1100,7 +1065,6 @@ First-pass ownership:
 | MongoDB `pending_workflows` (reminders) | Reminder System | medium | `short_lived_workflow_retention` | Feature-flagged; reminder-specific. |
 | MongoDB `inputmessages` / `outputmessages` | Agent Runtime System; Bridge boundary | medium (conversation content) | `conversation_retention` | Bridge adapts ingress/egress; Agent Runtime processes durable runtime messages. |
 | MongoDB conversation locks and batching state | Agent Runtime System | low | `ephemeral_runtime_retention` | Runtime coordination state, not product truth. |
-| MongoDB `deferred_actions` / `deferred_action_occurrences` | Reminder System (retiring) | medium (scheduled callback payloads) | `migration_retention` | Being retired; see [Deferred Action Retirement](#deferred-action-retirement). |
 | Memo storage | Memo System | medium (user-generated context, embeddings) | `memo_retention` | Memo Runtime owns domain state and migrations. |
 | Postgres `calendar_import_runs` | Calendar Import System | medium (provider account email, import counts) | `calendar_import_retention` | Import lifecycle and audit state. |
 | Postgres `calendar_import_handoff_sessions` | Calendar Import System | high (token hash, external identity, route context) | `handoff_session_retention` | Short-lived handoff state; token secrets are not stored raw. |
@@ -1260,7 +1224,7 @@ behavior, not only import direction.
 ## Background Jobs and Scheduling
 
 Scheduled callbacks, queues, and timers are a frequent source of ownership
-drift (see [Deferred Action Retirement](#deferred-action-retirement)).
+drift.
 The rule:
 
 - Every scheduled callback or background job has exactly one product or

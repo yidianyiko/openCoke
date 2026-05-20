@@ -191,10 +191,10 @@ side channel that lives outside the visible reminder protocol:
   turn and persists updates through `ReminderIntentPort` after the turn;
   when disabled, the runtime path is unchanged
 
-The deferred-action stack has been fully retired. All scheduled events, including
-imported calendar reminders, now go through the Reminder Runtime. The
-`deferred_actions` and `deferred_action_occurrences` MongoDB collections are
-no longer written to; existing documents are inert.
+The legacy scheduled-action stack has been fully retired. All scheduled events,
+including imported calendar reminders, now go through the Reminder Runtime. The
+old scheduled-action MongoDB collections are no longer written to; existing
+documents are inert.
 
 ## 4. Turn Processing Pipeline
 

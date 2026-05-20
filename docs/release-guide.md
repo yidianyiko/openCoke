@@ -9,7 +9,7 @@ publishing events.
 Use this guide when changing:
 
 - worker runtime behavior
-- reminder or deferred-action execution
+- reminder execution
 - bridge inbound/outbound behavior
 - gateway API or web surfaces
 - deployment scripts, compose files, or runtime configuration
