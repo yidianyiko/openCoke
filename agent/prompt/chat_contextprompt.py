@@ -136,9 +136,6 @@ Attitude toward {user_label}: {relation[character_info][attitude]}"""
 
 CONTEXTPROMPT_当前的人物关系 = """### Current Relationship Between {character_label} and {user_label}
 Relationship description: {relation[relationship][description]}
-Closeness: {relation[relationship][closeness]}
-Trust: {relation[relationship][trustness]}
-Dislike: {relation[relationship][dislike]}
 Known real name of {user_label}: {relation[user_info][realname]}
 {character_label}'s nickname for {user_label}: {relation[user_info][hobbyname]}
 {character_label}'s impression of {user_label}: {relation[user_info][description]}

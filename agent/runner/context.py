@@ -249,10 +249,7 @@ def context_prepare(user, character, conversation):
 
     # BUG-006 High fix: Handle corrupted relation data with missing "relationship" field
     if "relationship" not in relation:
-        relation["relationship"] = {"closeness": 20, "trustness": 20, "dislike": 0}
-
-    if "dislike" not in relation["relationship"]:
-        relation["relationship"]["dislike"] = 0
+        relation["relationship"] = {}
 
     if "status" not in relation["relationship"]:
         relation["relationship"]["status"] = "空闲"
@@ -448,8 +445,5 @@ def get_default_relation(user, character, platform):
         },
         "relationship": {
             "description": "在聊天里认识的朋友",
-            "closeness": 20,
-            "trustness": 20,
-            "dislike": 0,
         },
     }

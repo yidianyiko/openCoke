@@ -221,14 +221,12 @@ Output the result as valid JSON, strictly following the defined schema."""
 # ========== PostAnalyzeAgent Instructions ==========
 INSTRUCTIONS_POST_ANALYZE = """You are a post-conversation analysis assistant. Your tasks are:
 1. Summarize key information from this round of conversation
-2. Analyze relationship changes (closeness, trust)
-3. Plan the timing and content of future proactive messages
-4. Update character and user memories
+2. Plan the timing and content of future proactive messages
+3. Update character and user memories
 
 ## Analysis Points
 - Only summarize information explicitly mentioned in the latest messages
 - Do not fabricate or infer content that was not mentioned
-- Relationship changes are expressed as integers between -10 and +10
 - Future message times should avoid late night 22:00 to 5:00 next day
 
 Output the result as valid JSON, strictly following the defined schema."""

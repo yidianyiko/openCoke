@@ -5,7 +5,6 @@ Agent background handler for non-reminder runtime work.
 Reminder and follow-up execution now lives in the reminder runtime. This module
 keeps only unrelated background maintenance work:
 
-- relationship decay
 - hold-message recovery
 """
 
@@ -19,17 +18,13 @@ from util.log_util import get_logger
 logger = get_logger(__name__)
 
 from agent.runner.identity import is_mongo_object_id, is_synthetic_coke_account_id
-from conf.config import CONF
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO
 
 # ========== 配置 ==========
-target_user_alias = CONF.get("default_character_alias", "coke")
 typing_speed = 2.2
 max_conversation_round = 50
-descrease_frequency = 30240  # 多少秒降低一次关系数值
-proactive_frequency = 5338  # legacy constant kept for compatibility
 
 # ========== 懒加载 DAO ==========
 conversation_dao = None
@@ -59,14 +54,6 @@ def _get_mongo():
     if mongo is None:
         mongo = MongoDBBase()
     return mongo
-
-
-def _resolve_target_character():
-    characters = _get_user_dao().find_characters({"name": target_user_alias}, limit=1)
-    if not characters:
-        logger.warning(f"Cannot get character by name={target_user_alias}")
-        return None
-    return characters[0]
 
 
 def _build_synthetic_business_user(db_user_id: str, talker: dict | None):
@@ -108,11 +95,6 @@ def _resolve_conversation_participants(conversation):
 
 async def background_handler():
     """后台任务主处理函数。"""
-    now = int(time.time())
-
-    if now % descrease_frequency == 0:
-        decrease_all()
-
     await check_hold_messages()
 
 
@@ -164,28 +146,3 @@ async def check_hold_messages():
 
     except Exception as exc:
         logger.error(f"[HOLD] check_hold_messages 异常: {exc}")
-
-
-def decrease_all():
-    """降低所有用户的关系数值"""
-    logger.info("decrease all relationships...")
-    character = _resolve_target_character()
-    if not character:
-        return
-
-    character_oid = str(character["_id"])
-    mongo_client = _get_mongo()
-    relations = mongo_client.find_many(
-        "relations",
-        query={"cid": character_oid},
-        limit=10000,
-    )
-    for relation in relations:
-        try:
-            relationship = relation.get("relationship", {})
-            if relationship.get("closeness", 0) > 0 or relationship.get("trustness", 0) > 0:
-                relationship["closeness"] = max(0, relationship.get("closeness", 0) - 1)
-                relationship["trustness"] = max(0, relationship.get("trustness", 0) - 1)
-                mongo_client.replace_one("relations", {"_id": relation["_id"]}, relation)
-        except Exception:
-            logger.exception("Failed to decrease relationship for relation=%s", relation.get("_id"))

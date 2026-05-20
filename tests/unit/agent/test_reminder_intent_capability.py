@@ -214,7 +214,7 @@ def test_retry_prompt_preserves_weekday_range_and_chinese_clock_separator_contra
     assert "Weekday ranges such as" in prompt
     assert "BYDAY=MO,TU,WE,TH,FR" in prompt
     assert "### Reminder Few-Shot Decisions" in prompt
-    assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
+    assert "每天22∶12提醒我洗澡" not in prompt
 
 
 def test_retry_prompt_preserves_clocked_task_before_trailing_reminder_contract():
@@ -230,9 +230,10 @@ def test_retry_prompt_preserves_clocked_task_before_trailing_reminder_contract()
 
     assert "Clocked task text before a trailing reminder verb" in prompt
     assert "19点30分，我要开始背诵毛概，请提醒我" in prompt
+    assert '"title": "背诵毛概"' not in prompt
 
 
-def test_reminder_intent_input_includes_weekday_range_fullwidth_clock_few_shot():
+def test_reminder_intent_input_uses_system_rules_not_weekday_special_case_few_shot():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
     prompt = build_reminder_intent_input(
@@ -240,12 +241,12 @@ def test_reminder_intent_input_includes_weekday_range_fullwidth_clock_few_shot()
         _run_context(),
     )
 
-    assert "每天22∶12提醒我洗澡" in prompt
     assert "每个星期一到星期五的晚上22∶12提醒我洗澡" in prompt
-    assert "BYDAY=MO,TU,WE,TH,FR" in prompt
+    assert "每天22∶12提醒我洗澡" not in prompt
+    assert "BYDAY=MO,TU,WE,TH,FR" not in prompt
 
 
-def test_reminder_intent_input_includes_clocked_task_before_trailing_reminder_few_shot():
+def test_reminder_intent_input_uses_system_rules_not_trailing_reminder_few_shot():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
     prompt = build_reminder_intent_input(
@@ -254,7 +255,7 @@ def test_reminder_intent_input_includes_clocked_task_before_trailing_reminder_fe
     )
 
     assert "19点30分，我要开始背诵毛概，请提醒我" in prompt
-    assert '"title": "背诵毛概"' in prompt
+    assert '"title": "背诵毛概"' not in prompt
 
 
 def test_retry_prompt_preserves_corrected_interval_sequence_contract():

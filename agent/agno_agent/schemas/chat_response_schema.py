@@ -5,7 +5,7 @@ ChatResponse Schema
 定义 ChatResponseAgent 的输出格式.
 
 V2 重构：
-- 移除 RelationChange 和 follow-up planning，这些职责移至 PostAnalyzeResponse
+- follow-up planning 移至 PostAnalyzeResponse
 - ChatResponseAgent 专注于生成高质量的多模态回复
 """
 
@@ -26,14 +26,6 @@ class MultiModalResponse(BaseModel):
     emotion: Optional[Literal["无", "高兴", "悲伤", "愤怒", "害怕", "惊讶", "厌恶"]] = (
         Field(default=None, description="仅对语音消息有效，表示语音的感情色彩")
     )
-
-
-class RelationChangeModel(BaseModel):
-    """关系变化模型"""
-
-    Closeness: float = Field(default=0, description="亲密度数值变化")
-
-    Trustness: float = Field(default=0, description="信任度数值变化")
 
 
 class ChatResponse(BaseModel):
@@ -57,5 +49,4 @@ class ChatResponse(BaseModel):
         default="", description="回复涉及的知识分类（角色知识、专业知识、人设故事等）"
     )
 
-    # 已移除：RelationChange -> PostAnalyzeResponse
     # 已移除：follow-up planning -> PostAnalyzeResponse

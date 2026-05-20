@@ -51,9 +51,6 @@ def sample_context():
             "uid": "test_uid",
             "cid": "test_cid",
             "relationship": {
-                "closeness": 50,
-                "trustness": 50,
-                "dislike": 0,
                 "status": "空闲",
             },
             "user_info": {"realname": "", "hobbyname": "", "description": ""},

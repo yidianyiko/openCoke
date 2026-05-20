@@ -7,7 +7,7 @@ PostAnalyzeWorkflow-后处理分析 Workflow
 V2.5 更新：
 - 新增 character_info 更新：CharacterPurpose → shortterm_purpose, CharacterAttitude → attitude
 - 新增 user_info 更新：UserRealName → realname, UserHobbyName → hobbyname, UserDescription → description
-- 新增 relationship 更新：RelationDescription → description, Dislike → dislike
+- 新增 relationship 更新：RelationDescription → description
 - 修复了 PostAnalyze 输出字段与 relation 存储字段之间的映射缺失问题
 
 V2.8 更新：
@@ -113,7 +113,7 @@ class PostAnalyzeWorkflow:
         """
         异步执行后处理分析
 
-        V2 重构：新增 RelationChange 和 internal follow-up 处理
+        V2 重构：新增 internal follow-up 处理
         V2.11 更新：支持动态跳过 internal follow-up prompt
 
         Args:
@@ -169,9 +169,6 @@ class PostAnalyzeWorkflow:
             content = self._extract_content(response)
             logger.info("PostAnalyzeAgent 执行完成")
 
-            # V2 新增：处理关系变化
-            self._handle_relation_change(content, session_state)
-
             # 处理内部 follow-up 规划
             self._handle_followup_plan(content, session_state)
 
@@ -181,7 +178,7 @@ class PostAnalyzeWorkflow:
             # V2.5 新增：处理用户信息更新（真名、昵称、描述）
             self._handle_user_info_update(content, session_state)
 
-            # V2.5 新增：处理关系描述和反感度更新
+            # V2.5 新增：处理关系描述更新
             self._handle_relationship_update(content, session_state)
 
         except Exception as e:
@@ -189,41 +186,6 @@ class PostAnalyzeWorkflow:
             content = self._get_default_content()
 
         return content
-
-    def _handle_relation_change(self, content: Dict, session_state: Dict) -> None:
-        """
-        处理关系变化（V2 新增，从 ChatWorkflow 移入）
-
-        Args:
-            content: PostAnalyze 返回的内容
-            session_state: 会话状态
-        """
-        relation_change = content.get("RelationChange", {})
-        if isinstance(relation_change, str):
-            try:
-                import json
-
-                relation_change = json.loads(relation_change)
-            except Exception:
-                relation_change = {}
-
-        closeness_change = relation_change.get("Closeness", 0) or 0
-        trustness_change = relation_change.get("Trustness", 0) or 0
-
-        if "relation" in session_state and "relationship" in session_state["relation"]:
-            rel = session_state["relation"]["relationship"]
-
-            # 更新亲密度和信任度，限制在 0-100 范围内
-            rel["closeness"] = max(
-                0, min(100, rel.get("closeness", 0) + closeness_change)
-            )
-            rel["trustness"] = max(
-                0, min(100, rel.get("trustness", 0) + trustness_change)
-            )
-
-            logger.info(
-                f"关系变化: closeness={closeness_change}, trustness={trustness_change}"
-            )
 
     def _handle_followup_plan(self, content: Dict, session_state: Dict) -> None:
         """Create, replace, or clear the internal proactive follow-up action."""
@@ -413,10 +375,9 @@ class PostAnalyzeWorkflow:
 
     def _handle_relationship_update(self, content: Dict, session_state: Dict) -> None:
         """
-        处理关系描述和反感度更新（V2.5 新增，V2.8 增加压缩机制）
+        处理关系描述更新（V2.5 新增，V2.8 增加压缩机制）
 
-        将 PostAnalyze 输出的 RelationDescription 和 Dislike
-        映射到 relation.relationship
+        将 PostAnalyze 输出的 RelationDescription 映射到 relation.relationship
 
         V2.8 更新：当 RelationDescription 超过阈值时，调用 LLM 进行摘要压缩
 
@@ -446,16 +407,6 @@ class PostAnalyzeWorkflow:
 
             relationship["description"] = relation_description
             logger.info(f"[关系更新] 描述: {relation_description[:100]}...")
-
-        # 更新反感度
-        dislike_change = content.get("Dislike", 0) or 0
-        if dislike_change != 0:
-            current_dislike = relationship.get("dislike", 0)
-            new_dislike = max(0, min(100, current_dislike + dislike_change))
-            relationship["dislike"] = new_dislike
-            logger.info(
-                f"[关系更新] 反感度变化: {dislike_change}, 当前值: {new_dislike}"
-            )
 
     def _compress_relation_description(self, description: str) -> str:
         """
@@ -597,7 +548,7 @@ class PostAnalyzeWorkflow:
         """
         从 Agent 响应中提取内容
 
-        V2 重构：新增 RelationChange 和 FollowupPlan 字段
+        V2 重构：新增 FollowupPlan 字段
 
         Args:
             response: Agent 响应对象
@@ -616,12 +567,8 @@ class PostAnalyzeWorkflow:
         elif not isinstance(content, dict):
             return self._get_default_content()
 
-        # 确保必要字段存在（V2：新增 RelationChange 和 FollowupPlan；V2.5：新增 CharacterLongtermPurpose）
+        # 确保必要字段存在（V2：新增 FollowupPlan；V2.5：新增 CharacterLongtermPurpose）
         result = {
-            # 新增：关系变化
-            "RelationChange": content.get(
-                "RelationChange", {"Closeness": 0, "Trustness": 0}
-            ),
             # 新增：内部 follow-up 规划
             "FollowupPlan": content.get(
                 "FollowupPlan",
@@ -643,15 +590,13 @@ class PostAnalyzeWorkflow:
             "CharacterPurpose": content.get("CharacterPurpose", ""),
             "CharacterAttitude": content.get("CharacterAttitude", ""),
             "RelationDescription": content.get("RelationDescription", ""),
-            "Dislike": content.get("Dislike", 0),
         }
 
         return result
 
     def _get_default_content(self) -> Dict[str, Any]:
-        """获取默认的内容结构（V2：新增 RelationChange 和 FollowupPlan）"""
+        """获取默认的内容结构（V2：新增 FollowupPlan）"""
         return {
-            "RelationChange": {"Closeness": 0, "Trustness": 0},
             "FollowupPlan": {
                 "FollowupAction": "clear",
                 "FollowupTime": "",
@@ -668,5 +613,4 @@ class PostAnalyzeWorkflow:
             "CharacterPurpose": "",
             "CharacterAttitude": "",
             "RelationDescription": "",
-            "Dislike": 0,
         }

@@ -55,13 +55,6 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     monkeypatch.setitem(sys.modules, "agno.models.siliconflow", agno_models_siliconflow)
     monkeypatch.setitem(
         sys.modules,
-        "agent.runner.agent_hardcode_handler",
-        types.SimpleNamespace(
-            handle_hardcode=lambda *args, **kwargs: None, supported_hardcode=()
-        ),
-    )
-    monkeypatch.setitem(
-        sys.modules,
         "agent.tool.image",
         types.SimpleNamespace(upload_image=lambda *args, **kwargs: ""),
     )

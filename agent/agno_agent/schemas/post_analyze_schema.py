@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
 """PostAnalyzeResponse Schema."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
-
-from agent.agno_agent.schemas.chat_response_schema import RelationChangeModel
 
 
 class FollowupPlanModel(BaseModel):
@@ -30,18 +26,11 @@ class PostAnalyzeResponse(BaseModel):
      PostAnalyzeAgent 的响应模型-扩展版
 
      V2 重构后承担更多分析职责：
-    -关系变化分析（从 ChatResponse 移入）
     -未来消息规划（从 ChatResponse 移入）
     -记忆更新（原有职责）
     """
 
     InnerMonologue: str = Field(default="", description="角色的内心独白")
-
-    # ===== 新增：关系变化（从 ChatResponse 移入）=====
-    RelationChange: RelationChangeModel = Field(
-        default_factory=RelationChangeModel,
-        description="本轮对话的关系变化（亲密度/信任度数值变化）",
-    )
 
     FollowupPlan: FollowupPlanModel = Field(
         default_factory=FollowupPlanModel,
@@ -101,9 +90,4 @@ class PostAnalyzeResponse(BaseModel):
     RelationDescription: str = Field(
         default="无",
         description="总结最新聊天消息中，角色和用户的关系变化.如果没有变化，你应该输出原关系.",
-    )
-
-    Dislike: Optional[int] = Field(
-        default=0,
-        description="总结最新聊天消息中，角色对用户的的反感度数值变化.如果更加反感了，应该输出正整数.",
     )

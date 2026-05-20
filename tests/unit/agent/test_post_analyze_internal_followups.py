@@ -24,10 +24,7 @@ def build_session_state():
         },
         "relation": {
             "relationship": {
-                "closeness": 0,
-                "trustness": 0,
                 "description": "",
-                "dislike": 0,
                 "status": "idle",
             },
             "user_info": {"realname": "", "hobbyname": "", "description": ""},
@@ -71,7 +68,6 @@ async def test_post_analyze_creates_internal_followup(monkeypatch):
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "create",
                         "FollowupTime": "2026年04月21日12时00分",
@@ -134,7 +130,6 @@ async def test_post_analyze_replaces_internal_followup_after_proactive_message(
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "replace",
                         "FollowupTime": "2026年04月22日09时00分",
@@ -181,7 +176,6 @@ async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "create",
                         "FollowupTime": "2026年04月21日12时00分",
@@ -216,7 +210,6 @@ async def test_post_analyze_clears_internal_followup(monkeypatch):
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "clear",
                         "FollowupTime": "",
@@ -254,7 +247,6 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "create",
                         "FollowupTime": "2026年04月21日12时00分",
@@ -295,7 +287,6 @@ async def test_post_analyze_clears_internal_followup_without_character_context(
         AsyncMock(
             return_value=SimpleNamespace(
                 content={
-                    "RelationChange": {"Closeness": 0, "Trustness": 0},
                     "FollowupPlan": {
                         "FollowupAction": "create",
                         "FollowupTime": "2026年04月21日12时00分",
@@ -313,3 +304,17 @@ async def test_post_analyze_clears_internal_followup_without_character_context(
         conversation_id="conv-1",
     )
     service.create_or_replace_internal_followup.assert_not_called()
+
+
+def test_post_analyze_normalization_omits_retired_relation_score_fields():
+    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+
+    workflow = workflow_module.PostAnalyzeWorkflow()
+
+    normalized = workflow._extract_content(SimpleNamespace(content={}))
+    default_content = workflow._get_default_content()
+
+    assert "RelationChange" not in normalized
+    assert "Dislike" not in normalized
+    assert "RelationChange" not in default_content
+    assert "Dislike" not in default_content

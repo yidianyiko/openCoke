@@ -57,8 +57,6 @@ class ProcessResult(Enum):
     FINISH = "finish"  # 正常完成
     ROLLBACK = "rollback"  # 需要回滚
     HOLD = "hold"  # 暂时挂起
-    HARDFINISH = "hardfinish"  # 硬指令完成
-    BLOCKED = "blocked"  # 内容审核失败
     FAILED = "failed"  # 处理失败
 
 
@@ -521,39 +519,22 @@ class MessageDispatcher:
     职责：
     1. 构建处理上下文
     2. 判断消息类型并分发
-    3. 处理特殊情况（拉黑、硬指令、繁忙）
+    3. 处理特殊情况（硬指令、繁忙）
     """
-
-    # 硬指令前缀
-    SUPPORTED_HARDCODE = ("/", "\\", "、")
 
     def __init__(self, worker_tag: str):
         self.worker_tag = worker_tag
-        self.admin_user_id = CONF.get("admin_user_id", "")
 
     def dispatch(self, msg_ctx: MessageContext) -> Tuple[str, Optional[Dict]]:
         """
         分发消息到对应处理器
 
         Returns:
-            (dispatch_type, extra_data)
-           -("blocked", None): 用户被拉黑
-           -("hardcode", {"command": ...}): 硬指令
+           (dispatch_type, extra_data)
            -("hold", None): 角色繁忙
            -("normal", None): 正常消息
         """
         context = msg_ctx.context
-        input_messages = msg_ctx.input_messages
-
-        # 检查拉黑
-        if context["relation"]["relationship"]["dislike"] >= 100:
-            return ("blocked", None)
-
-        # 检查硬指令
-        if str(context["user"].get("id") or context["user"].get("_id")) == self.admin_user_id and str(
-            input_messages[0]["message"]
-        ).startswith(self.SUPPORTED_HARDCODE):
-            return ("hardcode", {"command": input_messages[0]["message"]})
 
         # 检查繁忙状态
         if context["relation"]["character_info"].get("status", "空闲") not in ["空闲"]:
@@ -583,17 +564,6 @@ class MessageFinalizer:
         """处理 hold 状态"""
         for input_message in msg_ctx.input_messages:
             set_hold_status(input_message["_id"])
-
-    def finalize_hardfinish(self, msg_ctx: MessageContext):
-        """处理硬指令完成"""
-        for input_message in msg_ctx.input_messages:
-            success = update_message_status_safe(
-                input_message["_id"], "handled", "pending"
-            )
-            if not success:
-                logger.warning(
-                    f"{self.worker_tag} 乐观锁更新失败(hardfinish): {input_message['_id']}"
-                )
 
     def finalize_blocked(self, msg_ctx: MessageContext):
         """处理内容审核失败"""

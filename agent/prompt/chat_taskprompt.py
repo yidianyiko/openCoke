@@ -77,7 +77,7 @@ Both parties have now sent some new chat messages. Summarize these latest messag
 
 # Internal proactive follow-up planning contract
 TASKPROMPT_总结_FollowupPlan = """
-2. FollowupPlan. Based on the [current user message] and [recent conversation context]: after {character_label} replies, assuming {user_label} does not reply at all afterward, should {character_label} create, replace, or clear one internal proactive follow-up action?
+1. FollowupPlan. Based on the [current user message] and [recent conversation context]: after {character_label} replies, assuming {user_label} does not reply at all afterward, should {character_label} create, replace, or clear one internal proactive follow-up action?
 FollowupAction must be one of: create | replace | clear.
 FollowupTime is the future time for the next proactive follow-up, format: YYYY年MM月DD日HH时MM分.
 FollowupPrompt is the rough content of the next proactive follow-up.
@@ -96,40 +96,36 @@ i. [IMPORTANT] If conversation history shows the character has proactively sent 
 
 # Placeholder prompt used when follow-up planning is skipped
 TASKPROMPT_总结_FollowupPlan_跳过 = """
-2. FollowupPlan. A timed reminder has already been created via the reminder system this round — no internal proactive follow-up is needed. Output FollowupAction as "clear", FollowupTime as an empty string, and FollowupPrompt as "无".
+1. FollowupPlan. A timed reminder has already been created via the reminder system this round — no internal proactive follow-up is needed. Output FollowupAction as "clear", FollowupTime as an empty string, and FollowupPrompt as "无".
 """
 
 TASKPROMPT_总结_推理要求_头部 = """### Current Proactive Message Status
 Proactive prompts sent this round: {proactive_times}
 Message source: {message_source}
 
-1. RelationChange. Analyze relationship changes from this round of conversation:
-- Closeness: Change in closeness value (integer between -10 and +10)
-- Trustness: Change in trust value (integer between -10 and +10)
-If there is no significant change, output 0.
 """
 
 TASKPROMPT_总结_推理要求_尾部 = """
-3. CharacterPublicSettings. Summarize any new character settings for {character_label} from the latest chat messages. Note: if the information is about {user_label}, do not put it in CharacterPublicSettings — put it in CharacterPrivateSettings instead.
+2. CharacterPublicSettings. Summarize any new character settings for {character_label} from the latest chat messages. Note: if the information is about {user_label}, do not put it in CharacterPublicSettings — put it in CharacterPrivateSettings instead.
 You may summarize one or more items. If there are multiple items, separate them with '<newline>'.
 The format can reference the "reference context" — use "key: value" form, where the key can use xxx-xxx-xxx multi-level format; the key is a retrieval index for the information, and the value is a detailed description (generally more than 50 characters). Example: work-experience-internship-funny-incident: xxxxxx.
 If the key (retrieval index) of a summarized item should match a key already in the "reference context" — meaning the summarized information is an update to existing information — you should merge the new value with the existing value from the "reference context" and write the merged result as the output value here.
 If there is no valuable information, output "none".
 Note: only summarize from "{user_label}'s latest chat messages" and "{character_label}'s latest reply" — do not summarize from the historical conversation.
-4. CharacterPrivateSettings. Summarize any new non-public character settings for {character_label} from the latest chat messages. This setting information typically describes the relationship or conversation between {character_label} and {user_label} and should not be disclosed to others.
+3. CharacterPrivateSettings. Summarize any new non-public character settings for {character_label} from the latest chat messages. This setting information typically describes the relationship or conversation between {character_label} and {user_label} and should not be disclosed to others.
 Format and content requirements same as above, use 'key: value' form, e.g. xxx-xxx-xxx: xxxxxx. The value part (right of colon) may optionally include a specific timestamp.
 The key structure of CharacterPrivateSettings should follow the same form as CharacterPublicSettings, e.g. "chat-records-clarification-xxxx".
-5. UserSettings. Summarize any new user settings for {user_label} from the latest chat messages.
+4. UserSettings. Summarize any new user settings for {user_label} from the latest chat messages.
 Format and content requirements same as above, use 'key: value' form, e.g. xxx-xxx-xxx: xxxxxx.
-6. CharacterKnowledges. Summarize any new knowledge or skills for {character_label} from the latest chat messages.
+5. CharacterKnowledges. Summarize any new knowledge or skills for {character_label} from the latest chat messages.
 Format and content requirements same as above, use 'key: value' form, e.g. xxx-xxx-xxx: xxxxxx.
-7. UserRealName. Summarize the real name of {user_label} that {character_label} has learned from the latest chat messages. If none, output "none".
-8. UserHobbyName. Summarize any nickname that {character_label} has given to {user_label} from the latest chat messages. This may have been requested by {user_label} or initiated by {character_label}. If none, output "none".
-9. UserDescription. Summarize {character_label}'s impression description of {user_label} from the latest chat messages. Combine with the impression description in the "reference context" and update. Maximum 300 characters.
-10. CharacterLongtermPurpose. Summarize {character_label}'s long-term goal toward {user_label}. This is a persistent goal that does not change frequently, e.g. "help the user achieve life goals", "become the user's trusted companion". The current long-term goal is "{relation[character_info][longterm_purpose]}". If this conversation reflects a change or update to the long-term goal, output the new long-term goal; otherwise output "none".
-11. CharacterPurpose. Summarize {character_label}'s short-term goal from the latest chat messages. May relate to multiple rounds of conversation or may not. E.g. "learn the user's interests", "help the user solve their current problem".
-12. CharacterAttitude. Summarize {character_label}'s attitude toward {user_label} from the latest chat messages.
-13. RelationDescription. Summarize the relationship change between {character_label} and {user_label} from the latest chat messages. Note: their previous relationship is "{relation[relationship][description]}". If there is no change, output the original relationship.
+6. UserRealName. Summarize the real name of {user_label} that {character_label} has learned from the latest chat messages. If none, output "none".
+7. UserHobbyName. Summarize any nickname that {character_label} has given to {user_label} from the latest chat messages. This may have been requested by {user_label} or initiated by {character_label}. If none, output "none".
+8. UserDescription. Summarize {character_label}'s impression description of {user_label} from the latest chat messages. Combine with the impression description in the "reference context" and update. Maximum 300 characters.
+9. CharacterLongtermPurpose. Summarize {character_label}'s long-term goal toward {user_label}. This is a persistent goal that does not change frequently, e.g. "help the user achieve life goals", "become the user's trusted companion". The current long-term goal is "{relation[character_info][longterm_purpose]}". If this conversation reflects a change or update to the long-term goal, output the new long-term goal; otherwise output "none".
+10. CharacterPurpose. Summarize {character_label}'s short-term goal from the latest chat messages. May relate to multiple rounds of conversation or may not. E.g. "learn the user's interests", "help the user solve their current problem".
+11. CharacterAttitude. Summarize {character_label}'s attitude toward {user_label} from the latest chat messages.
+12. RelationDescription. Summarize the relationship change between {character_label} and {user_label} from the latest chat messages. Note: their previous relationship is "{relation[relationship][description]}". If there is no change, output the original relationship.
 
 ## CRITICAL CONSTRAINTS
 - EXTREMELY IMPORTANT: Never make up information. Only summarize what is explicitly mentioned in the latest messages. If something is not mentioned, output "none".

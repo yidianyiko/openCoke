@@ -126,9 +126,6 @@ def normal_path_relation_seed(
         },
         "relationship": {
             "description": "already-known reminder normal-path eval contact",
-            "closeness": 50,
-            "trustness": 50,
-            "dislike": 0,
             "status": "空闲",
         },
     }

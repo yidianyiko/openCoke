@@ -32,7 +32,6 @@ logger = get_logger(__name__)
 
 import agent.runner.output_delivery as output_delivery
 from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
-from agent.runner.agent_hardcode_handler import handle_hardcode
 from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
 from agent.runner.message_history import (
@@ -539,34 +538,13 @@ def create_handler(worker_id: int = 0):
             )
 
             # Step 2: 分发消息
-            dispatch_type, dispatch_data = dispatcher.dispatch(msg_ctx)
+            dispatch_type, _ = dispatcher.dispatch(msg_ctx)
 
             resp_messages = []
             is_rollback = False
             is_content_blocked = False
 
-            if dispatch_type == "blocked":
-                # 用户被拉黑
-                send_message_via_context(
-                    msg_ctx.context,
-                    message="[系统消息]已拉黑，如需恢复请联系作者YDYK",
-                    message_type="text",
-                    expect_output_timestamp=int(time.time()),
-                )
-                finalizer.finalize_success(msg_ctx, [], store_messages_background)
-
-            elif dispatch_type == "hardcode":
-                # 硬指令
-                handle_hardcode(msg_ctx.context, dispatch_data["command"])
-                send_message_via_context(
-                    msg_ctx.context,
-                    message="ok",
-                    message_type="text",
-                    expect_output_timestamp=int(time.time()),
-                )
-                finalizer.finalize_hardfinish(msg_ctx)
-
-            elif dispatch_type == "hold":
+            if dispatch_type == "hold":
                 # 角色繁忙
                 finalizer.finalize_hold(msg_ctx)
 

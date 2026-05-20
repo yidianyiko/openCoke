@@ -45,7 +45,7 @@ def test_message_source_context_uses_generic_user_label():
     assert "{user_label}" not in rendered
 
 
-@pytest.mark.parametrize("legacy_source", ["reminder", "future"])
+@pytest.mark.parametrize("legacy_source", ["future"])
 def test_message_source_context_rejects_legacy_system_sources(legacy_source):
     with pytest.raises(ValueError, match="Unsupported message source"):
         get_message_source_context(

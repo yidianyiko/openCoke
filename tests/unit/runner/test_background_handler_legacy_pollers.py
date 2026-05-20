@@ -30,7 +30,6 @@ async def test_background_handler_skips_legacy_future_and_reminder_pollers(
     legacy_reminders = AsyncMock()
 
     monkeypatch.setattr(background_handler, "check_hold_messages", check_hold_messages)
-    monkeypatch.setattr(background_handler, "decrease_all", Mock())
     monkeypatch.setattr(
         background_handler,
         _legacy_attr("handle_pending_|future_message"),
@@ -53,29 +52,29 @@ async def test_background_handler_skips_legacy_future_and_reminder_pollers(
 
 
 @pytest.mark.asyncio
-async def test_background_handler_no_longer_triggers_legacy_proactive_seed(
+async def test_background_handler_only_runs_hold_recovery(
     monkeypatch,
 ):
     background_handler = _import_background_handler(monkeypatch)
 
     check_hold_messages = AsyncMock()
-    decrease_all = Mock()
     legacy_proactive = Mock()
 
     monkeypatch.setattr(background_handler, "check_hold_messages", check_hold_messages)
-    monkeypatch.setattr(background_handler, "decrease_all", decrease_all)
     monkeypatch.setattr(
         background_handler,
         "handle_proactive_message",
         legacy_proactive,
         raising=False,
     )
-    monkeypatch.setattr(background_handler, "descrease_frequency", 2)
-    monkeypatch.setattr(background_handler, "proactive_frequency", 2)
     monkeypatch.setattr(background_handler.time, "time", lambda: 2)
+
+    assert not hasattr(background_handler, "proactive_frequency")
+    assert not hasattr(background_handler, "descrease_frequency")
+    assert not hasattr(background_handler, "decrease_all")
+    assert not hasattr(background_handler, "_resolve_target_character")
 
     await background_handler.background_handler()
 
     check_hold_messages.assert_awaited_once()
-    decrease_all.assert_called_once()
     legacy_proactive.assert_not_called()
