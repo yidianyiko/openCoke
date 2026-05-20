@@ -55,3 +55,17 @@ def test_verify_surface_rejects_unknown_surface():
 
     assert result.returncode != 0
     assert "unknown_surface:made-up-surface" in result.stderr
+
+
+def test_verify_surface_dry_run_prints_product_surface_commands():
+    result = run_verify_surface(
+        "--dry-run",
+        "product-reminder",
+        "product-calendar-import",
+        "product-timezone",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "tests/unit/agent/test_reminder" in result.stdout
+    assert "calendar_import" in result.stdout
+    assert "timezone" in result.stdout

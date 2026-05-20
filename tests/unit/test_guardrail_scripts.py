@@ -397,3 +397,15 @@ def test_check_ownership_registry_reports_clean_registry(capsys):
     assert "OK ownership registry" in captured.out
 
 
+def test_suggest_verification_includes_product_surfaces():
+    result = run_script(
+        "scripts/suggest-verification",
+        "--files",
+        "agent/reminder/runtime_contract.py",
+        "--files",
+        "agent/timezone_service.py",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "product-reminder" in result.stdout
+    assert "product-timezone" in result.stdout

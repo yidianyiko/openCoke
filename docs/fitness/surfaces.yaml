@@ -37,6 +37,38 @@ surfaces:
       - dao/deferred_action_*.py
       - dao/pending_workflow_dao.py
 
+  - name: product-reminder
+    paths:
+      - agent/reminder/**
+      - agent/runner/reminder_*.py
+      - gateway/packages/api/src/routes/customer-reminder-routes.ts
+      - connector/clawscale_bridge/reminder_management_service.py
+      - dao/reminder_dao.py
+      - dao/pending_workflow_dao.py
+
+  - name: product-memo
+    paths:
+      - memo-runtime/**
+      - agent/agno_agent/capabilities/memo.py
+
+  - name: product-calendar-import
+    paths:
+      - gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts
+      - gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts
+      - gateway/packages/api/src/routes/calendar-import-handoff-routes.ts
+      - gateway/packages/api/src/lib/google-calendar-*
+      - gateway/packages/api/src/lib/calendar-import-handoff.ts
+      - connector/clawscale_bridge/google_calendar_import_service.py
+      - agent/agno_agent/capabilities/calendar_import_port.py
+      - agent/agno_agent/tools/calendar_import_handoff.py
+
+  - name: product-timezone
+    paths:
+      - agent/timezone_service.py
+      - agent/agno_agent/capabilities/timezone_port.py
+      - agent/agno_agent/tools/timezone_tools.py
+      - dao/user_dao.py
+
   - name: bridge
     paths:
       - connector/clawscale_bridge/**
