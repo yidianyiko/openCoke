@@ -3,6 +3,18 @@
 This document defines the repository-specific work surfaces in `coke` and how
 to reason about them when planning or reviewing a change.
 
+## Ownership Axis
+
+Planning surfaces describe where verification runs. Ownership systems describe
+who owns behavior and contracts. Use
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`
+for Frontend App, Platform System, Channel System, Reminder System, Memo
+System, Calendar Import System, Timezone System, Bridge System, Agent Runtime
+System, and State/Infrastructure ownership.
+
+A change can touch one planning surface while affecting multiple ownership
+systems. Name both in non-trivial plans and reviews.
+
 ## Core Runtime Surfaces
 
 ### 1. Worker Runtime
@@ -48,7 +60,7 @@ Use this surface when the change affects:
 - outbound push delivery
 - bridge auth, identity, or delivery-route integration
 
-### 3. Gateway Platform Layer
+### 3. Gateway Planning Surface
 
 Primary files:
 
@@ -58,10 +70,10 @@ Primary files:
 
 Use this surface when the change affects:
 
-- ClawScale customer/channel/admin APIs
-- Coke user auth, bind, or payment web flows
-- shared-channel and delivery-route behavior
-- platformization logic and Prisma schema
+- gateway-hosted API or web files change
+- customer, channel, admin, reminder, calendar-import, or subscription routes under `gateway/` change
+- shared frontend/backend DTOs under `gateway/packages/shared` change
+- Prisma schema or gateway platformization logic changes
 
 ### 4. Deployment And Rollout
 

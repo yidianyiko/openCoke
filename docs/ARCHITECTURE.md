@@ -4,8 +4,12 @@ This is Coke's canonical architecture document. `docs/architecture.md` is kept
 only as a compatibility symlink for older references.
 
 This document describes the current ClawScale-backed runtime wired in this
-repository, including the gateway-owned shared-channel experiments that feed
+repository, including the gateway-hosted shared-channel experiments that feed
 the same Coke worker pipeline.
+
+This document describes runtime topology. Ownership boundaries are defined in
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
+Planning surfaces and ownership systems are related but not identical.
 
 ## 1. Runtime Topology
 
@@ -35,13 +39,15 @@ The production stack consists of:
   - acquires the normal conversation lock boundary
   - routes triggered actions through `handle_message()`
 - `connector/clawscale_bridge/app.py`
-  - handles user auth, bind flow, and Coke-specific bridge APIs
+  - validates bridge/internal integration requests
+  - adapts Coke ingress and egress protocol traffic
+  - waits for synchronous replies and promotes late replies
   - dispatches outbound replies to the gateway
 - `gateway/`
   - serves the web UI on `4040`
   - serves the API on `4041`
-  - owns shared-channel admin/config state and provider webhook routes for the
-    active `whatsapp_evolution`, `wechat_ecloud`, and `linq` experiments
+  - hosts Platform, Channel, Reminder customer API, and Calendar Import routes in one process
+  - keeps provider webhook normalization and outbound dispatch under Channel ownership
 - data services
   - MongoDB for Coke runtime state, including visible `reminders`,
     `deferred_actions`, `deferred_action_occurrences`, and the
@@ -258,18 +264,20 @@ delivery branch for `whatsapp_evolution`, `wechat_ecloud`, or `linq`. Retired
 Coke-owned direct channel runtimes should not be reintroduced for the personal
 onboarding path.
 
-## 6. Shared-Channel Boundary
+## 6. Channel System Boundary
 
-Shared channels are active gateway-owned experiments, not the primary personal
-onboarding path.
+Shared-channel implementation currently lives under `gateway/`, but provider
+webhook handling, normalization, route binding, and outbound provider dispatch
+belong to the Channel System. Platform owns customer/account context and the
+customer-facing management edge.
 
 Runtime ownership is split as follows:
 
 - `gateway/`
-  - owns shared-channel admin/config state
-  - owns provider webhook verification and normalization
-  - owns shared-customer provisioning and delivery-route binding
-  - owns provider-specific outbound delivery through `/api/outbound`
+  - hosts the customer-facing channel management edge
+  - hosts provider webhook verification and normalization
+  - hosts shared-customer provisioning and delivery-route binding
+  - hosts provider-specific outbound delivery through `/api/outbound`
 - `connector/clawscale_bridge/`
   - remains the boundary that converts normalized inbound events into Coke
     `inputmessages`

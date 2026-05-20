@@ -11,6 +11,11 @@ This file is the entry point for route and endpoint discovery. It is a
 repo-local map, not a product roadmap and not a replacement for
 `docs/roadmap.md`.
 
+For Ownership system classification, use
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`.
+This feature tree remains a discovery map; it does not decide ownership by
+directory alone.
+
 ## Runtime Surfaces
 
 - Worker runtime
@@ -43,6 +48,24 @@ repo-local map, not a product roadmap and not a replacement for
   - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`
   - product behavior: memo cards, search, review queue, and agent proposals
   - frontend implementation is a consumer and must not own memo business rules
+- Calendar Import System
+  - customer API:
+    `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`
+  - customer callback API:
+    `gateway/packages/api/src/routes/customer-google-calendar-import-callback-routes.ts`
+  - handoff API:
+    `gateway/packages/api/src/routes/calendar-import-handoff-routes.ts`
+  - bridge adapter:
+    `connector/clawscale_bridge/google_calendar_import_service.py`
+  - agent capability and handoff tool:
+    `agent/agno_agent/capabilities/calendar_import_port.py`,
+    `agent/agno_agent/tools/calendar_import_handoff.py`
+- Timezone System
+  - domain service: `agent/timezone_service.py`
+  - runtime port: `agent/agno_agent/capabilities/timezone_port.py`
+  - tool adapter: `agent/agno_agent/tools/timezone_tools.py`
+  - runtime identity resolution: `agent/runner/identity.py`
+  - durable state read/write: `dao/user_dao.py`
 - Deferred Actions
   - durable state in MongoDB `deferred_actions` and
     `deferred_action_occurrences`
@@ -54,23 +77,29 @@ repo-local map, not a product roadmap and not a replacement for
   - `connector/clawscale_bridge/app.py`
   - `/bridge/healthz`
   - `/bridge/inbound`
-  - bind and account lifecycle endpoints implemented by the bridge app
+  - bridge ingress, egress, synchronous reply waiting, and late reply promotion
 - Outbound dispatch
   - `connector/clawscale_bridge/output_dispatcher.py`
   - gateway `/api/outbound`
 
-## Gateway Surfaces
+## Platform / Gateway Surfaces
 
-- Gateway web
+- Frontend App
   - `gateway/packages/web`
-  - public homepage and customer account/channel surfaces
-  - customer reminder board: `/account/reminders`
-- Gateway API
-  - `gateway/packages/api`
-  - shared-channel webhook normalization
-  - outbound delivery route
-  - customer reminder management API: `/api/customer/reminders`
-  - Google Calendar import and customer claim flows
+  - public homepage, customer auth, customer account, and customer product-entry surfaces
+- Platform System
+  - `gateway/packages/api/src/routes/customer-auth-routes.ts`
+  - `gateway/packages/api/src/routes/customer-claim-routes.ts`
+  - subscription and account-management routes
+
+## Channel Surfaces
+
+- Channel System
+  - `gateway/packages/api/src/gateway/message-router.ts`
+  - `gateway/packages/api/src/lib/route-message.ts`
+  - `gateway/packages/api/src/routes/customer-channel-routes.ts`
+  - `gateway/packages/api/src/routes/outbound.ts`
+  - provider-specific config and dispatch helpers under `gateway/packages/api/src/lib/`
 
 ## Operations Surfaces
 

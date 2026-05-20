@@ -12,6 +12,19 @@ A path must answer two questions in order:
 
 Historical product names are not valid namespace categories for new interfaces.
 
+## Ownership Axis
+
+Interface namespaces describe audience and transport shape. Ownership systems
+describe who owns the behavior behind that interface. Use
+`docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md`
+when deciding whether a route is Platform, Channel, Reminder, Calendar Import,
+Bridge, Agent Runtime, or another product system.
+
+A route under `gateway/packages/api` is not automatically Platform-owned. For
+example, `/api/customer/reminders` is customer-facing but Reminder-owned, while
+`/api/customer/channels/wechat-personal` is Platform-shaped at the HTTP edge
+and Channel-owned for provider semantics.
+
 ## Namespace Rules
 
 ### Web
@@ -57,28 +70,31 @@ Historical product names are not valid namespace categories for new interfaces.
 
 ### Public API
 
-- `/api/auth/register`
-- `/api/auth/login`
-- `/api/auth/verify-email`
-- `/api/auth/resend-verification`
-- `/api/auth/forgot-password`
-- `/api/auth/reset-password`
-- `/api/auth/me`
-- `/api/auth/claim`
-- `/api/customer/channels/wechat-personal`
-- `/api/customer/channels/wechat-personal/connect`
-- `/api/customer/channels/wechat-personal/disconnect`
-- `/api/customer/channels/wechat-personal/status`
-- `/api/customer/subscription`
-- `/api/customer/subscription/checkout`
-- `/api/public/subscription-checkout`
-- `/api/webhooks/stripe`
+- `/api/auth/register` — Platform System
+- `/api/auth/login` — Platform System
+- `/api/auth/verify-email` — Platform System
+- `/api/auth/resend-verification` — Platform System
+- `/api/auth/forgot-password` — Platform System
+- `/api/auth/reset-password` — Platform System
+- `/api/auth/me` — Platform System
+- `/api/auth/claim` — Platform System
+- `/api/customer/channels/wechat-personal` — Platform edge, Channel semantics
+- `/api/customer/channels/wechat-personal/connect` — Platform edge, Channel semantics
+- `/api/customer/channels/wechat-personal/disconnect` — Platform edge, Channel semantics
+- `/api/customer/channels/wechat-personal/status` — Platform edge, Channel semantics
+- `/api/customer/reminders` — Reminder System
+- `/api/customer/google-calendar-import` — Calendar Import System
+- `/api/customer/calendar-import-handoffs` — Calendar Import System
+- `/api/customer/subscription` — Platform System
+- `/api/customer/subscription/checkout` — Platform System
+- `/api/public/subscription-checkout` — Platform System
+- `/api/webhooks/stripe` — Platform System
 
 ### Internal API
 
-- `/api/internal/coke-bindings`
-- `/api/internal/coke-delivery`
-- `/api/internal/coke-users/provision`
+- `/api/internal/coke-bindings` — Platform System
+- `/api/internal/coke-delivery` — Channel System
+- `/api/internal/coke-users/provision` — Platform System
 
 ## Forbidden Public Patterns
 
