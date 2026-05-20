@@ -16,7 +16,7 @@ from agent.reminder.models import (
     ReminderQuery,
 )
 from agent.reminder.runtime_contract import ReminderRuntimeContract
-from agent.reminder.schedule import build_schedule_from_anchor
+from agent.reminder import build_schedule_from_anchor
 from util.log_util import get_logger
 
 logger = get_logger(__name__)

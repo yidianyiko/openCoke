@@ -22,9 +22,11 @@ from agent.reminder.models import (
     ReminderQuery,
     ReminderSchedule,
 )
+from agent.reminder.schedule import build_schedule_from_anchor
 
 __all__ = [
     "AgentOutputTarget",
+    "build_schedule_from_anchor",
     "InvalidArgument",
     "InvalidOutputTarget",
     "InvalidSchedule",
