@@ -1,0 +1,5 @@
+The frontend truth scan still finds status checks in customer/admin channel UI.
+These are existing presentation/display branches. The new backend-owned
+`actionAvailability` DTO is typed in `gateway/packages/web/lib/customer-wechat-channel.ts`;
+no frontend code imports backend provider config or computes `allowedActions`
+or `blockedReasons`.
