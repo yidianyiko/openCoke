@@ -1,7 +1,7 @@
 ---
 title: agent_handler.py Decomposition
 date: 2026-05-20
-status: in_progress
+status: complete
 spec: docs/superpowers/specs/2026-05-20-agent-handler-decomposition-design.md
 ---
 
