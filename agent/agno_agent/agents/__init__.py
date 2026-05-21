@@ -82,13 +82,6 @@ def get_reminder_detect_instructions(session_state: Dict[str, Any] = None) -> st
     return INSTRUCTIONS_REMINDER_DETECT
 
 
-def get_reminder_detect_retry_instructions(
-    session_state: Dict[str, Any] = None,
-) -> str:
-    """Return shared ReminderDetect instructions for the retry agent."""
-    return INSTRUCTIONS_REMINDER_DETECT
-
-
 # ========== 模块级预创建 Agent ==========
 
 # ReminderDetectAgent - 提醒检测，识别提醒意图并输出结构化提醒决策
@@ -120,21 +113,6 @@ reminder_detect_agent = Agent(
     max_tool_calls_from_history=5,  # 历史工具调用限制
 )
 
-reminder_detect_retry_agent = Agent(
-    id="reminder-detect-retry-agent",
-    name="ReminderDetectRetryAgent",
-    model=create_llm_model(max_tokens=6000, role="reminder_detect"),
-    description=DESCRIPTION_REMINDER_DETECT,
-    instructions=get_reminder_detect_retry_instructions(),
-    output_schema=ReminderDetectDecision,
-    structured_outputs=True,
-    markdown=False,
-    num_history_messages=0,
-    compress_tool_results=True,
-    max_tool_calls_from_history=0,
-)
-
-
 # PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
 # Requirements: 4.4
 #
@@ -165,10 +143,8 @@ __all__ = [
     "get_chat_response_instructions",
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
-    "get_reminder_detect_retry_instructions",
     "create_llm_model",
     # 预创建 Agent
     "reminder_detect_agent",
-    "reminder_detect_retry_agent",
     "post_analyze_agent",
 ]

@@ -364,25 +364,13 @@ def test_reminder_detect_schema_accepts_explicit_occurrence_batch():
 
 
 def test_reminder_detect_agents_use_structured_decision_schema():
-    from agent.agno_agent.agents import (
-        reminder_detect_agent,
-        reminder_detect_retry_agent,
-    )
+    from agent.agno_agent.agents import reminder_detect_agent
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
     assert reminder_detect_agent.output_schema is ReminderDetectDecision
-    assert reminder_detect_retry_agent.output_schema is ReminderDetectDecision
     assert not reminder_detect_agent.tools
-    assert not reminder_detect_retry_agent.tools
     assert reminder_detect_agent.structured_outputs is True
-    assert reminder_detect_retry_agent.structured_outputs is True
     assert reminder_detect_agent.use_json_mode is False
-    assert reminder_detect_retry_agent.use_json_mode is False
-    assert reminder_detect_retry_agent.model.max_tokens >= 6000
-    assert (
-        reminder_detect_retry_agent.instructions == reminder_detect_agent.instructions
-    )
-    assert "short-context retry" not in reminder_detect_retry_agent.instructions
 
 
 def test_reminder_detect_clarification_question_schema_keeps_current_language():
