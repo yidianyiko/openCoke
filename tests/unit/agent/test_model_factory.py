@@ -5,7 +5,9 @@ from pathlib import Path
 from agno.models.openai import OpenAIChat
 from agno.models.siliconflow import Siliconflow
 
-from agent.agno_agent import agents, model_factory
+from agent.agno_agent import model_factory
+from agent.agno_agent.capabilities import reminder_intent
+from agent.agno_agent.runtime import post_analyze
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -144,11 +146,15 @@ def test_runtime_uses_split_reminder_and_post_analyze_models(monkeypatch):
         },
     )
 
-    reload(agents)
+    reload(reminder_intent)
+    reload(post_analyze)
 
-    assert isinstance(agents.reminder_detect_agent.model, Siliconflow)
-    assert isinstance(agents.post_analyze_agent.model, Siliconflow)
-    assert agents.reminder_detect_agent.model.id == "Pro/zai-org/GLM-5.1"
-    assert agents.reminder_detect_agent.model.api_key == "sk-reminder"
-    assert agents.reminder_detect_agent.model.extra_body == {"enable_thinking": False}
-    assert agents.post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"
+    reminder_detect_agent = reminder_intent._create_reminder_detector()
+    post_analyze_agent = post_analyze._create_post_analyze_agent()
+
+    assert isinstance(reminder_detect_agent.model, Siliconflow)
+    assert isinstance(post_analyze_agent.model, Siliconflow)
+    assert reminder_detect_agent.model.id == "Pro/zai-org/GLM-5.1"
+    assert reminder_detect_agent.model.api_key == "sk-reminder"
+    assert reminder_detect_agent.model.extra_body == {"enable_thinking": False}
+    assert post_analyze_agent.model.id == "Pro/MiniMaxAI/MiniMax-M2.5"

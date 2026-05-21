@@ -364,8 +364,10 @@ def test_reminder_detect_schema_accepts_explicit_occurrence_batch():
 
 
 def test_reminder_detect_agents_use_structured_decision_schema():
-    from agent.agno_agent.agents import reminder_detect_agent
+    from agent.agno_agent.capabilities.reminder_intent import _create_reminder_detector
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    reminder_detect_agent = _create_reminder_detector()
 
     assert reminder_detect_agent.output_schema is ReminderDetectDecision
     assert not reminder_detect_agent.tools
