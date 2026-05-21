@@ -87,6 +87,7 @@ def _default_capability_ports() -> dict[str, Any]:
 def _create_agent(
     *,
     run_context: AgentRunContext,
+    agent_input: AgentInput,
     input_message: str,
     tool_results: list[CapabilityResult],
 ) -> Any:
@@ -112,7 +113,7 @@ def _create_agent(
         id="coke-single-agent",
         name="CokeSingleAgent",
         model=create_llm_model(role="chat_response", max_tokens=2000),
-        instructions=build_chat_response_instructions(run_context),
+        instructions=build_chat_response_instructions(run_context, agent_input),
         tools=tools,
         tool_call_limit=4,
         markdown=False,
@@ -576,6 +577,7 @@ async def run_agent_runtime(
         input_message = _input_message(agent_input)
         agent = _create_agent(
             run_context=run_context,
+            agent_input=agent_input,
             input_message=input_message,
             tool_results=tool_results,
         )

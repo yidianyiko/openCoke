@@ -83,6 +83,7 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
         "input_message": "hi",
         "message_source": "user",
     }
+    assert create_kwargs["agent_input"] == _agent_input()
     assert create_kwargs["input_message"] == "hi"
     assert create_kwargs["tool_results"] == []
     model_input = model_inputs[0]
@@ -269,6 +270,7 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
 def test_create_agent_registers_canonical_capability_tools():
     agent = agent_runtime._create_agent(
         run_context=_run_context(),
+        agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
     )
@@ -300,6 +302,7 @@ def test_create_agent_uses_chat_response_model_role(monkeypatch):
 
     agent_runtime._create_agent(
         run_context=_run_context(),
+        agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
     )
@@ -320,6 +323,7 @@ def test_create_agent_sets_tool_call_limit(monkeypatch):
 
     agent = agent_runtime._create_agent(
         run_context=_run_context(),
+        agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
     )
@@ -330,6 +334,7 @@ def test_create_agent_sets_tool_call_limit(monkeypatch):
 def test_create_agent_stops_after_reminder_tool_call():
     agent = agent_runtime._create_agent(
         run_context=_run_context(),
+        agent_input=_agent_input(),
         input_message="提醒我喝水",
         tool_results=[],
     )
@@ -380,7 +385,7 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
                 ],
             )
 
-    def fake_create_agent(*, run_context, input_message, tool_results):
+    def fake_create_agent(*, run_context, agent_input, input_message, tool_results):
         wrappers = agent_runtime.build_capability_tool_wrappers(
             ports=agent_runtime._default_capability_ports(),
             run_context=run_context,

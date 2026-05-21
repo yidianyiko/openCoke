@@ -10,6 +10,11 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.inputs import (
+    AgentInput,
+    ReminderFirePayload,
+    UserTurnPayload,
+)
 
 
 def _ctx() -> AgentRunContext:
@@ -26,8 +31,18 @@ def _ctx() -> AgentRunContext:
     )
 
 
+def _agent_input() -> AgentInput:
+    return AgentInput(
+        input_type="user.turn",
+        conversation_id="conv1",
+        text="hi",
+        payload=UserTurnPayload(current_message_ids=["msg1"]),
+        occurred_at=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
+    )
+
+
 def test_assembled_prompt_excludes_protocol_and_json_schema_artifacts():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     forbidden = [
         "as valid JSON",
@@ -43,20 +58,20 @@ def test_assembled_prompt_excludes_protocol_and_json_schema_artifacts():
 
 
 def test_prompt_keeps_user_challenges_block_in_general_form():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "Handling User Challenges" in prompt
     assert "reminder tool result" in prompt.lower()
 
 
 def test_prompt_includes_default_user_timezone():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "UTC" in prompt
 
 
 def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "Only output the final user-visible reply" in prompt
     assert "Do not include analysis" in prompt
@@ -64,7 +79,7 @@ def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
 
 
 def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "Use the reminder tool only when" in prompt
     assert "plain plan, schedule, intention, deadline, or activity statement" in prompt
@@ -73,7 +88,62 @@ def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
 
 
 def test_prompt_does_not_roleplay_user_messages_as_due_reminders():
-    prompt = build_chat_response_instructions(_ctx())
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "Only speak as if a scheduled reminder is firing" in prompt
     assert "system reminder trigger" in prompt
+
+
+def test_prompt_includes_runtime_context_without_recent_chat_history():
+    ctx = _ctx()
+    ctx = AgentRunContext(
+        user=ctx.user,
+        character=ctx.character,
+        conversation=TrustedConversationContext(
+            id="conv1",
+            platform="business",
+            route_key="route-1",
+        ),
+        relation=ctx.relation,
+        platform=ctx.platform,
+        recent_chat_history="User: should stay out of instructions",
+        current_time=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
+    )
+
+    prompt = build_chat_response_instructions(ctx, _agent_input())
+
+    assert "Trusted runtime context:" in prompt
+    assert "current_time: 2026-05-21T01:02:00+00:00" in prompt
+    assert "user: Alice (u1)" in prompt
+    assert "character: Coke (c1)" in prompt
+    assert "platform: business" in prompt
+    assert "input_type: user.turn" in prompt
+    assert "conversation_id: conv1" in prompt
+    assert "route_key: route-1" in prompt
+    assert "recent_chat_history" not in prompt
+    assert "should stay out of instructions" not in prompt
+
+
+def test_prompt_includes_reminder_fired_contract_for_reminder_payload():
+    agent_input = AgentInput(
+        input_type="reminder.fired",
+        conversation_id="conv1",
+        text="提醒：喝水",
+        payload=ReminderFirePayload(
+            fire_id="fire-1",
+            reminder_id="rem-1",
+            title="喝水",
+            scheduled_for=datetime(2026, 5, 21, 8, 30, tzinfo=UTC),
+        ),
+        occurred_at=datetime(2026, 5, 21, 8, 30, tzinfo=UTC),
+    )
+
+    prompt = build_chat_response_instructions(_ctx(), agent_input)
+
+    assert "event_contract: system reminder delivery" in prompt
+    assert "deliver the existing reminder" in prompt
+    assert "do not create, update, cancel, or list reminders" in prompt
+    assert "reminder_id: rem-1" in prompt
+    assert "reminder_title: 喝水" in prompt
+    assert "scheduled_for: 2026-05-21T08:30:00+00:00" in prompt
+    assert "fire_id: fire-1" in prompt

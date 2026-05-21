@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
 
 _FORBIDDEN_LINE_PATTERNS = (
@@ -37,12 +38,51 @@ def _strip_legacy_artifacts(text: str) -> str:
     return text
 
 
-def build_chat_response_instructions(run_context: AgentRunContext) -> str:
+def _runtime_context_block(
+    run_context: AgentRunContext,
+    agent_input: AgentInput,
+) -> str:
+    lines = [
+        "Trusted runtime context:",
+        f"current_time: {run_context.current_time.isoformat()}",
+        f"user: {run_context.user.nickname or 'User'} ({run_context.user.id})",
+        (
+            f"character: {run_context.character.nickname or 'Coke'} "
+            f"({run_context.character.id})"
+        ),
+        f"platform: {run_context.platform}",
+        f"input_type: {agent_input.input_type}",
+        f"conversation_id: {run_context.conversation.id}",
+    ]
+    if run_context.conversation.route_key:
+        lines.append(f"route_key: {run_context.conversation.route_key}")
+    if isinstance(agent_input.payload, ReminderFirePayload):
+        lines.extend(
+            [
+                (
+                    "event_contract: system reminder delivery; deliver the existing "
+                    "reminder to the user; do not create, update, cancel, or list "
+                    "reminders for this event."
+                ),
+                f"reminder_id: {agent_input.payload.reminder_id}",
+                f"reminder_title: {agent_input.payload.title}",
+                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
+                f"fire_id: {agent_input.payload.fire_id}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def build_chat_response_instructions(
+    run_context: AgentRunContext,
+    agent_input: AgentInput,
+) -> str:
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
     return "\n\n".join(
         [
             cleaned,
+            _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
             _REMINDER_TOOL_BOUNDARY,
             f"Default user timezone: {timezone}",

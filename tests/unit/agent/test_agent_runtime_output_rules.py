@@ -44,8 +44,8 @@ async def _run_with_fake_agent(
         async def arun(self, **_kwargs):
             return FakeOutput(messages)
 
-    def patched_create(*, run_context, input_message, tool_results):
-        del run_context, input_message
+    def patched_create(*, run_context, agent_input, input_message, tool_results):
+        del run_context, agent_input, input_message
         tool_results.extend(captured_results)
         return FakeAgent()
 
