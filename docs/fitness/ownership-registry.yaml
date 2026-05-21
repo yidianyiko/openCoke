@@ -62,10 +62,18 @@ routes:
     owner: calendar-import
   - path: gateway/packages/api/src/routes/customer-reminder-routes.ts
     owner: reminder
+  - path: gateway/packages/api/src/routes/customer-scheduling-routes.ts
+    owner: platform
+    secondary_owner: agent-runtime
   - path: gateway/packages/api/src/routes/customer-subscription-routes.ts
     owner: platform
+  - path: gateway/packages/api/src/routes/internal-scheduling-routes.ts
+    owner: platform
+    secondary_owner: agent-runtime
   - path: gateway/packages/api/src/routes/outbound.ts
     owner: channel
+  - path: gateway/packages/api/src/routes/public-user-link-routes.ts
+    owner: platform
   - path: gateway/packages/api/src/routes/user-wechat-channel.ts
     owner: channel
     secondary_owner: platform

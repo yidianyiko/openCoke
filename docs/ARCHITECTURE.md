@@ -205,12 +205,17 @@ Agno-managed history context (`add_history_to_context=True`,
 `num_history_messages=20`). Runtime metadata is carried in per-turn
 instructions, while the user message passed to Agno remains the raw input text.
 The runtime registers async tool wrappers (`reminder_intent`, `timezone`,
-`calendar_import`, `url_context`) that capture typed `CapabilityResult` objects
-for deterministic visible-output rules. The runner remains responsible for
-locks, rollback, output writes, replay checks, scheduler boot, post-analyze
-dispatch, and delivery state transitions. The former prepare/chat workflow
-runtime, legacy multi-agent runtime, and module-level Agno agent singletons have
-been retired.
+`calendar_import`, `url_context`, and the user-link scheduling tools:
+`get_user_link`, `reset_user_link`, `disable_user_link`,
+`open_bookable_windows`, `confirm_bookable_windows`,
+`query_bookable_windows`, `request_appointment`, `confirm_appointment`,
+`reject_appointment`, `cancel_appointment`, `list_pending_requests`,
+`block_service_link`, `unblock_service_link`, and `remove_service_link`) that
+capture typed `CapabilityResult` objects for deterministic visible-output
+rules. The runner remains responsible for locks, rollback, output writes,
+replay checks, scheduler boot, post-analyze dispatch, and delivery state
+transitions. The former prepare/chat workflow runtime, legacy multi-agent
+runtime, and module-level Agno agent singletons have been retired.
 
 `agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
 concerns are split across four focused modules:

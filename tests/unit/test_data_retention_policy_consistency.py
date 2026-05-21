@@ -11,8 +11,23 @@ BOUNDARY_SPEC = (
     / "specs"
     / "2026-05-19-frontend-platform-channel-boundary-design.md"
 )
+SCHEDULING_SPEC = (
+    ROOT
+    / "docs"
+    / "superpowers"
+    / "specs"
+    / "2026-05-21-user-link-scheduling-design.md"
+)
 
 POLICY_NAME_RE = re.compile(r"`([a-z][a-z_]+_retention)`")
+SCHEDULING_POLICY_NAMES = {
+    "scheduling_link_session_retention",
+    "scheduling_service_link_retention",
+    "scheduling_appointment_request_retention",
+    "scheduling_shared_appointment_retention",
+    "scheduling_bookable_window_retention",
+    "scheduling_disabled_user_link_retention",
+}
 
 
 def _extract_policy_names(path: Path) -> set[str]:
@@ -29,8 +44,24 @@ def test_every_policy_in_boundary_spec_is_documented():
     )
 
 
+def test_scheduling_spec_retention_policies_are_documented():
+    spec_names = _extract_policy_names(SCHEDULING_SPEC)
+    doc_names = _extract_policy_names(POLICY_DOC)
+    assert SCHEDULING_POLICY_NAMES <= spec_names, (
+        "Scheduling spec is missing required retention policy names: "
+        f"{sorted(SCHEDULING_POLICY_NAMES - spec_names)}"
+    )
+    missing = spec_names - doc_names
+    assert missing == set(), (
+        "Retention policies named in scheduling spec are missing from policy doc: "
+        f"{sorted(missing)}"
+    )
+
+
 def test_policy_doc_does_not_declare_unused_policies():
-    spec_names = _extract_policy_names(BOUNDARY_SPEC)
+    spec_names = _extract_policy_names(BOUNDARY_SPEC) | _extract_policy_names(
+        SCHEDULING_SPEC
+    )
     doc_names = _extract_policy_names(POLICY_DOC)
     extra = doc_names - spec_names
     extra.discard("migration_retention")

@@ -73,6 +73,14 @@ directory alone.
   - `gateway/packages/api/src/routes/customer-auth-routes.ts`
   - `gateway/packages/api/src/routes/customer-claim-routes.ts`
   - subscription and account-management routes
+- User Link Scheduling
+  - public web entry: `gateway/packages/web/app/u/[code]/page.tsx`
+  - public QR route: `gateway/packages/web/app/u/[code]/qr/route.ts`
+  - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`
+  - customer API: `gateway/packages/api/src/routes/customer-scheduling-routes.ts`
+  - internal agent API: `gateway/packages/api/src/routes/internal-scheduling-routes.ts`
+  - Gateway domain services: `gateway/packages/api/src/scheduling/`
+  - Worker agent tools: `agent/agno_agent/capabilities/scheduling.py`
 - Calendar Import Integration
   - customer API:
     `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`
