@@ -31,7 +31,8 @@ from util.log_util import get_logger
 logger = get_logger(__name__)
 
 import agent.runner.output_delivery as output_delivery
-from agent.agno_agent.workflows.post_analyze_workflow import PostAnalyzeWorkflow
+from agent.agno_agent.runtime.post_analyze import run_post_analyze
+from agent.agno_agent.runtime.session import initialize_agent_session_db
 from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
 from agent.runner.message_history import (
@@ -65,8 +66,6 @@ from util.message_log_util import (
     should_log_full_message_content,
     should_log_message_content,
 )
-
-post_analyze_workflow = PostAnalyzeWorkflow()
 
 # ========== 配置 ==========
 max_handle_age = 3600 * 12  # 只处理12小时以内的消息
@@ -151,6 +150,7 @@ async def _run_agent_runtime_event(
 conversation_dao = ConversationDAO()
 user_dao = UserDAO()
 mongo = MongoDBBase()
+initialize_agent_session_db()
 
 _store_messages_for_retrieval_sync = store_messages_for_retrieval_sync
 _extract_recent_chat_history = extract_recent_chat_history
@@ -176,7 +176,7 @@ async def _run_post_analyze_background(
     """
     try:
         logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 开始")
-        await post_analyze_workflow.run(session_state=context)
+        await run_post_analyze(session_state=context)
 
         # 更新 relation 到数据库
         relation = context.get("relation", {})

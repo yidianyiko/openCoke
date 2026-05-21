@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
+import importlib
 import sys
 import types
 from datetime import UTC, datetime
@@ -16,9 +17,13 @@ def _stub_lock_manager(*args, **kwargs):
 
 
 def _install_agent_handler_agno_stubs(monkeypatch):
+    created_agent_session_dbs = []
     agno = types.ModuleType("agno")
     agno.__path__ = []
     agno_agent = types.ModuleType("agno.agent")
+    agno_db = types.ModuleType("agno.db")
+    agno_db.__path__ = []
+    agno_db_mongo = types.ModuleType("agno.db.mongo")
     agno_models = types.ModuleType("agno.models")
     agno_models.__path__ = []
     agno_tools = types.ModuleType("agno.tools")
@@ -34,6 +39,10 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
+    class _MongoDb:
+        def __init__(self, *args, **kwargs):
+            created_agent_session_dbs.append({"args": args, "kwargs": kwargs})
+
     def _tool_decorator(*args, **kwargs):
         def _decorate(fn):
             return fn
@@ -41,6 +50,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         return _decorate
 
     agno_agent.Agent = _Agent
+    agno_db_mongo.MongoDb = _MongoDb
     agno_tools.tool = _tool_decorator
     agno_models_deepseek.DeepSeek = _Model
     agno_models_openai.OpenAIChat = _Model
@@ -48,6 +58,8 @@ def _install_agent_handler_agno_stubs(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agno", agno)
     monkeypatch.setitem(sys.modules, "agno.agent", agno_agent)
+    monkeypatch.setitem(sys.modules, "agno.db", agno_db)
+    monkeypatch.setitem(sys.modules, "agno.db.mongo", agno_db_mongo)
     monkeypatch.setitem(sys.modules, "agno.models", agno_models)
     monkeypatch.setitem(sys.modules, "agno.tools", agno_tools)
     monkeypatch.setitem(sys.modules, "agno.models.deepseek", agno_models_deepseek)
@@ -76,7 +88,9 @@ def _install_agent_handler_agno_stubs(monkeypatch):
     monkeypatch.setitem(
         sys.modules,
         "dao.mongo",
-        types.SimpleNamespace(MongoDBBase=lambda *args, **kwargs: object()),
+        types.SimpleNamespace(
+            MongoDBBase=lambda *args, **kwargs: types.SimpleNamespace()
+        ),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -134,6 +148,8 @@ def _install_agent_handler_agno_stubs(monkeypatch):
         apscheduler_schedulers_asyncio,
     )
 
+    return created_agent_session_dbs
+
 
 def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
@@ -160,6 +176,73 @@ def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
     assert agent_handler._derive_agent_runtime_user_turn_occurred_at(
         sample_context
     ) == datetime.fromtimestamp(1893456060, UTC)
+
+
+def test_agent_handler_initializes_shared_agent_session_db_at_boot(monkeypatch):
+    created_agent_session_dbs = _install_agent_handler_agno_stubs(monkeypatch)
+
+    from agent.agno_agent.runtime import session as session_runtime
+
+    session_runtime.reset_agent_session_db_for_tests()
+    monkeypatch.delitem(sys.modules, "agent.runner.agent_handler", raising=False)
+
+    importlib.import_module("agent.runner.agent_handler")
+
+    assert len(created_agent_session_dbs) == 1
+    assert created_agent_session_dbs[0]["kwargs"]["session_collection"] == (
+        "agent_sessions"
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_post_analyze_background_calls_runtime_function_and_persists_relation(
+    monkeypatch,
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner import agent_handler
+
+    calls = []
+    replace_calls = []
+
+    async def fake_run_post_analyze(*, session_state):
+        calls.append(session_state)
+
+    monkeypatch.setattr(agent_handler, "run_post_analyze", fake_run_post_analyze)
+    monkeypatch.setattr(
+        agent_handler.mongo,
+        "replace_one",
+        lambda *args, **kwargs: replace_calls.append({"args": args, "kwargs": kwargs}),
+        raising=False,
+    )
+    context = {
+        "relation": {
+            "_id": "relation-doc",
+            "uid": "user-1",
+            "cid": "char-1",
+            "relationship": {"status": "idle"},
+        }
+    }
+
+    await agent_handler._run_post_analyze_background(
+        context=context,
+        conversation_id="conv-1",
+        worker_tag="[T]",
+    )
+
+    assert calls == [context]
+    assert replace_calls == [
+        {
+            "args": ("relations",),
+            "kwargs": {
+                "query": {"uid": "user-1", "cid": "char-1"},
+                "update": {
+                    "uid": "user-1",
+                    "cid": "char-1",
+                    "relationship": {"status": "idle"},
+                },
+            },
+        }
+    ]
 
 
 @pytest.mark.asyncio

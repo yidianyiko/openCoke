@@ -103,9 +103,8 @@ def install_post_analyze_response(monkeypatch, content):
 
 @pytest.mark.asyncio
 async def test_post_analyze_creates_internal_followup(monkeypatch):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -131,7 +130,7 @@ async def test_post_analyze_creates_internal_followup(monkeypatch):
         "delivery_route_key"
     ] = "route-info-delivery"
 
-    await workflow.run(state)
+    await post_analyze_runtime.run_post_analyze(state)
 
     service.create_or_replace_internal_followup.assert_called_once()
     kwargs = service.create_or_replace_internal_followup.call_args.kwargs
@@ -156,9 +155,8 @@ async def test_post_analyze_creates_internal_followup(monkeypatch):
 async def test_post_analyze_replaces_internal_followup_after_proactive_message(
     monkeypatch,
 ):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -179,7 +177,7 @@ async def test_post_analyze_replaces_internal_followup_after_proactive_message(
         },
     )
 
-    await workflow.run(state)
+    await post_analyze_runtime.run_post_analyze(state)
 
     kwargs = service.create_or_replace_internal_followup.call_args.kwargs
     assert kwargs["route_key"] is None
@@ -190,9 +188,8 @@ async def test_post_analyze_replaces_internal_followup_after_proactive_message(
 async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
     monkeypatch,
 ):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -220,7 +217,7 @@ async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
         },
     )
 
-    await workflow.run(state)
+    await post_analyze_runtime.run_post_analyze(state)
 
     kwargs = service.create_or_replace_internal_followup.call_args.kwargs
     assert kwargs["owner_user_id"] == "user-alt"
@@ -230,9 +227,8 @@ async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
 
 @pytest.mark.asyncio
 async def test_post_analyze_clears_internal_followup(monkeypatch):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -249,7 +245,7 @@ async def test_post_analyze_clears_internal_followup(monkeypatch):
         },
     )
 
-    await workflow.run(build_session_state())
+    await post_analyze_runtime.run_post_analyze(build_session_state())
 
     service.clear_internal_followup.assert_called_once_with(
         owner_user_id="user-1",
@@ -260,9 +256,8 @@ async def test_post_analyze_clears_internal_followup(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypatch):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -281,7 +276,7 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
         },
     )
 
-    await workflow.run(state)
+    await post_analyze_runtime.run_post_analyze(state)
 
     service.clear_internal_followup.assert_called_once_with(
         owner_user_id="user-1",
@@ -294,9 +289,8 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
 async def test_post_analyze_clears_internal_followup_without_character_context(
     monkeypatch,
 ):
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
     service = Mock(
         create_or_replace_internal_followup=Mock(),
         clear_internal_followup=Mock(),
@@ -316,7 +310,7 @@ async def test_post_analyze_clears_internal_followup_without_character_context(
         },
     )
 
-    await workflow.run(state)
+    await post_analyze_runtime.run_post_analyze(state)
 
     service.clear_internal_followup.assert_called_once_with(
         owner_user_id="user-1",
