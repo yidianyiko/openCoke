@@ -33,21 +33,21 @@ This is a breaking refactor. There are no existing users. We cut the homegrown r
 - `gateway/` — web/API layer
 - `dao/`, `entity/`, `util/` — data layer
 
-## 3. What Stays (Domain Logic, Not Framework)
+## 3. What Stays
 
-These are domain invariants, not competing framework choices. They survive as thin logic on top of agno:
-
-**`runtime/context.py` — trust boundary**
-`AgentRunContext._trusted_relation_id()` validates uid/cid consistency. `_metadata_from_raw()` always returns `{}` to block untrusted fields. agno's `RunContext` has no concept of trusted vs. untrusted fields. Keep as-is.
-
-**`runtime/result.py` — business contract**
-`CapabilityResult` with `durable_write`, `visible_summary`, `requires_response_synthesis`, and `OutputDisposition` encode business rules about what to show the user and which writes are authorized. agno has no equivalent. Keep as-is.
-
-**Corrective retry state machine in `capabilities/reminder_intent.py`**
-The 12-branch reason-based retry logic is domain behavior, not a framework feature. agno's `retries` parameter retries the whole agent call, not a structured retry with reason injection. Keep the retry logic; change only how sub-agents are instantiated.
+**`runtime/result.py` — CapabilityResult output contract**
+`CapabilityResult` with `durable_write`, `visible_summary`, `requires_response_synthesis`, and `OutputDisposition` decides what gets shown to the user and validates that database writes have user-visible confirmations. Keep as-is, no carrier change.
 
 **`_check_unconfirmed_durable_write_promise()` and `_check_durable_write_contract()`**
 Runtime integrity assertions in `agent_runtime.py`. Keep. They operate on `CapabilityResult` objects extracted after `arun()` completes.
+
+## 3a. What Is Removed (Previously Considered Preserved)
+
+**`AgentRunContext` trust validation — removed**
+`_trusted_relation_id()` and `_metadata_from_raw()` are deleted. Data provenance is trusted from the runner; the defensive checks add complexity without a real attack surface to protect. `AgentRunContext` itself is kept as a plain data container (current_time, user, character, conversation, platform); only the two validation methods are removed.
+
+**Corrective retry state machine — removed**
+The 12-branch reason-based retry in `capabilities/reminder_intent.py` is deleted. Failed reminder detection fails immediately without a retry attempt. Known trade-off: reminder intent recognition accuracy will degrade in edge cases where the model produces a recoverable structured output error. Accepted given the complexity cost.
 
 ## 4. New Architecture
 
@@ -150,7 +150,7 @@ await detector.arun(
 
 No `db` on sub-agents — they are stateless single-shot structured output calls. `session_state` carries the pending workflow context within the turn (already the current pattern).
 
-The corrective retry branches remain unchanged in logic; only the `Agent(...)` instantiation moves from module-level to per-call.
+The corrective retry state machine is removed (see §3a). Failed detection returns a failed `CapabilityResult` immediately.
 
 ### 4.6 Delete Dead Code
 
@@ -172,7 +172,8 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 |---|---|
 | `runtime/agent_runtime.py` | add `MongoDb` db, `add_history_to_context`; remove `_model_input()`; replace `_extract_final_text()` with `RunResponse.content`; inline tool wrapper construction; remove `album`/`context_retrieve`/`usage` dead port entries from `_default_capability_ports()` |
 | `runtime/chat_response_instructions.py` | extend to include dynamic runtime context block (current_time, user, character, platform, reminder payload) |
-| `capabilities/reminder_intent.py` | per-call Agent instantiation; delete module-level singleton imports |
+| `runtime/context.py` | remove `_trusted_relation_id()` and `_metadata_from_raw()`; keep `AgentRunContext` as plain data container |
+| `capabilities/reminder_intent.py` | per-call Agent instantiation; delete module-level singleton imports; delete corrective retry state machine |
 
 ### Add
 | File | Purpose |
@@ -181,7 +182,6 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 | `runtime/post_analyze.py` | `async def run_post_analyze(session_state: dict, ...) -> None` extracted from `PostAnalyzeWorkflow`; mutates `session_state["relation"]` in place; instantiates `post_analyze_agent` per-call; agent_handler.py continues to own the MongoDB write |
 
 ### Keep Unchanged
-- `runtime/context.py` — trust boundary
 - `runtime/result.py` — CapabilityResult contract
 - `runtime/inputs.py`, `runtime/errors.py`, `runtime/_immutability.py`
 - `capabilities/context_retrieve.py` — RAG + confirmed_reminders split is a future cleanup
