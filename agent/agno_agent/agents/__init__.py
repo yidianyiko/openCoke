@@ -5,8 +5,6 @@ Agno Agents Module
 This module contains all pre-created Agno Agents for the chat system.
 Agents are created at module level to avoid instantiation overhead on each call.
 
-V2 架构：引入 OrchestratorAgent 作为调度中心
-
 Requirements: 4.1, 4.2, 4.3, 4.4, 4.5
 """
 
@@ -16,14 +14,11 @@ from typing import Any, Dict
 from agno.agent import Agent
 
 from agent.agno_agent.model_factory import create_llm_model
-from agent.agno_agent.schemas.orchestrator_schema import OrchestratorResponse
 from agent.agno_agent.schemas.post_analyze_schema import PostAnalyzeResponse
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.prompt.agent_instructions_prompt import (
-    DESCRIPTION_ORCHESTRATOR,
     DESCRIPTION_REMINDER_DETECT,
     INSTRUCTIONS_CHAT_RESPONSE,
-    INSTRUCTIONS_ORCHESTRATOR,
     INSTRUCTIONS_POST_ANALYZE,
     INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_REMINDER_DETECT,
@@ -94,21 +89,6 @@ def get_reminder_detect_retry_instructions(
     return INSTRUCTIONS_REMINDER_DETECT
 
 
-def get_orchestrator_instructions(session_state: Dict[str, Any] = None) -> str:
-    """
-    动态渲染 OrchestratorAgent 的 system prompt
-
-    V2 架构核心：Orchestrator 负责语义理解 + 调度决策
-
-    Args:
-        session_state: 会话状态，包含动态数据
-
-    Returns:
-        渲染后的 system prompt
-    """
-    return INSTRUCTIONS_ORCHESTRATOR
-
-
 # ========== 模块级预创建 Agent ==========
 
 # ReminderDetectAgent - 提醒检测，识别提醒意图并输出结构化提醒决策
@@ -155,27 +135,6 @@ reminder_detect_retry_agent = Agent(
 )
 
 
-# OrchestratorAgent - V2 架构核心，语义理解 + 调度决策
-# 职责：理解用户意图、生成检索参数、决定调用哪些 Tool/Agent
-#
-# 设计原则（参考 Agno 框架标准）：
-# - description: 角色身份（你是谁）
-# - instructions: 决策逻辑（怎么做决策）
-# - output_schema: 格式约束（输出什么格式）
-orchestrator_agent = Agent(
-    id="orchestrator-agent",
-    name="OrchestratorAgent",
-    model=create_llm_model(max_tokens=8000, role="prepare"),
-    description=DESCRIPTION_ORCHESTRATOR,
-    instructions=get_orchestrator_instructions(),
-    output_schema=OrchestratorResponse,
-    use_json_mode=True,
-    markdown=False,
-    # 上下文压缩配置
-    num_history_messages=15,  # 保留最近 15 条消息
-    compress_tool_results=True,  # 压缩工具结果
-)
-
 # PostAnalyzeAgent-后处理分析，总结对话并更新用户/角色记忆
 # Requirements: 4.4
 #
@@ -207,11 +166,9 @@ __all__ = [
     "get_post_analyze_instructions",
     "get_reminder_detect_instructions",
     "get_reminder_detect_retry_instructions",
-    "get_orchestrator_instructions",
     "create_llm_model",
     # 预创建 Agent
     "reminder_detect_agent",
     "reminder_detect_retry_agent",
-    "orchestrator_agent",  # V2 架构核心
     "post_analyze_agent",
 ]
