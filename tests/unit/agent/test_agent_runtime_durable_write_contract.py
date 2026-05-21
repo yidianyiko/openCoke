@@ -41,8 +41,8 @@ async def _run(*, tool_results, monkeypatch, messages=None):
         async def arun(self, **_kwargs):
             return Out()
 
-    def fake_create(*, run_context, input_message, tool_results):
-        del run_context, input_message
+    def fake_create(*, run_context, agent_input, input_message, tool_results):
+        del run_context, agent_input, input_message
         tool_results.extend(captured_results)
         return Agent()
 
