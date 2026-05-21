@@ -273,6 +273,20 @@ def test_create_agent_registers_canonical_capability_tools():
         "timezone",
         "calendar_import",
         "url_context",
+        "get_user_link",
+        "reset_user_link",
+        "disable_user_link",
+        "open_bookable_windows",
+        "confirm_bookable_windows",
+        "query_bookable_windows",
+        "request_appointment",
+        "confirm_appointment",
+        "reject_appointment",
+        "cancel_appointment",
+        "list_pending_requests",
+        "block_service_link",
+        "unblock_service_link",
+        "remove_service_link",
     ]
 
 
