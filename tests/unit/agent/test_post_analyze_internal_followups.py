@@ -5,6 +5,41 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 
+@pytest.mark.asyncio
+async def test_run_post_analyze_creates_per_call_agent_without_db(monkeypatch):
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
+
+    created_agents = []
+    created_models = []
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            created_agents.append(kwargs)
+
+        async def arun(self, **kwargs):
+            return SimpleNamespace(content={})
+
+    def fake_create_llm_model(**kwargs):
+        created_models.append(kwargs)
+        return "post-analyze-model"
+
+    monkeypatch.setattr(post_analyze_runtime, "Agent", FakeAgent)
+    monkeypatch.setattr(post_analyze_runtime, "create_llm_model", fake_create_llm_model)
+    monkeypatch.setattr(
+        post_analyze_runtime.usage_tracker, "record_from_metrics", Mock()
+    )
+
+    await post_analyze_runtime.run_post_analyze(build_session_state())
+    await post_analyze_runtime.run_post_analyze(build_session_state())
+
+    assert len(created_agents) == 2
+    assert created_models == [
+        {"role": "post_analyze", "max_tokens": 8000},
+        {"role": "post_analyze", "max_tokens": 8000},
+    ]
+    assert all("db" not in kwargs for kwargs in created_agents)
+
+
 def build_session_state():
     return {
         "user": {"id": "user-1", "_id": "user-1", "timezone": "UTC"},
@@ -52,6 +87,20 @@ def install_reminder_service(monkeypatch, service):
     monkeypatch.setattr(runtime_module, "_runtime_instance", runtime)
 
 
+def install_post_analyze_response(monkeypatch, content):
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
+
+    fake_agent = SimpleNamespace(
+        arun=AsyncMock(return_value=SimpleNamespace(content=content))
+    )
+    monkeypatch.setattr(
+        post_analyze_runtime,
+        "_create_post_analyze_agent",
+        Mock(return_value=fake_agent),
+    )
+    return fake_agent
+
+
 @pytest.mark.asyncio
 async def test_post_analyze_creates_internal_followup(monkeypatch):
     from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
@@ -62,20 +111,15 @@ async def test_post_analyze_creates_internal_followup(monkeypatch):
         clear_internal_followup=Mock(),
     )
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "create",
-                        "FollowupTime": "2026年04月21日12时00分",
-                        "FollowupPrompt": "中午记得汇报进度",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "create",
+                "FollowupTime": "2026年04月21日12时00分",
+                "FollowupPrompt": "中午记得汇报进度",
+            },
+        },
     )
 
     state = build_session_state()
@@ -124,20 +168,15 @@ async def test_post_analyze_replaces_internal_followup_after_proactive_message(
     state["system_message_metadata"] = {"kind": "internal_followup"}
     state["proactive_times"] = 1
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "replace",
-                        "FollowupTime": "2026年04月22日09时00分",
-                        "FollowupPrompt": "明早问一下今天计划",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "replace",
+                "FollowupTime": "2026年04月22日09时00分",
+                "FollowupPrompt": "明早问一下今天计划",
+            },
+        },
     )
 
     await workflow.run(state)
@@ -170,20 +209,15 @@ async def test_post_analyze_creates_internal_followup_with_alternate_id_shapes(
         },
     }
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "create",
-                        "FollowupTime": "2026年04月21日12时00分",
-                        "FollowupPrompt": "中午记得汇报进度",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "create",
+                "FollowupTime": "2026年04月21日12时00分",
+                "FollowupPrompt": "中午记得汇报进度",
+            },
+        },
     )
 
     await workflow.run(state)
@@ -204,20 +238,15 @@ async def test_post_analyze_clears_internal_followup(monkeypatch):
         clear_internal_followup=Mock(),
     )
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "clear",
-                        "FollowupTime": "",
-                        "FollowupPrompt": "无",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "clear",
+                "FollowupTime": "",
+                "FollowupPrompt": "无",
+            },
+        },
     )
 
     await workflow.run(build_session_state())
@@ -239,22 +268,17 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
         clear_internal_followup=Mock(),
     )
     state = build_session_state()
-    state["reminder_created_with_time"] = True
+    state["relation"]["reminder_created_with_time"] = True
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "create",
-                        "FollowupTime": "2026年04月21日12时00分",
-                        "FollowupPrompt": "中午记得汇报进度",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "create",
+                "FollowupTime": "2026年04月21日12时00分",
+                "FollowupPrompt": "中午记得汇报进度",
+            },
+        },
     )
 
     await workflow.run(state)
@@ -281,20 +305,15 @@ async def test_post_analyze_clears_internal_followup_without_character_context(
     state["character"] = {}
     state["reminder_created_with_time"] = True
     install_reminder_service(monkeypatch, service)
-    monkeypatch.setattr(
-        workflow_module.post_analyze_agent,
-        "arun",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                content={
-                    "FollowupPlan": {
-                        "FollowupAction": "create",
-                        "FollowupTime": "2026年04月21日12时00分",
-                        "FollowupPrompt": "中午记得汇报进度",
-                    },
-                }
-            )
-        ),
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "create",
+                "FollowupTime": "2026年04月21日12时00分",
+                "FollowupPrompt": "中午记得汇报进度",
+            },
+        },
     )
 
     await workflow.run(state)
@@ -307,12 +326,10 @@ async def test_post_analyze_clears_internal_followup_without_character_context(
 
 
 def test_post_analyze_normalization_omits_retired_relation_score_fields():
-    from agent.agno_agent.workflows import post_analyze_workflow as workflow_module
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
 
-    workflow = workflow_module.PostAnalyzeWorkflow()
-
-    normalized = workflow._extract_content(SimpleNamespace(content={}))
-    default_content = workflow._get_default_content()
+    normalized = post_analyze_runtime._extract_content(SimpleNamespace(content={}))
+    default_content = post_analyze_runtime._get_default_content()
 
     assert "RelationChange" not in normalized
     assert "Dislike" not in normalized
