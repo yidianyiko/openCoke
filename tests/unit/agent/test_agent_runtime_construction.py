@@ -76,7 +76,7 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     )
 
     assert isinstance(result, AgentRunResult)
-    assert result.visible_messages[0].content == "hi back"
+    assert result.visible_messages[0].content == "fallback content"
     assert result.output_disposition.status == "ok"
     assert result.tool_results == ()
     assert result.post_analyze_input == {
@@ -86,14 +86,7 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     assert create_kwargs["agent_input"] == _agent_input()
     assert create_kwargs["input_message"] == "hi"
     assert create_kwargs["tool_results"] == []
-    model_input = model_inputs[0]
-    assert "input_type: user.turn" in model_input
-    assert "message_source: user" in model_input
-    assert "current_time: 2026-05-09T01:00:00+00:00" in model_input
-    assert "user: User (user-1)" in model_input
-    assert "character: Coke (char-1)" in model_input
-    assert "recent_chat_history:\nUser: hi" in model_input
-    assert "user_message:\nhi" in model_input
+    assert model_inputs == ["hi"]
 
 
 @pytest.mark.asyncio
@@ -183,7 +176,7 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
     assert [tool.name for tool in result.tool_results] == ["reminder"]
     assert result.trace == {"runtime": "agent"}
     assert created["called"] is True
-    assert "user_message:\n18:05提醒我出门" in created["model_input"]
+    assert created["model_input"] == "18:05提醒我出门"
 
 
 @pytest.mark.asyncio
@@ -486,7 +479,10 @@ async def test_run_agent_runtime_recovers_unconfirmed_reminder_promise(monkeypat
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="",
+                content=(
+                    "好的呀！17:57 我会提醒你喝水，"
+                    "还有什么需要我帮忙的吗？"
+                ),
                 messages=[
                     SimpleNamespace(
                         role="assistant",
@@ -523,15 +519,15 @@ async def test_run_agent_runtime_recovers_unconfirmed_reminder_promise(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_reminder_fired_input_marks_system_delivery_for_model(monkeypatch):
+async def test_reminder_fired_input_passes_raw_input_to_model(monkeypatch):
     model_inputs = []
 
     class FakeAgent:
         async def arun(self, **kwargs):
             model_inputs.append(kwargs["input"])
             return SimpleNamespace(
-                content="",
-                messages=[SimpleNamespace(role="assistant", content="该喝水了。")],
+                content="该喝水了。",
+                messages=[SimpleNamespace(role="assistant", content="ignored")],
             )
 
     monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
@@ -567,10 +563,4 @@ async def test_reminder_fired_input_marks_system_delivery_for_model(monkeypatch)
     )
 
     assert result.output_disposition.status == "ok"
-    model_input = model_inputs[0]
-    assert "input_type: reminder.fired" in model_input
-    assert "message_source: reminder" in model_input
-    assert "system reminder delivery" in model_input
-    assert "deliver the existing reminder" in model_input
-    assert "do not create, update, cancel, or list reminders" in model_input
-    assert "reminder_title: 喝水" in model_input
+    assert model_inputs == ["提醒：喝水"]

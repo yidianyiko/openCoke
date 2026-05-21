@@ -11,10 +11,7 @@ from typing import Any, Literal
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.errors import UnknownToolError
-from agent.agno_agent.runtime.inputs import (
-    AgentInput,
-    ReminderFirePayload,
-)
+from agent.agno_agent.runtime.inputs import AgentInput
 from agent.agno_agent.runtime.result import (
     AgentRunResult,
     CapabilityResult,
@@ -262,37 +259,8 @@ def build_capability_tool_wrappers(
     return wrappers
 
 
-def _message_value(message: Any, key: str) -> Any:
-    if isinstance(message, dict):
-        return message.get(key)
-    return getattr(message, key, None)
-
-
 def _string_content(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
-
-
-def _extract_final_text(run_output: Any) -> str:
-    messages = getattr(run_output, "messages", None)
-    if not messages:
-        return _string_content(getattr(run_output, "content", None))
-
-    last_tool_index = -1
-    for index, message in enumerate(messages):
-        role = str(_message_value(message, "role") or "").lower()
-        message_type = str(_message_value(message, "type") or "").lower()
-        if role in {"tool", "tool_result"} or message_type in {"tool", "tool_result"}:
-            last_tool_index = index
-
-    final_text = ""
-    for message in messages[last_tool_index + 1 :]:
-        role = str(_message_value(message, "role") or "").lower()
-        if role != "assistant":
-            continue
-        content = _string_content(_message_value(message, "content"))
-        if content:
-            final_text = content
-    return final_text
 
 
 def _resolve_visible_text(
@@ -343,48 +311,6 @@ def _message_source(agent_input: AgentInput, run_context: AgentRunContext) -> st
     if isinstance(value, str) and value:
         return value
     return agent_input.input_type
-
-
-def _model_input(
-    *,
-    agent_input: AgentInput,
-    run_context: AgentRunContext,
-    input_message: str,
-) -> str:
-    lines = [
-        "Trusted runtime context:",
-        f"input_type: {agent_input.input_type}",
-        f"message_source: {_message_source(agent_input, run_context)}",
-        f"current_time: {run_context.current_time.isoformat()}",
-        f"user: {run_context.user.nickname or 'User'} ({run_context.user.id})",
-        (
-            f"character: {run_context.character.nickname or 'Coke'} "
-            f"({run_context.character.id})"
-        ),
-        f"conversation_id: {run_context.conversation.id}",
-        f"platform: {run_context.platform}",
-    ]
-    if run_context.conversation.route_key:
-        lines.append(f"route_key: {run_context.conversation.route_key}")
-
-    if isinstance(agent_input.payload, ReminderFirePayload):
-        lines.extend(
-            [
-                (
-                    "event_contract: system reminder delivery; deliver the existing "
-                    "reminder to the user; do not create, update, cancel, or list "
-                    "reminders for this event."
-                ),
-                f"reminder_id: {agent_input.payload.reminder_id}",
-                f"reminder_title: {agent_input.payload.title}",
-                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
-                f"fire_id: {agent_input.payload.fire_id}",
-            ]
-        )
-    if run_context.recent_chat_history:
-        lines.extend(["recent_chat_history:", run_context.recent_chat_history])
-
-    return "\n".join(lines) + f"\n\nuser_message:\n{input_message}"
 
 
 def _check_unconfirmed_durable_write_promise(
@@ -592,11 +518,7 @@ async def run_agent_runtime(
         try:
             run_output = await asyncio.wait_for(
                 agent.arun(
-                    input=_model_input(
-                        agent_input=agent_input,
-                        run_context=run_context,
-                        input_message=input_message,
-                    ),
+                    input=input_message,
                     session_id=run_context.conversation.id,
                 ),
                 timeout=timeout_seconds,
@@ -609,7 +531,7 @@ async def run_agent_runtime(
                 timeout_seconds=timeout_seconds,
                 tool_results=tool_results,
             )
-        final_text = _extract_final_text(run_output)
+        final_text = _string_content(getattr(run_output, "content", None))
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
             final_text=final_text,

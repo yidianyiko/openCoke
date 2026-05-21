@@ -34,15 +34,16 @@ async def _run_with_fake_agent(
     tool_results: list[CapabilityResult],
     monkeypatch: pytest.MonkeyPatch,
     input_text: str = "hi",
+    content: str = "",
 ):
     class FakeOutput:
-        def __init__(self, msgs):
-            self.content = ""
+        def __init__(self, msgs, text):
+            self.content = text
             self.messages = msgs
 
     class FakeAgent:
         async def arun(self, **_kwargs):
-            return FakeOutput(messages)
+            return FakeOutput(messages, content)
 
     def patched_create(*, run_context, agent_input, input_message, tool_results):
         del run_context, agent_input, input_message
@@ -86,6 +87,7 @@ async def test_rule1_synthesis_with_nonempty_final_text_wins(monkeypatch):
         ],
         tool_results=[url_result, timezone_result],
         monkeypatch=monkeypatch,
+        content="synthesized reply",
     )
 
     assert [message.content for message in result.visible_messages] == [
@@ -176,6 +178,7 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
         messages=[{"role": "assistant", "content": "ordinary chat"}],
         tool_results=[],
         monkeypatch=monkeypatch,
+        content="ordinary chat",
     )
 
     assert [message.content for message in result.visible_messages] == [
@@ -217,6 +220,7 @@ async def test_direct_reminder_promise_fails_closed_when_recovery_has_no_output(
         tool_results=[],
         monkeypatch=monkeypatch,
         input_text="明天九点提醒我喝水",
+        content=model_text,
     )
 
     assert result.visible_messages == ()
