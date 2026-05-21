@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any
 
 _agent_session_db: Any | None = None
+_agent_session_db_lock = Lock()
 
 
 def build_agent_session_db() -> Any:
@@ -22,8 +24,12 @@ def build_agent_session_db() -> Any:
 def initialize_agent_session_db(db: Any | None = None) -> Any:
     global _agent_session_db
 
-    _agent_session_db = db if db is not None else build_agent_session_db()
-    return _agent_session_db
+    with _agent_session_db_lock:
+        if db is not None:
+            _agent_session_db = db
+        elif _agent_session_db is None:
+            _agent_session_db = build_agent_session_db()
+        return _agent_session_db
 
 
 def get_agent_session_db() -> Any:
