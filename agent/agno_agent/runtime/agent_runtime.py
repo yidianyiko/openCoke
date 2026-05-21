@@ -69,23 +69,17 @@ def _agent_runtime_timeout_seconds() -> float:
 
 def _default_capability_ports() -> dict[str, Any]:
     from agent.agno_agent.capabilities import (
-        AlbumCapabilityPort,
         CalendarImportPort,
-        ContextRetrieveCapabilityPort,
         ReminderIntentPort,
         TimezoneCapabilityPort,
         UrlContextPort,
-        UsageCapabilityPort,
     )
 
     return {
-        "album": AlbumCapabilityPort(),
         "reminder_intent": ReminderIntentPort(),
         "timezone": TimezoneCapabilityPort(),
         "calendar_import": CalendarImportPort(),
-        "context_retrieve": ContextRetrieveCapabilityPort(),
         "url_context": UrlContextPort(),
-        "usage": UsageCapabilityPort(),
     }
 
 
