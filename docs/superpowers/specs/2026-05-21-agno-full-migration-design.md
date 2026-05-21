@@ -10,13 +10,15 @@ The current `agent/agno_agent/` reimplements agno's own features, worse:
 
 | What we built | What agno provides | Why ours is worse |
 |---|---|---|
-| `_model_input()` text injection of history | `add_history_to_context=True` + `MongoDb` | history never actually persists; string injection has no structure |
-| `num_history_messages=15` on all agents | `Agent(db=MongoDb(...))` | dead config — no `db` means no history mechanism at all |
-| module-level singleton agents | per-invocation Agent instances | race condition: `initialize_session()` writes `session_id` back to the shared instance |
-| external `tool_results` list side-channel | `RunResponse.tools` | bypasses agno's native tool result tracking |
-| `_extract_final_text()` parsing `RunResponse.messages` | `RunResponse.content` | fragile internal parsing |
-| `PostAnalyzeWorkflow` as external orchestration step | `post_hooks` | post_analyze runs outside agno's session lifecycle |
-| `orchestrator_agent` module-level singleton | dead code, never called | noise |
+| `_model_input()` text injection of history + `recent_chat_history` string | `add_history_to_context=True` + `MongoDb` db | agno session history never configured; history survives only as unstructured injected text |
+| `num_history_messages=15` on `reminder_detect_agent` / `post_analyze_agent`, none on main agent | `Agent(db=MongoDb(...), num_history_messages=N)` | `num_history_messages` is inert without a `db`; config exists but does nothing |
+| module-level `reminder_detect_agent`, `reminder_detect_retry_agent`, `post_analyze_agent` | per-invocation Agent instances | `initialize_session()` writes a generated `session_id` back to the shared instance when none is passed, poisoning concurrent calls |
+| `_extract_final_text()` parsing `RunResponse.messages` internals | `RunResponse.content` | fragile: walks message list looking for last assistant turn after tool calls |
+| `orchestrator_agent` module-level singleton | removed | dead code — never called in the current runtime path |
+
+The main chat `Agent` is already instantiated per turn in `_create_agent()` and is not the race source. The race is in the sub-agent and post-analyze singletons.
+
+The per-turn `tool_results` list is intentionally retained — explained in §4.3.
 
 This is a breaking refactor. There are no existing users. We cut the homegrown reimplementations and use agno properly.
 
@@ -33,7 +35,7 @@ This is a breaking refactor. There are no existing users. We cut the homegrown r
 
 ## 3. What Stays (Domain Logic, Not Framework)
 
-Three things are domain invariants, not competing framework choices. They survive as thin logic on top of agno:
+These are domain invariants, not competing framework choices. They survive as thin logic on top of agno:
 
 **`runtime/context.py` — trust boundary**
 `AgentRunContext._trusted_relation_id()` validates uid/cid consistency. `_metadata_from_raw()` always returns `{}` to block untrusted fields. agno's `RunContext` has no concept of trusted vs. untrusted fields. Keep as-is.
@@ -51,65 +53,77 @@ Runtime integrity assertions in `agent_runtime.py`. Keep. They operate on `Capab
 
 ### 4.1 Session Persistence
 
+The correct agno 2.5.9 API (verified against installed source at `agno.db.mongo.MongoDb`):
+
 ```python
-from agno.storage.mongodb import MongoDbStorage
+from agno.db.mongo import MongoDb
 
 Agent(
-    db=MongoDbStorage(
-        collection_name="agent_sessions",
+    db=MongoDb(
+        session_collection="agent_sessions",
         db_url=MONGO_URI,
         db_name=MONGO_DB_NAME,
     ),
     add_history_to_context=True,
     num_history_messages=20,
-    add_session_state_to_context=False,  # session_state is tool-specific, not for LLM context
+    add_session_state_to_context=False,
 )
 ```
 
-`session_id` is always `run_context.conversation.id`. agno's session store is separate from Coke's `inputmessages`/`outputmessages` collections — it uses its own `agent_sessions` collection for LLM turn history only.
+`session_id` is always `run_context.conversation.id`. agno's session store uses its own `agent_sessions` collection, separate from Coke's `inputmessages`/`outputmessages`.
+
+**History transition:** This is a breaking refactor. Existing conversation history in Coke's `inputmessages` collection is not seeded into `agent_sessions`. First turns post-migration see an empty agno session. This is intentional — no migration script is planned.
+
+The `MongoDb` instance is created once at worker boot (not per-turn) and shared across `Agent` instances to avoid constructing a new `MongoClient` per call.
 
 ### 4.2 Runtime Context Injection
 
-Remove `_model_input()`. Runtime metadata moves into the system `instructions`, passed as a callable that closes over `AgentRunContext`:
+Remove `_model_input()`. Runtime metadata moves into the system `instructions`, which is a string built per turn by extending `chat_response_instructions.py`:
 
 ```python
-def _build_instructions(run_context: AgentRunContext, agent_input: AgentInput) -> str:
-    # static character persona + dynamic runtime context block
-    # (current_time, user id/nickname, character id/nickname, platform, input_type)
-    # for reminder.fired: add reminder payload contract block
+def build_chat_response_instructions(
+    run_context: AgentRunContext,
+    agent_input: AgentInput,
+) -> str:
+    # existing character persona instructions
+    # + runtime context block:
+    #   current_time, user id/nickname, character id/nickname,
+    #   platform, input_type, conversation_id
+    # + for reminder.fired: reminder payload contract block
     ...
-
-Agent(
-    instructions=_build_instructions(run_context, agent_input),
-    ...
-)
 ```
 
-The user message passed to `agent.arun(input=...)` becomes the raw user message only — no prepended metadata envelope.
+The user message passed to `agent.arun(input=...)` is the raw user message only — no prepended metadata envelope.
 
-`recent_chat_history` string injection is deleted. agno's `add_history_to_context=True` provides actual session history from the `agent_sessions` collection.
+`recent_chat_history` string injection is deleted. agno's `add_history_to_context=True` with a configured `db` replaces it.
 
 ### 4.3 Tool Results
 
-The per-turn `tool_results: list[CapabilityResult]` closure pattern is retained — tools close over a list created fresh each turn in `run_agent_runtime()`. This is already per-turn (not module-level) and thread-safe.
+The per-turn `tool_results: list[CapabilityResult]` closure pattern is retained. Each tool closes over a list created fresh at the start of `run_agent_runtime()`. This is already per-turn (not module-level) and race-free.
+
+The retention is deliberate: `RunResponse.tools` stores the model-facing envelope (returned dict), which intentionally omits `CapabilityResult.metadata`. The runtime contract checks (`durable_write`, `visible_summary`) require `metadata`. The closure list is the only way to carry typed `CapabilityResult` objects out of the tool execution.
 
 What changes:
 - `_extract_final_text()` is deleted. Use `RunResponse.content` directly.
-- `tool_wrappers.py` is merged into `agent_runtime.py` — the `_TOOL_NAMES` registry and `_build_missing_wrapper` pattern are removed.
+- `tool_wrappers.py` is merged into `agent_runtime.py`. The `_TOOL_NAMES` registry and `_build_missing_wrapper` pattern are removed.
 
-### 4.4 post_analyze as Post-Hook
+### 4.4 post_analyze as Sequential Step
 
-`PostAnalyzeWorkflow` is deleted as a standalone orchestration step. `post_analyze` runs as an agno `post_hook` registered on the main agent:
+`PostAnalyzeWorkflow` is deleted. Its logic is extracted into `runtime/post_analyze.py` as a plain async function called directly from `run_agent_runtime()` — not as an agno post_hook.
+
+**Why not agno post_hook:** agno hooks fire inside `agent.arun()` before `RunResponse` is returned, so before `AgentRunResult` is constructed and before runtime contract checks (`_check_durable_write_contract`, `_check_unconfirmed_durable_write_promise`) complete. Post-analyze should only run when the turn produces visible output and passes all contract checks — the same gating that `post_analyze_input` currently encodes. Using a post_hook would bypass this gate. Additionally, agno swallows hook failures rather than propagating them.
 
 ```python
-async def _post_analyze_hook(agent: Agent, run_response: RunResponse) -> None:
-    # same logic as PostAnalyzeWorkflow.run(), but triggered by agno
-    ...
-
-Agent(post_hooks=[_post_analyze_hook], ...)
+# in run_agent_runtime(), after AgentRunResult is built:
+if result.post_analyze_input is not None:
+    await run_post_analyze(
+        post_analyze_input=result.post_analyze_input,
+        run_context=run_context,
+        tool_results=captured_tool_results,
+    )
 ```
 
-The hook receives `agent.session_state`. During the turn, each tool writes its `CapabilityResult` into `session_state["_capability_results"]` in addition to the per-turn accumulator list. The post_hook reads from there. This is the one deliberate use of `session_state` as a within-turn side channel — scoped to a single `session_id` and therefore safe.
+`PostAnalyzeWorkflow.run()` mutates session_state to write back character, user, and relation updates. After extraction to `post_analyze.py`, the same mutation is written directly to MongoDB through the existing DAO calls — session_state as a mutation carrier is removed.
 
 ### 4.5 Sub-agents (reminder_intent)
 
@@ -120,7 +134,7 @@ detector = Agent(
     model=create_llm_model(role="reminder_detect", max_tokens=8000),
     output_schema=ReminderDetectDecision,
     structured_outputs=True,
-    ...
+    markdown=False,
 )
 await detector.arun(
     input=build_reminder_intent_input(...),
@@ -129,7 +143,7 @@ await detector.arun(
 )
 ```
 
-No `db` on sub-agents — they are stateless single-shot structured output calls. No history needed. `session_state` carries the pending workflow context within the turn.
+No `db` on sub-agents — they are stateless single-shot structured output calls. `session_state` carries the pending workflow context within the turn (already the current pattern).
 
 The corrective retry branches remain unchanged in logic; only the `Agent(...)` instantiation moves from module-level to per-call.
 
@@ -142,60 +156,73 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 ### Delete
 | File | Reason |
 |---|---|
-| `agents/__init__.py` | module-level singletons — the source of the race condition and dead configs |
-| `runtime/tool_wrappers.py` | absorbed into `agent_runtime.py`; `_build_missing_wrapper` removed |
-| `workflows/post_analyze_workflow.py` | replaced by agno post_hook in `runtime/post_hooks.py` |
+| `agents/__init__.py` | module-level singletons — source of the session_id race and dead configs |
+| `runtime/tool_wrappers.py` | merged into `agent_runtime.py`; `_build_missing_wrapper` removed |
+| `workflows/post_analyze_workflow.py` | replaced by `runtime/post_analyze.py` |
 | `schemas/orchestrator_schema.py` | orchestrator is dead code |
 
 ### Rewrite
 | File | What changes |
 |---|---|
-| `runtime/agent_runtime.py` | add MongoDb db, add_history_to_context; remove _model_input(); replace _extract_final_text() with RunResponse.content; inline tool wrapper construction |
-| `capabilities/reminder_intent.py` | per-call Agent instantiation; delete module-level imports of singletons |
+| `runtime/agent_runtime.py` | add `MongoDb` db, `add_history_to_context`; remove `_model_input()`; replace `_extract_final_text()` with `RunResponse.content`; inline tool wrapper construction; call `run_post_analyze()` after `AgentRunResult` is built |
+| `runtime/chat_response_instructions.py` | extend to include dynamic runtime context block (current_time, user, character, platform, reminder payload) |
+| `capabilities/reminder_intent.py` | per-call Agent instantiation; delete module-level singleton imports |
 
 ### Add
 | File | Purpose |
 |---|---|
-| `runtime/session.py` | agno MongoDb session config factory (db_url, db_name, collection) |
-| `runtime/post_hooks.py` | post_analyze as agno post_hook, extracted from PostAnalyzeWorkflow |
+| `runtime/session.py` | `MongoDb` instance factory; created once at worker boot, injected into `_create_agent()` |
+| `runtime/post_analyze.py` | `run_post_analyze()` async function extracted from `PostAnalyzeWorkflow`; receives run_context, tool_results, post_analyze_input; writes back to MongoDB directly |
 
 ### Keep Unchanged
 - `runtime/context.py` — trust boundary
 - `runtime/result.py` — CapabilityResult contract
 - `runtime/inputs.py`, `runtime/errors.py`, `runtime/_immutability.py`
-- `runtime/chat_response_instructions.py` — will be extended to include runtime context block
-- `capabilities/context_retrieve.py` — keep as-is for now; RAG + confirmed_reminders split is a future cleanup
-- `schemas/reminder_detect_schema.py`, `schemas/post_analyze_schema.py`
-- `schemas/chat_response_schema.py`
-- `prompts/`, `adapters/`, `model_factory.py`
-- `evals/`
-- `tools/reminder_protocol/` — still the agno tool adapter used by the capability
+- `capabilities/context_retrieve.py` — RAG + confirmed_reminders split is a future cleanup
+- `schemas/reminder_detect_schema.py`, `schemas/post_analyze_schema.py`, `schemas/chat_response_schema.py`
+- `prompts/`, `adapters/`, `model_factory.py`, `evals/`
+- `tools/reminder_protocol/` — agno tool adapter used by the reminder capability
 
-## 6. Key Integration Point: CapabilityResult Extraction
-
-After migration, the flow is:
+## 6. Turn Execution Flow After Migration
 
 ```
-agent.arun(input=user_message, session_id=conversation.id)
-  → tools execute, each closing over per-turn tool_results list
-  → RunResponse returned
-  → final_text = run_response.content
-  → tool_results already populated by tool closures
-  → _check_durable_write_contract(tool_results)
-  → _check_unconfirmed_durable_write_promise(final_text, tool_results)
-  → _resolve_visible_text(final_text, tool_results)
-  → AgentRunResult constructed
-  → post_hook fires (post_analyze)
+run_agent_runtime() called with agent_input, run_context
+  ↓
+tool_results: list[CapabilityResult] = []  ← per-turn accumulator
+  ↓
+agent = Agent(
+    db=shared_mongo_db,
+    add_history_to_context=True,
+    instructions=build_chat_response_instructions(run_context, agent_input),
+    tools=[...closures over tool_results...],
+)
+  ↓
+run_output = await agent.arun(
+    input=raw_user_message,
+    session_id=run_context.conversation.id,
+)  ← agno loads session history from agent_sessions, runs LLM, calls tools, stores turn
+  ↓
+final_text = run_output.content
+captured_tool_results = tuple(tool_results)
+  ↓
+_check_durable_write_contract(captured_tool_results)
+_check_unconfirmed_durable_write_promise(agent_input, final_text, captured_tool_results)
+_resolve_visible_text(final_text, captured_tool_results)
+  ↓
+AgentRunResult constructed
+  ↓
+if result.post_analyze_input:
+    await run_post_analyze(run_context, captured_tool_results, result.post_analyze_input)
+  ↓
+return AgentRunResult
 ```
-
-The per-turn `tool_results` list remains the extraction mechanism. This is not a side-channel in the harmful sense — it's a per-turn accumulator, not shared mutable state.
 
 ## 7. Out of Scope
 
 **Behavior validation** is deferred. This is a breaking refactor; eval coverage will be built separately after the migration lands.
 
-**context_retrieve RAG refactor** — splitting the RAG search from the confirmed_reminders business query is a separate cleanup, not part of this migration.
+**context_retrieve RAG refactor** — splitting the RAG search from the confirmed_reminders business query is a separate cleanup.
 
 **AgentKnowledge integration** — the embedding search in `context_retrieve.py` could eventually use agno's Knowledge system, but this is a future step.
 
-**memo capability** — `capabilities/memo.py` is unchanged; it follows the same CapabilityResult contract and doesn't need migration now.
+**memo capability** — `capabilities/memo.py` is unchanged; it follows the same CapabilityResult contract.
