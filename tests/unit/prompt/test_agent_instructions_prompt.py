@@ -81,20 +81,6 @@ def _run_context():
     )
 
 
-def test_reminder_detect_retry_reuses_primary_instructions():
-    from agent.agno_agent.agents import (
-        get_reminder_detect_instructions as agent_instructions,
-        get_reminder_detect_retry_instructions,
-        reminder_detect_agent,
-        reminder_detect_retry_agent,
-    )
-
-    assert get_reminder_detect_retry_instructions() == agent_instructions()
-    assert (
-        reminder_detect_retry_agent.instructions == reminder_detect_agent.instructions
-    )
-
-
 def test_reminder_few_shots_are_input_context_not_system_prompt():
     from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 
@@ -109,31 +95,6 @@ def test_reminder_few_shots_are_input_context_not_system_prompt():
     assert "工作应该去做“非我不可”的事情" in reminder_input
     assert '"decision_class": "discussion"' in reminder_input
     assert "Reminder Few-Shot Decisions" not in instructions
-
-
-def test_reminder_detect_retry_input_keeps_schedule_schema_constraints():
-    from agent.agno_agent.capabilities.reminder_intent import (
-        _build_reminder_retry_input,
-    )
-
-    retry_input = _build_reminder_retry_input(
-        "我一般7:15起床，23:00睡觉。我需要你在上述这些时间提醒我",
-        _run_context(),
-        reason="schema validation failed",
-    )
-
-    assert "For same-message listed routine times" in retry_input
-    assert 'schedule_basis="explicit_occurrences"' in retry_input
-    assert "one operation per listed time" in retry_input
-    assert "bounded recurring cadence requests with a deadline" in retry_input
-    assert "deadline_at" in retry_input
-    assert "Drop final particles" in retry_input
-    assert "preserve quoted title" in retry_input
-    assert "bare call/wake/alarm-me requests" in retry_input
-    assert "One-shot deadline wording" in retry_input
-    assert "Need/intention statements" in retry_input
-    assert "return discussion" in retry_input
-    assert "include every listed weekday in" in retry_input
 
 
 def test_reminder_few_shot_fixture_stays_small_and_representative():

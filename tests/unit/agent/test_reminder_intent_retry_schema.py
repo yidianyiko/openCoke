@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 
-from agent.agno_agent.capabilities.reminder_intent import _build_reminder_retry_input
+import pytest
+
+from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
     TrustedCharacterContext,
@@ -24,11 +27,17 @@ def _ctx() -> AgentRunContext:
     )
 
 
-def test_retry_prompt_lists_cancel_action():
-    text = _build_reminder_retry_input(
+@pytest.mark.asyncio
+async def test_invalid_primary_structured_output_fails_without_retry_agent():
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content="intentaction cancel")
+
+    result = await ReminderIntentPort(detector_agent=PrimaryAgent()).run(
         "取消提醒",
         _ctx(),
-        reason="primary detector returned no executable decision",
     )
 
-    assert "cancel" in text
+    assert result.ok is False
+    assert result.error == "ReminderDetectInvalidDecision"
+    assert result.metadata["durable_write"] is False
