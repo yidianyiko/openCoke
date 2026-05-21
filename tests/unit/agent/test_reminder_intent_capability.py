@@ -358,6 +358,63 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_creates_primary_detector_per_invocation(
+    monkeypatch,
+):
+    from agent.agno_agent.capabilities import reminder_intent
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    created_agents = []
+
+    class FakeAgent:
+        def __init__(self):
+            self.calls = 0
+
+        async def arun(self, *, input, session_state, session_id=None):
+            self.calls += 1
+            assert "drink water" in input
+            assert session_state["conversation"]["id"] == "conv-1"
+            assert session_id == "conv-1"
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="create",
+                    title="drink water",
+                )
+            )
+
+    def fake_create_reminder_detector():
+        agent = FakeAgent()
+        created_agents.append(agent)
+        return agent
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            return SimpleNamespace(
+                name="reminder",
+                ok=True,
+                content={"summary": f"已创建提醒：{received_decision.title}"},
+                error=None,
+                metadata={},
+            )
+
+    monkeypatch.setattr(
+        reminder_intent,
+        "_create_reminder_detector",
+        fake_create_reminder_detector,
+    )
+    port = ReminderIntentPort(retry_agent=None, command_executor=FakeExecutor())
+
+    first_result = await port.run("18:00 remind me to drink water", _run_context())
+    second_result = await port.run("18:00 remind me to drink water", _run_context())
+
+    assert first_result.content["summary"] == "已创建提醒：drink water"
+    assert second_result.content["summary"] == "已创建提醒：drink water"
+    assert len(created_agents) == 2
+    assert [agent.calls for agent in created_agents] == [1, 1]
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_accepts_json_string_detector_content():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

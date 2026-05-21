@@ -62,6 +62,25 @@ def _agent_runtime_reminder_detect_retry_timeout_seconds() -> float:
     )
 
 
+def _create_reminder_detector() -> Any:
+    from agno.agent import Agent
+
+    from agent.agno_agent.model_factory import create_llm_model
+    from agent.prompt.agent_instructions_prompt import (
+        DESCRIPTION_REMINDER_DETECT,
+        INSTRUCTIONS_REMINDER_DETECT,
+    )
+
+    return Agent(
+        model=create_llm_model(role="reminder_detect", max_tokens=8000),
+        description=DESCRIPTION_REMINDER_DETECT,
+        instructions=INSTRUCTIONS_REMINDER_DETECT,
+        output_schema=ReminderDetectDecision,
+        structured_outputs=True,
+        markdown=False,
+    )
+
+
 def _decision_from_response(response: Any) -> Any:
     if isinstance(response, ReminderDetectDecision):
         return response
@@ -206,13 +225,10 @@ class ReminderIntentPort:
         command_executor: Any | None = None,
     ) -> None:
         if detector_agent is None:
-            from agent.agno_agent.agents import (
-                reminder_detect_agent,
-                reminder_detect_retry_agent,
-            )
+            from agent.agno_agent.agents import reminder_detect_retry_agent
 
-            detector_agent = reminder_detect_agent
-            retry_agent = reminder_detect_retry_agent
+            if retry_agent is None:
+                retry_agent = reminder_detect_retry_agent
         self.detector_agent = detector_agent
         self.retry_agent = retry_agent
         self.command_executor = command_executor or ReminderCommandExecutor(
@@ -236,8 +252,9 @@ class ReminderIntentPort:
             "platform": run_context.platform,
         }
         try:
+            detector_agent = self.detector_agent or _create_reminder_detector()
             response = await asyncio.wait_for(
-                self.detector_agent.arun(
+                detector_agent.arun(
                     input=build_reminder_intent_input(
                         input_message,
                         detector_run_context,
