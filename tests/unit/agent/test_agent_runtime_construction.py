@@ -458,11 +458,17 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_recovers_unconfirmed_reminder_promise(monkeypatch):
+async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
+    monkeypatch,
+):
+    reminder_calls = 0
+
     class FakeReminderPort:
         async def run(self, input_message, run_context, args):
+            nonlocal reminder_calls
             assert input_message == "今天17:57提醒我喝水呀"
             assert args == {}
+            reminder_calls += 1
             return CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -511,11 +517,12 @@ async def test_run_agent_runtime_recovers_unconfirmed_reminder_promise(monkeypat
         run_context=_run_context(),
     )
 
-    assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：喝水（2026-05-16 17:57）"
-    ]
-    assert [tool.name for tool in result.tool_results] == ["reminder"]
-    assert result.trace["status"] == "recovered_unconfirmed_durable_write_promise"
+    assert reminder_calls == 0
+    assert result.visible_messages == ()
+    assert result.tool_results == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
 
 
 @pytest.mark.asyncio

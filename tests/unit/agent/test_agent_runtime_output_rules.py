@@ -196,7 +196,7 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
         "明天早上九点我来叫你。",
     ],
 )
-async def test_direct_reminder_promise_fails_closed_when_recovery_has_no_output(
+async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
     monkeypatch, model_text
 ):
     class NoopReminderPort:
@@ -223,6 +223,43 @@ async def test_direct_reminder_promise_fails_closed_when_recovery_has_no_output(
         content=model_text,
     )
 
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch):
+    calls = 0
+
+    class CountingReminderPort:
+        async def run(self, input_message, run_context, args):
+            nonlocal calls
+            del input_message, run_context, args
+            calls += 1
+            return CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "已设好提醒"},
+                metadata={"durable_write": True},
+            )
+
+    monkeypatch.setattr(
+        agent_runtime,
+        "_default_capability_ports",
+        lambda: {"reminder_intent": CountingReminderPort()},
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": "我会在明天早上九点提醒你。"}],
+        tool_results=[],
+        monkeypatch=monkeypatch,
+        input_text="明天九点提醒我喝水",
+        content="我会在明天早上九点提醒你。",
+    )
+
+    assert calls == 0
     assert result.visible_messages == ()
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None

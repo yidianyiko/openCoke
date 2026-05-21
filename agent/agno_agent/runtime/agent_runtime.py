@@ -347,57 +347,6 @@ def _check_unconfirmed_durable_write_promise(
     )
 
 
-async def _recover_unconfirmed_durable_write_promise(
-    *,
-    agent_input: AgentInput,
-    run_context: AgentRunContext,
-    input_message: str,
-    tool_results: list[CapabilityResult],
-) -> AgentRunResult | None:
-    reminder_port = _default_capability_ports().get("reminder_intent")
-    if reminder_port is None:
-        return None
-    try:
-        result = await _run_capability_port(
-            reminder_port,
-            input_message=input_message,
-            run_context=run_context,
-            args={},
-        )
-    except Exception:
-        logger.exception("Reminder intent recovery failed")
-        return None
-
-    tool_results.append(result)
-    captured_tool_results = tuple(tool_results)
-    durable_write_error = _check_durable_write_contract(captured_tool_results)
-    visible_text = _resolve_visible_text("", captured_tool_results)
-    if durable_write_error is not None:
-        visible_text = ""
-    if not visible_text:
-        return None
-
-    return AgentRunResult(
-        visible_messages=(VisibleMessage(message_type="text", content=visible_text),),
-        post_analyze_input={
-            "input_message": input_message,
-            "message_source": _message_source(agent_input, run_context),
-        }
-        if durable_write_error is None
-        else None,
-        tool_results=captured_tool_results,
-        metrics={"capability_result_count": len(captured_tool_results)},
-        trace={
-            "runtime": "agent",
-            "status": "recovered_unconfirmed_durable_write_promise",
-        },
-        output_disposition=OutputDisposition(
-            status="ok" if durable_write_error is None else "empty"
-        ),
-        error_disposition=durable_write_error,
-    )
-
-
 async def _run_capability_port(
     port: Any,
     *,
@@ -537,15 +486,6 @@ async def run_agent_runtime(
             final_text=final_text,
             tool_results=tool_results,
         )
-        if unconfirmed_promise_error is not None:
-            recovered_result = await _recover_unconfirmed_durable_write_promise(
-                agent_input=agent_input,
-                run_context=run_context,
-                input_message=input_message,
-                tool_results=tool_results,
-            )
-            if recovered_result is not None:
-                return recovered_result
 
         captured_tool_results = tuple(tool_results)
         durable_write_error = _check_durable_write_contract(captured_tool_results)
