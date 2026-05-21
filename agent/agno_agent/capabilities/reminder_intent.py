@@ -243,6 +243,7 @@ class ReminderIntentPort:
                         detector_run_context,
                     ),
                     session_state=session_state,
+                    session_id=run_context.conversation.id,
                 ),
                 timeout=_agent_runtime_reminder_detect_timeout_seconds(),
             )
@@ -773,6 +774,7 @@ class ReminderIntentPort:
                         reason=reason,
                     ),
                     session_state=session_state,
+                    session_id=run_context.conversation.id,
                 ),
                 timeout=timeout,
             )

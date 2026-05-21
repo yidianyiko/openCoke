@@ -332,7 +332,7 @@ async def test_reminder_intent_port_runs_detector_and_executor():
     decision = SimpleNamespace(intent_type="crud", action="create", title="drink water")
 
     class FakeAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "drink water" in input
             assert session_state["user"]["id"] == "user-1"
             return SimpleNamespace(content=decision)
@@ -384,7 +384,7 @@ async def test_reminder_intent_port_accepts_json_string_detector_content():
     """
 
     class FakeAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=detector_content)
 
     class FakeExecutor:
@@ -433,7 +433,7 @@ async def test_reminder_intent_port_salvages_json_string_with_invalid_workflow_u
     """
 
     class FakeAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=detector_content)
 
     class FakeExecutor:
@@ -465,11 +465,11 @@ async def test_reminder_intent_port_retries_when_primary_has_no_executable_decis
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=None)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "Return only a valid ReminderDetectDecision" in input
             return SimpleNamespace(
                 content={
@@ -506,7 +506,7 @@ async def test_reminder_intent_port_retries_complete_weekday_range_clarification
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -516,7 +516,7 @@ async def test_reminder_intent_port_retries_complete_weekday_range_clarification
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "complete weekday-range recurring reminder" in input
             assert "BYDAY=MO,TU,WE,TH,FR" in input
             return SimpleNamespace(
@@ -559,7 +559,7 @@ async def test_reminder_intent_port_retries_clocked_task_before_trailing_reminde
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -569,7 +569,7 @@ async def test_reminder_intent_port_retries_clocked_task_before_trailing_reminde
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "complete clocked task reminder" in input
             return SimpleNamespace(
                 content={
@@ -609,7 +609,7 @@ async def test_reminder_intent_port_retries_single_create_title_before_reminder_
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -621,7 +621,7 @@ async def test_reminder_intent_port_retries_single_create_title_before_reminder_
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "title is not governed by the reminder verb" in input
             return SimpleNamespace(
                 content={
@@ -659,14 +659,14 @@ async def test_reminder_intent_port_retries_timeout_retry_with_bad_title_and_wee
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise asyncio.TimeoutError
 
     class RetryAgent:
         def __init__(self):
             self.calls = 0
 
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             self.calls += 1
             if self.calls == 1:
                 assert "primary detector timed out" in input
@@ -719,7 +719,7 @@ async def test_reminder_intent_port_retries_clarified_relative_delay_with_preced
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -729,7 +729,7 @@ async def test_reminder_intent_port_retries_clarified_relative_delay_with_preced
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "relative-delay reminder" in input
             assert "task/content appears before the reminder verb" in input
             return SimpleNamespace(
@@ -767,7 +767,7 @@ async def test_reminder_intent_port_retries_next_whole_hour_misread_as_cadence()
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -781,7 +781,7 @@ async def test_reminder_intent_port_retries_next_whole_hour_misread_as_cadence()
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "next whole hour" in input
             assert "one-shot" in input
             return SimpleNamespace(
@@ -822,7 +822,7 @@ async def test_reminder_intent_port_retries_when_multiple_scheduled_clauses_are_
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -836,7 +836,7 @@ async def test_reminder_intent_port_retries_when_multiple_scheduled_clauses_are_
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "fewer create operations than explicit scheduled" in input
             assert "23.00" in input
             return SimpleNamespace(
@@ -900,7 +900,7 @@ async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -923,7 +923,7 @@ async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("protocol guard should not need retry")
 
     class FailingExecutor:
@@ -946,7 +946,7 @@ async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_ev
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -987,7 +987,7 @@ async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_freq
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1031,7 +1031,7 @@ async def test_reminder_intent_port_blocks_unbounded_hourly_rrule():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1063,7 +1063,7 @@ async def test_reminder_intent_port_retries_bounded_cadence_with_dao_deadline_ph
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1077,7 +1077,7 @@ async def test_reminder_intent_port_retries_bounded_cadence_with_dao_deadline_ph
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "keep the deadline as deadline_at" in input
             return SimpleNamespace(
                 content={
@@ -1124,7 +1124,7 @@ async def test_reminder_intent_port_retries_bounded_recurring_no_future_schedule
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1139,7 +1139,7 @@ async def test_reminder_intent_port_retries_bounded_recurring_no_future_schedule
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "no future fire time" in input
             assert "first future occurrence" in input
             return SimpleNamespace(
@@ -1196,7 +1196,7 @@ async def test_reminder_intent_port_blocks_hourly_rrule_with_separate_deadline()
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1229,7 +1229,7 @@ async def test_reminder_intent_port_retries_primary_clarification_before_returni
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -1239,7 +1239,7 @@ async def test_reminder_intent_port_retries_primary_clarification_before_returni
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "primary detector returned no executable decision" in input
             return SimpleNamespace(
                 content={
@@ -1283,7 +1283,7 @@ async def test_reminder_intent_port_primary_clarification_survives_retry_timeout
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -1293,7 +1293,7 @@ async def test_reminder_intent_port_primary_clarification_survives_retry_timeout
             )
 
     class SlowRetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             await asyncio.sleep(60)
 
     result = await ReminderIntentPort(
@@ -1311,7 +1311,7 @@ async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1322,7 +1322,7 @@ async def test_reminder_intent_port_retries_when_title_drops_quoted_content():
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "dropped quoted reminder title content" in input
             return SimpleNamespace(
                 content={
@@ -1362,7 +1362,7 @@ async def test_reminder_intent_port_retries_when_day_of_month_is_dropped():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "crud",
@@ -1373,7 +1373,7 @@ async def test_reminder_intent_port_retries_when_day_of_month_is_dropped():
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "dropped an explicit day-of-month date" in input
             assert "22号 before the reminder clock" in input
             return SimpleNamespace(
@@ -1421,11 +1421,11 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("bare clock normalization should not need retry")
 
     class FakeExecutor:
@@ -1481,7 +1481,7 @@ async def test_reminder_intent_port_corrects_bare_numeric_clock_to_user_local_ti
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1529,7 +1529,7 @@ async def test_reminder_intent_port_treats_same_hour_bare_colon_as_pm():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1577,7 +1577,7 @@ async def test_reminder_intent_port_preserves_explicit_clock_minutes():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1625,7 +1625,7 @@ async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker()
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1673,7 +1673,7 @@ async def test_reminder_intent_port_parses_zero_prefixed_chinese_minutes():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1721,7 +1721,7 @@ async def test_reminder_intent_port_preserves_guo_minute_phrase():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1769,7 +1769,7 @@ async def test_reminder_intent_port_preserves_minus_minute_phrase():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1818,7 +1818,7 @@ async def test_reminder_intent_port_treats_every_night_as_pm_clock():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1866,7 +1866,7 @@ async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_t
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1914,7 +1914,7 @@ async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -1962,7 +1962,7 @@ async def test_reminder_intent_port_corrects_timer_phrase_relative_delay():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2016,7 +2016,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations(
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2066,11 +2066,11 @@ async def test_reminder_intent_port_retries_when_explicit_today_past_clock_fails
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "tool rejected past trigger_at" in input
             assert "bare local clock time has already passed" in input
             assert "Pomodoro/tomato timer" in input
@@ -2126,7 +2126,7 @@ async def test_reminder_intent_port_clarifies_date_only_create():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2156,7 +2156,7 @@ async def test_reminder_intent_port_clarifies_completion_condition_without_time(
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2196,7 +2196,7 @@ async def test_reminder_intent_port_clarifies_date_only_batch_create():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2238,7 +2238,7 @@ async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2268,7 +2268,7 @@ async def test_reminder_intent_port_clarifies_status_only_reminder_content():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2310,7 +2310,7 @@ async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb(
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2363,7 +2363,7 @@ async def test_reminder_intent_port_drops_batch_operation_without_local_schedule
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2399,7 +2399,7 @@ async def test_reminder_intent_port_retries_clarification_for_mixed_clocked_clau
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
                 content={
                     "intent_type": "clarify",
@@ -2409,7 +2409,7 @@ async def test_reminder_intent_port_retries_clarification_for_mixed_clocked_clau
             )
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "concrete clock-governed reminder clauses" in input
             assert "drop date-only or no-clock clauses" in input
             return SimpleNamespace(
@@ -2479,7 +2479,7 @@ async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2537,7 +2537,7 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2605,13 +2605,13 @@ async def test_reminder_intent_port_retries_today_time_range_recurring_compressi
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     retry_inputs: list[str] = []
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             retry_inputs.append(input)
             return SimpleNamespace(content=retry_decision)
 
@@ -2668,7 +2668,7 @@ async def test_reminder_intent_port_clarifies_large_today_time_range_plan():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2704,11 +2704,11 @@ async def test_reminder_intent_port_retries_invalid_structured_output_with_schem
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="ReminderDetectInvalidStructuredOutput")
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "primary detector returned invalid structured output" in input
             assert "batch create decisions require top-level schedule_basis" in input
             assert "Clarify and discussion retries must return empty action" in input
@@ -2754,11 +2754,11 @@ async def test_reminder_intent_port_treats_standalone_english_opt_out_as_no_acti
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("standalone reminder opt-out should not retry")
 
     class FakeExecutor:
@@ -2786,7 +2786,7 @@ async def test_reminder_intent_port_suppresses_delete_for_standalone_english_opt
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2814,7 +2814,7 @@ async def test_reminder_intent_port_suppresses_management_for_alarm_acknowledgem
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2842,7 +2842,7 @@ async def test_reminder_intent_port_treats_behavior_meta_discussion_as_no_action
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -2873,11 +2873,11 @@ async def test_reminder_intent_port_treats_feature_work_topic_as_no_action():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("feature work topic should not retry as reminder")
 
     class FakeExecutor:
@@ -2902,11 +2902,11 @@ async def test_reminder_intent_port_does_not_retry_feature_work_discussion():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content={"intent_type": "discussion", "action": ""})
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("feature work discussion should not retry")
 
     result = await ReminderIntentPort(
@@ -2926,11 +2926,11 @@ async def test_reminder_intent_port_suppresses_invalid_structured_for_english_op
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="ReminderDetectInvalidStructuredOutput")
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("standalone reminder opt-out should not retry")
 
     class FakeExecutor:
@@ -2972,11 +2972,11 @@ async def test_reminder_intent_port_retries_bounded_cadence_deadline_loss():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "cadence and a deadline" in input
             assert "deadline_at" in input
             return SimpleNamespace(content=retry_decision)
@@ -3021,11 +3021,11 @@ async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             raise AssertionError("睡前 is not a bounded deadline")
 
     class FakeExecutor:
@@ -3068,7 +3068,7 @@ async def test_reminder_intent_port_failcloses_bounded_cadence_deadline_loss():
     )
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
 
     class FakeExecutor:
@@ -3094,11 +3094,11 @@ async def test_reminder_intent_port_failcloses_when_retry_is_invalid():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="Operation cancelled by user")
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="intentaction create")
 
     result = await ReminderIntentPort(
@@ -3122,11 +3122,11 @@ async def test_reminder_intent_port_retries_when_primary_detector_times_out(
     monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
 
     class PrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             await asyncio.sleep(60)
 
     class RetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             assert "Retry reason: primary detector timed out" in input
             assert "Return only a valid ReminderDetectDecision" in input
             assert "Complete CRUD decisions must omit workflow_update" in input
@@ -3178,7 +3178,7 @@ async def test_reminder_intent_port_timeout_asks_deadline_for_high_frequency_inp
     )
 
     class SlowAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             await asyncio.sleep(60)
 
     result = await asyncio.wait_for(
@@ -3205,11 +3205,11 @@ async def test_reminder_intent_port_invalid_retry_asks_window_for_whole_hour_inp
     monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
 
     class SlowPrimaryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             await asyncio.sleep(60)
 
     class InvalidRetryAgent:
-        async def arun(self, *, input, session_state):
+        async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="intentaction create")
 
     result = await ReminderIntentPort(
