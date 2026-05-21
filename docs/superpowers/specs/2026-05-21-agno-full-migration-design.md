@@ -106,24 +106,29 @@ The retention is deliberate: `RunResponse.tools` stores the model-facing envelop
 What changes:
 - `_extract_final_text()` is deleted. Use `RunResponse.content` directly.
 - `tool_wrappers.py` is merged into `agent_runtime.py`. The `_TOOL_NAMES` registry and `_build_missing_wrapper` pattern are removed.
+- `_default_capability_ports()` currently registers `album`, `context_retrieve`, and `usage` ports that are never iterated by `build_capability_tool_wrappers()` (not in `_TOOL_NAMES`) and produce no agno tools. These three entries are removed as dead code. The `context_retrieve_tool` in `tools/context_retrieve_tool.py` is from the retired orchestrator architecture — also deleted.
 
-### 4.4 post_analyze as Sequential Step
+### 4.4 post_analyze Extraction
 
-`PostAnalyzeWorkflow` is deleted. Its logic is extracted into `runtime/post_analyze.py` as a plain async function called directly from `run_agent_runtime()` — not as an agno post_hook.
+`PostAnalyzeWorkflow` is deleted. Its logic is extracted into `runtime/post_analyze.py` as a plain `async def run_post_analyze(session_state: dict, ...) -> None` function.
 
-**Why not agno post_hook:** agno hooks fire inside `agent.arun()` before `RunResponse` is returned, so before `AgentRunResult` is constructed and before runtime contract checks (`_check_durable_write_contract`, `_check_unconfirmed_durable_write_promise`) complete. Post-analyze should only run when the turn produces visible output and passes all contract checks — the same gating that `post_analyze_input` currently encodes. Using a post_hook would bypass this gate. Additionally, agno swallows hook failures rather than propagating them.
+**Call site stays in `agent_handler.py`.** The current gating — `AgentRunResult.post_analyze_input is not None` and the `COKE_AGENT_RUNTIME_SKIP_POST_ANALYZE` flag — lives in the runner's `_run_post_analyze_background()`. This gating must run after `AgentRunResult` is constructed and runtime contract checks complete. Using an agno post_hook is wrong: hooks fire inside `agent.arun()` before `RunResponse` returns, before contract checks run, and agno swallows hook failures. `agent_handler.py` is not touched; only the implementation it calls changes.
+
+**Mutation path is preserved.** `run_post_analyze(session_state, ...)` mutates `session_state["relation"]` in place, identical to current `PostAnalyzeWorkflow.run()`. `agent_handler._run_post_analyze_background()` continues to do the MongoDB write (`mongo.replace_one("relations", ...)`) after the call returns. Nothing about the handler's MongoDB ownership changes.
+
+**`post_analyze_agent` becomes per-call.** `PostAnalyzeWorkflow` calls the module-level `post_analyze_agent` singleton. After extraction, `run_post_analyze()` instantiates the agent per-call:
 
 ```python
-# in run_agent_runtime(), after AgentRunResult is built:
-if result.post_analyze_input is not None:
-    await run_post_analyze(
-        post_analyze_input=result.post_analyze_input,
-        run_context=run_context,
-        tool_results=captured_tool_results,
-    )
+agent = Agent(
+    model=create_llm_model(role="post_analyze", max_tokens=8000),
+    output_schema=PostAnalyzeResponse,
+    use_json_mode=True,
+    markdown=False,
+)
+response = await agent.arun(input=rendered_prompt, session_state=session_state)
 ```
 
-`PostAnalyzeWorkflow.run()` mutates session_state to write back character, user, and relation updates. After extraction to `post_analyze.py`, the same mutation is written directly to MongoDB through the existing DAO calls — session_state as a mutation carrier is removed.
+No `db` on the post_analyze agent — it is a stateless single-shot structured output call.
 
 ### 4.5 Sub-agents (reminder_intent)
 
@@ -160,11 +165,12 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 | `runtime/tool_wrappers.py` | merged into `agent_runtime.py`; `_build_missing_wrapper` removed |
 | `workflows/post_analyze_workflow.py` | replaced by `runtime/post_analyze.py` |
 | `schemas/orchestrator_schema.py` | orchestrator is dead code |
+| `tools/context_retrieve_tool.py` | dead — from retired orchestrator architecture |
 
 ### Rewrite
 | File | What changes |
 |---|---|
-| `runtime/agent_runtime.py` | add `MongoDb` db, `add_history_to_context`; remove `_model_input()`; replace `_extract_final_text()` with `RunResponse.content`; inline tool wrapper construction; call `run_post_analyze()` after `AgentRunResult` is built |
+| `runtime/agent_runtime.py` | add `MongoDb` db, `add_history_to_context`; remove `_model_input()`; replace `_extract_final_text()` with `RunResponse.content`; inline tool wrapper construction; remove `album`/`context_retrieve`/`usage` dead port entries from `_default_capability_ports()` |
 | `runtime/chat_response_instructions.py` | extend to include dynamic runtime context block (current_time, user, character, platform, reminder payload) |
 | `capabilities/reminder_intent.py` | per-call Agent instantiation; delete module-level singleton imports |
 
@@ -172,7 +178,7 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 | File | Purpose |
 |---|---|
 | `runtime/session.py` | `MongoDb` instance factory; created once at worker boot, injected into `_create_agent()` |
-| `runtime/post_analyze.py` | `run_post_analyze()` async function extracted from `PostAnalyzeWorkflow`; receives run_context, tool_results, post_analyze_input; writes back to MongoDB directly |
+| `runtime/post_analyze.py` | `async def run_post_analyze(session_state: dict, ...) -> None` extracted from `PostAnalyzeWorkflow`; mutates `session_state["relation"]` in place; instantiates `post_analyze_agent` per-call; agent_handler.py continues to own the MongoDB write |
 
 ### Keep Unchanged
 - `runtime/context.py` — trust boundary
@@ -186,35 +192,40 @@ The corrective retry branches remain unchanged in logic; only the `Agent(...)` i
 ## 6. Turn Execution Flow After Migration
 
 ```
-run_agent_runtime() called with agent_input, run_context
+agent_handler._run_post_analyze_background() holds gating and MongoDB write — unchanged.
+
+run_agent_runtime() boundary:
+
+  run_agent_runtime(agent_input, run_context)
+    ↓
+  tool_results: list[CapabilityResult] = []  ← per-turn accumulator
+    ↓
+  agent = Agent(
+      db=shared_mongo_db,          ← session history persisted across turns
+      add_history_to_context=True,
+      instructions=build_chat_response_instructions(run_context, agent_input),
+      tools=[...closures over tool_results...],
+  )
+    ↓
+  run_output = await agent.arun(
+      input=raw_user_message,      ← no metadata envelope, just the message
+      session_id=run_context.conversation.id,
+  )  ← agno loads history from agent_sessions, runs LLM, calls tools, stores turn
+    ↓
+  final_text = run_output.content  ← no _extract_final_text() parsing
+  captured_tool_results = tuple(tool_results)
+    ↓
+  _check_durable_write_contract(captured_tool_results)
+  _check_unconfirmed_durable_write_promise(agent_input, final_text, captured_tool_results)
+  _resolve_visible_text(final_text, captured_tool_results)
+    ↓
+  return AgentRunResult(post_analyze_input=... if visible output and no contract error)
+
+agent_handler receives AgentRunResult
   ↓
-tool_results: list[CapabilityResult] = []  ← per-turn accumulator
-  ↓
-agent = Agent(
-    db=shared_mongo_db,
-    add_history_to_context=True,
-    instructions=build_chat_response_instructions(run_context, agent_input),
-    tools=[...closures over tool_results...],
-)
-  ↓
-run_output = await agent.arun(
-    input=raw_user_message,
-    session_id=run_context.conversation.id,
-)  ← agno loads session history from agent_sessions, runs LLM, calls tools, stores turn
-  ↓
-final_text = run_output.content
-captured_tool_results = tuple(tool_results)
-  ↓
-_check_durable_write_contract(captured_tool_results)
-_check_unconfirmed_durable_write_promise(agent_input, final_text, captured_tool_results)
-_resolve_visible_text(final_text, captured_tool_results)
-  ↓
-AgentRunResult constructed
-  ↓
-if result.post_analyze_input:
-    await run_post_analyze(run_context, captured_tool_results, result.post_analyze_input)
-  ↓
-return AgentRunResult
+  if result.post_analyze_input is not None and not skip_flag:
+      await run_post_analyze(session_state=context)  ← replaces PostAnalyzeWorkflow.run()
+      mongo.replace_one("relations", ...)            ← handler owns MongoDB write, unchanged
 ```
 
 ## 7. Out of Scope
