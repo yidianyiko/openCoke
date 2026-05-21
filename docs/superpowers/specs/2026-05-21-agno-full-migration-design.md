@@ -14,6 +14,7 @@ The current `agent/agno_agent/` reimplements agno's own features, worse:
 | `num_history_messages=15` on `reminder_detect_agent` / `post_analyze_agent`, none on main agent | `Agent(db=MongoDb(...), num_history_messages=N)` | `num_history_messages` is inert without a `db`; config exists but does nothing |
 | module-level `reminder_detect_agent`, `reminder_detect_retry_agent`, `post_analyze_agent` | per-invocation Agent instances | `initialize_session()` writes a generated `session_id` back to the shared instance when none is passed, poisoning concurrent calls |
 | `_extract_final_text()` parsing `RunResponse.messages` internals | `RunResponse.content` | fragile: walks message list looking for last assistant turn after tool calls |
+| `PostAnalyzeWorkflow` as standalone orchestration class | plain `run_post_analyze()` function | unnecessary abstraction; extracted to `runtime/post_analyze.py`, call site in agent_handler unchanged |
 | `orchestrator_agent` module-level singleton | removed | dead code — never called in the current runtime path |
 
 The main chat `Agent` is already instantiated per turn in `_create_agent()` and is not the race source. The race is in the sub-agent and post-analyze singletons.
@@ -132,7 +133,7 @@ No `db` on the post_analyze agent — it is a stateless single-shot structured o
 
 ### 4.5 Sub-agents (reminder_intent)
 
-`reminder_detect_agent` and `reminder_detect_retry_agent` are no longer module-level singletons. They are instantiated per-invocation inside `ReminderIntentPort.run()`:
+`reminder_detect_agent` is no longer a module-level singleton. It is instantiated per-invocation inside `ReminderIntentPort.run()`:
 
 ```python
 detector = Agent(
@@ -150,7 +151,7 @@ await detector.arun(
 
 No `db` on sub-agents — they are stateless single-shot structured output calls. `session_state` carries the pending workflow context within the turn (already the current pattern).
 
-The corrective retry state machine is removed (see §3a). Failed detection returns a failed `CapabilityResult` immediately.
+`reminder_detect_retry_agent` is deleted entirely — it only existed to serve the corrective retry state machine (see §3a). Failed detection returns a failed `CapabilityResult` immediately.
 
 ### 4.6 Delete Dead Code
 
