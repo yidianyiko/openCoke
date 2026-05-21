@@ -2,20 +2,18 @@
 """
 Agent Instructions Prompt
 
-This file contains the System Prompt / Instructions definitions for each Agent.
-Centralizes prompts that were previously hardcoded in agent/agno_agent/agents/.
+This file contains the System Prompt / Instructions definitions for active agent
+roles.
 
 ## Main Agent Instructions:
 - INSTRUCTIONS_QUERY_REWRITE: Query rewrite agent instructions
 - INSTRUCTIONS_CHAT_RESPONSE: Conversation generation agent instructions
 - INSTRUCTIONS_POST_ANALYZE: Post-processing analysis agent instructions
 - INSTRUCTIONS_REMINDER_DETECT: Reminder detection agent instructions
-- INSTRUCTIONS_ORCHESTRATOR: Orchestrator agent instructions
 
 ## Proactive Message Agent Instructions:
 - INSTRUCTIONS_FUTURE_QUERY_REWRITE: Proactive message query rewrite instructions
 - INSTRUCTIONS_FUTURE_MESSAGE_CHAT: Proactive message generation instructions
-- INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE: Proactive message context retrieval instructions
 
 ## Design Principles:
 1. Each Agent has clear, specific instructions
@@ -97,71 +95,6 @@ Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_
 
 # Default version for backwards compatibility
 INSTRUCTIONS_REMINDER_DETECT = get_reminder_detect_instructions()
-
-
-# ========== OrchestratorAgent ==========
-# Design principles:
-# - DESCRIPTION: Role identity (who you are)
-# - INSTRUCTIONS: Decision logic (how to make decisions)
-# - Schema Field.description: Format constraints (what format to output)
-
-DESCRIPTION_ORCHESTRATOR = "You are an intelligent orchestrator assistant. Your job is to understand user intent and make scheduling decisions."
-
-INSTRUCTIONS_ORCHESTRATOR = """Understand the user message intent and make scheduling decisions.
-
-## Decision Rules
-
-### need_context_retrieve
-- Default true.
-- Set false only for pure reminder operations that do not need memory/context.
-
-### need_reminder_detect
-- True when the message asks to create, inspect, change, complete, stop, or avoid a reminder/alarm/check-in/supervision flow.
-- True for task-management language with a time, cadence, countdown, pomodoro, deadline, wake/call request, or reminder-status question.
-- True for reminder-related continuations where the user is supplying missing schedule/content details.
-- False for pure small talk, past status reports, and Name/address preferences like "call me X" or "你可以叫我X" unless the same message includes a concrete reminder time, cadence, or task.
-- When uncertain, default true so ReminderDetect can decide crud vs clarify vs discussion.
-
-### need_web_search
-- True when the target is external-world information that may be current or unknown: weather, news, prices, sports, public facts, people, events, products, or explicit search requests.
-- False when the target is user personal state, reminders, alarms, to-dos, historical conversation, assistant capability/settings, small talk, emotion, or role-play.
-- Distinguish ownership: "my reminders" is personal data; "Hangzhou weather tomorrow" is external-world data.
-- When uncertain between memory/reminder and search, prefer the personal/runtime route.
-
-### web_search_query
-- Fill only when need_web_search=true.
-- Generate concise search terms from core entities, topic, location, and time window.
-- Remove conversational filler.
-
-### need_timezone_update
-- True only when the user asks to change timezone or gives a new location signal that could affect future timing.
-- False for city mentions, travel/weather questions, or "what time is it in X" unless they indicate the user's own timezone changed.
-
-### timezone_action
-Always choose one of:
-- `none`: no timezone action.
-- `direct_set`: explicit command/confirmation to switch timezone now, including "改成东京时间" or "按纽约时间和我说".
-- `proposal`: new location signal such as "I'm in New York now" without a direct switch command.
-
-When `timezone_action=proposal`, the assistant should later ask for confirmation instead of changing the timezone immediately.
-
-### timezone_value
-Fill the corresponding IANA timezone name when `timezone_action` is `direct_set` or `proposal`, e.g. "America/New_York", "Asia/Tokyo".
-
-### context_retrieve_params
-Generate retrieval parameters from user message content. Refer to the Schema for format.
-
-### inner_monologue
-Briefly explain the routing and scheduling rationale."""
-
-
-# ========== FutureMessageContextRetrieveAgent Instructions ==========
-INSTRUCTIONS_FUTURE_CONTEXT_RETRIEVE = """You are a context retrieval assistant. Your tasks are:
-1. Based on the query rewrite result, call context_retrieve_tool to retrieve relevant context
-2. Retrieval content includes: character global settings, character private settings, user profile, character knowledge
-3. Organize and return the retrieval results
-
-Retrieve based on the query and keywords in query_rewrite, paying special attention to content related to "planned actions"."""
 
 
 # ========== QueryRewriteAgent Instructions ==========

@@ -6,7 +6,7 @@ Agent Message Handler-Agno Version
 
 执行流程：
 - single-Agent runtime handles semantic planning and capability dispatch
-- PostAnalyzeWorkflow runs in the background when the runtime result requests it
+- post-analyze runs in the background when the runtime result requests it
 
 V2.4 更新：
 - 抽取核心处理逻辑为 handle_message() 函数
@@ -162,7 +162,7 @@ async def _run_post_analyze_background(
     worker_tag: str,
 ) -> None:
     """
-    后台执行 PostAnalyzeWorkflow（Fire-and-Forget 模式）
+    后台执行 post-analyze（Fire-and-Forget 模式）
 
     优化目的：
     - 不阻塞主流程，Phase 2 完成后立即返回
@@ -175,7 +175,7 @@ async def _run_post_analyze_background(
         worker_tag: 日志标签
     """
     try:
-        logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 开始")
+        logger.info(f"{worker_tag} [BG] PostAnalyze 开始")
         await run_post_analyze(session_state=context)
 
         # 更新 relation 到数据库
@@ -188,10 +188,10 @@ async def _run_post_analyze_background(
                 update=relation_update,
             )
 
-        logger.info(f"{worker_tag} [BG] PostAnalyzeWorkflow 完成")
+        logger.info(f"{worker_tag} [BG] PostAnalyze 完成")
 
     except Exception as e:
-        logger.warning(f"{worker_tag} [BG] PostAnalyzeWorkflow 失败: {e}")
+        logger.warning(f"{worker_tag} [BG] PostAnalyze 失败: {e}")
 
 
 def _latest_input_message_timestamp(context: dict) -> int | None:
@@ -472,11 +472,9 @@ async def handle_message(
                     worker_tag,
                 )
             )
-            logger.info(
-                f"{worker_tag} AgentRuntime PostAnalyzeWorkflow 已提交后台执行"
-            )
+            logger.info(f"{worker_tag} AgentRuntime PostAnalyze 已提交后台执行")
         elif result.post_analyze_input is not None:
-            logger.info(f"{worker_tag} AgentRuntime PostAnalyzeWorkflow 已跳过")
+            logger.info(f"{worker_tag} AgentRuntime PostAnalyze 已跳过")
         is_content_blocked = False
         logger.info(
             f"{worker_tag} AgentRuntime 完成 "

@@ -133,7 +133,7 @@ class ContextRetrieveDomainContract:
                 user_id
             )
         except Exception as exc:
-            logger.error("Error in context_retrieve_tool: %s", exc)
+            logger.error("Error in context_retrieve capability: %s", exc)
             raise
 
         return return_resp

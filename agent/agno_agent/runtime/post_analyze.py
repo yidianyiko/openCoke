@@ -88,7 +88,7 @@ async def run_post_analyze(session_state: dict[str, Any]) -> None:
                 metrics=response.metrics,
                 user_id=str(session_state.get("user", {}).get("id", "")),
                 session_id=session_state.get("conversation_id"),
-                workflow_name="PostAnalyzeWorkflow",
+                workflow_name="PostAnalyze",
             )
 
         content = _extract_content(response)

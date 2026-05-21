@@ -1,9 +1,6 @@
 from datetime import UTC, datetime
 
-from agent.prompt.agent_instructions_prompt import (
-    INSTRUCTIONS_ORCHESTRATOR,
-    get_reminder_detect_instructions,
-)
+from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
 
 
 def _non_empty_lines(text: str) -> list[str]:
@@ -33,11 +30,6 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "prefer PM same day" in instructions
     # Output discipline.
     assert "Output only the structured decision" in instructions
-
-
-def test_orchestrator_does_not_route_name_preferences_to_reminder_detect():
-    assert "Name/address preferences" in INSTRUCTIONS_ORCHESTRATOR
-    assert "concrete reminder time, cadence, or task" in INSTRUCTIONS_ORCHESTRATOR
 
 
 def test_reminder_detect_instructions_do_not_embed_case_examples():

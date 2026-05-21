@@ -116,7 +116,7 @@ def set_skip_post_analyze():
     """
     自动设置 SKIP_POST_ANALYZE 环境变量
 
-    跳过 PostAnalyzeWorkflow，加快测试速度
+    跳过 post-analyze，加快测试速度
     """
     original = os.environ.get("SKIP_POST_ANALYZE")
     os.environ["SKIP_POST_ANALYZE"] = "1"

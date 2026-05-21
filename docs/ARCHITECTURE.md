@@ -200,12 +200,17 @@ documents are inert.
 
 The default turn pipeline is the single-Agent runtime defined in
 `agent/agno_agent/runtime/agent_runtime.py`. The runner constructs an Agno
-`Agent` per turn and registers async tool wrappers (`reminder_intent`,
-`timezone`, `calendar_import`, `url_context`, `memo`) that capture typed
-`CapabilityResult` objects for deterministic visible-output rules. The runner
-remains responsible for locks, rollback, output writes, replay checks,
-scheduler boot, and delivery state transitions. The former prepare/chat
-workflow runtime and legacy multi-agent runtime have been retired.
+`Agent` per turn with the shared `agent_sessions` MongoDB session store and
+Agno-managed history context (`add_history_to_context=True`,
+`num_history_messages=20`). Runtime metadata is carried in per-turn
+instructions, while the user message passed to Agno remains the raw input text.
+The runtime registers async tool wrappers (`reminder_intent`, `timezone`,
+`calendar_import`, `url_context`) that capture typed `CapabilityResult` objects
+for deterministic visible-output rules. The runner remains responsible for
+locks, rollback, output writes, replay checks, scheduler boot, post-analyze
+dispatch, and delivery state transitions. The former prepare/chat workflow
+runtime, legacy multi-agent runtime, and module-level Agno agent singletons have
+been retired.
 
 `agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
 concerns are split across four focused modules:
