@@ -22,6 +22,7 @@ from agent.agno_agent.runtime.result import (
     RuntimeErrorDisposition,
     VisibleMessage,
 )
+from agent.agno_agent.runtime.session import get_agent_session_db
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ def _create_agent(
     agent_input: AgentInput,
     input_message: str,
     tool_results: list[CapabilityResult],
+    session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
     from agno.tools import tool
@@ -109,12 +111,17 @@ def _create_agent(
         tool(name=name, stop_after_tool_call=name == "reminder_intent")(fn)
         for name, fn in wrappers.items()
     ]
+    resolved_session_db = session_db or get_agent_session_db()
     return Agent(
         id="coke-single-agent",
         name="CokeSingleAgent",
         model=create_llm_model(role="chat_response", max_tokens=2000),
         instructions=build_chat_response_instructions(run_context, agent_input),
         tools=tools,
+        db=resolved_session_db,
+        add_history_to_context=True,
+        num_history_messages=20,
+        add_session_state_to_context=False,
         tool_call_limit=4,
         markdown=False,
     )

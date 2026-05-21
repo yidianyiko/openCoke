@@ -331,6 +331,62 @@ def test_create_agent_sets_tool_call_limit(monkeypatch):
     assert agent.kwargs["tool_call_limit"] == 4
 
 
+def test_create_agent_uses_injected_session_db_and_history_settings(monkeypatch):
+    injected_db = object()
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+
+    agent = agent_runtime._create_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+        session_db=injected_db,
+    )
+
+    assert agent.kwargs["db"] is injected_db
+    assert agent.kwargs["add_history_to_context"] is True
+    assert agent.kwargs["num_history_messages"] == 20
+    assert agent.kwargs["add_session_state_to_context"] is False
+
+
+def test_create_agent_resolves_default_session_db(monkeypatch):
+    resolved_db = object()
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "get_agent_session_db",
+        lambda: resolved_db,
+        raising=False,
+    )
+
+    agent = agent_runtime._create_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert agent.kwargs["db"] is resolved_db
+
+
 def test_create_agent_stops_after_reminder_tool_call():
     agent = agent_runtime._create_agent(
         run_context=_run_context(),
