@@ -134,7 +134,6 @@ class ReminderIntentPort:
         *,
         detector_agent: Any | None = None,
         command_executor: Any | None = None,
-        **_ignored_agents: Any,
     ) -> None:
         self.detector_agent = detector_agent
         self.command_executor = command_executor or ReminderCommandExecutor(
@@ -317,6 +316,8 @@ class ReminderIntentPort:
                 input_message,
                 _invalid_decision_clarification_result(),
             )
+        if _should_reject_missing_scheduled_clauses(input_message, decision):
+            return _invalid_decision_clarification_result()
         result = self.command_executor.execute(decision, run_context)
         return CapabilityResult(
             name=result.name,
@@ -1263,6 +1264,56 @@ def _should_reject_day_of_month_mismatch(
         if local.day != expected_day:
             return True
     return False
+
+
+def _should_reject_missing_scheduled_clauses(
+    input_message: str, decision: Any
+) -> bool:
+    expected_count = _explicit_scheduled_clause_count(input_message)
+    if expected_count < 2:
+        return False
+    return _decision_create_operation_count(decision) < expected_count
+
+
+def _explicit_scheduled_clause_count(input_message: str) -> int:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return 0
+    if not (
+        _REMINDER_VERB_PATTERN.search(current_user_text)
+        or re.search(r"询问我|告诉我|问问我|check in|report", current_user_text, re.I)
+    ):
+        return 0
+    normalized = re.sub(
+        r"(\d{1,2}[:：]\d{2})\s*[-–—]\s*\d{1,2}[:：]\d{2}",
+        r"\1",
+        current_user_text,
+    )
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(normalized))
+    governed_matches: set[str] = set()
+    for index, match in enumerate(matches):
+        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        clause = normalized[match.end() : next_start]
+        if _REMINDER_VERB_PATTERN.search(clause) or re.search(
+            r"询问我|告诉我|问问我|check in|report",
+            clause,
+            re.I,
+        ):
+            governed_matches.add(re.sub(r"\s+", "", match.group(0)))
+    return len(governed_matches)
+
+
+def _decision_create_operation_count(decision: Any) -> int:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        return 1
+    if action != "batch":
+        return 0
+    return sum(
+        1
+        for operation in (_decision_value(decision, "operations") or [])
+        if str(_operation_value(operation, "action") or "").strip() == "create"
+    )
 
 
 def _explicit_schedule_day_of_month_before_reminder_verb(

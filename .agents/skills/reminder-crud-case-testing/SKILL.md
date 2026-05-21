@@ -58,20 +58,18 @@ Rules:
 Do not let normal-path fixes become another case-by-case parser.
 
 - LLM-first: reminder create/update/delete/complete decisions must come from
-  ReminderDetectAgent or its LLM retry path, not Python NLU.
-- ReminderDetectAgent and ReminderDetectRetryAgent must keep a structured
-  intent boundary: `intent_type` is one of `crud`, `clarify`, `query`, or
-  `discussion`, and only CRUD results may carry reminder write fields. Clarify,
-  query, discussion, and commitment-style free text must have no reminder fields
-  the runtime could treat as executable.
+  ReminderDetectAgent, not Python NLU.
+- ReminderDetectAgent must keep a structured intent boundary: `intent_type` is
+  one of `crud`, `clarify`, `query`, or `discussion`, and only CRUD results may
+  carry reminder write fields. Clarify, query, discussion, and commitment-style
+  free text must have no reminder fields the runtime could treat as executable.
 - Do not add deterministic Python reminder-create fallbacks, regex parsers, or
   hard-routed reminder replies to pass a single corpus case.
-- If a detector timeout needs a fallback, use a shorter-context LLM retry that
-  can still decide to clarify or do nothing; timeout is not permission to create.
+- If a detector timeout happens, leave the reminder unexecuted for chat
+  clarification; timeout is not permission to create.
 - If a detector response violates the structured schema, do not repair fields in
-  Python. Record the invalid structured output and retry with the shorter-context
-  LLM path; if retry also fails, leave the reminder unexecuted for chat
-  clarification.
+  Python. Record the invalid structured output and leave the reminder unexecuted
+  for chat clarification.
 - Date-only or time-missing create requests should clarify unless the product
   has an explicit default-time policy.
 - Isolate eval identities by batch and case. Do not reuse corpus `from_user` as
@@ -128,7 +126,7 @@ cleanup work when failures start repeating.
   boundary, fixture classification, or semantic judge improvement that covers
   the class.
 - Track normal-path eval quality with latency and routing metrics, not only
-  pass/fail: p95 latency, detector timeout rate, retry rate, clarification rate,
+  pass/fail: p95 latency, detector timeout rate, clarification rate,
   CRUD/clarify/query/discussion intent accuracy, and LLM judge timeout rate.
 - Use structured ReminderDetect logs as a feedback loop: sample real invalid
   decisions and timeouts, add durable fixture counterexamples, then improve

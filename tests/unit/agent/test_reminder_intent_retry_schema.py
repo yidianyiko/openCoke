@@ -28,7 +28,7 @@ def _ctx() -> AgentRunContext:
 
 
 @pytest.mark.asyncio
-async def test_invalid_primary_structured_output_fails_without_retry_agent():
+async def test_invalid_primary_structured_output_fails_without_second_detector():
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content="intentaction cancel")
