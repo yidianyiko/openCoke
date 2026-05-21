@@ -31,6 +31,14 @@ _REMINDER_TOOL_BOUNDARY = """Reminder tool boundary:
 - If the user says they plan to do something before/after a time but does not ask to be reminded, do not turn it into a reminder clarification or reminder setup offer.
 - Only speak as if a scheduled reminder is firing when the runtime context is a system reminder trigger; for ordinary user messages that mention a clock time, respond to the reported situation instead of delivering the activity cue."""
 
+_SCHEDULING_TOOL_BOUNDARY = """Scheduling tool boundary:
+- Use scheduling tools only when the current user message explicitly asks to show/reset/disable a user link, manage bookable windows, query a linked provider's availability, request an appointment, confirm/reject/cancel an appointment, list pending appointment requests, or block/remove/unblock a service link.
+- Distinguish A-side link management and availability actions from B-side appointment actions. If the user role, provider, or target account is ambiguous, ask a short clarification instead of guessing.
+- Do not create appointment state from ordinary calendar discussion, plans, or vague availability talk.
+- Do not reveal raw user-link codes when a shareable URL or status summary is enough.
+- Ask the user to confirm before irreversible scheduling changes, including resetting or disabling a user link, confirming/rejecting/canceling an appointment, and blocking/removing a service link. If the user already gave explicit confirmation in the current turn, proceed.
+- Pending appointment holds do not expire automatically. If A asks about stale requests, list pending requests or cancel/reject them; do not invent a hidden timeout."""
+
 
 def _strip_legacy_artifacts(text: str) -> str:
     for pattern in _FORBIDDEN_LINE_PATTERNS:
@@ -98,6 +106,7 @@ def build_chat_response_instructions(
             _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
             _REMINDER_TOOL_BOUNDARY,
+            _SCHEDULING_TOOL_BOUNDARY,
             f"Default user timezone: {_instruction_value(timezone)}",
         ]
     )

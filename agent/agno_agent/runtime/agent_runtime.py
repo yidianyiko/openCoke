@@ -9,6 +9,8 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any, Literal
 
+from pydantic import BaseModel
+
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.inputs import AgentInput
@@ -45,6 +47,27 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
 )
 
 
+class SchedulingBookableWindowRule(BaseModel):
+    type: str
+    days_of_week: list[int] | None = None
+    time_start: str | None = None
+    time_end: str | None = None
+    timezone: str | None = None
+    effective_from: str | None = None
+    effective_until: str | None = None
+    date: str | None = None
+
+
+class SchedulingBookableWindowPreviewItem(BaseModel):
+    rule: SchedulingBookableWindowRule
+    fingerprint: str
+
+
+class SchedulingBookableWindowPreview(BaseModel):
+    previewId: str
+    windows: list[SchedulingBookableWindowPreviewItem]
+
+
 def _float_env(name: str, default: float) -> float:
     raw_value = os.environ.get(name)
     if raw_value is None:
@@ -70,16 +93,25 @@ def _default_capability_ports() -> dict[str, Any]:
     from agent.agno_agent.capabilities import (
         CalendarImportPort,
         ReminderIntentPort,
+        SchedulingCapabilityPort,
         TimezoneCapabilityPort,
         UrlContextPort,
     )
+    from agent.agno_agent.capabilities.scheduling import SCHEDULING_TOOL_NAMES
 
-    return {
+    ports = {
         "reminder_intent": ReminderIntentPort(),
         "timezone": TimezoneCapabilityPort(),
         "calendar_import": CalendarImportPort(),
         "url_context": UrlContextPort(),
     }
+    ports.update(
+        {
+            name: SchedulingCapabilityPort(tool_name=name)
+            for name in SCHEDULING_TOOL_NAMES
+        }
+    )
+    return ports
 
 
 def _create_agent(
@@ -137,6 +169,8 @@ def _model_facing_envelope(
 
 
 def _jsonable(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return _jsonable(value.model_dump())
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (str, int, float, bool)) or value is None:
@@ -231,6 +265,69 @@ def _build_capability_tool_wrapper(
 
         return url_context
 
+    if tool_name in {
+        "get_user_link",
+        "reset_user_link",
+        "disable_user_link",
+        "open_bookable_windows",
+        "confirm_bookable_windows",
+        "query_bookable_windows",
+        "request_appointment",
+        "confirm_appointment",
+        "reject_appointment",
+        "cancel_appointment",
+        "list_pending_requests",
+        "block_service_link",
+        "unblock_service_link",
+        "remove_service_link",
+    }:
+
+        async def scheduling_tool(
+            target_account_id: str | None = None,
+            consumer_account_id: str | None = None,
+            other_account_id: str | None = None,
+            request_id: str | None = None,
+            appointment_or_request_id: str | None = None,
+            window_instance_id: str | None = None,
+            bookable_window_id: str | None = None,
+            instance_start: str | None = None,
+            instance_end: str | None = None,
+            date_from: str | None = None,
+            date_to: str | None = None,
+            timezone: str | None = None,
+            viewer_timezone: str | None = None,
+            instruction: str | None = None,
+            preview: SchedulingBookableWindowPreview | None = None,
+            reason: str | None = None,
+            idempotency_key: str | None = None,
+        ) -> dict[str, Any]:
+            """Use only for explicit user-link, availability, appointment, or service-link scheduling requests."""
+            return await _call(
+                _compact_scheduling_args(
+                    {
+                        "target_account_id": target_account_id,
+                        "consumer_account_id": consumer_account_id,
+                        "other_account_id": other_account_id,
+                        "request_id": request_id,
+                        "appointment_or_request_id": appointment_or_request_id,
+                        "window_instance_id": window_instance_id,
+                        "bookable_window_id": bookable_window_id,
+                        "instance_start": instance_start,
+                        "instance_end": instance_end,
+                        "date_from": date_from,
+                        "date_to": date_to,
+                        "timezone": timezone,
+                        "viewer_timezone": viewer_timezone,
+                        "instruction": instruction,
+                        "preview": preview,
+                        "reason": reason,
+                        "idempotency_key": idempotency_key,
+                    }
+                )
+            )
+
+        return scheduling_tool
+
     raise ValueError(f"Unsupported capability tool: {tool_name}")
 
 
@@ -257,6 +354,14 @@ def build_capability_tool_wrappers(
         )
 
     return wrappers
+
+
+def _compact_scheduling_args(args: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: _jsonable(value)
+        for key, value in args.items()
+        if value is not None and value != ""
+    }
 
 
 def _string_content(value: Any) -> str:
