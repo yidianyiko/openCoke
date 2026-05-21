@@ -1290,6 +1290,8 @@ def _explicit_scheduled_clause_count(input_message: str) -> int:
         current_user_text,
     )
     matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(normalized))
+    if _SCHEDULE_BACK_REFERENCE_PATTERN.search(current_user_text):
+        return len({re.sub(r"\s+", "", match.group(0)) for match in matches})
     governed_matches: set[str] = set()
     for index, match in enumerate(matches):
         next_start = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)

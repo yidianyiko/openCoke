@@ -546,6 +546,45 @@ async def test_reminder_intent_port_rejects_when_multiple_scheduled_clauses_are_
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_rejects_back_reference_routine_time_drop():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "crud",
+                    "action": "create",
+                    "title": "起床",
+                    "trigger_at": "2026-05-12T07:15:00+09:00",
+                    "schedule_basis": "explicit_occurrences",
+                    "schedule_evidence": "7:15起床",
+                }
+            )
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, run_context):
+            self.received.append(received_decision)
+            raise AssertionError("partial back-reference schedule must not execute")
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=executor,
+    ).run(
+        "我一般7:15起床，23:00睡觉。我需要你在上述这些时间提醒我",
+        _run_context(),
+    )
+
+    assert result.ok is False
+    assert result.error == "ReminderDetectInvalidDecision"
+    assert executor.received == []
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
