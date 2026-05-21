@@ -125,6 +125,9 @@ class CokeMessageGateway:
             "delivery_mode": "request_response",
             "causal_inbound_event_id": causal_inbound_event_id,
         }
+        inbound_message_type = _read_clean_string(inbound.get("message_type"))
+        if inbound_message_type:
+            business_protocol["message_type"] = inbound_message_type
         sync_reply_token = inbound.get("sync_reply_token")
         if sync_reply_token:
             business_protocol["sync_reply_token"] = sync_reply_token
@@ -149,12 +152,15 @@ class CokeMessageGateway:
         }
 
         attachments = _normalized_attachments_from_inbound(inbound)
+        scheduling = inbound.get("scheduling")
         metadata = {
             "source": "clawscale",
             "business_protocol": business_protocol,
             "customer": customer,
             "coke_account": customer,
         }
+        if isinstance(scheduling, dict):
+            metadata["scheduling"] = scheduling
         if attachments:
             metadata["attachments"] = attachments
             metadata["mediaUrls"] = [
