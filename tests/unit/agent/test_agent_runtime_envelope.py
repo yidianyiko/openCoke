@@ -11,8 +11,8 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.agent_runtime import build_capability_tool_wrappers
 from agent.agno_agent.runtime.result import CapabilityResult
-from agent.agno_agent.runtime.tool_wrappers import build_capability_tool_wrappers
 
 
 def _run_context() -> AgentRunContext:

@@ -381,11 +381,7 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
             )
 
     def fake_create_agent(*, run_context, input_message, tool_results):
-        from agent.agno_agent.runtime.tool_wrappers import (
-            build_capability_tool_wrappers,
-        )
-
-        wrappers = build_capability_tool_wrappers(
+        wrappers = agent_runtime.build_capability_tool_wrappers(
             ports=agent_runtime._default_capability_ports(),
             run_context=run_context,
             input_message=input_message,
