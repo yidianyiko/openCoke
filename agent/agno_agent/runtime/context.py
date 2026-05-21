@@ -85,27 +85,6 @@ def _required_id(value: str, label: str) -> str:
     return value
 
 
-def _optional_relation_id(relation: Mapping[str, Any], key: str) -> str:
-    value = relation.get(key)
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
-def _trusted_relation_id(
-    relation: Mapping[str, Any],
-    key: str,
-    trusted_id: str,
-    label: str,
-) -> str:
-    relation_id = _optional_relation_id(relation, key)
-    if not relation_id:
-        return trusted_id
-    if relation_id != trusted_id:
-        raise ValueError(f"relation {label} conflicts with trusted {label} id")
-    return relation_id
-
-
 def _nickname(value: Mapping[str, Any], fallback: str) -> str:
     return str(
         value.get("display_name")
@@ -113,11 +92,6 @@ def _nickname(value: Mapping[str, Any], fallback: str) -> str:
         or value.get("name")
         or fallback
     )
-
-
-def _metadata_from_raw(raw: Mapping[str, Any]) -> dict[str, Any]:
-    """Reserved for explicitly validated metadata; never smuggle untrusted dicts."""
-    return {}
 
 
 def build_agent_run_context(
@@ -143,8 +117,8 @@ def build_agent_run_context(
         ).strip(),
         "conversation",
     )
-    relation_uid = _trusted_relation_id(relation, "uid", user_id, "user")
-    relation_cid = _trusted_relation_id(relation, "cid", character_id, "character")
+    relation_uid = user_id
+    relation_cid = character_id
     platform = str(
         legacy_context.get("platform") or conversation.get("platform") or "business"
     )
@@ -156,23 +130,19 @@ def build_agent_run_context(
             timezone=str(
                 user.get("effective_timezone") or user.get("timezone") or "UTC"
             ),
-            metadata=_metadata_from_raw(user),
         ),
         character=TrustedCharacterContext(
             id=character_id,
             nickname=_nickname(character, "Coke"),
-            metadata=_metadata_from_raw(character),
         ),
         conversation=TrustedConversationContext(
             id=conversation_id,
             platform=platform,
             route_key=conversation.get("route_key"),
-            metadata=_metadata_from_raw(conversation),
         ),
         relation=TrustedRelationContext(
             uid=relation_uid,
             cid=relation_cid,
-            metadata=_metadata_from_raw(relation),
         ),
         platform=platform,
         recent_chat_history=str(
