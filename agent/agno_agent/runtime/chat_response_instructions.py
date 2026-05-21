@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload
@@ -38,24 +40,32 @@ def _strip_legacy_artifacts(text: str) -> str:
     return text
 
 
+def _instruction_value(value: Any) -> str:
+    return json.dumps(str(value), ensure_ascii=False)
+
+
 def _runtime_context_block(
     run_context: AgentRunContext,
     agent_input: AgentInput,
 ) -> str:
     lines = [
         "Trusted runtime context:",
-        f"current_time: {run_context.current_time.isoformat()}",
-        f"user: {run_context.user.nickname or 'User'} ({run_context.user.id})",
+        f"current_time: {_instruction_value(run_context.current_time.isoformat())}",
+        f"user_id: {_instruction_value(run_context.user.id)}",
+        f"user_nickname: {_instruction_value(run_context.user.nickname or 'User')}",
+        f"character_id: {_instruction_value(run_context.character.id)}",
         (
-            f"character: {run_context.character.nickname or 'Coke'} "
-            f"({run_context.character.id})"
+            "character_nickname: "
+            f"{_instruction_value(run_context.character.nickname or 'Coke')}"
         ),
-        f"platform: {run_context.platform}",
-        f"input_type: {agent_input.input_type}",
-        f"conversation_id: {run_context.conversation.id}",
+        f"platform: {_instruction_value(run_context.platform)}",
+        f"input_type: {_instruction_value(agent_input.input_type)}",
+        f"conversation_id: {_instruction_value(run_context.conversation.id)}",
     ]
     if run_context.conversation.route_key:
-        lines.append(f"route_key: {run_context.conversation.route_key}")
+        lines.append(
+            f"route_key: {_instruction_value(run_context.conversation.route_key)}"
+        )
     if isinstance(agent_input.payload, ReminderFirePayload):
         lines.extend(
             [
@@ -64,10 +74,13 @@ def _runtime_context_block(
                     "reminder to the user; do not create, update, cancel, or list "
                     "reminders for this event."
                 ),
-                f"reminder_id: {agent_input.payload.reminder_id}",
-                f"reminder_title: {agent_input.payload.title}",
-                f"scheduled_for: {agent_input.payload.scheduled_for.isoformat()}",
-                f"fire_id: {agent_input.payload.fire_id}",
+                f"reminder_id: {_instruction_value(agent_input.payload.reminder_id)}",
+                f"reminder_title: {_instruction_value(agent_input.payload.title)}",
+                (
+                    "scheduled_for: "
+                    f"{_instruction_value(agent_input.payload.scheduled_for.isoformat())}"
+                ),
+                f"fire_id: {_instruction_value(agent_input.payload.fire_id)}",
             ]
         )
     return "\n".join(lines)
@@ -85,6 +98,6 @@ def build_chat_response_instructions(
             _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
             _REMINDER_TOOL_BOUNDARY,
-            f"Default user timezone: {timezone}",
+            f"Default user timezone: {_instruction_value(timezone)}",
         ]
     )
