@@ -50,6 +50,9 @@ Runtime integrity assertions in `agent_runtime.py`. Keep. They operate on `Capab
 **Corrective retry state machine — removed**
 The 12-branch reason-based retry in `capabilities/reminder_intent.py` is deleted. Failed reminder detection fails immediately without a retry attempt. Known trade-off: reminder intent recognition accuracy will degrade in edge cases where the model produces a recoverable structured output error. Accepted given the complexity cost.
 
+**`_recover_unconfirmed_durable_write_promise()` — removed**
+This function in `agent_runtime.py` detects when the model promises a reminder in text but skips the tool call, then manually invokes `reminder_intent` port as a runtime-level recovery. It is a second retry surface operating at the runtime layer. Deleted for the same reason as the detector-level retry: the detection check (`_check_unconfirmed_durable_write_promise`) is kept to suppress output; the recovery attempt is not.
+
 ## 4. New Architecture
 
 ### 4.1 Session Persistence
