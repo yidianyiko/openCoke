@@ -4,7 +4,6 @@ from typing import Any
 
 import pytest
 
-from agent.agno_agent.adapters import reminder_command_executor as executor_module
 from agent.agno_agent.adapters import ReminderCommandExecutor
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
@@ -451,100 +450,3 @@ def test_failure_returns_capability_error_without_raising():
         "message": "adapter failed",
     }
     assert "reminder store unavailable" not in str(result.metadata)
-
-
-def test_execution_envelope_flag_adds_structured_content_without_losing_summary():
-    def tool_entrypoint(**kwargs):
-        return "已创建提醒：hydrate（2026-05-01 09:00）"
-
-    result = ReminderCommandExecutor(
-        tool_entrypoint,
-        session_state_setter=lambda session_state: None,
-        execution_envelope_enabled=True,
-    ).execute(
-        SimpleNamespace(
-            action="create",
-            title="hydrate",
-            trigger_at="2026-05-01T09:00:00+09:00",
-        ),
-        _run_context(),
-    )
-
-    assert result.visible_summary == "已创建提醒：hydrate（2026-05-01 09:00）"
-    assert result.content["execution"]["status"] == "success"
-    assert result.content["execution"]["operation"] == "create_reminder"
-    assert (
-        result.content["execution"]["visible_summary"]
-        == "已创建提醒：hydrate（2026-05-01 09:00）"
-    )
-    assert list(result.content["execution"]["next_steps"]) == [
-        "show_confirmation",
-        "offer_modification",
-    ]
-
-
-def test_execution_envelope_flag_off_keeps_existing_content_shape():
-    def tool_entrypoint(**kwargs):
-        return "Reminder created."
-
-    result = ReminderCommandExecutor(
-        tool_entrypoint,
-        session_state_setter=lambda session_state: None,
-    ).execute(
-        SimpleNamespace(
-            action="create",
-            title="hydrate",
-            trigger_at="2026-05-01T09:00:00+09:00",
-        ),
-        _run_context(),
-    )
-
-    assert "execution" not in result.content
-    assert result.content["summary"] == "Reminder created."
-
-
-def test_execution_envelope_defaults_from_pending_workflow_config(monkeypatch):
-    monkeypatch.setattr(
-        executor_module,
-        "CONF",
-        {
-            "features": {
-                "pending_workflow": {
-                    "reminders": {
-                        "execution_envelope": {
-                            "enabled": True,
-                        },
-                    },
-                },
-            },
-        },
-    )
-
-    def tool_entrypoint(**kwargs):
-        return "Reminder created."
-
-    result = ReminderCommandExecutor(
-        tool_entrypoint,
-        session_state_setter=lambda session_state: None,
-    ).execute(
-        SimpleNamespace(action="create", title="hydrate"),
-        _run_context(),
-    )
-
-    assert result.content["execution"]["status"] == "success"
-
-
-def test_execution_envelope_uses_canonical_cancel_operation_for_delete_alias():
-    def tool_entrypoint(**kwargs):
-        return "Reminder cancelled."
-
-    result = ReminderCommandExecutor(
-        tool_entrypoint,
-        session_state_setter=lambda session_state: None,
-        execution_envelope_enabled=True,
-    ).execute(
-        SimpleNamespace(action="delete", reminder_id="rem-1"),
-        _run_context(),
-    )
-
-    assert result.content["execution"]["operation"] == "cancel_reminder"

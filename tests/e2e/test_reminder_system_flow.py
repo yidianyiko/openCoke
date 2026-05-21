@@ -141,6 +141,7 @@ class RecordingSchedulerBackend:
         self.started = True
 
     def shutdown(self, wait: bool = False) -> None:
+        self.shutdown_wait = wait
         self.stopped = True
 
     def add_job(

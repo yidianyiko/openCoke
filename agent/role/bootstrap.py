@@ -1,6 +1,5 @@
 from agent.prompt.character import get_character_prompt, get_character_status
 from conf.config import CONF
-from dao.pending_workflow_dao import PendingWorkflowDAO
 from dao.user_dao import UserDAO
 
 
@@ -40,10 +39,8 @@ def ensure_default_character_seeded(
 def ensure_bootstrap_indexes(
     *,
     user_dao: UserDAO | None = None,
-    pending_workflow_dao: PendingWorkflowDAO | None = None,
 ) -> None:
     (user_dao or UserDAO()).create_indexes()
-    (pending_workflow_dao or PendingWorkflowDAO()).create_indexes()
 
 
 def main() -> int:

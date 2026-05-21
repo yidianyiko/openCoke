@@ -6,7 +6,6 @@ import logging
 import os
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -17,34 +16,15 @@ from agent.agno_agent.adapters.reminder_command_executor import (
 )
 from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.pending_workflow import (
-    PendingWorkflowEnvelope,
-    normalize_workflow_invariants,
-    validate_slot_transitions,
-    validate_status_transition,
-    workflow_to_document,
-)
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 from agent.prompt.reminder_few_shot import format_reminder_few_shots_for_prompt
-from conf.config import CONF
-from dao.pending_workflow_dao import PendingWorkflowDAO
 
 logger = logging.getLogger(__name__)
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS = 30.0
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_RETRY_SECONDS = 45.0
 _DEFAULT_AGENT_RUNTIME_REMINDER_DETECT_RETRY_TIMEOUT_SECONDS = 20.0
-
-
-@dataclass(frozen=True)
-class _WorkflowPersistenceOutcome:
-    had_update: bool = False
-    workflow: PendingWorkflowEnvelope | None = None
-    saved: bool = False
-    stored_revision: int | None = None
-    concurrent_drop: bool = False
-    fresh_workflow: Mapping[str, Any] | None = None
 
 
 def _float_env(name: str, default: float) -> float:
@@ -143,7 +123,6 @@ def _build_reminder_retry_input(
     *,
     reason: str,
 ) -> str:
-    workflow_block = _active_workflow_prompt_block(run_context)
     return f"""### Time
 {run_context.current_time.isoformat()}
 
@@ -201,7 +180,6 @@ Weekday ranges such as 周一到周五 or 星期一到星期五 are listed weekd
 Weekday names used as a recurrence cadence are concrete; create the weekly recurrence and do not ask which calendar date.
 If an interval schedule includes a manual correction or exception to occurrence times, clarify for the exact occurrence list instead of approximating with RRULE.
 For a bounded cadence, wording that stops the cadence at or after the same deadline is the deadline boundary, not a manual correction or occurrence-time exception.
-{workflow_block}
 
 ### Reminder Few-Shot Decisions
 {format_reminder_few_shots_for_prompt()}
@@ -226,8 +204,6 @@ class ReminderIntentPort:
         detector_agent: Any | None = None,
         retry_agent: Any | None = None,
         command_executor: Any | None = None,
-        pending_workflow_enabled: bool | None = None,
-        pending_workflow_dao: Any | None = None,
     ) -> None:
         if detector_agent is None:
             from agent.agno_agent.agents import (
@@ -242,15 +218,6 @@ class ReminderIntentPort:
         self.command_executor = command_executor or ReminderCommandExecutor(
             visible_reminder_tool.entrypoint
         )
-        self.pending_workflow_enabled = (
-            bool(pending_workflow_enabled)
-            if pending_workflow_enabled is not None
-            else bool(_pending_workflow_flags().get("enabled", False))
-        )
-        if self.pending_workflow_enabled:
-            self.pending_workflow_dao = pending_workflow_dao or PendingWorkflowDAO()
-        else:
-            self.pending_workflow_dao = None
 
     async def run(
         self,
@@ -258,11 +225,7 @@ class ReminderIntentPort:
         run_context: AgentRunContext,
         args: dict[str, Any] | None = None,
     ) -> CapabilityResult:
-        active_workflow = self._load_active_pending_workflow(run_context)
-        detector_run_context = _context_with_active_workflow(
-            run_context,
-            active_workflow,
-        )
+        detector_run_context = run_context
         session_state = {
             "user": {
                 "id": run_context.user.id,
@@ -334,11 +297,6 @@ class ReminderIntentPort:
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
             elif _is_clarification_decision(retry_decision):
-                retry_outcome = self._persist_workflow_update(
-                    retry_decision, run_context, active_workflow
-                )
-                if retry_outcome.concurrent_drop:
-                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
                 return _fallback_clarification_for_input(
@@ -417,18 +375,8 @@ class ReminderIntentPort:
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
             elif _is_clarification_decision(retry_decision):
-                retry_outcome = self._persist_workflow_update(
-                    retry_decision, run_context, active_workflow
-                )
-                if retry_outcome.concurrent_drop:
-                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             else:
-                fallback_outcome = self._persist_workflow_update(
-                    decision, run_context, active_workflow
-                )
-                if fallback_outcome.concurrent_drop:
-                    return _fresh_workflow_state_result(fallback_outcome.fresh_workflow)
                 return _clarification_result(decision)
         if not _should_execute_decision(decision) and self.retry_agent is not None:
             retry_reason = "primary detector returned no executable decision"
@@ -471,11 +419,6 @@ class ReminderIntentPort:
             if _should_execute_decision(retry_decision):
                 decision = retry_decision
             elif _is_clarification_decision(retry_decision):
-                retry_outcome = self._persist_workflow_update(
-                    retry_decision, run_context, active_workflow
-                )
-                if retry_outcome.concurrent_drop:
-                    return _fresh_workflow_state_result(retry_outcome.fresh_workflow)
                 return _clarification_result(retry_decision)
             elif retry_decision is None:
                 return _fallback_clarification_for_input(
@@ -598,13 +541,6 @@ class ReminderIntentPort:
             input_message
         ) or _input_is_reminder_feature_work_topic(input_message):
             return _no_action_discussion_result()
-        workflow_outcome = self._persist_workflow_update(
-            decision,
-            run_context,
-            active_workflow,
-        )
-        if workflow_outcome.concurrent_drop:
-            return _fresh_workflow_state_result(workflow_outcome.fresh_workflow)
         if _is_clarification_decision(decision):
             if _input_is_standalone_reminder_opt_out(
                 input_message
@@ -621,29 +557,6 @@ class ReminderIntentPort:
                 content={"action": "none", "intent_type": intent_type},
                 metadata={"durable_write": False},
             )
-        if workflow_outcome.had_update and (
-            not workflow_outcome.saved
-            or workflow_outcome.workflow is None
-            or workflow_outcome.workflow.status != "ready_to_execute"
-        ):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
-        execution_workflow = workflow_outcome.workflow
-        execution_revision = workflow_outcome.stored_revision
-        if workflow_outcome.had_update and execution_workflow is not None:
-            executing_outcome = self._persist_workflow_status(
-                execution_workflow,
-                run_context,
-                expected_revision=execution_revision,
-                status="executing",
-            )
-            if not executing_outcome.saved:
-                return _fresh_workflow_state_result(executing_outcome.fresh_workflow)
-            execution_workflow = executing_outcome.workflow
-            execution_revision = executing_outcome.stored_revision
-
         decision = _normalize_relative_delay_create_trigger(
             input_message,
             decision,
@@ -778,8 +691,7 @@ class ReminderIntentPort:
                 )
         result = self.command_executor.execute(decision, run_context)
         if (
-            not workflow_outcome.had_update
-            and _should_retry_for_past_one_shot_failure(input_message, result)
+            _should_retry_for_past_one_shot_failure(input_message, result)
             and self.retry_agent is not None
         ):
             retry_decision = await self._run_retry_detector(
@@ -803,8 +715,7 @@ class ReminderIntentPort:
                 decision = retry_decision
                 result = self.command_executor.execute(decision, run_context)
         if (
-            not workflow_outcome.had_update
-            and _should_retry_for_bounded_recurring_no_future_failure(
+            _should_retry_for_bounded_recurring_no_future_failure(
                 input_message, decision, result
             )
             and self.retry_agent is not None
@@ -828,23 +739,6 @@ class ReminderIntentPort:
             ):
                 decision = retry_decision
                 result = self.command_executor.execute(decision, run_context)
-        if workflow_outcome.had_update and execution_workflow is not None:
-            terminal_status = "completed" if result.ok else "failed"
-            terminal_outcome = self._persist_workflow_status(
-                execution_workflow,
-                run_context,
-                expected_revision=execution_revision,
-                status=terminal_status,
-            )
-            if terminal_outcome.concurrent_drop:
-                logger.warning(
-                    "workflow_terminal_write_dropped",
-                    extra={
-                        "conversation_id": run_context.conversation.id,
-                        "workflow_id": execution_workflow.id,
-                        "status": terminal_status,
-                    },
-                )
         return CapabilityResult(
             name=result.name,
             ok=result.ok,
@@ -853,216 +747,6 @@ class ReminderIntentPort:
             metadata={**dict(result.metadata), "durable_write": True},
         )
 
-    def _load_active_pending_workflow(
-        self,
-        run_context: AgentRunContext,
-    ) -> Mapping[str, Any] | None:
-        if not self.pending_workflow_enabled or self.pending_workflow_dao is None:
-            return None
-        return self.pending_workflow_dao.load_active_for_conversation(
-            run_context.user.id,
-            run_context.conversation.id,
-            now=run_context.current_time,
-        )
-
-    def _persist_workflow_update(
-        self,
-        decision: Any,
-        run_context: AgentRunContext,
-        active_workflow: Mapping[str, Any] | None,
-    ) -> _WorkflowPersistenceOutcome:
-        if not self.pending_workflow_enabled or self.pending_workflow_dao is None:
-            return _WorkflowPersistenceOutcome()
-        workflow = _workflow_update_from_decision(decision, run_context)
-        if workflow is None:
-            return _WorkflowPersistenceOutcome()
-        normalized_workflow, violations = normalize_workflow_invariants(workflow)
-        if violations:
-            logger.warning(
-                "workflow_invariant_violation",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": workflow.id,
-                    "violations": violations,
-                },
-            )
-        current_status = _active_workflow_status(active_workflow)
-        if not validate_status_transition(current_status, normalized_workflow.status):
-            logger.warning(
-                "workflow_invariant_violation",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": normalized_workflow.id,
-                    "current_status": current_status,
-                    "proposed_status": normalized_workflow.status,
-                },
-            )
-            return _WorkflowPersistenceOutcome(had_update=True)
-        slot_violations = validate_slot_transitions(
-            _active_workflow_envelope(active_workflow),
-            normalized_workflow,
-        )
-        if slot_violations:
-            logger.warning(
-                "workflow_invariant_violation",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": normalized_workflow.id,
-                    "slot_violations": slot_violations,
-                },
-            )
-            return _WorkflowPersistenceOutcome(had_update=True)
-        if active_workflow is None:
-            saved = self.pending_workflow_dao.upsert_new_active_workflow(
-                _workflow_storage_document(
-                    normalized_workflow,
-                    run_context,
-                    revision=0,
-                ),
-                now=run_context.current_time,
-            )
-            if not saved:
-                logger.warning(
-                    "workflow_concurrent_write_dropped",
-                    extra={
-                        "conversation_id": run_context.conversation.id,
-                        "workflow_id": normalized_workflow.id,
-                    },
-                )
-                fresh_workflow = self._load_active_pending_workflow(run_context)
-            return _WorkflowPersistenceOutcome(
-                had_update=True,
-                workflow=normalized_workflow,
-                saved=saved,
-                stored_revision=0 if saved else None,
-                concurrent_drop=not saved,
-                fresh_workflow=fresh_workflow if not saved else None,
-            )
-
-        active_workflow_id = str(active_workflow.get("id") or "").strip()
-        if active_workflow_id and normalized_workflow.id != active_workflow_id:
-            logger.warning(
-                "workflow_invariant_violation",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": normalized_workflow.id,
-                    "active_workflow_id": active_workflow_id,
-                },
-            )
-            return _WorkflowPersistenceOutcome(had_update=True)
-
-        revision = int(active_workflow.get("revision") or 0)
-        saved = self.pending_workflow_dao.cas_update_workflow(
-            normalized_workflow.id,
-            run_context.user.id,
-            run_context.conversation.id,
-            revision,
-            _workflow_storage_document(
-                normalized_workflow,
-                run_context,
-                revision=revision,
-            ),
-        )
-        if not saved:
-            logger.warning(
-                "workflow_concurrent_write_dropped",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": normalized_workflow.id,
-                    "revision": revision,
-                },
-            )
-            fresh_workflow = self._load_active_pending_workflow(run_context)
-        return _WorkflowPersistenceOutcome(
-            had_update=True,
-            workflow=normalized_workflow,
-            saved=saved,
-            stored_revision=revision + 1 if saved else None,
-            concurrent_drop=not saved,
-            fresh_workflow=fresh_workflow if not saved else None,
-        )
-
-    def _persist_workflow_status(
-        self,
-        workflow: PendingWorkflowEnvelope,
-        run_context: AgentRunContext,
-        *,
-        expected_revision: int | None,
-        status: str,
-    ) -> _WorkflowPersistenceOutcome:
-        if (
-            not self.pending_workflow_enabled
-            or self.pending_workflow_dao is None
-            or expected_revision is None
-        ):
-            return _WorkflowPersistenceOutcome()
-        if not validate_status_transition(workflow.status, status):
-            logger.warning(
-                "workflow_invariant_violation",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": workflow.id,
-                    "current_status": workflow.status,
-                    "proposed_status": status,
-                },
-            )
-            return _WorkflowPersistenceOutcome(had_update=True)
-        updated_workflow = workflow.model_copy(update={"status": status})
-        saved = self.pending_workflow_dao.cas_update_workflow(
-            updated_workflow.id,
-            run_context.user.id,
-            run_context.conversation.id,
-            expected_revision,
-            _workflow_storage_document(
-                updated_workflow,
-                run_context,
-                revision=expected_revision,
-            ),
-        )
-        if not saved:
-            if status in {"completed", "cancelled", "expired", "failed"} and hasattr(
-                self.pending_workflow_dao,
-                "mark_terminal_workflow_from_executing",
-            ):
-                terminal_saved = (
-                    self.pending_workflow_dao.mark_terminal_workflow_from_executing(
-                        updated_workflow.id,
-                        run_context.user.id,
-                        run_context.conversation.id,
-                        _workflow_storage_document(
-                            updated_workflow,
-                            run_context,
-                            revision=expected_revision,
-                        ),
-                    )
-                )
-                if terminal_saved:
-                    return _WorkflowPersistenceOutcome(
-                        had_update=True,
-                        workflow=updated_workflow,
-                        saved=True,
-                        stored_revision=expected_revision,
-                    )
-            logger.warning(
-                "workflow_concurrent_write_dropped",
-                extra={
-                    "conversation_id": run_context.conversation.id,
-                    "workflow_id": updated_workflow.id,
-                    "revision": expected_revision,
-                },
-            )
-            return _WorkflowPersistenceOutcome(
-                had_update=True,
-                workflow=updated_workflow,
-                concurrent_drop=True,
-                fresh_workflow=self._load_active_pending_workflow(run_context),
-            )
-        return _WorkflowPersistenceOutcome(
-            had_update=True,
-            workflow=updated_workflow,
-            saved=True,
-            stored_revision=expected_revision + 1,
-        )
 
     async def _run_retry_detector(
         self,
@@ -1100,176 +784,6 @@ class ReminderIntentPort:
             return None
         return _decision_from_response(retry_response)
 
-
-def _pending_workflow_flags() -> dict[str, Any]:
-    flags = CONF.get("features", {}).get("pending_workflow", {}).get("reminders", {})
-    return dict(flags) if isinstance(flags, Mapping) else {}
-
-
-def _context_with_active_workflow(
-    run_context: AgentRunContext,
-    active_workflow: Mapping[str, Any] | None,
-) -> AgentRunContext:
-    if active_workflow is None:
-        return run_context
-    revision = active_workflow.get("revision")
-    document = active_workflow.get("document")
-    if revision is None or document is None:
-        return run_context
-    runtime_metadata = dict(run_context.runtime_metadata)
-    runtime_metadata["pending_workflow"] = {
-        "revision": revision,
-        "document": document,
-    }
-    return replace(run_context, runtime_metadata=runtime_metadata)
-
-
-def _json_safe_value(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {key: _json_safe_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_safe_value(item) for item in value]
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
-    return value
-
-
-def _active_workflow_prompt_block(run_context: AgentRunContext) -> str:
-    pending_workflow = run_context.runtime_metadata.get("pending_workflow")
-    if not pending_workflow:
-        return ""
-    return "\n\n### Active Pending Workflow\n" + json.dumps(
-        _json_safe_value(pending_workflow),
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-
-
-def _active_workflow_envelope(
-    active_workflow: Mapping[str, Any] | None,
-) -> PendingWorkflowEnvelope | None:
-    if active_workflow is None:
-        return None
-    document = active_workflow.get("document")
-    if document is None:
-        return None
-    try:
-        return PendingWorkflowEnvelope.model_validate(document)
-    except Exception:
-        return None
-
-
-def _workflow_update_from_decision(
-    decision: Any,
-    run_context: AgentRunContext,
-) -> PendingWorkflowEnvelope | None:
-    workflow_update = _decision_value(decision, "workflow_update")
-    if workflow_update is None:
-        return None
-    if isinstance(workflow_update, PendingWorkflowEnvelope):
-        return workflow_update
-    try:
-        return PendingWorkflowEnvelope.model_validate(workflow_update)
-    except Exception as exc:
-        logger.warning(
-            "workflow_schema_invalid",
-            extra={
-                "conversation_id": run_context.conversation.id,
-                "error": str(exc),
-                "raw_decision_excerpt": str(_decision_public_excerpt(decision))[:1000],
-                "workflow_update_type": type(workflow_update).__name__,
-            },
-        )
-        return None
-
-
-def _decision_public_excerpt(decision: Any) -> dict[str, Any]:
-    return {
-        key: _decision_value(decision, key)
-        for key in (
-            "intent_type",
-            "action",
-            "clarification_question",
-            "workflow_update",
-        )
-        if _decision_value(decision, key) is not None
-    }
-
-
-def _fresh_workflow_state_result(
-    active_workflow: Mapping[str, Any] | None,
-) -> CapabilityResult:
-    document = (
-        active_workflow.get("document")
-        if isinstance(active_workflow, Mapping)
-        else None
-    )
-    status = ""
-    missing_fields: list[str] = []
-    goal = ""
-    if isinstance(document, Mapping):
-        status = str(document.get("status") or "")
-        missing_fields = [
-            str(field)
-            for field in document.get("missing_fields", [])
-            if str(field).strip()
-        ]
-        goal = str(document.get("goal") or "").strip()
-    detail = "、".join(missing_fields)
-    if detail:
-        summary = f"这个提醒流程已经更新，还需要补充：{detail}。"
-    elif status:
-        summary = f"这个提醒流程已经更新，当前状态是 {status}。"
-    else:
-        summary = "这个提醒流程已经更新，请继续按最新状态补充信息。"
-    content: dict[str, Any] = {
-        "action": "clarify",
-        "intent_type": "clarify",
-        "summary": summary,
-        "workflow_status": status,
-        "missing_fields": missing_fields,
-    }
-    if goal:
-        content["goal"] = goal
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content=content,
-        metadata={"durable_write": False},
-    )
-
-
-def _active_workflow_status(active_workflow: Mapping[str, Any] | None) -> str | None:
-    if active_workflow is None:
-        return None
-    document = active_workflow.get("document")
-    if isinstance(document, Mapping):
-        status = document.get("status")
-        if status is not None:
-            return str(status)
-    status = active_workflow.get("status")
-    return str(status) if status is not None else None
-
-
-def _workflow_storage_document(
-    workflow: PendingWorkflowEnvelope,
-    run_context: AgentRunContext,
-    *,
-    revision: int,
-) -> dict[str, Any]:
-    document = workflow_to_document(workflow)
-    return {
-        "id": workflow.id,
-        "owner_user_id": run_context.user.id,
-        "conversation_id": run_context.conversation.id,
-        "kind": workflow.kind,
-        "status": workflow.status,
-        "revision": revision,
-        "created_at": workflow.origin.created_at,
-        "updated_at": workflow.origin.updated_at,
-        "expires_at": workflow.origin.expires_at,
-        "document": document,
-    }
 
 
 def _should_execute_decision(decision: Any) -> bool:

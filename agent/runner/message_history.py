@@ -79,19 +79,6 @@ def store_messages_background(context: dict, resp_messages: list):
     )
 
 
-def record_sent_messages_to_history(conversation: dict, sent_messages: list) -> dict:
-    """将已发送的消息记录到对话历史"""
-    if not sent_messages:
-        return conversation
-    chat_history = conversation.get("conversation_info", {}).get("chat_history", [])
-    for msg in sent_messages:
-        if msg and msg not in chat_history:
-            chat_history.append(msg)
-    conversation["conversation_info"]["chat_history"] = chat_history
-    logger.info(f"[消息打断] 已记录 {len(sent_messages)} 条已发送消息到对话历史")
-    return conversation
-
-
 def _extract_recent_chat_history(chat_history: list, limit: int = 6) -> str:
     """
     从聊天历史中提取最近的对话（包括用户和角色的消息）

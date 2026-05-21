@@ -5,9 +5,7 @@ import re
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
-
-from agent.agno_agent.runtime.pending_workflow import PendingWorkflowEnvelope
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ReminderOperation(BaseModel):
@@ -153,10 +151,6 @@ class ReminderDetectDecision(BaseModel):
             "messages, or retrieved context."
         ),
     )
-    workflow_update: PendingWorkflowEnvelope | None = Field(
-        default=None,
-        description="Validated pending workflow envelope for clarification lifecycle.",
-    )
     reason: str = Field(default="", description="Brief classification rationale.")
 
     @model_validator(mode="before")
@@ -167,13 +161,7 @@ class ReminderDetectDecision(BaseModel):
         clarification_question = str(data.get("clarification_question") or "").strip()
         explicit_intent = str(data.get("intent_type") or "").strip()
         if clarification_question and explicit_intent == "clarify":
-            normalized = _strip_executable_fields_for_clarification(data)
-            workflow_update = normalized.get("workflow_update")
-            if workflow_update is not None and not _is_valid_clarification_workflow_update(
-                workflow_update
-            ):
-                normalized.pop("workflow_update", None)
-            return normalized
+            return _strip_executable_fields_for_clarification(data)
         executable_field_names = (
             "title",
             "trigger_at",
@@ -351,30 +339,6 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
 def _is_generic_reminder_title(value: str) -> bool:
     normalized = re.sub(r"[\s，,。.!！?？]+", "", str(value or "").strip())
     return normalized in {"提醒", "提醒我", "提醒一下", "提醒一下我"}
-
-
-def _workflow_update_has_missing_field_slots(value: Any) -> bool:
-    if value is None:
-        return True
-    if not isinstance(value, dict):
-        return True
-    missing_fields = value.get("missing_fields") or ()
-    slots = value.get("slots") or {}
-    if not isinstance(slots, dict):
-        return False
-    return all(str(field) in slots for field in missing_fields)
-
-
-def _is_valid_clarification_workflow_update(value: Any) -> bool:
-    if not isinstance(value, dict):
-        return False
-    if not _workflow_update_has_missing_field_slots(value):
-        return False
-    try:
-        PendingWorkflowEnvelope.model_validate(value)
-    except ValidationError:
-        return False
-    return True
 
 
 def _looks_like_concrete_cadence(value: str) -> bool:

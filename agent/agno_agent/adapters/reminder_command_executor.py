@@ -150,37 +150,15 @@ def _build_session_state(run_context: AgentRunContext) -> dict[str, Any]:
     return session_state
 
 
-def _execution_envelope_enabled_from_config() -> bool:
-    try:
-        return bool(
-            CONF["features"]["pending_workflow"]["reminders"]["execution_envelope"][
-                "enabled"
-            ]
-        )
-    except (KeyError, TypeError):
-        return False
-
-
-def _execution_operation_for_action(action: Any) -> str:
-    canonical_action = "cancel" if action == "delete" else str(action or "").strip()
-    return f"{canonical_action}_reminder" if canonical_action else "reminder_operation"
-
-
 class ReminderCommandExecutor:
     def __init__(
         self,
         tool_entrypoint: Callable[..., str],
         *,
         session_state_setter: Callable[[dict[str, Any]], None] | None = None,
-        execution_envelope_enabled: bool | None = None,
     ) -> None:
         self._tool_entrypoint = tool_entrypoint
         self._session_state_setter = session_state_setter or set_reminder_session_state
-        self._execution_envelope_enabled = (
-            bool(execution_envelope_enabled)
-            if execution_envelope_enabled is not None
-            else _execution_envelope_enabled_from_config()
-        )
 
     def execute(
         self,
@@ -243,14 +221,6 @@ class ReminderCommandExecutor:
             "owner_user_id": run_context.user.id,
             "conversation_id": run_context.conversation.id,
         }
-        if self._execution_envelope_enabled:
-            content["execution"] = {
-                "status": "success",
-                "operation": _execution_operation_for_action(kwargs.get("action")),
-                "entities": [],
-                "visible_summary": summary,
-                "next_steps": ["show_confirmation", "offer_modification"],
-            }
 
         return CapabilityResult(
             name="reminder",

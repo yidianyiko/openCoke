@@ -186,62 +186,6 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_routes_pending_reminder_workflow_directly(monkeypatch):
-    class FakeReminderPort:
-        async def run(self, input_message, run_context, args=None):
-            assert input_message == "还要持续到晚上七点"
-            assert args == {}
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"summary": "这个提醒流程已经更新，还需要补充：频率。"},
-                metadata={"durable_write": False},
-            )
-
-    def fake_default_ports():
-        return {"reminder_intent": FakeReminderPort()}
-
-    def fail_create_agent(**kwargs):
-        raise AssertionError("active pending reminder workflows bypass chat model")
-
-    monkeypatch.setattr(agent_runtime, "_default_capability_ports", fake_default_ports)
-    monkeypatch.setattr(agent_runtime, "_create_agent", fail_create_agent)
-
-    agent_input = _agent_input()
-    agent_input = type(agent_input)(
-        input_type=agent_input.input_type,
-        conversation_id=agent_input.conversation_id,
-        text="还要持续到晚上七点",
-        payload=agent_input.payload,
-        occurred_at=agent_input.occurred_at,
-        metadata=agent_input.metadata,
-    )
-    run_context = _run_context()
-    run_context = type(run_context)(
-        user=run_context.user,
-        character=run_context.character,
-        conversation=run_context.conversation,
-        relation=run_context.relation,
-        platform=run_context.platform,
-        recent_chat_history=run_context.recent_chat_history,
-        current_time=run_context.current_time,
-        runtime_metadata={
-            **run_context.runtime_metadata,
-            "pending_workflow": {"workflow_id": "wf-1"},
-        },
-    )
-
-    result = await agent_runtime.run_agent_runtime(
-        agent_input=agent_input,
-        run_context=run_context,
-    )
-
-    assert result.visible_messages[0].content == "这个提醒流程已经更新，还需要补充：频率。"
-    assert [tool.name for tool in result.tool_results] == ["reminder"]
-    assert result.trace["status"] == "pending_reminder_workflow"
-
-
-@pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
     class FailingAgent:
         async def arun(self, **kwargs):

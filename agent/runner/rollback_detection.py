@@ -29,18 +29,3 @@ def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = N
         ]
 
     return len(input_messages) > 0
-
-
-def merge_pending_messages(current_messages: list, new_messages: list) -> list:
-    """合并待处理消息"""
-    seen_ids = set()
-    merged = []
-    for msg in current_messages + new_messages:
-        msg_id = str(msg.get("_id", ""))
-        if msg_id and msg_id not in seen_ids:
-            seen_ids.add(msg_id)
-            merged.append(msg)
-        elif not msg_id:
-            merged.append(msg)
-    merged.sort(key=lambda x: x.get("timestamp", 0))
-    return merged

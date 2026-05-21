@@ -75,22 +75,3 @@ def test_ensure_default_character_seeded_is_idempotent():
     stored = user_dao.find_characters({"name": "qiaoyun"}, limit=1)[0]
     assert stored["_id"] == first_id
     assert stored["user_info"]["description"] == get_character_prompt("qiaoyun")
-
-
-def test_bootstrap_creates_pending_workflow_indexes():
-    class FakePendingWorkflowDAO:
-        def __init__(self):
-            self.created = False
-
-        def create_indexes(self):
-            self.created = True
-
-    user_dao = FakeUserDAO()
-    pending_workflow_dao = FakePendingWorkflowDAO()
-
-    ensure_bootstrap_indexes(
-        user_dao=user_dao,
-        pending_workflow_dao=pending_workflow_dao,
-    )
-
-    assert pending_workflow_dao.created is True

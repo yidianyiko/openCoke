@@ -36,14 +36,10 @@ from agent.runner.context import context_prepare
 from agent.runner.identity import get_agent_entity_id
 from agent.runner.message_history import (
     extract_recent_chat_history,
-    record_sent_messages_to_history,
     store_messages_background,
     store_messages_for_retrieval_sync,
 )
-from agent.runner.rollback_detection import (
-    is_new_message_coming_in,
-    merge_pending_messages,
-)
+from agent.runner.rollback_detection import is_new_message_coming_in
 from agent.runner.runtime_lock import (
     LOCK_TIMEOUT,
     agent_runtime_lock_heartbeat_interval_seconds,
@@ -493,8 +489,6 @@ async def handle_message(
         logger.error(f"{worker_tag} handle_message failed: {e}")
         logger.error(traceback.format_exc())
         raise
-
-    return resp_messages, context, is_rollback, is_content_blocked
 
 
 def create_handler(worker_id: int = 0):

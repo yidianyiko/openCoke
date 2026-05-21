@@ -110,6 +110,7 @@ def _install_agent_handler_agno_stubs(monkeypatch):
             return None
 
         def shutdown(self, wait=False):
+            self.shutdown_wait = wait
             return None
 
         def add_job(self, *args, **kwargs):
