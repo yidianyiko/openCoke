@@ -41,12 +41,14 @@ class ReminderRuntimeContract:
         title: str,
         schedule: ReminderSchedule,
         target: AgentOutputTarget,
+        metadata: dict | None = None,
     ) -> Reminder:
         command = ReminderCreateCommand(
             title=title,
             schedule=schedule,
             agent_output_target=target,
             created_by_system="agent",
+            metadata=metadata,
         )
         return self.reminder_service.create(
             owner_user_id=owner_user_id,

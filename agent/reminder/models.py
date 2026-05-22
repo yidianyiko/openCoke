@@ -54,6 +54,7 @@ class ReminderCreateCommand:
     schedule: ReminderSchedule
     agent_output_target: AgentOutputTarget
     created_by_system: Literal["agent"]
+    metadata: dict | None = None
 
 
 @dataclass

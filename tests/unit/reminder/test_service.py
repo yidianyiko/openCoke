@@ -233,13 +233,17 @@ def create_command(
     reminder_schedule: ReminderSchedule | None = None,
     output_target: AgentOutputTarget | None = None,
     title: str = "drink water",
+    metadata: dict | None = None,
 ) -> ReminderCreateCommand:
-    return ReminderCreateCommand(
-        title=title,
-        schedule=reminder_schedule or schedule(),
-        agent_output_target=output_target or target(),
-        created_by_system="agent",
-    )
+    kwargs = {
+        "title": title,
+        "schedule": reminder_schedule or schedule(),
+        "agent_output_target": output_target or target(),
+        "created_by_system": "agent",
+    }
+    if metadata is not None:
+        kwargs["metadata"] = metadata
+    return ReminderCreateCommand(**kwargs)
 
 
 def make_service(
@@ -294,6 +298,22 @@ def test_create_visible_reminder_writes_required_classification_fields():
     assert dao.documents[reminder.id]["fire_mode"] == "notify"
     assert dao.documents[reminder.id]["prompt"] is None
     assert dao.documents[reminder.id]["metadata"] == {}
+
+
+def test_create_visible_reminder_persists_command_metadata():
+    service, dao, _ = make_service()
+    metadata = {
+        "shared_reminder_request_id": "srr_1",
+        "projection_role": "requester",
+    }
+
+    reminder = service.create(
+        owner_user_id="user-1",
+        command=create_command(metadata=metadata),
+    )
+
+    assert reminder.metadata == metadata
+    assert dao.documents[reminder.id]["metadata"] == metadata
 
 
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
