@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.inputs import AgentInput
 from agent.agno_agent.runtime.result import (
@@ -88,6 +89,7 @@ def _create_interaction_agent(
     agent_input: AgentInput,
     input_message: str,
     tool_results: list[CapabilityResult],
+    domain_results: list[DomainExecutionResult],
     session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
@@ -125,7 +127,7 @@ def _create_interaction_agent(
                 result = await run_reminder_domain(
                     input_message=input_message,
                     run_context=run_context,
-                    tool_results=tool_results,
+                    domain_results=domain_results,
                 )
                 reminder_domain_result["result"] = result
                 return result
@@ -469,6 +471,7 @@ async def run_agent_runtime(
     run_context: AgentRunContext,
 ) -> AgentRunResult:
     tool_results: list[CapabilityResult] = []
+    domain_results: list[DomainExecutionResult] = []
     try:
         if agent_input.input_type not in _SUPPORTED_INPUT_TYPES:
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
@@ -479,6 +482,7 @@ async def run_agent_runtime(
             agent_input=agent_input,
             input_message=input_message,
             tool_results=tool_results,
+            domain_results=domain_results,
         )
         timeout_seconds = _agent_runtime_timeout_seconds()
         try:

@@ -88,6 +88,7 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     assert create_kwargs["agent_input"] == _agent_input()
     assert create_kwargs["input_message"] == "hi"
     assert create_kwargs["tool_results"] == []
+    assert create_kwargs["domain_results"] == []
     assert model_inputs == ["hi"]
 
 
@@ -451,6 +452,7 @@ def test_create_interaction_agent_user_turn_has_exactly_five_tools():
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
 
     assert [tool.name for tool in agent.tools] == [
@@ -481,6 +483,7 @@ def test_create_interaction_agent_reminder_fired_has_no_tools():
         agent_input=reminder_input,
         input_message="提醒：喝水",
         tool_results=[],
+        domain_results=[],
     )
 
     assert agent.tools == [] or agent.tools is None or len(agent.tools) == 0
@@ -508,6 +511,7 @@ def test_create_interaction_agent_uses_chat_response_model_role(monkeypatch):
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
 
     assert captured == {"role": "chat_response", "max_tokens": 2000}
@@ -529,6 +533,7 @@ def test_create_interaction_agent_sets_tool_call_limit_four(monkeypatch):
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
 
     assert agent.kwargs["tool_call_limit"] == 4
@@ -552,6 +557,7 @@ def test_create_interaction_agent_uses_injected_session_db(monkeypatch):
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
         session_db=injected_db,
     )
 
@@ -567,6 +573,7 @@ def test_create_interaction_agent_domain_tools_have_stop_after_tool_call_false()
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
 
     tool_flags = {tool.name: tool.stop_after_tool_call for tool in agent.tools}
@@ -575,16 +582,36 @@ def test_create_interaction_agent_domain_tools_have_stop_after_tool_call_false()
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
+async def test_create_interaction_agent_reminder_domain_delegates_with_domain_results(
     monkeypatch,
 ):
-    calls = 0
+    captured = {}
+    run_context = _run_context()
+    tool_results = []
+    domain_results = []
     envelope = {
-        "name": "reminder",
-        "ok": True,
-        "content": {"visible_summary": "已设好提醒"},
-        "visible_summary": "已设好提醒",
-        "synthesis_context": None,
+        "domain": "reminder",
+        "outcome": "executed",
+        "operations": [
+            {
+                "action": "create",
+                "ok": True,
+                "effect": "write",
+                "entity_type": "reminder",
+                "entity_id": "rem-1",
+                "facts": {"title": "drink water"},
+                "error": None,
+            }
+        ],
+        "missing_fields": [],
+        "safety_boundary": None,
+        "reply_contract": {
+            "intent": "confirm_execution",
+            "required_facts": [],
+            "required_questions": [],
+            "prohibited_claims": ["not_created"],
+            "allow_rephrase": True,
+        },
         "error": None,
     }
 
@@ -592,7 +619,69 @@ async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
         *,
         input_message,
         run_context,
-        tool_results,
+        domain_results,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "run_context": run_context,
+                "domain_results": domain_results,
+            }
+        )
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=run_context,
+        agent_input=_agent_input(),
+        input_message="remind me to drink water",
+        tool_results=tool_results,
+        domain_results=domain_results,
+    )
+    reminder_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
+    )
+
+    result = await reminder_domain()
+
+    assert result is envelope
+    assert captured == {
+        "input_message": "remind me to drink water",
+        "run_context": run_context,
+        "domain_results": domain_results,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
+    monkeypatch,
+):
+    calls = 0
+    envelope = {
+        "domain": "reminder",
+        "outcome": "executed",
+        "operations": [],
+        "missing_fields": [],
+        "safety_boundary": None,
+        "reply_contract": {
+            "intent": "confirm_execution",
+            "required_facts": [],
+            "required_questions": [],
+            "prohibited_claims": [],
+            "allow_rephrase": True,
+        },
+        "error": None,
+    }
+
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        domain_results,
     ):
         nonlocal calls
         calls += 1
@@ -609,6 +698,7 @@ async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
     reminder_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
@@ -627,11 +717,18 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
 ):
     captured = {}
     envelope = {
-        "name": "reminder",
-        "ok": True,
-        "content": {"visible_summary": "已设好提醒"},
-        "visible_summary": "已设好提醒",
-        "synthesis_context": None,
+        "domain": "reminder",
+        "outcome": "executed",
+        "operations": [],
+        "missing_fields": [],
+        "safety_boundary": None,
+        "reply_contract": {
+            "intent": "confirm_execution",
+            "required_facts": [],
+            "required_questions": [],
+            "prohibited_claims": [],
+            "allow_rephrase": True,
+        },
         "error": None,
     }
 
@@ -639,11 +736,11 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
         *,
         input_message,
         run_context,
-        tool_results,
+        domain_results,
     ):
         captured["input_message"] = input_message
         captured["run_context"] = run_context
-        captured["tool_results"] = tool_results
+        captured["domain_results"] = domain_results
         return envelope
 
     monkeypatch.setattr(
@@ -653,11 +750,13 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
 
     run_context = _run_context()
     tool_results = []
+    domain_results = []
     agent = agent_runtime._create_interaction_agent(
         run_context=run_context,
         agent_input=_agent_input(),
         input_message="提醒我喝水",
         tool_results=tool_results,
+        domain_results=domain_results,
     )
     reminder_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
@@ -672,7 +771,7 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
     assert captured == {
         "input_message": "提醒我喝水",
         "run_context": run_context,
-        "tool_results": tool_results,
+        "domain_results": domain_results,
     }
 
 
@@ -719,6 +818,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         agent_input=_agent_input(),
         input_message="confirm it",
         tool_results=tool_results,
+        domain_results=[],
     )
     scheduling_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
@@ -771,6 +871,7 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
         agent_input=_agent_input(),
         input_message="confirm it",
         tool_results=[],
+        domain_results=[],
     )
     scheduling_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
@@ -810,6 +911,7 @@ def test_create_interaction_agent_resolves_default_session_db(monkeypatch):
         agent_input=_agent_input(),
         input_message="hi",
         tool_results=[],
+        domain_results=[],
     )
 
     assert agent.kwargs["db"] is resolved_db
