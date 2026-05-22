@@ -8,10 +8,18 @@ from agno.agent import Agent
 from agno.tools import tool
 
 from agent.agno_agent.capabilities import ReminderIntentPort, SchedulingCapabilityPort
-from agent.agno_agent.capabilities.scheduling import SCHEDULING_TOOL_NAMES
+from agent.agno_agent.capabilities.scheduling import (
+    SCHEDULING_TOOL_NAMES,
+    _READ_ONLY_TOOL_NAMES,
+)
 from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.domain_results import DomainExecutionResult
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.runtime.scheduling_types import (
     SchedulingBookableWindowPreview,
@@ -56,15 +64,132 @@ async def _run_port(
     return await asyncio.to_thread(run, input_message, run_context, args)
 
 
-def _capability_envelope(result: CapabilityResult) -> dict[str, Any]:
-    return {
-        "name": result.name,
-        "ok": result.ok,
-        "content": dict(result.content),
-        "visible_summary": result.visible_summary,
-        "synthesis_context": result.synthesis_context,
-        "error": result.error,
-    }
+def _scheduling_entity_type(tool_name: str) -> str:
+    if "appointment" in tool_name:
+        return (
+            "appointment_request"
+            if tool_name == "request_appointment"
+            else "appointment"
+        )
+    if "bookable_window" in tool_name:
+        return "bookable_window"
+    if "service_link" in tool_name:
+        return "service_link"
+    return "user_link"
+
+
+def _scheduling_entity_id(tool_name: str, content: dict[str, Any]) -> str | None:
+    for key in (
+        "appointment_id",
+        "appointment_or_request_id",
+        "request_id",
+        "appointment_request_id",
+        "bookable_window_id",
+        "window_instance_id",
+        "service_link_id",
+        "user_link_id",
+        "link_id",
+        "id",
+    ):
+        value = content.get(key)
+        if value is not None and str(value):
+            return str(value)
+    return None
+
+
+def _scheduling_reply_contract(
+    *,
+    tool_name: str,
+    ok: bool,
+    effect: str,
+) -> ReplyContract:
+    if not ok:
+        return ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        )
+    if effect == "write":
+        return ReplyContract(
+            intent="confirm_execution",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("needs_more_info",),
+            allow_rephrase=True,
+        )
+    return ReplyContract(
+        intent="direct_answer",
+        required_facts=(),
+        required_questions=(),
+        prohibited_claims=("appointment_confirmed",),
+        allow_rephrase=True,
+    )
+
+
+def _scheduling_capability_to_domain_result(
+    *,
+    tool_name: str,
+    result: CapabilityResult,
+) -> DomainExecutionResult:
+    content = dict(result.content)
+    effect = "read" if tool_name in _READ_ONLY_TOOL_NAMES else "write"
+    error = (
+        DomainError(
+            code=str(result.error or "scheduling_failed"),
+            message=str(result.error or "Scheduling operation failed"),
+            retryable=True,
+            detail={"tool_name": tool_name, "content": content},
+        )
+        if not result.ok
+        else None
+    )
+    operation = DomainOperationResult(
+        action=tool_name,
+        ok=result.ok,
+        effect=effect if result.ok else "none",
+        entity_type=_scheduling_entity_type(tool_name),
+        entity_id=_scheduling_entity_id(tool_name, content),
+        facts=content,
+        error=error,
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed" if result.ok else "failed",
+        operations=(operation,),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=_scheduling_reply_contract(
+            tool_name=tool_name,
+            ok=result.ok,
+            effect=effect,
+        ),
+        error=error,
+    )
+
+
+def _no_scheduling_tool_called_result(intent: str) -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+        error=DomainError(
+            code="no_tool_called",
+            message="Scheduling execution agent did not call a scheduling tool",
+            retryable=True,
+            detail={"intent": intent},
+        ),
+    )
 
 
 async def run_reminder_domain(
@@ -86,8 +211,7 @@ def _make_scheduling_tool_fn(
     *,
     input_message: str,
     run_context: AgentRunContext,
-    tool_results: list[CapabilityResult],
-    domain_results: list[CapabilityResult],
+    domain_results: list[DomainExecutionResult],
     execution_guard: _SchedulingExecutionGuard | None = None,
 ) -> Any:
     async def scheduling_tool(
@@ -111,14 +235,28 @@ def _make_scheduling_tool_fn(
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
         if execution_guard is not None and not await execution_guard.claim():
-            return {
-                "name": tool_name,
-                "ok": False,
-                "content": {},
-                "visible_summary": None,
-                "synthesis_context": None,
-                "error": "duplicate_scheduling_tool_call",
-            }
+            duplicate = DomainExecutionResult(
+                domain="scheduling",
+                outcome="failed",
+                operations=(),
+                missing_fields=(),
+                safety_boundary=None,
+                reply_contract=ReplyContract(
+                    intent="report_failure",
+                    required_facts=(),
+                    required_questions=(),
+                    prohibited_claims=("appointment_confirmed",),
+                    allow_rephrase=True,
+                ),
+                error=DomainError(
+                    code="duplicate_scheduling_tool_call",
+                    message="Scheduling execution agent called more than one tool",
+                    retryable=False,
+                    detail={"tool_name": tool_name},
+                ),
+            )
+            domain_results.append(duplicate)
+            return duplicate.to_dict()
 
         result = await _run_port(
             port,
@@ -146,9 +284,12 @@ def _make_scheduling_tool_fn(
                 }
             ),
         )
-        tool_results.append(result)
-        domain_results.append(result)
-        return _capability_envelope(result)
+        domain_result = _scheduling_capability_to_domain_result(
+            tool_name=tool_name,
+            result=result,
+        )
+        domain_results.append(domain_result)
+        return domain_result.to_dict()
 
     return scheduling_tool
 
@@ -158,10 +299,10 @@ async def run_scheduling_domain(
     input_message: str,
     intent: str,
     run_context: AgentRunContext,
-    tool_results: list[CapabilityResult],
+    domain_results: list[DomainExecutionResult],
 ) -> dict[str, Any]:
-    """Spawn SchedulingExecutionAgent; append results to shared tool_results."""
-    domain_results: list[CapabilityResult] = []
+    """Spawn SchedulingExecutionAgent and append typed scheduling domain results."""
+    local_domain_results: list[DomainExecutionResult] = []
     execution_guard = _SchedulingExecutionGuard()
     ports = {
         name: SchedulingCapabilityPort(tool_name=name) for name in SCHEDULING_TOOL_NAMES
@@ -173,8 +314,7 @@ async def run_scheduling_domain(
                 port,
                 input_message=input_message,
                 run_context=run_context,
-                tool_results=tool_results,
-                domain_results=domain_results,
+                domain_results=local_domain_results,
                 execution_guard=execution_guard,
             )
         )
@@ -192,21 +332,11 @@ async def run_scheduling_domain(
         markdown=False,
     )
     await agent.arun(input=input_message)
-    if not domain_results:
-        return {
-            "ok": False,
-            "domain": "scheduling",
-            "visible_summary": None,
-            "synthesis_context": None,
-            "error": "no_tool_called",
-        }
+    if not local_domain_results:
+        result = _no_scheduling_tool_called_result(intent)
+        domain_results.append(result)
+        return result.to_dict()
 
-    last = domain_results[-1]
-    return {
-        "ok": last.ok,
-        "domain": "scheduling",
-        "visible_summary": last.visible_summary,
-        "synthesis_context": last.synthesis_context,
-        "content": dict(last.content),
-        "error": last.error,
-    }
+    last = local_domain_results[-1]
+    domain_results.extend(local_domain_results)
+    return last.to_dict()

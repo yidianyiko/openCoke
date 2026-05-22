@@ -141,7 +141,7 @@ def _create_interaction_agent(
                     input_message=input_message,
                     intent=intent,
                     run_context=run_context,
-                    tool_results=tool_results,
+                    domain_results=domain_results,
                 )
                 scheduling_domain_result["result"] = result
                 return result

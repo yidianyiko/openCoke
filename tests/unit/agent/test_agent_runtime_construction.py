@@ -847,6 +847,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
     captured = {}
     run_context = _run_context()
     tool_results = []
+    domain_results = []
     envelope = {
         "ok": True,
         "domain": "scheduling",
@@ -861,14 +862,14 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         input_message,
         intent,
         run_context,
-        tool_results,
+        domain_results,
     ):
         captured.update(
             {
                 "input_message": input_message,
                 "intent": intent,
                 "run_context": run_context,
-                "tool_results": tool_results,
+                "domain_results": domain_results,
             }
         )
         return envelope
@@ -883,7 +884,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         agent_input=_agent_input(),
         input_message="confirm it",
         tool_results=tool_results,
-        domain_results=[],
+        domain_results=domain_results,
     )
     scheduling_domain = next(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
@@ -896,7 +897,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         "input_message": "confirm it",
         "intent": "confirm_appointment: id=appt_1",
         "run_context": run_context,
-        "tool_results": tool_results,
+        "domain_results": domain_results,
     }
 
 
@@ -919,7 +920,7 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
         input_message,
         intent,
         run_context,
-        tool_results,
+        domain_results,
     ):
         nonlocal calls
         calls += 1

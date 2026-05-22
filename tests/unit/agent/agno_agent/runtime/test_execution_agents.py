@@ -18,6 +18,8 @@ from agent.agno_agent.runtime.domain_results import (
     ReplyContract,
 )
 from agent.agno_agent.runtime.execution_agents import run_reminder_domain
+from agent.agno_agent.runtime.execution_agents import run_scheduling_domain
+from agent.agno_agent.runtime.result import CapabilityResult
 
 
 def _run_context() -> AgentRunContext:
@@ -68,6 +70,14 @@ class _FakeReminderPort:
         return _domain_result()
 
 
+class _SyncSchedulingPort:
+    def __init__(self, result: CapabilityResult) -> None:
+        self.result = result
+
+    def run(self, input_message, run_context, args):
+        return self.result
+
+
 @pytest.mark.asyncio
 async def test_run_reminder_domain_appends_domain_result_and_returns_dict():
     domain_results: list[DomainExecutionResult] = []
@@ -88,3 +98,83 @@ async def test_run_reminder_domain_appends_domain_result_and_returns_dict():
     assert envelope["operations"][0]["facts"]["title"] == "drink water"
     assert "visible_summary" not in envelope
     assert "synthesis_context" not in envelope
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_returns_typed_failed_result_when_no_tool_called():
+    class _NoOpAgent:
+        def __init__(self, **kwargs):
+            pass
+
+        async def arun(self, **kwargs):
+            return None
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _NoOpAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncSchedulingPort(
+                CapabilityResult(name=tool_name, ok=True, content={})
+            ),
+        ):
+            envelope = await run_scheduling_domain(
+                input_message="book an appointment",
+                intent="request_appointment",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert envelope["domain"] == "scheduling"
+    assert envelope["outcome"] == "failed"
+    assert envelope["error"]["code"] == "no_tool_called"
+    assert domain_results[0].error is not None
+    assert domain_results[0].error.code == "no_tool_called"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_converts_called_tool_to_domain_result():
+    fake_result = CapabilityResult(
+        name="request_appointment",
+        ok=True,
+        content={
+            "request_id": "req-1",
+            "target_account_id": "acct-provider",
+            "consumer_account_id": "acct-consumer",
+            "instance_start": "2026-05-23T09:00:00+09:00",
+            "instance_end": "2026-05-23T09:30:00+09:00",
+            "timezone": "Asia/Tokyo",
+        },
+        metadata={"durable_write": True, "requires_response_synthesis": True},
+    )
+
+    class _CallingAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["request_appointment"](
+                target_account_id="acct-provider",
+                consumer_account_id="acct-consumer",
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _CallingAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncSchedulingPort(fake_result),
+        ):
+            envelope = await run_scheduling_domain(
+                input_message="book that",
+                intent="request_appointment",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert envelope["domain"] == "scheduling"
+    assert envelope["outcome"] == "executed"
+    assert envelope["operations"][0]["action"] == "request_appointment"
+    assert envelope["operations"][0]["effect"] == "write"
+    assert envelope["operations"][0]["entity_id"] == "req-1"
+    assert domain_results[0].reply_contract.intent == "confirm_execution"

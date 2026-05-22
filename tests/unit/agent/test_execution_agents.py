@@ -170,29 +170,32 @@ async def test_run_reminder_domain_forwards_failed_port_result():
 
 
 @pytest.mark.asyncio
-async def test_make_scheduling_tool_fn_appends_to_both_lists():
+async def test_make_scheduling_tool_fn_appends_domain_result():
     fake_result = CapabilityResult(
         name="get_user_link",
         ok=True,
         content={"visible_summary": "Your booking link: https://kap.example/u/xyz"},
     )
-    tool_results: list[CapabilityResult] = []
-    domain_results: list[CapabilityResult] = []
+    domain_results: list[DomainExecutionResult] = []
 
     fn = _make_scheduling_tool_fn(
         "get_user_link",
         _SyncPort(fake_result),
         input_message="show my link",
         run_context=_run_context(),
-        tool_results=tool_results,
         domain_results=domain_results,
     )
     envelope = await fn()
 
-    assert tool_results == [fake_result]
-    assert domain_results == [fake_result]
-    assert envelope["ok"] is True
-    assert envelope["visible_summary"] == "Your booking link: https://kap.example/u/xyz"
+    assert len(domain_results) == 1
+    assert domain_results[0].domain == "scheduling"
+    assert envelope["domain"] == "scheduling"
+    assert envelope["outcome"] == "executed"
+    assert envelope["operations"][0]["action"] == "get_user_link"
+    assert (
+        envelope["operations"][0]["facts"]["visible_summary"]
+        == "Your booking link: https://kap.example/u/xyz"
+    )
 
 
 @pytest.mark.asyncio
@@ -209,7 +212,6 @@ async def test_make_scheduling_tool_fn_passes_non_none_args_to_port():
         RecordingPort(),
         input_message="confirm that",
         run_context=_run_context(),
-        tool_results=[],
         domain_results=[],
     )
     await fn(appointment_or_request_id="appt_123", reason=None)
@@ -237,12 +239,12 @@ async def test_run_scheduling_domain_returns_no_tool_called_when_agent_calls_not
                 input_message="show my link",
                 intent="get_user_link",
                 run_context=_run_context(),
-                tool_results=[],
+                domain_results=[],
             )
 
-    assert result["ok"] is False
-    assert result["error"] == "no_tool_called"
     assert result["domain"] == "scheduling"
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "no_tool_called"
 
 
 @pytest.mark.asyncio
@@ -252,7 +254,7 @@ async def test_run_scheduling_domain_returns_called_tool_result():
         ok=True,
         content={"visible_summary": "Your booking link: https://kap.example/u/xyz"},
     )
-    tool_results: list[CapabilityResult] = []
+    domain_results: list[DomainExecutionResult] = []
 
     class _CallingAgent:
         def __init__(self, **kwargs):
@@ -270,13 +272,16 @@ async def test_run_scheduling_domain_returns_called_tool_result():
                 input_message="show my link",
                 intent="get_user_link",
                 run_context=_run_context(),
-                tool_results=tool_results,
+                domain_results=domain_results,
             )
 
-    assert result["ok"] is True
     assert result["domain"] == "scheduling"
-    assert result["visible_summary"] == "Your booking link: https://kap.example/u/xyz"
-    assert tool_results == [fake_result]
+    assert result["outcome"] == "executed"
+    assert result["operations"][0]["facts"]["visible_summary"] == (
+        "Your booking link: https://kap.example/u/xyz"
+    )
+    assert len(domain_results) == 1
+    assert domain_results[0].operations[0].action == "get_user_link"
 
 
 @pytest.mark.asyncio
@@ -305,7 +310,7 @@ async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
                 self.tools["reset_user_link"](),
             )
 
-    tool_results: list[CapabilityResult] = []
+    domain_results: list[DomainExecutionResult] = []
 
     with patch(
         "agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent
@@ -318,10 +323,14 @@ async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
                 input_message="show my link",
                 intent="get_user_link",
                 run_context=_run_context(),
-                tool_results=tool_results,
+                domain_results=domain_results,
             )
 
     assert calls == ["get_user_link"]
-    assert [item.name for item in tool_results] == ["get_user_link"]
-    assert result["ok"] is True
-    assert result["visible_summary"] == "called get_user_link"
+    assert [item.error.code if item.error else None for item in domain_results] == [
+        None,
+        "duplicate_scheduling_tool_call",
+    ]
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "failed"
+    assert result["error"]["code"] == "duplicate_scheduling_tool_call"

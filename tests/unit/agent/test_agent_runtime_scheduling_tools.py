@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 from agno.tools import tool
 
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 from agent.agno_agent.runtime.execution_agents import _make_scheduling_tool_fn
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.runtime.scheduling_types import SchedulingBookableWindowPreview
@@ -38,8 +39,7 @@ class RecordingPort:
 @pytest.mark.asyncio
 async def test_scheduling_tool_fn_dispatches_model_args():
     port = RecordingPort(name="request_appointment")
-    tool_results = []
-    domain_results = []
+    domain_results: list[DomainExecutionResult] = []
     context = _run_context()
 
     fn = _make_scheduling_tool_fn(
@@ -47,7 +47,6 @@ async def test_scheduling_tool_fn_dispatches_model_args():
         port,
         input_message="book that slot",
         run_context=context,
-        tool_results=tool_results,
         domain_results=domain_results,
     )
     result = await fn(
@@ -56,7 +55,9 @@ async def test_scheduling_tool_fn_dispatches_model_args():
         reason="intro call",
     )
 
-    assert result["ok"] is True
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "executed"
+    assert result["operations"][0]["action"] == "request_appointment"
     assert port.calls == [
         (
             "book that slot",
@@ -68,8 +69,9 @@ async def test_scheduling_tool_fn_dispatches_model_args():
             },
         )
     ]
-    assert [item.name for item in tool_results] == ["request_appointment"]
-    assert [item.name for item in domain_results] == ["request_appointment"]
+    assert [item.operations[0].action for item in domain_results] == [
+        "request_appointment"
+    ]
 
 
 def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
@@ -78,7 +80,6 @@ def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
         RecordingPort(name="request_appointment"),
         input_message="book that slot",
         run_context=_run_context(),
-        tool_results=[],
         domain_results=[],
     )
     function = tool(name="request_appointment")(fn)
@@ -95,7 +96,6 @@ def test_scheduling_tool_fn_schema_exposes_bookable_window_preview_shape():
         RecordingPort(name="confirm_bookable_windows"),
         input_message="confirm these windows",
         run_context=_run_context(),
-        tool_results=[],
         domain_results=[],
     )
     function = tool(name="confirm_bookable_windows")(fn)
@@ -115,7 +115,6 @@ async def test_scheduling_tool_fn_serializes_preview_model():
         port,
         input_message="confirm these windows",
         run_context=_run_context(),
-        tool_results=[],
         domain_results=[],
     )
 
