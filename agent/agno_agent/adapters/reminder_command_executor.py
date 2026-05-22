@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from datetime import UTC, datetime
 from typing import Any
 
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.result import CapabilityResult
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+    ReplyFactRequirement,
+)
 from agent.agno_agent.tools.reminder_protocol import set_reminder_session_state
-from conf.config import CONF
 from util.log_util import get_logger
 
 logger = get_logger(__name__)
@@ -29,36 +34,6 @@ _REMINDER_DECISION_FIELDS = (
 _TOOL_DECISION_FIELDS = tuple(
     field for field in _REMINDER_DECISION_FIELDS if field != "deadline_at"
 )
-
-
-def _last_failed_tool_result(session_state: dict[str, Any]) -> Mapping[str, Any] | None:
-    tool_results = session_state.get("tool_results")
-    if not isinstance(tool_results, list):
-        return None
-
-    for item in reversed(tool_results):
-        if isinstance(item, Mapping) and item.get("ok") is False:
-            return item
-    return None
-
-
-def _has_successful_tool_result(session_state: dict[str, Any]) -> bool:
-    tool_results = session_state.get("tool_results")
-    if not isinstance(tool_results, list):
-        return False
-    return any(
-        isinstance(item, Mapping) and item.get("ok") is True for item in tool_results
-    )
-
-
-def _error_code_from_tool_result(tool_result: Mapping[str, Any]) -> str:
-    notes = tool_result.get("extra_notes")
-    if isinstance(notes, str):
-        for part in notes.split(";"):
-            key, separator, value = part.strip().partition("=")
-            if separator and key == "error_code" and value:
-                return value
-    return "ReminderToolFailed"
 
 
 def _decision_value(decision: Any, field: str) -> Any:
@@ -164,7 +139,7 @@ class ReminderCommandExecutor:
         self,
         decision: Any,
         run_context: AgentRunContext,
-    ) -> CapabilityResult:
+    ) -> DomainExecutionResult:
         try:
             session_state = _build_session_state(run_context)
             self._session_state_setter(session_state)
@@ -182,55 +157,224 @@ class ReminderCommandExecutor:
             tool_result = self._tool_entrypoint(**kwargs)
         except Exception as exc:
             logger.exception("ReminderCommandExecutor adapter failed")
-            return CapabilityResult(
-                name="reminder",
-                ok=False,
-                content={},
-                error="ReminderCommandExecutorError",
-                metadata={
+            return _failed_domain_result(
+                action=str(_decision_value(decision, "action") or "unknown"),
+                code="ReminderCommandExecutorError",
+                message="adapter failed",
+                detail={
                     "error_type": type(exc).__name__,
-                    "message": "adapter failed",
                 },
             )
 
-        failed_tool_result = _last_failed_tool_result(session_state)
-        if failed_tool_result is not None and not _has_successful_tool_result(
-            session_state
-        ):
-            result_summary = failed_tool_result.get("result_summary")
-            content = {}
-            if isinstance(result_summary, str) and result_summary.strip():
-                content["summary"] = result_summary.strip()
-            return CapabilityResult(
-                name="reminder",
-                ok=False,
-                content=content,
-                error=_error_code_from_tool_result(failed_tool_result),
-                metadata={
-                    key: value
-                    for key, value in {
-                        "tool_name": failed_tool_result.get("tool_name"),
-                        "extra_notes": failed_tool_result.get("extra_notes"),
-                    }.items()
-                    if value is not None
-                },
+        if not isinstance(tool_result, Mapping):
+            return _failed_domain_result(
+                action=str(_decision_value(decision, "action") or "unknown"),
+                code="ReminderToolInvalidResult",
+                message="reminder tool returned a non-mapping result",
+                detail={"result_type": type(tool_result).__name__},
             )
 
-        if isinstance(tool_result, Mapping):
-            summary = str(tool_result.get("summary") or "")
-        else:
-            summary = str(tool_result)
+        if tool_result.get("ok") is not True:
+            return _failed_domain_result(
+                action=str(
+                    tool_result.get("action")
+                    or _decision_value(decision, "action")
+                    or "unknown"
+                ),
+                code=str(tool_result.get("error_code") or "ReminderToolFailed"),
+                message=str(tool_result.get("summary") or "Reminder tool failed"),
+                detail={"summary": tool_result.get("summary")},
+            )
 
-        content: dict[str, Any] = {
-            "summary": summary,
-            "owner_user_id": run_context.user.id,
-            "conversation_id": run_context.conversation.id,
-        }
-        if isinstance(tool_result, Mapping):
-            content["tool_result"] = tool_result
-
-        return CapabilityResult(
-            name="reminder",
-            ok=True,
-            content=content,
+        operations = _operations_from_tool_result(tool_result)
+        return DomainExecutionResult(
+            domain="reminder",
+            outcome="executed",
+            operations=operations,
+            missing_fields=(),
+            safety_boundary=None,
+            reply_contract=_reply_contract_for_operations(operations),
         )
+
+
+def _operations_from_tool_result(
+    tool_result: Mapping[str, Any],
+) -> Sequence[DomainOperationResult]:
+    if tool_result.get("action") == "batch":
+        return tuple(
+            operation
+            for item in tool_result.get("operations") or ()
+            if isinstance(item, Mapping)
+            for operation in _operations_from_tool_result(item)
+        )
+
+    action = str(tool_result.get("action") or "none")
+    if tool_result.get("ok") is False:
+        code = str(tool_result.get("error_code") or "ReminderToolFailed")
+        error = DomainError(
+            code=code,
+            message=str(tool_result.get("summary") or "Reminder tool failed"),
+            retryable=code in {"ReminderCommandExecutorError", "ReminderAdapterError"},
+            detail={"summary": tool_result.get("summary")},
+        )
+        return (
+            DomainOperationResult(
+                action=action,
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={},
+                error=error,
+            ),
+        )
+
+    if action == "list":
+        reminders = [
+            item
+            for item in tool_result.get("reminders") or ()
+            if isinstance(item, Mapping)
+        ]
+        return (
+            DomainOperationResult(
+                action="list",
+                ok=True,
+                effect="read",
+                entity_type="reminder",
+                entity_id=None,
+                facts={
+                    "count": len(reminders),
+                    "reminder_ids": tuple(
+                        str(item.get("id") or "") for item in reminders
+                    ),
+                },
+            ),
+        )
+
+    reminder = tool_result.get("reminder")
+    if not isinstance(reminder, Mapping):
+        return (
+            DomainOperationResult(
+                action=action,
+                ok=True,
+                effect=_effect_for_reminder_action(action),
+                entity_type="reminder",
+                entity_id=None,
+                facts={},
+            ),
+        )
+
+    return (
+        DomainOperationResult(
+            action=action,
+            ok=True,
+            effect=_effect_for_reminder_action(action),
+            entity_type="reminder",
+            entity_id=_optional_str(reminder.get("id")),
+            facts=_reminder_facts(reminder),
+        ),
+    )
+
+
+def _reminder_facts(reminder: Mapping[str, Any]) -> dict[str, Any]:
+    schedule = (
+        reminder.get("schedule")
+        if isinstance(reminder.get("schedule"), Mapping)
+        else {}
+    )
+    target = (
+        reminder.get("agent_output_target")
+        if isinstance(reminder.get("agent_output_target"), Mapping)
+        else {}
+    )
+    return {
+        "title": reminder.get("title"),
+        "local_date": schedule.get("local_date"),
+        "local_time": schedule.get("local_time"),
+        "timezone": schedule.get("timezone"),
+        "rrule": schedule.get("rrule"),
+        "conversation_id": target.get("conversation_id"),
+        "character_id": target.get("character_id"),
+        "route_key": target.get("route_key"),
+        "lifecycle_state": reminder.get("lifecycle_state"),
+        "owner_user_id": reminder.get("owner_user_id"),
+    }
+
+
+def _effect_for_reminder_action(action: str) -> str:
+    if action in {"create", "update", "cancel", "complete"}:
+        return "write"
+    if action == "list":
+        return "read"
+    return "none"
+
+
+def _reply_contract_for_operations(
+    operations: Sequence[DomainOperationResult],
+) -> ReplyContract:
+    if any(operation.effect == "write" and operation.ok for operation in operations):
+        return ReplyContract(
+            intent="confirm_execution",
+            required_facts=(
+                ReplyFactRequirement(path="operations[0].facts.title"),
+                ReplyFactRequirement(path="operations[0].facts.local_date"),
+                ReplyFactRequirement(path="operations[0].facts.local_time"),
+            ),
+            required_questions=(),
+            prohibited_claims=("not_created", "needs_more_info"),
+            allow_rephrase=True,
+        )
+    return ReplyContract(
+        intent="direct_answer",
+        required_facts=(),
+        required_questions=(),
+        prohibited_claims=("reminder_created",),
+        allow_rephrase=True,
+    )
+
+
+def _failed_domain_result(
+    *,
+    action: str,
+    code: str,
+    message: str,
+    detail: Mapping[str, Any],
+) -> DomainExecutionResult:
+    error = DomainError(
+        code=code,
+        message=message,
+        retryable=code in {"ReminderCommandExecutorError", "ReminderAdapterError"},
+        detail=detail,
+    )
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action=action,
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={},
+                error=error,
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
+
+
+def _optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None

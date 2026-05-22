@@ -12,6 +12,7 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 from agent.agno_agent.schemas.reminder_detect_schema import (
     ReminderDetectDecision,
     ReminderOperation,
@@ -95,6 +96,37 @@ def _reminder(
     )
 
 
+def _tool_reminder_result(
+    *,
+    action: str = "create",
+    reminder_id: str = "rem-1",
+    title: str = "hydrate",
+) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "action": action,
+        "reminder": {
+            "id": reminder_id,
+            "owner_user_id": "user-1",
+            "title": title,
+            "schedule": {
+                "anchor_at": "2026-05-01T00:30:00+00:00",
+                "local_date": "2026-05-01",
+                "local_time": "09:30:00",
+                "timezone": "Asia/Tokyo",
+                "rrule": None,
+            },
+            "agent_output_target": {
+                "conversation_id": "conv-1",
+                "character_id": "char-1",
+                "route_key": "route-1",
+            },
+            "lifecycle_state": "active",
+        },
+        "summary": f"已创建提醒：{title}（2026-05-01 09:30）",
+    }
+
+
 class FakeReminderService:
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
@@ -140,7 +172,7 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
 
     def tool_entrypoint(**kwargs):
         calls.append(kwargs)
-        return "Reminder created."
+        return _tool_reminder_result()
 
     def set_session_state(session_state):
         session_states.append(session_state)
@@ -159,13 +191,12 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
         _run_context(),
     )
 
-    assert result.name == "reminder"
-    assert result.ok is True
-    assert result.content == {
-        "summary": "Reminder created.",
-        "owner_user_id": "user-1",
-        "conversation_id": "conv-1",
-    }
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "executed"
+    assert result.operations[0].action == "create"
+    assert result.operations[0].entity_id == "rem-1"
+    assert result.operations[0].facts["title"] == "hydrate"
     assert calls == [
         {
             "action": "create",
@@ -197,7 +228,7 @@ def test_deadline_at_is_preserved_as_rrule_until_for_bounded_recurring_create():
 
     def tool_entrypoint(**kwargs):
         calls.append(kwargs)
-        return "Reminder created."
+        return _tool_reminder_result()
 
     decision = ReminderDetectDecision(
         intent_type="crud",
@@ -218,7 +249,7 @@ def test_deadline_at_is_preserved_as_rrule_until_for_bounded_recurring_create():
         _run_context(),
     )
 
-    assert result.ok is True
+    assert result.outcome == "executed"
     assert calls[0]["rrule"] == "FREQ=DAILY;UNTIL=20261206T150000Z"
     assert "deadline_at" not in calls[0]
 
@@ -228,7 +259,7 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
 
     def tool_entrypoint(**kwargs):
         calls.append(kwargs)
-        return "Reminder updated."
+        return _tool_reminder_result(action="update", title="drink water")
 
     decision = {
         "action": "update",
@@ -248,8 +279,9 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
         _run_context(),
     )
 
-    assert result.ok is True
-    assert result.content["summary"] == "Reminder updated."
+    assert result.outcome == "executed"
+    assert result.operations[0].action == "update"
+    assert result.operations[0].facts["title"] == "drink water"
     assert calls[0]["action"] == "update"
     assert calls[0]["title"] is None
     assert calls[0]["reminder_id"] == "rem-1"
@@ -283,11 +315,11 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
         _run_context(),
     )
 
-    assert result.ok is True
-    assert isinstance(result.content["summary"], str)
-    assert result.content["summary"] == "已创建提醒：hydrate（2026-05-01 09:00）"
-    assert result.content["tool_result"]["action"] == "create"
-    assert result.content["tool_result"]["summary"] == result.content["summary"]
+    assert result.outcome == "executed"
+    assert result.operations[0].action == "create"
+    assert result.operations[0].facts["title"] == "hydrate"
+    assert result.operations[0].facts["local_date"] == "2026-05-01"
+    assert result.operations[0].facts["local_time"] == "09:00:00"
     [create_call] = service.calls
     assert create_call[0] == "create"
     assert create_call[1]["owner_user_id"] == "user-1"
@@ -304,16 +336,12 @@ def test_tool_failure_result_is_propagated_as_failed_capability():
     session_states = []
 
     def tool_entrypoint(**kwargs):
-        from agent.agno_agent.tools.tool_result import append_tool_result
-
-        append_tool_result(
-            session_states[-1],
-            tool_name="提醒操作",
-            ok=False,
-            result_summary="创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
-            extra_notes="action=create; error_code=InvalidSchedule",
-        )
-        return "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+        return {
+            "ok": False,
+            "action": "create",
+            "error_code": "InvalidSchedule",
+            "summary": "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
+        }
 
     result = ReminderCommandExecutor(
         tool_entrypoint,
@@ -327,42 +355,33 @@ def test_tool_failure_result_is_propagated_as_failed_capability():
         _run_context(),
     )
 
-    assert result.name == "reminder"
-    assert result.ok is False
-    assert result.content["summary"] == (
+    assert result.outcome == "failed"
+    assert result.error is not None
+    assert result.error.code == "InvalidSchedule"
+    assert result.error.message == (
         "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
     )
-    assert result.error == "InvalidSchedule"
-    assert result.metadata == {
-        "tool_name": "提醒操作",
-        "extra_notes": "action=create; error_code=InvalidSchedule",
-    }
+    assert result.operations[0].ok is False
+    assert result.operations[0].error == result.error
 
 
 def test_partial_batch_success_is_not_collapsed_to_last_failure():
     session_states = []
 
     def tool_entrypoint(**kwargs):
-        from agent.agno_agent.tools.tool_result import append_tool_result
-
-        append_tool_result(
-            session_states[-1],
-            tool_name="提醒操作",
-            ok=True,
-            result_summary="已创建提醒：通知（2026-05-11 15:50）",
-            extra_notes="action=create",
-        )
-        append_tool_result(
-            session_states[-1],
-            tool_name="提醒操作",
-            ok=False,
-            result_summary="创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
-            extra_notes="action=create; error_code=InvalidSchedule",
-        )
-        return (
-            "已创建提醒：通知（2026-05-11 15:50）\n"
-            "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
-        )
+        return {
+            "ok": True,
+            "action": "batch",
+            "operations": [
+                _tool_reminder_result(title="通知"),
+                {
+                    "ok": False,
+                    "action": "create",
+                    "error_code": "InvalidSchedule",
+                    "summary": "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
+                },
+            ],
+        }
 
     result = ReminderCommandExecutor(
         tool_entrypoint,
@@ -386,9 +405,11 @@ def test_partial_batch_success_is_not_collapsed_to_last_failure():
         _run_context(),
     )
 
-    assert result.ok is True
-    assert result.content["summary"].splitlines()[0].startswith("已创建提醒")
-    assert "创建提醒失败" in result.content["summary"]
+    assert result.outcome == "executed"
+    assert [operation.ok for operation in result.operations] == [True, False]
+    assert result.operations[0].facts["title"] == "通知"
+    assert result.operations[1].error is not None
+    assert result.operations[1].error.code == "InvalidSchedule"
 
 
 def test_batch_operations_from_reminder_detect_decision_are_dicts():
@@ -396,7 +417,7 @@ def test_batch_operations_from_reminder_detect_decision_are_dicts():
 
     def tool_entrypoint(**kwargs):
         calls.append(kwargs)
-        return "Reminder created."
+        return _tool_reminder_result()
 
     decision = ReminderDetectDecision(
         intent_type="crud",
@@ -417,7 +438,7 @@ def test_batch_operations_from_reminder_detect_decision_are_dicts():
         session_state_setter=lambda session_state: None,
     ).execute(decision, _run_context())
 
-    assert result.ok is True
+    assert result.outcome == "executed"
     assert calls[0]["operations"] == [
         {
             "action": "create",
@@ -444,12 +465,9 @@ def test_failure_returns_capability_error_without_raising():
         _run_context(),
     )
 
-    assert result.name == "reminder"
-    assert result.ok is False
-    assert result.content == {}
-    assert result.error == "ReminderCommandExecutorError"
-    assert result.metadata == {
-        "error_type": "RuntimeError",
-        "message": "adapter failed",
-    }
-    assert "reminder store unavailable" not in str(result.metadata)
+    assert result.outcome == "failed"
+    assert result.error is not None
+    assert result.error.code == "ReminderCommandExecutorError"
+    assert result.error.message == "adapter failed"
+    assert result.error.detail == {"error_type": "RuntimeError"}
+    assert "reminder store unavailable" not in str(result.error.detail)
