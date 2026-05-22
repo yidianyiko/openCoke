@@ -116,32 +116,36 @@ def test_message_gateway_builds_business_protocol_with_optional_gateway_metadata
     }
 
 
-def test_scheduling_notification_metadata_is_preserved():
+def test_product_notification_metadata_is_preserved():
     from connector.clawscale_bridge.message_gateway import CokeMessageGateway
 
     gateway = CokeMessageGateway(mongo=MagicMock(), user_dao=MagicMock())
 
     doc = gateway.build_input_message(
-        account_id="ck_a",
+        account_id="acct_a",
         character_id="char_1",
-        text="Student B requested Tuesday 7 PM. Reply CONFIRM or DECLINE.",
-        causal_inbound_event_id="appt_ar_1_request",
+        text="你有一个新的好友请求，请确认或拒绝。",
+        causal_inbound_event_id="fr_1_request",
         inbound={
             "timestamp": 1770000000,
-            "customer_id": "ck_a",
-            "message_type": "scheduling_notification",
-            "scheduling": {"request_id": "ar_1", "allowed_actions": ["confirm", "reject"]},
+            "customer_id": "acct_a",
+            "message_type": "product_notification",
+            "product_notification": {
+                "request_id": "fr_1",
+                "request_type": "friend_request",
+                "allowed_actions": ["accept", "reject"],
+            },
         },
     )
 
-    assert doc["message_type"] == "text"
     assert (
         doc["metadata"]["business_protocol"]["message_type"]
-        == "scheduling_notification"
+        == "product_notification"
     )
-    assert doc["metadata"]["scheduling"] == {
-        "request_id": "ar_1",
-        "allowed_actions": ["confirm", "reject"],
+    assert doc["metadata"]["product_notification"] == {
+        "request_id": "fr_1",
+        "request_type": "friend_request",
+        "allowed_actions": ["accept", "reject"],
     }
 
 

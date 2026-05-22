@@ -8,12 +8,12 @@ sys.modules.setdefault("agent.agno_agent.agents", types.ModuleType("agents"))
 from agent.agno_agent.runtime.context import AgentRunContext
 
 
-def _run_context():
+def _run_context(user_id: str = "ck_a"):
     return AgentRunContext(
-        user=SimpleNamespace(id="ck_a", nickname="Coach A", timezone="Asia/Shanghai"),
+        user=SimpleNamespace(id=user_id, nickname="Coach A", timezone="Asia/Shanghai"),
         character=SimpleNamespace(id="char_1", nickname="Coke"),
         conversation=SimpleNamespace(id="conv_1", route_key="wechat_personal:primary"),
-        relation=SimpleNamespace(uid="ck_a", cid="char_1"),
+        relation=SimpleNamespace(uid=user_id, cid="char_1"),
         platform="business",
         recent_chat_history="",
         current_time=datetime(2026, 6, 1, 0, 0, tzinfo=UTC),
@@ -53,35 +53,35 @@ def test_get_user_link_calls_gateway_tool_with_trusted_customer_identity():
     ]
 
 
-def test_request_appointment_forwards_representative_tool_args():
+def test_create_shared_reminder_forwards_required_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
     captured = {}
 
     def handler(tool_name, payload):
         captured.update({"tool_name": tool_name, "payload": payload})
-        return {"ok": True, "data": {"id": "apt_1", "status": "pending_held"}}
+        return {
+            "ok": True,
+            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+        }
 
-    port = SchedulingCapabilityPort(tool_name="request_appointment", handler=handler)
+    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
     result = port.run(
-        "book that slot",
-        _run_context(),
+        "Help me and A remember the meeting",
+        _run_context(user_id="acct_b"),
         {
-            "target_account_id": "ck_provider",
-            "window_instance_id": "inst_1",
+            "invitee_account_id": "acct_a",
+            "title": "meeting",
+            "fire_at": "2026-05-22T07:00:00.000Z",
             "timezone": "Asia/Shanghai",
-            "idempotency_key": "conv_1:inst_1",
+            "idempotency_key": "shared-1",
         },
     )
 
     assert result.ok is True
-    assert result.content["id"] == "apt_1"
-    assert captured["tool_name"] == "request_appointment"
-    assert captured["payload"]["customer_id"] == "ck_a"
-    assert captured["payload"]["target_account_id"] == "ck_provider"
-    assert captured["payload"]["window_instance_id"] == "inst_1"
-    assert captured["payload"]["idempotency_key"] == "conv_1:inst_1"
-    assert result.visible_summary == "已提交预约请求。"
+    assert captured["tool_name"] == "create_shared_reminder"
+    assert captured["payload"]["customer_id"] == "acct_b"
+    assert captured["payload"]["invitee_account_id"] == "acct_a"
     assert result.durable_write is True
 
 
@@ -112,13 +112,15 @@ def test_scheduling_gateway_client_uses_internal_auth():
         session=Session(),
     )
 
-    assert client.call_tool("list_pending_requests", {"customer_id": "ck_a"}) == {
+    assert client.call_tool(
+        "list_pending_shared_reminders", {"customer_id": "ck_a"}
+    ) == {
         "ok": True,
         "data": {"pending": []},
     }
     assert (
         captured["url"]
-        == "https://api.example/api/internal/scheduling/tools/list_pending_requests"
+        == "https://api.example/api/internal/scheduling/tools/list_pending_shared_reminders"
     )
     assert captured["headers"]["Authorization"] == "Bearer internal-key"
 
@@ -133,7 +135,7 @@ def test_scheduling_gateway_client_returns_error_envelope():
             return None
 
         def json(self):
-            return {"ok": False, "error": "service_link_not_found"}
+            return {"ok": False, "error": "friendship_not_found"}
 
     class Session:
         def post(self, url, json, headers, timeout):
@@ -145,9 +147,9 @@ def test_scheduling_gateway_client_returns_error_envelope():
         session=Session(),
     )
 
-    assert client.call_tool("remove_service_link", {"customer_id": "ck_a"}) == {
+    assert client.call_tool("remove_friendship", {"customer_id": "ck_a"}) == {
         "ok": False,
-        "error": "service_link_not_found",
+        "error": "friendship_not_found",
     }
 
 
@@ -155,14 +157,14 @@ def test_port_turns_gateway_domain_error_into_model_visible_failure():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
     def handler(tool_name, payload):
-        return {"ok": False, "error": "service_link_not_found"}
+        return {"ok": False, "error": "friendship_not_found"}
 
-    port = SchedulingCapabilityPort(tool_name="remove_service_link", handler=handler)
+    port = SchedulingCapabilityPort(tool_name="remove_friendship", handler=handler)
 
-    result = port.run("remove old link", _run_context(), {"other_account_id": "ck_b"})
+    result = port.run("remove old friend", _run_context(), {"friendship_id": "fs_1"})
 
     assert result.ok is False
-    assert result.error == "service_link_not_found"
+    assert result.error == "friendship_not_found"
     assert result.visible_summary == "日程操作暂时无法完成。"
     assert result.durable_write is False
 
@@ -173,9 +175,9 @@ def test_port_turns_gateway_exception_into_model_visible_failure():
     def handler(tool_name, payload):
         raise RuntimeError("gateway unavailable")
 
-    port = SchedulingCapabilityPort(tool_name="request_appointment", handler=handler)
+    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
 
-    result = port.run("book that slot", _run_context(), {})
+    result = port.run("create shared reminder", _run_context(), {})
 
     assert result.ok is False
     assert result.error == "gateway unavailable"

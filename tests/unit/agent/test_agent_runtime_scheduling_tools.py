@@ -6,7 +6,6 @@ from agno.tools import tool
 
 from agent.agno_agent.runtime.execution_agents import _make_scheduling_tool_fn
 from agent.agno_agent.runtime.result import CapabilityResult
-from agent.agno_agent.runtime.scheduling_types import SchedulingBookableWindowPreview
 
 
 def _run_context():
@@ -37,107 +36,102 @@ class RecordingPort:
 
 @pytest.mark.asyncio
 async def test_scheduling_tool_fn_dispatches_model_args():
-    port = RecordingPort(name="request_appointment")
+    port = RecordingPort(name="create_shared_reminder")
     tool_results = []
     domain_results = []
     context = _run_context()
 
     fn = _make_scheduling_tool_fn(
-        "request_appointment",
+        "create_shared_reminder",
         port,
-        input_message="book that slot",
+        input_message="Help me and A remember the meeting",
         run_context=context,
         tool_results=tool_results,
         domain_results=domain_results,
     )
     result = await fn(
-        target_account_id="ck_provider",
-        window_instance_id="inst_1",
-        reason="intro call",
+        invitee_account_id="acct_a",
+        title="meeting",
+        fire_at="2026-05-22T07:00:00.000Z",
+        timezone="Asia/Shanghai",
+        idempotency_key="shared-1",
     )
 
     assert result["ok"] is True
     assert port.calls == [
         (
-            "book that slot",
+            "Help me and A remember the meeting",
             context,
             {
-                "target_account_id": "ck_provider",
-                "window_instance_id": "inst_1",
-                "reason": "intro call",
+                "invitee_account_id": "acct_a",
+                "title": "meeting",
+                "fire_at": "2026-05-22T07:00:00.000Z",
+                "timezone": "Asia/Shanghai",
+                "idempotency_key": "shared-1",
             },
         )
     ]
-    assert [item.name for item in tool_results] == ["request_appointment"]
-    assert [item.name for item in domain_results] == ["request_appointment"]
+    assert [item.name for item in tool_results] == ["create_shared_reminder"]
+    assert [item.name for item in domain_results] == ["create_shared_reminder"]
 
 
 def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
     fn = _make_scheduling_tool_fn(
-        "request_appointment",
-        RecordingPort(name="request_appointment"),
-        input_message="book that slot",
+        "create_shared_reminder",
+        RecordingPort(name="create_shared_reminder"),
+        input_message="Help me and A remember the meeting",
         run_context=_run_context(),
         tool_results=[],
         domain_results=[],
     )
-    function = tool(name="request_appointment")(fn)
+    function = tool(name="create_shared_reminder")(fn)
 
     assert "kwargs" not in function.parameters["properties"]
-    assert "target_account_id" in function.parameters["properties"]
-    assert "window_instance_id" in function.parameters["properties"]
+    assert "invitee_account_id" in function.parameters["properties"]
+    assert "title" in function.parameters["properties"]
+    assert "fire_at" in function.parameters["properties"]
     assert "idempotency_key" in function.parameters["properties"]
 
 
-def test_scheduling_tool_fn_schema_exposes_bookable_window_preview_shape():
+def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments():
     fn = _make_scheduling_tool_fn(
-        "confirm_bookable_windows",
-        RecordingPort(name="confirm_bookable_windows"),
-        input_message="confirm these windows",
+        "block_account",
+        RecordingPort(name="block_account"),
+        input_message="block that account",
         run_context=_run_context(),
         tool_results=[],
         domain_results=[],
     )
-    function = tool(name="confirm_bookable_windows")(fn)
+    function = tool(name="block_account")(fn)
 
-    preview_schema = function.parameters["properties"]["preview"]["anyOf"][0]
-    assert preview_schema["properties"]["previewId"]["type"] == "string"
-    window_schema = preview_schema["properties"]["windows"]["items"]
-    assert "rule" in window_schema["properties"]
-    assert window_schema["properties"]["fingerprint"]["type"] == "string"
+    assert "request_id" in function.parameters["properties"]
+    assert "friendship_id" in function.parameters["properties"]
+    assert "blocked_account_id" in function.parameters["properties"]
 
 
 @pytest.mark.asyncio
-async def test_scheduling_tool_fn_serializes_preview_model():
-    port = RecordingPort(name="confirm_bookable_windows")
+async def test_scheduling_tool_fn_compacts_empty_shared_reminder_args():
+    port = RecordingPort(name="create_shared_reminder")
     fn = _make_scheduling_tool_fn(
-        "confirm_bookable_windows",
+        "create_shared_reminder",
         port,
-        input_message="confirm these windows",
+        input_message="Help me and A remember the meeting",
         run_context=_run_context(),
         tool_results=[],
         domain_results=[],
     )
 
     await fn(
-        preview=SchedulingBookableWindowPreview(
-            previewId="bwp_1",
-            windows=[
-                {
-                    "fingerprint": "fp_1",
-                    "rule": {
-                        "type": "weekly",
-                        "days_of_week": [1],
-                        "time_start": "09:00",
-                        "time_end": "10:00",
-                        "timezone": "Asia/Tokyo",
-                        "effective_from": "2026-05-22",
-                        "effective_until": None,
-                    },
-                }
-            ],
-        )
+        invitee_account_id="acct_a",
+        title="meeting",
+        fire_at="2026-05-22T07:00:00.000Z",
+        timezone="Asia/Shanghai",
+        idempotency_key="",
     )
 
-    assert port.calls[0][2]["preview"]["previewId"] == "bwp_1"
-    assert port.calls[0][2]["preview"]["windows"][0]["fingerprint"] == "fp_1"
+    assert port.calls[0][2] == {
+        "invitee_account_id": "acct_a",
+        "title": "meeting",
+        "fire_at": "2026-05-22T07:00:00.000Z",
+        "timezone": "Asia/Shanghai",
+    }

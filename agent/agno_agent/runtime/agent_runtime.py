@@ -131,7 +131,7 @@ def _create_interaction_agent(
                 return result
 
         async def scheduling_domain(intent: str) -> dict[str, Any]:
-            """Use for explicit user-link, availability, appointment, or service-link requests."""
+            """Use for explicit user-link, friend-request, friendship/block, or shared-reminder actions."""
             async with scheduling_domain_lock:
                 if "result" in scheduling_domain_result:
                     return scheduling_domain_result["result"]

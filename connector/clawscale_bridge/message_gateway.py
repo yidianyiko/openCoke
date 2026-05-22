@@ -152,15 +152,15 @@ class CokeMessageGateway:
         }
 
         attachments = _normalized_attachments_from_inbound(inbound)
-        scheduling = inbound.get("scheduling")
+        product_notification = inbound.get("product_notification")
         metadata = {
             "source": "clawscale",
             "business_protocol": business_protocol,
             "customer": customer,
             "coke_account": customer,
         }
-        if isinstance(scheduling, dict):
-            metadata["scheduling"] = scheduling
+        if isinstance(product_notification, dict):
+            metadata["product_notification"] = product_notification
         if attachments:
             metadata["attachments"] = attachments
             metadata["mediaUrls"] = [

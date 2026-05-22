@@ -12,20 +12,15 @@ from agent.agno_agent.capabilities.scheduling import SCHEDULING_TOOL_NAMES
 from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
-from agent.agno_agent.runtime.scheduling_types import (
-    SchedulingBookableWindowPreview,
-    _compact_scheduling_args,
-)
+from agent.agno_agent.runtime.scheduling_types import _compact_scheduling_args
 
-_SCHEDULING_DOMAIN_INSTRUCTIONS_TEMPLATE = (
-    "You are the scheduling execution worker. The intent is: {intent}. "
+_SCHEDULING_SYSTEM_PROMPT = (
+    "You are the friend-link and shared-reminder execution worker. "
     "Call exactly one scheduling tool that matches the intent. "
-    "Respect scheduling safety: separate A-side link management from B-side "
-    "appointment actions, do not guess ambiguous roles or target accounts, "
-    "do not expose raw user-link codes when status or URL is enough, and do "
-    "not perform irreversible scheduling changes unless the intent confirms "
-    "the exact change. Pending appointment holds do not expire automatically. "
-    "Output only the tool call - do not generate user-visible text."
+    "Do not create shared reminder state unless the named person resolves to "
+    "one active friend. Ask for clarification when the name is ambiguous. "
+    "Ordinary personal reminders are not scheduling-domain work. "
+    "Do not treat an iLink QR as a public user-link QR."
 )
 
 
@@ -99,22 +94,13 @@ def _make_scheduling_tool_fn(
     execution_guard: _SchedulingExecutionGuard | None = None,
 ) -> Any:
     async def scheduling_tool(
-        target_account_id: str | None = None,
-        consumer_account_id: str | None = None,
-        other_account_id: str | None = None,
-        request_id: str | None = None,
-        appointment_or_request_id: str | None = None,
-        window_instance_id: str | None = None,
-        bookable_window_id: str | None = None,
-        instance_start: str | None = None,
-        instance_end: str | None = None,
-        date_from: str | None = None,
-        date_to: str | None = None,
+        invitee_account_id: str | None = None,
+        title: str | None = None,
+        fire_at: str | None = None,
         timezone: str | None = None,
-        viewer_timezone: str | None = None,
-        instruction: str | None = None,
-        preview: SchedulingBookableWindowPreview | None = None,
-        reason: str | None = None,
+        request_id: str | None = None,
+        friendship_id: str | None = None,
+        blocked_account_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
@@ -134,22 +120,13 @@ def _make_scheduling_tool_fn(
             run_context=run_context,
             args=_compact_scheduling_args(
                 {
-                    "target_account_id": target_account_id,
-                    "consumer_account_id": consumer_account_id,
-                    "other_account_id": other_account_id,
-                    "request_id": request_id,
-                    "appointment_or_request_id": appointment_or_request_id,
-                    "window_instance_id": window_instance_id,
-                    "bookable_window_id": bookable_window_id,
-                    "instance_start": instance_start,
-                    "instance_end": instance_end,
-                    "date_from": date_from,
-                    "date_to": date_to,
+                    "invitee_account_id": invitee_account_id,
+                    "title": title,
+                    "fire_at": fire_at,
                     "timezone": timezone,
-                    "viewer_timezone": viewer_timezone,
-                    "instruction": instruction,
-                    "preview": preview,
-                    "reason": reason,
+                    "request_id": request_id,
+                    "friendship_id": friendship_id,
+                    "blocked_account_id": blocked_account_id,
                     "idempotency_key": idempotency_key,
                 }
             ),
@@ -159,6 +136,13 @@ def _make_scheduling_tool_fn(
         return _capability_envelope(result)
 
     return scheduling_tool
+
+
+def _scheduling_agent_input(input_message: str, intent: str) -> str:
+    return (
+        f"Resolved scheduling intent: {intent}\n"
+        f"User message: {input_message}"
+    )
 
 
 async def run_scheduling_domain(
@@ -192,14 +176,14 @@ async def run_scheduling_domain(
         id="coke-scheduling-agent",
         name="CokeSchedulingAgent",
         model=create_llm_model(role="chat_response", max_tokens=1000),
-        instructions=_SCHEDULING_DOMAIN_INSTRUCTIONS_TEMPLATE.format(intent=intent),
+        instructions=_SCHEDULING_SYSTEM_PROMPT,
         tools=tools,
         db=None,
         add_history_to_context=False,
         tool_call_limit=4,
         markdown=False,
     )
-    await agent.arun(input=input_message)
+    await agent.arun(input=_scheduling_agent_input(input_message, intent))
     if not domain_results:
         return {
             "ok": False,
