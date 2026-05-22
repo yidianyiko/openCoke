@@ -11,6 +11,7 @@ from agent.agno_agent.capabilities import ReminderIntentPort, SchedulingCapabili
 from agent.agno_agent.capabilities.scheduling import SCHEDULING_TOOL_NAMES
 from agent.agno_agent.model_factory import create_llm_model
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 from agent.agno_agent.runtime.result import CapabilityResult
 from agent.agno_agent.runtime.scheduling_types import (
     SchedulingBookableWindowPreview,
@@ -70,22 +71,13 @@ async def run_reminder_domain(
     *,
     input_message: str,
     run_context: AgentRunContext,
-    tool_results: list[CapabilityResult],
+    domain_results: list[DomainExecutionResult],
 ) -> dict[str, Any]:
-    """Call ReminderIntentPort directly; append result to shared tool_results.
-
-    No intermediate Agno Agent. ReminderIntentPort handles all outcomes: CRUD,
-    clarification, and no-intent.
-    """
+    """Call ReminderIntentPort directly and append a typed domain result."""
     port = ReminderIntentPort()
-    result = await _run_port(
-        port,
-        input_message=input_message,
-        run_context=run_context,
-        args={},
-    )
-    tool_results.append(result)
-    return _capability_envelope(result)
+    result = await port.run(input_message, run_context, {})
+    domain_results.append(result)
+    return result.to_dict()
 
 
 def _make_scheduling_tool_fn(

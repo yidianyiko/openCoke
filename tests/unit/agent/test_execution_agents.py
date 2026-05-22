@@ -13,6 +13,12 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 from agent.agno_agent.runtime.execution_agents import (
     _make_scheduling_tool_fn,
     run_reminder_domain,
@@ -38,8 +44,34 @@ def _run_context() -> AgentRunContext:
     )
 
 
+def _reminder_domain_result() -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"title": "drink water"},
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("not_created",),
+            allow_rephrase=True,
+        ),
+    )
+
+
 class _FakePort:
-    def __init__(self, result: CapabilityResult) -> None:
+    def __init__(self, result) -> None:
         self._result = result
 
     async def run(self, input_message, run_context, args):
@@ -57,14 +89,9 @@ class _SyncPort:
 
 
 @pytest.mark.asyncio
-async def test_run_reminder_domain_appends_exactly_one_result_to_tool_results():
-    fake_result = CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={"visible_summary": "已为你设好提醒"},
-        metadata={"durable_write": True},
-    )
-    tool_results = []
+async def test_run_reminder_domain_appends_exactly_one_result_to_domain_results():
+    fake_result = _reminder_domain_result()
+    domain_results = []
 
     with patch(
         "agent.agno_agent.runtime.execution_agents.ReminderIntentPort",
@@ -73,22 +100,17 @@ async def test_run_reminder_domain_appends_exactly_one_result_to_tool_results():
         await run_reminder_domain(
             input_message="提醒我喝水",
             run_context=_run_context(),
-            tool_results=tool_results,
+            domain_results=domain_results,
         )
 
-    assert len(tool_results) == 1
-    assert tool_results[0] is fake_result
+    assert len(domain_results) == 1
+    assert domain_results[0] is fake_result
 
 
 @pytest.mark.asyncio
-async def test_run_reminder_domain_returns_full_capability_envelope():
-    fake_result = CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={"visible_summary": "已为你设好提醒", "synthesis_context": "ctx"},
-        metadata={"durable_write": True},
-    )
-    tool_results = []
+async def test_run_reminder_domain_returns_domain_result_envelope():
+    fake_result = _reminder_domain_result()
+    domain_results = []
 
     with patch(
         "agent.agno_agent.runtime.execution_agents.ReminderIntentPort",
@@ -97,25 +119,40 @@ async def test_run_reminder_domain_returns_full_capability_envelope():
         envelope = await run_reminder_domain(
             input_message="提醒我喝水",
             run_context=_run_context(),
-            tool_results=tool_results,
+            domain_results=domain_results,
         )
 
-    assert envelope["ok"] is True
-    assert envelope["visible_summary"] == "已为你设好提醒"
-    assert envelope["synthesis_context"] == "ctx"
-    assert "content" in envelope
+    assert envelope["domain"] == "reminder"
+    assert envelope["outcome"] == "executed"
+    assert envelope["operations"][0]["facts"]["title"] == "drink water"
     assert envelope["error"] is None
+    assert "visible_summary" not in envelope
+    assert "synthesis_context" not in envelope
 
 
 @pytest.mark.asyncio
 async def test_run_reminder_domain_forwards_failed_port_result():
-    fake_result = CapabilityResult(
-        name="reminder",
-        ok=False,
-        content={},
-        error="reminder_service_unavailable",
+    fake_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
+        error=DomainError(
+            code="reminder_service_unavailable",
+            message="Reminder service unavailable",
+            retryable=True,
+            detail={},
+        ),
     )
-    tool_results = []
+    domain_results = []
 
     with patch(
         "agent.agno_agent.runtime.execution_agents.ReminderIntentPort",
@@ -124,12 +161,12 @@ async def test_run_reminder_domain_forwards_failed_port_result():
         envelope = await run_reminder_domain(
             input_message="set a reminder",
             run_context=_run_context(),
-            tool_results=tool_results,
+            domain_results=domain_results,
         )
 
-    assert envelope["ok"] is False
-    assert envelope["error"] == "reminder_service_unavailable"
-    assert len(tool_results) == 1
+    assert envelope["outcome"] == "failed"
+    assert envelope["error"]["code"] == "reminder_service_unavailable"
+    assert len(domain_results) == 1
 
 
 @pytest.mark.asyncio
