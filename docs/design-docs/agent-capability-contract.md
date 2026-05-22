@@ -35,6 +35,20 @@ That contract owns reminder creation, mutation, listing, firing, visibility,
 and callback semantics. Agno tools, bridge APIs, future MCP tools, future CLI
 commands, and the web board are adapters over that contract.
 
+## Agent Runtime Result Shape
+
+Domain tools that execute business-domain behavior for the Interaction Agent
+return `DomainExecutionResult`, not `CapabilityResult`. `DomainExecutionResult`
+is the typed domain-to-Interaction-Agent contract for Reminder and Scheduling:
+it names the domain outcome, operation facts, missing fields, safety boundary,
+reply contract, and structured error.
+
+`CapabilityResult` remains the utility-tool result shape for non-domain
+capabilities such as timezone, calendar import, and URL context. It must not be
+used as the Reminder or Scheduling domain execution contract, and domain facts
+must not be reconstructed from `summary`, `visible_summary`, or
+`synthesis_context`.
+
 ## Shared Contract Requirements
 
 Capability contracts should define, when relevant:
