@@ -713,3 +713,139 @@ def test_create_interaction_agent_domain_tools_have_stop_after_tool_call_false()
     tool_flags = {tool.name: tool.stop_after_tool_call for tool in agent.tools}
     assert tool_flags["reminder_domain"] is False
     assert tool_flags["scheduling_domain"] is False
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
+    monkeypatch,
+):
+    calls = 0
+    envelope = {
+        "name": "reminder",
+        "ok": True,
+        "content": {"visible_summary": "已设好提醒"},
+        "visible_summary": "已设好提醒",
+        "synthesis_context": None,
+        "error": None,
+    }
+
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        tool_results,
+    ):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0.01)
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+    reminder_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
+    )
+
+    first, second = await asyncio.gather(reminder_domain(), reminder_domain())
+
+    assert calls == 1
+    assert first is envelope
+    assert second is envelope
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
+    monkeypatch,
+):
+    captured = {}
+    run_context = _run_context()
+    tool_results = []
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "visible_summary": "已确认预约",
+        "synthesis_context": None,
+        "content": {"visible_summary": "已确认预约"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        tool_results,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "run_context": run_context,
+                "tool_results": tool_results,
+            }
+        )
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=run_context,
+        agent_input=_agent_input(),
+        input_message="confirm it",
+        tool_results=tool_results,
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(intent="confirm_appointment: id=appt_1")
+
+    assert result is envelope
+    assert captured == {
+        "input_message": "confirm it",
+        "intent": "confirm_appointment: id=appt_1",
+        "run_context": run_context,
+        "tool_results": tool_results,
+    }
+
+
+def test_create_interaction_agent_resolves_default_session_db(monkeypatch):
+    resolved_db = object()
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "get_agent_session_db",
+        lambda: resolved_db,
+        raising=False,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert agent.kwargs["db"] is resolved_db
+    assert agent.kwargs["markdown"] is False
