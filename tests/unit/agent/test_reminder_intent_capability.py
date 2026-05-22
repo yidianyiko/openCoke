@@ -11,6 +11,12 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 
 
 def _run_context() -> AgentRunContext:
@@ -25,6 +31,90 @@ def _run_context() -> AgentRunContext:
         recent_chat_history="",
         current_time=datetime(2026, 5, 6, 1, 0, tzinfo=UTC),
     )
+
+
+def _executed_result(summary: str = "ok") -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"summary": summary},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("not_created",),
+        ),
+    )
+
+
+def _failed_result(code: str, summary: str = "") -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(),
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            prohibited_claims=("reminder_created",),
+        ),
+        error=DomainError(
+            code=code,
+            message=summary or code,
+            retryable=False,
+        ),
+    )
+
+
+def _assert_executed(result: DomainExecutionResult) -> None:
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "executed"
+
+
+def _assert_needs_clarification(
+    result: DomainExecutionResult,
+    *,
+    safety_boundary: str | None = None,
+    missing_fields: tuple[str, ...] | None = None,
+    error_code: str | None = None,
+) -> None:
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "needs_clarification"
+    assert result.reply_contract.intent == "ask_clarification"
+    assert result.reply_contract.prohibited_claims == ("reminder_created",)
+    if safety_boundary is not None:
+        assert result.safety_boundary == safety_boundary
+    if missing_fields is not None:
+        if safety_boundary == "high_frequency_requires_end":
+            assert "end_time" in result.missing_fields
+        else:
+            assert result.missing_fields == missing_fields
+    if error_code is not None:
+        assert result.error is not None
+        assert result.error.code == error_code
+
+
+def _assert_no_action(result: DomainExecutionResult) -> None:
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "no_action"
+    assert result.operations == ()
+    assert result.reply_contract.intent == "direct_answer"
+
+
+def _assert_failed(result: DomainExecutionResult, code: str) -> None:
+    assert isinstance(result, DomainExecutionResult)
+    assert result.domain == "reminder"
+    assert result.outcome == "failed"
+    assert result.error is not None
+    assert result.error.code == code
 
 
 
@@ -140,21 +230,14 @@ async def test_reminder_intent_port_runs_detector_and_executor():
     class FakeExecutor:
         def execute(self, received_decision, run_context):
             assert received_decision is decision
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：drink water"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：drink water")
 
     result = await ReminderIntentPort(
         detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("18:00 remind me to drink water", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：drink water"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -190,13 +273,7 @@ async def test_reminder_intent_port_creates_primary_detector_per_invocation(
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": f"已创建提醒：{received_decision.title}"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result(f"已创建提醒：{received_decision.title}")
 
     monkeypatch.setattr(
         reminder_intent,
@@ -208,8 +285,8 @@ async def test_reminder_intent_port_creates_primary_detector_per_invocation(
     first_result = await port.run("18:00 remind me to drink water", _run_context())
     second_result = await port.run("18:00 remind me to drink water", _run_context())
 
-    assert first_result.content["summary"] == "已创建提醒：drink water"
-    assert second_result.content["summary"] == "已创建提醒：drink water"
+    _assert_executed(first_result)
+    _assert_executed(second_result)
     assert len(created_agents) == 2
     assert [agent.calls for agent in created_agents] == [1, 1]
 
@@ -249,21 +326,14 @@ async def test_reminder_intent_port_accepts_json_string_detector_content():
             assert received_decision.intent_type == "crud"
             assert received_decision.action == "batch"
             assert [op.title for op in received_decision.operations] == ["喝水", "锻炼"]
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：喝水；已创建提醒：锻炼"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：喝水；已创建提醒：锻炼")
 
     result = await ReminderIntentPort(
         detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("今天17:57提醒我喝水，每天17:58提醒我锻炼", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：喝水；已创建提醒：锻炼"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -299,21 +369,14 @@ async def test_reminder_intent_port_salvages_json_string_with_invalid_workflow_u
             assert received_decision.action == "create"
             assert received_decision.title == "更新登记表，15号的人也要更新"
             assert received_decision.trigger_at == "2026-05-12T10:00:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：更新登记表，15号的人也要更新"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：更新登记表，15号的人也要更新")
 
     result = await ReminderIntentPort(
         detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("明天上午10点提醒我更新登记表，15号的人也要更新", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：更新登记表，15号的人也要更新"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -333,8 +396,10 @@ async def test_reminder_intent_port_fails_when_primary_has_no_executable_decisio
         command_executor=FakeExecutor(),
     ).run("17:57提醒我喝水", _run_context())
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(
+        result,
+        error_code="ReminderDetectInvalidDecision",
+    )
 
 
 @pytest.mark.asyncio
@@ -360,12 +425,11 @@ async def test_reminder_intent_port_returns_primary_weekday_range_clarification(
         command_executor=FakeExecutor(),
     ).run("每个星期一到星期五的晚上22∶12提醒我洗澡", _run_context())
 
-    assert result.ok is True
-    assert result.content == {
-        "action": "clarify",
-        "intent_type": "clarify",
-        "summary": "你想在那天几点提醒你？",
-    }
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -391,8 +455,11 @@ async def test_reminder_intent_port_returns_primary_clocked_task_clarification()
         command_executor=FakeExecutor(),
     ).run("19点30分，我要开始背诵毛概，请提醒我", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "你想让我提醒你做什么？"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -420,9 +487,11 @@ async def test_reminder_intent_port_failcloses_single_create_title_before_remind
         command_executor=FakeExecutor(),
     ).run("网球帮我设置到下周一中午12点，提前半小时提醒我出门", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert "什么时候提醒" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="deadline_without_trigger",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -442,8 +511,7 @@ async def test_reminder_intent_port_primary_timeout_fails_without_retry():
         command_executor=FakeExecutor(),
     ).run("网球帮我设置到下周一中午12点，提前半小时提醒我出门", _run_context())
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectTimeout"
+    _assert_needs_clarification(result, error_code="ReminderDetectTimeout")
 
 
 @pytest.mark.asyncio
@@ -469,8 +537,11 @@ async def test_reminder_intent_port_returns_relative_delay_clarification():
         command_executor=FakeExecutor(),
     ).run("开始写作，请25分钟之后提醒我", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "提醒设置还没完成。请确认具体提醒时间和提醒内容。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -500,9 +571,11 @@ async def test_reminder_intent_port_clarifies_next_whole_hour_misread_as_cadence
         command_executor=FakeExecutor(),
     ).run("画画，下个整点再叫我吧", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert "持续到什么时候结束" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
 
 
 @pytest.mark.asyncio
@@ -540,8 +613,7 @@ async def test_reminder_intent_port_rejects_when_multiple_scheduled_clauses_are_
         _run_context(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
     assert executor.received == []
 
 
@@ -579,8 +651,7 @@ async def test_reminder_intent_port_rejects_back_reference_routine_time_drop():
         _run_context(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
     assert executor.received == []
 
 
@@ -620,9 +691,11 @@ async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
         command_executor=FailingExecutor(),
     ).run("每小时提醒我一次冥想，从下午五点开始", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
 
 
 @pytest.mark.asyncio
@@ -661,9 +734,11 @@ async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_ev
         command_executor=FailingExecutor(),
     ).run("冥想可以每个小时提醒我做一次冥想吗", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
 
 
 @pytest.mark.asyncio
@@ -703,10 +778,10 @@ async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_freq
         command_executor=FailingExecutor(),
     ).run("每个小时一次提醒我正念冥想", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert (
-        result.content["summary"] == "正念冥想要持续到什么时候结束？请告诉我截止时间。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
     )
 
 
@@ -737,9 +812,11 @@ async def test_reminder_intent_port_blocks_unbounded_hourly_rrule():
         command_executor=FailingExecutor(),
     ).run("每小时提醒我一次冥想，从下午五点开始", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("trigger_at", "end_time"),
+    )
 
 
 @pytest.mark.asyncio
@@ -766,13 +843,7 @@ async def test_reminder_intent_port_clarifies_bounded_cadence_with_deadline_loss
 
         def execute(self, received_decision, run_context):
             self.decisions.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "ok"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("ok")
 
     executor = FakeExecutor()
 
@@ -781,10 +852,12 @@ async def test_reminder_intent_port_clarifies_bounded_cadence_with_deadline_loss
         command_executor=executor,
     ).run("每小时打卡，到晚上8点", _run_context())
 
-    assert result.ok is True
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
     assert executor.decisions == []
-    assert result.content["action"] == "clarify"
-    assert "截止条件" in result.content["summary"]
 
 
 @pytest.mark.asyncio
@@ -813,21 +886,8 @@ async def test_reminder_intent_port_returns_executor_failure_without_recurring_r
         def execute(self, received_decision, run_context):
             self.decisions.append(received_decision)
             if len(self.decisions) == 1:
-                return SimpleNamespace(
-                    name="reminder",
-                    ok=False,
-                    content={
-                        "summary": "创建提醒失败：Recurring reminder schedule has no future fire time"
-                    },
-                    error="InvalidSchedule",
-                )
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "ok"},
-                error=None,
-                metadata={},
-            )
+                return _failed_result("InvalidSchedule", "创建提醒失败：Recurring reminder schedule has no future fire time")
+            return _executed_result("ok")
 
     executor = FakeExecutor()
 
@@ -836,9 +896,8 @@ async def test_reminder_intent_port_returns_executor_failure_without_recurring_r
         command_executor=executor,
     ).run("每小时打卡，到晚上8点", _run_context())
 
-    assert result.ok is False
+    _assert_failed(result, "InvalidSchedule")
     assert len(executor.decisions) == 1
-    assert result.error == "InvalidSchedule"
 
 
 @pytest.mark.asyncio
@@ -869,9 +928,11 @@ async def test_reminder_intent_port_blocks_hourly_rrule_with_separate_deadline()
         command_executor=FailingExecutor(),
     ).run("冥想可以每个小时提醒我做一次冥想吗", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "冥想要持续到什么时候结束？请告诉我截止时间。"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
 
 
 @pytest.mark.asyncio
@@ -892,21 +953,18 @@ async def test_reminder_intent_port_returns_primary_clarification_without_retryi
         def execute(self, received_decision, run_context):
             assert received_decision.action == "create"
             assert received_decision.title == "学英语"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：学英语"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：学英语")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("你可以没太难18:00 提醒我学英语么", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "你是想每天提醒还是只提醒一次？"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -927,9 +985,11 @@ async def test_reminder_intent_port_returns_primary_clarification_directly():
         detector_agent=PrimaryAgent(),
     ).run("提醒我下周二去杭州", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert result.content["summary"] == "下周二几点提醒你去杭州？"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -950,13 +1010,7 @@ async def test_reminder_intent_port_failcloses_when_title_drops_quoted_content()
     class FakeExecutor:
         def execute(self, received_decision, run_context):
             assert received_decision.title == "思考：工作应该去做“非我不可”的事情"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：思考：工作应该去做“非我不可”的事情"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：思考：工作应该去做“非我不可”的事情")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
@@ -966,8 +1020,7 @@ async def test_reminder_intent_port_failcloses_when_title_drops_quoted_content()
         _run_context(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
 
 
 @pytest.mark.asyncio
@@ -988,13 +1041,7 @@ async def test_reminder_intent_port_failcloses_when_day_of_month_is_dropped():
     class FakeExecutor:
         def execute(self, received_decision, run_context):
             assert received_decision.trigger_at == "2026-05-22T09:00:00+00:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：给医院打电话预约手术"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：给医院打电话预约手术")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
@@ -1004,8 +1051,7 @@ async def test_reminder_intent_port_failcloses_when_day_of_month_is_dropped():
         _run_context(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
 
 
 @pytest.mark.asyncio
@@ -1030,13 +1076,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
             assert received_decision.trigger_at == "2026-05-06T11:00:00+00:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：离开时手机"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：离开时手机")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -1048,8 +1088,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
     )
 
     assert len(executor.received) == 1
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：离开时手机"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1082,21 +1121,14 @@ async def test_reminder_intent_port_corrects_bare_numeric_clock_to_user_local_ti
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-12T09:20:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：回家开会"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：回家开会")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("9:20 提醒我回家开会", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：回家开会"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1129,21 +1161,14 @@ async def test_reminder_intent_port_treats_same_hour_bare_colon_as_pm():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T16:37:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：吃饭"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：吃饭")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("4:37提醒我吃饭", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：吃饭"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1176,21 +1201,14 @@ async def test_reminder_intent_port_preserves_explicit_clock_minutes():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T13:50:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：起床"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：起床")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("下午 1 点 50 分提醒我起床", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：起床"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1223,21 +1241,14 @@ async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker()
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-12T09:10:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：内科横向刷题结束"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：内科横向刷题结束")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("9点10提醒我内科横向刷题结束", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：内科横向刷题结束"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1270,21 +1281,14 @@ async def test_reminder_intent_port_parses_zero_prefixed_chinese_minutes():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T17:03:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：出门"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：出门")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("下午五点零三分提醒我出门", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：出门"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1317,21 +1321,14 @@ async def test_reminder_intent_port_preserves_guo_minute_phrase():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T17:05:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：出门"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：出门")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("五点过五分提醒我出门", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：出门"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1364,21 +1361,14 @@ async def test_reminder_intent_port_preserves_minus_minute_phrase():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T17:55:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：出门"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：出门")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("六点差五分的时候提醒我一下出门", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：出门"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1412,21 +1402,14 @@ async def test_reminder_intent_port_treats_every_night_as_pm_clock():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-12T22:30:00+09:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：洗漱"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：洗漱")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("设置一个每晚10:30洗漱的提醒", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：洗漱"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1459,21 +1442,14 @@ async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_t
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T06:56:00+00:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：起来休息，倒水喝"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：起来休息，倒水喝")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("25分钟后提醒我起来休息，倒水喝", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：起来休息，倒水喝"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1506,21 +1482,14 @@ async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T02:40:00+00:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：check on 我的结论"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：check on 我的结论")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("yes, 过20min提醒我，check on 我的结论", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：check on 我的结论"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1553,21 +1522,14 @@ async def test_reminder_intent_port_corrects_timer_phrase_relative_delay():
         def execute(self, received_decision, received_context):
             assert received_context is run_context
             assert received_decision.trigger_at == "2026-05-11T13:02:55+00:00"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：起来休息，喝水"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：起来休息，喝水")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("开始25分钟计时，计时结束后提醒我起来休息，喝水", run_context)
 
-    assert result.ok is True
-    assert result.content["summary"] == "已创建提醒：起来休息，喝水"
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -1608,13 +1570,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations(
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：完成学习任务打卡"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：完成学习任务打卡")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -1622,7 +1578,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations(
         command_executor=executor,
     ).run("0点一次，0点半一次，2点一次，提醒我完成学习任务打卡", _run_context())
 
-    assert result.ok is True
+    _assert_executed(result)
     assert [op.trigger_at for op in executor.received[0].operations] == [
         "2026-05-07T00:00:00+00:00",
         "2026-05-07T00:30:00+00:00",
@@ -1652,22 +1608,8 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
             if received_decision is primary_decision:
-                return SimpleNamespace(
-                    name="reminder",
-                    ok=False,
-                    content={
-                        "summary": "这个提醒时间已经过去了，请告诉我一个未来的时间。"
-                    },
-                    error="InvalidSchedule",
-                    metadata={},
-                )
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：离开时手机"},
-                error=None,
-                metadata={},
-            )
+                return _failed_result("InvalidSchedule", "这个提醒时间已经过去了，请告诉我一个未来的时间。")
+            return _executed_result("已创建提醒：离开时手机")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -1676,8 +1618,7 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
     ).run("今天十一点开始提醒我离开时手机", _run_context())
 
     assert executor.received == [primary_decision]
-    assert result.ok is False
-    assert result.error == "InvalidSchedule"
+    _assert_failed(result, "InvalidSchedule")
 
 
 @pytest.mark.asyncio
@@ -1704,9 +1645,11 @@ async def test_reminder_intent_port_clarifies_date_only_create():
         command_executor=FakeExecutor(),
     ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
 
-    assert result.ok is True
-    assert result.content["intent_type"] == "clarify"
-    assert "几点" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="date_only_missing_time",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -1733,12 +1676,11 @@ async def test_reminder_intent_port_clarifies_completion_condition_without_time(
         command_executor=FakeExecutor(),
     ).run("我现在要先看两篇文章，看完继续提醒我进入论文研究", _run_context())
 
-    assert result.ok is True
-    assert result.content == {
-        "action": "clarify",
-        "intent_type": "clarify",
-        "summary": "我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
-    }
+    _assert_needs_clarification(
+        result,
+        safety_boundary="completion_condition_missing_time",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -1772,9 +1714,11 @@ async def test_reminder_intent_port_clarifies_date_only_batch_create():
         command_executor=FakeExecutor(),
     ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
 
-    assert result.ok is True
-    assert result.content["intent_type"] == "clarify"
-    assert "几点" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="date_only_missing_time",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -1813,9 +1757,11 @@ async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
         command_executor=FakeExecutor(),
     ).run("提醒我周四下午四五点，准备下resume", _run_context())
 
-    assert result.ok is True
-    assert result.content["intent_type"] == "clarify"
-    assert "具体几点" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_time_range",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -1842,9 +1788,11 @@ async def test_reminder_intent_port_clarifies_status_only_reminder_content():
         command_executor=FakeExecutor(),
     ).run("十一点提醒我吧 还没弄完", _run_context())
 
-    assert result.ok is True
-    assert result.content["intent_type"] == "clarify"
-    assert "提醒你做什么" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="missing_reminder_content",
+        missing_fields=("title",),
+    )
 
 
 @pytest.mark.asyncio
@@ -1880,13 +1828,7 @@ async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb(
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：起床"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：起床")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -1894,7 +1836,7 @@ async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb(
         command_executor=executor,
     ).run("1点睡觉，明天6点半叫我起床", _run_context())
 
-    assert result.ok is True
+    _assert_executed(result)
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["起床"]
 
@@ -1932,13 +1874,7 @@ async def test_reminder_intent_port_drops_batch_operation_without_local_schedule
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：收起全天学习的作业"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：收起全天学习的作业")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -1946,7 +1882,7 @@ async def test_reminder_intent_port_drops_batch_operation_without_local_schedule
         command_executor=executor,
     ).run("明天除了提醒任务之后，到晚上9:00要收起我全天学习的作业哦", _run_context())
 
-    assert result.ok is True
+    _assert_executed(result)
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == [
         "收起全天学习的作业"
@@ -1970,21 +1906,18 @@ async def test_reminder_intent_port_returns_clarification_for_mixed_clocked_clau
     class FakeExecutor:
         def execute(self, received_decision, run_context):
             assert received_decision.title == "收起全天学习的作业"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：收起全天学习的作业"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：收起全天学习的作业")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("明天除了提醒任务之后，到晚上9:00要收起我全天学习的作业哦", _run_context())
 
-    assert result.ok is True
-    assert result.content["summary"] == "具体什么时间提醒你？"
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("target_reminder",),
+    )
 
 
 @pytest.mark.asyncio
@@ -2031,13 +1964,7 @@ async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：打卡"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：打卡")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2048,7 +1975,7 @@ async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence
         _run_context(),
     )
 
-    assert result.ok is True
+    _assert_executed(result)
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["打卡"]
 
@@ -2088,13 +2015,7 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：打卡"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：打卡")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2108,7 +2029,7 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
         _run_context(),
     )
 
-    assert result.ok is True
+    _assert_executed(result)
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["打卡"]
 
@@ -2136,13 +2057,7 @@ async def test_reminder_intent_port_clarifies_today_time_range_recurring_compres
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：看法考网课；已创建提醒：健身"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：看法考网课；已创建提醒：健身")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2153,10 +2068,12 @@ async def test_reminder_intent_port_clarifies_today_time_range_recurring_compres
         _run_context(),
     )
 
-    assert result.ok is True
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_time_range",
+        missing_fields=("trigger_at",),
+    )
     assert executor.received == []
-    assert result.content["action"] == "clarify"
-    assert "具体几点" in result.content["summary"]
 
 
 @pytest.mark.asyncio
@@ -2194,8 +2111,11 @@ async def test_reminder_intent_port_clarifies_large_today_time_range_plan():
         _run_context(),
     )
 
-    assert result.content["action"] == "clarify"
-    assert "具体几点" in result.content["summary"]
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_time_range",
+        missing_fields=("trigger_at",),
+    )
 
 
 @pytest.mark.asyncio
@@ -2212,13 +2132,7 @@ async def test_reminder_intent_port_fails_invalid_structured_output_without_seco
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：打卡"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：打卡")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2229,8 +2143,7 @@ async def test_reminder_intent_port_fails_invalid_structured_output_without_seco
         _run_context(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
     assert executor.received == []
 
 
@@ -2257,8 +2170,7 @@ async def test_reminder_intent_port_treats_standalone_english_opt_out_as_no_acti
         command_executor=FakeExecutor(),
     ).run("All good, no reminders pls", _run_context())
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2284,8 +2196,7 @@ async def test_reminder_intent_port_suppresses_delete_for_standalone_english_opt
         command_executor=FakeExecutor(),
     ).run("All good, no reminders pls", _run_context())
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2311,8 +2222,7 @@ async def test_reminder_intent_port_suppresses_management_for_alarm_acknowledgem
         command_executor=FakeExecutor(),
     ).run("谢谢闹钟", _run_context())
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2341,8 +2251,7 @@ async def test_reminder_intent_port_treats_behavior_meta_discussion_as_no_action
         _run_context(),
     )
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2371,8 +2280,7 @@ async def test_reminder_intent_port_treats_feature_work_topic_as_no_action():
         _run_context(),
     )
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2390,8 +2298,7 @@ async def test_reminder_intent_port_does_not_retry_feature_work_discussion():
         _run_context(),
     )
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2411,8 +2318,7 @@ async def test_reminder_intent_port_suppresses_invalid_structured_for_english_op
         command_executor=FakeExecutor(),
     ).run("All good, no reminders pls", _run_context())
 
-    assert result.ok is True
-    assert result.content == {"action": "none", "intent_type": "discussion"}
+    _assert_no_action(result)
 
 
 @pytest.mark.asyncio
@@ -2438,13 +2344,7 @@ async def test_reminder_intent_port_clarifies_bounded_cadence_deadline_loss_with
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：跑步"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：跑步")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2452,10 +2352,12 @@ async def test_reminder_intent_port_clarifies_bounded_cadence_deadline_loss_with
         command_executor=executor,
     ).run("12月7号前，每天晚上八点提醒我跑步", _run_context())
 
-    assert result.ok is True
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
     assert executor.received == []
-    assert result.content["action"] == "clarify"
-    assert "截止条件" in result.content["summary"]
 
 
 @pytest.mark.asyncio
@@ -2482,13 +2384,7 @@ async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：吃药"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：吃药")
 
     executor = FakeExecutor()
     result = await ReminderIntentPort(
@@ -2497,7 +2393,7 @@ async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss
     ).run("每天睡前提醒我吃药", _run_context())
 
     assert executor.received == [primary_decision]
-    assert result.ok is True
+    _assert_executed(result)
 
 
 @pytest.mark.asyncio
@@ -2527,12 +2423,11 @@ async def test_reminder_intent_port_failcloses_bounded_cadence_deadline_loss():
         command_executor=FakeExecutor(),
     ).run("12月7号前，每天晚上八点提醒我跑步", _run_context())
 
-    assert result.content == {
-        "action": "clarify",
-        "intent_type": "clarify",
-        "summary": "跑步有截止条件，请确认截止日期和最后一次提醒时间。",
-    }
-    assert result.metadata["durable_write"] is False
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
 
 
 @pytest.mark.asyncio
@@ -2547,11 +2442,7 @@ async def test_reminder_intent_port_failcloses_when_primary_output_is_invalid():
         detector_agent=PrimaryAgent(),
     ).run("帮我设置一个本周六订蛋糕的提醒，预定链接是：#小程序://x", _run_context())
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
-    assert result.content["action"] == "clarify"
-    assert "提醒设置还没完成" in result.content["summary"]
-    assert result.metadata["durable_write"] is False
+    _assert_needs_clarification(result, error_code="ReminderDetectInvalidDecision")
 
 
 @pytest.mark.asyncio
@@ -2569,21 +2460,14 @@ async def test_reminder_intent_port_fails_when_primary_detector_times_out(
     class FakeExecutor:
         def execute(self, received_decision, run_context):
             assert received_decision.action == "create"
-            return SimpleNamespace(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：喝水"},
-                error=None,
-                metadata={},
-            )
+            return _executed_result("已创建提醒：喝水")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
     ).run("17:57提醒我喝水", _run_context())
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectTimeout"
+    _assert_needs_clarification(result, error_code="ReminderDetectTimeout")
 
 
 @pytest.mark.asyncio
@@ -2605,11 +2489,12 @@ async def test_reminder_intent_port_timeout_asks_deadline_for_high_frequency_inp
         timeout=0.5,
     )
 
-    assert result.ok is True
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("end_time",),
+    )
     assert result.error is None
-    assert result.content["action"] == "clarify"
-    assert "持续到什么时候结束" in result.content["summary"]
-    assert result.metadata["durable_write"] is False
 
 
 @pytest.mark.asyncio
@@ -2628,8 +2513,8 @@ async def test_reminder_intent_port_primary_timeout_asks_window_for_whole_hour_i
         detector_agent=SlowPrimaryAgent(),
     ).run("每个整点喊我打卡吧", _run_context())
 
-    assert result.ok is True
-    assert result.content["action"] == "clarify"
-    assert "从什么时候开始" in result.content["summary"]
-    assert "持续到什么时候结束" in result.content["summary"]
-    assert result.metadata["durable_write"] is False
+    _assert_needs_clarification(
+        result,
+        safety_boundary="high_frequency_requires_end",
+        missing_fields=("trigger_at", "end_time"),
+    )

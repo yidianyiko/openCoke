@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -16,7 +16,11 @@ from agent.agno_agent.adapters.reminder_command_executor import (
 )
 from agent.agno_agent.prompts.reminder_intent import build_reminder_intent_input
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.result import CapabilityResult
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    ReplyContract,
+)
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
@@ -145,7 +149,7 @@ class ReminderIntentPort:
         input_message: str,
         run_context: AgentRunContext,
         args: dict[str, Any] | None = None,
-    ) -> CapabilityResult:
+    ) -> DomainExecutionResult:
         detector_run_context = run_context
         session_state = {
             "user": {
@@ -257,12 +261,7 @@ class ReminderIntentPort:
             return _clarification_result(decision)
         intent_type = _decision_value(decision, "intent_type")
         if intent_type in {"discussion", "none"}:
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"action": "none", "intent_type": intent_type},
-                metadata={"durable_write": False},
-            )
+            return _no_action_discussion_result()
         if not _should_execute_decision(decision):
             return _fallback_clarification_for_input(
                 input_message,
@@ -318,17 +317,7 @@ class ReminderIntentPort:
             )
         if _should_reject_missing_scheduled_clauses(input_message, decision):
             return _invalid_decision_clarification_result()
-        result = self.command_executor.execute(decision, run_context)
-        return CapabilityResult(
-            name=result.name,
-            ok=result.ok,
-            content=dict(result.content),
-            error=result.error,
-            metadata={
-                **dict(getattr(result, "metadata", {}) or {}),
-                "durable_write": True,
-            },
-        )
+        return self.command_executor.execute(decision, run_context)
 
 
 def _should_execute_decision(decision: Any) -> bool:
@@ -1820,23 +1809,19 @@ def _input_is_reminder_feature_work_topic(text: str) -> bool:
     )
 
 
-def _clarification_result(decision: Any) -> CapabilityResult:
+def _clarification_result(decision: Any) -> DomainExecutionResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": question,
-        },
-        metadata={"durable_write": False},
+    return _needs_clarification_result(
+        summary=question or "请补充提醒信息。",
+        missing_fields=("target_reminder",),
+        safety_boundary="ambiguous_request",
+        required_questions=("target_reminder",),
     )
 
 
 def _unbounded_high_frequency_cadence_clarification_result(
     decision: Any,
-) -> CapabilityResult:
+) -> DomainExecutionResult:
     title = str(_decision_value(decision, "title") or "").strip()
     if not title:
         operations = _decision_value(decision, "operations") or []
@@ -1845,69 +1830,58 @@ def _unbounded_high_frequency_cadence_clarification_result(
             if title:
                 break
     subject = title or "这个高频提醒"
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": f"{subject}要持续到什么时候结束？请告诉我截止时间。",
-        },
-        metadata={"durable_write": False},
+    return _needs_clarification_result(
+        summary=f"{subject}要持续到什么时候结束？请告诉我截止时间。",
+        missing_fields=("end_time",),
+        safety_boundary="high_frequency_requires_end",
+        required_questions=("end_time",),
     )
 
 
 def _bounded_cadence_deadline_loss_clarification_result(
     decision: Any,
-) -> CapabilityResult:
+) -> DomainExecutionResult:
     title = str(_decision_value(decision, "title") or "").strip()
     subject = title or "这个重复提醒"
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": f"{subject}有截止条件，请确认截止日期和最后一次提醒时间。",
-        },
-        metadata={"durable_write": False},
+    return _needs_clarification_result(
+        summary=f"{subject}有截止条件，请确认截止日期和最后一次提醒时间。",
+        missing_fields=("end_time",),
+        safety_boundary="high_frequency_requires_end",
+        required_questions=("end_time",),
     )
 
 
-def _high_frequency_input_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "这个高频提醒要从什么时候开始，持续到什么时候结束？请告诉我开始时间和截止时间。",
-        },
-        metadata={"durable_write": False},
+def _high_frequency_input_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="这个高频提醒要从什么时候开始，持续到什么时候结束？请告诉我开始时间和截止时间。",
+        missing_fields=("trigger_at", "end_time"),
+        safety_boundary="high_frequency_requires_end",
+        required_questions=("trigger_at", "end_time"),
     )
 
 
 def _fallback_clarification_for_input(
     input_message: str,
-    fallback: CapabilityResult,
-) -> CapabilityResult:
+    fallback: DomainExecutionResult,
+) -> DomainExecutionResult:
     if _input_is_standalone_reminder_opt_out(input_message):
         return _no_action_discussion_result()
     if _input_has_high_frequency_without_deadline(input_message):
         return _high_frequency_input_clarification_result()
     if _input_is_plain_schedule_statement_without_reminder_request(input_message):
         return _no_action_discussion_result()
-    if fallback.error in {
+    error_code = fallback.error.code if fallback.error else ""
+    if error_code in {
         "ReminderDetectInvalidDecision",
         "ReminderDetectTimeout",
     } and _input_has_date_reference_without_clock(input_message):
         return _date_only_missing_time_clarification_result()
-    if fallback.error in {
+    if error_code in {
         "ReminderDetectInvalidDecision",
         "ReminderDetectTimeout",
     } and _input_has_event_time_with_vague_advance_request(input_message):
         return _advance_offset_missing_clarification_result()
-    if fallback.error == "ReminderDetectInvalidDecision":
+    if error_code == "ReminderDetectInvalidDecision":
         if _input_has_concrete_time_without_reminder_content(input_message):
             return _missing_reminder_content_clarification_result()
         if _input_has_one_shot_deadline_without_trigger(input_message):
@@ -1928,116 +1902,127 @@ def _input_has_date_reference_without_clock(input_message: str) -> bool:
     return has_date_reference and not bool(_BARE_CLOCK_PATTERN.search(current_user_text))
 
 
-def _timeout_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=False,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
-        },
-        error="ReminderDetectTimeout",
-        metadata={"durable_write": False},
+def _timeout_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+        missing_fields=("title", "trigger_at"),
+        safety_boundary=None,
+        required_questions=("title", "trigger_at"),
+        error=DomainError(
+            code="ReminderDetectTimeout",
+            message="Reminder detect agent timed out",
+            retryable=True,
+            detail={},
+        ),
     )
 
 
-def _no_action_discussion_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={"action": "none", "intent_type": "discussion"},
-        metadata={"durable_write": False},
+def _no_action_discussion_result() -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="no_action",
+        operations=(),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="direct_answer",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
     )
 
 
-def _deadline_without_trigger_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "这是截止时间。你想在这个时间之前的什么时候提醒你？",
-        },
-        metadata={"durable_write": False},
+def _deadline_without_trigger_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="这是截止时间。你想在这个时间之前的什么时候提醒你？",
+        missing_fields=("trigger_at",),
+        safety_boundary="deadline_without_trigger",
+        required_questions=("trigger_at",),
     )
 
 
-def _date_only_missing_time_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "你想在那天几点提醒你？",
-        },
-        metadata={"durable_write": False},
+def _date_only_missing_time_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="你想在那天几点提醒你？",
+        missing_fields=("trigger_at",),
+        safety_boundary="date_only_missing_time",
+        required_questions=("trigger_at",),
     )
 
 
-def _ambiguous_time_range_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "这个时间范围不够精确，你想在具体几点提醒你？",
-        },
-        metadata={"durable_write": False},
+def _ambiguous_time_range_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="这个时间范围不够精确，你想在具体几点提醒你？",
+        missing_fields=("trigger_at",),
+        safety_boundary="ambiguous_time_range",
+        required_questions=("trigger_at",),
     )
 
 
-def _completion_condition_missing_time_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
-        },
-        metadata={"durable_write": False},
+def _completion_condition_missing_time_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="我不能自动知道你什么时候完成。请告诉我具体什么时候提醒你。",
+        missing_fields=("trigger_at",),
+        safety_boundary="completion_condition_missing_time",
+        required_questions=("trigger_at",),
     )
 
 
-def _advance_offset_missing_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "你想提前多久提醒你？",
-        },
-        metadata={"durable_write": False},
+def _advance_offset_missing_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="你想提前多久提醒你？",
+        missing_fields=("advance_offset",),
+        safety_boundary="advance_offset_missing",
+        required_questions=("advance_offset",),
     )
 
 
-def _missing_reminder_content_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=True,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "你想让我提醒你做什么？",
-        },
-        metadata={"durable_write": False},
+def _missing_reminder_content_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="你想让我提醒你做什么？",
+        missing_fields=("title",),
+        safety_boundary="missing_reminder_content",
+        required_questions=("title",),
     )
 
 
-def _invalid_decision_clarification_result() -> CapabilityResult:
-    return CapabilityResult(
-        name="reminder",
-        ok=False,
-        content={
-            "action": "clarify",
-            "intent_type": "clarify",
-            "summary": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
-        },
-        error="ReminderDetectInvalidDecision",
-        metadata={"durable_write": False},
+def _invalid_decision_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
+        missing_fields=("title", "trigger_at"),
+        safety_boundary=None,
+        required_questions=("title", "trigger_at"),
+        error=DomainError(
+            code="ReminderDetectInvalidDecision",
+            message="Reminder detect agent returned an invalid decision",
+            retryable=True,
+            detail={},
+        ),
+    )
+
+
+def _needs_clarification_result(
+    *,
+    summary: str,
+    missing_fields: Sequence[str],
+    safety_boundary: str | None,
+    required_questions: Sequence[str],
+    error: DomainError | None = None,
+) -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="needs_clarification",
+        operations=(),
+        missing_fields=missing_fields,
+        safety_boundary=safety_boundary,
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=(),
+            required_questions=required_questions,
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
+        error=error,
     )
