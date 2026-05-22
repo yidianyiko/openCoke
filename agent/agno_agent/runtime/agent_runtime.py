@@ -21,6 +21,12 @@ from agent.agno_agent.runtime.result import (
     RuntimeErrorDisposition,
     VisibleMessage,
 )
+from agent.agno_agent.runtime.scheduling_types import (
+    SchedulingBookableWindowPreview,
+    SchedulingBookableWindowPreviewItem,
+    SchedulingBookableWindowRule,
+    _compact_scheduling_args,
+)
 from agent.agno_agent.runtime.session import get_agent_session_db
 
 logger = logging.getLogger(__name__)
@@ -45,27 +51,6 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
-
-
-class SchedulingBookableWindowRule(BaseModel):
-    type: str
-    days_of_week: list[int] | None = None
-    time_start: str | None = None
-    time_end: str | None = None
-    timezone: str | None = None
-    effective_from: str | None = None
-    effective_until: str | None = None
-    date: str | None = None
-
-
-class SchedulingBookableWindowPreviewItem(BaseModel):
-    rule: SchedulingBookableWindowRule
-    fingerprint: str
-
-
-class SchedulingBookableWindowPreview(BaseModel):
-    previewId: str
-    windows: list[SchedulingBookableWindowPreviewItem]
 
 
 def _float_env(name: str, default: float) -> float:
@@ -354,14 +339,6 @@ def build_capability_tool_wrappers(
         )
 
     return wrappers
-
-
-def _compact_scheduling_args(args: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: _jsonable(value)
-        for key, value in args.items()
-        if value is not None and value != ""
-    }
 
 
 def _string_content(value: Any) -> str:

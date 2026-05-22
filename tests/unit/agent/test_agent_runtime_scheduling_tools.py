@@ -9,12 +9,10 @@ from agno.tools import tool
 sys.modules.setdefault("agent.agno_agent.agents", types.ModuleType("agents"))
 
 from agent.agno_agent.runtime import agent_runtime
-from agent.agno_agent.runtime.agent_runtime import (
-    SchedulingBookableWindowPreview,
-    build_capability_tool_wrappers,
-)
+from agent.agno_agent.runtime.agent_runtime import build_capability_tool_wrappers
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.result import CapabilityResult
+from agent.agno_agent.runtime.scheduling_types import SchedulingBookableWindowPreview
 
 SCHEDULING_TOOL_NAMES = (
     "get_user_link",
