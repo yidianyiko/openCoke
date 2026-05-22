@@ -21,12 +21,13 @@ SCHEDULING_SPEC = (
 
 POLICY_NAME_RE = re.compile(r"`([a-z][a-z_]+_retention)`")
 SCHEDULING_POLICY_NAMES = {
-    "scheduling_link_session_retention",
-    "scheduling_service_link_retention",
-    "scheduling_appointment_request_retention",
-    "scheduling_shared_appointment_retention",
-    "scheduling_bookable_window_retention",
-    "scheduling_disabled_user_link_retention",
+    "friend_link_session_retention",
+    "disabled_user_link_retention",
+    "friend_request_retention",
+    "friendship_retention",
+    "account_block_retention",
+    "shared_reminder_request_retention",
+    "product_notification_retention",
 }
 
 
@@ -48,7 +49,7 @@ def test_scheduling_spec_retention_policies_are_documented():
     spec_names = _extract_policy_names(SCHEDULING_SPEC)
     doc_names = _extract_policy_names(POLICY_DOC)
     assert SCHEDULING_POLICY_NAMES <= spec_names, (
-        "Scheduling spec is missing required retention policy names: "
+        "Scheduling retention policy names are missing from scheduling spec: "
         f"{sorted(SCHEDULING_POLICY_NAMES - spec_names)}"
     )
     missing = spec_names - doc_names

@@ -205,14 +205,15 @@ Agno-managed history context (`add_history_to_context=True`,
 `num_history_messages=20`). Runtime metadata is carried in per-turn
 instructions, while the user message passed to Agno remains the raw input text.
 The runtime registers async tool wrappers (`reminder_intent`, `timezone`,
-`calendar_import`, `url_context`, and the user-link scheduling tools:
+`calendar_import`, `url_context`, and the friend-link/shared-reminder tools:
 `get_user_link`, `reset_user_link`, `disable_user_link`,
-`open_bookable_windows`, `confirm_bookable_windows`,
-`query_bookable_windows`, `request_appointment`, `confirm_appointment`,
-`reject_appointment`, `cancel_appointment`, `list_pending_requests`,
-`block_service_link`, `unblock_service_link`, and `remove_service_link`) that
-capture typed `CapabilityResult` objects for deterministic visible-output
-rules. The runner remains responsible for locks, rollback, output writes,
+`list_friend_requests`, `accept_friend_request`, `reject_friend_request`,
+`cancel_friend_request`, `list_friends`, `remove_friendship`, `block_account`,
+`unblock_account`, `create_shared_reminder`,
+`list_pending_shared_reminders`, `accept_shared_reminder`,
+`reject_shared_reminder`, and `cancel_shared_reminder`) that capture typed
+`CapabilityResult` objects for deterministic visible-output rules. The runner
+remains responsible for locks, rollback, output writes,
 replay checks, scheduler boot, post-analyze dispatch, and delivery state
 transitions. The former prepare/chat workflow runtime, legacy multi-agent
 runtime, and module-level Agno agent singletons have been retired.

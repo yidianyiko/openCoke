@@ -182,6 +182,18 @@ notification in their own agent conversation.
 - It is independent of personal channel identifiers; the runtime resolves the
   delivery target from the recipient's account.
 
+### Retention Policy IDs
+
+The first-version product-state surfaces use these retention policy IDs:
+
+- `friend_link_session_retention`: unclaimed Link Sessions.
+- `disabled_user_link_retention`: disabled User Links kept for audit.
+- `friend_request_retention`: terminal Friend Requests.
+- `friendship_retention`: Friendship rows across active and inactive states.
+- `account_block_retention`: directional Block rows.
+- `shared_reminder_request_retention`: terminal Shared Reminder Requests.
+- `product_notification_retention`: delivered or failed Notification Intents.
+
 ## Product Requirements
 
 - **REQ-1: User link retrieval.** An eligible account owner can get an active

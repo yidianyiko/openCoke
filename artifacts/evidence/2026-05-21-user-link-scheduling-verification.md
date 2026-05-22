@@ -127,3 +127,64 @@ Exit code: 0
 ```text
 38 passed, 3 skipped
 ```
+
+## Final Task 8 Addendum
+
+Date: 2026-05-22
+
+### Final Commit Context
+
+- Root branch: `feature/friend-link-shared-reminders`.
+- Root docs/gitlink commit: final Task 8 commit containing this addendum.
+- Gateway gitlink commit recorded by root: `e007781db16afbfabdda6e8ebdc7d6f83f74f566`.
+- The final `HEAD~1..HEAD` diff contains repo docs, the retention consistency
+  test, and the parent `gateway` gitlink. Earlier Task 1-7 runtime, bridge,
+  Gateway API, and Gateway Web changes were verified before the final docs
+  commit; therefore fresh diff-aware routing on the final commit narrows to the
+  repo-OS docs surface.
+
+### zsh scripts/suggest-verification --base HEAD~1
+
+Exit code: 0
+
+```text
+changed_surfaces: repo-os-docs
+suggested_command: zsh scripts/verify-surface repo-os-docs
+```
+
+### zsh scripts/review-trigger --base HEAD~1
+
+Exit code: 1
+
+```text
+human_review_required: yes
+- sensitive_repo_os_change [medium]
+  reason: changed path: docs/ARCHITECTURE.md
+  reason: changed path: docs/design-docs/data-retention-policy.md
+  reason: changed path: docs/product-specs/FEATURE_TREE.md
+```
+
+Required review gate: human review is required before merge because
+`review-trigger` returned `human_review_required: yes` for the final Task 8
+commit.
+
+### Focused Final Verification
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts
+Test Files 74 passed; Tests 758 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts
+Test Files 45 passed; Tests 173 passed.
+
+.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_message_gateway.py tests/unit/agent/test_scheduling_capability.py tests/unit/agent/test_agent_runtime_scheduling_tools.py tests/unit/agent/test_execution_agents.py tests/unit/agent/test_chat_response_scheduling_instructions.py tests/unit/agent/test_scheduling_types.py tests/unit/test_data_retention_policy_consistency.py -q
+52 passed.
+
+zsh scripts/check
+passed.
+
+git diff --check
+passed.
+```
