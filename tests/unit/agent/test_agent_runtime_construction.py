@@ -64,11 +64,13 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
                 ],
             )
 
-    def fake_create_agent(**kwargs):
+    def fake_create_interaction_agent(**kwargs):
         create_kwargs.update(kwargs)
         return FakeAgent()
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -108,7 +110,7 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
                 ],
             )
 
-    def fake_create_agent(**kwargs):
+    def fake_create_interaction_agent(**kwargs):
         kwargs["tool_results"].append(
             CapabilityResult(
                 name="reminder",
@@ -119,14 +121,16 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
         )
         return FakeAgent()
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
         run_context=_run_context(),
     )
 
-    assert result.visible_messages[0].content == "已为你设好提醒"
+    assert result.visible_messages[0].content == "ignored"
     assert [tool.name for tool in result.tool_results] == ["reminder"]
 
 
@@ -138,11 +142,11 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
         async def arun(self, **kwargs):
             created["model_input"] = kwargs["input"]
             return SimpleNamespace(
-                content="ignored",
+                content="",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
-    def fake_create_agent(**kwargs):
+    def fake_create_interaction_agent(**kwargs):
         created["called"] = True
         assert kwargs["input_message"] == "18:05提醒我出门"
         kwargs["tool_results"].append(
@@ -155,7 +159,9 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
         )
         return FakeAgent()
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
 
     agent_input = _agent_input()
     agent_input = type(agent_input)(
@@ -185,7 +191,9 @@ async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
         async def arun(self, **kwargs):
             raise RuntimeError("model unavailable")
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FailingAgent())
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FailingAgent()
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -207,7 +215,9 @@ async def test_run_agent_runtime_times_out_when_agent_hangs(monkeypatch):
             await asyncio.sleep(1)
 
     monkeypatch.setenv("COKE_AGENT_RUNTIME_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: HangingAgent())
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: HangingAgent()
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -233,7 +243,7 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
         async def arun(self, **kwargs):
             await asyncio.sleep(1)
 
-    def fake_create_agent(**kwargs):
+    def fake_create_interaction_agent(**kwargs):
         kwargs["tool_results"].append(
             CapabilityResult(
                 name="reminder",
@@ -245,7 +255,9 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
         return HangingAgent()
 
     monkeypatch.setenv("COKE_AGENT_RUNTIME_TIMEOUT_SECONDS", "0.01")
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -260,204 +272,33 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
     assert result.error_disposition.code == "agent_runtime_timeout"
 
 
-def test_create_agent_registers_canonical_capability_tools():
-    agent = agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="hi",
-        tool_results=[],
-    )
-
-    assert [tool.name for tool in agent.tools] == [
-        "reminder_intent",
-        "timezone",
-        "calendar_import",
-        "url_context",
-        "get_user_link",
-        "reset_user_link",
-        "disable_user_link",
-        "open_bookable_windows",
-        "confirm_bookable_windows",
-        "query_bookable_windows",
-        "request_appointment",
-        "confirm_appointment",
-        "reject_appointment",
-        "cancel_appointment",
-        "list_pending_requests",
-        "block_service_link",
-        "unblock_service_link",
-        "remove_service_link",
-    ]
-
-
-def test_create_agent_uses_chat_response_model_role(monkeypatch):
-    captured = {}
-
-    class FakeAgent:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    def fake_create_llm_model(*, role, max_tokens):
-        captured.update({"role": role, "max_tokens": max_tokens})
-        return object()
-
-    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
-    monkeypatch.setattr(
-        "agent.agno_agent.model_factory.create_llm_model",
-        fake_create_llm_model,
-    )
-
-    agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="hi",
-        tool_results=[],
-    )
-
-    assert captured == {"role": "chat_response", "max_tokens": 2000}
-
-
-def test_create_agent_sets_tool_call_limit(monkeypatch):
-    class FakeAgent:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
-    monkeypatch.setattr(
-        "agent.agno_agent.model_factory.create_llm_model",
-        lambda **kwargs: object(),
-    )
-
-    agent = agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="hi",
-        tool_results=[],
-    )
-
-    assert agent.kwargs["tool_call_limit"] == 4
-
-
-def test_create_agent_uses_injected_session_db_and_history_settings(monkeypatch):
-    injected_db = object()
-
-    class FakeAgent:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
-    monkeypatch.setattr(
-        "agent.agno_agent.model_factory.create_llm_model",
-        lambda **kwargs: object(),
-    )
-
-    agent = agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="hi",
-        tool_results=[],
-        session_db=injected_db,
-    )
-
-    assert agent.kwargs["db"] is injected_db
-    assert agent.kwargs["add_history_to_context"] is True
-    assert agent.kwargs["num_history_messages"] == 20
-    assert agent.kwargs["add_session_state_to_context"] is False
-
-
-def test_create_agent_resolves_default_session_db(monkeypatch):
-    resolved_db = object()
-
-    class FakeAgent:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-
-    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
-    monkeypatch.setattr(
-        "agent.agno_agent.model_factory.create_llm_model",
-        lambda **kwargs: object(),
-    )
-    monkeypatch.setattr(
-        agent_runtime,
-        "get_agent_session_db",
-        lambda: resolved_db,
-        raising=False,
-    )
-
-    agent = agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="hi",
-        tool_results=[],
-    )
-
-    assert agent.kwargs["db"] is resolved_db
-
-
-def test_create_agent_stops_after_reminder_tool_call():
-    agent = agent_runtime._create_agent(
-        run_context=_run_context(),
-        agent_input=_agent_input(),
-        input_message="提醒我喝水",
-        tool_results=[],
-    )
-
-    tool_flags = {tool.name: tool.stop_after_tool_call for tool in agent.tools}
-
-    assert tool_flags["reminder_intent"] is True
-    assert tool_flags["timezone"] is False
-    assert tool_flags["calendar_import"] is False
-    assert tool_flags["url_context"] is False
-
-
 @pytest.mark.asyncio
-async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatch):
-    captured_envelopes: list[dict] = []
-
-    class StubPort:
-        async def run(self, input_message, run_context, args):
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"visible_summary": "ok"},
-                metadata={
-                    "durable_write": True,
-                    "requires_response_synthesis": True,
-                },
-            )
-
-    monkeypatch.setattr(
-        agent_runtime,
-        "_default_capability_ports",
-        lambda: {"reminder_intent": StubPort()},
-    )
-
+async def test_run_agent_runtime_visible_text_prefers_final_text_over_visible_summary(
+    monkeypatch,
+):
     class FakeAgent:
-        def __init__(self, tools):
-            self.tools = tools
-
         async def arun(self, **kwargs):
-            envelope = await self.tools["reminder_intent"]()
-            captured_envelopes.append(envelope)
             return SimpleNamespace(
-                content="",
+                content="character voiced reply",
                 messages=[
-                    {"role": "user", "content": kwargs["input"]},
-                    {"role": "tool", "content": str(envelope)},
-                    {"role": "assistant", "content": ""},
+                    SimpleNamespace(role="assistant", content=""),
                 ],
             )
 
-    def fake_create_agent(*, run_context, agent_input, input_message, tool_results):
-        wrappers = agent_runtime.build_capability_tool_wrappers(
-            ports=agent_runtime._default_capability_ports(),
-            run_context=run_context,
-            input_message=input_message,
-            tool_results=tool_results,
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["tool_results"].append(
+            CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "raw port summary"},
+                metadata={"durable_write": True},
+            )
         )
-        return FakeAgent(tools=wrappers)
+        return FakeAgent()
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create_agent)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=_agent_input(),
@@ -465,10 +306,43 @@ async def test_run_agent_runtime_captures_tool_result_into_run_result(monkeypatc
     )
 
     assert len(result.tool_results) == 1
-    assert result.tool_results[0].name == "reminder"
-    assert result.tool_results[0].durable_write is True
-    assert [message.content for message in result.visible_messages] == ["ok"]
-    assert captured_envelopes[0]["name"] == "reminder_intent"
+    assert result.visible_messages[0].content == "character voiced reply"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when_final_text_empty(
+    monkeypatch,
+):
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="",
+                messages=[
+                    SimpleNamespace(role="assistant", content=""),
+                ],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["tool_results"].append(
+            CapabilityResult(
+                name="reminder",
+                ok=True,
+                content={"visible_summary": "port summary used as fallback"},
+                metadata={"durable_write": True},
+            )
+        )
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages[0].content == "port summary used as fallback"
 
 
 @pytest.mark.asyncio
@@ -476,25 +350,6 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
     monkeypatch,
 ):
     reminder_calls = 0
-
-    class FakeReminderPort:
-        async def run(self, input_message, run_context, args):
-            nonlocal reminder_calls
-            assert input_message == "今天17:57提醒我喝水呀"
-            assert args == {}
-            reminder_calls += 1
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：喝水（2026-05-16 17:57）"},
-                metadata={"durable_write": True},
-            )
-
-    monkeypatch.setattr(
-        agent_runtime,
-        "_default_capability_ports",
-        lambda: {"reminder_intent": FakeReminderPort()},
-    )
 
     class FakeAgent:
         async def arun(self, **kwargs):
@@ -510,7 +365,9 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
                 ],
             )
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
 
     agent_input = _agent_input()
     agent_input = type(agent_input)(
@@ -547,7 +404,9 @@ async def test_reminder_fired_input_passes_raw_input_to_model(monkeypatch):
                 messages=[SimpleNamespace(role="assistant", content="ignored")],
             )
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **kwargs: FakeAgent())
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
 
     ctx = AgentRunContext(
         user=TrustedUserContext(id="user-1", nickname="User", timezone="UTC"),

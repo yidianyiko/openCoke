@@ -33,7 +33,9 @@ async def test_unknown_tool_call_results_in_failclosed_disposition(monkeypatch):
         async def arun(self, **_kwargs):
             raise agent_runtime.UnknownToolError("bogus_tool")
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", lambda **_kwargs: FakeAgent())
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **_kwargs: FakeAgent()
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(

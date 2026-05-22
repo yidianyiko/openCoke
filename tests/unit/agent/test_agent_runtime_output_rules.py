@@ -51,7 +51,7 @@ async def _run_with_fake_agent(
         return FakeAgent()
 
     captured_results = list(tool_results)
-    monkeypatch.setattr(agent_runtime, "_create_agent", patched_create)
+    monkeypatch.setattr(agent_runtime, "_create_interaction_agent", patched_create)
     return await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
             input_type="user.turn",
@@ -181,9 +181,7 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
         content="ordinary chat",
     )
 
-    assert [message.content for message in result.visible_messages] == [
-        "ordinary chat"
-    ]
+    assert [message.content for message in result.visible_messages] == ["ordinary chat"]
 
 
 @pytest.mark.asyncio
@@ -199,22 +197,6 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
     monkeypatch, model_text
 ):
-    class NoopReminderPort:
-        async def run(self, input_message, run_context, args):
-            del input_message, run_context, args
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"action": "none"},
-                metadata={"durable_write": False},
-            )
-
-    monkeypatch.setattr(
-        agent_runtime,
-        "_default_capability_ports",
-        lambda: {"reminder_intent": NoopReminderPort()},
-    )
-
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": model_text}],
         tool_results=[],
@@ -232,24 +214,6 @@ async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
 @pytest.mark.asyncio
 async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch):
     calls = 0
-
-    class CountingReminderPort:
-        async def run(self, input_message, run_context, args):
-            nonlocal calls
-            del input_message, run_context, args
-            calls += 1
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"visible_summary": "已设好提醒"},
-                metadata={"durable_write": True},
-            )
-
-    monkeypatch.setattr(
-        agent_runtime,
-        "_default_capability_ports",
-        lambda: {"reminder_intent": CountingReminderPort()},
-    )
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": "我会在明天早上九点提醒你。"}],

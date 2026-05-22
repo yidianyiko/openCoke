@@ -46,7 +46,7 @@ async def _run(*, tool_results, monkeypatch, messages=None):
         tool_results.extend(captured_results)
         return Agent()
 
-    monkeypatch.setattr(agent_runtime, "_create_agent", fake_create)
+    monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
     return await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
             input_type="user.turn",

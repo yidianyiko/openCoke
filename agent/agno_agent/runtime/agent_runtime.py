@@ -21,10 +21,6 @@ from agent.agno_agent.runtime.result import (
     RuntimeErrorDisposition,
     VisibleMessage,
 )
-from agent.agno_agent.runtime.scheduling_types import (
-    SchedulingBookableWindowPreview,
-    _compact_scheduling_args,
-)
 from agent.agno_agent.runtime.session import get_agent_session_db
 
 logger = logging.getLogger(__name__)
@@ -72,31 +68,6 @@ def _agent_runtime_timeout_seconds() -> float:
     )
 
 
-def _default_capability_ports() -> dict[str, Any]:
-    from agent.agno_agent.capabilities import (
-        CalendarImportPort,
-        ReminderIntentPort,
-        SchedulingCapabilityPort,
-        TimezoneCapabilityPort,
-        UrlContextPort,
-    )
-    from agent.agno_agent.capabilities.scheduling import SCHEDULING_TOOL_NAMES
-
-    ports = {
-        "reminder_intent": ReminderIntentPort(),
-        "timezone": TimezoneCapabilityPort(),
-        "calendar_import": CalendarImportPort(),
-        "url_context": UrlContextPort(),
-    }
-    ports.update(
-        {
-            name: SchedulingCapabilityPort(tool_name=name)
-            for name in SCHEDULING_TOOL_NAMES
-        }
-    )
-    return ports
-
-
 def _utility_capability_ports() -> dict[str, Any]:
     from agent.agno_agent.capabilities import (
         CalendarImportPort,
@@ -109,48 +80,6 @@ def _utility_capability_ports() -> dict[str, Any]:
         "calendar_import": CalendarImportPort(),
         "url_context": UrlContextPort(),
     }
-
-
-def _create_agent(
-    *,
-    run_context: AgentRunContext,
-    agent_input: AgentInput,
-    input_message: str,
-    tool_results: list[CapabilityResult],
-    session_db: Any | None = None,
-) -> Any:
-    from agno.agent import Agent
-    from agno.tools import tool
-
-    from agent.agno_agent.model_factory import create_llm_model
-    from agent.agno_agent.runtime.chat_response_instructions import (
-        build_chat_response_instructions,
-    )
-
-    wrappers = build_capability_tool_wrappers(
-        ports=_default_capability_ports(),
-        run_context=run_context,
-        input_message=input_message,
-        tool_results=tool_results,
-    )
-    tools = [
-        tool(name=name, stop_after_tool_call=name == "reminder_intent")(fn)
-        for name, fn in wrappers.items()
-    ]
-    resolved_session_db = session_db or get_agent_session_db()
-    return Agent(
-        id="coke-single-agent",
-        name="CokeSingleAgent",
-        model=create_llm_model(role="chat_response", max_tokens=2000),
-        instructions=build_chat_response_instructions(run_context, agent_input),
-        tools=tools,
-        db=resolved_session_db,
-        add_history_to_context=True,
-        num_history_messages=20,
-        add_session_state_to_context=False,
-        tool_call_limit=4,
-        markdown=False,
-    )
 
 
 def _create_interaction_agent(
@@ -340,69 +269,6 @@ def _build_capability_tool_wrapper(
             return await _call({})
 
         return url_context
-
-    if tool_name in {
-        "get_user_link",
-        "reset_user_link",
-        "disable_user_link",
-        "open_bookable_windows",
-        "confirm_bookable_windows",
-        "query_bookable_windows",
-        "request_appointment",
-        "confirm_appointment",
-        "reject_appointment",
-        "cancel_appointment",
-        "list_pending_requests",
-        "block_service_link",
-        "unblock_service_link",
-        "remove_service_link",
-    }:
-
-        async def scheduling_tool(
-            target_account_id: str | None = None,
-            consumer_account_id: str | None = None,
-            other_account_id: str | None = None,
-            request_id: str | None = None,
-            appointment_or_request_id: str | None = None,
-            window_instance_id: str | None = None,
-            bookable_window_id: str | None = None,
-            instance_start: str | None = None,
-            instance_end: str | None = None,
-            date_from: str | None = None,
-            date_to: str | None = None,
-            timezone: str | None = None,
-            viewer_timezone: str | None = None,
-            instruction: str | None = None,
-            preview: SchedulingBookableWindowPreview | None = None,
-            reason: str | None = None,
-            idempotency_key: str | None = None,
-        ) -> dict[str, Any]:
-            """Use only for explicit user-link, availability, appointment, or service-link scheduling requests."""
-            return await _call(
-                _compact_scheduling_args(
-                    {
-                        "target_account_id": target_account_id,
-                        "consumer_account_id": consumer_account_id,
-                        "other_account_id": other_account_id,
-                        "request_id": request_id,
-                        "appointment_or_request_id": appointment_or_request_id,
-                        "window_instance_id": window_instance_id,
-                        "bookable_window_id": bookable_window_id,
-                        "instance_start": instance_start,
-                        "instance_end": instance_end,
-                        "date_from": date_from,
-                        "date_to": date_to,
-                        "timezone": timezone,
-                        "viewer_timezone": viewer_timezone,
-                        "instruction": instruction,
-                        "preview": preview,
-                        "reason": reason,
-                        "idempotency_key": idempotency_key,
-                    }
-                )
-            )
-
-        return scheduling_tool
 
     raise ValueError(f"Unsupported capability tool: {tool_name}")
 
@@ -630,7 +496,7 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
-        agent = _create_agent(
+        agent = _create_interaction_agent(
             run_context=run_context,
             agent_input=agent_input,
             input_message=input_message,
@@ -663,7 +529,9 @@ async def run_agent_runtime(
         captured_tool_results = tuple(tool_results)
         durable_write_error = _check_durable_write_contract(captured_tool_results)
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
-        visible_text = _resolve_visible_text(final_text, captured_tool_results)
+        # Interaction Agent's synthesized reply wins when non-empty (Option B);
+        # empty final_text keeps the existing visible_summary fallback.
+        visible_text = final_text or _resolve_visible_text("", captured_tool_results)
         if runtime_contract_error is not None:
             visible_text = ""
         visible_messages = (
