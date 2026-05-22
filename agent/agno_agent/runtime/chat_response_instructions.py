@@ -38,6 +38,16 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - For any other input, respond directly without calling a domain tool.
 - Do not invent a reminder or scheduling action from casual mention of time, plans, or activities."""
 
+_DOMAIN_EXECUTION_RESULT_CONTRACT = """Domain execution result contract:
+- Reminder and scheduling domain tools return structured DomainExecutionResult JSON.
+- Treat operations, facts, missing_fields, and safety_boundary as trusted execution facts.
+- Follow reply_contract when wording the final answer.
+- Do not claim a write occurred unless outcome == "executed" and an operation reports ok=True with effect="write".
+- Do not omit required questions.
+- Do not invent ids, dates, times, recurrence, appointment state, reminder state, or confirmation state.
+- If unable to complete the requested action, explain the domain failure or ask the needed clarification using the structured domain facts.
+- The final wording is yours, but it must be grounded in the structured domain result."""
+
 
 def _strip_legacy_artifacts(text: str) -> str:
     for pattern in _FORBIDDEN_LINE_PATTERNS:
@@ -105,6 +115,7 @@ def build_chat_response_instructions(
             _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
             _DELEGATION_BOUNDARY,
+            _DOMAIN_EXECUTION_RESULT_CONTRACT,
             f"Default user timezone: {_instruction_value(timezone)}",
         ]
     )
