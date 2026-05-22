@@ -45,10 +45,26 @@ def test_delegation_boundary_covers_scheduling_routing():
     assert "appointment actions" in text
 
 
+def test_delegation_boundary_keeps_direct_utility_tools_out_of_domain_routing():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+    assert "Use timezone, calendar_import, or url_context directly" in text
+
+
+def test_delegation_boundary_falls_back_to_direct_response():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+    assert "respond directly without calling a domain tool" in text
+
+
 def test_delegation_boundary_blocks_casual_reminder_creation():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Do not invent a reminder or scheduling action" in text
     assert "casual mention of time" in text
+
+
+def test_reminder_tool_boundary_is_removed():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+    assert "Reminder tool boundary:" not in text
+    assert "Use the reminder tool only when" not in text
 
 
 def test_scheduling_tool_boundary_is_removed():
