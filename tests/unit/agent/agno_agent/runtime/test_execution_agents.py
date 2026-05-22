@@ -178,3 +178,56 @@ async def test_run_scheduling_domain_converts_called_tool_to_domain_result():
     assert envelope["operations"][0]["effect"] == "write"
     assert envelope["operations"][0]["entity_id"] == "req-1"
     assert domain_results[0].reply_contract.intent == "confirm_execution"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_returns_successful_write_when_later_duplicate_fails():
+    successful_write = CapabilityResult(
+        name="request_appointment",
+        ok=True,
+        content={
+            "request_id": "req-1",
+            "target_account_id": "acct-provider",
+            "consumer_account_id": "acct-consumer",
+            "instance_start": "2026-05-23T09:00:00+09:00",
+            "instance_end": "2026-05-23T09:30:00+09:00",
+            "timezone": "Asia/Tokyo",
+        },
+    )
+
+    class _DuplicateCallingAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["request_appointment"](
+                target_account_id="acct-provider",
+                consumer_account_id="acct-consumer",
+            )
+            await self.tools["cancel_appointment"](appointment_or_request_id="req-1")
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncSchedulingPort(successful_write),
+        ):
+            envelope = await run_scheduling_domain(
+                input_message="book that, actually cancel it",
+                intent="request_appointment",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert envelope["domain"] == "scheduling"
+    assert envelope["outcome"] == "executed"
+    assert envelope["error"] is None
+    assert envelope["operations"][0]["action"] == "request_appointment"
+    assert envelope["operations"][0]["effect"] == "write"
+    assert envelope["operations"][0]["entity_id"] == "req-1"
+    assert envelope["operations"][0]["facts"]["request_id"] == "req-1"
+    assert [item.error.code if item.error else None for item in domain_results] == [
+        None,
+        "duplicate_scheduling_tool_call",
+    ]

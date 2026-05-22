@@ -192,6 +192,15 @@ def _no_scheduling_tool_called_result(intent: str) -> DomainExecutionResult:
     )
 
 
+def _returnable_scheduling_result(
+    results: list[DomainExecutionResult],
+) -> DomainExecutionResult:
+    for result in reversed(results):
+        if result.outcome == "executed":
+            return result
+    return results[-1]
+
+
 async def run_reminder_domain(
     *,
     input_message: str,
@@ -337,6 +346,6 @@ async def run_scheduling_domain(
         domain_results.append(result)
         return result.to_dict()
 
-    last = local_domain_results[-1]
+    selected = _returnable_scheduling_result(local_domain_results)
     domain_results.extend(local_domain_results)
-    return last.to_dict()
+    return selected.to_dict()

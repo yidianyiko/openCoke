@@ -332,5 +332,10 @@ async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
         "duplicate_scheduling_tool_call",
     ]
     assert result["domain"] == "scheduling"
-    assert result["outcome"] == "failed"
-    assert result["error"]["code"] == "duplicate_scheduling_tool_call"
+    assert result["outcome"] == "executed"
+    assert result["error"] is None
+    assert result["operations"][0]["action"] == "get_user_link"
+    assert (
+        result["operations"][0]["facts"]["visible_summary"]
+        == "called get_user_link"
+    )
