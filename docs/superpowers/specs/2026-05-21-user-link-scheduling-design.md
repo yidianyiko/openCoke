@@ -1,70 +1,58 @@
-# User Link Scheduling Design
+# Friend Link And Shared Reminder Design
 
 ## Plain-Language Product Story
 
-This first version is easiest to understand through a coach appointment
-example.
+This first version is a friend-link and shared-reminder flow.
 
-User A is already a Coke/Kap account owner. A has connected a personal
-communication channel, such as `wechat_personal`, so A can talk with A's own
-agent. A wants other people to find A and request time from A, but A does not
-want other people to scan A's personal channel QR or talk through A's channel.
+User A is already a Coke/Kap account owner. A can share a product-generated
+user link or QR code, similar to a public "add friend" entry. The user link is
+not A's iLink QR. A's iLink QR is only for connecting A's own personal channel;
+other people should not scan it to connect with A.
 
-So A shares a product-generated user link/QR. This user link points to A's
-account. It is not the same thing as A's iLink QR:
+User B opens A's user link. The page shows A's public profile and lets B log in
+or create an account. B can then send A a friend request. A must confirm the
+request before A and B become friends.
 
-- **A's iLink QR** is only for A to connect A's own `wechat_personal` channel.
-  Other people should not scan it.
-- **A's user link/QR** is the public entry that other people can open when
-  they want to connect with A.
+After A and B are friends, either side can ask their own agent to create a
+shared reminder involving the other person. For example:
 
-User B opens A's user link. If B already has a ready account and personal
-channel, B can continue from B's own agent conversation. If B does not yet have
-that setup, B first creates or claims an account and connects B's own personal
-channel. After that, the product remembers that B entered through A's user link
-and activates an A-B service link.
+> Help me and Zhang San remember our meeting today at 3 PM.
 
-Only after B has a ready personal channel can B ask B's own agent about A's
-opened appointment times. B sees only the time windows A manually opened for
-external booking, not A's full calendar. When B requests one of those windows,
-the specific generated instance becomes `pending/held` and A receives a message
-in A's own agent conversation. A can confirm or reject. If A confirms, the
-appointment becomes a shared schedule item for both A and B.
+The requester first gets a personal reminder so the requester does not lose the
+intent while waiting. The other person receives a confirmation request. If the
+other person accepts before the reminder time, the system creates their own
+personal reminder too and the two reminders are linked as one shared reminder.
+If the other person rejects, the requester's personal reminder is cancelled. If
+the reminder time arrives before the other person accepts, only the requester is
+reminded and the other person's later acceptance is no longer valid.
 
 ## Goal
 
-Define a simple first version where an existing account owner can share a
-long-lived user link/QR, a second user can enter through that link, create or
-claim their own account, open their own personal channel, and then request an
-appointment with the linked account owner through their own channel-backed
-agent conversation.
+Define the first-version product and architecture contract for:
+
+- public user link / QR as an add-friend entry
+- friend requests that require the target user's confirmation
+- confirmed friendships between two accounts
+- shared reminder requests between friends
+- shared reminder projection into each participant's personal Reminder Runtime
 
 The design keeps one core principle:
 
-> The account is the product owner identity. A personal channel is the
-> communication path for that account. Another user's link may create context
-> and permissions, but it must not turn the link owner's channel into a shared
-> public chat room.
+> Friendship and shared-reminder confirmation are product state. The existing
+> Reminder Runtime remains a personal reminder delivery runtime.
 
-## Non-Goals
+## First-Version Scope
 
-- Do not use A's `wechat_personal` iLink QR as a user-link QR for B.
-- Do not let B chat through A's personal channel as the normal scheduling path.
-- Do not expose A's full calendar or inferred busy/free state.
-- Do not infer A's availability from external calendars in the first version.
-- Do not integrate with Google Calendar, iCal, or other external calendars for
-  availability inference.
-- Do not support group appointments or multi-party scheduling.
-- Do not support payment, deposits, or service-fee handling.
-- Do not support direct messaging between A and B outside the scheduling
-  request, response, and cancellation notification flow.
-- Do not support negotiated counter-proposals or mutual rescheduling in the
-  first version.
-- Do not build a scheduling management dashboard or admin console in the first
-  version.
-- Do not notify A for link opens, signup, or personal-channel binding events.
-- Do not automatically expire pending appointment holds in the first version.
-  A or B must act to release the hold.
+This spec includes only:
+
+- A public user link / QR that points to one account.
+- Link-session context for preserving "B opened A's link" during login or
+  registration.
+- Friend request creation, confirmation, rejection, cancellation, and blocking.
+- Shared reminder request creation, confirmation, rejection, expiry, and
+  cancellation.
+- Personal reminder projections created through the existing Reminder Runtime.
+- Web and agent entry points that call the same backend state transitions.
 
 ## Core Concepts
 
@@ -72,10 +60,10 @@ The design keeps one core principle:
 
 An account is the stable product identity for a user.
 
-- A and B are both account owners after onboarding completes.
-- Account ownership is separate from any specific communication provider.
-- User-to-user links are relationships between accounts, not between raw iLink
-  QR codes.
+- Friendships are account-to-account relationships.
+- Shared reminder requests are account-to-account requests.
+- Communication channels are delivery paths for an account, not the friendship
+  identity itself.
 
 ### Personal Channel
 
@@ -83,10 +71,10 @@ A personal channel is the communication path owned by one account.
 
 - The first-version personal channel is `wechat_personal`.
 - iLink belongs inside the `wechat_personal` channel lifecycle.
-- The iLink QR is scanned by that channel owner to connect their own
-  `wechat_personal` channel.
-- The iLink QR is not a public user-link QR.
-- The iLink QR does not carry A-B relationship context.
+- The iLink QR is scanned only by that channel owner.
+- The iLink QR is not a public friend-link QR.
+- The iLink QR must not create friend requests, friendships, or shared reminder
+  requests.
 
 ### User Link / QR
 
@@ -94,822 +82,470 @@ The user link/QR is generated by the product, not by iLink.
 
 - It is long-lived by default.
 - It points to A's account.
-- It can be publicly shared as "connect with this user".
+- It can be publicly shared as "add/connect with this user".
 - It carries product context: "B entered through A's user link".
-- It starts B's onboarding or reconnect flow if B is not already ready.
-- It does not itself provide a communication channel to an agent/runtime.
+- It starts B's login, registration, or add-friend flow if needed.
+- It does not itself provide a communication channel to A's agent/runtime.
+
+User Link states:
+
+- `active`: the code resolves to A's account and can start the add-friend flow.
+- `disabled`: the code no longer resolves. Disabled codes are created when A
+  resets or disables the link; they remain in storage for audit but cannot be
+  used to open a Link Session.
+
+At most one `active` user link exists per account. Reset replaces the active
+code in a single transition: the old code becomes `disabled` and a new
+`active` code is created.
 
 ### Link Session
 
-A Link Session is the temporary context created when someone opens a user link
+A Link Session is temporary context created when someone opens a user link
 before the context is claimed by an account.
 
-- It remembers the target account A and the user link code B opened.
-- It is not a Service Link and does not notify A.
-- It can be claimed only after B has an account and ready personal channel.
+- It remembers target account A and the user-link code B opened.
+- It is not a friendship.
+- It is not a shared reminder request.
+- It does not notify A by itself.
+- It expires after a bounded TTL (first version: 30 days) or when the
+  visitor's account claims it by sending a friend request or explicitly
+  abandoning the flow.
+- It is claimed by the first authenticated account that completes the
+  add-friend action under it. A Link Session targeting A is rejected if the
+  authenticated account is A itself.
 
-### Service Link
+### Friend Request
 
-An A-B service link is automatic after B completes the user-link onboarding
-path.
+A Friend Request is B's request to become friends with A.
 
-- A does not need to approve this first-version service link.
-- A's user link is A's pre-authorization for a lightweight account-to-account
-  relationship.
-- The service link does not grant access to A's full calendar.
-- The service link only unlocks capabilities A has explicitly opened, starting
-  with appointment requests against manually opened windows.
+- It is created only after B has an account.
+- A must explicitly accept before a Friendship exists.
+- A can reject the request.
+- Either side can cancel or remove their side of an active relationship later.
 
-### Bookable Window
+### Friendship
 
-A Bookable Window is an availability rule A manually opened for external
-appointment requests.
+A Friendship is an accepted account-to-account relationship.
 
-- It can be a one-off window or a weekly recurring rule.
-- It is owned by A and stored in A's account timezone plus UTC-normalized
-  generated instances.
-- It is not evidence that A is free outside the exposed window.
+- It authorizes friend-scoped product actions.
+- The first friend-scoped action is creating a shared reminder request.
+- It does not imply direct raw channel access.
+- It does not expose either user's private reminder list or runtime state.
+- A removed Friendship does not automatically reactivate. Re-friending after
+  removal requires a new Friend Request and a fresh acceptance.
 
-### Appointment Request
+### Block
 
-An Appointment Request is B's request for one generated instance of A's
-bookable window.
+A Block is a directional relationship where one account refuses friend-scoped
+interaction with another account.
 
-- It holds that specific generated instance while it is pending.
-- It does not modify or close the recurring availability rule.
-- Multiple independent pending requests from the same B to the same A are
-  allowed in the first version, subject to abuse controls.
+- A Block can exist with or without a prior Friendship.
+- If an active Friendship exists when A blocks B, the Friendship becomes
+  inactive in the same transition.
+- While a Block from A to B is active, new Friend Requests and Shared
+  Reminder Requests from B to A are rejected at the Gateway boundary.
+- A Block is owned by Gateway as account-to-account state, not as a
+  Friendship sub-state.
 
-### Shared Appointment
+### Shared Reminder Request
 
-A Shared Appointment is the confirmed product record visible to both A and B.
+A Shared Reminder Request is one user's request to create a reminder shared
+with a friend.
 
-- It is one Postgres-owned record with references to both accounts.
-- Each side sees it through caller-filtered account context.
-- It is not two independent appointments duplicated into each user's runtime
-  state.
+- The requester owns the initial intent.
+- The invited friend must accept before they receive their own reminder.
+- The request is the source of truth for acceptance state.
+- The existing personal Reminder Runtime is used only for participant-specific
+  reminder projections.
 
-## Product Requirements and Domain Rules
+### Personal Reminder Projection
 
-### Product Requirements
+A Personal Reminder Projection is a normal visible reminder in the existing
+Reminder Runtime.
 
-- **REQ-1: User link entry and retrieval.** Every eligible account owner can
-  ask A's own agent to show A's active user link URL and QR code. If A has no
-  active user link, the product creates one on first request. A can also reset
-  the user link; the old code becomes disabled and existing Service Links stay
-  active.
-- **REQ-2: Link context preservation.** When another person opens the user
-  link, the product preserves the target account context until the opener
-  either completes onboarding or abandons the flow.
-- **REQ-3: Channel readiness gate.** A person who opens a user link cannot
-  query availability, request appointments, or receive scheduling replies until
-  they have their own account and ready personal channel.
-- **REQ-4: Service link activation.** After B completes account and personal
-  channel onboarding from A's user link, the product activates an A-B Service
-  Link without asking A for first-version approval.
-- **REQ-5: Availability management.** A can define, modify, or close bookable
-  windows by speaking to A's own agent in natural language. The system must
-  parse the instruction, echo the structured windows back to A for
-  confirmation, and commit the windows only after A confirms.
-- **REQ-6: Open availability only.** B can query only the appointment windows A
-  manually opened for external booking.
-- **REQ-7: Appointment request.** B can request a generated open window
-  instance. That request enters `pending/held` and stops that same instance
-  from being offered to other users while the hold remains active.
-- **REQ-8: A-side confirmation.** A receives an agent conversation notification
-  only after B creates an appointment request, and A can confirm or reject it
-  from A's own agent conversation.
-- **REQ-9: B outcome notification.** When A confirms or rejects a pending
-  request, B receives a notification in B's own agent conversation stating the
-  outcome and, on confirmation, the confirmed appointment details.
-- **REQ-10: Shared schedule.** A confirmed request becomes a shared appointment
-  visible to both A's and B's account-side agent/calendar contexts.
-- **REQ-11: Cancellation.** Either participant can cancel a pending or
-  confirmed appointment involving them. Rescheduling is cancellation plus a new
-  request. When one participant cancels, the other participant receives a
-  notification in their own agent conversation stating what was cancelled and
-  by whom.
-- **REQ-12: A pending-request query.** A can ask A's own agent to list all
-  outstanding pending appointment requests, including requester display
-  identity, requested window, created time, and hold age.
-- **REQ-13: Service-link controls.** A can block or remove a Service Link, and
-  B can remove a Service Link. Blocking prevents new appointment requests.
+- It has exactly one `owner_user_id`.
+- It has one output target and one scheduler job.
+- It may carry metadata linking it to a Shared Reminder Request.
+- It is not the canonical shared reminder object.
 
-### First-Version Flow
+### Notification Intent
 
-#### A Publishes a User Link
+A Notification Intent is a durable record that the product owes a user a
+notification in their own agent conversation.
 
-1. A already has an account and a ready personal channel.
-2. A asks A's own agent to show or create A's user link/QR.
-3. A manually defines externally bookable time windows in natural language.
-4. A's agent echoes the parsed availability back to A, for example:
-   "I've scheduled your availability as Tuesdays and Thursdays, 7-9 PM
-   (Asia/Shanghai), starting this week, repeating indefinitely. Confirm?"
-5. The bookable windows are committed only after A confirms the preview.
-6. A shares the user link/QR publicly.
+- It is created by Gateway after a product state transition (for example,
+  friend request created, shared reminder request accepted).
+- It carries an idempotency key so retried deliveries do not create duplicate
+  agent messages.
+- It is the unit Gateway hands to the bridge/runtime message path. Delivery is
+  at-least-once, so consumers must tolerate replays.
+- It is independent of personal channel identifiers; the runtime resolves the
+  delivery target from the recipient's account.
 
-#### B Enters Through A's User Link
+## Product Requirements
 
-1. B scans or opens A's user link/QR.
-2. Gateway records temporary link context: "this browser/session entered
-   through A".
-3. If B does not have a ready account and personal channel, B completes
-   onboarding:
-   - create or claim an account,
-   - connect a personal channel, first-version `wechat_personal`,
-   - complete the iLink flow inside that personal channel.
-4. A is not notified during this link-open or onboarding phase.
-5. After B's account and personal channel are ready, the temporary link context
-   is claimed by B's account and the A-B Service Link becomes active.
-6. B's own agent conversation receives an activation message such as:
-   "You're now connected to [A's display name]. Ask me about available
-   appointment times with them, or say 'book [A's name]' to get started."
+- **REQ-1: User link retrieval.** An eligible account owner can get an active
+  user link URL and QR code. If none exists, the product creates one.
+- **REQ-2: User link reset and disable.** The owner can reset or disable their
+  active user link. Reset disables the old code and creates a new active code.
+- **REQ-3: Link context preservation.** When B opens A's user link, the product
+  preserves A's account context until B logs in, registers, sends a friend
+  request, or abandons the flow.
+- **REQ-4: Friend request confirmation.** Opening a user link does not
+  automatically create a friendship. B sends a friend request, and A must
+  accept it.
+- **REQ-5: Friend request handling surfaces.** A can accept or reject a friend
+  request from the web UI or by replying in A's own agent conversation. Both
+  surfaces call the same backend transition.
+- **REQ-6: Friendship controls.** Either side can remove an active friendship.
+  A user can block another account to prevent future friend requests and shared
+  reminder requests.
+- **REQ-7: Shared reminder request creation.** A user can ask their own agent to
+  create a shared reminder with an active friend.
+- **REQ-8: Requester projection.** When B creates a shared reminder request for
+  A, the system immediately creates B's personal reminder projection.
+- **REQ-9: Invitee confirmation.** A receives a shared reminder confirmation
+  request. A can accept or reject from the web UI or A's agent conversation.
+- **REQ-10: Accepted shared reminder.** If A accepts before the reminder time,
+  the system creates A's personal reminder projection and marks the shared
+  reminder request accepted.
+- **REQ-11: Rejected shared reminder.** If A rejects before the reminder time,
+  the system cancels B's requester reminder projection and marks the shared
+  reminder request rejected.
+- **REQ-12: Due-before-accept behavior.** If the reminder time arrives before A
+  accepts, B's personal reminder fires normally, the request is closed as
+  expired, and A cannot accept it afterwards.
+- **REQ-13: Cancellation.** The requester can cancel a pending shared reminder
+  request before acceptance. Cancelling also cancels the requester's personal
+  reminder projection.
+- **REQ-14: Single source of truth.** Friendships and shared reminder requests
+  are product state, not Reminder Runtime state. Reminder documents are
+  projections only.
 
-#### B Requests an Appointment
+## First-Version Flows
 
-1. B talks through B's own personal channel.
-2. B asks about A's available appointment times.
-3. If B has active Service Links to multiple providers and does not name one,
-   B's agent asks B to choose a provider instead of guessing.
-4. B's agent conversation can show only A's manually opened appointment
-   windows.
-5. B chooses one generated instance.
-6. The Appointment Request enters `pending/held`.
-7. The selected instance is held until A confirms/rejects or either party
-   cancels.
-8. A is notified in A's own agent conversation only after B creates this
-   appointment request.
+### A Publishes a User Link
 
-#### A Handles the Request
+1. A has an account.
+2. A asks A's agent or web UI for A's user link / QR.
+3. Gateway creates or returns A's active user link.
+4. A shares the link or QR.
 
-1. A's agent tells A that B requested a specific time.
-2. The notification includes explicit action hints, such as "Reply CONFIRM to
-   accept or DECLINE to reject."
-3. A's next reply in that notification conversation context is treated as the
-   scheduling response. The agent must recognize natural variants such as
-   `确认`, `拒绝`, `好的`, and `不行` through the scheduling intent parser.
-4. If A's reply cannot be parsed as confirm or reject, the agent asks for
-   clarification and takes no default action.
-5. If A confirms, the appointment becomes a shared confirmed schedule item.
-6. If A rejects, the held time is released with reason `rejected_by_a`.
+### A Resets or Disables Their User Link
 
-#### After Confirmation
+1. A asks A's agent or web UI to reset or disable their active user link.
+2. Gateway marks the existing active code `disabled` in storage.
+3. On reset, Gateway creates a new `active` code in the same transition and
+   returns the new URL / QR to A.
+4. On disable, Gateway leaves A without an active code until A requests a new
+   one. Disabled codes always return a "link no longer active" page when
+   opened; they do not start a new Link Session.
 
-Confirmed appointments appear on both sides:
+### B Sends A Friend Request
 
-- A's account-side agent/calendar context knows the appointment.
-- B's account-side agent/calendar context knows the appointment.
-- Either side can reference it in later conversation.
-- Either side can receive reminders.
+1. B opens A's user link.
+2. Gateway creates a Link Session for A's user-link context.
+3. B logs in or creates an account.
+4. B sends A a friend request.
+5. A is notified in A's own agent conversation and can also see the request in
+   the web UI.
+6. A accepts or rejects.
+7. If A accepts, Gateway creates an active Friendship.
+8. If A rejects, no Friendship is created.
 
-### Domain Objects
+### B Creates a Shared Reminder Request With A
 
-| Object | Product meaning | Owner |
+1. B and A already have an active Friendship.
+2. B says something like "Help me and A remember our meeting today at 3 PM."
+3. B's agent resolves A as an active friend and parses the reminder time
+   into an absolute instant using B's account timezone. The stored instant
+   is the canonical fire time for both projections regardless of where A or
+   B are located; per-user display localization is a rendering concern.
+4. Gateway creates a Shared Reminder Request with status
+   `pending_invitee_confirmation`.
+5. Gateway creates B's personal reminder projection through the existing
+   Reminder Runtime. If projection creation fails, Gateway marks the request
+   `cancelled` and surfaces an error to B; no half-created request is left
+   in `pending_invitee_confirmation` without a backing requester projection.
+6. A receives a confirmation request in A's agent conversation and can also
+   handle the request in the web UI.
+
+### B Cancels a Pending Shared Reminder Request
+
+1. B asks via agent or web UI to cancel a still-pending Shared Reminder
+   Request that B owns.
+2. Gateway verifies the request is still `pending_invitee_confirmation` and
+   owned by B.
+3. Gateway cancels B's requester reminder projection through the existing
+   Reminder Runtime.
+4. Gateway marks the Shared Reminder Request `cancelled`.
+5. A's pending confirmation prompt is invalidated; if A had not yet
+   responded, A's next interaction with the prompt yields a "request no
+   longer pending" response.
+
+### A Accepts Before The Reminder Time
+
+1. A accepts the pending Shared Reminder Request.
+2. Gateway verifies that the current time is still before the reminder time and
+   the request is still pending.
+3. Gateway creates A's personal reminder projection through the existing
+   Reminder Runtime.
+4. Gateway marks the Shared Reminder Request `accepted`.
+5. Gateway notifies B that A accepted, through B's own agent conversation.
+6. A and B can both see that the reminder is now shared.
+
+### A Rejects Before The Reminder Time
+
+1. A rejects the pending Shared Reminder Request.
+2. Gateway cancels B's requester reminder projection through the existing
+   Reminder Runtime.
+3. Gateway marks the Shared Reminder Request `rejected`.
+4. B is notified that the shared reminder was rejected and cancelled.
+
+### The Reminder Time Arrives Before A Responds
+
+1. B's personal reminder projection fires normally.
+2. Only B is reminded.
+3. Gateway marks the Shared Reminder Request `expired`.
+4. A can no longer accept the request after the reminder time.
+
+### Friendship Ends With A Pending Shared Reminder Request
+
+1. While a Shared Reminder Request between A and B is in
+   `pending_invitee_confirmation`, the underlying Friendship transitions to
+   `removed`, or either side blocks the other.
+2. Gateway cancels the requester's reminder projection through the existing
+   Reminder Runtime in the same transition.
+3. Gateway marks the Shared Reminder Request `invalidated`.
+4. Already-`accepted` shared reminders are not retroactively cancelled when
+   the Friendship later ends; both personal projections continue to fire
+   per existing Reminder Runtime semantics.
+
+## Domain Objects
+
+| Object | Product meaning | Source of truth |
 | --- | --- | --- |
-| Account | A stable user/customer identity. | The user who owns it. |
-| Personal Channel | A communication channel owned by one account. First version: `wechat_personal`. | The account owner. |
-| iLink QR | The provider QR used inside the `wechat_personal` connection flow. | The personal channel owner only. |
-| User Link / QR | A product-generated public link pointing to an account. | The target account owner. |
-| Link Session | Temporary context created when someone opens a user link before it is claimed by an account. | Product-owned temporary state. |
-| Service Link | A lightweight account-to-account relationship created after B claims A's user link. | Both linked accounts. |
-| Bookable Window | A time window or recurring rule A manually opened for external appointment requests. | A. |
-| Appointment Request | B's request for one generated bookable-window instance. | B requests; A confirms/rejects. |
-| Shared Appointment | A confirmed appointment that belongs to both A and B. | Both participants. |
-| Appointment Event | Append-only audit record for state transitions and notifications. | Product-owned audit state. |
+| Account | Stable user/customer identity. | Gateway / Postgres |
+| Personal Channel | Account-owned communication channel. | Gateway / Postgres |
+| iLink QR | Provider QR for connecting one account's personal channel. | Channel system |
+| User Link / QR | Product public add-friend entry for one account. | Gateway / Postgres |
+| Link Session | Temporary opened-user-link context. | Gateway / Postgres |
+| Friend Request | Request from one account to become friends with another. | Gateway / Postgres |
+| Friendship | Accepted account-to-account relationship. | Gateway / Postgres |
+| Shared Reminder Request | Request to create a shared reminder with a friend. | Gateway / Postgres |
+| Reminder Projection | Per-user visible reminder created through Reminder Runtime. | MongoDB reminders |
+| Block | Directional refusal of friend-scoped interaction between two accounts. | Gateway / Postgres |
+| Notification Intent | Durable intent to notify a user through their agent conversation. | Gateway / Postgres |
 
-#### Appointment Request Fields
+### Friend Request State
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | UUID | Stable identifier referenced in notifications. |
-| `provider_account_id` | FK | A's account. |
-| `consumer_account_id` | FK | B's account. |
-| `service_link_id` | FK | The Service Link authorizing the request. |
-| `bookable_window_id` | FK | The rule or one-off window this instance was generated from. |
-| `instance_start` | timestamptz | Specific slot start, stored in UTC. |
-| `instance_end` | timestamptz | Specific slot end, stored in UTC. |
-| `timezone` | string | A's account timezone at time of request. |
-| `status` | enum | `pending_held`, `confirmed_shared`, or `released`. |
-| `release_reason` | enum/null | Null unless `status=released`. |
-| `created_at` | timestamptz | Request creation time. |
-| `updated_at` | timestamptz | Last state transition time. |
-| `released_at` | timestamptz/null | Set when the request no longer occupies the instance. |
+- `pending`: B requested friendship with A.
+- `accepted`: A accepted; Friendship exists.
+- `rejected`: A rejected.
+- `cancelled`: B cancelled before A responded.
 
-Notification delivery state belongs in the notification queue or appointment
-event log, not as the primary source of appointment lifecycle truth.
+### Friendship State
 
-### State Rules
+- `active`: friend-scoped actions are allowed.
+- `removed`: one side removed the relationship. Terminal for this Friendship
+  record; a future Friendship between the same accounts is a new record.
 
-#### User Link
+Block state is tracked separately on a per-direction Block record (see
+[Block](#block)). A Friendship row never carries `blocked` as a state value;
+instead, an active Block from A to B implies any prior Friendship is no
+longer active and new friend-scoped actions from B to A are rejected.
 
-- `active`: the link can be opened and can create Link Sessions.
-- `disabled`: the link no longer accepts new opens.
+### Shared Reminder Request State
 
-The first version defaults user links to `active` and long-lived. A can reset a
-user link; reset disables the old code and creates a new active code. Existing
-Service Links established through the old code remain active.
-
-#### Link Session
-
-- `opened`: B opened A's user link, but no account has claimed it yet.
-- `claimed`: B's account and personal channel are ready, and the context is
-  attached to B's account.
-- `abandoned`: B did not complete onboarding.
-
-An `opened` Link Session is not a Service Link. A is not notified while the
-session is only `opened`.
-
-If A disables a user link while B has an already-open Link Session, the first
-version allows that Link Session to complete within its normal expiry window.
-New opens of the disabled link must show a "link no longer active" page.
-
-#### Service Link
-
-- `active`: B can use A's explicitly opened capabilities.
-- `blocked`: A has blocked B from using A's opened capabilities.
-- `removed`: the account-to-account relationship is no longer active.
-
-The first version creates `active` Service Links automatically after
-onboarding. Service-link creation is idempotent:
-
-- If an active Service Link already exists for the A-B pair, onboarding
-  completion is a no-op for link creation.
-- If a removed Service Link exists, B's user-link flow reactivates that record
-  instead of creating a duplicate.
-- If a blocked Service Link exists, onboarding completion grants no new
-  capability and the page must not reveal the block reason.
-- If no Service Link exists, Gateway creates one.
-
-Service-link removal by either party is reversible through the normal user-link
-flow unless A has blocked B. Blocking by A prevents re-establishment until A
-explicitly unblocks the Service Link.
-
-When A blocks B's Service Link, all of B's pending Appointment Requests to A
-are released with reason `cancelled_by_a`. B receives a notification that the
-request is no longer active; the message must not reveal that B was blocked.
-
-#### Bookable Window
-
-- `active`: the window rule can generate available instances.
-- `closed`: the window rule no longer generates new available instances.
-
-Closing a Bookable Window does not erase historical Appointment Requests or
-Shared Appointments.
-
-#### Appointment
-
-- `pending/held`: B requested one generated open window instance; that
-  instance is held.
-- `confirmed/shared`: A confirmed the request; both sides have the
-  appointment.
-- `released`: the request or appointment no longer occupies the instance.
-
-`released` is a terminal state with a `release_reason`:
-
-- `rejected_by_a`: A declined B's pending request.
-- `cancelled_by_a`: A cancelled a pending or confirmed appointment, or closed a
-  rule after confirming that affected pending requests should be cancelled.
-- `cancelled_by_b`: B cancelled a pending or confirmed appointment.
-
-The reason is used for audit, notification content, appointment history, and
-future reporting.
-
-#### Rescheduling
-
-Rescheduling is modeled as cancellation plus a new appointment request.
-
-The first version does not support a separate "change request" state, counter
-proposal state, or mutual rescheduling negotiation.
-
-### Availability and Hold Rules
-
-- A opens bookable windows manually. The first-version product surface can be
-  A's own agent conversation; no separate scheduling console is required.
-- A can open one-off windows or weekly repeating windows in natural language,
-  for example: "每周二和周四晚上 7 点到 9 点可以约训练".
-- Bookable windows have a minimum duration of 15 minutes.
-- Active windows for the same provider and capability must not generate
-  overlapping instances.
-- B requests the entire generated window instance. Partial-window requests are
-  not supported in the first version.
-- B should discover availability by asking through B's own personal channel.
-- B should receive the available windows that match the requested range, not
-  A's complete calendar and not the reason unavailable windows are blocked.
-- Availability queries for B are bounded: default lookahead is 14 days and
-  maximum lookahead is 90 days. Queries exceeding the maximum are capped.
-- Instance generation is performed on the fly at query time, not
-  pre-materialized as an infinite schedule.
-- Bookable windows are stored as structured local-time rules plus UTC generated
-  instances for specific requests. A defines windows in A's account timezone.
-- B receives query results rendered in B's account timezone with an explicit
-  timezone label. If B's account has no timezone set, results render in A's
-  timezone with an explicit label.
-- If A has no open bookable windows in the requested date range, B's agent must
-  explicitly say that A has no available times in that range. This is not a
-  system error or connection problem.
-- Holds and confirmations operate on specific generated instances, not on
-  recurrence rules. A pending or confirmed appointment for "Tuesday March 10,
-  7-9 PM" does not affect "Tuesday March 17, 7-9 PM" or any other instance of
-  the same recurring window.
-- A `pending/held` request holds the selected generated instance until A
-  handles it or B cancels it.
-- There is no first-version automatic hold expiry. To keep no-expiry holds
-  operable, A must be able to list, reject, cancel, or bulk release pending
-  requests from A's own agent conversation, and B must be able to cancel B's
-  own pending requests.
-- A confirmed appointment cancellation releases that appointment. The original
-  generated instance becomes open again only if A's underlying active
-  availability rule still covers that instance.
-
-### Privacy and Abuse Rules
-
-- B never sees A's full calendar, busy reasons, private events, or other users'
-  appointment requests.
-- A is not notified for link opens, B registration, B channel setup, or Service
-  Link creation.
-- A is notified only for appointment requests that require A's decision.
-- A can disable a user link and block a specific B because the link is public
-  and long-lived.
-- A can block an existing Service Link before B has sent any appointment
-  request.
-- B can create multiple independent pending Appointment Requests to the same A
-  in the first version, but each generated instance can be held by only one
-  request.
-- After A rejects one of B's appointment requests, B must wait at least 24
-  hours before creating another request to the same A. The cooldown applies per
-  Service Link and does not cancel already-existing pending requests.
-
-### Notification Rules
-
-- Appointment request notifications go to A's own agent conversation.
-- Confirmation, rejection, and cancellation notifications go to the other
-  participant's own agent conversation.
-- Cancellation notifications are symmetric: whenever either A or B cancels a
-  pending or confirmed appointment, the other party is notified through the
-  same bridge/runtime injection path.
-- Notification content must use account display identity, not private channel
-  identifiers.
-- A blocked-user notification must not reveal that B was blocked.
-
-### Acceptance Scenarios
-
-- **Existing B:** B opens A's user link, already has an account and ready
-  `wechat_personal` channel, asks B's agent for A's open windows, requests one,
-  and A receives a confirmation prompt.
-- **New B:** B opens A's user link without an account, completes account and
-  personal-channel onboarding, returns to the preserved A context, and then
-  requests an appointment.
-- **Re-entry by existing B:** B opens A's user link but already has an active
-  Service Link to A. The web entry skips onboarding and routes B to B's own
-  agent conversation with an already-connected prompt. No duplicate Service
-  Link is created.
-- **Wrong QR:** B scans A's iLink QR instead of A's user link. The product must
-  not treat that as an A-B Service Link.
-- **Availability parse confirmation:** A says "每周二和周四晚上 7 点到 9 点可以约训练";
-  A's agent previews the parsed weekly windows with timezone and recurrence
-  details; the windows are committed only after A confirms.
-- **A rejects:** A rejects B's pending request. B is told the request was not
-  accepted. B may still ask about other open windows, but cannot submit another
-  request to A until the Service Link cooldown ends.
-- **Either side cancels:** A or B cancels a pending or confirmed appointment.
-  The appointment no longer occupies that instance, and the other participant
-  receives a cancellation notification.
-- **Concurrent request:** Users B and C simultaneously request A's Tuesday 7 PM
-  instance. Exactly one request enters `pending/held`. The other receives a
-  response that the instance is no longer available and is shown remaining open
-  windows. Neither B nor C sees the other's request.
-- **Link disabled mid-onboarding:** A disables the user link while B has an
-  open Link Session created before disable. B may complete that existing
-  session within the normal expiry window. New opens of the disabled link show
-  a "link no longer active" page.
-- **A blocks B with pending request:** A blocks B's Service Link while B has a
-  pending request. The pending request is released with reason `cancelled_by_a`,
-  B is notified that the request is no longer active, and B cannot create new
-  requests through the blocked Service Link.
-- **No available windows:** B asks B's agent for A's available times. A has no
-  open bookable windows in the requested range. B's agent explicitly says A has
-  no open times in that range and does not present it as an error.
+- `pending_invitee_confirmation`: requester reminder exists; invitee has not
+  accepted.
+- `accepted`: invitee accepted before reminder time; both reminder projections
+  exist.
+- `rejected`: invitee rejected before reminder time; requester projection was
+  cancelled.
+- `expired`: reminder time arrived before invitee accepted; only requester
+  was reminded. This is the canonical closed-by-time state — the spec does
+  not use "or equivalent" wording elsewhere.
+- `cancelled`: requester cancelled before acceptance.
+- `invalidated`: the underlying Friendship became inactive (removed or
+  blocked) while the request was pending. Requester projection is cancelled
+  in the same transition.
 
 ## Architecture Requirements
-
-This section is requirement-level. It names ownership and boundary contracts so
-implementation teams do not choose incompatible storage, routing, or agent-tool
-paths.
 
 ### Storage Ownership
 
 The first version uses the existing repository storage split:
 
-- **Postgres / Gateway state:** account, channel, relationship, public link,
-  availability, appointment, notification intent, and audit state.
-- **MongoDB / Worker runtime state:** agent conversation messages, runtime turn
-  state, reminders, and other Coke agent-runtime state.
+- **Gateway / Postgres state:** account, channel, user link, link session,
+  friend request, friendship, shared reminder request, notification intent, and
+  audit state.
+- **MongoDB / Reminder Runtime state:** personal visible reminders and their
+  scheduler lifecycle.
+- **MongoDB / Worker Runtime state:** agent conversations and runtime message
+  processing.
 
-| Object | Storage owner | Reason |
-| --- | --- | --- |
-| Account | Postgres / Gateway | Existing customer/account truth. |
-| Personal Channel | Postgres / Gateway | Existing channel lifecycle truth. |
-| User Link / QR | Postgres / Gateway | Public link owned by an account. |
-| Link Session | Postgres / Gateway | Public web/onboarding handoff state. |
-| Service Link | Postgres / Gateway | Account-to-account relationship and permission state. |
-| Bookable Window | Postgres / Gateway | Cross-account availability exposed through gateway contracts. |
-| Appointment Request | Postgres / Gateway | Cross-account scheduling state requiring conflict control. |
-| Shared Appointment | Postgres / Gateway | Shared account-to-account appointment truth. |
-| Appointment Event | Postgres / Gateway | Append-only audit and delivery intent state. |
-| Agent notification/input message | MongoDB / Worker runtime | Runtime conversation delivery after Gateway/Bridge handoff. |
+The shared reminder request must not be stored only in `reminders.metadata`.
+Metadata may link a personal reminder projection back to the shared request,
+but the shared request remains Gateway-owned product state.
 
-Agent-facing tools and conversations may read or act on these Postgres-owned
-objects only through product contracts. They must not duplicate relationship or
-scheduling truth into MongoDB as the primary source.
+### Reminder Runtime Boundary
 
-### Gateway and Agent Capability Boundary
+The existing Reminder Runtime remains a personal reminder runtime:
 
-B's agent cannot directly read A's private account state. Cross-account access
-must go through a Gateway-owned product contract that checks:
+- A Reminder has one `owner_user_id`.
+- A Reminder has one `agent_output_target`.
+- Scheduler jobs fire one Reminder for one owner.
+- Completion, cancellation, update, list, and fire behavior remain
+  owner-scoped.
 
-1. B has a ready account and personal channel.
-2. B has an `active` Service Link to A.
-3. The requested capability is enabled for that Service Link.
-4. The response contains only data that capability allows.
+Shared reminder implementation must call the existing Reminder Runtime
+contract to create, cancel, complete, or update reminder projections. It must
+not directly write reminder documents.
 
-First-version appointment capabilities:
-
-| Capability | Caller | Contract responsibility |
-| --- | --- | --- |
-| Open bookable windows | A | Parse A's availability instruction and return a structured preview. |
-| Confirm bookable windows | A | Persist A-confirmed structured bookable windows. |
-| Query bookable windows | B | Return A's matching open instances visible through the active Service Link. |
-| Request appointment | B | Create one `pending/held` request if conflict and permission checks pass. |
-| Confirm/reject appointment | A | Move the request to `confirmed/shared` or `released`. |
-| Cancel appointment | A or B | Release a pending or confirmed appointment involving the caller. |
-| List pending requests | A | Return pending requests requiring A's action. |
-| User-link management | A | Show, create, reset, disable, or render A's user link/QR. |
-| Service-link controls | A or B | Remove Service Links; A can block/unblock. |
-
-The natural-language surface is an adapter. The domain contract owns the
-permission checks, conflict checks, idempotency, notification intent creation,
-audit events, and state transitions.
-
-### Agent Tool Contracts
-
-The following logical tool signatures are required for the scheduling
-capability. Adapters may expose transport-specific wrappers, but those wrappers
-must call the same Gateway-owned domain contract.
-
-| Tool | Caller | Parameters | Returns |
-| --- | --- | --- | --- |
-| `get_user_link` | A | none | URL and QR reference. |
-| `reset_user_link` | A | none | New URL; old code disabled. |
-| `disable_user_link` | A | `user_link_id: str` | Disabled link summary. |
-| `open_bookable_windows` | A | `instruction: str` | Parsed preview for A to confirm. |
-| `confirm_bookable_windows` | A | `preview_id: str` | Committed window IDs. |
-| `query_bookable_windows` | B | `target_account_id: str`, `date_from: date`, `date_to: date` | List of open generated instances. |
-| `request_appointment` | B | `target_account_id: str`, `window_instance_id: str`, `idempotency_key: str` | Appointment Request. |
-| `confirm_appointment` | A | `request_id: str`, `idempotency_key: str` | Shared Appointment. |
-| `reject_appointment` | A | `request_id: str`, `idempotency_key: str` | Released Appointment Request. |
-| `cancel_appointment` | A or B | `appointment_or_request_id: str`, `idempotency_key: str` | Released appointment summary. |
-| `list_pending_requests` | A | none | Pending Appointment Requests. |
-| `block_service_link` | A | `consumer_account_id: str` | Blocked Service Link summary. |
-| `unblock_service_link` | A | `consumer_account_id: str` | Active Service Link summary. |
-| `remove_service_link` | A or B | `other_account_id: str` | Removed Service Link summary. |
-
-Write tools must accept an idempotency key or derive one from the bridge input
-message id so retries do not duplicate Service Links, Appointment Requests,
-state transitions, or notifications.
-
-### Availability Parsing Contract
-
-A can define availability in A's own agent conversation. The product requires a
-domain contract that turns A's natural-language instruction into structured
-bookable windows.
-
-The contract must resolve:
-
-- A's account and timezone.
-- one-off windows versus weekly repeating windows.
-- start/end times and duration.
-- the service/capability the window is for, first-version appointment booking.
-- whether a new instruction adds windows, replaces windows, or closes windows.
-
-The first-version recurrence representation is a simple JSON structure:
+Recommended reminder projection metadata:
 
 ```json
 {
-  "type": "weekly",
-  "days_of_week": [2, 4],
-  "time_start": "19:00",
-  "time_end": "21:00",
-  "timezone": "Asia/Shanghai",
-  "effective_from": "2026-06-01",
-  "effective_until": null
+  "shared_reminder_request_id": "uuid",
+  "projection_role": "requester",
+  "counterparty_account_id": "uuid"
 }
 ```
 
-`days_of_week` uses ISO weekday numbers where Monday is 1 and Sunday is 7. For
-one-off windows, use `type: "once"` with a specific local date instead of
-`days_of_week`. RRULE is deferred to a future version. The first-version
-representation must be stored verbatim and must not be converted to or from
-RRULE strings at any layer.
+For invitee projections, `projection_role` is `invitee`.
 
-Generated instance identifiers may be deterministic signed tokens over
-`bookable_window_id`, `instance_start`, and `instance_end`; they must not imply
-that instances are pre-materialized indefinitely.
+### Web And Agent Entry Points
 
-### Availability Modification Rules
+Web and agent surfaces are adapters over the same backend transitions.
 
-#### Per-Instance Exclusion
+| Action | Web surface | Agent surface | Backend transition |
+| --- | --- | --- | --- |
+| Send friend request | User-link page | Future agent command if needed | Create Friend Request |
+| Accept/reject friend request | Contacts page | Reply to agent notification | Resolve Friend Request |
+| Create shared reminder request | Reminder/contact UI if present | Natural-language reminder command | Create Shared Reminder Request |
+| Accept/reject shared reminder | Requests/reminders page | Reply to agent notification | Resolve Shared Reminder Request |
+| Cancel pending shared reminder | Requester reminders page | Natural-language cancel command | Cancel Shared Reminder Request |
 
-A can exclude a single instance of a recurring rule by natural language, for
-example "next Tuesday I'm not available." The system stores the exclusion as a
-separate record linked to the recurring rule and excludes that instance from
-future availability queries.
-
-Existing holds on that specific instance are not silently cancelled. Before
-committing the exclusion, A must be warned that a pending request already
-exists and asked whether to keep the request or cancel it.
-
-#### Rule Removal With Live Holds
-
-If A removes or modifies a recurring availability rule and one or more
-generated instances are in `pending/held`, Gateway must:
-
-1. warn A that removing or modifying the rule will cancel N pending requests,
-2. require A to confirm before committing the rule change,
-3. on confirmation, release affected pending requests with reason
-   `cancelled_by_a`,
-4. notify each affected B.
-
-Confirmed Shared Appointments are not cancelled by availability-rule edits.
-They require an explicit appointment cancellation.
-
-#### Idempotent Add
-
-An "add" instruction for a window identical to an existing active window is a
-no-op, deduplicated by rule fingerprint.
-
-### User Link Web Entry
-
-The product entry must be a web route handled by Gateway Web, not an iLink QR.
-
-First-version route shape:
-
-- Web entry: `/u/:code`
-- Server-side QR image endpoint: `/u/:code/qr`
-- Public API backing the web entry: `/api/public/user-links/:code`
-
-The landing page must display:
-
-- A's account display name.
-- An optional plain-text tagline or description set by A, max 120 characters.
-- An optional avatar image.
-
-These shareable profile fields are distinct from any channel-specific profile
-fields. B does not see A's full profile.
-
-The user link code requirements are:
-
-- 12 characters, URL-safe base64 alphabet (`A-Z`, `a-z`, `0-9`, `-`, `_`).
-- Cryptographically random and not derived from account id.
-- Globally unique with a unique constraint on `user_links.code`.
-- Case-sensitive.
-- One active user link per account; a second active link disables the first.
-- Disabled old codes are not reused.
-
-The web page decision table:
-
-| B state on landing | Web page action |
-| --- | --- |
-| Not logged in, no account | Show A's profile and "Create account to connect". |
-| Not logged in, has account | Show A's profile and "Log in to connect". |
-| Logged in, no personal channel | Show A's profile and "Connect your WeChat to continue". |
-| Logged in, ready, no existing Service Link | Claim session, create Service Link, redirect to B's conversation with activation message. |
-| Logged in, ready, existing active Service Link | Skip onboarding and redirect to B's conversation with "already connected" prompt. |
-| Logged in, ready, blocked Service Link | Do not create a new Service Link; show "unable to connect at this time" without revealing the block reason. |
-
-The Link Session identifier must be embedded as a URL query parameter in all
-onboarding redirect URLs, for example `/register?link_session=<token>`. It must
-not rely solely on browser cookies. The token is a short random URL-safe string
-with at least 16 bytes of entropy. It is one-time-use for the claimed state
-transition and may be reused only for status polling until claimed.
-
-### QR and Link Separation
-
-The separation between iLink QR and user link must be enforced by route shape:
-
-- iLink QR belongs to the provider/channel connection flow for
-  `wechat_personal`.
-- User link/QR resolves to the product web route `/u/:code`.
-
-Scanning A's iLink QR can only affect A's personal channel lifecycle. It must
-not create a Link Session, Service Link, Appointment Request, or Shared
-Appointment.
-
-QR code is generated client-side from the full absolute user link URL using a
-standard QR library. Gateway does not store QR images. Gateway should also
-expose `GET /u/:code/qr` as a server-side generated QR image endpoint for
-social sharing previews and systems that cannot render QR client-side.
-
-### Link Session Expiry
-
-An `opened` Link Session expires after 24 hours of inactivity and becomes
-`abandoned`.
-
-If B returns after expiry, B can open A's user link again to create a fresh Link
-Session. Expiry does not disable A's User Link.
-
-### Service Link Scope and Controls
-
-Service Link must be capability-scoped, not just a boolean relationship.
-
-First-version capability:
-
-- `appointment_request`: B may query A's manually opened appointment windows
-  and request one.
-
-Future capabilities can be added to the same Service Link model, but they must
-be explicit capability grants. A Service Link with `appointment_request` does
-not imply access to reminders, memos, full calendar, private profile data, or
-future paid services.
-
-A Service Link's capabilities are determined by A's enabled capabilities at the
-time the Service Link is created. If A enables a new capability after a Service
-Link exists, existing Service Links do not receive it automatically. A can
-explicitly grant additional capabilities to existing Service Links through A's
-agent, but this is opt-in per Service Link.
-
-First-version control surfaces:
-
-- A can ask A's agent to disable A's user link.
-- A can ask A's agent to block, unblock, or remove a specific Service Link.
-- B can ask B's agent to remove their Service Link to A.
-
-No separate management console is required in the first version.
-
-Service-link creation must be enforced with a unique constraint on
-`(provider_account_id, consumer_account_id)`.
-
-### Hold and Concurrency Decisions
-
-The first version uses conservative per-instance hold rules:
-
-- Different users cannot hold the same generated window instance at the same
-  time.
-- The same B may hold multiple independent pending requests with the same A,
-  because each request occupies a different generated instance.
-- Confirmed appointments occupy their generated instance until cancelled.
-- A can reject or cancel any pending request involving A to release the hold.
-
-Conflict detection must be serialized at the database level. The recommended
-implementation is to create the Appointment Request inside a transaction and
-rely on a Postgres partial unique index such as:
-
-```sql
-CREATE UNIQUE INDEX appointment_instance_occupancy_uniq
-ON appointment_requests (
-  provider_account_id,
-  bookable_window_id,
-  instance_start,
-  instance_end
-)
-WHERE status IN ('pending_held', 'confirmed_shared');
-```
-
-The write path must treat unique-constraint violation as "slot no longer
-available" and return remaining open windows when useful. An application-level
-conflict check without database enforcement is insufficient.
-
-If implementation materializes finite generated instances, an equivalent
-`SELECT ... FOR UPDATE` lock on the instance row is acceptable, but it must
-still be backed by a uniqueness rule for active occupancy.
+The agent must not infer a shared reminder unless it can resolve the named
+person to an active friend. If the name is ambiguous, the agent asks the user
+to choose a friend.
 
 ### Notification Injection Contract
 
-When B creates an Appointment Request, Gateway owns the scheduling state change
-and then must deliver a structured notification into A's own agent conversation
-through the existing bridge/runtime message path.
+Friend requests and shared reminder requests require notifications to the
+target user's own agent conversation.
 
-Injection path:
+Gateway owns the product state transition and then persists a notification
+intent before calling the bridge/runtime message path. Notification delivery is
+at-least-once, so state transitions must be idempotent.
 
-1. Gateway persists a notification intent in Postgres before calling the
-   bridge. This may be a `notification_queue` table row or an
-   `appointment_events` row with `status=pending_delivery`.
-2. Gateway calls the existing Bridge inbound route, first version
-   `POST /bridge/inbound`, with a synthetic channel-message envelope for the
-   target account's own channel session.
-3. Bridge persists the notification as a MongoDB `inputmessages` document.
-4. Runner processes it as a normal inbound conversation event.
+Notification content must include:
 
-A future dedicated `POST /bridge/notify` route is allowed only if it normalizes
-to the same MongoDB `inputmessages` path and does not create a parallel runtime
-business path.
+- notification idempotency key
+- actor display identity
+- target request id
+- request type (`friend_request` or `shared_reminder_request`)
+- allowed actions
+- short human-readable summary
 
-The notification content contract must include:
+The notification must not expose private channel identifiers or raw internal
+runtime ids.
 
-- notification idempotency key,
-- requester identity display for B,
-- requested window start/end and timezone,
-- target capability/service label,
-- allowed actions for A: confirm or reject,
-- a stable Appointment Request identifier,
-- `message_type=scheduling_notification` or equivalent metadata so the Runner
-  can route the event to the scheduling intent handler.
+### Idempotency And Race Rules
 
-The bridge call is at-least-once. If Bridge is unavailable, a worker must retry
-undelivered notifications from persisted notification intent state on restart
-or through a short polling loop. A notification is marked delivered only after
-Bridge returns HTTP 2xx. Undelivered notifications older than seven days should
-surface in monitoring.
+- Sending a duplicate pending friend request for the same A/B pair is a no-op
+  or returns the existing pending request.
+- Accepting an already accepted friend request is idempotent.
+- Rejecting an already resolved friend request must not change an active
+  Friendship.
+- Sending a friend request or shared reminder request from B to A while a
+  Block from A to B is active must fail closed at the Gateway boundary and
+  must not surface a notification to A.
+- Creating a shared reminder request must be idempotent for retried agent
+  messages.
+- Accepting a shared reminder request after the reminder time must fail closed
+  and leave the request expired.
+- Rejecting a shared reminder request after it already expired must not cancel
+  a reminder that already fired.
+- Resolving a shared reminder request that has already been `cancelled` or
+  `invalidated` must not create a new projection for the invitee.
+- Cancelling a reminder projection must go through Reminder Runtime cancellation
+  and tolerate already-cancelled or already-fired projections.
 
-The notification must be visible to A as an agent conversation event. It must
-not be delivered through B's channel or through A's iLink connection flow.
+### Visibility Rules
 
-### Appointment Event Log
+- B opening A's user link does not notify A.
+- A is notified only when B sends a friend request.
+- A and B can see only friend requests and shared reminder requests involving
+  themselves.
+- A does not see B's full reminder list.
+- B does not see A's full reminder list.
+- A shared reminder request summary may show the counterpart display name,
+  reminder title, local time, timezone, and current request state.
 
-An `appointment_events` table or equivalent append-only log must record state
-transitions for Appointment Requests and Shared Appointments. Each event
-includes:
+## Acceptance Scenarios
 
-- `appointment_id`,
-- `from_state`,
-- `to_state`,
-- `actor_account_id`,
-- `actor_role` (`provider`, `consumer`, or `system`),
-- `reason`,
-- `created_at`.
-
-The log is write-once and must not be mutated by cancel or release paths.
-Gateway aggregate endpoints may use this log for appointment-history queries.
-
-### Shared Appointment Visibility
-
-Shared Appointment is a single Postgres-owned product record with references to
-both A and B. It is not two independent appointments.
-
-Each side's agent/calendar context reads the shared appointment through a
-contract filtered by the caller account:
-
-- A sees the appointment as involving B.
-- B sees the appointment as involving A.
-- Neither side sees unrelated appointments or private calendar data.
-
-### Data Retention
-
-The following retention categories must be added to
-`docs/design-docs/data-retention-policy.md` as part of the first-version
-implementation:
-
-| Object | Retention policy |
-| --- | --- |
-| Link Session, abandoned | `scheduling_link_session_retention`: 30 days after abandoned; claimed sessions follow account lifetime |
-| Service Link, removed or blocked | `scheduling_service_link_retention`: 90 days after removed or blocked |
-| Appointment Request, released | `scheduling_appointment_request_retention`: 90 days after released |
-| Shared Appointment, cancelled | `scheduling_shared_appointment_retention`: 1 year after cancelled |
-| Bookable Window, closed | `scheduling_bookable_window_retention`: 90 days after closed |
-| User Link, disabled | `scheduling_disabled_user_link_retention`: indefinite, de-listed and not reused |
-
-Implementation plans that introduce cleanup behavior must include dry-run and
-non-dry-run commands plus evidence output under `artifacts/evidence/`, following
-the canonical data-retention policy.
+- **Existing B sends request:** B opens A's user link while logged in, sends a
+  friend request, A accepts in the web UI, and the active Friendship appears for
+  both accounts.
+- **New B sends request:** B opens A's user link without an account, registers,
+  returns to the preserved link session, sends a friend request, and A receives
+  a confirmation notification.
+- **A rejects friend request:** B sends a friend request, A rejects, and no
+  Friendship is created.
+- **Wrong QR:** B scans A's iLink QR. The product must not create a Link
+  Session, Friend Request, Friendship, or Shared Reminder Request.
+- **Shared reminder accepted:** B asks to create a shared reminder with A for
+  today 15:00, B's personal reminder is created immediately, A accepts before
+  15:00, and A's personal reminder is created.
+- **Shared reminder rejected:** B asks to create a shared reminder with A, A
+  rejects before the reminder time, and B's personal reminder is cancelled.
+- **Shared reminder cancelled by requester:** B creates a shared reminder
+  with A and then cancels before A responds; B's personal reminder is
+  cancelled and A's pending prompt no longer accepts a response.
+- **Shared reminder not handled before due time:** B asks to create a shared
+  reminder with A, A does not respond before the reminder time, B is reminded,
+  and A cannot accept afterwards.
+- **Friendship ends while pending:** B creates a shared reminder with A; A
+  removes the Friendship (or blocks B) before responding. B's personal
+  reminder is cancelled and the request becomes `invalidated`.
+- **Ambiguous friend name:** B asks to create a shared reminder with "Li", but
+  B has multiple active friends matching that name. The agent asks B to choose
+  one and creates nothing until B clarifies.
+- **No friendship:** B asks to create a shared reminder with A, but no active
+  Friendship exists. The agent explains that B must add A as a friend first.
 
 ## Product Rationale
 
-### Why B Uses B's Own Channel
+### Why User Link Means Add Friend
 
-The user link is an entry and authorization path, not a shared chat room. B's
-conversation should run through B's own account and personal channel so account
-identity, runtime state, reminders, and later appointment history belong to B.
+The user link is a public add-friend entry, similar to sharing a profile QR. It
+should not imply any other business action by itself. Other workflows must be
+separate capabilities after the friendship exists.
 
-### Why A Is Not Notified For Onboarding
+### Why Confirmation Is Required
 
-The first version treats A's active user link as pre-authorization for a
-lightweight Service Link. A is notified only when B asks for an appointment and
-A needs to make a scheduling decision.
+A public link is easy to share. Requiring A to confirm a friend request prevents
+public link opens from silently creating relationships.
 
-### Why Holds Do Not Expire Automatically
+### Why Shared Reminder Uses Personal Projections
 
-The first-version product rule is that a pending request occupies its selected
-instance until A handles it or B cancels it. That makes the scheduling state
-easy to explain to both sides: if the request is pending, the slot is still
-reserved for that request. The operational mitigation is not a hidden timeout;
-it is explicit pending-request visibility, cancellation, release reasons,
-blocking, and notification/audit guarantees.
+The existing Reminder Runtime is owner-scoped and already handles durable
+delivery, timing, cancellation, and listing for one user. Keeping shared
+reminder state in Gateway and projecting into personal reminders avoids a risky
+multi-participant Reminder Runtime rewrite while preserving the product rule
+that both participants receive their own reminder only after confirmation.
 
-### Why Gateway Owns Scheduling Truth
+## Status And Review Focus
 
-Appointments, service links, and user links are account-to-account product
-state. The worker runtime can surface and act on them through capability tools,
-but Postgres/Gateway remains the source of truth for permissions, conflict
-control, and appointment lifecycle.
-
-## Status and Review Focus
-
-- **Date:** 2026-05-21
-- **State:** Implemented in the user-link-scheduling worktree; use as product
-  and boundary handoff context for verification and follow-up changes.
-- **Scope:** first-version product design for user-to-user linking, personal
-  channel onboarding, and appointment scheduling.
-- **Touched planning surfaces:** `gateway-api`, `gateway-web`, `bridge`,
-  `worker-runtime`, and `repo-os` documentation.
-- **Review focus:** product contract, agent capability boundary, notification
-  delivery semantics, and Postgres conflict/audit guarantees during verification
-  and follow-up planning.
+- **Date:** 2026-05-22
+- **State:** Product design update. This version defines the first-version
+  friend-link and shared-reminder-request framing.
+- **Scope:** first-version user-to-user friendship and shared reminders.
+- **Touched planning surfaces:** `gateway-api`, `gateway-web`, `bridge`, and
+  `repo-os` documentation. Worker runtime is reached only via existing
+  Reminder Runtime calls and existing agent-conversation notification
+  delivery; this spec does not require new worker-runtime surface area.
+- **Review focus:** friend confirmation semantics, shared reminder request
+  state, Reminder Runtime projection boundary, and web/agent consistency.
