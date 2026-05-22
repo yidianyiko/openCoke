@@ -108,6 +108,7 @@ def test_update_validates_lengths_and_nested_shapes():
         {"display_name": "x" * 21},
         {"user_address_name": "x" * 11},
         {"status": {"place": "x" * 21, "action": "ok"}},
+        {"status": {"place": "desk", "mood": "hidden"}},
         {"proactive": {"enabled": "yes"}},
         {"memory": {"enabled": "yes"}},
         {"persona": "x" * 2001},
@@ -126,6 +127,8 @@ def test_update_validates_lengths_and_nested_shapes():
 
 def test_update_merges_valid_overrides_and_keeps_base_type():
     service, dao, _ = _service(instance=None)
+    dao.upsert_active_agent_instance.return_value["nickname"] = "阿妄"
+    dao.upsert_active_agent_instance.return_value["proactive"] = {"enabled": False}
 
     result = service.update_agent_instance(
         customer_id="ck_1",
@@ -147,6 +150,39 @@ def test_update_merges_valid_overrides_and_keeps_base_type():
     assert result["effective_profile"]["display_name"] == "沈妄"
     assert result["effective_profile"]["nickname"] == "阿妄"
     assert result["effective_profile"]["proactive"]["enabled"] is False
+
+
+def test_update_response_uses_persisted_dao_result_not_request_body():
+    service, dao, _ = _service(instance=None)
+    dao.upsert_active_agent_instance.return_value = {
+        "agent_instance_id": "agentinst_1",
+        "owner_user_id": "ck_1",
+        "base_agent_type": "coke_companion",
+        "base_character_id": "char_1",
+        "active": True,
+        "display_name": "persisted name",
+        "nickname": "persisted nickname",
+        "user_address_name": None,
+        "persona": None,
+        "background": None,
+        "speaking_style": None,
+        "extra_rules": None,
+        "status": {"place": None, "action": None},
+        "proactive": {"enabled": True},
+        "memory": {"enabled": True},
+    }
+
+    result = service.update_agent_instance(
+        customer_id="ck_1",
+        body={
+            "display_name": "request name",
+            "nickname": "request nickname",
+        },
+    )
+
+    assert result["agent_instance"]["display_name"] == "persisted name"
+    assert result["effective_profile"]["display_name"] == "persisted name"
+    assert result["effective_profile"]["nickname"] == "persisted nickname"
 
 
 def test_reset_clears_overrides_and_returns_effective_defaults():

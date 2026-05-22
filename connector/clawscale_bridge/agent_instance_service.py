@@ -44,8 +44,6 @@ class AgentInstanceService:
             base_character_id=str(character["_id"]),
             base_agent_type=BASE_AGENT_TYPE,
         )
-        if isinstance(instance, dict):
-            instance = {**instance, **overrides}
         return self._response(owner, character, instance)
 
     def reset_agent_instance(self, *, customer_id: str) -> Dict[str, Any]:
@@ -142,7 +140,7 @@ def _optional_text(value: Any, field: str) -> str | None:
 def _status(value: Any) -> Dict[str, str | None]:
     if value is None:
         return {"place": None, "action": None}
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or set(value) - {"place", "action"}:
         raise ValueError("invalid_body")
     return {
         "place": _bounded_nested_text(value.get("place"), 20),
