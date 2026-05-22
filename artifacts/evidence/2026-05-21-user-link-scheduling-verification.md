@@ -2,9 +2,15 @@
 
 Date: 2026-05-21
 
+Current handoff status: the authoritative verification for the current
+`feature/friend-link-shared-reminders` branch is the **Final Task 8 Addendum**
+and later addenda in this file. The 2026-05-21 sections below are retained as
+historical pre-branch evidence and are not the final verification state.
+
 ## Environment Notes
 
-- Root branch: `user-link-scheduling`; Gateway branch: `user-link-scheduling-gateway`.
+- Historical branch for the original 2026-05-21 evidence: root
+  `user-link-scheduling`; Gateway `user-link-scheduling-gateway`.
 - Gateway scheduling implementation is verified through nested Gateway commit `4b5608a`.
 - `memo-runtime` could not be checked out at the root gitlink commit because local source `/data/projects/coke-memo-runtime` does not contain `769aa46bf1d3e5f769236913846230fe4b0c654f`; a local uncommitted `memo-runtime/OWNERS.md` fixture was used only so repo-OS guardrails could read the required metadata file.
 - Gateway API/Web package test scripts run their full package suites even when file paths are supplied.
@@ -186,5 +192,47 @@ zsh scripts/check
 passed.
 
 git diff --check
+passed.
+```
+
+## Final Review Fix Addendum
+
+Date: 2026-05-22
+
+Final branch-level review found four issues. The follow-up patch:
+
+- Added customer shared-reminder routes for create, pending list, accept,
+  reject, and cancel.
+- Routed user-link friend-request, accepted-friend-request, and shared-reminder
+  product notifications through `enqueueProductNotification`, so new
+  notifications are persisted and delivered to `/bridge/inbound` immediately,
+  with retryable failure state preserved.
+- Added friend counterpart profile data to `list_friends` by selecting
+  `Customer.displayName` and `Customer.avatarUrl` for both friendship sides,
+  and exposed a `counterpartProfile` DTO on customer friend lists.
+- Marked the original 2026-05-21 evidence section as historical, leaving the
+  current branch addenda as authoritative.
+
+### Post-review verification
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api build
+passed.
+
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts
+Test Files 74 passed; Tests 762 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts
+Test Files 45 passed; Tests 173 passed.
+
+.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_message_gateway.py tests/unit/agent/test_scheduling_capability.py tests/unit/agent/test_agent_runtime_scheduling_tools.py tests/unit/agent/test_execution_agents.py tests/unit/agent/test_chat_response_scheduling_instructions.py tests/unit/agent/test_scheduling_types.py tests/unit/test_data_retention_policy_consistency.py -q
+52 passed.
+
+zsh scripts/check
+passed.
+
+git -C gateway diff --check && git diff --check
 passed.
 ```
