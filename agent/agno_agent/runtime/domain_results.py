@@ -89,7 +89,7 @@ class DomainOperationResult:
         return cls(
             action=str(payload.get("action") or ""),
             ok=bool(payload.get("ok")),
-            effect=_literal(payload.get("effect"), {"none", "read", "write"}, "none"),
+            effect=_literal(payload.get("effect"), {"none", "read", "write"}, "effect"),
             entity_type=str(payload.get("entity_type") or ""),
             entity_id=_optional_str(payload.get("entity_id")),
             facts=_mapping(payload.get("facts")),
@@ -160,7 +160,7 @@ class ReplyContract:
                     "report_failure",
                     "direct_answer",
                 },
-                "direct_answer",
+                "intent",
             ),
             required_facts=tuple(
                 ReplyFactRequirement.from_dict(_mapping(item))
@@ -249,7 +249,7 @@ class DomainExecutionResult:
             domain=_literal(
                 payload.get("domain"),
                 {"reminder", "scheduling"},
-                "reminder",
+                "domain",
             ),
             outcome=_literal(
                 payload.get("outcome"),
@@ -260,7 +260,7 @@ class DomainExecutionResult:
                     "rejected",
                     "failed",
                 },
-                "failed",
+                "outcome",
             ),
             operations=tuple(
                 DomainOperationResult.from_dict(_mapping(item))
@@ -323,9 +323,14 @@ def _optional_str(value: Any) -> str | None:
     return text if text else None
 
 
-def _literal(value: Any, allowed: set[str], default: str) -> Any:
+def _literal(value: Any, allowed: set[str], field_name: str) -> Any:
     text = str(value or "")
-    return text if text in allowed else default
+    if text in allowed:
+        return text
+    allowed_values = ", ".join(sorted(allowed))
+    raise ValueError(
+        f"unsupported {field_name}: {text!r}; expected one of: {allowed_values}"
+    )
 
 
 def _jsonable(value: Any) -> Any:

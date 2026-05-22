@@ -6,6 +6,7 @@ from agent.agno_agent.runtime.domain_results import (
     DomainOperationResult,
     ReplyContract,
     ReplyFactRequirement,
+    resolve_required_fact,
 )
 
 
@@ -197,3 +198,119 @@ def test_failed_result_allows_structured_error_detail():
         "detail": {"intent": "request_appointment"},
     }
     assert DomainExecutionResult.from_dict(result.to_dict()) == result
+
+
+def test_from_dict_rejects_invalid_literal_values():
+    payload = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"title": "drink water"},
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=_reply_contract(),
+    ).to_dict()
+
+    invalid_payloads = [
+        ("domain", {**payload, "domain": "notes"}),
+        ("outcome", {**payload, "outcome": "maybe_done"}),
+        (
+            "effect",
+            {
+                **payload,
+                "operations": [{**payload["operations"][0], "effect": "mutate"}],
+            },
+        ),
+        (
+            "intent",
+            {
+                **payload,
+                "reply_contract": {
+                    **payload["reply_contract"],
+                    "intent": "say_anything",
+                },
+            },
+        ),
+    ]
+
+    for field_name, invalid_payload in invalid_payloads:
+        with pytest.raises(ValueError, match=f"unsupported {field_name}"):
+            DomainExecutionResult.from_dict(invalid_payload)
+
+
+def test_resolve_required_fact_reads_supported_paths():
+    result = DomainExecutionResult(
+        domain="reminder",
+        outcome="needs_clarification",
+        operations=(
+            DomainOperationResult(
+                action="inspect",
+                ok=True,
+                effect="read",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"title": "drink water"},
+            ),
+        ),
+        missing_fields=("local_time",),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=(),
+            required_questions=("local_time",),
+            prohibited_claims=(),
+            allow_rephrase=True,
+        ),
+    )
+
+    assert resolve_required_fact(result, "operations[0].entity_id") == "rem-1"
+    assert resolve_required_fact(result, "operations[0].facts.title") == "drink water"
+    assert resolve_required_fact(result, "missing_fields[0]") == "local_time"
+
+
+def test_resolve_required_fact_rejects_unsupported_path():
+    result = DomainExecutionResult(
+        domain="reminder",
+        outcome="no_action",
+        operations=(),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="direct_answer",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=(),
+            allow_rephrase=True,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="unsupported reply fact path"):
+        resolve_required_fact(result, "operations[0].facts")
+
+
+def test_resolve_required_fact_preserves_out_of_range_index_error():
+    result = DomainExecutionResult(
+        domain="reminder",
+        outcome="needs_clarification",
+        operations=(),
+        missing_fields=("local_time",),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=(),
+            required_questions=("local_time",),
+            prohibited_claims=(),
+            allow_rephrase=True,
+        ),
+    )
+
+    with pytest.raises(IndexError):
+        resolve_required_fact(result, "operations[0].entity_id")
