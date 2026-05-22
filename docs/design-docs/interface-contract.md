@@ -67,6 +67,7 @@ and Channel-owned for provider semantics.
 - `/auth/claim`
 - `/channels/wechat-personal`
 - `/account/subscription`
+- `/account/my-agent`
 
 ### Public API
 
@@ -83,6 +84,7 @@ and Channel-owned for provider semantics.
 - `/api/customer/channels/wechat-personal/disconnect` — Platform edge, Channel semantics
 - `/api/customer/channels/wechat-personal/status` — Platform edge, Channel semantics
 - `/api/customer/reminders` — Reminder System
+- `/api/customer/agent-instance` — Platform edge, Agent Runtime semantics
 - `/api/customer/google-calendar-import` — Calendar Import System
 - `/api/customer/calendar-import-handoffs` — Calendar Import System
 - `/api/customer/subscription` — Platform System
@@ -95,6 +97,7 @@ and Channel-owned for provider semantics.
 - `/api/internal/coke-bindings` — Platform System
 - `/api/internal/coke-delivery` — Channel System
 - `/api/internal/coke-users/provision` — Platform System
+- `/bridge/internal/agent-instances` — Bridge internal edge, Agent Runtime semantics
 
 ## Forbidden Public Patterns
 

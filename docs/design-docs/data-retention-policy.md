@@ -9,6 +9,7 @@ requirements.
 | `user_content_retention` | account lifetime plus 30 days | Reminder System | deletion run id, affected owner ids, dry-run count |
 | `short_lived_workflow_retention` | 30 days after terminal workflow state | Reminder System | workflow count by terminal state |
 | `conversation_retention` | 180 days | Agent Runtime System | input/output message count by owner and cutoff |
+| `agent_instance_profile_retention` | account lifetime plus 30 days | Agent Runtime System | owner ids and agent instance count |
 | `calendar_import_retention` | 365 days | Calendar Import System | import run count by cutoff |
 | `handoff_session_retention` | 14 days after expiry | Calendar Import System | handoff session count by cutoff |
 | `timezone_state_retention` | account lifetime plus 30 days | Timezone System | owner ids and changed settings count |
