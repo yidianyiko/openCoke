@@ -63,8 +63,12 @@ async def test_reminder_create_flow_real_model():
 
     assert result.output_disposition.status == "ok"
     assert any(
-        tool_result.name == "reminder" and tool_result.durable_write
-        for tool_result in result.tool_results
+        domain_result.domain == "reminder"
+        and any(
+            operation.ok and operation.effect == "write"
+            for operation in domain_result.operations
+        )
+        for domain_result in result.domain_results
     )
 
 
@@ -76,7 +80,7 @@ async def test_url_context_synthesis_real_model():
     )
 
     assert result.output_disposition.status == "ok"
-    assert any(result.name == "url_context" for result in result.tool_results)
+    assert any(result.name == "url_context" for result in result.capability_results)
     visible = "".join(message.content for message in result.visible_messages)
     for marker in ("RESPONSE", "REQUEST", "<tool_call", "<invoke", "tool_use"):
         assert marker not in visible
@@ -90,4 +94,4 @@ async def test_timezone_change_real_model():
     )
 
     assert result.output_disposition.status == "ok"
-    assert any(result.name == "timezone" for result in result.tool_results)
+    assert any(result.name == "timezone" for result in result.capability_results)
