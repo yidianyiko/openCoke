@@ -81,6 +81,21 @@ directory alone.
   - internal agent API: `gateway/packages/api/src/routes/internal-scheduling-routes.ts`
   - Gateway domain services: `gateway/packages/api/src/scheduling/`
   - Worker agent tools: `agent/agno_agent/capabilities/scheduling.py`
+- User Agent Instance Settings
+  - customer web entry:
+    `gateway/packages/web/app/(customer)/account/my-agent/page.tsx`
+  - customer API:
+    `gateway/packages/api/src/routes/customer-agent-instance-routes.ts`
+  - gateway bridge client:
+    `gateway/packages/api/src/lib/agent-instance-runtime-client.ts`
+  - bridge internal API: `/bridge/internal/agent-instances`
+  - bridge service: `connector/clawscale_bridge/agent_instance_service.py`
+  - worker storage: MongoDB `agent_instances` through
+    `dao/agent_instance_dao.py`
+  - runtime prompt composition:
+    `agent/runner/context.py`,
+    `agent/agno_agent/runtime/context.py`,
+    `agent/agno_agent/runtime/chat_response_instructions.py`
 - Calendar Import Integration
   - customer API:
     `gateway/packages/api/src/routes/customer-google-calendar-import-routes.ts`

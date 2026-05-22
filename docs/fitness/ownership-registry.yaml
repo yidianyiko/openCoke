@@ -51,6 +51,9 @@ routes:
     secondary_owner: bridge
   - path: gateway/packages/api/src/routes/customer-auth-routes.ts
     owner: platform
+  - path: gateway/packages/api/src/routes/customer-agent-instance-routes.ts
+    owner: platform
+    secondary_owner: agent-runtime
   - path: gateway/packages/api/src/routes/customer-channel-routes.ts
     owner: platform
     secondary_owner: channel

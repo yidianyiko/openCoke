@@ -14,6 +14,9 @@ from agent.prompt.character import get_character_prompt
 from agent.runner.identity import get_agent_entity_id
 from agent.util.message_util import messages_to_str
 from conf.config import CONF
+from dao.agent_instance_dao import (
+    AgentInstanceDAO,
+)  # noqa: F401 - preserved as a patch seam for tests
 from dao.conversation_dao import ConversationDAO
 from dao.mongo import MongoDBBase
 from dao.user_dao import UserDAO  # noqa: F401 - preserved as a patch seam for tests
@@ -176,6 +179,58 @@ def _resolve_user_timezone_context(user):
     }
 
 
+def _compose_agent_instance_profile(user_id, character, instance):
+    user_info = (
+        character.get("user_info")
+        if isinstance(character.get("user_info"), dict)
+        else {}
+    )
+    base_status = (
+        user_info.get("status") if isinstance(user_info.get("status"), dict) else {}
+    )
+    instance = instance if isinstance(instance, dict) else {}
+    status = instance.get("status") if isinstance(instance.get("status"), dict) else {}
+    proactive = (
+        instance.get("proactive") if isinstance(instance.get("proactive"), dict) else {}
+    )
+    memory = instance.get("memory") if isinstance(instance.get("memory"), dict) else {}
+    display_name = (
+        instance.get("display_name")
+        or character.get("nickname")
+        or character.get("name")
+        or "Coke"
+    )
+    nickname = instance.get("nickname") or display_name
+    return {
+        "owner_user_id": user_id,
+        "base_agent_type": "coke_companion",
+        "base_character_id": str(character.get("id") or character.get("_id") or ""),
+        "display_name": display_name,
+        "nickname": nickname,
+        "user_address_name": instance.get("user_address_name"),
+        "persona": instance.get("persona"),
+        "background": instance.get("background"),
+        "speaking_style": instance.get("speaking_style"),
+        "extra_rules": instance.get("extra_rules"),
+        "status": {
+            "place": status.get("place") or base_status.get("place"),
+            "action": status.get("action") or base_status.get("action"),
+        },
+        "proactive": {
+            "enabled": (
+                proactive.get("enabled")
+                if proactive.get("enabled") is not None
+                else True
+            )
+        },
+        "memory": {
+            "enabled": (
+                memory.get("enabled") if memory.get("enabled") is not None else True
+            )
+        },
+    }
+
+
 def context_prepare(user, character, conversation):
     user_id = get_agent_entity_id(user)
     character_id = get_agent_entity_id(character)
@@ -213,6 +268,23 @@ def context_prepare(user, character, conversation):
         # 使用文件配置覆盖数据库中的 description
         context["character"]["user_info"]["description"] = file_based_prompt
         logger.debug(f"[CharacterPrompt] 使用文件配置的提示词: {character_name}")
+
+    agent_instance = None
+    agent_instance_dao = AgentInstanceDAO()
+    try:
+        agent_instance = agent_instance_dao.get_active_agent_instance(
+            user_id,
+            base_agent_type="coke_companion",
+        )
+    except ValueError:
+        logger.warning("[AgentInstance] invalid owner id for user_id=%s", user_id)
+    finally:
+        agent_instance_dao.close()
+    context["agent_instance_profile"] = _compose_agent_instance_profile(
+        user_id,
+        context["character"],
+        agent_instance,
+    )
 
     mongo = MongoDBBase()
     relation = mongo.find_one("relations", {"uid": user_id, "cid": character_id})

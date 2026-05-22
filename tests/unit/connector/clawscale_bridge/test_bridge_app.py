@@ -59,12 +59,16 @@ def test_create_app_uses_configured_bridge_api_key_in_non_testing_mode(monkeypat
     monkeypatch.setattr(
         bridge_app, "_build_reminder_management_service", lambda: MagicMock()
     )
+    monkeypatch.setattr(
+        bridge_app, "_build_agent_instance_service", lambda: MagicMock()
+    )
     monkeypatch.setattr(bridge_app, "_build_output_dispatcher", lambda: MagicMock())
     monkeypatch.setattr(bridge_app, "_start_output_dispatcher", lambda dispatcher: None)
 
     app = bridge_app.create_app(testing=False)
 
     assert app.config["COKE_BRIDGE_API_KEY"] == "local-bridge-key"
+    assert app.config["AGENT_INSTANCE_SERVICE"] is not None
 
 
 def test_create_app_rejects_unresolved_required_bridge_settings(monkeypatch):
@@ -97,6 +101,9 @@ def test_create_app_starts_output_dispatcher_loop_in_non_testing_mode(monkeypatc
     )
     monkeypatch.setattr(
         bridge_app, "_build_reminder_management_service", lambda: MagicMock()
+    )
+    monkeypatch.setattr(
+        bridge_app, "_build_agent_instance_service", lambda: MagicMock()
     )
     monkeypatch.setattr(bridge_app, "MongoDBBase", lambda **kwargs: MagicMock())
 
@@ -571,6 +578,109 @@ def test_bridge_internal_reminders_missing_service_returns_stable_error():
         "ok": False,
         "error": "bridge_service_not_wired",
     }
+
+
+def test_bridge_internal_agent_instances_rejects_missing_bearer_token():
+    from connector.clawscale_bridge.app import create_app
+
+    response = (
+        create_app(testing=True)
+        .test_client()
+        .get("/bridge/internal/agent-instances?customer_id=ck_1")
+    )
+
+    assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "unauthorized"}
+
+
+def test_bridge_internal_agent_instances_get_returns_service_payload(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.get_agent_instance.return_value = {
+        "agent_instance": {"owner_user_id": "ck_1"},
+        "effective_profile": {"display_name": "Coke"},
+    }
+    monkeypatch.setitem(app.config, "AGENT_INSTANCE_SERVICE", service)
+
+    response = app.test_client().get(
+        "/bridge/internal/agent-instances?customer_id=ck_1",
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {
+            "agent_instance": {"owner_user_id": "ck_1"},
+            "effective_profile": {"display_name": "Coke"},
+        },
+    }
+    service.get_agent_instance.assert_called_once_with(customer_id="ck_1")
+
+
+def test_bridge_internal_agent_instances_patch_uses_customer_id_from_body(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.update_agent_instance.return_value = {
+        "agent_instance": {"owner_user_id": "ck_1"},
+        "effective_profile": {"display_name": "沈妄"},
+    }
+    monkeypatch.setitem(app.config, "AGENT_INSTANCE_SERVICE", service)
+
+    response = app.test_client().patch(
+        "/bridge/internal/agent-instances",
+        json={"customer_id": "ck_1", "display_name": "沈妄"},
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 200
+    service.update_agent_instance.assert_called_once_with(
+        customer_id="ck_1",
+        body={"display_name": "沈妄"},
+    )
+
+
+def test_bridge_internal_agent_instances_reset_uses_customer_id_from_body(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.reset_agent_instance.return_value = {
+        "agent_instance": {"display_name": None},
+        "effective_profile": {"display_name": "Coke"},
+    }
+    monkeypatch.setitem(app.config, "AGENT_INSTANCE_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/agent-instances/reset",
+        json={"customer_id": "ck_1"},
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 200
+    service.reset_agent_instance.assert_called_once_with(customer_id="ck_1")
+
+
+def test_bridge_internal_agent_instances_validation_errors_are_400(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.update_agent_instance.side_effect = ValueError("invalid_body")
+    monkeypatch.setitem(app.config, "AGENT_INSTANCE_SERVICE", service)
+
+    response = app.test_client().patch(
+        "/bridge/internal/agent-instances",
+        json={"customer_id": "ck_1", "display_name": ""},
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "invalid_body"}
 
 
 def test_bridge_healthz_malformed_origin_port_uses_configured_cors_origin():

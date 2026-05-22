@@ -286,6 +286,39 @@ async def test_post_analyze_skips_followup_when_timed_reminder_created(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_post_analyze_skips_followup_when_agent_instance_disables_proactive(
+    monkeypatch,
+):
+    from agent.agno_agent.runtime import post_analyze as post_analyze_runtime
+
+    service = Mock(
+        create_or_replace_internal_followup=Mock(),
+        clear_internal_followup=Mock(),
+    )
+    state = build_session_state()
+    state["agent_instance_profile"] = {"proactive": {"enabled": False}}
+    install_reminder_service(monkeypatch, service)
+    install_post_analyze_response(
+        monkeypatch,
+        {
+            "FollowupPlan": {
+                "FollowupAction": "create",
+                "FollowupTime": "2026年04月21日12时00分",
+                "FollowupPrompt": "中午记得汇报进度",
+            },
+        },
+    )
+
+    await post_analyze_runtime.run_post_analyze(state)
+
+    service.clear_internal_followup.assert_called_once_with(
+        owner_user_id="user-1",
+        conversation_id="conv-1",
+    )
+    service.create_or_replace_internal_followup.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_post_analyze_clears_internal_followup_without_character_context(
     monkeypatch,
 ):

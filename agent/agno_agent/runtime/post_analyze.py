@@ -111,12 +111,24 @@ def _reminder_created_with_time(session_state: dict[str, Any]) -> bool:
     )
 
 
+def _proactive_followup_enabled(session_state: dict[str, Any]) -> bool:
+    profile = session_state.get("agent_instance_profile")
+    if not isinstance(profile, dict):
+        return True
+    proactive = profile.get("proactive")
+    if not isinstance(proactive, dict):
+        return True
+    return proactive.get("enabled") is not False
+
+
 def _build_userp_template(session_state: dict[str, Any]) -> str:
-    skip_future_response = _reminder_created_with_time(session_state)
+    skip_future_response = _reminder_created_with_time(
+        session_state
+    ) or not _proactive_followup_enabled(session_state)
 
     if skip_future_response:
         logger.info(
-            "[PostAnalyze] 检测到 reminder_created_with_time=True，跳过 internal follow-up prompt"
+            "[PostAnalyze] 跳过 internal follow-up prompt"
         )
 
     return USERP_TEMPLATE_PREFIX + get_post_analyze_prompt(skip_future_response)
@@ -132,6 +144,16 @@ def _handle_followup_plan(
 
     if _reminder_created_with_time(session_state):
         logger.info("[FollowupPlan] 本轮已创建定时提醒，清理内部 proactive follow-up")
+        try:
+            adapter.clear_internal_followup(session_state=session_state)
+        except ReminderError as exc:
+            logger.warning(
+                "[FollowupPlan] 无法清理内部 follow-up: %s", exc.user_message
+            )
+        return
+
+    if not _proactive_followup_enabled(session_state):
+        logger.info("[FollowupPlan] agent instance disabled proactive follow-up")
         try:
             adapter.clear_internal_followup(session_state=session_state)
         except ReminderError as exc:

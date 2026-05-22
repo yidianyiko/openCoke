@@ -595,6 +595,12 @@ def _build_reminder_management_service():
     return ReminderManagementService()
 
 
+def _build_agent_instance_service():
+    from connector.clawscale_bridge.agent_instance_service import AgentInstanceService
+
+    return AgentInstanceService()
+
+
 def _resolve_google_calendar_import_target(service, payload: dict) -> dict:
     customer_id = payload.get("customer_id")
     conversation_id = payload.get("target_conversation_id")
@@ -676,6 +682,7 @@ def create_app(testing: bool = False):
         app.config["BRIDGE_GATEWAY"] = _build_default_bridge_gateway()
         app.config["GOOGLE_CALENDAR_IMPORT_SERVICE"] = _build_google_calendar_import_service()
         app.config["REMINDER_MANAGEMENT_SERVICE"] = _build_reminder_management_service()
+        app.config["AGENT_INSTANCE_SERVICE"] = _build_agent_instance_service()
         app.config["COKE_WEB_ALLOWED_ORIGIN"] = _require_bridge_setting(
             "web_allowed_origin"
         )
@@ -707,6 +714,15 @@ def create_app(testing: bool = False):
 
     def _reminder_service_or_error():
         service = app.config.get("REMINDER_MANAGEMENT_SERVICE")
+        if service is None:
+            return None, (
+                jsonify({"ok": False, "error": "bridge_service_not_wired"}),
+                500,
+            )
+        return service, None
+
+    def _agent_instance_service_or_error():
+        service = app.config.get("AGENT_INSTANCE_SERVICE")
         if service is None:
             return None, (
                 jsonify({"ok": False, "error": "bridge_service_not_wired"}),
@@ -916,6 +932,57 @@ def create_app(testing: bool = False):
             )
         except ValueError as exc:
             return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
+    @app.get("/bridge/internal/agent-instances")
+    def bridge_internal_get_agent_instance():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _agent_instance_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            result = service.get_agent_instance(customer_id=request.args.get("customer_id"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "data": result})
+
+    @app.patch("/bridge/internal/agent-instances")
+    def bridge_internal_update_agent_instance():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _agent_instance_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            customer_id = payload.pop("customer_id", None)
+            result = service.update_agent_instance(customer_id=customer_id, body=payload)
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": True, "data": result})
+
+    @app.post("/bridge/internal/agent-instances/reset")
+    def bridge_internal_reset_agent_instance():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _agent_instance_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            payload = _get_json_body()
+            result = service.reset_agent_instance(customer_id=payload.get("customer_id"))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
         return jsonify({"ok": True, "data": result})
 
     @app.post("/bridge/internal/google-calendar-import/run")
