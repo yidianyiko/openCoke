@@ -51,6 +51,39 @@ class TrustedRelationContext:
 
 
 @dataclass(frozen=True)
+class AgentInstanceProfileContext:
+    display_name: str | None = None
+    nickname: str | None = None
+    user_address_name: str | None = None
+    persona: str | None = None
+    background: str | None = None
+    speaking_style: str | None = None
+    extra_rules: str | None = None
+    status_place: str | None = None
+    status_action: str | None = None
+    proactive_enabled: bool | None = None
+    memory_enabled: bool | None = None
+
+    def is_empty(self) -> bool:
+        return all(
+            value is None
+            for value in (
+                self.display_name,
+                self.nickname,
+                self.user_address_name,
+                self.persona,
+                self.background,
+                self.speaking_style,
+                self.extra_rules,
+                self.status_place,
+                self.status_action,
+                self.proactive_enabled,
+                self.memory_enabled,
+            )
+        )
+
+
+@dataclass(frozen=True)
 class AgentRunContext:
     user: TrustedUserContext
     character: TrustedCharacterContext
@@ -59,6 +92,9 @@ class AgentRunContext:
     platform: str
     recent_chat_history: str
     current_time: datetime
+    agent_instance_profile: AgentInstanceProfileContext = field(
+        default_factory=AgentInstanceProfileContext
+    )
     runtime_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -91,6 +127,34 @@ def _nickname(value: Mapping[str, Any], fallback: str) -> str:
         or value.get("nickname")
         or value.get("name")
         or fallback
+    )
+
+
+def _optional_str(value: Any) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _build_agent_instance_profile(value: Any) -> AgentInstanceProfileContext:
+    profile = _legacy_mapping(value)
+    status = _legacy_mapping(profile.get("status"))
+    proactive = _legacy_mapping(profile.get("proactive"))
+    memory = _legacy_mapping(profile.get("memory"))
+    return AgentInstanceProfileContext(
+        display_name=_optional_str(profile.get("display_name")),
+        nickname=_optional_str(profile.get("nickname")),
+        user_address_name=_optional_str(profile.get("user_address_name")),
+        persona=_optional_str(profile.get("persona")),
+        background=_optional_str(profile.get("background")),
+        speaking_style=_optional_str(profile.get("speaking_style")),
+        extra_rules=_optional_str(profile.get("extra_rules")),
+        status_place=_optional_str(status.get("place")),
+        status_action=_optional_str(status.get("action")),
+        proactive_enabled=_optional_bool(proactive.get("enabled")),
+        memory_enabled=_optional_bool(memory.get("enabled")),
     )
 
 
@@ -151,5 +215,8 @@ def build_agent_run_context(
             or ""
         ),
         current_time=current_time,
+        agent_instance_profile=_build_agent_instance_profile(
+            legacy_context.get("agent_instance_profile")
+        ),
         runtime_metadata=runtime_metadata or {},
     )

@@ -93,18 +93,50 @@ def _runtime_context_block(
     return "\n".join(lines)
 
 
+def _agent_instance_profile_block(run_context: AgentRunContext) -> str:
+    profile = run_context.agent_instance_profile
+    if profile.is_empty():
+        return ""
+
+    fields = [
+        ("display_name", profile.display_name),
+        ("nickname", profile.nickname),
+        ("user_address_name", profile.user_address_name),
+        ("persona", profile.persona),
+        ("background", profile.background),
+        ("speaking_style", profile.speaking_style),
+        ("extra_rules", profile.extra_rules),
+        ("status_place", profile.status_place),
+        ("status_action", profile.status_action),
+        ("proactive_enabled", profile.proactive_enabled),
+        ("memory_enabled", profile.memory_enabled),
+    ]
+    lines = ["User-configured agent profile:"]
+    for key, value in fields:
+        if value is None:
+            continue
+        lines.append(f"{key}: {json.dumps(value, ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
 def build_chat_response_instructions(
     run_context: AgentRunContext,
     agent_input: AgentInput,
 ) -> str:
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
-    return "\n\n".join(
+    profile_block = _agent_instance_profile_block(run_context)
+    parts = [
+        cleaned,
+        _runtime_context_block(run_context, agent_input),
+    ]
+    if profile_block:
+        parts.append(profile_block)
+    parts.extend(
         [
-            cleaned,
-            _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
             _DELEGATION_BOUNDARY,
             f"Default user timezone: {_instruction_value(timezone)}",
         ]
     )
+    return "\n\n".join(parts)
