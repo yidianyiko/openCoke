@@ -20,6 +20,11 @@ from agent.agno_agent.runtime.scheduling_types import (
 _SCHEDULING_DOMAIN_INSTRUCTIONS_TEMPLATE = (
     "You are the scheduling execution worker. The intent is: {intent}. "
     "Call exactly one scheduling tool that matches the intent. "
+    "Respect scheduling safety: separate A-side link management from B-side "
+    "appointment actions, do not guess ambiguous roles or target accounts, "
+    "do not expose raw user-link codes when status or URL is enough, and do "
+    "not perform irreversible scheduling changes unless the intent confirms "
+    "the exact change. Pending appointment holds do not expire automatically. "
     "Output only the tool call - do not generate user-visible text."
 )
 

@@ -28,6 +28,12 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
 - Use scheduling_domain(intent=...) only when the user explicitly requests user-link management, bookable-window management, or appointment actions (request, confirm, reject, cancel, list). Pass a precise intent string naming the action and any entity ids visible in conversation context.
+- Scheduling scope: A-side link management means the current user's own booking link, availability windows, and service links. B-side appointment actions mean requesting, confirming, rejecting, cancelling, or listing appointments against another provider or target account.
+- If the role, provider, or target account is ambiguous, ask a short clarification and respond directly without calling scheduling_domain.
+- Do not create appointment state from ordinary calendar discussion, tentative plans, vague availability, or casual mentions of possible meeting times.
+- Do not reveal raw user-link codes when a URL, link status, or short summary is enough.
+- Ask the user to confirm before irreversible scheduling changes such as reset or disable link, confirm, reject, or cancel appointment, and block or remove service link, unless the current turn explicitly confirms that exact change.
+- Pending appointment holds do not expire automatically; do not tell the user a pending hold will disappear without an explicit cancel/reject action.
 - Use timezone, calendar_import, or url_context directly - no delegation needed.
 - For any other input, respond directly without calling a domain tool.
 - Do not invent a reminder or scheduling action from casual mention of time, plans, or activities."""

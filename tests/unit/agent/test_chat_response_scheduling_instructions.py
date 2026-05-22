@@ -67,9 +67,14 @@ def test_reminder_tool_boundary_is_removed():
     assert "Use the reminder tool only when" not in text
 
 
-def test_scheduling_tool_boundary_is_removed():
-    """_SCHEDULING_TOOL_BOUNDARY is now in execution_agents.py, not the Interaction Agent."""
+def test_delegation_boundary_restores_scheduling_safety_policy():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Scheduling tool boundary:" not in text
-    assert "A-side link management" not in text
-    assert "B-side appointment actions" not in text
+    assert "A-side link management" in text
+    assert "B-side appointment actions" in text
+    assert "role, provider, or target account is ambiguous" in text
+    assert "ask a short clarification" in text
+    assert "Do not create appointment state" in text
+    assert "Do not reveal raw user-link codes" in text
+    assert "Ask the user to confirm before irreversible scheduling changes" in text
+    assert "Pending appointment holds do not expire automatically" in text

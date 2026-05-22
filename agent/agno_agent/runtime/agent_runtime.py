@@ -114,6 +114,8 @@ def _create_interaction_agent(
         utility_tools = [tool(name=name)(fn) for name, fn in utility_wrappers.items()]
         reminder_domain_lock = asyncio.Lock()
         reminder_domain_result: dict[str, Any] = {}
+        scheduling_domain_lock = asyncio.Lock()
+        scheduling_domain_result: dict[str, Any] = {}
 
         async def reminder_domain() -> dict[str, Any]:
             """Use for explicit reminder create, update, cancel, complete, or list requests."""
@@ -130,12 +132,17 @@ def _create_interaction_agent(
 
         async def scheduling_domain(intent: str) -> dict[str, Any]:
             """Use for explicit user-link, availability, appointment, or service-link requests."""
-            return await run_scheduling_domain(
-                input_message=input_message,
-                intent=intent,
-                run_context=run_context,
-                tool_results=tool_results,
-            )
+            async with scheduling_domain_lock:
+                if "result" in scheduling_domain_result:
+                    return scheduling_domain_result["result"]
+                result = await run_scheduling_domain(
+                    input_message=input_message,
+                    intent=intent,
+                    run_context=run_context,
+                    tool_results=tool_results,
+                )
+                scheduling_domain_result["result"] = result
+                return result
 
         domain_tools = [
             tool(name="reminder_domain", stop_after_tool_call=False)(reminder_domain),

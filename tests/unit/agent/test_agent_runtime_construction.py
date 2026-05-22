@@ -680,6 +680,57 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
     }
 
 
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
+    monkeypatch,
+):
+    calls = 0
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "visible_summary": "已确认预约",
+        "synthesis_context": None,
+        "content": {"visible_summary": "已确认预约"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        tool_results,
+    ):
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0.01)
+        return envelope | {"intent": intent}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="confirm it",
+        tool_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    first, second = await asyncio.gather(
+        scheduling_domain(intent="confirm_appointment: id=appt_1"),
+        scheduling_domain(intent="confirm_appointment: id=appt_2"),
+    )
+
+    assert calls == 1
+    assert first is second
+    assert first == envelope | {"intent": "confirm_appointment: id=appt_1"}
+
+
 def test_create_interaction_agent_resolves_default_session_db(monkeypatch):
     resolved_db = object()
 
