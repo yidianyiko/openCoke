@@ -23,7 +23,8 @@ async def test_event_adapter_calls_agent_runtime_with_typed_context(monkeypatch)
     fake_result = AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=(),
+        domain_results=[],
+        capability_results=(),
         metrics={},
         trace={},
         output_disposition=OutputDisposition(status="empty"),

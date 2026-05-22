@@ -111,14 +111,17 @@ def test_run_result_has_output_contract_fields():
             VisibleMessage(message_type="text", content="Done", metadata={"k": "v"})
         ],
         post_analyze_input=None,
-        tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
+        domain_results=[],
+        capability_results=[
+            CapabilityResult(name="reminder", ok=True, content={"id": "r1"})
+        ],
         metrics={"latency_ms": 12},
         trace={"runtime": "agent_runtime"},
         output_disposition=OutputDisposition(status="ok", output_references=["out-1"]),
     )
 
     assert result.visible_messages[0].content == "Done"
-    assert result.tool_results[0].content == {"id": "r1"}
+    assert result.capability_results[0].content == {"id": "r1"}
     assert result.metrics["latency_ms"] == 12
     assert result.trace["runtime"] == "agent_runtime"
     assert result.output_disposition.status == "ok"
@@ -206,7 +209,10 @@ def test_sequence_fields_are_immutable_after_construction():
     result = AgentRunResult(
         visible_messages=[VisibleMessage(message_type="text", content="Done")],
         post_analyze_input=None,
-        tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
+        domain_results=[],
+        capability_results=[
+            CapabilityResult(name="reminder", ok=True, content={"id": "r1"})
+        ],
         metrics={},
         trace={},
         output_disposition=disposition,
@@ -215,7 +221,7 @@ def test_sequence_fields_are_immutable_after_construction():
     assert payload.current_message_ids == ("msg-1",)
     assert disposition.output_references == ("out-1",)
     assert isinstance(result.visible_messages, tuple)
-    assert isinstance(result.tool_results, tuple)
+    assert isinstance(result.capability_results, tuple)
 
     with pytest.raises(AttributeError):
         payload.current_message_ids.append("msg-2")
@@ -237,7 +243,10 @@ def test_metadata_mappings_are_read_only_after_construction():
     result = AgentRunResult(
         visible_messages=[VisibleMessage(message_type="text", content="Done")],
         post_analyze_input={"messages": ["msg-1"]},
-        tool_results=[CapabilityResult(name="reminder", ok=True, content={"id": "r1"})],
+        domain_results=[],
+        capability_results=[
+            CapabilityResult(name="reminder", ok=True, content={"id": "r1"})
+        ],
         metrics={"latency_ms": 12},
         trace={"runtime": "agent_runtime"},
         output_disposition=OutputDisposition(status="ok"),
@@ -255,7 +264,7 @@ def test_metadata_mappings_are_read_only_after_construction():
     with pytest.raises(TypeError):
         result.trace["runtime"] = "other"
     with pytest.raises(TypeError):
-        result.tool_results[0].content["id"] = "r2"
+        result.capability_results[0].content["id"] = "r2"
 
 
 @pytest.mark.parametrize(

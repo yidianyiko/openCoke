@@ -9,6 +9,7 @@ from agent.agno_agent.runtime._immutability import (
     freeze_sequence,
     freeze_value,
 )
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 
 
 @dataclass(frozen=True)
@@ -35,9 +36,13 @@ class CapabilityResult:
 
     @property
     def visible_summary(self) -> str | None:
-        keys = ("visible_summary", "summary", "message") if self.ok else (
-            "visible_summary",
-            "summary",
+        keys = (
+            ("visible_summary", "summary", "message")
+            if self.ok
+            else (
+                "visible_summary",
+                "summary",
+            )
         )
         for key in keys:
             value = self.content.get(key)
@@ -97,7 +102,8 @@ class RuntimeErrorDisposition:
 class AgentRunResult:
     visible_messages: Sequence[VisibleMessage]
     post_analyze_input: Mapping[str, Any] | None
-    tool_results: Sequence[CapabilityResult]
+    domain_results: Sequence[DomainExecutionResult]
+    capability_results: Sequence[CapabilityResult]
     metrics: Mapping[str, Any]
     trace: Mapping[str, Any]
     output_disposition: OutputDisposition
@@ -114,7 +120,16 @@ class AgentRunResult:
             "post_analyze_input",
             freeze_value(self.post_analyze_input),
         )
-        object.__setattr__(self, "tool_results", freeze_sequence(self.tool_results))
+        object.__setattr__(
+            self,
+            "domain_results",
+            freeze_sequence(self.domain_results),
+        )
+        object.__setattr__(
+            self,
+            "capability_results",
+            freeze_sequence(self.capability_results),
+        )
         object.__setattr__(self, "metrics", freeze_mapping(self.metrics))
         object.__setattr__(self, "trace", freeze_mapping(self.trace))
 

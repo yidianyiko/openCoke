@@ -31,7 +31,7 @@ def _ctx() -> AgentRunContext:
 async def _run_with_fake_agent(
     *,
     messages,
-    tool_results: list[CapabilityResult],
+    capability_results: list[CapabilityResult],
     monkeypatch: pytest.MonkeyPatch,
     input_text: str = "hi",
     content: str = "",
@@ -46,13 +46,13 @@ async def _run_with_fake_agent(
             return FakeOutput(messages, content)
 
     def patched_create(
-        *, run_context, agent_input, input_message, tool_results, domain_results
+        *, run_context, agent_input, input_message, capability_results, domain_results
     ):
         del run_context, agent_input, input_message, domain_results
-        tool_results.extend(captured_results)
+        capability_results.extend(captured_results)
         return FakeAgent()
 
-    captured_results = list(tool_results)
+    captured_results = list(capability_results)
     monkeypatch.setattr(agent_runtime, "_create_interaction_agent", patched_create)
     return await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
@@ -87,7 +87,7 @@ async def test_rule1_synthesis_with_nonempty_final_text_wins(monkeypatch):
             {"role": "tool", "content": "..."},
             {"role": "assistant", "content": "synthesized reply"},
         ],
-        tool_results=[url_result, timezone_result],
+        capability_results=[url_result, timezone_result],
         monkeypatch=monkeypatch,
         content="synthesized reply",
     )
@@ -118,7 +118,7 @@ async def test_rule2_visible_summary_when_synthesis_text_empty(monkeypatch):
             {"role": "tool", "content": "..."},
             {"role": "assistant", "content": ""},
         ],
-        tool_results=[url_result, reminder_result],
+        capability_results=[url_result, reminder_result],
         monkeypatch=monkeypatch,
     )
 
@@ -142,7 +142,7 @@ async def test_rule2_joins_multiple_visible_summaries(monkeypatch):
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": ""}],
-        tool_results=[reminder_result, timezone_result],
+        capability_results=[reminder_result, timezone_result],
         monkeypatch=monkeypatch,
     )
 
@@ -165,7 +165,7 @@ async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatc
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": ""}],
-        tool_results=[timezone_result, reminder_result],
+        capability_results=[timezone_result, reminder_result],
         monkeypatch=monkeypatch,
     )
 
@@ -178,7 +178,7 @@ async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatc
 async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": "ordinary chat"}],
-        tool_results=[],
+        capability_results=[],
         monkeypatch=monkeypatch,
         content="ordinary chat",
     )
@@ -201,7 +201,7 @@ async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
 ):
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": model_text}],
-        tool_results=[],
+        capability_results=[],
         monkeypatch=monkeypatch,
         input_text="明天九点提醒我喝水",
         content=model_text,
@@ -219,7 +219,7 @@ async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": "我会在明天早上九点提醒你。"}],
-        tool_results=[],
+        capability_results=[],
         monkeypatch=monkeypatch,
         input_text="明天九点提醒我喝水",
         content="我会在明天早上九点提醒你。",
@@ -243,7 +243,7 @@ async def test_rule4_empty_disposition_when_nothing_resolves(monkeypatch):
 
     result = await _run_with_fake_agent(
         messages=[{"role": "assistant", "content": ""}],
-        tool_results=[no_summary],
+        capability_results=[no_summary],
         monkeypatch=monkeypatch,
     )
 

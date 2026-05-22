@@ -9,7 +9,8 @@ def test_with_output_references_attaches_references():
     base = AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=(),
+        domain_results=[],
+        capability_results=(),
         metrics={},
         trace={},
         output_disposition=OutputDisposition(status="ok"),

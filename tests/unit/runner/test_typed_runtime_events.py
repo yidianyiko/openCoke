@@ -41,7 +41,8 @@ async def test_reminder_event_handler_can_route_through_typed_runtime():
                 VisibleMessage(message_type="text", content="提醒：drink water")
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),

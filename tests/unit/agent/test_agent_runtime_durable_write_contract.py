@@ -28,8 +28,8 @@ def _ctx() -> AgentRunContext:
     )
 
 
-async def _run(*, tool_results, monkeypatch, messages=None):
-    captured_results = list(tool_results)
+async def _run(*, capability_results, monkeypatch, messages=None):
+    captured_results = list(capability_results)
 
     class Out:
         content = ""
@@ -42,10 +42,10 @@ async def _run(*, tool_results, monkeypatch, messages=None):
             return Out()
 
     def fake_create(
-        *, run_context, agent_input, input_message, tool_results, domain_results
+        *, run_context, agent_input, input_message, capability_results, domain_results
     ):
         del run_context, agent_input, input_message, domain_results
-        tool_results.extend(captured_results)
+        capability_results.extend(captured_results)
         return Agent()
 
     monkeypatch.setattr(agent_runtime, "_create_interaction_agent", fake_create)
@@ -70,7 +70,7 @@ async def test_durable_write_with_visible_summary_succeeds(monkeypatch):
         metadata={"durable_write": True},
     )
 
-    result = await _run(tool_results=[ok], monkeypatch=monkeypatch)
+    result = await _run(capability_results=[ok], monkeypatch=monkeypatch)
 
     assert result.output_disposition.status == "ok"
     assert [message.content for message in result.visible_messages] == ["已设好提醒"]
@@ -85,7 +85,7 @@ async def test_durable_write_without_visible_summary_is_failclosed(monkeypatch):
         metadata={"durable_write": True},
     )
 
-    result = await _run(tool_results=[bad], monkeypatch=monkeypatch)
+    result = await _run(capability_results=[bad], monkeypatch=monkeypatch)
 
     assert result.output_disposition.status == "empty"
     assert result.visible_messages == ()

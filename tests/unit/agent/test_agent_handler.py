@@ -272,7 +272,8 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
                 )
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -312,7 +313,11 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
 
     assert resp_messages == [{"message": "Runtime reply"}]
     assert sent == [
-        {"type": "text", "content": "Runtime reply", "metadata": {"source": "agent_runtime"}}
+        {
+            "type": "text",
+            "content": "Runtime reply",
+            "metadata": {"source": "agent_runtime"},
+        }
     ]
     assert context is sample_context
     assert is_rollback is False
@@ -334,7 +339,8 @@ async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
         return AgentRunResult(
             visible_messages=[],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
@@ -392,7 +398,8 @@ async def test_handle_message_agent_runtime_passes_typed_user_turn(
                 VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -444,7 +451,8 @@ async def test_handle_message_agent_runtime_schedules_post_analyze(
                 VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input={"input_message": "hello", "message_source": "user"},
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -497,7 +505,8 @@ async def test_handle_message_agent_runtime_can_skip_post_analyze_with_env(
                 VisibleMessage(message_type="text", content="runtime reply")
             ],
             post_analyze_input={"input_message": "hello", "message_source": "user"},
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -535,7 +544,9 @@ async def test_handle_message_agent_runtime_rolls_back_before_runtime_on_new_mes
     from agent.runner import agent_handler
 
     async def fail_run_agent_runtime(**kwargs):
-        raise AssertionError("single-Agent runtime should not run when a newer message exists")
+        raise AssertionError(
+            "single-Agent runtime should not run when a newer message exists"
+        )
 
     sent = []
 
@@ -587,7 +598,8 @@ async def test_handle_message_agent_runtime_rolls_back_when_lock_lost_before_sen
                 VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -643,7 +655,8 @@ async def test_handle_message_agent_runtime_renews_lock_before_runtime_and_send(
                 VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -712,7 +725,8 @@ async def test_handle_message_agent_runtime_renews_lock_while_runtime_is_running
                 VisibleMessage(message_type="text", content="Runtime reply")
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),

@@ -27,7 +27,8 @@ async def test_send_loop_aborts_when_new_message_arrives_between_sends(
                 VisibleMessage(message_type="text", content="second reply"),
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -44,7 +45,9 @@ async def test_send_loop_aborts_when_new_message_arrives_between_sends(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True)
+    monkeypatch.setattr(
+        agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
+    )
     monkeypatch.setattr(
         agent_handler, "send_message_via_context", fake_send_message_via_context
     )
@@ -89,7 +92,8 @@ async def test_empty_output_fallback_skipped_when_new_message_arrives(
         return AgentRunResult(
             visible_messages=[],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
@@ -106,7 +110,9 @@ async def test_empty_output_fallback_skipped_when_new_message_arrives(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True)
+    monkeypatch.setattr(
+        agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
+    )
     monkeypatch.setattr(
         agent_handler, "_send_chat_response_fallback", fake_send_chat_response_fallback
     )
@@ -155,7 +161,8 @@ async def test_voice_send_aborts_after_synthesis_before_first_chunk(
                 VisibleMessage(message_type="voice", content="voice reply"),
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -172,7 +179,9 @@ async def test_voice_send_aborts_after_synthesis_before_first_chunk(
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True)
+    monkeypatch.setattr(
+        agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
+    )
     monkeypatch.setattr(
         agent_handler,
         "character_voice",
@@ -224,7 +233,8 @@ async def test_voice_send_loop_aborts_between_voice_chunks(monkeypatch, sample_c
                 VisibleMessage(message_type="voice", content="voice reply"),
             ],
             post_analyze_input=None,
-            tool_results=[],
+            domain_results=[],
+            capability_results=[],
             metrics={},
             trace={"runtime": "agent_runtime"},
             output_disposition=OutputDisposition(status="ok"),
@@ -241,7 +251,9 @@ async def test_voice_send_loop_aborts_between_voice_chunks(monkeypatch, sample_c
         agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
     )
     monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
-    monkeypatch.setattr(agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True)
+    monkeypatch.setattr(
+        agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
+    )
     monkeypatch.setattr(
         agent_handler,
         "character_voice",

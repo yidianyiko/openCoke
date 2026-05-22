@@ -88,7 +88,7 @@ def _create_interaction_agent(
     run_context: AgentRunContext,
     agent_input: AgentInput,
     input_message: str,
-    tool_results: list[CapabilityResult],
+    capability_results: list[CapabilityResult],
     domain_results: list[DomainExecutionResult],
     session_db: Any | None = None,
 ) -> Any:
@@ -111,7 +111,7 @@ def _create_interaction_agent(
             ports=_utility_capability_ports(),
             run_context=run_context,
             input_message=input_message,
-            tool_results=tool_results,
+            capability_results=capability_results,
         )
         utility_tools = [tool(name=name)(fn) for name, fn in utility_wrappers.items()]
         reminder_domain_lock = asyncio.Lock()
@@ -206,7 +206,7 @@ def _build_capability_tool_wrapper(
     port: Any,
     run_context: AgentRunContext,
     input_message: str,
-    tool_results: list[CapabilityResult],
+    capability_results: list[CapabilityResult],
 ) -> Any:
     async def _call(args: dict[str, Any]) -> dict[str, Any]:
         result = await _run_capability_port(
@@ -215,7 +215,7 @@ def _build_capability_tool_wrapper(
             run_context=run_context,
             args=args,
         )
-        tool_results.append(result)
+        capability_results.append(result)
         return _model_facing_envelope(tool_name, result)
 
     if tool_name == "timezone":
@@ -262,7 +262,7 @@ def build_capability_tool_wrappers(
     ports: Mapping[str, Any],
     run_context: AgentRunContext,
     input_message: str,
-    tool_results: list[CapabilityResult],
+    capability_results: list[CapabilityResult],
 ) -> dict[str, Any]:
     wrappers: dict[str, Any] = {}
 
@@ -272,7 +272,7 @@ def build_capability_tool_wrappers(
             port=port,
             run_context=run_context,
             input_message=input_message,
-            tool_results=tool_results,
+            capability_results=capability_results,
         )
 
     return wrappers
@@ -284,30 +284,30 @@ def _string_content(value: Any) -> str:
 
 def _resolve_visible_text(
     final_text: str,
-    tool_results: Sequence[CapabilityResult],
+    capability_results: Sequence[CapabilityResult],
 ) -> str:
-    if tool_results and any(
-        result.requires_response_synthesis for result in tool_results
+    if capability_results and any(
+        result.requires_response_synthesis for result in capability_results
     ):
         if final_text:
             return final_text
 
     summaries = [
-        summary for result in tool_results if (summary := result.visible_summary)
+        summary for result in capability_results if (summary := result.visible_summary)
     ]
     if summaries:
         return "\n".join(summaries)
 
-    if not tool_results:
+    if not capability_results:
         return final_text
 
     return ""
 
 
 def _check_durable_write_contract(
-    tool_results: Sequence[CapabilityResult],
+    capability_results: Sequence[CapabilityResult],
 ) -> RuntimeErrorDisposition | None:
-    for result in tool_results:
+    for result in capability_results:
         if result.ok and result.durable_write and not result.visible_summary:
             return RuntimeErrorDisposition(
                 code="durable_write_missing_visible_summary",
@@ -336,12 +336,12 @@ def _check_unconfirmed_durable_write_promise(
     *,
     agent_input: AgentInput,
     final_text: str,
-    tool_results: Sequence[CapabilityResult],
+    capability_results: Sequence[CapabilityResult],
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
         return None
-    if any(result.ok and result.durable_write for result in tool_results):
+    if any(result.ok and result.durable_write for result in capability_results):
         return None
     if any(
         operation.ok and operation.effect == "write"
@@ -387,14 +387,19 @@ async def _run_capability_port(
 
 
 def _exception_result(
-    tool_results: Sequence[CapabilityResult] = (),
+    capability_results: Sequence[CapabilityResult] = (),
+    domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
     logger.exception("Agent runtime failed closed")
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=tuple(tool_results),
-        metrics={"capability_result_count": len(tool_results)},
+        domain_results=tuple(domain_results),
+        capability_results=tuple(capability_results),
+        metrics={
+            "capability_result_count": len(capability_results),
+            "domain_result_count": len(domain_results),
+        },
         trace={"runtime": "agent", "status": "exception"},
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(
@@ -406,14 +411,19 @@ def _exception_result(
 
 def _unknown_tool_result(
     exc: UnknownToolError,
-    tool_results: Sequence[CapabilityResult] = (),
+    capability_results: Sequence[CapabilityResult] = (),
+    domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
     logger.error("Agent runtime received unknown tool name: %s", exc)
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=tuple(tool_results),
-        metrics={"capability_result_count": len(tool_results)},
+        domain_results=tuple(domain_results),
+        capability_results=tuple(capability_results),
+        metrics={
+            "capability_result_count": len(capability_results),
+            "domain_result_count": len(domain_results),
+        },
         trace={"runtime": "agent", "status": "unknown_tool", "unknown_tool": str(exc)},
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=RuntimeErrorDisposition(
@@ -429,17 +439,19 @@ def _timeout_result(
     run_context: AgentRunContext,
     input_message: str,
     timeout_seconds: float,
-    tool_results: Sequence[CapabilityResult] = (),
+    capability_results: Sequence[CapabilityResult] = (),
+    domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
     logger.error("Agent runtime timed out: timeout=%.1fs", timeout_seconds)
-    captured_tool_results = tuple(tool_results)
-    durable_write_error = _check_durable_write_contract(captured_tool_results)
+    captured_capability_results = tuple(capability_results)
+    captured_domain_results = tuple(domain_results)
+    durable_write_error = _check_durable_write_contract(captured_capability_results)
     timeout_error = RuntimeErrorDisposition(
         code="agent_runtime_timeout",
         retryable=True,
         metadata={"timeout_seconds": timeout_seconds},
     )
-    visible_text = _resolve_visible_text("", captured_tool_results)
+    visible_text = _resolve_visible_text("", captured_capability_results)
     if durable_write_error is not None:
         visible_text = ""
     visible_messages = (
@@ -454,8 +466,12 @@ def _timeout_result(
                 "input_message": input_message,
                 "message_source": _message_source(agent_input, run_context),
             },
-            tool_results=captured_tool_results,
-            metrics={"capability_result_count": len(captured_tool_results)},
+            domain_results=captured_domain_results,
+            capability_results=captured_capability_results,
+            metrics={
+                "capability_result_count": len(captured_capability_results),
+                "domain_result_count": len(captured_domain_results),
+            },
             trace={"runtime": "agent", "status": "timeout_with_visible_summary"},
             output_disposition=OutputDisposition(status="ok"),
             error_disposition=timeout_error,
@@ -464,8 +480,12 @@ def _timeout_result(
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
-        tool_results=captured_tool_results,
-        metrics={"capability_result_count": len(captured_tool_results)},
+        domain_results=captured_domain_results,
+        capability_results=captured_capability_results,
+        metrics={
+            "capability_result_count": len(captured_capability_results),
+            "domain_result_count": len(captured_domain_results),
+        },
         trace={"runtime": "agent", "status": "timeout"},
         output_disposition=OutputDisposition(status="empty"),
         error_disposition=durable_write_error or timeout_error,
@@ -477,7 +497,7 @@ async def run_agent_runtime(
     agent_input: AgentInput,
     run_context: AgentRunContext,
 ) -> AgentRunResult:
-    tool_results: list[CapabilityResult] = []
+    capability_results: list[CapabilityResult] = []
     domain_results: list[DomainExecutionResult] = []
     try:
         if agent_input.input_type not in _SUPPORTED_INPUT_TYPES:
@@ -488,7 +508,7 @@ async def run_agent_runtime(
             run_context=run_context,
             agent_input=agent_input,
             input_message=input_message,
-            tool_results=tool_results,
+            capability_results=capability_results,
             domain_results=domain_results,
         )
         timeout_seconds = _agent_runtime_timeout_seconds()
@@ -506,22 +526,26 @@ async def run_agent_runtime(
                 run_context=run_context,
                 input_message=input_message,
                 timeout_seconds=timeout_seconds,
-                tool_results=tool_results,
+                capability_results=capability_results,
+                domain_results=domain_results,
             )
         final_text = _string_content(getattr(run_output, "content", None))
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
             final_text=final_text,
-            tool_results=tool_results,
+            capability_results=capability_results,
             domain_results=domain_results,
         )
 
-        captured_tool_results = tuple(tool_results)
-        durable_write_error = _check_durable_write_contract(captured_tool_results)
+        captured_capability_results = tuple(capability_results)
+        captured_domain_results = tuple(domain_results)
+        durable_write_error = _check_durable_write_contract(captured_capability_results)
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
         # Interaction Agent's synthesized reply wins when non-empty (Option B);
         # empty final_text keeps the existing visible_summary fallback.
-        visible_text = final_text or _resolve_visible_text("", captured_tool_results)
+        visible_text = final_text or _resolve_visible_text(
+            "", captured_capability_results
+        )
         if runtime_contract_error is not None:
             visible_text = ""
         visible_messages = (
@@ -537,8 +561,12 @@ async def run_agent_runtime(
                     "input_message": input_message,
                     "message_source": _message_source(agent_input, run_context),
                 },
-                tool_results=captured_tool_results,
-                metrics={"capability_result_count": len(captured_tool_results)},
+                domain_results=captured_domain_results,
+                capability_results=captured_capability_results,
+                metrics={
+                    "capability_result_count": len(captured_capability_results),
+                    "domain_result_count": len(captured_domain_results),
+                },
                 trace={"runtime": "agent"},
                 output_disposition=OutputDisposition(status="ok"),
             )
@@ -546,13 +574,17 @@ async def run_agent_runtime(
         return AgentRunResult(
             visible_messages=visible_messages,
             post_analyze_input=None,
-            tool_results=captured_tool_results,
-            metrics={"capability_result_count": len(captured_tool_results)},
+            domain_results=captured_domain_results,
+            capability_results=captured_capability_results,
+            metrics={
+                "capability_result_count": len(captured_capability_results),
+                "domain_result_count": len(captured_domain_results),
+            },
             trace={"runtime": "agent", "status": "empty_output"},
             output_disposition=OutputDisposition(status="empty"),
             error_disposition=runtime_contract_error,
         )
     except UnknownToolError as exc:
-        return _unknown_tool_result(exc, tool_results)
+        return _unknown_tool_result(exc, capability_results, domain_results)
     except Exception:
-        return _exception_result(tool_results)
+        return _exception_result(capability_results, domain_results)

@@ -85,20 +85,20 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     assert isinstance(result, AgentRunResult)
     assert result.visible_messages[0].content == "fallback content"
     assert result.output_disposition.status == "ok"
-    assert result.tool_results == ()
+    assert result.capability_results == ()
     assert result.post_analyze_input == {
         "input_message": "hi",
         "message_source": "user",
     }
     assert create_kwargs["agent_input"] == _agent_input()
     assert create_kwargs["input_message"] == "hi"
-    assert create_kwargs["tool_results"] == []
+    assert create_kwargs["capability_results"] == []
     assert create_kwargs["domain_results"] == []
     assert model_inputs == ["hi"]
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
+async def test_run_agent_runtime_uses_captured_capability_results(monkeypatch):
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
@@ -107,7 +107,7 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
                     SimpleNamespace(role="tool", content='{"ok": true}'),
                     SimpleNamespace(role="assistant", content=""),
                 ],
-                tool_results=[
+                capability_results=[
                     CapabilityResult(
                         name="ignored_run_output_field",
                         ok=True,
@@ -117,7 +117,7 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
             )
 
     def fake_create_interaction_agent(**kwargs):
-        kwargs["tool_results"].append(
+        kwargs["capability_results"].append(
             CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -137,7 +137,7 @@ async def test_run_agent_runtime_uses_captured_tool_results(monkeypatch):
     )
 
     assert result.visible_messages[0].content == "ignored"
-    assert [tool.name for tool in result.tool_results] == ["reminder"]
+    assert [tool.name for tool in result.capability_results] == ["reminder"]
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
     def fake_create_interaction_agent(**kwargs):
         created["called"] = True
         assert kwargs["input_message"] == "18:05提醒我出门"
-        kwargs["tool_results"].append(
+        kwargs["capability_results"].append(
             CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -185,7 +185,7 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
     )
 
     assert result.visible_messages[0].content == "已创建提醒：出门（2026-05-10 18:05）"
-    assert [tool.name for tool in result.tool_results] == ["reminder"]
+    assert [tool.name for tool in result.capability_results] == ["reminder"]
     assert result.trace == {"runtime": "agent"}
     assert created["called"] is True
     assert created["model_input"] == "18:05提醒我出门"
@@ -250,7 +250,7 @@ async def test_run_agent_runtime_timeout_returns_captured_tool_summary(monkeypat
             await asyncio.sleep(1)
 
     def fake_create_interaction_agent(**kwargs):
-        kwargs["tool_results"].append(
+        kwargs["capability_results"].append(
             CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -292,7 +292,7 @@ async def test_run_agent_runtime_visible_text_prefers_final_text_over_visible_su
             )
 
     def fake_create_interaction_agent(**kwargs):
-        kwargs["tool_results"].append(
+        kwargs["capability_results"].append(
             CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -311,7 +311,7 @@ async def test_run_agent_runtime_visible_text_prefers_final_text_over_visible_su
         run_context=_run_context(),
     )
 
-    assert len(result.tool_results) == 1
+    assert len(result.capability_results) == 1
     assert result.visible_messages[0].content == "character voiced reply"
 
 
@@ -329,7 +329,7 @@ async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when
             )
 
     def fake_create_interaction_agent(**kwargs):
-        kwargs["tool_results"].append(
+        kwargs["capability_results"].append(
             CapabilityResult(
                 name="reminder",
                 ok=True,
@@ -393,7 +393,7 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
                 ),
             )
         )
-        assert kwargs["tool_results"] == []
+        assert kwargs["capability_results"] == []
         return FakeAgent()
 
     monkeypatch.setattr(
@@ -406,7 +406,7 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
     )
 
     assert result.visible_messages[0].content == "好的，18:00 我会提醒你喝水。"
-    assert result.tool_results == ()
+    assert result.capability_results == ()
     assert result.output_disposition.status == "ok"
     assert result.error_disposition is None
 
@@ -452,7 +452,7 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
 
     assert reminder_calls == 0
     assert result.visible_messages == ()
-    assert result.tool_results == ()
+    assert result.capability_results == ()
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None
     assert result.error_disposition.code == "unconfirmed_durable_write_promise"
@@ -516,7 +516,7 @@ def test_create_interaction_agent_user_turn_has_exactly_five_tools():
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 
@@ -547,7 +547,7 @@ def test_create_interaction_agent_reminder_fired_has_no_tools():
         run_context=_run_context(),
         agent_input=reminder_input,
         input_message="提醒：喝水",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 
@@ -575,7 +575,7 @@ def test_create_interaction_agent_uses_chat_response_model_role(monkeypatch):
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 
@@ -597,7 +597,7 @@ def test_create_interaction_agent_sets_tool_call_limit_four(monkeypatch):
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 
@@ -621,7 +621,7 @@ def test_create_interaction_agent_uses_injected_session_db(monkeypatch):
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
         session_db=injected_db,
     )
@@ -637,7 +637,7 @@ def test_create_interaction_agent_domain_tools_have_stop_after_tool_call_false()
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 
@@ -652,7 +652,7 @@ async def test_create_interaction_agent_reminder_domain_delegates_with_domain_re
 ):
     captured = {}
     run_context = _run_context()
-    tool_results = []
+    capability_results = []
     domain_results = []
     envelope = {
         "domain": "reminder",
@@ -704,7 +704,7 @@ async def test_create_interaction_agent_reminder_domain_delegates_with_domain_re
         run_context=run_context,
         agent_input=_agent_input(),
         input_message="remind me to drink water",
-        tool_results=tool_results,
+        capability_results=capability_results,
         domain_results=domain_results,
     )
     reminder_domain = next(
@@ -762,7 +762,7 @@ async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
     reminder_domain = next(
@@ -814,13 +814,13 @@ async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_a
     )
 
     run_context = _run_context()
-    tool_results = []
+    capability_results = []
     domain_results = []
     agent = agent_runtime._create_interaction_agent(
         run_context=run_context,
         agent_input=_agent_input(),
         input_message="提醒我喝水",
-        tool_results=tool_results,
+        capability_results=capability_results,
         domain_results=domain_results,
     )
     reminder_domain = next(
@@ -846,7 +846,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
 ):
     captured = {}
     run_context = _run_context()
-    tool_results = []
+    capability_results = []
     domain_results = []
     envelope = {
         "ok": True,
@@ -883,7 +883,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         run_context=run_context,
         agent_input=_agent_input(),
         input_message="confirm it",
-        tool_results=tool_results,
+        capability_results=capability_results,
         domain_results=domain_results,
     )
     scheduling_domain = next(
@@ -936,7 +936,7 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="confirm it",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
     scheduling_domain = next(
@@ -976,7 +976,7 @@ def test_create_interaction_agent_resolves_default_session_db(monkeypatch):
         run_context=_run_context(),
         agent_input=_agent_input(),
         input_message="hi",
-        tool_results=[],
+        capability_results=[],
         domain_results=[],
     )
 

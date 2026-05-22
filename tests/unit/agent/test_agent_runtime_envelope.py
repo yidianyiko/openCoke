@@ -38,7 +38,7 @@ def test_build_capability_tool_wrappers_rejects_retired_reminder_intent_wrapper(
             ports={"reminder_intent": object()},
             run_context=_run_context(),
             input_message="提醒我喝水",
-            tool_results=[],
+            capability_results=[],
         )
 
 
@@ -62,7 +62,7 @@ async def test_envelope_content_is_json_serializable_for_nested_results():
         ports={"timezone": StubTimezonePort()},
         run_context=_run_context(),
         input_message="set timezone",
-        tool_results=captured,
+        capability_results=captured,
     )
 
     envelope = await wrappers["timezone"](action="direct_set")
@@ -89,7 +89,7 @@ async def test_model_arguments_cannot_spoof_wrapper_internal_tool_name():
         ports={"timezone": StubTimezonePort()},
         run_context=_run_context(),
         input_message="set timezone",
-        tool_results=captured,
+        capability_results=captured,
     )
 
     envelope = await wrappers["timezone"](action="direct_set")
@@ -111,7 +111,7 @@ def test_agno_function_schema_exposes_top_level_tool_arguments():
         ports={"timezone": StubTimezonePort()},
         run_context=_run_context(),
         input_message="set timezone",
-        tool_results=[],
+        capability_results=[],
     )
 
     function = Function.from_callable(wrappers["timezone"], name="timezone")
@@ -135,7 +135,7 @@ def test_timezone_schema_restricts_action_to_runtime_contract():
         ports={"timezone": StubTimezonePort()},
         run_context=_run_context(),
         input_message="set timezone",
-        tool_results=[],
+        capability_results=[],
     )
 
     function = Function.from_callable(wrappers["timezone"], name="timezone")

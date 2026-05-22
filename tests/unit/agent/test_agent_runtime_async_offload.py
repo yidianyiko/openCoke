@@ -46,7 +46,7 @@ def test_sync_blocking_port_does_not_starve_concurrent_task():
         ports={"url_context": BlockingPort()},
         run_context=_ctx(),
         input_message="see https://example.com",
-        tool_results=[],
+        capability_results=[],
     )
 
     async def runner():
