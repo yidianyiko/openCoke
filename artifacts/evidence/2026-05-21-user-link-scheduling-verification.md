@@ -236,3 +236,25 @@ passed.
 git -C gateway diff --check && git diff --check
 passed.
 ```
+
+### Final branch-level routing
+
+Exit codes:
+
+- `zsh scripts/suggest-verification --base 640d81fd`: 0.
+- `zsh scripts/review-trigger --base 640d81fd`: 1, with
+  `human_review_required: yes`.
+- `zsh scripts/verify-surface repo-os-docs worker-runtime product-reminder bridge`: 0.
+
+```text
+changed_surfaces: repo-os-docs worker-runtime product-reminder bridge
+suggested_command: zsh scripts/verify-surface repo-os-docs worker-runtime product-reminder bridge
+
+human_review_required: yes
+- cross_boundary_worker_bridge [medium]
+- sensitive_repo_os_change [medium]
+- oversized_change [medium]
+
+verify-surface repo-os-docs worker-runtime product-reminder bridge
+passed.
+```
