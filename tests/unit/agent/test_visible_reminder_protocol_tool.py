@@ -578,6 +578,7 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
     assert result["summary"].splitlines()[0].startswith("已创建提醒")
     assert "没有找到要更新的提醒" in result["summary"].splitlines()[1]
     assert result["summary"].splitlines()[2].startswith("已完成提醒")
+    assert result["ok"] is True
     assert [item["ok"] for item in result["operations"]] == [True, False, True]
     assert [item["ok"] for item in session_state["tool_results"]] == [
         True,

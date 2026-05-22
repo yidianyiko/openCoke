@@ -179,7 +179,7 @@ def _execute_batch_operations(
             )
         )
     return {
-        "ok": all(result.get("ok") is True for result in results),
+        "ok": any(result.get("ok") is True for result in results),
         "action": "batch",
         "operations": results,
         "summary": "\n".join(str(result.get("summary") or "") for result in results),
