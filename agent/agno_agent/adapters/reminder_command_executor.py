@@ -153,7 +153,7 @@ def _build_session_state(run_context: AgentRunContext) -> dict[str, Any]:
 class ReminderCommandExecutor:
     def __init__(
         self,
-        tool_entrypoint: Callable[..., str],
+        tool_entrypoint: Callable[..., Any],
         *,
         session_state_setter: Callable[[dict[str, Any]], None] | None = None,
     ) -> None:
@@ -179,7 +179,7 @@ class ReminderCommandExecutor:
             )
             kwargs = {field: kwargs.get(field) for field in _TOOL_DECISION_FIELDS}
 
-            summary = self._tool_entrypoint(**kwargs)
+            tool_result = self._tool_entrypoint(**kwargs)
         except Exception as exc:
             logger.exception("ReminderCommandExecutor adapter failed")
             return CapabilityResult(
@@ -216,11 +216,18 @@ class ReminderCommandExecutor:
                 },
             )
 
-        content = {
+        if isinstance(tool_result, Mapping):
+            summary = str(tool_result.get("summary") or "")
+        else:
+            summary = str(tool_result)
+
+        content: dict[str, Any] = {
             "summary": summary,
             "owner_user_id": run_context.user.id,
             "conversation_id": run_context.conversation.id,
         }
+        if isinstance(tool_result, Mapping):
+            content["tool_result"] = tool_result
 
         return CapabilityResult(
             name="reminder",

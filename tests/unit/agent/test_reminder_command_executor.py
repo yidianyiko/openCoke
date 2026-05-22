@@ -284,7 +284,10 @@ def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     )
 
     assert result.ok is True
+    assert isinstance(result.content["summary"], str)
     assert result.content["summary"] == "已创建提醒：hydrate（2026-05-01 09:00）"
+    assert result.content["tool_result"]["action"] == "create"
+    assert result.content["tool_result"]["summary"] == result.content["summary"]
     [create_call] = service.calls
     assert create_call[0] == "create"
     assert create_call[1]["owner_user_id"] == "user-1"
