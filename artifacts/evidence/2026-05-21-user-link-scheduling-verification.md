@@ -258,3 +258,26 @@ human_review_required: yes
 verify-surface repo-os-docs worker-runtime product-reminder bridge
 passed.
 ```
+
+## Merge-back Integration Addendum
+
+Date: 2026-05-22
+
+Before merging the parent branch back to root `main`, the feature gateway branch
+was merged with the newer gateway mainline commit
+`efb792161a99954436ce091b08b33e8db3b1e4e6` so the parent gitlink would not
+move root `main` backward. The integrated gateway commit is
+`5df4621d542f27981d5b9dcb93ada6fe42ef6a2a`.
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api build
+passed.
+
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts src/lib/agent-instance-runtime-client.test.ts src/routes/customer-agent-instance-routes.test.ts
+Test Files 76 passed; Tests 773 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts app/(customer)/account/my-agent/page.test.tsx lib/customer-agent-instance.test.ts
+Test Files 47 passed; Tests 184 passed.
+```
