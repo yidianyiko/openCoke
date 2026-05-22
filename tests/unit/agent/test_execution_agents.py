@@ -205,18 +205,85 @@ async def test_make_scheduling_tool_fn_passes_non_none_args_to_port():
     class RecordingPort:
         def run(self, input_message, run_context, args):
             received_args.append(args)
-            return CapabilityResult(name="confirm_appointment", ok=True, content={})
+            return CapabilityResult(name="accept_shared_reminder", ok=True, content={})
 
     fn = _make_scheduling_tool_fn(
-        "confirm_appointment",
+        "accept_shared_reminder",
         RecordingPort(),
         input_message="confirm that",
         run_context=_run_context(),
         domain_results=[],
     )
-    await fn(appointment_or_request_id="appt_123", reason=None)
+    await fn(request_id="srr_123", timezone=None)
 
-    assert received_args == [{"appointment_or_request_id": "appt_123"}]
+    assert received_args == [{"request_id": "srr_123"}]
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
+    captured: dict[str, str] = {}
+
+    class _NoOpAgent:
+        def __init__(self, **kwargs):
+            captured["instructions"] = kwargs["instructions"]
+
+        async def arun(self, **kwargs):
+            pass
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _NoOpAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncPort(
+                CapabilityResult(name=tool_name, ok=True, content={})
+            ),
+        ):
+            await run_scheduling_domain(
+                input_message="show my link",
+                intent="get_user_link",
+                run_context=_run_context(),
+                domain_results=[],
+            )
+
+    assert captured["instructions"] == (
+        "You are the friend-link and shared-reminder execution worker. "
+        "Call exactly one scheduling tool that matches the intent. "
+        "Do not create shared reminder state unless the named person resolves to "
+        "one active friend. Ask for clarification when the name is ambiguous. "
+        "Ordinary personal reminders are not scheduling-domain work. "
+        "Do not treat an iLink QR as a public user-link QR."
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_passes_resolved_intent_to_worker_input():
+    captured: dict[str, str] = {}
+
+    class _NoOpAgent:
+        def __init__(self, **kwargs):
+            pass
+
+        async def arun(self, **kwargs):
+            captured["input"] = kwargs["input"]
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _NoOpAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncPort(
+                CapabilityResult(name=tool_name, ok=True, content={})
+            ),
+        ):
+            await run_scheduling_domain(
+                input_message="accept that",
+                intent="accept_shared_reminder request_id=srr_1",
+                run_context=_run_context(),
+                domain_results=[],
+            )
+
+    assert (
+        "Resolved scheduling intent: accept_shared_reminder request_id=srr_1"
+        in captured["input"]
+    )
+    assert "User message: accept that" in captured["input"]
 
 
 @pytest.mark.asyncio

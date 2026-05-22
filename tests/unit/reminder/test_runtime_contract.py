@@ -76,6 +76,7 @@ def test_create_visible_reminder_builds_visible_create_command():
         title="weekly report",
         schedule=sample_schedule(),
         target=sample_target(),
+        metadata={"projection_role": "requester"},
     )
 
     assert result is service.result
@@ -86,6 +87,7 @@ def test_create_visible_reminder_builds_visible_create_command():
     assert kwargs["command"].schedule == sample_schedule()
     assert kwargs["command"].agent_output_target == sample_target()
     assert kwargs["command"].created_by_system == "agent"
+    assert kwargs["command"].metadata == {"projection_role": "requester"}
 
 
 def test_visible_mutation_methods_delegate_to_service():

@@ -43,6 +43,7 @@ def serialize_reminder(reminder: Reminder) -> dict[str, Any]:
             "routeKey": reminder.agent_output_target.route_key,
         },
         "createdBySystem": reminder.created_by_system,
+        "metadata": reminder.metadata or {},
         "lifecycleState": reminder.lifecycle_state,
         "nextFireAt": _datetime_to_json(reminder.next_fire_at),
         "lastFiredAt": _datetime_to_json(reminder.last_fired_at),
@@ -150,6 +151,7 @@ class ReminderManagementService:
         if not isinstance(body, dict):
             raise ValueError("invalid_body")
         customer_id = _require_string(customer_id, "customer_id")
+        metadata = _validate_optional_metadata(body.get("metadata"))
         character_id = _require_string(
             body.get("characterId") or self.character_id_provider(),
             "character_id",
@@ -180,6 +182,7 @@ class ReminderManagementService:
                 route_key=_conversation_route_key(conversation),
             ),
             created_by_system="agent",
+            metadata=metadata,
         )
         try:
             reminder = self.reminder_runtime.create_visible_reminder(
@@ -187,6 +190,7 @@ class ReminderManagementService:
                 title=command.title,
                 schedule=command.schedule,
                 target=command.agent_output_target,
+                metadata=command.metadata,
             )
         except (InvalidSchedule, RRULENotSupported) as exc:
             raise ValueError("invalid_schedule") from exc
@@ -346,6 +350,14 @@ def _validate_lifecycle_states(values: list[str] | None) -> list[str]:
             raise ValueError("invalid_body")
         states.append(state)
     return states or ["active"]
+
+
+def _validate_optional_metadata(value: Any) -> dict | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("invalid_body")
+    return dict(value)
 
 
 def _optional_string(value: Any) -> str | None:

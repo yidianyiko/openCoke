@@ -70,7 +70,7 @@ class ReminderService:
             "visibility": "visible",
             "fire_mode": "notify",
             "prompt": None,
-            "metadata": {},
+            "metadata": dict(command.metadata or {}),
             "lifecycle_state": "active",
             "next_fire_at": next_fire_at,
             "last_fired_at": None,

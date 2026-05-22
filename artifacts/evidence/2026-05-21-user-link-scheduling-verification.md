@@ -2,9 +2,15 @@
 
 Date: 2026-05-21
 
+Current handoff status: the authoritative verification for the current
+`feature/friend-link-shared-reminders` branch is the **Final Task 8 Addendum**
+and later addenda in this file. The 2026-05-21 sections below are retained as
+historical pre-branch evidence and are not the final verification state.
+
 ## Environment Notes
 
-- Root branch: `user-link-scheduling`; Gateway branch: `user-link-scheduling-gateway`.
+- Historical branch for the original 2026-05-21 evidence: root
+  `user-link-scheduling`; Gateway `user-link-scheduling-gateway`.
 - Gateway scheduling implementation is verified through nested Gateway commit `4b5608a`.
 - `memo-runtime` could not be checked out at the root gitlink commit because local source `/data/projects/coke-memo-runtime` does not contain `769aa46bf1d3e5f769236913846230fe4b0c654f`; a local uncommitted `memo-runtime/OWNERS.md` fixture was used only so repo-OS guardrails could read the required metadata file.
 - Gateway API/Web package test scripts run their full package suites even when file paths are supplied.
@@ -126,4 +132,152 @@ Exit code: 0
 
 ```text
 38 passed, 3 skipped
+```
+
+## Final Task 8 Addendum
+
+Date: 2026-05-22
+
+### Final Commit Context
+
+- Root branch: `feature/friend-link-shared-reminders`.
+- Root docs/gitlink commit: final Task 8 commit containing this addendum.
+- Gateway gitlink commit recorded by root: `e007781db16afbfabdda6e8ebdc7d6f83f74f566`.
+- The final `HEAD~1..HEAD` diff contains repo docs, the retention consistency
+  test, and the parent `gateway` gitlink. Earlier Task 1-7 runtime, bridge,
+  Gateway API, and Gateway Web changes were verified before the final docs
+  commit; therefore fresh diff-aware routing on the final commit narrows to the
+  repo-OS docs surface.
+
+### zsh scripts/suggest-verification --base HEAD~1
+
+Exit code: 0
+
+```text
+changed_surfaces: repo-os-docs
+suggested_command: zsh scripts/verify-surface repo-os-docs
+```
+
+### zsh scripts/review-trigger --base HEAD~1
+
+Exit code: 1
+
+```text
+human_review_required: yes
+- sensitive_repo_os_change [medium]
+  reason: changed path: docs/ARCHITECTURE.md
+  reason: changed path: docs/design-docs/data-retention-policy.md
+  reason: changed path: docs/product-specs/FEATURE_TREE.md
+```
+
+Required review gate: human review is required before merge because
+`review-trigger` returned `human_review_required: yes` for the final Task 8
+commit.
+
+### Focused Final Verification
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts
+Test Files 74 passed; Tests 758 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts
+Test Files 45 passed; Tests 173 passed.
+
+.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_message_gateway.py tests/unit/agent/test_scheduling_capability.py tests/unit/agent/test_agent_runtime_scheduling_tools.py tests/unit/agent/test_execution_agents.py tests/unit/agent/test_chat_response_scheduling_instructions.py tests/unit/agent/test_scheduling_types.py tests/unit/test_data_retention_policy_consistency.py -q
+52 passed.
+
+zsh scripts/check
+passed.
+
+git diff --check
+passed.
+```
+
+## Final Review Fix Addendum
+
+Date: 2026-05-22
+
+Final branch-level review found four issues. The follow-up patch:
+
+- Added customer shared-reminder routes for create, pending list, accept,
+  reject, and cancel.
+- Routed user-link friend-request, accepted-friend-request, and shared-reminder
+  product notifications through `enqueueProductNotification`, so new
+  notifications are persisted and delivered to `/bridge/inbound` immediately,
+  with retryable failure state preserved.
+- Added friend counterpart profile data to `list_friends` by selecting
+  `Customer.displayName` and `Customer.avatarUrl` for both friendship sides,
+  and exposed a `counterpartProfile` DTO on customer friend lists.
+- Marked the original 2026-05-21 evidence section as historical, leaving the
+  current branch addenda as authoritative.
+
+### Post-review verification
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api build
+passed.
+
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts
+Test Files 74 passed; Tests 762 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts
+Test Files 45 passed; Tests 173 passed.
+
+.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_message_gateway.py tests/unit/agent/test_scheduling_capability.py tests/unit/agent/test_agent_runtime_scheduling_tools.py tests/unit/agent/test_execution_agents.py tests/unit/agent/test_chat_response_scheduling_instructions.py tests/unit/agent/test_scheduling_types.py tests/unit/test_data_retention_policy_consistency.py -q
+52 passed.
+
+zsh scripts/check
+passed.
+
+git -C gateway diff --check && git diff --check
+passed.
+```
+
+### Final branch-level routing
+
+Exit codes:
+
+- `zsh scripts/suggest-verification --base 640d81fd`: 0.
+- `zsh scripts/review-trigger --base 640d81fd`: 1, with
+  `human_review_required: yes`.
+- `zsh scripts/verify-surface repo-os-docs worker-runtime product-reminder bridge`: 0.
+
+```text
+changed_surfaces: repo-os-docs worker-runtime product-reminder bridge
+suggested_command: zsh scripts/verify-surface repo-os-docs worker-runtime product-reminder bridge
+
+human_review_required: yes
+- cross_boundary_worker_bridge [medium]
+- sensitive_repo_os_change [medium]
+- oversized_change [medium]
+
+verify-surface repo-os-docs worker-runtime product-reminder bridge
+passed.
+```
+
+## Merge-back Integration Addendum
+
+Date: 2026-05-22
+
+Before merging the parent branch back to root `main`, the feature gateway branch
+was merged with the newer gateway mainline commit
+`efb792161a99954436ce091b08b33e8db3b1e4e6` so the parent gitlink would not
+move root `main` backward. The integrated gateway commit is
+`5df4621d542f27981d5b9dcb93ada6fe42ef6a2a`.
+
+Exit code: 0 for all commands below.
+
+```text
+pnpm --dir gateway/packages/api build
+passed.
+
+pnpm --dir gateway/packages/api test -- src/scheduling src/routes/public-user-link-routes.test.ts src/routes/customer-scheduling-routes.test.ts src/routes/internal-scheduling-routes.test.ts src/lib/reminder-runtime-client.test.ts src/lib/agent-instance-runtime-client.test.ts src/routes/customer-agent-instance-routes.test.ts
+Test Files 76 passed; Tests 773 passed.
+
+pnpm --dir gateway/packages/web test -- app/u/[code]/page.test.tsx app/u/[code]/claim-handoff.test.tsx app/u/[code]/qr/route.test.ts lib/user-link-api.test.ts app/(customer)/account/my-agent/page.test.tsx lib/customer-agent-instance.test.ts
+Test Files 47 passed; Tests 184 passed.
 ```

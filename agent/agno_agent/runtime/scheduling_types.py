@@ -6,25 +6,15 @@ from typing import Any
 from pydantic import BaseModel
 
 
-class SchedulingBookableWindowRule(BaseModel):
-    type: str
-    days_of_week: list[int] | None = None
-    time_start: str | None = None
-    time_end: str | None = None
+class SharedReminderSchedulingArgs(BaseModel):
+    invitee_account_id: str | None = None
+    title: str | None = None
+    fire_at: str | None = None
     timezone: str | None = None
-    effective_from: str | None = None
-    effective_until: str | None = None
-    date: str | None = None
-
-
-class SchedulingBookableWindowPreviewItem(BaseModel):
-    rule: SchedulingBookableWindowRule
-    fingerprint: str
-
-
-class SchedulingBookableWindowPreview(BaseModel):
-    previewId: str
-    windows: list[SchedulingBookableWindowPreviewItem]
+    request_id: str | None = None
+    friendship_id: str | None = None
+    blocked_account_id: str | None = None
+    idempotency_key: str | None = None
 
 
 def _compact_scheduling_args(args: Mapping[str, Any]) -> dict[str, Any]:

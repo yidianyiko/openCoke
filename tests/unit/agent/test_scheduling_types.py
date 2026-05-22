@@ -1,7 +1,6 @@
+import agent.agno_agent.runtime.scheduling_types as scheduling_types
 from agent.agno_agent.runtime.scheduling_types import (
-    SchedulingBookableWindowPreview,
-    SchedulingBookableWindowPreviewItem,
-    SchedulingBookableWindowRule,
+    SharedReminderSchedulingArgs,
     _compact_scheduling_args,
 )
 
@@ -12,12 +11,29 @@ def test_compact_scheduling_args_strips_none_and_empty_string():
     assert result == {"c": "val", "d": "x"}
 
 
-def test_compact_scheduling_args_serializes_pydantic_preview():
-    preview = SchedulingBookableWindowPreview(previewId="bwp_1", windows=[])
+def test_compact_scheduling_args_serializes_shared_reminder_args():
+    args = SharedReminderSchedulingArgs(
+        invitee_account_id="acct_a",
+        title="meeting",
+        fire_at="2026-05-22T07:00:00.000Z",
+        timezone="Asia/Shanghai",
+        idempotency_key="shared-1",
+    )
 
-    result = _compact_scheduling_args({"preview": preview, "reason": None})
+    result = _compact_scheduling_args({"shared_reminder": args, "reason": None})
 
-    assert result == {"preview": {"previewId": "bwp_1", "windows": []}}
+    assert result == {
+        "shared_reminder": {
+            "invitee_account_id": "acct_a",
+            "title": "meeting",
+            "fire_at": "2026-05-22T07:00:00.000Z",
+            "timezone": "Asia/Shanghai",
+            "request_id": None,
+            "friendship_id": None,
+            "blocked_account_id": None,
+            "idempotency_key": "shared-1",
+        }
+    }
 
 
 def test_compact_scheduling_args_passes_through_primitives():
@@ -26,29 +42,33 @@ def test_compact_scheduling_args_passes_through_primitives():
     assert result == {"target_account_id": "abc", "timezone": "UTC"}
 
 
-def test_scheduling_bookable_window_preview_round_trips():
-    preview = SchedulingBookableWindowPreview(
-        previewId="bwp_test",
-        windows=[
-            SchedulingBookableWindowPreviewItem(
-                fingerprint="fp_1",
-                rule=SchedulingBookableWindowRule(
-                    type="weekly",
-                    days_of_week=[1, 3],
-                    time_start="09:00",
-                    time_end="10:00",
-                    timezone="Asia/Shanghai",
-                ),
-            )
-        ],
+def test_shared_reminder_scheduling_args_round_trips():
+    args = SharedReminderSchedulingArgs(
+        invitee_account_id="acct_a",
+        title="meeting",
+        fire_at="2026-05-22T07:00:00.000Z",
+        timezone="Asia/Shanghai",
+        request_id="srr_1",
+        friendship_id="fs_1",
+        blocked_account_id="acct_c",
+        idempotency_key="shared-1",
     )
 
-    dumped = preview.model_dump()
+    dumped = args.model_dump()
 
-    assert dumped["previewId"] == "bwp_test"
-    assert dumped["windows"][0]["fingerprint"] == "fp_1"
-    assert dumped["windows"][0]["rule"]["type"] == "weekly"
-    assert dumped["windows"][0]["rule"]["days_of_week"] == [1, 3]
-    assert dumped["windows"][0]["rule"]["time_start"] == "09:00"
-    assert dumped["windows"][0]["rule"]["time_end"] == "10:00"
-    assert dumped["windows"][0]["rule"]["timezone"] == "Asia/Shanghai"
+    assert dumped == {
+        "invitee_account_id": "acct_a",
+        "title": "meeting",
+        "fire_at": "2026-05-22T07:00:00.000Z",
+        "timezone": "Asia/Shanghai",
+        "request_id": "srr_1",
+        "friendship_id": "fs_1",
+        "blocked_account_id": "acct_c",
+        "idempotency_key": "shared-1",
+    }
+
+
+def test_scheduling_types_do_not_export_bookable_window_preview_models():
+    assert not hasattr(scheduling_types, "SchedulingBookableWindowRule")
+    assert not hasattr(scheduling_types, "SchedulingBookableWindowPreviewItem")
+    assert not hasattr(scheduling_types, "SchedulingBookableWindowPreview")

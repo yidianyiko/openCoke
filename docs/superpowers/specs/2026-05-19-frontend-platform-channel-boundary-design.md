@@ -1060,6 +1060,7 @@ First-pass ownership:
 | State | First-pass owner | PII tier | Retention | Notes |
 | --- | --- | --- | --- | --- |
 | Postgres customer/account/admin state | Platform System | high (identity, contact) | account lifetime | Auth, customer truth. |
+| Postgres agent instance profile state | Agent Runtime System | medium (user-authored agent profile text) | `agent_instance_profile_retention` | Per-customer agent display/persona/status configuration consumed by runtime prompts. |
 | Postgres channel/provider config and route binding | Channel System | high (provider credentials) | channel lifetime; tokens rotated | Platform may expose management APIs; Channel owns provider secrets. |
 | MongoDB `reminders` | Reminder System | medium (user-generated text) | `user_content_retention` | Visible reminders and internal follow-up semantics. |
 | MongoDB `pending_workflows` (reminders) | Reminder System | medium | `short_lived_workflow_retention` | Feature-flagged; reminder-specific. |

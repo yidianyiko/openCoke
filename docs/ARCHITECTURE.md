@@ -213,7 +213,18 @@ structured errors. Non-domain utility tools (`timezone`, `calendar_import`, and
 visible-output behavior. The Interaction Agent owns final user-visible text
 when non-empty; `DomainExecutionResult` values are trusted execution facts for
 prompt grounding, traces, metrics, manager payloads, tests, and eval evidence,
-not a production output rewrite or reply-quality gate.
+not a production output rewrite or reply-quality gate. The scheduling domain
+delegates execution to friend-link and shared-reminder tools:
+`get_user_link`, `reset_user_link`, `disable_user_link`,
+`list_friend_requests`, `accept_friend_request`, `reject_friend_request`,
+`cancel_friend_request`, `list_friends`, `remove_friendship`, `block_account`,
+`unblock_account`, `create_shared_reminder`,
+`list_pending_shared_reminders`, `accept_shared_reminder`,
+`reject_shared_reminder`, and `cancel_shared_reminder`. The runner remains
+responsible for locks, rollback, output writes, replay checks, scheduler boot,
+post-analyze dispatch, and delivery state transitions. The former prepare/chat
+workflow runtime, legacy multi-agent runtime, and module-level Agno agent
+singletons have been retired.
 
 `agent/runner/agent_handler.py` is the turn orchestrator. Its implementation
 concerns are split across four focused modules:
