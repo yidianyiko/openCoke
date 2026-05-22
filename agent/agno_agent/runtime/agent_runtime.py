@@ -117,7 +117,7 @@ def _create_interaction_agent(
         scheduling_domain_lock = asyncio.Lock()
         scheduling_domain_result: dict[str, Any] = {}
 
-        async def reminder_domain() -> dict[str, Any]:
+        async def reminder_domain(**_model_supplied_args: Any) -> dict[str, Any]:
             """Use for explicit reminder create, update, cancel, complete, or list requests."""
             async with reminder_domain_lock:
                 if "result" in reminder_domain_result:
@@ -205,25 +205,8 @@ def _build_capability_tool_wrapper(
     run_context: AgentRunContext,
     input_message: str,
     tool_results: list[CapabilityResult],
-    duplicate_guard_results: dict[str, CapabilityResult],
-    reminder_intent_lock: asyncio.Lock,
 ) -> Any:
     async def _call(args: dict[str, Any]) -> dict[str, Any]:
-        if tool_name == "reminder_intent":
-            async with reminder_intent_lock:
-                guarded_result = duplicate_guard_results.get(tool_name)
-                if guarded_result is not None:
-                    return _model_facing_envelope(tool_name, guarded_result)
-                result = await _run_capability_port(
-                    port,
-                    input_message=input_message,
-                    run_context=run_context,
-                    args=args,
-                )
-                tool_results.append(result)
-                duplicate_guard_results[tool_name] = result
-                return _model_facing_envelope(tool_name, result)
-
         result = await _run_capability_port(
             port,
             input_message=input_message,
@@ -232,14 +215,6 @@ def _build_capability_tool_wrapper(
         )
         tool_results.append(result)
         return _model_facing_envelope(tool_name, result)
-
-    if tool_name == "reminder_intent":
-
-        async def reminder_intent(**_ignored_model_args: Any) -> dict[str, Any]:
-            """Use only for explicit reminder create, update, cancel, complete, or list requests."""
-            return await _call({})
-
-        return reminder_intent
 
     if tool_name == "timezone":
 
@@ -288,8 +263,6 @@ def build_capability_tool_wrappers(
     tool_results: list[CapabilityResult],
 ) -> dict[str, Any]:
     wrappers: dict[str, Any] = {}
-    duplicate_guard_results: dict[str, CapabilityResult] = {}
-    reminder_intent_lock = asyncio.Lock()
 
     for tool_name, port in ports.items():
         wrappers[tool_name] = _build_capability_tool_wrapper(
@@ -298,8 +271,6 @@ def build_capability_tool_wrappers(
             run_context=run_context,
             input_message=input_message,
             tool_results=tool_results,
-            duplicate_guard_results=duplicate_guard_results,
-            reminder_intent_lock=reminder_intent_lock,
         )
 
     return wrappers

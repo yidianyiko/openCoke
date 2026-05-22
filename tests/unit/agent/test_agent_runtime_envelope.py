@@ -1,4 +1,3 @@
-import asyncio
 import json
 
 import pytest
@@ -31,112 +30,16 @@ def _run_context() -> AgentRunContext:
     )
 
 
-@pytest.mark.asyncio
-async def test_reminder_envelope_uses_tool_function_name_not_capability_name():
-    captured: list[CapabilityResult] = []
-
-    class StubReminderPort:
-        async def run(self, input_message, run_context, args):
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"visible_summary": "已为你设好提醒"},
-                metadata={
-                    "durable_write": True,
-                    "requires_response_synthesis": True,
-                },
-            )
-
-    wrappers = build_capability_tool_wrappers(
-        ports={"reminder_intent": StubReminderPort()},
-        run_context=_run_context(),
-        input_message="提醒我喝水",
-        tool_results=captured,
-    )
-
-    envelope = await wrappers["reminder_intent"]()
-
-    assert envelope["name"] == "reminder_intent"
-    assert envelope["ok"] is True
-    assert envelope["content"] == {"visible_summary": "已为你设好提醒"}
-    assert envelope["error"] is None
-    assert "metadata" not in envelope
-    assert "durable_write" not in envelope
-    assert "requires_response_synthesis" not in envelope
-    assert captured[0].name == "reminder"
-    assert captured[0].durable_write is True
-    assert captured[0].requires_response_synthesis is True
-
-
-@pytest.mark.asyncio
-async def test_reminder_wrapper_ignores_model_supplied_arguments():
-    captured: list[CapabilityResult] = []
-    received_args = []
-
-    class StubReminderPort:
-        async def run(self, input_message, run_context, args):
-            received_args.append(args)
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"visible_summary": "已为你设好提醒"},
-                metadata={
-                    "durable_write": True,
-                    "requires_response_synthesis": True,
-                },
-            )
-
-    wrappers = build_capability_tool_wrappers(
-        ports={"reminder_intent": StubReminderPort()},
-        run_context=_run_context(),
-        input_message="提醒我喝水",
-        tool_results=captured,
-    )
-
-    envelope = await wrappers["reminder_intent"](
-        reminders_to_create=[{"title": "喝水"}],
-        handoff_payload={"unexpected": True},
-    )
-
-    assert envelope["name"] == "reminder_intent"
-    assert envelope["ok"] is True
-    assert received_args == [{}]
-    assert captured[0].content["visible_summary"] == "已为你设好提醒"
-
-
-@pytest.mark.asyncio
-async def test_reminder_wrapper_suppresses_duplicate_parallel_calls():
-    captured: list[CapabilityResult] = []
-    calls = 0
-
-    class StubReminderPort:
-        async def run(self, input_message, run_context, args):
-            nonlocal calls
-            calls += 1
-            await asyncio.sleep(0.01)
-            return CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"visible_summary": "已为你设好提醒"},
-                metadata={"durable_write": True},
-            )
-
-    wrappers = build_capability_tool_wrappers(
-        ports={"reminder_intent": StubReminderPort()},
-        run_context=_run_context(),
-        input_message="提醒我喝水",
-        tool_results=captured,
-    )
-
-    first, second = await asyncio.gather(
-        wrappers["reminder_intent"](),
-        wrappers["reminder_intent"](),
-    )
-
-    assert calls == 1
-    assert len(captured) == 1
-    assert first == second
-    assert captured[0].visible_summary == "已为你设好提醒"
+def test_build_capability_tool_wrappers_rejects_retired_reminder_intent_wrapper():
+    with pytest.raises(
+        ValueError, match="Unsupported capability tool: reminder_intent"
+    ):
+        build_capability_tool_wrappers(
+            ports={"reminder_intent": object()},
+            run_context=_run_context(),
+            input_message="提醒我喝水",
+            tool_results=[],
+        )
 
 
 @pytest.mark.asyncio
@@ -242,14 +145,3 @@ def test_timezone_schema_restricts_action_to_runtime_contract():
         "proposal",
         "confirm",
     ]
-
-
-def test_reminder_tool_description_requires_explicit_reminder_request():
-    wrappers = build_capability_tool_wrappers(
-        ports={"reminder_intent": object()},
-        run_context=_run_context(),
-        input_message="我要在睡前看文章",
-        tool_results=[],
-    )
-
-    assert "Use only for explicit reminder" in wrappers["reminder_intent"].__doc__

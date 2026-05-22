@@ -622,6 +622,61 @@ async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
 
 
 @pytest.mark.asyncio
+async def test_create_interaction_agent_reminder_domain_ignores_model_supplied_args(
+    monkeypatch,
+):
+    captured = {}
+    envelope = {
+        "name": "reminder",
+        "ok": True,
+        "content": {"visible_summary": "已设好提醒"},
+        "visible_summary": "已设好提醒",
+        "synthesis_context": None,
+        "error": None,
+    }
+
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        tool_results,
+    ):
+        captured["input_message"] = input_message
+        captured["run_context"] = run_context
+        captured["tool_results"] = tool_results
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
+
+    run_context = _run_context()
+    tool_results = []
+    agent = agent_runtime._create_interaction_agent(
+        run_context=run_context,
+        agent_input=_agent_input(),
+        input_message="提醒我喝水",
+        tool_results=tool_results,
+    )
+    reminder_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
+    )
+
+    result = await reminder_domain(
+        action="create",
+        reminder_params={"label": "喝水", "timezone": "Asia/Tokyo"},
+    )
+
+    assert result is envelope
+    assert captured == {
+        "input_message": "提醒我喝水",
+        "run_context": run_context,
+        "tool_results": tool_results,
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
     monkeypatch,
 ):
