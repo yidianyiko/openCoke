@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -205,3 +206,85 @@ async def test_run_scheduling_domain_returns_no_tool_called_when_agent_calls_not
     assert result["ok"] is False
     assert result["error"] == "no_tool_called"
     assert result["domain"] == "scheduling"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_returns_called_tool_result():
+    fake_result = CapabilityResult(
+        name="get_user_link",
+        ok=True,
+        content={"visible_summary": "Your booking link: https://kap.example/u/xyz"},
+    )
+    tool_results: list[CapabilityResult] = []
+
+    class _CallingAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["get_user_link"]()
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _CallingAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncPort(fake_result),
+        ):
+            result = await run_scheduling_domain(
+                input_message="show my link",
+                intent="get_user_link",
+                run_context=_run_context(),
+                tool_results=tool_results,
+            )
+
+    assert result["ok"] is True
+    assert result["domain"] == "scheduling"
+    assert result["visible_summary"] == "Your booking link: https://kap.example/u/xyz"
+    assert tool_results == [fake_result]
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
+    calls: list[str] = []
+
+    class RecordingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            calls.append(self.tool_name)
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"visible_summary": f"called {self.tool_name}"},
+            )
+
+    class _DuplicateCallingAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await asyncio.gather(
+                self.tools["get_user_link"](),
+                self.tools["reset_user_link"](),
+            )
+
+    tool_results: list[CapabilityResult] = []
+
+    with patch(
+        "agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent
+    ):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="show my link",
+                intent="get_user_link",
+                run_context=_run_context(),
+                tool_results=tool_results,
+            )
+
+    assert calls == ["get_user_link"]
+    assert [item.name for item in tool_results] == ["get_user_link"]
+    assert result["ok"] is True
+    assert result["visible_summary"] == "called get_user_link"

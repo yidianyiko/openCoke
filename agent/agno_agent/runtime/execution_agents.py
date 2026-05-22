@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import logging
 from typing import Any
 
 from agno.agent import Agent
@@ -18,13 +17,24 @@ from agent.agno_agent.runtime.scheduling_types import (
     _compact_scheduling_args,
 )
 
-logger = logging.getLogger(__name__)
-
 _SCHEDULING_DOMAIN_INSTRUCTIONS_TEMPLATE = (
     "You are the scheduling execution worker. The intent is: {intent}. "
     "Call exactly one scheduling tool that matches the intent. "
     "Output only the tool call - do not generate user-visible text."
 )
+
+
+class _SchedulingExecutionGuard:
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._claimed = False
+
+    async def claim(self) -> bool:
+        async with self._lock:
+            if self._claimed:
+                return False
+            self._claimed = True
+            return True
 
 
 async def _run_port(
@@ -81,6 +91,7 @@ def _make_scheduling_tool_fn(
     run_context: AgentRunContext,
     tool_results: list[CapabilityResult],
     domain_results: list[CapabilityResult],
+    execution_guard: _SchedulingExecutionGuard | None = None,
 ) -> Any:
     async def scheduling_tool(
         target_account_id: str | None = None,
@@ -102,6 +113,16 @@ def _make_scheduling_tool_fn(
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
+        if execution_guard is not None and not await execution_guard.claim():
+            return {
+                "name": tool_name,
+                "ok": False,
+                "content": {},
+                "visible_summary": None,
+                "synthesis_context": None,
+                "error": "duplicate_scheduling_tool_call",
+            }
+
         result = await _run_port(
             port,
             input_message=input_message,
@@ -144,6 +165,7 @@ async def run_scheduling_domain(
 ) -> dict[str, Any]:
     """Spawn SchedulingExecutionAgent; append results to shared tool_results."""
     domain_results: list[CapabilityResult] = []
+    execution_guard = _SchedulingExecutionGuard()
     ports = {
         name: SchedulingCapabilityPort(tool_name=name) for name in SCHEDULING_TOOL_NAMES
     }
@@ -156,6 +178,7 @@ async def run_scheduling_domain(
                 run_context=run_context,
                 tool_results=tool_results,
                 domain_results=domain_results,
+                execution_guard=execution_guard,
             )
         )
         for name, port in ports.items()
