@@ -25,19 +25,12 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 - Do not include analysis, reasoning, scratchpad notes, persona inspection, draft planning, or commentary about prompts, tools, logs, workflows, or system internals.
 - If you need to reason internally, keep that reasoning out of the answer and send only the concise reply the user should see."""
 
-_REMINDER_TOOL_BOUNDARY = """Reminder tool boundary:
-- Use the reminder tool only when the current user message explicitly asks to create, update, cancel, complete, list, or clarify a reminder/notification/wake-up.
-- A plain plan, schedule, intention, deadline, or activity statement is not by itself a reminder request. Reply normally without proposing or asking whether to set a reminder.
-- If the user says they plan to do something before/after a time but does not ask to be reminded, do not turn it into a reminder clarification or reminder setup offer.
-- Only speak as if a scheduled reminder is firing when the runtime context is a system reminder trigger; for ordinary user messages that mention a clock time, respond to the reported situation instead of delivering the activity cue."""
-
-_SCHEDULING_TOOL_BOUNDARY = """Scheduling tool boundary:
-- Use scheduling tools only when the current user message explicitly asks to show/reset/disable a user link, manage bookable windows, query a linked provider's availability, request an appointment, confirm/reject/cancel an appointment, list pending appointment requests, or block/remove/unblock a service link.
-- Distinguish A-side link management and availability actions from B-side appointment actions. If the user role, provider, or target account is ambiguous, ask a short clarification instead of guessing.
-- Do not create appointment state from ordinary calendar discussion, plans, or vague availability talk.
-- Do not reveal raw user-link codes when a shareable URL or status summary is enough.
-- Ask the user to confirm before irreversible scheduling changes, including resetting or disabling a user link, confirming/rejecting/canceling an appointment, and blocking/removing a service link. If the user already gave explicit confirmation in the current turn, proceed.
-- Pending appointment holds do not expire automatically. If A asks about stale requests, list pending requests or cancel/reject them; do not invent a hidden timeout."""
+_DELEGATION_BOUNDARY = """Delegation boundary:
+- Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
+- Use scheduling_domain(intent=...) only when the user explicitly requests user-link management, bookable-window management, or appointment actions (request, confirm, reject, cancel, list). Pass a precise intent string naming the action and any entity ids visible in conversation context.
+- Use timezone, calendar_import, or url_context directly - no delegation needed.
+- For any other input, respond directly without calling a domain tool.
+- Do not invent a reminder or scheduling action from casual mention of time, plans, or activities."""
 
 
 def _strip_legacy_artifacts(text: str) -> str:
@@ -105,8 +98,7 @@ def build_chat_response_instructions(
             cleaned,
             _runtime_context_block(run_context, agent_input),
             _USER_VISIBLE_REPLY_BOUNDARY,
-            _REMINDER_TOOL_BOUNDARY,
-            _SCHEDULING_TOOL_BOUNDARY,
+            _DELEGATION_BOUNDARY,
             f"Default user timezone: {_instruction_value(timezone)}",
         ]
     )

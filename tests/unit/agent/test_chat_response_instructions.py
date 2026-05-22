@@ -81,17 +81,17 @@ def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
 def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
-    assert "Use the reminder tool only when" in prompt
-    assert "plain plan, schedule, intention, deadline, or activity statement" in prompt
-    assert "without proposing or asking whether to set a reminder" in prompt
-    assert "do not turn it into a reminder clarification or reminder setup offer" in prompt
+    assert "Delegation boundary:" in prompt
+    assert "Use reminder_domain only when" in prompt
+    assert "Do not invent a reminder or scheduling action" in prompt
+    assert "casual mention of time" in prompt
 
 
 def test_prompt_does_not_roleplay_user_messages_as_due_reminders():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
-    assert "Only speak as if a scheduled reminder is firing" in prompt
-    assert "system reminder trigger" in prompt
+    assert "Delegation boundary:" in prompt
+    assert "Use reminder_domain only when" in prompt
 
 
 def test_prompt_includes_runtime_context_without_recent_chat_history():
