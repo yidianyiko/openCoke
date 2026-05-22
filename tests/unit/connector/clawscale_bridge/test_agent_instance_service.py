@@ -84,6 +84,28 @@ def test_get_synthesizes_defaults_without_persisting_empty_instance():
     assert result["effective_profile"]["proactive"]["enabled"] is True
 
 
+def test_get_preserves_trusted_identity_when_dao_returns_rogue_fields():
+    service, _, _ = _service(
+        instance={
+            "agent_instance_id": "agentinst_rogue",
+            "owner_user_id": "ck_attacker",
+            "base_agent_type": "evil_companion",
+            "base_character_id": "char_attacker",
+            "active": False,
+            "display_name": "沈妄",
+        }
+    )
+
+    result = service.get_agent_instance(customer_id="ck_1")
+
+    assert result["agent_instance"]["agent_instance_id"] == "agentinst_rogue"
+    assert result["agent_instance"]["owner_user_id"] == "ck_1"
+    assert result["agent_instance"]["base_agent_type"] == "coke_companion"
+    assert result["agent_instance"]["base_character_id"] == "char_1"
+    assert result["agent_instance"]["active"] is True
+    assert result["agent_instance"]["display_name"] == "沈妄"
+
+
 def test_update_rejects_unknown_and_identity_fields():
     service, dao, _ = _service(instance=None)
 
@@ -97,6 +119,20 @@ def test_update_rejects_unknown_and_identity_fields():
         )
 
     assert str(exc.value) == "invalid_body"
+    dao.upsert_active_agent_instance.assert_not_called()
+
+
+def test_update_rejects_invalid_body_before_loading_base_character():
+    service, dao, character_provider = _service(instance=None)
+
+    with pytest.raises(ValueError) as exc:
+        service.update_agent_instance(
+            customer_id="ck_1",
+            body={"display_name": "沈妄", "owner_user_id": "ck_attacker"},
+        )
+
+    assert str(exc.value) == "invalid_body"
+    character_provider.assert_not_called()
     dao.upsert_active_agent_instance.assert_not_called()
 
 
@@ -146,6 +182,18 @@ def test_update_merges_valid_overrides_and_keeps_base_type():
     )
 
     dao.upsert_active_agent_instance.assert_called_once()
+    assert dao.upsert_active_agent_instance.call_args.args == (
+        "ck_1",
+        {
+            "display_name": "沈妄",
+            "nickname": "阿妄",
+            "user_address_name": "姐姐",
+            "persona": "custom persona",
+            "status": {"place": "书桌", "action": "陪伴中"},
+            "proactive": {"enabled": False},
+            "memory": {"enabled": True},
+        },
+    )
     kwargs = dao.upsert_active_agent_instance.call_args.kwargs
     assert kwargs["base_character_id"] == "char_1"
     assert result["agent_instance"]["base_agent_type"] == "coke_companion"

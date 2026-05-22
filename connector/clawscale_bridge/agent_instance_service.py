@@ -15,6 +15,12 @@ TEXT_LIMITS = {
     "speaking_style": (0, 1000),
     "extra_rules": (0, 1000),
 }
+SERIALIZED_PERSISTED_FIELDS = (
+    "agent_instance_id",
+    *OVERRIDE_FIELDS,
+    "created_at",
+    "updated_at",
+)
 
 
 class AgentInstanceService:
@@ -36,8 +42,8 @@ class AgentInstanceService:
         self, *, customer_id: str, body: Dict[str, Any]
     ) -> Dict[str, Any]:
         owner = _require_customer_id(customer_id)
-        character = self._base_character()
         overrides = _validate_update_body(body)
+        character = self._base_character()
         instance = self.dao.upsert_active_agent_instance(
             owner,
             overrides,
@@ -195,7 +201,7 @@ def _serialize_instance(
         "updated_at": None,
     }
     if instance:
-        for key in base:
+        for key in SERIALIZED_PERSISTED_FIELDS:
             if key in instance:
                 base[key] = _json_value(instance[key])
     return base
