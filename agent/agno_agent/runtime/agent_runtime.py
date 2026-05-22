@@ -23,8 +23,6 @@ from agent.agno_agent.runtime.result import (
 )
 from agent.agno_agent.runtime.scheduling_types import (
     SchedulingBookableWindowPreview,
-    SchedulingBookableWindowPreviewItem,
-    SchedulingBookableWindowRule,
     _compact_scheduling_args,
 )
 from agent.agno_agent.runtime.session import get_agent_session_db

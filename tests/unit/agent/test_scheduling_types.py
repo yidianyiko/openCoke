@@ -21,9 +21,7 @@ def test_compact_scheduling_args_serializes_pydantic_preview():
 
 
 def test_compact_scheduling_args_passes_through_primitives():
-    result = _compact_scheduling_args(
-        {"target_account_id": "abc", "timezone": "UTC"}
-    )
+    result = _compact_scheduling_args({"target_account_id": "abc", "timezone": "UTC"})
 
     assert result == {"target_account_id": "abc", "timezone": "UTC"}
 
