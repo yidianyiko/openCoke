@@ -113,3 +113,33 @@ def test_execute_returns_failed_domain_result_for_structured_tool_failure():
     assert result.error.code == "InvalidArgument"
     assert result.reply_contract.intent == "report_failure"
     assert result.reply_contract.prohibited_claims == ("reminder_created",)
+
+
+def test_execute_reply_contract_points_to_first_successful_batch_write():
+    result = ReminderCommandExecutor(
+        lambda **kwargs: {
+            "ok": True,
+            "action": "batch",
+            "operations": [
+                {
+                    "ok": False,
+                    "action": "create",
+                    "error_code": "InvalidSchedule",
+                    "summary": "创建提醒失败：这个提醒时间已经过去了",
+                },
+                _tool_reminder_result(),
+            ],
+        },
+        session_state_setter=lambda session_state: None,
+    ).execute(
+        SimpleNamespace(action="batch"),
+        _run_context(),
+    )
+
+    assert [operation.ok for operation in result.operations] == [False, True]
+    assert result.operations[1].effect == "write"
+    assert [item.path for item in result.reply_contract.required_facts] == [
+        "operations[1].facts.title",
+        "operations[1].facts.local_date",
+        "operations[1].facts.local_time",
+    ]

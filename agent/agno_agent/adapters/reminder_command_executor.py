@@ -312,13 +312,25 @@ def _effect_for_reminder_action(action: str) -> str:
 def _reply_contract_for_operations(
     operations: Sequence[DomainOperationResult],
 ) -> ReplyContract:
-    if any(operation.effect == "write" and operation.ok for operation in operations):
+    write_index = next(
+        (
+            index
+            for index, operation in enumerate(operations)
+            if operation.effect == "write" and operation.ok
+        ),
+        None,
+    )
+    if write_index is not None:
         return ReplyContract(
             intent="confirm_execution",
             required_facts=(
-                ReplyFactRequirement(path="operations[0].facts.title"),
-                ReplyFactRequirement(path="operations[0].facts.local_date"),
-                ReplyFactRequirement(path="operations[0].facts.local_time"),
+                ReplyFactRequirement(path=f"operations[{write_index}].facts.title"),
+                ReplyFactRequirement(
+                    path=f"operations[{write_index}].facts.local_date"
+                ),
+                ReplyFactRequirement(
+                    path=f"operations[{write_index}].facts.local_time"
+                ),
             ),
             required_questions=(),
             prohibited_claims=("not_created", "needs_more_info"),
