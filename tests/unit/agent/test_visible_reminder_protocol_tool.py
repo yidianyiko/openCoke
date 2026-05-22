@@ -175,7 +175,7 @@ class FailingCreateReminderService(FakeReminderService):
         raise RuntimeError("database offline")
 
 
-def call_tool(**kwargs: Any) -> str:
+def call_tool(**kwargs: Any) -> dict[str, Any]:
     from agent.agno_agent.tools.reminder_protocol import visible_reminder_tool
 
     entrypoint = getattr(visible_reminder_tool, "entrypoint", visible_reminder_tool)
@@ -328,7 +328,7 @@ def test_create_derives_owner_target_and_timezone_from_session_state(monkeypatch
         trigger_at="2026-04-29T10:30:00+01:00",
     )
 
-    assert "call mom" in result
+    assert "call mom" in result["summary"]
     [create_call] = service.calls
     assert create_call[0] == "create"
     assert create_call[1]["owner_user_id"] == "user-1"
@@ -364,8 +364,8 @@ def test_create_formats_daily_until_rrule_as_deadline_summary(monkeypatch):
         rrule="FREQ=DAILY;UNTIL=20261206T150000Z",
     )
 
-    assert result == "已创建提醒：跑步（每天 20:00，截止 2026-12-07 00:00）"
-    assert session_state["tool_results"][0]["result_summary"] == result
+    assert result["summary"] == "已创建提醒：跑步（每天 20:00，截止 2026-12-07 00:00）"
+    assert session_state["tool_results"][0]["result_summary"] == result["summary"]
 
 
 def test_create_formats_weekly_byday_rrule_as_local_weekdays(monkeypatch):
@@ -385,8 +385,8 @@ def test_create_formats_weekly_byday_rrule_as_local_weekdays(monkeypatch):
         rrule="FREQ=WEEKLY;BYDAY=MO,FR",
     )
 
-    assert result == "已创建提醒：好好学习（每周一、周五 09:00）"
-    assert session_state["tool_results"][0]["result_summary"] == result
+    assert result["summary"] == "已创建提醒：好好学习（每周一、周五 09:00）"
+    assert session_state["tool_results"][0]["result_summary"] == result["summary"]
 
 
 def test_create_formats_weekly_interval_rrule_as_every_two_weeks(monkeypatch):
@@ -407,10 +407,10 @@ def test_create_formats_weekly_interval_rrule_as_every_two_weeks(monkeypatch):
     )
 
     assert (
-        result
+        result["summary"]
         == "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-25 20:00）"
     )
-    assert session_state["tool_results"][0]["result_summary"] == result
+    assert session_state["tool_results"][0]["result_summary"] == result["summary"]
 
 
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):
@@ -516,7 +516,7 @@ def test_ambiguous_keyword_appends_failed_tool_result(monkeypatch):
 
     result = call_tool(action="update", keyword="milk", new_title="buy soy milk")
 
-    assert result == "更新提醒失败：找到多条可能的提醒，请说得更具体一点。"
+    assert result["summary"] == "更新提醒失败：找到多条可能的提醒，请说得更具体一点。"
     assert session_state["tool_results"] == [
         {
             "tool_name": "提醒操作",
@@ -540,7 +540,7 @@ def test_missing_update_target_appends_user_safe_failed_tool_result(monkeypatch)
 
     result = call_tool(action="update", new_trigger_at="2026-04-29T16:00:00+09:00")
 
-    assert result == "更新提醒失败：要更新哪条提醒？请告诉我提醒名称。"
+    assert result["summary"] == "更新提醒失败：要更新哪条提醒？请告诉我提醒名称。"
     assert service.calls == []
     assert session_state["tool_results"] == [
         {
@@ -575,9 +575,10 @@ def test_batch_returns_ordered_partial_results(monkeypatch):
         ],
     )
 
-    assert result.splitlines()[0].startswith("已创建提醒")
-    assert "没有找到要更新的提醒" in result.splitlines()[1]
-    assert result.splitlines()[2].startswith("已完成提醒")
+    assert result["summary"].splitlines()[0].startswith("已创建提醒")
+    assert "没有找到要更新的提醒" in result["summary"].splitlines()[1]
+    assert result["summary"].splitlines()[2].startswith("已完成提醒")
+    assert [item["ok"] for item in result["operations"]] == [True, False, True]
     assert [item["ok"] for item in session_state["tool_results"]] == [
         True,
         False,
@@ -617,7 +618,8 @@ def test_batch_prefers_recurring_create_over_same_time_one_shot(monkeypatch):
         ],
     )
 
-    assert result == "已创建提醒：开始健身（每天 13:00）"
+    assert result["summary"] == "已创建提醒：开始健身（每天 13:00）"
+    assert result["operations"][0]["action"] == "create"
     create_calls = [call for call in service.calls if call[0] == "create"]
     assert len(create_calls) == 1
     assert create_calls[0][1]["command"].schedule.rrule == "FREQ=DAILY"
@@ -649,10 +651,11 @@ def test_batch_allows_operations_without_top_level_action(monkeypatch):
         ],
     )
 
-    assert result.splitlines() == [
+    assert result["summary"].splitlines() == [
         "已创建提醒：drink water（2026-04-29 17:57）",
         "已创建提醒：exercise（每天 17:58）",
     ]
+    assert [item["action"] for item in result["operations"]] == ["create", "create"]
     assert [call[0] for call in service.calls] == ["create", "create"]
     assert [item["ok"] for item in session_state["tool_results"]] == [True, True]
 
@@ -675,7 +678,7 @@ def test_missing_owner_context_appends_failed_tool_result_without_service_call(
         trigger_at="2026-04-29T10:00:00+09:00",
     )
 
-    assert result == "创建提醒失败：Reminder owner_user_id is missing"
+    assert result["summary"] == "创建提醒失败：Reminder owner_user_id is missing"
     assert service.calls == []
     assert session_state["tool_results"] == [
         {
@@ -717,7 +720,7 @@ def test_missing_target_context_appends_invalid_output_target_failure(
         trigger_at="2026-04-29T10:00:00+09:00",
     )
 
-    assert result.startswith("创建提醒失败：Reminder output target")
+    assert result["summary"].startswith("创建提醒失败：Reminder output target")
     assert service.calls == []
     assert session_state["tool_results"][0]["ok"] is False
     assert (
@@ -739,7 +742,7 @@ def test_empty_batch_appends_failed_tool_result(monkeypatch):
 
     result = call_tool(action="batch", operations=[])
 
-    assert result == "批量提醒操作失败：operations are required for batch"
+    assert result["summary"] == "批量提醒操作失败：operations are required for batch"
     assert service.calls == []
     assert session_state["tool_results"] == [
         {
@@ -765,7 +768,7 @@ def test_missing_action_appends_clarifying_tool_result_without_service_call(
 
     result = call_tool(action=None)
 
-    assert result == "我还需要提醒内容和时间，才能帮你设置提醒。"
+    assert result["summary"] == "我还需要提醒内容和时间，才能帮你设置提醒。"
     assert service.calls == []
     assert session_state["tool_results"] == [
         {
@@ -791,7 +794,7 @@ def test_service_construction_failure_appends_failed_tool_result(monkeypatch):
 
     result = call_tool(action="list")
 
-    assert result == "提醒操作失败：adapter failure"
+    assert result["summary"] == "提醒操作失败：adapter failure"
     assert session_state["tool_results"] == [
         {
             "tool_name": "提醒操作",
@@ -818,7 +821,7 @@ def test_unexpected_service_exception_appends_failed_tool_result(monkeypatch):
         trigger_at="2026-04-29T10:00:00+09:00",
     )
 
-    assert result == "创建提醒失败：adapter failure"
+    assert result["summary"] == "创建提醒失败：adapter failure"
     assert session_state["tool_results"] == [
         {
             "tool_name": "提醒操作",
@@ -855,7 +858,7 @@ def test_past_one_shot_create_uses_user_safe_chinese_failure(monkeypatch):
         trigger_at="2026-04-28T07:00:00+09:00",
     )
 
-    assert result == "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    assert result["summary"] == "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
     assert service.calls == []
     assert session_state["tool_results"] == [
         {
@@ -867,7 +870,7 @@ def test_past_one_shot_create_uses_user_safe_chinese_failure(monkeypatch):
             "extra_notes": "action=create; error_code=InvalidSchedule",
         }
     ]
-    assert "One-shot reminder schedule must be in the future" not in result
+    assert "One-shot reminder schedule must be in the future" not in result["summary"]
     assert "reminder_created_with_time" not in session_state
 
 

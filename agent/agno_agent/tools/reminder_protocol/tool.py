@@ -56,7 +56,7 @@ def _execute_visible_reminder_tool_action(
     new_trigger_at: str | None = None,
     rrule: str | None = None,
     operations: list[dict[str, Any]] | None = None,
-) -> str:
+) -> dict[str, Any]:
     session_state = _get_session_state()
     canonical_action = _canonical_action(action)
     if canonical_action not in _SUPPORTED_ACTIONS:
@@ -130,7 +130,7 @@ def _validate_runtime_context_for_action(
     session_state: dict,
     *,
     action: str,
-) -> str | None:
+) -> dict[str, Any] | None:
     try:
         _derive_runtime_context(session_state)
     except ReminderError as exc:
@@ -149,22 +149,22 @@ def _execute_batch_operations(
     runtime: ReminderRuntimeContract,
     session_state: dict,
     operations: list[dict[str, Any]],
-) -> str:
+) -> dict[str, Any]:
     context = _derive_runtime_context(session_state)
-    summaries = []
+    results: list[dict[str, Any]] = []
     for operation in _dedupe_batch_create_operations(operations, context.timezone):
         if not isinstance(operation, dict):
             summary = "提醒操作失败：batch operation must be an object"
-            append_tool_result(
-                session_state,
-                tool_name="提醒操作",
-                ok=False,
-                result_summary=summary,
-                extra_notes="action=batch; error_code=InvalidArgument",
+            results.append(
+                _append_failure(
+                    session_state,
+                    action="batch",
+                    summary=summary,
+                    error_code="InvalidArgument",
+                )
             )
-            summaries.append(summary)
             continue
-        summaries.append(
+        results.append(
             _run_operation(
                 runtime=runtime,
                 session_state=session_state,
@@ -178,7 +178,12 @@ def _execute_batch_operations(
                 rrule=operation.get("rrule"),
             )
         )
-    return "\n".join(summaries)
+    return {
+        "ok": all(result.get("ok") is True for result in results),
+        "action": "batch",
+        "operations": results,
+        "summary": "\n".join(str(result.get("summary") or "") for result in results),
+    }
 
 
 def _dedupe_batch_create_operations(
@@ -258,10 +263,10 @@ def _run_operation(
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
-) -> str:
+) -> dict[str, Any]:
     canonical_action = _canonical_action(action)
     try:
-        summary, timed_write = _execute_one(
+        result = _execute_one(
             runtime=runtime,
             session_state=session_state,
             action=canonical_action,
@@ -275,39 +280,31 @@ def _run_operation(
         )
     except _KeywordResolutionError as exc:
         summary = f"{_action_failure_label(canonical_action)}失败：{exc}"
-        append_tool_result(
+        return _append_failure(
             session_state,
-            tool_name="提醒操作",
-            ok=False,
-            result_summary=summary,
-            extra_notes=(
-                f"action={canonical_action}; " "error_code=AmbiguousReminderKeyword"
-            ),
+            action=canonical_action,
+            summary=summary,
+            error_code="AmbiguousReminderKeyword",
         )
-        return summary
     except ReminderError as exc:
         summary = (
             f"{_action_failure_label(canonical_action)}失败："
             f"{_user_safe_reminder_error_message(exc)}"
         )
-        append_tool_result(
+        return _append_failure(
             session_state,
-            tool_name="提醒操作",
-            ok=False,
-            result_summary=summary,
-            extra_notes=f"action={canonical_action}; error_code={exc.code}",
+            action=canonical_action,
+            summary=summary,
+            error_code=exc.code,
         )
-        return summary
     except ValueError as exc:
         summary = f"{_action_failure_label(canonical_action)}失败：{exc}"
-        append_tool_result(
+        return _append_failure(
             session_state,
-            tool_name="提醒操作",
-            ok=False,
-            result_summary=summary,
-            extra_notes=f"action={canonical_action}; error_code=InvalidArgument",
+            action=canonical_action,
+            summary=summary,
+            error_code="InvalidArgument",
         )
-        return summary
     except Exception:
         logger.exception("visible reminder operation failed")
         return _append_failure(
@@ -317,16 +314,17 @@ def _run_operation(
             error_code="ReminderAdapterError",
         )
 
+    timed_write = bool(result.pop("timed_write", False))
     if timed_write:
         session_state["reminder_created_with_time"] = True
     append_tool_result(
         session_state,
         tool_name="提醒操作",
         ok=True,
-        result_summary=summary,
+        result_summary=str(result.get("summary") or ""),
         extra_notes=f"action={canonical_action}",
     )
-    return summary
+    return result
 
 
 def _user_safe_reminder_error_message(exc: ReminderError) -> str:
@@ -349,29 +347,41 @@ def _execute_one(
     new_title: str | None,
     new_trigger_at: str | None,
     rrule: str | None,
-) -> tuple[str, bool]:
+) -> dict[str, Any]:
     context = _derive_runtime_context(session_state)
 
     if action == "create":
-        if not title or not trigger_at:
+        if not title:
             raise InvalidArgument(
-                "Create reminder requires title and trigger_at",
+                "Create reminder requires title",
                 detail={"action": action},
             )
         created = runtime.create_visible_reminder(
             owner_user_id=context.owner_user_id,
             title=title,
-            schedule=_schedule_from_iso(trigger_at, context.timezone, rrule),
+            schedule=_schedule_from_iso(trigger_at or "", context.timezone, rrule),
             target=context.target,
         )
-        return f"已创建提醒：{_format_reminder_with_schedule(created)}", True
+        return {
+            "ok": True,
+            "action": "create",
+            "reminder": _reminder_to_dict(created),
+            "summary": f"已创建提醒：{_format_reminder_with_schedule(created)}",
+            "timed_write": True,
+        }
 
     if action == "list":
         reminders = runtime.list_visible_reminders(
             owner_user_id=context.owner_user_id,
             query=ReminderQuery(lifecycle_states=["active"]),
         )
-        return _format_list_summary(reminders), False
+        return {
+            "ok": True,
+            "action": "list",
+            "reminders": [_reminder_to_dict(reminder) for reminder in reminders],
+            "summary": _format_list_summary(reminders),
+            "timed_write": False,
+        }
 
     if action == "update":
         target_id = _resolve_reminder_id(
@@ -392,10 +402,13 @@ def _execute_one(
             owner_user_id=context.owner_user_id,
             patch=patch,
         )
-        return (
-            f"已更新提醒：{_format_reminder_with_schedule(updated)}",
-            patch.schedule is not None,
-        )
+        return {
+            "ok": True,
+            "action": "update",
+            "reminder": _reminder_to_dict(updated),
+            "summary": f"已更新提醒：{_format_reminder_with_schedule(updated)}",
+            "timed_write": patch.schedule is not None,
+        }
 
     if action == "cancel":
         target_id = _resolve_reminder_id(
@@ -409,7 +422,13 @@ def _execute_one(
             reminder_id=target_id,
             owner_user_id=context.owner_user_id,
         )
-        return f"已取消提醒：{cancelled.title}", False
+        return {
+            "ok": True,
+            "action": "cancel",
+            "reminder": _reminder_to_dict(cancelled),
+            "summary": f"已取消提醒：{cancelled.title}",
+            "timed_write": False,
+        }
 
     if action == "complete":
         target_id = _resolve_reminder_id(
@@ -423,7 +442,13 @@ def _execute_one(
             reminder_id=target_id,
             owner_user_id=context.owner_user_id,
         )
-        return f"已完成提醒：{completed.title}", False
+        return {
+            "ok": True,
+            "action": "complete",
+            "reminder": _reminder_to_dict(completed),
+            "summary": f"已完成提醒：{completed.title}",
+            "timed_write": False,
+        }
 
     raise InvalidArgument(
         "Unsupported reminder action",
@@ -522,6 +547,48 @@ def _resolve_reminder_id(
             match_count=len(matches),
         )
     return matches[0].id
+
+
+def _isoformat_or_none(value: Any) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def _reminder_to_dict(reminder: Reminder) -> dict[str, Any]:
+    schedule = reminder.schedule
+    target = reminder.agent_output_target
+    return {
+        "id": reminder.id,
+        "owner_user_id": reminder.owner_user_id,
+        "title": reminder.title,
+        "schedule": {
+            "anchor_at": _isoformat_or_none(schedule.anchor_at),
+            "local_date": _isoformat_or_none(schedule.local_date),
+            "local_time": _isoformat_or_none(schedule.local_time),
+            "timezone": schedule.timezone,
+            "rrule": schedule.rrule,
+        },
+        "agent_output_target": {
+            "conversation_id": target.conversation_id,
+            "character_id": target.character_id,
+            "route_key": target.route_key,
+        },
+        "created_by_system": reminder.created_by_system,
+        "origin": reminder.origin,
+        "visibility": reminder.visibility,
+        "fire_mode": reminder.fire_mode,
+        "prompt": reminder.prompt,
+        "metadata": dict(reminder.metadata or {}),
+        "lifecycle_state": reminder.lifecycle_state,
+        "next_fire_at": _isoformat_or_none(reminder.next_fire_at),
+        "last_fired_at": _isoformat_or_none(reminder.last_fired_at),
+        "last_event_ack_at": _isoformat_or_none(reminder.last_event_ack_at),
+        "last_error": reminder.last_error,
+        "created_at": _isoformat_or_none(reminder.created_at),
+        "updated_at": _isoformat_or_none(reminder.updated_at),
+        "completed_at": _isoformat_or_none(reminder.completed_at),
+        "cancelled_at": _isoformat_or_none(reminder.cancelled_at),
+        "failed_at": _isoformat_or_none(reminder.failed_at),
+    }
 
 
 def _format_list_summary(reminders: list[Reminder]) -> str:
@@ -658,7 +725,7 @@ def _append_failure(
     action: str,
     summary: str,
     error_code: str,
-) -> str:
+) -> dict[str, Any]:
     append_tool_result(
         session_state,
         tool_name="提醒操作",
@@ -666,7 +733,12 @@ def _append_failure(
         result_summary=summary,
         extra_notes=f"action={action}; error_code={error_code}",
     )
-    return summary
+    return {
+        "ok": False,
+        "action": action,
+        "error_code": error_code,
+        "summary": summary,
+    }
 
 
 @tool(
@@ -699,7 +771,7 @@ def visible_reminder_tool(
     new_trigger_at: str | None = None,
     rrule: str | None = None,
     operations: list[dict[str, Any]] | None = None,
-) -> str:
+) -> dict[str, Any]:
     resolved_action = action or ("batch" if operations is not None else "")
     return _execute_visible_reminder_tool_action(
         action=resolved_action,
