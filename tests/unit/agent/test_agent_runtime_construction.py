@@ -17,6 +17,11 @@ from agent.agno_agent.runtime.inputs import (
     ReminderFirePayload,
     UserTurnPayload,
 )
+from agent.agno_agent.runtime.domain_results import (
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 from agent.agno_agent.runtime.result import AgentRunResult, CapabilityResult
 
 
@@ -344,6 +349,66 @@ async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when
     )
 
     assert result.visible_messages[0].content == "port summary used as fallback"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promise(
+    monkeypatch,
+):
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="好的，18:00 我会提醒你喝水。",
+                messages=[
+                    SimpleNamespace(
+                        role="assistant",
+                        content="好的，18:00 我会提醒你喝水。",
+                    )
+                ],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["domain_results"].append(
+            DomainExecutionResult(
+                domain="reminder",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="create",
+                        ok=True,
+                        effect="write",
+                        entity_type="reminder",
+                        entity_id="rem-1",
+                        facts={"title": "drink water", "local_time": "18:00:00"},
+                    ),
+                ),
+                missing_fields=(),
+                safety_boundary=None,
+                reply_contract=ReplyContract(
+                    intent="confirm_execution",
+                    required_facts=(),
+                    required_questions=(),
+                    prohibited_claims=("not_created",),
+                    allow_rephrase=True,
+                ),
+            )
+        )
+        assert kwargs["tool_results"] == []
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages[0].content == "好的，18:00 我会提醒你喝水。"
+    assert result.tool_results == ()
+    assert result.output_disposition.status == "ok"
+    assert result.error_disposition is None
 
 
 @pytest.mark.asyncio

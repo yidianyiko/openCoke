@@ -337,10 +337,17 @@ def _check_unconfirmed_durable_write_promise(
     agent_input: AgentInput,
     final_text: str,
     tool_results: Sequence[CapabilityResult],
+    domain_results: Sequence[DomainExecutionResult] = (),
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
         return None
     if any(result.ok and result.durable_write for result in tool_results):
+        return None
+    if any(
+        operation.ok and operation.effect == "write"
+        for result in domain_results
+        for operation in result.operations
+    ):
         return None
     matched = [
         pattern
@@ -506,6 +513,7 @@ async def run_agent_runtime(
             agent_input=agent_input,
             final_text=final_text,
             tool_results=tool_results,
+            domain_results=domain_results,
         )
 
         captured_tool_results = tuple(tool_results)
