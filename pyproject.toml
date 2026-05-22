@@ -12,6 +12,7 @@ addopts = [
     "-v",
     "--tb=short",
     "--strict-markers",
+    "--import-mode=importlib",
     "-ra",
 ]
 markers = [

@@ -11,6 +11,7 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.domain_results import DomainExecutionResult
 
 
 def _ctx() -> AgentRunContext:
@@ -38,6 +39,8 @@ async def test_invalid_primary_structured_output_fails_without_second_detector()
         _ctx(),
     )
 
-    assert result.ok is False
-    assert result.error == "ReminderDetectInvalidDecision"
-    assert result.metadata["durable_write"] is False
+    assert isinstance(result, DomainExecutionResult)
+    assert result.outcome == "needs_clarification"
+    assert result.error is not None
+    assert result.error.code == "ReminderDetectInvalidDecision"
+    assert result.operations == ()

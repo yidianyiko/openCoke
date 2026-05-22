@@ -135,15 +135,11 @@ async def test_run_scheduling_domain_returns_typed_failed_result_when_no_tool_ca
 @pytest.mark.asyncio
 async def test_run_scheduling_domain_converts_called_tool_to_domain_result():
     fake_result = CapabilityResult(
-        name="request_appointment",
+        name="reset_user_link",
         ok=True,
         content={
-            "request_id": "req-1",
-            "target_account_id": "acct-provider",
-            "consumer_account_id": "acct-consumer",
-            "instance_start": "2026-05-23T09:00:00+09:00",
-            "instance_end": "2026-05-23T09:30:00+09:00",
-            "timezone": "Asia/Tokyo",
+            "user_link_id": "link-1",
+            "visible_summary": "Your booking link was reset.",
         },
         metadata={"durable_write": True, "requires_response_synthesis": True},
     )
@@ -153,10 +149,7 @@ async def test_run_scheduling_domain_converts_called_tool_to_domain_result():
             self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
 
         async def arun(self, **kwargs):
-            await self.tools["request_appointment"](
-                target_account_id="acct-provider",
-                consumer_account_id="acct-consumer",
-            )
+            await self.tools["reset_user_link"]()
 
     domain_results: list[DomainExecutionResult] = []
 
@@ -166,32 +159,28 @@ async def test_run_scheduling_domain_converts_called_tool_to_domain_result():
             side_effect=lambda *, tool_name: _SyncSchedulingPort(fake_result),
         ):
             envelope = await run_scheduling_domain(
-                input_message="book that",
-                intent="request_appointment",
+                input_message="reset my user link",
+                intent="reset_user_link",
                 run_context=_run_context(),
                 domain_results=domain_results,
             )
 
     assert envelope["domain"] == "scheduling"
     assert envelope["outcome"] == "executed"
-    assert envelope["operations"][0]["action"] == "request_appointment"
+    assert envelope["operations"][0]["action"] == "reset_user_link"
     assert envelope["operations"][0]["effect"] == "write"
-    assert envelope["operations"][0]["entity_id"] == "req-1"
+    assert envelope["operations"][0]["entity_id"] == "link-1"
     assert domain_results[0].reply_contract.intent == "confirm_execution"
 
 
 @pytest.mark.asyncio
 async def test_run_scheduling_domain_returns_successful_write_when_later_duplicate_fails():
     successful_write = CapabilityResult(
-        name="request_appointment",
+        name="reset_user_link",
         ok=True,
         content={
-            "request_id": "req-1",
-            "target_account_id": "acct-provider",
-            "consumer_account_id": "acct-consumer",
-            "instance_start": "2026-05-23T09:00:00+09:00",
-            "instance_end": "2026-05-23T09:30:00+09:00",
-            "timezone": "Asia/Tokyo",
+            "user_link_id": "link-1",
+            "visible_summary": "Your booking link was reset.",
         },
     )
 
@@ -200,11 +189,8 @@ async def test_run_scheduling_domain_returns_successful_write_when_later_duplica
             self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
 
         async def arun(self, **kwargs):
-            await self.tools["request_appointment"](
-                target_account_id="acct-provider",
-                consumer_account_id="acct-consumer",
-            )
-            await self.tools["cancel_appointment"](appointment_or_request_id="req-1")
+            await self.tools["reset_user_link"]()
+            await self.tools["disable_user_link"]()
 
     domain_results: list[DomainExecutionResult] = []
 
@@ -214,8 +200,8 @@ async def test_run_scheduling_domain_returns_successful_write_when_later_duplica
             side_effect=lambda *, tool_name: _SyncSchedulingPort(successful_write),
         ):
             envelope = await run_scheduling_domain(
-                input_message="book that, actually cancel it",
-                intent="request_appointment",
+                input_message="reset my link and then disable it",
+                intent="reset_user_link",
                 run_context=_run_context(),
                 domain_results=domain_results,
             )
@@ -223,10 +209,10 @@ async def test_run_scheduling_domain_returns_successful_write_when_later_duplica
     assert envelope["domain"] == "scheduling"
     assert envelope["outcome"] == "executed"
     assert envelope["error"] is None
-    assert envelope["operations"][0]["action"] == "request_appointment"
+    assert envelope["operations"][0]["action"] == "reset_user_link"
     assert envelope["operations"][0]["effect"] == "write"
-    assert envelope["operations"][0]["entity_id"] == "req-1"
-    assert envelope["operations"][0]["facts"]["request_id"] == "req-1"
+    assert envelope["operations"][0]["entity_id"] == "link-1"
+    assert envelope["operations"][0]["facts"]["user_link_id"] == "link-1"
     assert [item.error.code if item.error else None for item in domain_results] == [
         None,
         "duplicate_scheduling_tool_call",
