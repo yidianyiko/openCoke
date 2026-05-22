@@ -97,6 +97,20 @@ def _default_capability_ports() -> dict[str, Any]:
     return ports
 
 
+def _utility_capability_ports() -> dict[str, Any]:
+    from agent.agno_agent.capabilities import (
+        CalendarImportPort,
+        TimezoneCapabilityPort,
+        UrlContextPort,
+    )
+
+    return {
+        "timezone": TimezoneCapabilityPort(),
+        "calendar_import": CalendarImportPort(),
+        "url_context": UrlContextPort(),
+    }
+
+
 def _create_agent(
     *,
     run_context: AgentRunContext,
@@ -130,6 +144,85 @@ def _create_agent(
         model=create_llm_model(role="chat_response", max_tokens=2000),
         instructions=build_chat_response_instructions(run_context, agent_input),
         tools=tools,
+        db=resolved_session_db,
+        add_history_to_context=True,
+        num_history_messages=20,
+        add_session_state_to_context=False,
+        tool_call_limit=4,
+        markdown=False,
+    )
+
+
+def _create_interaction_agent(
+    *,
+    run_context: AgentRunContext,
+    agent_input: AgentInput,
+    input_message: str,
+    tool_results: list[CapabilityResult],
+    session_db: Any | None = None,
+) -> Any:
+    from agno.agent import Agent
+    from agno.tools import tool
+
+    from agent.agno_agent.model_factory import create_llm_model
+    from agent.agno_agent.runtime.chat_response_instructions import (
+        build_chat_response_instructions,
+    )
+    from agent.agno_agent.runtime.execution_agents import (
+        run_reminder_domain,
+        run_scheduling_domain,
+    )
+
+    if agent_input.input_type == "reminder.fired":
+        final_tools = []
+    else:
+        utility_wrappers = build_capability_tool_wrappers(
+            ports=_utility_capability_ports(),
+            run_context=run_context,
+            input_message=input_message,
+            tool_results=tool_results,
+        )
+        utility_tools = [tool(name=name)(fn) for name, fn in utility_wrappers.items()]
+        reminder_domain_lock = asyncio.Lock()
+        reminder_domain_result: dict[str, Any] = {}
+
+        async def reminder_domain() -> dict[str, Any]:
+            """Use for explicit reminder create, update, cancel, complete, or list requests."""
+            async with reminder_domain_lock:
+                if "result" in reminder_domain_result:
+                    return reminder_domain_result["result"]
+                result = await run_reminder_domain(
+                    input_message=input_message,
+                    run_context=run_context,
+                    tool_results=tool_results,
+                )
+                reminder_domain_result["result"] = result
+                return result
+
+        async def scheduling_domain(intent: str) -> dict[str, Any]:
+            """Use for explicit user-link, availability, appointment, or service-link requests."""
+            return await run_scheduling_domain(
+                input_message=input_message,
+                intent=intent,
+                run_context=run_context,
+                tool_results=tool_results,
+            )
+
+        domain_tools = [
+            tool(name="reminder_domain", stop_after_tool_call=False)(reminder_domain),
+            tool(name="scheduling_domain", stop_after_tool_call=False)(
+                scheduling_domain
+            ),
+        ]
+        final_tools = domain_tools + utility_tools
+
+    resolved_session_db = session_db or get_agent_session_db()
+    return Agent(
+        id="coke-interaction-agent",
+        name="CokeInteractionAgent",
+        model=create_llm_model(role="chat_response", max_tokens=2000),
+        instructions=build_chat_response_instructions(run_context, agent_input),
+        tools=final_tools,
         db=resolved_session_db,
         add_history_to_context=True,
         num_history_messages=20,

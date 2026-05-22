@@ -499,16 +499,12 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content=(
-                    "好的呀！17:57 我会提醒你喝水，"
-                    "还有什么需要我帮忙的吗？"
-                ),
+                content=("好的呀！17:57 我会提醒你喝水，" "还有什么需要我帮忙的吗？"),
                 messages=[
                     SimpleNamespace(
                         role="assistant",
                         content=(
-                            "好的呀！17:57 我会提醒你喝水，"
-                            "还有什么需要我帮忙的吗？"
+                            "好的呀！17:57 我会提醒你喝水，" "还有什么需要我帮忙的吗？"
                         ),
                     )
                 ],
@@ -585,3 +581,135 @@ async def test_reminder_fired_input_passes_raw_input_to_model(monkeypatch):
 
     assert result.output_disposition.status == "ok"
     assert model_inputs == ["提醒：喝水"]
+
+
+# --- New _create_interaction_agent() tests ---
+
+
+def test_create_interaction_agent_user_turn_has_exactly_five_tools():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert [tool.name for tool in agent.tools] == [
+        "reminder_domain",
+        "scheduling_domain",
+        "timezone",
+        "calendar_import",
+        "url_context",
+    ]
+
+
+def test_create_interaction_agent_reminder_fired_has_no_tools():
+    reminder_input = AgentInput(
+        input_type="reminder.fired",
+        conversation_id="conv-1",
+        text="提醒：喝水",
+        payload=ReminderFirePayload(
+            fire_id="fire-1",
+            reminder_id="rem-1",
+            title="喝水",
+            scheduled_for=datetime(2026, 5, 22, 8, 0, tzinfo=UTC),
+        ),
+        occurred_at=datetime(2026, 5, 22, 8, 0, tzinfo=UTC),
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=reminder_input,
+        input_message="提醒：喝水",
+        tool_results=[],
+    )
+
+    assert agent.tools == [] or agent.tools is None or len(agent.tools) == 0
+
+
+def test_create_interaction_agent_uses_chat_response_model_role(monkeypatch):
+    captured = {}
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    def fake_create_llm_model(*, role, max_tokens):
+        captured.update({"role": role, "max_tokens": max_tokens})
+        return object()
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        fake_create_llm_model,
+    )
+
+    agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert captured == {"role": "chat_response", "max_tokens": 2000}
+
+
+def test_create_interaction_agent_sets_tool_call_limit_four(monkeypatch):
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    assert agent.kwargs["tool_call_limit"] == 4
+
+
+def test_create_interaction_agent_uses_injected_session_db(monkeypatch):
+    injected_db = object()
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    monkeypatch.setattr("agno.agent.Agent", FakeAgent)
+    monkeypatch.setattr(
+        "agent.agno_agent.model_factory.create_llm_model",
+        lambda **kwargs: object(),
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+        session_db=injected_db,
+    )
+
+    assert agent.kwargs["db"] is injected_db
+    assert agent.kwargs["add_history_to_context"] is True
+    assert agent.kwargs["num_history_messages"] == 20
+    assert agent.kwargs["add_session_state_to_context"] is False
+
+
+def test_create_interaction_agent_domain_tools_have_stop_after_tool_call_false():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="hi",
+        tool_results=[],
+    )
+
+    tool_flags = {tool.name: tool.stop_after_tool_call for tool in agent.tools}
+    assert tool_flags["reminder_domain"] is False
+    assert tool_flags["scheduling_domain"] is False
