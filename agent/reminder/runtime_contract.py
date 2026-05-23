@@ -129,12 +129,14 @@ class ReminderRuntimeContract:
         owner_user_id: str,
         from_date: date,
         to_date: date,
+        timezone: str | None = None,
         lifecycle_states: list[str],
     ) -> list[ReminderOccurrence]:
         return self.reminder_service.list_occupied_occurrences_in_local_date_range(
             owner_user_id=owner_user_id,
             from_date=from_date,
             to_date=to_date,
+            timezone=timezone,
             lifecycle_states=lifecycle_states,
         )
 

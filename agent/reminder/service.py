@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from bson.errors import InvalidId
 
@@ -25,7 +26,9 @@ from agent.reminder.models import (
 from agent.reminder.schedule import (
     compute_initial_next_fire_at,
     expand_schedule_anchors_in_local_date_range,
+    expand_schedule_anchors_overlapping_utc_range,
     validate_duration_minutes,
+    validate_timezone,
 )
 
 
@@ -308,6 +311,7 @@ class ReminderService:
         owner_user_id: str,
         from_date: date,
         to_date: date,
+        timezone: str | None = None,
         lifecycle_states: list[str],
     ) -> list[ReminderOccurrence]:
         if from_date > to_date:
@@ -318,21 +322,20 @@ class ReminderService:
                     "to_date": to_date.isoformat(),
                 },
             )
-        documents_by_id = {
-            str(document["_id"]): document
-            for document in self.reminder_dao.list_for_owner_in_local_date_range(
-                owner_user_id,
+        request_bounds = None
+        if timezone is not None:
+            request_bounds = _local_date_range_utc_bounds(
                 from_date=from_date,
                 to_date=to_date,
+                timezone=timezone,
+            )
+        documents_by_id = {
+            str(document["_id"]): document
+            for document in self.reminder_dao.list_for_owner(
+                owner_user_id,
                 lifecycle_states=lifecycle_states,
             )
         }
-        for document in self.reminder_dao.list_visible_recurrence_sources_for_owner(
-            owner_user_id,
-            to_date=to_date,
-            lifecycle_states=lifecycle_states,
-        ):
-            documents_by_id[str(document["_id"])] = document
 
         occurrences: list[ReminderOccurrence] = []
         for document in documents_by_id.values():
@@ -340,10 +343,19 @@ class ReminderService:
             duration = reminder.schedule.duration_minutes
             if duration is None:
                 continue
-            for start_at in expand_schedule_anchors_in_local_date_range(
+            range_start_at, range_end_at = (
+                request_bounds
+                or _local_date_range_utc_bounds(
+                    from_date=from_date,
+                    to_date=to_date,
+                    timezone=reminder.schedule.timezone,
+                )
+            )
+            for start_at in expand_schedule_anchors_overlapping_utc_range(
                 reminder.schedule,
-                from_date=from_date,
-                to_date=to_date,
+                range_start_at=range_start_at,
+                range_end_at=range_end_at,
+                duration_minutes=duration,
             ):
                 occurrences.append(
                     ReminderOccurrence(
@@ -792,3 +804,17 @@ class ReminderService:
 
     def _now(self) -> datetime:
         return self.now_provider()
+
+
+def _local_date_range_utc_bounds(
+    *,
+    from_date: date,
+    to_date: date,
+    timezone: str,
+) -> tuple[datetime, datetime]:
+    local_zone = ZoneInfo(validate_timezone(timezone))
+    range_start = datetime.combine(from_date, time.min, tzinfo=local_zone)
+    range_end = datetime.combine(
+        to_date + timedelta(days=1), time.min, tzinfo=local_zone
+    )
+    return range_start.astimezone(UTC), range_end.astimezone(UTC)

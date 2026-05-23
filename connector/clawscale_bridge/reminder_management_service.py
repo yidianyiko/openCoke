@@ -167,6 +167,7 @@ class ReminderManagementService:
                 owner_user_id=_require_string(customer_id, "customer_id"),
                 from_date=parsed_from_date,
                 to_date=parsed_to_date,
+                timezone=timezone,
                 lifecycle_states=["active"],
             )
         except InvalidSchedule as exc:

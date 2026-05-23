@@ -175,6 +175,13 @@ def test_list_calendar_facts_returns_busy_intervals_without_private_details():
         ],
         "privacy": {"eventDetailsIncluded": False},
     }
+    runtime_contract.list_occupied_reminder_occurrences_in_local_date_range.assert_called_once_with(
+        owner_user_id="coach",
+        from_date=date(2026, 5, 25),
+        to_date=date(2026, 5, 31),
+        timezone="Asia/Tokyo",
+        lifecycle_states=["active"],
+    )
 
 
 def test_calendar_facts_route_forwards_query_to_reminder_service(monkeypatch):

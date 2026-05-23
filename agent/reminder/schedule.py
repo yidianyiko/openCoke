@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.rrule import rrulestr
@@ -217,6 +217,74 @@ def expand_schedule_anchors_in_local_date_range(
     return [
         item.astimezone(UTC) for item in rule.between(range_start, range_end, inc=True)
     ]
+
+
+def expand_schedule_anchors_overlapping_utc_range(
+    schedule: ReminderSchedule,
+    *,
+    range_start_at: datetime,
+    range_end_at: datetime,
+    duration_minutes: int,
+) -> list[datetime]:
+    range_start_at = _ensure_aware(range_start_at, "range_start_at").astimezone(UTC)
+    range_end_at = _ensure_aware(range_end_at, "range_end_at").astimezone(UTC)
+    if range_start_at >= range_end_at:
+        raise InvalidSchedule(
+            "Reminder occurrence range is invalid",
+            detail={
+                "range_start_at": range_start_at.isoformat(),
+                "range_end_at": range_end_at.isoformat(),
+            },
+        )
+    duration_minutes = validate_duration_minutes(duration_minutes)
+    duration = timedelta(minutes=duration_minutes)
+    anchor_at = _ensure_aware(schedule.anchor_at, "schedule.anchor_at").astimezone(UTC)
+    validate_timezone(schedule.timezone)
+    validate_rrule_subset(schedule.rrule)
+
+    if schedule.rrule is None:
+        if _intervals_overlap(
+            anchor_at,
+            anchor_at + duration,
+            range_start_at,
+            range_end_at,
+        ):
+            return [anchor_at]
+        return []
+
+    timezone = ZoneInfo(schedule.timezone)
+    local_start = datetime.combine(
+        date=schedule.local_date,
+        time=schedule.local_time,
+        tzinfo=timezone,
+    )
+    try:
+        rule = rrulestr(schedule.rrule, dtstart=local_start)
+    except (TypeError, ValueError) as exc:
+        raise RRULENotSupported(
+            "Malformed reminder recurrence rule",
+            detail={"rrule": schedule.rrule},
+        ) from exc
+
+    scan_start = (range_start_at - duration).astimezone(timezone)
+    scan_end = range_end_at.astimezone(timezone)
+    anchors: list[datetime] = []
+    for item in rule.between(scan_start, scan_end, inc=True):
+        start_at = item.astimezone(UTC)
+        if _intervals_overlap(
+            start_at, start_at + duration, range_start_at, range_end_at
+        ):
+            anchors.append(start_at)
+    return anchors
+
+
+def _intervals_overlap(
+    start_at: datetime,
+    end_at: datetime,
+    range_start_at: datetime,
+    range_end_at: datetime,
+) -> bool:
+    return start_at < range_end_at and end_at > range_start_at
 
 
 def _ensure_aware(value: datetime, field_name: str) -> datetime:

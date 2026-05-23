@@ -466,6 +466,76 @@ def test_list_occupied_occurrences_filters_visibility_and_duration():
     assert all(item.owner_user_id == "coach" for item in occurrences)
 
 
+def test_list_occupied_occurrences_uses_request_timezone_boundaries():
+    service, _dao, _scheduler = make_service()
+    service.create(
+        owner_user_id="coach",
+        command=create_command(
+            title="tokyo midnight lesson",
+            reminder_schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 5, 25, 15, 30, tzinfo=UTC),
+                local_date=date(2026, 5, 26),
+                local_time=time(0, 30),
+                timezone="Asia/Tokyo",
+                rrule=None,
+                duration_minutes=60,
+            ),
+        ),
+    )
+
+    occurrences = service.list_occupied_occurrences_in_local_date_range(
+        owner_user_id="coach",
+        from_date=date(2026, 5, 25),
+        to_date=date(2026, 5, 25),
+        lifecycle_states=["active"],
+        timezone="America/Los_Angeles",
+    )
+
+    assert [(item.start_at, item.end_at) for item in occurrences] == [
+        (
+            datetime(2026, 5, 25, 15, 30, tzinfo=UTC),
+            datetime(2026, 5, 25, 16, 30, tzinfo=UTC),
+        )
+    ]
+
+
+def test_list_occupied_occurrences_includes_recurring_interval_overlapping_range_start():
+    service, _dao, _scheduler = make_service()
+    service.create(
+        owner_user_id="coach",
+        command=create_command(
+            title="late lesson",
+            reminder_schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 5, 25, 14, 30, tzinfo=UTC),
+                local_date=date(2026, 5, 25),
+                local_time=time(23, 30),
+                timezone="Asia/Tokyo",
+                rrule="FREQ=DAILY",
+                duration_minutes=120,
+            ),
+        ),
+    )
+
+    occurrences = service.list_occupied_occurrences_in_local_date_range(
+        owner_user_id="coach",
+        from_date=date(2026, 5, 26),
+        to_date=date(2026, 5, 26),
+        lifecycle_states=["active"],
+        timezone="Asia/Tokyo",
+    )
+
+    assert [(item.start_at, item.end_at) for item in occurrences] == [
+        (
+            datetime(2026, 5, 25, 14, 30, tzinfo=UTC),
+            datetime(2026, 5, 25, 16, 30, tzinfo=UTC),
+        ),
+        (
+            datetime(2026, 5, 26, 14, 30, tzinfo=UTC),
+            datetime(2026, 5, 26, 16, 30, tzinfo=UTC),
+        ),
+    ]
+
+
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
     from agent.reminder.runtime import (
         ReminderRuntime,

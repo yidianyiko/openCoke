@@ -178,6 +178,7 @@ def test_list_occupied_reminder_occurrences_in_local_date_range_delegates_to_ser
         owner_user_id="user-1",
         from_date=date(2026, 5, 11),
         to_date=date(2026, 5, 17),
+        timezone="America/Los_Angeles",
         lifecycle_states=["active"],
     )
 
@@ -189,6 +190,7 @@ def test_list_occupied_reminder_occurrences_in_local_date_range_delegates_to_ser
                 "owner_user_id": "user-1",
                 "from_date": date(2026, 5, 11),
                 "to_date": date(2026, 5, 17),
+                "timezone": "America/Los_Angeles",
                 "lifecycle_states": ["active"],
             },
         )
