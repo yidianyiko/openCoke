@@ -41,11 +41,10 @@ def _agent_input() -> AgentInput:
     )
 
 
-def test_assembled_prompt_excludes_protocol_and_json_schema_artifacts():
+def test_assembled_prompt_excludes_retired_schema_artifacts():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     forbidden = [
-        "as valid JSON",
         "JSON Schema",
         "Message types include",
         "structured multi-modal",
@@ -55,6 +54,20 @@ def test_assembled_prompt_excludes_protocol_and_json_schema_artifacts():
     ]
     for token in forbidden:
         assert token not in prompt, f"forbidden token found in prompt: {token!r}"
+
+
+def test_prompt_includes_active_text_only_segmentation_contract():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    required = [
+        "MultiModalResponses",
+        '{"type": "text", "content": "message text"}',
+        "Use 1 to 3 text messages",
+        "Do not output voice or photo items",
+        "Do not output any text outside the JSON object",
+    ]
+    for token in required:
+        assert token in prompt, f"required token missing from prompt: {token!r}"
 
 
 def test_prompt_keeps_user_challenges_block_in_general_form():
@@ -73,9 +86,9 @@ def test_prompt_includes_default_user_timezone():
 def test_prompt_forbids_internal_reasoning_in_user_visible_reply():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
-    assert "Only output the final user-visible reply" in prompt
-    assert "Do not include analysis" in prompt
+    assert "Do not output analysis" in prompt
     assert "persona inspection" in prompt
+    assert "any non-user-visible fields" in prompt
 
 
 def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
