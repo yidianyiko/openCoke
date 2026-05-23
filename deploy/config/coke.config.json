@@ -4,10 +4,10 @@
         "disable_daily_tasks": true
     },
     "default_timezone": "Asia/Shanghai",
-    "default_character_alias": "qiaoyun",
+    "default_character_alias": "kap",
     "characters": {
         "coke": "${CHARACTER_WXID_COKE}",
-        "qiaoyun": "${CHARACTER_WXID_QIAOYUN}"
+        "kap": "${CHARACTER_WXID_KAP}"
     },
     "group_chat": {
         "enabled": true,

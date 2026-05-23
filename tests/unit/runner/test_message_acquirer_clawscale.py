@@ -103,7 +103,7 @@ def test_message_acquirer_uses_virtual_character_identity_when_character_has_no_
             if user_id == "69d3db920cb4b1810d8e5fca"
             else {
                 "_id": "65f000000000000000000002",
-                "name": "qiaoyun",
+                "name": "kap",
                 "platforms": {},
             }
         ),
@@ -168,7 +168,7 @@ def test_message_acquirer_uses_virtual_character_identity_when_character_has_no_
     assert captured["nickname1"] == "ydyk"
     assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
     assert captured["db_user_id2"] == "65f000000000000000000002"
-    assert captured["nickname2"] == "qiaoyun"
+    assert captured["nickname2"] == "kap"
     assert top_message.get("status") == "pending"
 
 

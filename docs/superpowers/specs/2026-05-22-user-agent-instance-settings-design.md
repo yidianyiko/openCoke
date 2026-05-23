@@ -186,9 +186,9 @@ MongoDB still has its own `_id`.
 
 ## Character Name Mapping
 
-`base_agent_type = "coke_companion"` maps to character name `"qiaoyun"` in the
+`base_agent_type = "coke_companion"` maps to character name `"kap"` in the
 file-backed character prompt registry at
-`agent/prompt/character/__init__.py`. Runtime lookups must use `"qiaoyun"` as
+`agent/prompt/character/__init__.py`. Runtime lookups must use `"kap"` as
 the key when calling `get_character_prompt()`. Do not hardcode
 `"coke_companion"` in the prompt lookup path.
 

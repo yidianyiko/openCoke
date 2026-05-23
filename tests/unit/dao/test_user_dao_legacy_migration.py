@@ -148,9 +148,9 @@ def test_real_migration_preserves_character_phase1_shape():
             {
                 "_id": "507f1f77bcf86cd799439012",
                 "is_character": True,
-                "name": "qiaoyun",
-                "nickname": "Qiaoyun",
-                "platforms": {"wechat": {"nickname": "Qiaoyun"}},
+                "name": "kap",
+                "nickname": "kap",
+                "platforms": {"wechat": {"nickname": "kap"}},
                 "user_info": {"description": "prompt"},
                 "status": "normal",
             }
@@ -165,9 +165,9 @@ def test_real_migration_preserves_character_phase1_shape():
     assert upsert is True
     document = collections["characters"].documents[0]
     assert document["_id"] == "507f1f77bcf86cd799439012"
-    assert document["name"] == "qiaoyun"
-    assert document["nickname"] == "Qiaoyun"
-    assert document["platforms"] == {"wechat": {"nickname": "Qiaoyun"}}
+    assert document["name"] == "kap"
+    assert document["nickname"] == "kap"
+    assert document["platforms"] == {"wechat": {"nickname": "kap"}}
     assert document["user_info"] == {"description": "prompt"}
     assert document["legacy_user_id"] == "507f1f77bcf86cd799439012"
     assert isinstance(document["migrated_at"], datetime)

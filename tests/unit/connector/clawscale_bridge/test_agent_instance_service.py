@@ -49,7 +49,7 @@ def _service(*, instance=None, character=None):
         return_value=character
         or {
             "_id": "char_1",
-            "name": "qiaoyun",
+            "name": "kap",
             "nickname": "Coke",
             "user_info": {
                 "description": "base prompt",

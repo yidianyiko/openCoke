@@ -9,13 +9,13 @@ def test_get_user_by_id_reads_characters_without_touching_retired_users_collecti
         dao.characters_collection = MagicMock()
         dao.characters_collection.find_one.return_value = {
             "_id": "507f1f77bcf86cd799439012",
-            "name": "qiaoyun",
-            "nickname": "Qiaoyun",
+            "name": "kap",
+            "nickname": "kap",
         }
 
         user = dao.get_user_by_id("507f1f77bcf86cd799439012")
 
-        assert user["nickname"] == "Qiaoyun"
+        assert user["nickname"] == "kap"
         dao.characters_collection.find_one.assert_called_once()
 
 

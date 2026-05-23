@@ -12,13 +12,13 @@ def test_upsert_user_preserves_character_phase1_fields():
         migrated_at = datetime.utcnow()
 
         user_id = dao.upsert_user(
-            {"name": "qiaoyun", "is_character": True},
+            {"name": "kap", "is_character": True},
             {
                 "_id": "507f1f77bcf86cd799439012",
                 "is_character": True,
-                "name": "qiaoyun",
-                "nickname": "Qiaoyun",
-                "platforms": {"wechat": {"nickname": "Qiaoyun"}},
+                "name": "kap",
+                "nickname": "kap",
+                "platforms": {"wechat": {"nickname": "kap"}},
                 "user_info": {"description": "prompt"},
                 "legacy_user_id": "507f1f77bcf86cd799439012",
                 "migrated_at": migrated_at,
@@ -27,12 +27,12 @@ def test_upsert_user_preserves_character_phase1_fields():
 
         assert user_id == "char_1"
         call_args = dao.characters_collection.update_one.call_args
-        assert call_args[0][0] == {"name": "qiaoyun"}
+        assert call_args[0][0] == {"name": "kap"}
         stored_fields = call_args[0][1]["$set"]
         assert stored_fields["_id"] == "507f1f77bcf86cd799439012"
-        assert stored_fields["name"] == "qiaoyun"
-        assert stored_fields["nickname"] == "Qiaoyun"
-        assert stored_fields["platforms"] == {"wechat": {"nickname": "Qiaoyun"}}
+        assert stored_fields["name"] == "kap"
+        assert stored_fields["nickname"] == "kap"
+        assert stored_fields["platforms"] == {"wechat": {"nickname": "kap"}}
         assert stored_fields["user_info"] == {"description": "prompt"}
         assert stored_fields["legacy_user_id"] == "507f1f77bcf86cd799439012"
         assert stored_fields["migrated_at"] is migrated_at

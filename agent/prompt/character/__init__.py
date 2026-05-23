@@ -15,7 +15,7 @@ from agent.prompt.character.coke_prompt import COKE_STATUS, COKE_SYSTEM_PROMPT
 # key: character name (matches the `name` field in the database)
 # value: (system prompt, status config)
 CHARACTER_PROMPTS = {
-    "qiaoyun": {
+    "kap": {
         "system_prompt": COKE_SYSTEM_PROMPT,
         "status": COKE_STATUS,
     },

@@ -36,18 +36,18 @@ class FakeUserDAO:
 
 
 def test_build_default_character_payload_uses_prompt_registry():
-    payload = build_default_character_payload("qiaoyun")
+    payload = build_default_character_payload("kap")
 
     assert payload["is_character"] is True
-    assert payload["name"] == "qiaoyun"
-    assert payload["nickname"] == "qiaoyun"
+    assert payload["name"] == "kap"
+    assert payload["nickname"] == "kap"
     assert payload["status"] == "normal"
-    assert payload["user_info"]["description"] == get_character_prompt("qiaoyun")
-    assert payload["user_info"]["status"] == get_character_status("qiaoyun")
+    assert payload["user_info"]["description"] == get_character_prompt("kap")
+    assert payload["user_info"]["status"] == get_character_status("kap")
 
 
 def test_coke_system_prompt_includes_poke_inspired_texting_rules():
-    prompt = get_character_prompt("qiaoyun")
+    prompt = get_character_prompt("kap")
 
     assert "warm but never sycophantic" in prompt
     assert "subtle wit" in prompt
@@ -64,14 +64,10 @@ def test_coke_system_prompt_includes_poke_inspired_texting_rules():
 def test_ensure_default_character_seeded_is_idempotent():
     user_dao = FakeUserDAO()
 
-    first_id = ensure_default_character_seeded(
-        user_dao=user_dao, character_alias="qiaoyun"
-    )
-    second_id = ensure_default_character_seeded(
-        user_dao=user_dao, character_alias="qiaoyun"
-    )
+    first_id = ensure_default_character_seeded(user_dao=user_dao, character_alias="kap")
+    second_id = ensure_default_character_seeded(user_dao=user_dao, character_alias="kap")
 
     assert first_id == second_id
-    stored = user_dao.find_characters({"name": "qiaoyun"}, limit=1)[0]
+    stored = user_dao.find_characters({"name": "kap"}, limit=1)[0]
     assert stored["_id"] == first_id
-    assert stored["user_info"]["description"] == get_character_prompt("qiaoyun")
+    assert stored["user_info"]["description"] == get_character_prompt("kap")

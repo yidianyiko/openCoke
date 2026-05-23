@@ -19,7 +19,7 @@ from conf.config import CONF
 # ========== 测试账号配置 ==========
 # 使用现有测试账号
 TEST_USER_ID = "692c14aaa538f0baad5561b3"  # 不辣的皮皮
-TEST_CHARACTER_ID = "692c147e972f64f2b65da6ee"  # qiaoyun
+TEST_CHARACTER_ID = "692c147e972f64f2b65da6ee"  # kap
 
 
 def _mongo_is_available() -> bool:

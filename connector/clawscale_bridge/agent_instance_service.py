@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from dao.agent_instance_dao import BASE_AGENT_TYPE, OVERRIDE_FIELDS, AgentInstanceDAO
 
-CHARACTER_NAME_BY_BASE_AGENT_TYPE = {BASE_AGENT_TYPE: "qiaoyun"}
+CHARACTER_NAME_BY_BASE_AGENT_TYPE = {BASE_AGENT_TYPE: "kap"}
 TEXT_LIMITS = {
     "display_name": (1, 20),
     "nickname": (1, 20),

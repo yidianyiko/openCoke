@@ -20,16 +20,16 @@ def test_build_prompt_context_populates_generic_labels_and_channel():
     context = build_prompt_context(
         {
             "user": {"email": "alice@example.com"},
-            "character": {"nickname": "Qiaoyun"},
+            "character": {"nickname": "kap"},
             "conversation": {"platform": "business"},
         }
     )
 
     assert context["user_label"] == "alice@example.com"
-    assert context["character_label"] == "Qiaoyun"
+    assert context["character_label"] == "kap"
     assert context["channel_label"] == "business"
     assert context["user"]["nickname"] == "alice@example.com"
-    assert context["character"]["nickname"] == "Qiaoyun"
+    assert context["character"]["nickname"] == "kap"
 
 
 def test_message_source_context_uses_generic_user_label():

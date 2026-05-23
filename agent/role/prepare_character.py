@@ -17,8 +17,8 @@ if __name__ == "__main__":
     characters = [
         {
             "is_character": True,  # 是否是角色
-            "name": "qiaoyun",  # 统一注册名
-            "nickname": "qiaoyun",
+            "name": "kap",  # 统一注册名
+            "nickname": "kap",
             "status": "normal",  # normal | stopped
             "user_info": {
                 "description": """
