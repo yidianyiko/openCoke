@@ -275,7 +275,6 @@ class TimezoneDomainContract:
         else:
             next_state = dict(current_state)
             next_state["pending_timezone_change"] = None
-            next_state["pending_task_draft"] = None
             message = "好的，保持当前时区不变。"
 
         if not self.user_dao.update_timezone_state(user_id, next_state):
@@ -319,15 +318,12 @@ class TimezoneDomainContract:
         if not state:
             state = self._get_current_timezone_state(session_state, user_id)
 
-        if not state.get("pending_timezone_change") and not state.get(
-            "pending_task_draft"
-        ):
+        if not state.get("pending_timezone_change"):
             _update_session_user_state(session_state, state)
             return {"ok": True, "message": "", "state": state, "cleared": False}
 
         next_state = dict(state)
         next_state["pending_timezone_change"] = None
-        next_state["pending_task_draft"] = None
         if not self.user_dao.update_timezone_state(user_id, next_state):
             logger.error(
                 "clear_pending_timezone_proposal: DB update failed for user %s",

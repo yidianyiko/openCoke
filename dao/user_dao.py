@@ -27,7 +27,6 @@ TIMEZONE_STATE_FIELDS = (
     "timezone_source",
     "timezone_status",
     "pending_timezone_change",
-    "pending_task_draft",
 )
 
 TIMEZONE_REQUIRED_STATE_FIELDS = (
@@ -399,7 +398,6 @@ class UserDAO:
             "timezone_source": document.get("timezone_source", "legacy_preserved"),
             "timezone_status": document.get("timezone_status", "user_confirmed"),
             "pending_timezone_change": document.get("pending_timezone_change"),
-            "pending_task_draft": document.get("pending_task_draft"),
         }
 
     def update_timezone_state(self, account_id: str, state: Dict) -> bool:

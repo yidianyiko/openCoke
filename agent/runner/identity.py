@@ -12,7 +12,6 @@ TIMEZONE_STATE_FIELDS = (
     "timezone_source",
     "timezone_status",
     "pending_timezone_change",
-    "pending_task_draft",
 )
 
 PHONE_LIKE_RE = re.compile(r"^\+?\d{7,20}$")
@@ -217,7 +216,6 @@ def _resolve_timezone_state(account_id, input_message, user_dao, current_user=No
                 "timezone_source",
                 "timezone_status",
                 "pending_timezone_change",
-                "pending_task_draft",
             ):
                 if key in current_user and current_user.get(key) is not None:
                     existing_state[key] = current_user.get(key)

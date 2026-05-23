@@ -165,7 +165,6 @@ def test_set_user_timezone_uses_canonical_state_update(
         "timezone_source": "messaging_identity_region",
         "timezone_status": "system_inferred",
         "pending_timezone_change": {"timezone": "Europe/London"},
-        "pending_task_draft": None,
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -176,7 +175,6 @@ def test_set_user_timezone_uses_canonical_state_update(
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     mock_service_class.return_value = service_instance
 
@@ -221,7 +219,6 @@ def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
         "timezone_source": "messaging_identity_region",
         "timezone_status": "system_inferred",
         "pending_timezone_change": {"timezone": "Europe/London"},
-        "pending_task_draft": None,
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -232,7 +229,6 @@ def test_set_user_timezone_does_not_realign_v1_reminders_on_success(
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     mock_service_class.return_value = service_instance
 
@@ -295,7 +291,6 @@ def test_store_timezone_proposal_mentions_old_and_new_timezones_and_uses_15_minu
         "timezone_source": "messaging_identity_region",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -325,7 +320,6 @@ def test_store_timezone_proposal_ignores_user_confirmed_timezone_state(mock_dao_
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     mock_dao_class.return_value = dao_instance
 
@@ -387,7 +381,6 @@ def test_consume_timezone_confirmation_rejects_other_conversation(mock_dao_class
             "origin_conversation_id": "conv-1",
             "expires_at": 1770000000,
         },
-        "pending_task_draft": None,
     }
     mock_dao_class.return_value = dao_instance
 
@@ -419,7 +412,6 @@ def test_consume_timezone_confirmation_rejects_expired_proposal(
             "origin_conversation_id": "conv-1",
             "expires_at": 1999,
         },
-        "pending_task_draft": {"kind": "visible_reminder"},
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -436,7 +428,6 @@ def test_consume_timezone_confirmation_rejects_expired_proposal(
     persisted_state = dao_instance.update_timezone_state.call_args[0][1]
     assert persisted_state["timezone"] == "Asia/Shanghai"
     assert persisted_state["pending_timezone_change"] is None
-    assert persisted_state["pending_task_draft"] is None
 
 
 @patch("agent.agno_agent.capabilities.timezone.time.time", return_value=2000)
@@ -463,7 +454,6 @@ def test_consume_timezone_confirmation_yes_does_not_realign_v1_reminders_on_succ
             "origin_conversation_id": "conv-1",
             "expires_at": 3000,
         },
-        "pending_task_draft": None,
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -474,7 +464,6 @@ def test_consume_timezone_confirmation_yes_does_not_realign_v1_reminders_on_succ
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     mock_service_class.return_value = service_instance
 
@@ -510,7 +499,6 @@ def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
             "origin_conversation_id": "conv-1",
             "expires_at": 3000,
         },
-        "pending_task_draft": None,
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -527,7 +515,7 @@ def test_consume_timezone_confirmation_no_does_not_realign_visible_reminders(
 
 
 @patch("agent.agno_agent.capabilities.timezone.UserDAO")
-def test_clear_pending_timezone_proposal_clears_pending_task_draft(mock_dao_class):
+def test_clear_pending_timezone_proposal_clears_pending_timezone_change(mock_dao_class):
     from agent.agno_agent.tools.timezone_tools import clear_pending_timezone_proposal
 
     dao_instance = MagicMock()
@@ -540,7 +528,6 @@ def test_clear_pending_timezone_proposal_clears_pending_task_draft(mock_dao_clas
             "origin_conversation_id": "conv-1",
             "expires_at": 3000,
         },
-        "pending_task_draft": {"kind": "visible_reminder"},
     }
     dao_instance.update_timezone_state.return_value = True
     mock_dao_class.return_value = dao_instance
@@ -554,4 +541,3 @@ def test_clear_pending_timezone_proposal_clears_pending_task_draft(mock_dao_clas
     assert result["ok"] is True
     persisted_state = dao_instance.update_timezone_state.call_args[0][1]
     assert persisted_state["pending_timezone_change"] is None
-    assert persisted_state["pending_task_draft"] is None

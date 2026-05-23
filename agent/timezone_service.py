@@ -27,7 +27,6 @@ class TimezoneService:
             "timezone_source": source,
             "timezone_status": status,
             "pending_timezone_change": None,
-            "pending_task_draft": None,
         }
 
     def _normalize_existing_state(self, state: dict[str, Any]) -> dict[str, Any]:
@@ -36,13 +35,11 @@ class TimezoneService:
         normalized.setdefault("timezone_source", "legacy_preserved")
         normalized.setdefault("timezone_status", "user_confirmed")
         normalized.setdefault("pending_timezone_change", None)
-        normalized.setdefault("pending_task_draft", None)
         return {
             "timezone": normalized["timezone"],
             "timezone_source": normalized["timezone_source"],
             "timezone_status": normalized["timezone_status"],
             "pending_timezone_change": normalized["pending_timezone_change"],
-            "pending_task_draft": normalized["pending_task_draft"],
         }
 
     def build_initial_state(
@@ -104,7 +101,6 @@ class TimezoneService:
                 "timezone_source": "user_explicit",
                 "timezone_status": "user_confirmed",
                 "pending_timezone_change": None,
-                "pending_task_draft": None,
             }
         )
         return state

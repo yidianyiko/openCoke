@@ -72,7 +72,6 @@ def test_update_timezone_state_upserts_settings_document():
                 "timezone_source": "messaging_identity_region",
                 "timezone_status": "system_inferred",
                 "pending_timezone_change": None,
-                "pending_task_draft": None,
             },
             "$setOnInsert": {"account_id": "acct_123456"},
         },
@@ -98,7 +97,6 @@ def test_get_timezone_state_returns_only_timezone_fields():
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
 
 

@@ -49,7 +49,6 @@ def test_build_initial_state_normalizes_existing_legacy_state():
         "timezone_source": "legacy_preserved",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
 
 
@@ -60,7 +59,6 @@ def test_apply_user_explicit_change_clears_pending_state():
         "timezone_source": "messaging_identity_region",
         "timezone_status": "system_inferred",
         "pending_timezone_change": {"timezone": "Europe/London"},
-        "pending_task_draft": {"kind": "visible_reminder"},
     }
 
     result = service.apply_user_explicit_change(current, "Asia/Tokyo")
@@ -69,7 +67,6 @@ def test_apply_user_explicit_change_clears_pending_state():
     assert result["timezone_status"] == "user_confirmed"
     assert result["timezone_source"] == "user_explicit"
     assert result["pending_timezone_change"] is None
-    assert result["pending_task_draft"] is None
 
 
 def test_apply_user_explicit_change_rejects_invalid_timezone():

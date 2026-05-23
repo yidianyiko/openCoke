@@ -61,7 +61,6 @@ def test_resolve_agent_user_context_builds_synthetic_coke_account_user():
         "timezone_source": "deployment_default",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     assert get_agent_entity_id(user) == "acct_123"
 
@@ -92,7 +91,6 @@ def test_resolve_agent_user_context_builds_synthetic_user_without_coke_account()
         "timezone_source": "deployment_default",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
 
 
@@ -121,7 +119,6 @@ def test_resolve_agent_user_context_uses_default_nickname_fallback():
         "timezone_source": "deployment_default",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
 
 
@@ -154,7 +151,6 @@ def test_resolve_agent_user_context_prefers_customer_metadata_for_ck_ids():
         "timezone_source": "deployment_default",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
     }
     assert is_synthetic_coke_account_id("ck_123") is True
 
@@ -203,7 +199,6 @@ def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_us
         "timezone_source": "legacy_preserved",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
         "id": "acct_123",
         "_id": "acct_123",
     }
@@ -214,7 +209,6 @@ def test_resolve_agent_user_context_prefers_business_account_lookup_when_auth_us
             "timezone_source": "legacy_preserved",
             "timezone_status": "user_confirmed",
             "pending_timezone_change": None,
-            "pending_task_draft": None,
         },
     }
 
@@ -254,7 +248,6 @@ def test_resolve_agent_user_context_keeps_synthetic_account_id_when_metadata_dis
         "timezone_source": "deployment_default",
         "timezone_status": "system_inferred",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
         "id": "acct_123",
         "_id": "acct_123",
     }
@@ -276,7 +269,6 @@ def test_resolve_agent_user_context_hydrates_existing_canonical_timezone_state()
                 "timezone_source": "user_explicit",
                 "timezone_status": "user_confirmed",
                 "pending_timezone_change": None,
-                "pending_task_draft": None,
             }
 
     user = resolve_agent_user_context(
@@ -297,7 +289,6 @@ def test_resolve_agent_user_context_hydrates_existing_canonical_timezone_state()
         "timezone_source": "user_explicit",
         "timezone_status": "user_confirmed",
         "pending_timezone_change": None,
-        "pending_task_draft": None,
         "id": "acct_123",
         "_id": "acct_123",
     }
@@ -342,7 +333,6 @@ def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_exp
             "timezone_source": "external_account_timezone",
             "timezone_status": "system_inferred",
             "pending_timezone_change": None,
-            "pending_task_draft": None,
         },
     }
     assert user["timezone"] == "America/New_York"
@@ -389,7 +379,6 @@ def test_resolve_agent_user_context_persists_first_touch_timezone_state_from_pho
             "timezone_source": "messaging_identity_region",
             "timezone_status": "system_inferred",
             "pending_timezone_change": None,
-            "pending_task_draft": None,
         },
     }
     assert user["timezone"] == "Asia/Shanghai"
@@ -438,7 +427,6 @@ def test_resolve_agent_user_context_persists_deployment_default_when_no_timezone
             "timezone_source": "deployment_default",
             "timezone_status": "system_inferred",
             "pending_timezone_change": None,
-            "pending_task_draft": None,
         },
     }
     assert user["timezone"] == "Asia/Tokyo"
