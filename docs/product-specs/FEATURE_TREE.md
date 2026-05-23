@@ -36,6 +36,8 @@ directory alone.
     `connector/clawscale_bridge/reminder_management_service.py`
   - bridge internal reminder management API:
     `/bridge/internal/reminders`
+  - bridge internal reminder calendar facts API:
+    `/bridge/internal/reminder-calendar-facts`
 - Memo runtime contract
   - headless embedded package: `memo-runtime/`
   - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`
@@ -76,6 +78,9 @@ directory alone.
   - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`
   - customer API: `gateway/packages/api/src/routes/customer-scheduling-routes.ts`
   - internal agent API: `gateway/packages/api/src/routes/internal-scheduling-routes.ts`
+  - internal agent scheduling tool: `list_friend_calendar_facts`
+  - shared reminders persist `durationMinutes` and project that duration into
+    participant Reminder Runtime records
   - Gateway domain services: `gateway/packages/api/src/scheduling/`
   - Reminder Runtime projection client: `gateway/packages/api/src/lib/reminder-runtime-client.ts`
   - Worker agent tools: `agent/agno_agent/capabilities/scheduling.py`

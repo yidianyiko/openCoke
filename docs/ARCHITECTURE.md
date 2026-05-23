@@ -161,6 +161,13 @@ The Reminder System owns assistant-created reminders and internal follow-ups:
   consumer.
 - reminder documents include schedule data, output target, lifecycle, and the
   next durable wake-up in `next_fire_at`
+- visible reminder schedules may include optional `duration_minutes`, exposed
+  as `durationMinutes` through Bridge/Gateway APIs; positive duration makes the
+  reminder occupy calendar time, while absent duration remains a point reminder
+- Bridge exposes `/bridge/internal/reminder-calendar-facts` for internal
+  privacy-preserving busy interval reads; it filters by owner, visible
+  reminders, active lifecycle state, bounded local date range, and occupied
+  duration before returning busy intervals without reminder private details
 - `ReminderScheduler` reconstructs active jobs from `reminders.next_fire_at` on
   startup and keeps APScheduler as an in-process wake-up mechanism only
 - `ReminderScheduler` emits `ReminderFiredEvent` objects to a
@@ -198,7 +205,7 @@ delegates execution to friend-link and shared-reminder tools:
 `get_user_link`, `reset_user_link`, `disable_user_link`,
 `list_friend_requests`, `accept_friend_request`, `reject_friend_request`,
 `cancel_friend_request`, `list_friends`, `remove_friendship`, `block_account`,
-`unblock_account`, `create_shared_reminder`,
+`unblock_account`, `list_friend_calendar_facts`, `create_shared_reminder`,
 `list_pending_shared_reminders`, `accept_shared_reminder`,
 `reject_shared_reminder`, and `cancel_shared_reminder`. The runner remains
 responsible for locks, rollback, output writes, replay checks, scheduler boot,
