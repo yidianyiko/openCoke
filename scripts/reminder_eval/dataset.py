@@ -7,12 +7,12 @@ from typing import Any
 
 DEFAULT_CASES_PATH = Path("scripts/reminder_test_cases.json")
 DEFAULT_EXPECTATIONS_PATH = Path("scripts/reminder_normal_path_expectations.json")
-PENDING_WORKFLOW_TWO_TURN_CASE_NAME = "pending-workflow-hourly-checkin-two-turn"
-PENDING_WORKFLOW_TWO_TURN_TURNS = (
+HISTORY_TWO_TURN_CASE_NAME = "history-hourly-checkin-two-turn"
+HISTORY_TWO_TURN_TURNS = (
     "每个整点喊我打卡吧",
     "从现在到晚上七点",
 )
-PENDING_WORKFLOW_TWO_TURN_GUARD_MODES = (
+HISTORY_TWO_TURN_GUARD_MODES = (
     "high_frequency_guards_enabled",
     "high_frequency_guards_bypassed",
 )
@@ -132,16 +132,15 @@ def select_expectation_cases(
     ]
 
 
-def pending_workflow_two_turn_eval_manifest() -> dict[str, Any]:
+def history_two_turn_eval_manifest() -> dict[str, Any]:
     return {
-        "name": PENDING_WORKFLOW_TWO_TURN_CASE_NAME,
-        "turns": list(PENDING_WORKFLOW_TWO_TURN_TURNS),
-        "guard_modes": list(PENDING_WORKFLOW_TWO_TURN_GUARD_MODES),
+        "name": HISTORY_TWO_TURN_CASE_NAME,
+        "turns": list(HISTORY_TWO_TURN_TURNS),
+        "guard_modes": list(HISTORY_TWO_TURN_GUARD_MODES),
         "transport": "business-clawscale",
         "expected_path": (
-            "turn 1 persists an awaiting_user pending workflow; turn 2 loads "
-            "the same workflow, advances it to execution, creates bounded "
-            "reminders, and leaves the workflow terminal"
+            "turn 1 asks for the missing end condition; turn 2 uses recent "
+            "conversation history to create bounded reminders"
         ),
         "evidence_status": "open_real_model_business_clawscale_run_required",
     }

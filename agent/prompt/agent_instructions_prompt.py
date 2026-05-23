@@ -86,7 +86,6 @@ Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_
 - Bounded cadence with end clock/date: use deadline_at; trigger_at = first occurrence.
 - Recurrence uses RFC 5545 RRULE only when the user supplies frequency/interval/listed routine times.
 - clarify and discussion leave action and write fields empty.
-- workflow_update only for pending clarification workflows.
 - Exclude trailing modal particles from titles; preserve quoted/parenthetical text.
 - clarification_question uses the same language as the user message.
 - Output only the structured decision.

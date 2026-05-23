@@ -152,7 +152,7 @@ await detector.arun(
 )
 ```
 
-No `db` on sub-agents — they are stateless single-shot structured output calls. `session_state` carries the pending workflow context within the turn (already the current pattern).
+No `db` on sub-agents — they are stateless single-shot structured output calls. `session_state` carries the detector context within the turn.
 
 `reminder_detect_retry_agent` is deleted entirely — it only existed to serve the corrective retry state machine (see §3a). Failed detection returns a failed `CapabilityResult` immediately.
 

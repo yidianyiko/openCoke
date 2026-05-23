@@ -36,11 +36,6 @@ directory alone.
     `connector/clawscale_bridge/reminder_management_service.py`
   - bridge internal reminder management API:
     `/bridge/internal/reminders`
-  - feature-flagged pending-workflow side channel: typed envelope in
-    `agent/agno_agent/runtime/pending_workflow.py`, persistence through
-    `dao/pending_workflow_dao.py` against the `pending_workflows` collection;
-    runtime gated by `pending_workflow.reminders.enabled` and
-    `pending_workflow.reminders.execution_envelope.enabled` (both default off)
 - Memo runtime contract
   - headless embedded package: `memo-runtime/`
   - Coke agent adapter: `agent/agno_agent/capabilities/memo.py`

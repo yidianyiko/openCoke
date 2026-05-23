@@ -67,16 +67,16 @@ Carries every shared data shape so neither runner nor scoring needs to
 import the other for typing purposes.
 
 - Constants: `DEFAULT_CASES_PATH`, `DEFAULT_EXPECTATIONS_PATH`,
-  `PENDING_WORKFLOW_TWO_TURN_CASE_NAME`,
-  `PENDING_WORKFLOW_TWO_TURN_TURNS`,
-  `PENDING_WORKFLOW_TWO_TURN_GUARD_MODES`.
+  `HISTORY_TWO_TURN_CASE_NAME`,
+  `HISTORY_TWO_TURN_TURNS`,
+  `HISTORY_TWO_TURN_GUARD_MODES`.
 - Dataclasses: `ReminderNormalPathCase`, `ReminderNormalPathResult`,
   `CaseBatch`, `ExpectedReminderCreate`.
 - Loading and merging: `load_cases`, `load_case_expectations`,
   `merge_case_expectation_metadata`.
 - Selection: `select_cases`, `select_expectation_cases`,
   `iter_case_batches`, `runtime_case_index`,
-  `pending_workflow_two_turn_eval_manifest`.
+  `history_two_turn_eval_manifest`.
 
 `ReminderNormalPathResult` lives here despite being produced by the
 runner. Putting it in `runner.py` would create a cycle with
@@ -224,7 +224,7 @@ dataset/fixture tests, not scoring tests:
 - `test_load_cases_applies_normal_path_expectation_fixture`
 - `test_run_all_uses_pruned_expectation_cases_and_preserves_raw_indices`
 - `test_expectation_fixture_cases_are_current_and_well_formed`
-- `test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence`
+- `test_history_two_turn_eval_manifest_records_open_runtime_evidence`
 
 Move those into `test_reminder_eval_dataset.py`.
 

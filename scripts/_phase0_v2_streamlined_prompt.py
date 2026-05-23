@@ -89,7 +89,6 @@ When the user gives a bare clock (e.g. "7点", "10:30", "晚上九点"):
 - Use intent_type and action separately.
 - action ∈ {"", create, update, delete, complete, batch, list}.
 - Single reminder uses top-level title/trigger_at; multiple use action="batch" + operations.
-- workflow_update only for pending workflows; otherwise omit.
 - Output only the structured decision; no chat text.
 </instructions>"""
 

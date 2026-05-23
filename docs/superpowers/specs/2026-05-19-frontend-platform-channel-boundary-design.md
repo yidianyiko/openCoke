@@ -333,7 +333,7 @@ flowchart TD
     AgentRuntime -->|"allowed: domain contract"| Timezone
     Bridge -. "forbidden: product API owner" .-> ProductAPIX["Reminder/Memo/Calendar APIs"]
 
-    Reminder -->|"owns"| ReminderState[("reminders / pending workflow state")]
+    Reminder -->|"owns"| ReminderState[("reminders")]
     Memo -->|"owns"| MemoState[("memo state")]
     Timezone -->|"owns"| TimezoneState[("account timezone state")]
     AgentRuntime -->|"owns runtime use"| RuntimeState[("input/output messages, locks")]
@@ -661,8 +661,7 @@ Current code anchors:
   `agent/runner/reminder_fire_consumer.py`,
   `agent/runner/reminder_event_handler.py`.
 - Customer-facing routes: `gateway/packages/api/src/routes/customer-reminder-routes.ts`.
-- Durable state: MongoDB `reminders` (and feature-flagged `pending_workflows`
-  for in-flight reminder intent).
+- Durable state: MongoDB `reminders`.
 
 ## System 5: Memo System
 
@@ -1063,7 +1062,6 @@ First-pass ownership:
 | Postgres agent instance profile state | Agent Runtime System | medium (user-authored agent profile text) | `agent_instance_profile_retention` | Per-customer agent display/persona/status configuration consumed by runtime prompts. |
 | Postgres channel/provider config and route binding | Channel System | high (provider credentials) | channel lifetime; tokens rotated | Platform may expose management APIs; Channel owns provider secrets. |
 | MongoDB `reminders` | Reminder System | medium (user-generated text) | `user_content_retention` | Visible reminders and internal follow-up semantics. |
-| MongoDB `pending_workflows` (reminders) | Reminder System | medium | `short_lived_workflow_retention` | Feature-flagged; reminder-specific. |
 | MongoDB `inputmessages` / `outputmessages` | Agent Runtime System; Bridge boundary | medium (conversation content) | `conversation_retention` | Bridge adapts ingress/egress; Agent Runtime processes durable runtime messages. |
 | MongoDB conversation locks and batching state | Agent Runtime System | low | `ephemeral_runtime_retention` | Runtime coordination state, not product truth. |
 | Memo storage | Memo System | medium (user-generated context, embeddings) | `memo_retention` | Memo Runtime owns domain state and migrations. |

@@ -218,9 +218,7 @@ This decision is recorded in ADR 0004
 8. Reminder-intent preflight workaround removed with a narrower boundary. The
    old keyword/regex preflight for explicit reminder-shaped messages was
    deleted, so normal reminder requests now go through the main agent and its
-   `reminder_intent` tool. The active `pending_workflow` continuation path was
-   retained as `_pending_reminder_workflow_result`, because it is functional
-   workflow resumption rather than prompt-overload workaround.
+   `reminder_intent` tool.
 
 ## What This Test Did Not Prove
 

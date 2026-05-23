@@ -72,7 +72,6 @@ Use when changing:
 - `agent/reminder/`
 - `dao/reminder_dao.py`
 - `agent/agno_agent/tools/reminder_protocol/`
-- `dao/pending_workflow_dao.py`
 - `agent/prompt/`
 
 Baseline commands:
@@ -122,12 +121,6 @@ guard helpers; see `docs/design-docs/reminder-corpus-severity.md`):
 ```bash
 .venv/bin/python scripts/run_reminder_eval.py --run-all
 # exit 0 requires critical=100%, important>=95%, nice>=80%.
-```
-
-Focused pending-workflow command set (feature-flagged, default off):
-
-```bash
-pytest tests/unit/agent/test_pending_workflow_models.py tests/unit/dao/test_pending_workflow_dao.py -v
 ```
 
 ## Bridge

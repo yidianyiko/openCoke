@@ -141,8 +141,6 @@ def test_build_reminder_intent_input_carries_dynamic_context_only():
     assert "### 当前用户消息" in prompt
     # User message preserved verbatim.
     assert "每天17:58锻炼" in prompt
-    # No pending-workflow block when there is no active workflow.
-    assert "### Active Pending Workflow" not in prompt
     # Few-shot decisions visible (schema patterns from the few-shot data).
     assert '"schedule_basis": "explicit_occurrences"' in prompt
     assert '"rrule": "FREQ=DAILY"' in prompt
@@ -151,7 +149,6 @@ def test_build_reminder_intent_input_carries_dynamic_context_only():
     # at the input layer, the diet has been reversed.
     legacy_phrases = (
         "### Workflow Boundary",
-        "Complete CRUD decisions must omit workflow_update",
         "One-shot deadline wording",
         "Need/intention statements",
         "Pomodoro/tomato timer starts are timed reminder requests",
@@ -332,49 +329,6 @@ async def test_reminder_intent_port_accepts_json_string_detector_content():
         detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("今天17:57提醒我喝水，每天17:58提醒我锻炼", _run_context())
-
-    _assert_executed(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_salvages_json_string_with_invalid_workflow_update():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    detector_content = """
-    {
-      "intent_type": "crud",
-      "action": "create",
-      "title": "更新登记表，15号的人也要更新",
-      "trigger_at": "2026-05-12T10:00:00+09:00",
-      "schedule_basis": "one_shot",
-      "schedule_evidence": "明天上午10点",
-      "workflow_update": {
-        "assumptions": ["明天上午10点提醒"],
-        "constraints": [],
-        "missing_fields": [],
-        "next_steps": [],
-        "payload": {},
-        "status": "draft"
-      }
-    }
-    """
-
-    class FakeAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=detector_content)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            assert received_decision.intent_type == "crud"
-            assert received_decision.action == "create"
-            assert received_decision.title == "更新登记表，15号的人也要更新"
-            assert received_decision.trigger_at == "2026-05-12T10:00:00+09:00"
-            return _executed_result("已创建提醒：更新登记表，15号的人也要更新")
-
-    result = await ReminderIntentPort(
-        detector_agent=FakeAgent(),
-        command_executor=FakeExecutor(),
-    ).run("明天上午10点提醒我更新登记表，15号的人也要更新", _run_context())
 
     _assert_executed(result)
 

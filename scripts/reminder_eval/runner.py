@@ -24,7 +24,7 @@ from scripts.reminder_eval.dataset import (
     ReminderNormalPathResult,
     iter_case_batches,
     load_cases,
-    pending_workflow_two_turn_eval_manifest,
+    history_two_turn_eval_manifest,
     runtime_case_index,
     select_cases,
     select_expectation_cases,
@@ -693,7 +693,7 @@ def main() -> int:
             "platform": platform,
             "transport": args.transport,
             "serial": not args.parallel_submit,
-            "pending_workflow_two_turn_eval": pending_workflow_two_turn_eval_manifest(),
+            "history_two_turn_eval": history_two_turn_eval_manifest(),
             "summary": summary,
             "batches": batches,
             "results": all_results,
@@ -724,7 +724,7 @@ def main() -> int:
             "timezone": args.timezone,
             "use_case_timestamps": args.use_case_timestamps,
             "transport": args.transport,
-            "pending_workflow_two_turn_eval": pending_workflow_two_turn_eval_manifest(),
+            "history_two_turn_eval": history_two_turn_eval_manifest(),
             **batch_payload,
         }
     text = json.dumps(payload, ensure_ascii=False, indent=2)

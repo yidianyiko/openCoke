@@ -111,10 +111,10 @@ def test_expectation_fixture_cases_are_current_and_well_formed():
             )
 
 
-def test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence():
-    manifest = normal_eval.pending_workflow_two_turn_eval_manifest()
+def test_history_two_turn_eval_manifest_records_open_runtime_evidence():
+    manifest = normal_eval.history_two_turn_eval_manifest()
 
-    assert manifest["name"] == "pending-workflow-hourly-checkin-two-turn"
+    assert manifest["name"] == "history-hourly-checkin-two-turn"
     assert manifest["turns"] == [
         "每个整点喊我打卡吧",
         "从现在到晚上七点",
@@ -124,6 +124,10 @@ def test_pending_workflow_two_turn_eval_manifest_records_open_runtime_evidence()
         "high_frequency_guards_bypassed",
     ]
     assert manifest["transport"] == "business-clawscale"
+    assert manifest["expected_path"] == (
+        "turn 1 asks for the missing end condition; turn 2 uses recent "
+        "conversation history to create bounded reminders"
+    )
     assert manifest["evidence_status"] == (
         "open_real_model_business_clawscale_run_required"
     )

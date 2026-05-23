@@ -53,7 +53,6 @@ Add these surfaces after `worker-runtime`:
       - gateway/packages/api/src/routes/customer-reminder-routes.ts
       - connector/clawscale_bridge/reminder_management_service.py
       - dao/reminder_dao.py
-      - dao/pending_workflow_dao.py
 
   - name: product-memo
     paths:

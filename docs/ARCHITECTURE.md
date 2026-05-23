@@ -41,9 +41,7 @@ The production stack consists of:
   - hosts Platform, Channel, Reminder customer API, and Calendar Import routes in one process
   - keeps provider webhook normalization and outbound dispatch under Channel ownership
 - data services
-  - MongoDB for Coke runtime state, including visible `reminders` and the
-    feature-flagged `pending_workflows` side channel for in-flight reminder
-    intent state
+  - MongoDB for Coke runtime state, including visible `reminders`
   - Redis for stream wake-up / trigger events
   - Postgres for gateway state
 
@@ -172,24 +170,6 @@ The Reminder System owns assistant-created reminders and internal follow-ups:
 - successful one-shot fired events complete the reminder, successful recurring
   fired events advance `next_fire_at`, and failed event handling marks the
   reminder failed
-
-The Reminder Intent capability also has a feature-flagged pending-workflow
-side channel that lives outside the visible reminder protocol:
-
-- `agent/agno_agent/runtime/pending_workflow.py` defines the typed envelope,
-  status machine, and invariant normalization for in-flight reminder
-  workflows (`draft` / `awaiting_user` / `ready_to_execute` / `executing` and
-  terminal states)
-- `dao/pending_workflow_dao.py` owns the MongoDB `pending_workflows`
-  collection, including indexes created unconditionally at boot through
-  `agent/role/bootstrap.py`
-- Runtime behavior is gated by two flags, both default off:
-  `pending_workflow.reminders.enabled` (Phase A persistence) and
-  `pending_workflow.reminders.execution_envelope.enabled` (Phase B execution
-  envelope contract)
-- When enabled, the capability loads any active workflow before the LLM
-  turn and persists updates through `ReminderIntentPort` after the turn;
-  when disabled, the runtime path is unchanged
 
 The legacy scheduled-action stack has been fully retired. All scheduled events,
 including imported calendar reminders, now go through the Reminder Runtime. The

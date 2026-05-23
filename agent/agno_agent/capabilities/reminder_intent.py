@@ -75,50 +75,15 @@ def _decision_from_response(response: Any) -> Any:
     if isinstance(content, ReminderDetectDecision):
         return content
     if isinstance(content, Mapping):
-        raw_workflow_update = content.get("workflow_update")
         try:
-            decision = ReminderDetectDecision.model_validate(content)
+            return ReminderDetectDecision.model_validate(content)
         except Exception:
-            if "workflow_update" in content:
-                fallback_content = dict(content)
-                raw_workflow_update = fallback_content.pop("workflow_update")
-                try:
-                    fallback_decision = ReminderDetectDecision.model_validate(
-                        fallback_content
-                    )
-                except Exception:
-                    pass
-                else:
-                    decision_values = fallback_decision.model_dump()
-                    decision_values["workflow_update"] = raw_workflow_update
-                    return SimpleNamespace(**decision_values)
             logger.warning("ReminderDetectAgent returned invalid structured mapping")
             return "ReminderDetectInvalidStructuredOutput"
-        if raw_workflow_update is not None and decision.workflow_update is None:
-            decision_values = decision.model_dump()
-            decision_values["workflow_update"] = raw_workflow_update
-            return SimpleNamespace(**decision_values)
-        return decision
     if isinstance(content, str) and content.strip():
         try:
             return ReminderDetectDecision.model_validate_json(content)
         except Exception:
-            try:
-                raw_content = json.loads(content)
-            except Exception:
-                return content
-            if isinstance(raw_content, Mapping) and "workflow_update" in raw_content:
-                fallback_content = dict(raw_content)
-                raw_workflow_update = fallback_content.pop("workflow_update")
-                try:
-                    fallback_decision = ReminderDetectDecision.model_validate(
-                        fallback_content
-                    )
-                except Exception:
-                    return content
-                decision_values = fallback_decision.model_dump()
-                decision_values["workflow_update"] = raw_workflow_update
-                return SimpleNamespace(**decision_values)
             return content
     return content
 
