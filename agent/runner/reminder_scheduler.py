@@ -26,10 +26,6 @@ def set_reminder_scheduler_instance(scheduler: "ReminderScheduler | None") -> No
     _scheduler_instance = scheduler
 
 
-def get_reminder_scheduler_instance() -> "ReminderScheduler | None":
-    return _scheduler_instance
-
-
 def _normalize_utc(value: datetime, field_name: str) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         return value.replace(tzinfo=UTC)

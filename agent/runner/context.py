@@ -490,14 +490,6 @@ def context_prepare(user, character, conversation):
     return context
 
 
-def context_prepare_charonly(character):
-    context = {
-        "character": character,
-    }
-
-    return context
-
-
 def get_default_relation(user, character, platform):
     user_id = get_agent_entity_id(user)
     character_id = get_agent_entity_id(character)

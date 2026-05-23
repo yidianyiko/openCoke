@@ -1,4 +1,3 @@
-import json
 import os
 import re
 from typing import Any, Dict, Iterable, Optional
@@ -147,16 +146,3 @@ def format_std_messages_for_log(messages: Iterable[Dict[str, Any]]) -> str:
         more = f" (+{len(msgs) - max_messages} more)"
 
     return " | ".join(formatted) + more
-
-
-def safe_json_preview(obj: Any) -> str:
-    try:
-        s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"), default=str)
-    except Exception:
-        s = str(obj)
-    max_chars = (
-        None
-        if should_log_full_message_content()
-        else _env_int("LOG_MESSAGE_MAX_CHARS", 200)
-    )
-    return preview_text(s, max_chars=max_chars, keep_newlines=False)

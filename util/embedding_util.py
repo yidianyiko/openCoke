@@ -113,31 +113,6 @@ def embedding_by_aliyun(
         return None
 
 
-def init_embedding_cache_index():
-    """Initialize index for embedding cache collection."""
-    try:
-        mongo = MongoDBBase()
-        collection = mongo.get_collection(EMBEDDING_CACHE_COLLECTION)
-        # Create compound index on text_hash + model for fast lookups
-        collection.create_index([("text_hash", 1), ("model", 1)], unique=True)
-        # Create index on last_accessed for cleanup queries
-        collection.create_index("last_accessed")
-        logger.info("Embedding cache indexes initialized")
-    except Exception as e:
-        logger.warning(f"Failed to create embedding cache indexes: {e}")
-
-
-def get_embedding_cache_stats() -> dict:
-    """Get statistics about the embedding cache."""
-    try:
-        mongo = MongoDBBase()
-        total = mongo.count_documents(EMBEDDING_CACHE_COLLECTION)
-        return {"total_cached": total, "collection": EMBEDDING_CACHE_COLLECTION}
-    except Exception as e:
-        logger.warning(f"Failed to get cache stats: {e}")
-        return {"error": str(e)}
-
-
 def upsert_one(key, value, metadata, collection_name="embeddings"):
     mongo = MongoDBBase()
     key_embedding = embedding_by_aliyun(key)

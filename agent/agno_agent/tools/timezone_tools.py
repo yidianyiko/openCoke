@@ -15,14 +15,9 @@ from agno.tools import tool
 from agent.agno_agent.capabilities.timezone import (
     PENDING_PROPOSAL_EXPIRED_MESSAGE,
     TimezoneCapabilityPort,
-    canonicalize_timezone,
     is_timezone_proposal_expired,
     normalize_timezone_confirmation_decision,
 )
-
-
-def _canonicalize_timezone(timezone: str) -> str:
-    return canonicalize_timezone(timezone)
 
 
 def _run_timezone_capability(

@@ -537,12 +537,6 @@ def _extract_causal_inbound_event_id_from_context(context: dict | None) -> str |
     return None
 
 
-def _normalize_clawscale_platform(platform: str | None) -> str | None:
-    if platform == "wechat":
-        return "wechat_personal"
-    return platform
-
-
 def send_message(
     platform,
     from_user,

@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-from itertools import islice
-
 import oss2
 from oss2.credentials import EnvironmentVariableCredentialsProvider
 
@@ -42,39 +40,6 @@ def upload_file(bucket, object_name, data):
         logging.info(f"File uploaded successfully, status code: {result.status}")
     except oss2.exceptions.OssError as e:
         logging.error(f"Failed to upload file: {e}")
-
-
-def download_file(bucket, object_name):
-    try:
-        file_obj = bucket.get_object(object_name)
-        content = file_obj.read().decode("utf-8")
-        logging.info("File content:")
-        logging.info(content)
-        return content
-    except oss2.exceptions.OssError as e:
-        logging.error(f"Failed to download file: {e}")
-
-
-def list_objects(bucket):
-    try:
-        objects = list(islice(oss2.ObjectIterator(bucket), 10))
-        for obj in objects:
-            logging.info(obj.key)
-    except oss2.exceptions.OssError as e:
-        logging.error(f"Failed to list objects: {e}")
-
-
-def delete_objects(bucket):
-    try:
-        objects = list(islice(oss2.ObjectIterator(bucket), 100))
-        if objects:
-            for obj in objects:
-                bucket.delete_object(obj.key)
-                logging.info(f"Deleted object: {obj.key}")
-        else:
-            logging.info("No objects to delete")
-    except oss2.exceptions.OssError as e:
-        logging.error(f"Failed to delete objects: {e}")
 
 
 def delete_bucket(bucket):

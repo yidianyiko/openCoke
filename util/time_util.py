@@ -1,9 +1,8 @@
 import sys
 
 sys.path.append(".")
-import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from conf.config import CONF
@@ -13,11 +12,6 @@ logger = get_logger(__name__)
 
 
 # ========== BUG-010 fix: Timestamp validation utilities ==========
-
-
-def get_current_timestamp():
-    """Return the current Unix timestamp as an integer."""
-    return int(time.time())
 
 
 def validate_timestamp(value, field_name="timestamp", default_to_now=True):
@@ -221,112 +215,6 @@ def date2str(timestamp, week=False, tz: ZoneInfo = None):
     return result
 
 
-def parse_relative_time(text, base_timestamp=None, tz: ZoneInfo = None):
-    """
-    解析相对时间表达
-
-    Args:
-        text: 时间文本，如"30分钟后"、"2小时后"、"明天"
-        base_timestamp: 基准时间戳，默认为当前时间
-
-    Returns:
-        int: 解析后的时间戳，失败返回 None
-    """
-    if base_timestamp is None:
-        base_timestamp = int(datetime.now().timestamp())
-
-    resolved_tz = tz or get_default_timezone()
-    base_dt = datetime.fromtimestamp(base_timestamp, tz=resolved_tz)
-
-    # 相对时间模式
-    patterns = [
-        # 分钟
-        (r"(\d+)\s*分钟[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 60),
-        # 小时
-        (
-            r"(\d+)\s*[个]?小时[后之]后?",
-            lambda m: base_timestamp + int(m.group(1)) * 3600,
-        ),
-        (
-            r"(\d+)\s*[个]?钟头[后之]后?",
-            lambda m: base_timestamp + int(m.group(1)) * 3600,
-        ),
-        # 天
-        (r"(\d+)\s*天[后之]后?", lambda m: base_timestamp + int(m.group(1)) * 86400),
-        # 明天
-        (
-            r"明天",
-            lambda m: int(
-                (base_dt + timedelta(days=1))
-                .replace(hour=9, minute=0, second=0)
-                .timestamp()
-            ),
-        ),
-        # 后天
-        (
-            r"后天",
-            lambda m: int(
-                (base_dt + timedelta(days=2))
-                .replace(hour=9, minute=0, second=0)
-                .timestamp()
-            ),
-        ),
-        # 下周
-        (
-            r"下周",
-            lambda m: int(
-                (base_dt + timedelta(days=7))
-                .replace(hour=9, minute=0, second=0)
-                .timestamp()
-            ),
-        ),
-    ]
-
-    for pattern, calculator in patterns:
-        match = re.search(pattern, text)
-        if match:
-            return calculator(match)
-
-    return None
-
-
-def calculate_next_recurrence(current_time, recurrence_type, interval=1):
-    """
-    计算下次周期提醒时间
-
-    Args:
-        current_time: 当前触发时间戳
-        recurrence_type: 周期类型 (daily/weekly/monthly/yearly)
-        interval: 间隔数
-
-    Returns:
-        int: 下次触发时间戳
-    """
-    current_dt = datetime.fromtimestamp(current_time)
-
-    if recurrence_type == "daily":
-        next_dt = current_dt + timedelta(days=interval)
-    elif recurrence_type == "weekly":
-        next_dt = current_dt + timedelta(weeks=interval)
-    elif recurrence_type == "monthly":
-        next_dt = current_dt + timedelta(days=30 * interval)
-    elif recurrence_type == "yearly":
-        next_dt = current_dt + timedelta(days=365 * interval)
-    elif recurrence_type == "hourly":
-        next_dt = current_dt + timedelta(hours=interval)
-    elif recurrence_type == "interval":
-        next_dt = current_dt + timedelta(minutes=interval)
-    else:
-        return None
-
-    return int(next_dt.timestamp())
-
-
-def is_time_in_past(timestamp):
-    """判断时间是否已过期"""
-    return timestamp < int(datetime.now().timestamp())
-
-
 def format_time_friendly(timestamp, tz: ZoneInfo = None):
     """
     将时间戳格式化为友好的文本
@@ -423,71 +311,3 @@ def is_within_time_period(
     end_minutes = end_h * 60 + end_m
 
     return start_minutes <= current_minutes <= end_minutes
-
-
-def calculate_next_period_trigger(
-    current_time: int,
-    interval_minutes: int,
-    start_time: str,
-    end_time: str,
-    active_days: list = None,
-    timezone: str = "Asia/Shanghai",
-) -> int:
-    """
-    计算时间段提醒的下次触发时间
-
-    逻辑：
-    1. 如果当前在时间段内，返回 current + interval
-    2. 如果当前在时间段外，返回下一个有效时间段的开始时间
-    3. 如果下次触发超出今天时间段，跳到下一个有效日期
-
-    Args:
-        current_time: 当前时间戳
-        interval_minutes: 间隔分钟数
-        start_time: 时间段开始 "HH:MM"
-        end_time: 时间段结束 "HH:MM"
-        active_days: 生效的星期几 [1-7]
-        timezone: 时区
-
-    Returns:
-        int: 下次触发的 Unix 时间戳，或 None（如果无法计算）
-    """
-    from datetime import time as dt_time
-
-    _tz = ZoneInfo(timezone)
-    dt = datetime.fromtimestamp(current_time, tz=_tz)
-
-    start_h, start_m = map(int, start_time.split(":"))
-    end_h, end_m = map(int, end_time.split(":"))
-
-    # 尝试最多7天
-    for day_offset in range(8):
-        check_date = dt.date() + timedelta(days=day_offset)
-        check_dt = (
-            datetime.combine(check_date, dt.replace(tzinfo=None).time(), tzinfo=_tz)
-            if day_offset == 0
-            else datetime.combine(check_date, dt_time(start_h, start_m), tzinfo=_tz)
-        )
-        check_weekday = check_dt.isoweekday()
-
-        # 检查是否是有效日期
-        if active_days and check_weekday not in active_days:
-            continue
-
-        # 计算该日期的时间段
-        period_start = datetime.combine(check_date, dt_time(start_h, start_m), tzinfo=_tz)
-        period_end = datetime.combine(check_date, dt_time(end_h, end_m), tzinfo=_tz)
-
-        if day_offset == 0:
-            # 今天：检查是否还在时间段内
-            next_trigger = dt + timedelta(minutes=interval_minutes)
-            if period_start <= next_trigger <= period_end:
-                return int(next_trigger.timestamp())
-            elif dt < period_start:
-                # 还没到开始时间
-                return int(period_start.timestamp())
-        else:
-            # 未来的日期：返回时间段开始时间
-            return int(period_start.timestamp())
-
-    return None

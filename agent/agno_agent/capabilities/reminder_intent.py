@@ -492,34 +492,6 @@ def _input_has_next_whole_hour_reference(input_message: str) -> bool:
     return bool(_NEXT_WHOLE_HOUR_PATTERN.search(current_user_text))
 
 
-def _input_has_mixed_clocked_reminder_clause(input_message: str) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not current_user_text:
-        return False
-    if not _BARE_CLOCK_PATTERN.search(current_user_text):
-        return False
-    if not (
-        _REMINDER_VERB_PATTERN.search(current_user_text)
-        or re.search(r"要|询问我|问问我|告诉我", current_user_text)
-    ):
-        return False
-    return bool(
-        _EXPLICIT_DATE_PATTERN.search(current_user_text)
-        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
-    )
-
-
-def _input_has_complete_weekday_range_recurring_reminder(input_message: str) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not current_user_text:
-        return False
-    if not _WEEKDAY_RANGE_PATTERN.search(current_user_text):
-        return False
-    if not _BARE_CLOCK_PATTERN.search(current_user_text):
-        return False
-    return bool(_REMINDER_VERB_PATTERN.search(current_user_text))
-
-
 def _input_has_clocked_task_before_trailing_reminder_verb(input_message: str) -> bool:
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
