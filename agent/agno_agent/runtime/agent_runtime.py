@@ -48,21 +48,6 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
-_DURABLE_WRITE_REQUEST_PATTERNS = (
-    re.compile(
-        r"(\u63d0\u9192\u6211|\u901a\u77e5\u6211|\u53eb\u6211|"
-        r"\u5e2e\u6211.{0,16}(\u63d0\u9192|\u901a\u77e5)|"
-        r"(\u8bbe\u7f6e|\u8bbe\u4e2a|\u5b9a\u4e2a).{0,16}"
-        r"(\u63d0\u9192|\u901a\u77e5))"
-    ),
-    re.compile(
-        r"\b(remind me|notify me|set (?:up )?(?:a |the )?reminder|"
-        r"create (?:a |the )?reminder)\b",
-        re.IGNORECASE,
-    ),
-)
-
-
 def _float_env(name: str, default: float) -> float:
     raw_value = os.environ.get(name)
     if raw_value is None:
@@ -390,11 +375,6 @@ def _check_unconfirmed_durable_write_promise(
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
-        return None
-    input_message = _input_message(agent_input)
-    if not any(
-        pattern.search(input_message) for pattern in _DURABLE_WRITE_REQUEST_PATTERNS
-    ):
         return None
     if any(result.ok and result.durable_write for result in capability_results):
         return None

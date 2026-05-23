@@ -199,7 +199,7 @@ async def test_multimodal_json_becomes_ordered_visible_text_segments(monkeypatch
         monkeypatch=monkeypatch,
         content=_segments_payload(
             {"type": "text", "content": "先这样"},
-            {"type": "text", "content": "我晚点再提醒你整理下一步"},
+            {"type": "text", "content": "我晚点再整理下一步"},
         ),
     )
 
@@ -209,7 +209,7 @@ async def test_multimodal_json_becomes_ordered_visible_text_segments(monkeypatch
     ]
     assert [message.content for message in result.visible_messages] == [
         "先这样",
-        "我晚点再提醒你整理下一步",
+        "我晚点再整理下一步",
     ]
     assert result.output_disposition.status == "ok"
 
@@ -259,6 +259,27 @@ async def test_segmented_reminder_promise_guardrail_uses_joined_visible_text(
         content=_segments_payload(
             {"type": "text", "content": "没问题"},
             {"type": "text", "content": "明天早上九点我会提醒你喝水"},
+        ),
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_segmented_promise_guardrail_does_not_depend_on_input_request_shape(
+    monkeypatch,
+):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": ""}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="hi",
+        content=_segments_payload(
+            {"type": "text", "content": "没问题"},
+            {"type": "text", "content": "我会提醒你。"},
         ),
     )
 
