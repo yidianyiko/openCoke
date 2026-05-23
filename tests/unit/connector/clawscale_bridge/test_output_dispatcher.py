@@ -103,6 +103,94 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
     )
 
 
+def test_output_dispatcher_dispatches_pending_push_outputs_when_due(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    docs = [
+        _build_message_doc(
+            _id="out_1",
+            message="第一条",
+            expect_output_timestamp=1710000000,
+            metadata={
+                "business_conversation_key": "bc_1",
+                "delivery_mode": "push",
+                "idempotency_key": "idem_1",
+                "trace_id": "trace_1",
+                "output_id": "out_1",
+            },
+        ),
+        _build_message_doc(
+            _id="out_2",
+            message="第二条",
+            expect_output_timestamp=1710000005,
+            metadata={
+                "business_conversation_key": "bc_1",
+                "delivery_mode": "push",
+                "idempotency_key": "idem_2",
+                "trace_id": "trace_1",
+                "output_id": "out_2",
+            },
+        ),
+    ]
+
+    class _FakeCollection:
+        def find_one_and_update(self, query, update, return_document):
+            for doc in docs:
+                if (
+                    doc["status"] == "pending"
+                    and doc["expect_output_timestamp"]
+                    <= query["expect_output_timestamp"]["$lte"]
+                    and doc["metadata"].get("business_conversation_key")
+                ):
+                    doc.update(update["$set"])
+                    return dict(doc)
+            return None
+
+    class _FakeMongo:
+        def __init__(self):
+            self.collection = _FakeCollection()
+
+        def get_collection(self, name):
+            assert name == "outputmessages"
+            return self.collection
+
+        def update_one(self, name, query, update):
+            assert name == "outputmessages"
+            for doc in docs:
+                if doc["_id"] == query["_id"] and doc["status"] == query["status"]:
+                    doc.update(update["$set"])
+                    return
+
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=_FakeMongo(),
+        gateway_client=gateway_client,
+    )
+
+    assert dispatcher.dispatch_once() is True
+    assert [call.kwargs["output_id"] for call in gateway_client.post_output.mock_calls] == [
+        "out_1"
+    ]
+    assert dispatcher.dispatch_once() is False
+    assert [call.kwargs["output_id"] for call in gateway_client.post_output.mock_calls] == [
+        "out_1"
+    ]
+
+    now = 1710000005
+
+    assert dispatcher.dispatch_once() is True
+    assert [call.kwargs["output_id"] for call in gateway_client.post_output.mock_calls] == [
+        "out_1",
+        "out_2",
+    ]
+    assert [doc["status"] for doc in docs] == ["handled", "handled"]
+
+
 def test_output_dispatcher_marks_claimed_message_failed_when_post_raises(monkeypatch):
     import connector.clawscale_bridge.output_dispatcher as output_dispatcher
 

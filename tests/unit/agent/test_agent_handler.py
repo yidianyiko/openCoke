@@ -326,6 +326,86 @@ async def test_handle_message_agent_runtime_uses_agent_runtime(
 
 
 @pytest.mark.asyncio
+async def test_handle_message_agent_runtime_sends_multiple_visible_messages_in_order(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        return AgentRunResult(
+            visible_messages=[
+                VisibleMessage(message_type="text", content="第一条"),
+                VisibleMessage(message_type="text", content="第二条"),
+            ],
+            post_analyze_input=None,
+            domain_results=[],
+            capability_results=[],
+            metrics={},
+            trace={"runtime": "agent_runtime"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    sent = []
+
+    def fake_send_single_message(**kwargs):
+        sent.append(
+            {
+                "content": kwargs["multimodal_response"]["content"],
+                "expect_output_timestamp": kwargs["expect_output_timestamp"],
+                "is_first": kwargs["is_first"],
+            }
+        )
+        return (
+            {"message": kwargs["multimodal_response"]["content"]},
+            kwargs["expect_output_timestamp"] + 5,
+        )
+
+    monkeypatch.setattr(
+        agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
+    )
+    monkeypatch.setattr(agent_handler, "_send_single_message", fake_send_single_message)
+    monkeypatch.setattr(agent_handler.time, "time", lambda: 1710000000)
+
+    resp_messages, context, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="你好",
+            message_source="user",
+            metadata={"request_id": "req-1"},
+            check_new_message=False,
+            worker_tag="[T]",
+            current_message_ids=[],
+        )
+    )
+
+    assert resp_messages == [{"message": "第一条"}, {"message": "第二条"}]
+    assert sent == [
+        {
+            "content": "第一条",
+            "expect_output_timestamp": 1710000000,
+            "is_first": True,
+        },
+        {
+            "content": "第二条",
+            "expect_output_timestamp": 1710000005,
+            "is_first": False,
+        },
+    ]
+    assert context["MultiModalResponses"] == [
+        {"type": "text", "content": "第一条", "metadata": {}},
+        {"type": "text", "content": "第二条", "metadata": {}},
+    ]
+    assert is_rollback is False
+    assert is_content_blocked is False
+
+
+@pytest.mark.asyncio
 async def test_handle_message_agent_runtime_empty_output_uses_chat_fallback(
     monkeypatch, sample_context
 ):
