@@ -352,6 +352,52 @@ async def test_run_scheduling_domain_returns_called_tool_result():
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_preserves_success_when_later_tool_call_duplicates():
+    successful_write = CapabilityResult(
+        name="reset_user_link",
+        ok=True,
+        content={
+            "user_link_id": "link-1",
+            "visible_summary": "Your booking link was reset.",
+        },
+    )
+
+    class _DuplicateCallingAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["reset_user_link"]()
+            await self.tools["disable_user_link"]()
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _DuplicateCallingAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: _SyncPort(successful_write),
+        ):
+            result = await run_scheduling_domain(
+                input_message="reset my link and then disable it",
+                intent="reset_user_link",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "executed"
+    assert result["error"] is None
+    assert result["operations"][0]["action"] == "reset_user_link"
+    assert result["operations"][0]["effect"] == "write"
+    assert result["operations"][0]["entity_id"] == "link-1"
+    assert result["operations"][0]["facts"]["user_link_id"] == "link-1"
+    assert [item.error.code if item.error else None for item in domain_results] == [
+        None,
+        "duplicate_scheduling_tool_call",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_executes_only_first_concurrent_tool_call():
     calls: list[str] = []
 
