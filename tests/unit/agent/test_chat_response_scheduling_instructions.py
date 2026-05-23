@@ -104,6 +104,24 @@ def test_delegation_boundary_restores_scheduling_safety_policy():
     assert "remove friendship, block, or unblock" in text
 
 
+def test_friend_calendar_policy_uses_coke_reminders_not_google_calendar():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "Coke reminders are the calendar source for friend availability" in text
+    assert "Do not use Google Calendar for friend availability" in text
+    assert "list_friend_calendar_facts" in text
+
+
+def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "When no date range is provided, supply the next 7 local calendar days" in text
+    assert "only free intervals" in text
+    assert "Do not reveal reminder titles, prompts, metadata, ids, or output targets" in text
+    assert "For a fitness class, lesson, or session, use 60 minutes unless the user states another duration" in text
+    assert "The tool returns busy intervals only; you calculate how to describe free time" in text
+
+
 def test_chat_response_instructions_render_agent_instance_profile_before_boundaries():
     from agent.agno_agent.runtime.chat_response_instructions import (
         build_chat_response_instructions,

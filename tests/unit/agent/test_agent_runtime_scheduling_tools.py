@@ -136,6 +136,17 @@ def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments(
     assert "blocked_account_id" in function.parameters["properties"]
 
 
+def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
+    from agent.agno_agent.runtime import execution_agents
+
+    prompt = execution_agents._SCHEDULING_SYSTEM_PROMPT
+
+    assert "Call list_friends before list_friend_calendar_facts when the friend is not resolved" in prompt
+    assert "Do not ask the backend for recommended slots" in prompt
+    assert "Do not use Google Calendar for friend availability" in prompt
+    assert "Pass duration_minutes only after the conversation or policy determines it" in prompt
+
+
 @pytest.mark.asyncio
 async def test_scheduling_tool_fn_compacts_empty_shared_reminder_args():
     port = RecordingPort(name="create_shared_reminder")

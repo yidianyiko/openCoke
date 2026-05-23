@@ -37,6 +37,12 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.
 - A shared reminder requires one active friend. If the named person is not an active friend, explain that the user must add them as a friend first.
 - If the friend name is ambiguous, ask the user to choose one friend and do not call scheduling_domain.
+- Coke reminders are the calendar source for friend availability. Do not use Google Calendar for friend availability in this feature.
+- For friend availability, resolve the target friend with list_friends first. If exactly one active friend matches, call list_friend_calendar_facts with that account id. If multiple friends match, ask the user to choose one friend and do not call the calendar facts tool.
+- When no date range is provided, supply the next 7 local calendar days using the target friend's timezone when available, otherwise the current conversation timezone.
+- list_friend_calendar_facts returns privacy-preserving busy intervals only. The tool returns busy intervals only; you calculate how to describe free time and you show only free intervals to the user.
+- Do not reveal reminder titles, prompts, metadata, ids, or output targets from a friend's calendar facts.
+- For a fitness class, lesson, or session, use 60 minutes unless the user states another duration. This duration choice is LLM policy; the backend must only persist the chosen interval.
 - Do not treat an iLink QR as a public friend-link QR. iLink is only for the current account's personal-channel binding.
 - Ask for confirmation before reset/disable user link, accept/reject/cancel requests, remove friendship, block, or unblock unless the current turn explicitly confirms the exact action.
 - Use timezone, calendar_import, or url_context directly - no delegation needed.
