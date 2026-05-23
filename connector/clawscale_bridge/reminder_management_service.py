@@ -89,18 +89,12 @@ class ReminderManagementService:
         self,
         *,
         reminder_runtime=None,
-        reminder_service=None,
         conversation_dao=None,
         character_id_provider=None,
         now_provider=None,
     ) -> None:
         if reminder_runtime is None:
-            if reminder_service is None:
-                reminder_runtime = ReminderRuntimeContract()
-            else:
-                reminder_runtime = ReminderRuntimeContract(
-                    reminder_service=reminder_service
-                )
+            reminder_runtime = ReminderRuntimeContract()
         if conversation_dao is None:
             from dao.conversation_dao import ConversationDAO
 

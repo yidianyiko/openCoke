@@ -119,8 +119,8 @@ async def test_run_scheduling_domain_returns_typed_failed_result_when_no_tool_ca
             ),
         ):
             envelope = await run_scheduling_domain(
-                input_message="book an appointment",
-                intent="request_appointment",
+                input_message="set up a shared reminder",
+                intent="create_shared_reminder",
                 run_context=_run_context(),
                 domain_results=domain_results,
             )

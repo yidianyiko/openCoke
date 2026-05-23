@@ -162,8 +162,8 @@ async def test_scheduling_no_tool_called_returns_typed_failed_domain_result():
             side_effect=lambda *, tool_name: _Port(),
         ):
             envelope = await run_scheduling_domain(
-                input_message="book an appointment",
-                intent="request_appointment",
+                input_message="set up a shared reminder",
+                intent="create_shared_reminder",
                 run_context=_run_context(),
                 domain_results=domain_results,
             )

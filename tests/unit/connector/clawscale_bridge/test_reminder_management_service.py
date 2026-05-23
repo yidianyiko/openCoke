@@ -66,35 +66,6 @@ def _service(*, reminder_runtime=None, conversation_dao=None, now=None):
     )
 
 
-def test_constructor_wraps_legacy_reminder_service_for_compatibility():
-    from connector.clawscale_bridge.reminder_management_service import (
-        ReminderManagementService,
-    )
-
-    reminder_service = MagicMock()
-    reminder_service.list_for_user_in_local_date_range.return_value = [_reminder()]
-    service = ReminderManagementService(
-        reminder_service=reminder_service,
-        conversation_dao=MagicMock(),
-        character_id_provider=lambda: "char-1",
-        now_provider=lambda: datetime(2026, 5, 12, 0, 0, tzinfo=UTC),
-    )
-
-    service.list_reminders(
-        customer_id="customer-1",
-        from_date="2026-05-13",
-        to_date="2026-05-19",
-        lifecycle_states=["active", "completed"],
-    )
-
-    reminder_service.list_for_user_in_local_date_range.assert_called_once_with(
-        owner_user_id="customer-1",
-        from_date=date(2026, 5, 13),
-        to_date=date(2026, 5, 19),
-        lifecycle_states=["active", "completed"],
-    )
-
-
 def test_list_reminders_calls_runtime_contract_with_date_range_and_states():
     runtime_contract = MagicMock()
     runtime_contract.list_visible_reminders_in_local_date_range.return_value = [

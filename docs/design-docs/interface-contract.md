@@ -117,7 +117,8 @@ When an interface is migrated to this contract:
 - update every in-repo caller in the same change
 - update deploy/smoke checks in the same change
 - update live docs in the same change
-- add or update tests so the retired path fails closed
+- remove the retired route handler, alias, and compatibility shim instead of
+  preserving a dedicated retired-path response
 
 ## Documentation Rule
 

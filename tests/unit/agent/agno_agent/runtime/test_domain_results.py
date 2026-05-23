@@ -186,7 +186,7 @@ def test_failed_result_allows_structured_error_detail():
             code="no_tool_called",
             message="Scheduling execution agent did not call a tool",
             retryable=True,
-            detail={"intent": "request_appointment"},
+            detail={"intent": "create_shared_reminder"},
         ),
     )
 
@@ -195,7 +195,7 @@ def test_failed_result_allows_structured_error_detail():
         "code": "no_tool_called",
         "message": "Scheduling execution agent did not call a tool",
         "retryable": True,
-        "detail": {"intent": "request_appointment"},
+        "detail": {"intent": "create_shared_reminder"},
     }
     assert DomainExecutionResult.from_dict(result.to_dict()) == result
 

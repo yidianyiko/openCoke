@@ -890,12 +890,12 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
     )
 
-    result = await scheduling_domain(intent="confirm_appointment: id=appt_1")
+    result = await scheduling_domain(intent="accept_shared_reminder: request_id=srr_1")
 
     assert result is envelope
     assert captured == {
         "input_message": "confirm it",
-        "intent": "confirm_appointment: id=appt_1",
+        "intent": "accept_shared_reminder: request_id=srr_1",
         "run_context": run_context,
         "domain_results": domain_results,
     }
@@ -909,9 +909,9 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
     envelope = {
         "ok": True,
         "domain": "scheduling",
-        "visible_summary": "已确认预约",
+        "visible_summary": "已接受共享提醒",
         "synthesis_context": None,
-        "content": {"visible_summary": "已确认预约"},
+        "content": {"visible_summary": "已接受共享提醒"},
         "error": None,
     }
 
@@ -944,13 +944,13 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
     )
 
     first, second = await asyncio.gather(
-        scheduling_domain(intent="confirm_appointment: id=appt_1"),
-        scheduling_domain(intent="confirm_appointment: id=appt_2"),
+        scheduling_domain(intent="accept_shared_reminder: request_id=srr_1"),
+        scheduling_domain(intent="accept_shared_reminder: request_id=srr_2"),
     )
 
     assert calls == 1
     assert first is second
-    assert first == envelope | {"intent": "confirm_appointment: id=appt_1"}
+    assert first == envelope | {"intent": "accept_shared_reminder: request_id=srr_1"}
 
 
 def test_create_interaction_agent_resolves_default_session_db(monkeypatch):

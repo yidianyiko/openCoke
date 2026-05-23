@@ -101,6 +101,12 @@ Then add the smallest task-specific slice:
 - Preserve the product and architecture contract even when a test or eval gate
   is red. Do not add compatibility paths, parser fallbacks, heuristic
   shortcuts, or user-visible behavior changes just to make a test pass.
+- Code must carry only the current product and architecture contract. Do not
+  keep compatibility code, legacy shims, alias routes, fallback parsers,
+  duplicate old implementations, or retired workflow branches unless a current
+  canonical spec explicitly names that behavior as an active requirement.
+  Otherwise delete the implementation and update callers, tests, and docs in
+  the same change.
 - When verification fails, classify the failure before editing: product/runtime
   bug, test/eval bug, environment instability, or plan gap. Fix the matching
   layer only; if the correct layer is unclear, stop and record the blocker

@@ -60,28 +60,24 @@ async def _run_port(
 
 
 def _scheduling_entity_type(tool_name: str) -> str:
-    if "appointment" in tool_name:
-        return (
-            "appointment_request"
-            if tool_name == "request_appointment"
-            else "appointment"
-        )
-    if "bookable_window" in tool_name:
-        return "bookable_window"
-    if "service_link" in tool_name:
-        return "service_link"
+    if "shared_reminder" in tool_name:
+        return "shared_reminder_request"
+    if "friend_request" in tool_name:
+        return "friend_request"
+    if "friendship" in tool_name or tool_name == "list_friends":
+        return "friendship"
+    if "block" in tool_name:
+        return "account_block"
     return "user_link"
 
 
 def _scheduling_entity_id(tool_name: str, content: dict[str, Any]) -> str | None:
     for key in (
-        "appointment_id",
-        "appointment_or_request_id",
         "request_id",
-        "appointment_request_id",
-        "bookable_window_id",
-        "window_instance_id",
-        "service_link_id",
+        "friendship_id",
+        "blocked_account_id",
+        "shared_reminder_request_id",
+        "friend_request_id",
         "user_link_id",
         "link_id",
         "id",

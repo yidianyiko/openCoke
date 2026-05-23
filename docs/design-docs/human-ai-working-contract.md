@@ -42,6 +42,12 @@ make their work easier to inspect, constrain, and verify.
 5. Preserve the product contract even when a test or eval is red. Do not add
    case-specific branches, parser shortcuts, compatibility fallbacks, or prompt
    examples just to satisfy a single gate.
+6. Code carries the current product and architecture contract only. Do not keep
+   compatibility code, legacy shims, alias routes, fallback parsers, duplicate
+   old implementations, or retired workflow branches unless a current canonical
+   spec explicitly names that behavior as an active product requirement. If a
+   behavior is no longer part of the active contract, delete the implementation
+   and update callers/tests/docs in the same change.
 
 ## Required Work Shape
 
@@ -81,6 +87,9 @@ For generated run evidence, use `artifacts/evidence/`.
 9. Prefer staged reading over exhaustive startup reading. Agents should load
    the common routing contract first, then only the surface-specific docs
    needed for the current task.
+10. Do not preserve historical behavior in code just because older clients,
+    tests, plans, or prompts still mention it. Treat those references as stale
+    and either migrate them to the current contract or delete them.
 
 ## Verification Trust Levels
 
@@ -109,7 +118,8 @@ to a stronger claim.
 - Before deleting evidence, understand whether it is stale generated output or
   the only record supporting a recent claim.
 - Before adding compatibility logic, prove that the compatibility contract is a
-  product requirement rather than a way to pass a test.
+  current product requirement rather than a way to pass a test. If that proof
+  does not exist in canonical docs, do not add or keep the compatibility logic.
 
 ## Agent Responsibilities
 
