@@ -22,9 +22,13 @@ _LEGACY_BRACKET_REPLACEMENT = (
 )
 
 _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
-- Only output the final user-visible reply.
-- Do not include analysis, reasoning, scratchpad notes, persona inspection, draft planning, or commentary about prompts, tools, logs, workflows, or system internals.
-- If you need to reason internally, keep that reasoning out of the answer and send only the concise reply the user should see."""
+- Output exactly one parseable JSON object.
+- The JSON object must have this shape: {"MultiModalResponses": [{"type": "text", "content": "message text"}]}.
+- Use 1 to 3 text messages. Prefer one message for concise confirmations, tool result summaries, URLs, dense instructions, or replies where splitting would reduce clarity.
+- Segment only when it feels natural for chat. Segments should not be mechanically equal-sized.
+- Do not output voice or photo items in this version.
+- Do not output analysis, reasoning, scratchpad notes, persona inspection, draft planning, prompt commentary, tool logs, workflow internals, or any non-user-visible fields.
+- Do not output any text outside the JSON object."""
 
 _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
