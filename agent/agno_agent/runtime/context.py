@@ -158,6 +158,14 @@ def _build_agent_instance_profile(value: Any) -> AgentInstanceProfileContext:
     )
 
 
+def _build_character_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
+    user_info = _legacy_mapping(value.get("user_info"))
+    description = _optional_str(user_info.get("description"))
+    if not description:
+        return {}
+    return {"description": description}
+
+
 def build_agent_run_context(
     legacy_context: dict[str, Any],
     *,
@@ -198,6 +206,7 @@ def build_agent_run_context(
         character=TrustedCharacterContext(
             id=character_id,
             nickname=_nickname(character, "Coke"),
+            metadata=_build_character_metadata(character),
         ),
         conversation=TrustedConversationContext(
             id=conversation_id,

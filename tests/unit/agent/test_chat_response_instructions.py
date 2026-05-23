@@ -126,6 +126,37 @@ def test_prompt_includes_runtime_context_without_recent_chat_history():
     assert "should stay out of instructions" not in prompt
 
 
+def test_prompt_renders_repo_controlled_character_prompt_before_runtime_context():
+    ctx = AgentRunContext(
+        user=TrustedUserContext(id="u1", nickname="Alice", timezone="UTC"),
+        character=TrustedCharacterContext(
+            id="c1",
+            nickname="Coke",
+            metadata={
+                "description": "<system_prompt>你是用户在微信中的健康搭子</system_prompt>"
+            },
+        ),
+        conversation=TrustedConversationContext(
+            id="conv1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="u1", cid="c1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
+    )
+
+    prompt = build_chat_response_instructions(ctx, _agent_input())
+
+    assert "Default character prompt:" in prompt
+    assert "你是用户在微信中的健康搭子" in prompt
+    assert prompt.index("Default character prompt:") < prompt.index(
+        "Trusted runtime context:"
+    )
+    assert prompt.index("Default character prompt:") < prompt.index(
+        "User-visible reply boundary:"
+    )
+
+
 def test_prompt_includes_reminder_fired_contract_for_reminder_payload():
     agent_input = AgentInput(
         input_type="reminder.fired",

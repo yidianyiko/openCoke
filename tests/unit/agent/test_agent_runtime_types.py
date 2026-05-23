@@ -105,6 +105,37 @@ def test_agent_run_context_metadata_does_not_smuggle_raw():
     assert "raw" not in context.relation.metadata
 
 
+def test_agent_run_context_carries_file_backed_character_description():
+    context = build_agent_run_context(
+        {
+            "user": {
+                "id": "user-1",
+                "nickname": "User",
+                "timezone": "Asia/Tokyo",
+            },
+            "character": {
+                "id": "char-1",
+                "nickname": "Coke",
+                "user_info": {
+                    "description": "<system_prompt>health companion</system_prompt>"
+                },
+            },
+            "conversation": {
+                "id": "conv-1",
+                "platform": "business",
+                "route_key": "route-1",
+            },
+            "relation": {"uid": "user-1", "cid": "char-1"},
+        },
+        current_time=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+    )
+
+    assert (
+        context.character.metadata["description"]
+        == "<system_prompt>health companion</system_prompt>"
+    )
+
+
 def test_run_result_has_output_contract_fields():
     result = AgentRunResult(
         visible_messages=[

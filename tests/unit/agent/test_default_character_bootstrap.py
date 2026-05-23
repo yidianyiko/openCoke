@@ -46,19 +46,19 @@ def test_build_default_character_payload_uses_prompt_registry():
     assert payload["user_info"]["status"] == get_character_status("kap")
 
 
-def test_coke_system_prompt_includes_poke_inspired_texting_rules():
+def test_coke_system_prompt_defines_health_companion_role():
     prompt = get_character_prompt("kap")
 
-    assert "warm but never sycophantic" in prompt
-    assert "subtle wit" in prompt
-    assert "match the user's message length" in prompt
-    assert (
-        "Never expose workflows, tools, model routing, logs, or internal agents"
-        in prompt
-    )
-    assert "Only promise a future reminder" in prompt
-    assert "must refuse" not in prompt
-    assert "work-related tasks" not in prompt
+    assert "你是用户在微信中的健康搭子" in prompt
+    assert "我是 Coke，你的健康搭子" in prompt
+    assert "彭教练" in prompt
+    assert "运动康复" in prompt
+    assert "减肥" in prompt
+    assert "健身" in prompt
+    assert "任务开始前10分钟" in prompt
+    assert "只有当提醒或日历工具确认成功后" in prompt
+    assert "必须拒绝" in prompt
+    assert "coding" in prompt
 
 
 def test_ensure_default_character_seeded_is_idempotent():

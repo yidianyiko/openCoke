@@ -110,6 +110,14 @@ def _runtime_context_block(
     return "\n".join(lines)
 
 
+def _character_prompt_block(run_context: AgentRunContext) -> str:
+    metadata = getattr(run_context.character, "metadata", {})
+    description = metadata.get("description") if isinstance(metadata, Mapping) else None
+    if not isinstance(description, str) or not description.strip():
+        return ""
+    return "Default character prompt:\n" + description.strip()
+
+
 def _agent_instance_profile_block(run_context: AgentRunContext) -> str:
     profile = run_context.agent_instance_profile
     if profile.is_empty():
@@ -142,11 +150,12 @@ def build_chat_response_instructions(
 ) -> str:
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
+    character_prompt_block = _character_prompt_block(run_context)
     profile_block = _agent_instance_profile_block(run_context)
-    parts = [
-        cleaned,
-        _runtime_context_block(run_context, agent_input),
-    ]
+    parts = [cleaned]
+    if character_prompt_block:
+        parts.append(character_prompt_block)
+    parts.append(_runtime_context_block(run_context, agent_input))
     if profile_block:
         parts.append(profile_block)
     parts.extend(
