@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import logging
 import os
 import re
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired"}
 _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
+_MAX_VISIBLE_TEXT_SEGMENTS = 3
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -43,6 +45,19 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"\b(i(?:'ll| will|'ve| have)|we(?:'ll| will)).{0,40}"
         r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
+        re.IGNORECASE,
+    ),
+)
+_DURABLE_WRITE_REQUEST_PATTERNS = (
+    re.compile(
+        r"(\u63d0\u9192\u6211|\u901a\u77e5\u6211|\u53eb\u6211|"
+        r"\u5e2e\u6211.{0,16}(\u63d0\u9192|\u901a\u77e5)|"
+        r"(\u8bbe\u7f6e|\u8bbe\u4e2a|\u5b9a\u4e2a).{0,16}"
+        r"(\u63d0\u9192|\u901a\u77e5))"
+    ),
+    re.compile(
+        r"\b(remind me|notify me|set (?:up )?(?:a |the )?reminder|"
+        r"create (?:a |the )?reminder)\b",
         re.IGNORECASE,
     ),
 )
@@ -282,6 +297,41 @@ def _string_content(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
+    if not final_text:
+        return ()
+
+    try:
+        payload = json.loads(final_text)
+    except json.JSONDecodeError:
+        return (final_text,)
+
+    if not isinstance(payload, Mapping):
+        return (final_text,)
+
+    responses = payload.get("MultiModalResponses")
+    if not isinstance(responses, Sequence) or isinstance(
+        responses, (str, bytes, bytearray)
+    ):
+        return (final_text,)
+
+    segments: list[str] = []
+    for item in responses:
+        if not isinstance(item, Mapping) or item.get("type") != "text":
+            continue
+        content = _string_content(item.get("content"))
+        if not content:
+            continue
+        segments.append(content)
+        if len(segments) >= _MAX_VISIBLE_TEXT_SEGMENTS:
+            break
+    return tuple(segments)
+
+
+def _visible_text_for_guardrails(segments: Sequence[str]) -> str:
+    return "\n".join(segment for segment in segments if segment)
+
+
 def _resolve_visible_text(
     final_text: str,
     capability_results: Sequence[CapabilityResult],
@@ -340,6 +390,11 @@ def _check_unconfirmed_durable_write_promise(
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
+        return None
+    input_message = _input_message(agent_input)
+    if not any(
+        pattern.search(input_message) for pattern in _DURABLE_WRITE_REQUEST_PATTERNS
+    ):
         return None
     if any(result.ok and result.durable_write for result in capability_results):
         return None
@@ -530,9 +585,10 @@ async def run_agent_runtime(
                 domain_results=domain_results,
             )
         final_text = _string_content(getattr(run_output, "content", None))
+        final_text_segments = _parse_visible_text_segments(final_text)
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
-            final_text=final_text,
+            final_text=_visible_text_for_guardrails(final_text_segments),
             capability_results=capability_results,
             domain_results=domain_results,
         )
@@ -541,17 +597,15 @@ async def run_agent_runtime(
         captured_domain_results = tuple(domain_results)
         durable_write_error = _check_durable_write_contract(captured_capability_results)
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
-        # Interaction Agent's synthesized reply wins when non-empty (Option B);
-        # empty final_text keeps the existing visible_summary fallback.
-        visible_text = final_text or _resolve_visible_text(
-            "", captured_capability_results
-        )
+        visible_text_segments = final_text_segments
+        if not final_text:
+            fallback_text = _resolve_visible_text("", captured_capability_results)
+            visible_text_segments = (fallback_text,) if fallback_text else ()
         if runtime_contract_error is not None:
-            visible_text = ""
-        visible_messages = (
-            (VisibleMessage(message_type="text", content=visible_text),)
-            if visible_text
-            else ()
+            visible_text_segments = ()
+        visible_messages = tuple(
+            VisibleMessage(message_type="text", content=segment)
+            for segment in visible_text_segments
         )
 
         if visible_messages and runtime_contract_error is None:
