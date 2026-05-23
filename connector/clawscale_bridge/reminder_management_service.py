@@ -36,6 +36,7 @@ def serialize_reminder(reminder: Reminder) -> dict[str, Any]:
             "localTime": reminder.schedule.local_time.isoformat(),
             "timezone": reminder.schedule.timezone,
             "rrule": reminder.schedule.rrule,
+            "durationMinutes": reminder.schedule.duration_minutes,
         },
         "agentOutputTarget": {
             "conversationId": reminder.agent_output_target.conversation_id,
@@ -63,6 +64,7 @@ def build_schedule(
     local_time: str,
     timezone: str,
     rrule: str | None = None,
+    duration_minutes: int | None = None,
 ) -> ReminderSchedule:
     parsed_date = _parse_local_date(local_date)
     parsed_time = _parse_local_time(local_time)
@@ -70,6 +72,9 @@ def build_schedule(
         ReminderRuntimeContract.validate_timezone(timezone)
         if rrule is not None:
             ReminderRuntimeContract.validate_rrule(rrule)
+        duration_minutes = ReminderRuntimeContract.validate_duration_minutes(
+            duration_minutes
+        )
         local_zone = ZoneInfo(timezone)
     except (InvalidSchedule, RRULENotSupported, ZoneInfoNotFoundError) as exc:
         raise ValueError("invalid_schedule") from exc
@@ -81,6 +86,7 @@ def build_schedule(
         local_time=parsed_time,
         timezone=timezone,
         rrule=rrule,
+        duration_minutes=duration_minutes,
     )
 
 
@@ -202,7 +208,16 @@ class ReminderManagementService:
         if not isinstance(body, dict):
             raise ValueError("invalid_body")
         schedule = None
-        if any(key in body for key in ("localDate", "localTime", "timezone", "rrule")):
+        if any(
+            key in body
+            for key in (
+                "localDate",
+                "localTime",
+                "timezone",
+                "rrule",
+                "durationMinutes",
+            )
+        ):
             schedule = self._build_schedule_from_body(body)
         patch = ReminderPatch(
             title=_validate_optional_title(body.get("title")),
@@ -255,6 +270,9 @@ class ReminderManagementService:
                 local_time=_require_string(body.get("localTime"), "localTime"),
                 timezone=_require_string(body.get("timezone"), "timezone"),
                 rrule=_optional_string(body.get("rrule")),
+                duration_minutes=_validate_optional_duration_minutes(
+                    body.get("durationMinutes")
+                ),
             )
         except ValueError as exc:
             if str(exc) == "invalid_schedule":
@@ -352,6 +370,14 @@ def _validate_optional_metadata(value: Any) -> dict | None:
     if not isinstance(value, dict):
         raise ValueError("invalid_body")
     return dict(value)
+
+
+def _validate_optional_duration_minutes(value: Any) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ValueError("invalid_body")
+    return value
 
 
 def _optional_string(value: Any) -> str | None:

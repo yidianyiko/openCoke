@@ -27,6 +27,12 @@ class ReminderRuntimeContract:
 
         validate_timezone(tz)
 
+    @staticmethod
+    def validate_duration_minutes(duration_minutes: int | None) -> int | None:
+        from agent.reminder.schedule import validate_duration_minutes
+
+        return validate_duration_minutes(duration_minutes)
+
     def __init__(self, *, reminder_service=None) -> None:
         if reminder_service is None:
             from agent.reminder.service import ReminderService

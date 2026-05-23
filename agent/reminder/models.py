@@ -14,6 +14,7 @@ class ReminderSchedule:
     local_time: time
     timezone: str
     rrule: str | None
+    duration_minutes: int | None = None
 
 
 @dataclass

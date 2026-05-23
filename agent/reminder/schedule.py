@@ -35,10 +35,12 @@ def build_schedule_from_anchor(
     anchor_at: datetime,
     timezone: str,
     rrule: str | None,
+    duration_minutes: int | None = None,
 ) -> ReminderSchedule:
     anchor_at = _ensure_aware(anchor_at, "anchor_at").astimezone(UTC)
     timezone = validate_timezone(timezone)
     rrule = validate_rrule_subset(rrule)
+    duration_minutes = validate_duration_minutes(duration_minutes)
 
     local_anchor = anchor_at.astimezone(ZoneInfo(timezone))
     return ReminderSchedule(
@@ -47,6 +49,7 @@ def build_schedule_from_anchor(
         local_time=local_anchor.timetz().replace(tzinfo=None),
         timezone=timezone,
         rrule=rrule,
+        duration_minutes=duration_minutes,
     )
 
 
@@ -113,6 +116,22 @@ def validate_rrule_subset(rrule: str | None) -> str | None:
     _validate_positive_integer(parts, "INTERVAL", rrule)
     _validate_until(parts, rrule)
     return rrule
+
+
+def validate_duration_minutes(duration_minutes: int | None) -> int | None:
+    if duration_minutes is None:
+        return None
+    if not isinstance(duration_minutes, int) or isinstance(duration_minutes, bool):
+        raise InvalidSchedule(
+            "Reminder duration must be a positive integer number of minutes",
+            detail={"field": "schedule.duration_minutes"},
+        )
+    if duration_minutes <= 0:
+        raise InvalidSchedule(
+            "Reminder duration must be positive",
+            detail={"field": "schedule.duration_minutes"},
+        )
+    return duration_minutes
 
 
 def compute_initial_next_fire_at(

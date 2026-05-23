@@ -206,10 +206,76 @@ def test_create_reminder_passes_metadata_to_runtime_and_serializes_it():
         },
     )
 
-    assert runtime_contract.create_visible_reminder.call_args.kwargs[
-        "metadata"
-    ] == metadata
+    assert (
+        runtime_contract.create_visible_reminder.call_args.kwargs["metadata"]
+        == metadata
+    )
     assert result["metadata"] == metadata
+
+
+def test_create_reminder_accepts_duration_minutes_and_serializes_schedule():
+    runtime_contract = MagicMock()
+    runtime_contract.create_visible_reminder.return_value = _reminder(
+        schedule=ReminderSchedule(
+            anchor_at=datetime(2026, 5, 13, 0, 30, tzinfo=UTC),
+            local_date=date(2026, 5, 13),
+            local_time=time(9, 30),
+            timezone="Asia/Tokyo",
+            rrule=None,
+            duration_minutes=60,
+        )
+    )
+    conversation_dao = MagicMock()
+    conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
+        "_id": "conv-1",
+        "route_key": "stored-route",
+    }
+
+    result = _service(
+        reminder_runtime=runtime_contract,
+        conversation_dao=conversation_dao,
+    ).create_reminder(
+        customer_id="customer-1",
+        body={
+            "title": "lesson",
+            "localDate": "2026-05-13",
+            "localTime": "09:30",
+            "timezone": "Asia/Tokyo",
+            "durationMinutes": 60,
+        },
+    )
+
+    schedule = runtime_contract.create_visible_reminder.call_args.kwargs["schedule"]
+    assert schedule.duration_minutes == 60
+    assert result["schedule"]["durationMinutes"] == 60
+
+
+@pytest.mark.parametrize("duration_minutes", [0, -1, True, 1.5, "60"])
+def test_create_reminder_rejects_invalid_duration_minutes(duration_minutes):
+    runtime_contract = MagicMock()
+    conversation_dao = MagicMock()
+    conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
+        "_id": "conv-1",
+        "route_key": "stored-route",
+    }
+
+    with pytest.raises(ValueError) as exc:
+        _service(
+            reminder_runtime=runtime_contract,
+            conversation_dao=conversation_dao,
+        ).create_reminder(
+            customer_id="customer-1",
+            body={
+                "title": "lesson",
+                "localDate": "2026-05-13",
+                "localTime": "09:30",
+                "timezone": "Asia/Tokyo",
+                "durationMinutes": duration_minutes,
+            },
+        )
+
+    assert str(exc.value) == "invalid_body"
+    runtime_contract.create_visible_reminder.assert_not_called()
 
 
 @pytest.mark.parametrize("metadata", ["not-a-dict", ["bad"]])

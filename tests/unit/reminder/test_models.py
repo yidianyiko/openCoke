@@ -55,6 +55,18 @@ def test_reminder_model_contains_protocol_boundary_fields():
     assert reminder.created_by_system == "agent"
 
 
+def test_reminder_schedule_duration_minutes_defaults_to_none():
+    schedule = ReminderSchedule(
+        anchor_at=datetime(2026, 4, 29, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 4, 29),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule=None,
+    )
+
+    assert schedule.duration_minutes is None
+
+
 def test_command_envelope_carries_trusted_owner_context():
     command = ReminderCommand(action="list")
     envelope = ReminderCommandEnvelope(owner_user_id="user-1", command=command)

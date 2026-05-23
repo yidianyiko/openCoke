@@ -316,6 +316,69 @@ def test_create_visible_reminder_persists_command_metadata():
     assert dao.documents[reminder.id]["metadata"] == metadata
 
 
+def test_create_update_and_map_schedule_duration_minutes():
+    service, dao, scheduler = make_service()
+
+    reminder = service.create(
+        owner_user_id="user-1",
+        command=create_command(
+            reminder_schedule=ReminderSchedule(
+                anchor_at=FUTURE,
+                local_date=date(2026, 4, 29),
+                local_time=time(10, 0),
+                timezone="Asia/Tokyo",
+                rrule=None,
+                duration_minutes=60,
+            )
+        ),
+    )
+
+    assert reminder.schedule.duration_minutes == 60
+    assert dao.documents[reminder.id]["schedule"]["duration_minutes"] == 60
+
+    updated = service.update(
+        reminder_id=reminder.id,
+        owner_user_id="user-1",
+        patch=ReminderPatch(
+            schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 4, 30, 1, 0, tzinfo=UTC),
+                local_date=date(2026, 4, 30),
+                local_time=time(10, 0),
+                timezone="Asia/Tokyo",
+                rrule=None,
+                duration_minutes=90,
+            )
+        ),
+    )
+
+    assert updated.schedule.duration_minutes == 90
+    assert dao.documents[reminder.id]["schedule"]["duration_minutes"] == 90
+    scheduler.reschedule_reminder.assert_called_once()
+
+
+@pytest.mark.parametrize("duration_minutes", [0, -1, True, 1.5, "60"])
+def test_create_rejects_invalid_schedule_duration_minutes(duration_minutes):
+    service, dao, scheduler = make_service()
+
+    with pytest.raises(InvalidSchedule):
+        service.create(
+            owner_user_id="user-1",
+            command=create_command(
+                reminder_schedule=ReminderSchedule(
+                    anchor_at=FUTURE,
+                    local_date=date(2026, 4, 29),
+                    local_time=time(10, 0),
+                    timezone="Asia/Tokyo",
+                    rrule=None,
+                    duration_minutes=duration_minutes,
+                )
+            ),
+        )
+
+    assert dao.documents == {}
+    scheduler.register_reminder.assert_not_called()
+
+
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
     from agent.reminder.runtime import (
         ReminderRuntime,
@@ -747,7 +810,9 @@ def test_create_internal_followup_writes_internal_reminder_and_registers_schedul
     assert reminder.prompt == "ask whether the user started"
     assert reminder.metadata == {"proactive_times": 0}
     assert dao.documents[reminder.id]["created_by_system"] == "agent"
-    assert dao.documents[reminder.id]["agent_output_target"]["conversation_id"] == "conv-1"
+    assert (
+        dao.documents[reminder.id]["agent_output_target"]["conversation_id"] == "conv-1"
+    )
     scheduler.register_reminder.assert_called_once_with(reminder)
 
 

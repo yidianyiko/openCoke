@@ -21,7 +21,10 @@ from agent.reminder.models import (
     ReminderQuery,
     ReminderSchedule,
 )
-from agent.reminder.schedule import compute_initial_next_fire_at
+from agent.reminder.schedule import (
+    compute_initial_next_fire_at,
+    validate_duration_minutes,
+)
 
 
 class ReminderService:
@@ -654,6 +657,7 @@ class ReminderService:
                 local_time=self._parse_local_time(schedule["local_time"]),
                 timezone=schedule["timezone"],
                 rrule=schedule.get("rrule"),
+                duration_minutes=schedule.get("duration_minutes"),
             ),
             agent_output_target=AgentOutputTarget(
                 conversation_id=target["conversation_id"],
@@ -685,6 +689,7 @@ class ReminderService:
             "local_time": schedule.local_time.isoformat(),
             "timezone": schedule.timezone,
             "rrule": schedule.rrule,
+            "duration_minutes": validate_duration_minutes(schedule.duration_minutes),
         }
 
     def _parse_local_date(self, value: Any) -> date:
