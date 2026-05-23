@@ -60,6 +60,8 @@ async def _run_port(
 
 
 def _scheduling_entity_type(tool_name: str) -> str:
+    if tool_name == "list_friend_calendar_facts":
+        return "friend_calendar_facts"
     if "shared_reminder" in tool_name:
         return "shared_reminder_request"
     if "friend_request" in tool_name:
@@ -215,9 +217,13 @@ def _make_scheduling_tool_fn(
     execution_guard: _SchedulingExecutionGuard | None = None,
 ) -> Any:
     async def scheduling_tool(
+        target_account_id: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
         invitee_account_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
+        duration_minutes: int | None = None,
         timezone: str | None = None,
         request_id: str | None = None,
         friendship_id: str | None = None,
@@ -255,9 +261,13 @@ def _make_scheduling_tool_fn(
             run_context=run_context,
             args=_compact_scheduling_args(
                 {
+                    "target_account_id": target_account_id,
+                    "from_date": from_date,
+                    "to_date": to_date,
                     "invitee_account_id": invitee_account_id,
                     "title": title,
                     "fire_at": fire_at,
+                    "duration_minutes": duration_minutes,
                     "timezone": timezone,
                     "request_id": request_id,
                     "friendship_id": friendship_id,

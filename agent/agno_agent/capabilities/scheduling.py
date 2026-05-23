@@ -19,6 +19,7 @@ SCHEDULING_TOOL_NAMES = (
     "reject_friend_request",
     "cancel_friend_request",
     "list_friends",
+    "list_friend_calendar_facts",
     "remove_friendship",
     "block_account",
     "unblock_account",
@@ -33,6 +34,7 @@ _READ_ONLY_TOOL_NAMES = {
     "get_user_link",
     "list_friend_requests",
     "list_friends",
+    "list_friend_calendar_facts",
     "list_pending_shared_reminders",
 }
 

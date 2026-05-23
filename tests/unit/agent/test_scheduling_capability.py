@@ -85,6 +85,50 @@ def test_create_shared_reminder_forwards_required_args():
     assert result.durable_write is True
 
 
+def test_list_friend_calendar_facts_is_read_only_and_forwards_range_args():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {
+                "target_account_id": "acct_a",
+                "range": {
+                    "from": "2026-05-25",
+                    "to": "2026-05-31",
+                    "timezone": "Asia/Tokyo",
+                },
+                "busy_intervals": [],
+                "privacy": {"event_details_included": False},
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts", handler=handler
+    )
+    result = port.run(
+        "What free time does Coach A have this week?",
+        _run_context(user_id="acct_b"),
+        {
+            "target_account_id": "acct_a",
+            "from_date": "2026-05-25",
+            "to_date": "2026-05-31",
+            "timezone": "Asia/Tokyo",
+        },
+    )
+
+    assert result.ok is True
+    assert result.durable_write is False
+    assert captured["tool_name"] == "list_friend_calendar_facts"
+    assert captured["payload"]["customer_id"] == "acct_b"
+    assert captured["payload"]["target_account_id"] == "acct_a"
+    assert captured["payload"]["from_date"] == "2026-05-25"
+    assert captured["payload"]["to_date"] == "2026-05-31"
+
+
 def test_scheduling_gateway_client_uses_internal_auth():
     from agent.agno_agent.capabilities.scheduling import SchedulingGatewayClient
 

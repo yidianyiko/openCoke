@@ -7,9 +7,13 @@ from pydantic import BaseModel
 
 
 class SharedReminderSchedulingArgs(BaseModel):
+    target_account_id: str | None = None
+    from_date: str | None = None
+    to_date: str | None = None
     invitee_account_id: str | None = None
     title: str | None = None
     fire_at: str | None = None
+    duration_minutes: int | None = None
     timezone: str | None = None
     request_id: str | None = None
     friendship_id: str | None = None

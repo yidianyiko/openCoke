@@ -92,6 +92,33 @@ def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
     assert "title" in function.parameters["properties"]
     assert "fire_at" in function.parameters["properties"]
     assert "idempotency_key" in function.parameters["properties"]
+    assert "duration_minutes" in function.parameters["properties"]
+
+
+@pytest.mark.asyncio
+async def test_scheduling_tool_fn_exposes_calendar_fact_args():
+    port = RecordingPort(name="list_friend_calendar_facts")
+    fn = _make_scheduling_tool_fn(
+        "list_friend_calendar_facts",
+        port,
+        input_message="What free time does Coach A have this week?",
+        run_context=_run_context(),
+        domain_results=[],
+    )
+    result = await fn(
+        target_account_id="acct_a",
+        from_date="2026-05-25",
+        to_date="2026-05-31",
+        timezone="Asia/Tokyo",
+    )
+
+    assert result["domain"] == "scheduling"
+    assert port.calls[0][2] == {
+        "target_account_id": "acct_a",
+        "from_date": "2026-05-25",
+        "to_date": "2026-05-31",
+        "timezone": "Asia/Tokyo",
+    }
 
 
 def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments():

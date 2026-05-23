@@ -24,9 +24,13 @@ def test_compact_scheduling_args_serializes_shared_reminder_args():
 
     assert result == {
         "shared_reminder": {
+            "target_account_id": None,
+            "from_date": None,
+            "to_date": None,
             "invitee_account_id": "acct_a",
             "title": "meeting",
             "fire_at": "2026-05-22T07:00:00.000Z",
+            "duration_minutes": None,
             "timezone": "Asia/Shanghai",
             "request_id": None,
             "friendship_id": None,
@@ -57,9 +61,13 @@ def test_shared_reminder_scheduling_args_round_trips():
     dumped = args.model_dump()
 
     assert dumped == {
+        "target_account_id": None,
+        "from_date": None,
+        "to_date": None,
         "invitee_account_id": "acct_a",
         "title": "meeting",
         "fire_at": "2026-05-22T07:00:00.000Z",
+        "duration_minutes": None,
         "timezone": "Asia/Shanghai",
         "request_id": "srr_1",
         "friendship_id": "fs_1",
