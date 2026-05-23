@@ -87,6 +87,22 @@ async def test_url_context_synthesis_real_model():
 
 
 @pytest.mark.asyncio
+async def test_text_segmentation_contract_real_model():
+    result = await run_agent_runtime(
+        agent_input=_input("我今天有点累，但还是想把明天的安排简单理一下"),
+        run_context=_ctx(),
+    )
+
+    assert result.output_disposition.status == "ok"
+    assert 1 <= len(result.visible_messages) <= 3
+    assert all(message.message_type == "text" for message in result.visible_messages)
+    visible = "\n".join(message.content for message in result.visible_messages)
+    assert "MultiModalResponses" not in visible
+    assert '"type"' not in visible
+    assert "tool_use" not in visible
+
+
+@pytest.mark.asyncio
 async def test_timezone_change_real_model():
     result = await run_agent_runtime(
         agent_input=_input("帮我把时区改成东京"),
