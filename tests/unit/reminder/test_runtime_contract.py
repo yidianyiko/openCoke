@@ -40,6 +40,10 @@ class RecordingReminderService:
         self.calls.append(("list_for_user_in_local_date_range", kwargs))
         return [self.result]
 
+    def list_occupied_occurrences_in_local_date_range(self, **kwargs):
+        self.calls.append(("list_occupied_occurrences_in_local_date_range", kwargs))
+        return [self.result]
+
     def create_or_replace_internal_followup(self, **kwargs):
         self.calls.append(("create_or_replace_internal_followup", kwargs))
         return self.result
@@ -118,13 +122,10 @@ def test_visible_mutation_methods_delegate_to_service():
         )
         is service.result
     )
-    assert (
-        contract.list_visible_reminders(
-            owner_user_id="user-1",
-            query=query,
-        )
-        == [service.result]
-    )
+    assert contract.list_visible_reminders(
+        owner_user_id="user-1",
+        query=query,
+    ) == [service.result]
 
     assert service.calls[0] == (
         "update",
@@ -159,6 +160,31 @@ def test_list_visible_reminders_in_local_date_range_delegates_to_service():
     assert service.calls == [
         (
             "list_for_user_in_local_date_range",
+            {
+                "owner_user_id": "user-1",
+                "from_date": date(2026, 5, 11),
+                "to_date": date(2026, 5, 17),
+                "lifecycle_states": ["active"],
+            },
+        )
+    ]
+
+
+def test_list_occupied_reminder_occurrences_in_local_date_range_delegates_to_service():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+
+    result = contract.list_occupied_reminder_occurrences_in_local_date_range(
+        owner_user_id="user-1",
+        from_date=date(2026, 5, 11),
+        to_date=date(2026, 5, 17),
+        lifecycle_states=["active"],
+    )
+
+    assert result == [service.result]
+    assert service.calls == [
+        (
+            "list_occupied_occurrences_in_local_date_range",
             {
                 "owner_user_id": "user-1",
                 "from_date": date(2026, 5, 11),

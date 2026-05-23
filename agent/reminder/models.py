@@ -18,6 +18,14 @@ class ReminderSchedule:
 
 
 @dataclass
+class ReminderOccurrence:
+    owner_user_id: str
+    start_at: datetime
+    end_at: datetime
+    timezone: str
+
+
+@dataclass
 class AgentOutputTarget:
     conversation_id: str
     character_id: str

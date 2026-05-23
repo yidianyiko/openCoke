@@ -178,6 +178,47 @@ def compute_next_fire_after_success(
     return _next_recurrence_after(schedule, effective_time)
 
 
+def expand_schedule_anchors_in_local_date_range(
+    schedule: ReminderSchedule,
+    *,
+    from_date: date,
+    to_date: date,
+) -> list[datetime]:
+    if from_date > to_date:
+        raise InvalidSchedule(
+            "Reminder occurrence range is invalid",
+            detail={"from_date": from_date.isoformat(), "to_date": to_date.isoformat()},
+        )
+    anchor_at = _ensure_aware(schedule.anchor_at, "schedule.anchor_at")
+    validate_timezone(schedule.timezone)
+    validate_rrule_subset(schedule.rrule)
+    timezone = ZoneInfo(schedule.timezone)
+    range_start = datetime.combine(from_date, datetime.min.time(), tzinfo=timezone)
+    range_end = datetime.combine(to_date, datetime.max.time(), tzinfo=timezone)
+
+    if schedule.rrule is None:
+        local_anchor = anchor_at.astimezone(timezone)
+        if range_start <= local_anchor <= range_end:
+            return [anchor_at.astimezone(UTC)]
+        return []
+
+    local_start = datetime.combine(
+        date=schedule.local_date,
+        time=schedule.local_time,
+        tzinfo=timezone,
+    )
+    try:
+        rule = rrulestr(schedule.rrule, dtstart=local_start)
+    except (TypeError, ValueError) as exc:
+        raise RRULENotSupported(
+            "Malformed reminder recurrence rule",
+            detail={"rrule": schedule.rrule},
+        ) from exc
+    return [
+        item.astimezone(UTC) for item in rule.between(range_start, range_end, inc=True)
+    ]
+
+
 def _ensure_aware(value: datetime, field_name: str) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise InvalidSchedule(

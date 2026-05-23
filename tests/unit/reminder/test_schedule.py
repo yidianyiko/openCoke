@@ -281,6 +281,31 @@ def test_recurring_schedule_preserves_floating_local_time_across_dst():
     ) == datetime(2026, 3, 8, 13, 0, tzinfo=UTC)
 
 
+def test_expands_recurring_schedule_anchors_inside_local_date_range():
+    from agent.reminder.schedule import expand_schedule_anchors_in_local_date_range
+
+    schedule = ReminderSchedule(
+        anchor_at=datetime(2026, 5, 25, 1, 0, tzinfo=UTC),
+        local_date=date(2026, 5, 25),
+        local_time=time(10, 0),
+        timezone="Asia/Tokyo",
+        rrule="FREQ=DAILY",
+        duration_minutes=60,
+    )
+
+    anchors = expand_schedule_anchors_in_local_date_range(
+        schedule,
+        from_date=date(2026, 5, 26),
+        to_date=date(2026, 5, 28),
+    )
+
+    assert anchors == [
+        datetime(2026, 5, 26, 1, 0, tzinfo=UTC),
+        datetime(2026, 5, 27, 1, 0, tzinfo=UTC),
+        datetime(2026, 5, 28, 1, 0, tzinfo=UTC),
+    ]
+
+
 def test_next_fire_after_success_returns_none_for_exhausted_recurrence():
     schedule = ReminderSchedule(
         anchor_at=datetime(2026, 4, 28, 1, 0, tzinfo=UTC),

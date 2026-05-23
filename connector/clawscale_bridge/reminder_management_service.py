@@ -145,6 +145,53 @@ class ReminderManagementService:
             raise ValueError("invalid_body") from exc
         return [serialize_reminder(reminder) for reminder in reminders]
 
+    def list_calendar_facts(
+        self,
+        *,
+        customer_id: str,
+        from_date: str,
+        to_date: str,
+        timezone: str,
+    ) -> dict[str, Any]:
+        try:
+            parsed_from_date = _parse_local_date(from_date)
+            parsed_to_date = _parse_local_date(to_date)
+            if parsed_from_date > parsed_to_date:
+                raise ValueError("invalid_body")
+            if (
+                parsed_to_date - parsed_from_date
+            ).days + 1 > _MAX_LIST_RANGE_DAYS_INCLUSIVE:
+                raise ValueError("invalid_body")
+            ReminderRuntimeContract.validate_timezone(timezone)
+            occurrences = self.reminder_runtime.list_occupied_reminder_occurrences_in_local_date_range(
+                owner_user_id=_require_string(customer_id, "customer_id"),
+                from_date=parsed_from_date,
+                to_date=parsed_to_date,
+                lifecycle_states=["active"],
+            )
+        except InvalidSchedule as exc:
+            raise ValueError("invalid_body") from exc
+        except InvalidArgument as exc:
+            raise ValueError("invalid_body") from exc
+        return {
+            "targetAccountId": customer_id,
+            "range": {
+                "from": parsed_from_date.isoformat(),
+                "to": parsed_to_date.isoformat(),
+                "timezone": timezone,
+            },
+            "busyIntervals": [
+                {
+                    "startAt": _datetime_to_json(item.start_at),
+                    "endAt": _datetime_to_json(item.end_at),
+                    "localStart": _format_local_interval(item.start_at, timezone),
+                    "localEnd": _format_local_interval(item.end_at, timezone),
+                }
+                for item in occurrences
+            ],
+            "privacy": {"eventDetailsIncluded": False},
+        }
+
     def create_reminder(
         self, *, customer_id: str, body: dict[str, Any]
     ) -> dict[str, Any]:
@@ -315,6 +362,10 @@ def _datetime_to_json(value: datetime | None) -> str | None:
     if value is None:
         return None
     return value.astimezone(UTC).isoformat()
+
+
+def _format_local_interval(value: datetime, timezone: str) -> str:
+    return value.astimezone(ZoneInfo(timezone)).strftime("%Y-%m-%d %H:%M")
 
 
 def _parse_local_date(value: Any) -> date:

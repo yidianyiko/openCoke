@@ -853,6 +853,27 @@ def create_app(testing: bool = False):
             return _reminder_error_response(exc)
         return jsonify({"ok": True, "data": result})
 
+    @app.get("/bridge/internal/reminder-calendar-facts")
+    def bridge_internal_reminder_calendar_facts():
+        auth_response = _require_internal_bridge_auth()
+        if auth_response is not None:
+            return auth_response
+
+        service, service_error = _reminder_service_or_error()
+        if service_error is not None:
+            return service_error
+
+        try:
+            result = service.list_calendar_facts(
+                customer_id=request.args.get("customer_id"),
+                from_date=request.args.get("from"),
+                to_date=request.args.get("to"),
+                timezone=request.args.get("timezone", "UTC"),
+            )
+        except ValueError as exc:
+            return _reminder_error_response(exc)
+        return jsonify({"ok": True, "data": result})
+
     @app.post("/bridge/internal/reminders")
     def bridge_internal_create_reminder():
         auth_response = _require_internal_bridge_auth()

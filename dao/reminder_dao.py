@@ -102,6 +102,26 @@ class ReminderDAO:
             )
         )
 
+    def list_visible_recurrence_sources_for_owner(
+        self,
+        owner_user_id: str,
+        *,
+        to_date: date,
+        lifecycle_states: List[str],
+    ) -> List[Dict]:
+        selector: Dict = {
+            "owner_user_id": owner_user_id,
+            "visibility": "visible",
+            "lifecycle_state": {"$in": lifecycle_states},
+            "schedule.rrule": {"$exists": True, "$ne": None},
+            "schedule.local_date": {"$lte": to_date.isoformat()},
+        }
+        return list(
+            self.collection.find(selector).sort(
+                [("schedule.local_date", 1), ("schedule.local_time", 1)]
+            )
+        )
+
     def list_due_active(self) -> List[Dict]:
         return list(
             self.collection.find(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from bson.errors import InvalidId
@@ -17,12 +17,14 @@ from agent.reminder.models import (
     ReminderCommand,
     ReminderCommandResult,
     ReminderCreateCommand,
+    ReminderOccurrence,
     ReminderPatch,
     ReminderQuery,
     ReminderSchedule,
 )
 from agent.reminder.schedule import (
     compute_initial_next_fire_at,
+    expand_schedule_anchors_in_local_date_range,
     validate_duration_minutes,
 )
 
@@ -299,6 +301,59 @@ class ReminderService:
             lifecycle_states=lifecycle_states,
         )
         return [self._map_document(document) for document in documents]
+
+    def list_occupied_occurrences_in_local_date_range(
+        self,
+        *,
+        owner_user_id: str,
+        from_date: date,
+        to_date: date,
+        lifecycle_states: list[str],
+    ) -> list[ReminderOccurrence]:
+        if from_date > to_date:
+            raise InvalidArgument(
+                "Reminder date range is invalid",
+                detail={
+                    "from_date": from_date.isoformat(),
+                    "to_date": to_date.isoformat(),
+                },
+            )
+        documents_by_id = {
+            str(document["_id"]): document
+            for document in self.reminder_dao.list_for_owner_in_local_date_range(
+                owner_user_id,
+                from_date=from_date,
+                to_date=to_date,
+                lifecycle_states=lifecycle_states,
+            )
+        }
+        for document in self.reminder_dao.list_visible_recurrence_sources_for_owner(
+            owner_user_id,
+            to_date=to_date,
+            lifecycle_states=lifecycle_states,
+        ):
+            documents_by_id[str(document["_id"])] = document
+
+        occurrences: list[ReminderOccurrence] = []
+        for document in documents_by_id.values():
+            reminder = self._map_document(document)
+            duration = reminder.schedule.duration_minutes
+            if duration is None:
+                continue
+            for start_at in expand_schedule_anchors_in_local_date_range(
+                reminder.schedule,
+                from_date=from_date,
+                to_date=to_date,
+            ):
+                occurrences.append(
+                    ReminderOccurrence(
+                        owner_user_id=reminder.owner_user_id,
+                        start_at=start_at,
+                        end_at=start_at + timedelta(minutes=duration),
+                        timezone=reminder.schedule.timezone,
+                    )
+                )
+        return sorted(occurrences, key=lambda item: item.start_at)
 
     def create_or_replace_internal_followup(
         self,

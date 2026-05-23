@@ -140,6 +140,81 @@ def test_list_reminders_allows_31_day_inclusive_range():
     )
 
 
+def test_list_calendar_facts_returns_busy_intervals_without_private_details():
+    runtime_contract = MagicMock()
+    runtime_contract.list_occupied_reminder_occurrences_in_local_date_range.return_value = [
+        SimpleNamespace(
+            owner_user_id="coach",
+            start_at=datetime(2026, 5, 25, 1, 0, tzinfo=UTC),
+            end_at=datetime(2026, 5, 25, 2, 0, tzinfo=UTC),
+            timezone="Asia/Tokyo",
+        )
+    ]
+
+    result = _service(reminder_runtime=runtime_contract).list_calendar_facts(
+        customer_id="coach",
+        from_date="2026-05-25",
+        to_date="2026-05-31",
+        timezone="Asia/Tokyo",
+    )
+
+    assert result == {
+        "targetAccountId": "coach",
+        "range": {
+            "from": "2026-05-25",
+            "to": "2026-05-31",
+            "timezone": "Asia/Tokyo",
+        },
+        "busyIntervals": [
+            {
+                "startAt": "2026-05-25T01:00:00+00:00",
+                "endAt": "2026-05-25T02:00:00+00:00",
+                "localStart": "2026-05-25 10:00",
+                "localEnd": "2026-05-25 11:00",
+            }
+        ],
+        "privacy": {"eventDetailsIncluded": False},
+    }
+
+
+def test_calendar_facts_route_forwards_query_to_reminder_service(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.list_calendar_facts.return_value = {
+        "targetAccountId": "coach",
+        "busyIntervals": [],
+        "privacy": {"eventDetailsIncluded": False},
+    }
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().get(
+        "/bridge/internal/reminder-calendar-facts"
+        "?customer_id=coach"
+        "&from=2026-05-25"
+        "&to=2026-05-31"
+        "&timezone=Asia/Tokyo",
+        headers={"Authorization": "Bearer test-bridge-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "ok": True,
+        "data": {
+            "targetAccountId": "coach",
+            "busyIntervals": [],
+            "privacy": {"eventDetailsIncluded": False},
+        },
+    }
+    service.list_calendar_facts.assert_called_once_with(
+        customer_id="coach",
+        from_date="2026-05-25",
+        to_date="2026-05-31",
+        timezone="Asia/Tokyo",
+    )
+
+
 def test_create_reminder_resolves_latest_conversation_and_passes_output_target():
     runtime_contract = MagicMock()
     runtime_contract.create_visible_reminder.return_value = _reminder()

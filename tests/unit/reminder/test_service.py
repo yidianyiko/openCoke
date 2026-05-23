@@ -95,6 +95,28 @@ class InMemoryReminderDAO:
                 results.append(dict(document))
         return results
 
+    def list_visible_recurrence_sources_for_owner(
+        self,
+        owner_user_id: str,
+        *,
+        to_date: date,
+        lifecycle_states: list[str],
+    ) -> list[dict]:
+        results = []
+        for document in self.documents.values():
+            if document["owner_user_id"] != owner_user_id:
+                continue
+            if document.get("visibility") != "visible":
+                continue
+            if document["lifecycle_state"] not in lifecycle_states:
+                continue
+            if document["schedule"].get("rrule") is None:
+                continue
+            local_date = date.fromisoformat(document["schedule"]["local_date"])
+            if local_date <= to_date:
+                results.append(dict(document))
+        return results
+
     def replace_reminder(
         self,
         reminder_id: str,
@@ -377,6 +399,71 @@ def test_create_rejects_invalid_schedule_duration_minutes(duration_minutes):
 
     assert dao.documents == {}
     scheduler.register_reminder.assert_not_called()
+
+
+def test_list_occupied_occurrences_filters_visibility_and_duration():
+    service, _dao, _scheduler = make_service()
+    service.create(
+        owner_user_id="coach",
+        command=create_command(
+            title="lesson",
+            reminder_schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 5, 25, 1, 0, tzinfo=UTC),
+                local_date=date(2026, 5, 25),
+                local_time=time(10, 0),
+                timezone="Asia/Tokyo",
+                rrule="FREQ=DAILY",
+                duration_minutes=60,
+            ),
+        ),
+    )
+    service.create(
+        owner_user_id="coach",
+        command=create_command(
+            title="point reminder",
+            reminder_schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 5, 26, 2, 0, tzinfo=UTC),
+                local_date=date(2026, 5, 26),
+                local_time=time(11, 0),
+                timezone="Asia/Tokyo",
+                rrule=None,
+                duration_minutes=None,
+            ),
+        ),
+    )
+    service.create(
+        owner_user_id="other",
+        command=create_command(
+            title="other",
+            reminder_schedule=ReminderSchedule(
+                anchor_at=datetime(2026, 5, 26, 3, 0, tzinfo=UTC),
+                local_date=date(2026, 5, 26),
+                local_time=time(12, 0),
+                timezone="Asia/Tokyo",
+                rrule=None,
+                duration_minutes=120,
+            ),
+        ),
+    )
+
+    occurrences = service.list_occupied_occurrences_in_local_date_range(
+        owner_user_id="coach",
+        from_date=date(2026, 5, 26),
+        to_date=date(2026, 5, 27),
+        lifecycle_states=["active"],
+    )
+
+    assert [(item.start_at, item.end_at) for item in occurrences] == [
+        (
+            datetime(2026, 5, 26, 1, 0, tzinfo=UTC),
+            datetime(2026, 5, 26, 2, 0, tzinfo=UTC),
+        ),
+        (
+            datetime(2026, 5, 27, 1, 0, tzinfo=UTC),
+            datetime(2026, 5, 27, 2, 0, tzinfo=UTC),
+        ),
+    ]
+    assert all(item.owner_user_id == "coach" for item in occurrences)
 
 
 def test_create_uses_global_scheduler_when_scheduler_not_injected():
