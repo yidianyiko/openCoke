@@ -184,6 +184,34 @@ def test_list_calendar_facts_returns_busy_intervals_without_private_details():
     )
 
 
+def test_list_calendar_facts_clips_busy_intervals_to_requested_range():
+    runtime_contract = MagicMock()
+    runtime_contract.list_occupied_reminder_occurrences_in_local_date_range.return_value = [
+        SimpleNamespace(
+            owner_user_id="coach",
+            start_at=datetime(2026, 5, 25, 14, 30, tzinfo=UTC),
+            end_at=datetime(2026, 5, 25, 16, 30, tzinfo=UTC),
+            timezone="Asia/Tokyo",
+        )
+    ]
+
+    result = _service(reminder_runtime=runtime_contract).list_calendar_facts(
+        customer_id="coach",
+        from_date="2026-05-26",
+        to_date="2026-05-26",
+        timezone="Asia/Tokyo",
+    )
+
+    assert result["busyIntervals"] == [
+        {
+            "startAt": "2026-05-25T15:00:00+00:00",
+            "endAt": "2026-05-25T16:30:00+00:00",
+            "localStart": "2026-05-26 00:00",
+            "localEnd": "2026-05-26 01:30",
+        }
+    ]
+
+
 def test_calendar_facts_route_forwards_query_to_reminder_service(monkeypatch):
     from connector.clawscale_bridge.app import create_app
 

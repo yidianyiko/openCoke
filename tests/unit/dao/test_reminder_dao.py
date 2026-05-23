@@ -237,6 +237,36 @@ class TestReminderDAO:
         )
 
     @pytest.mark.unit
+    def test_list_visible_occupied_sources_for_owner_filters_duration_and_range_end(
+        self, reminder_dao, mock_collection
+    ):
+        expected = [{"_id": ObjectId(), "owner_user_id": "user_1"}]
+        cursor = MagicMock()
+        cursor.sort.return_value = expected
+        mock_collection.find.return_value = cursor
+        range_end_at = datetime(2026, 5, 26, 15, 0, tzinfo=timezone.utc)
+
+        result = reminder_dao.list_visible_occupied_sources_for_owner(
+            "user_1",
+            range_end_at=range_end_at,
+            lifecycle_states=["active"],
+        )
+
+        assert result == expected
+        mock_collection.find.assert_called_once_with(
+            {
+                "owner_user_id": "user_1",
+                "visibility": "visible",
+                "lifecycle_state": {"$in": ["active"]},
+                "schedule.duration_minutes": {"$exists": True, "$ne": None},
+                "schedule.anchor_at": {"$lt": range_end_at},
+            }
+        )
+        cursor.sort.assert_called_once_with(
+            [("schedule.anchor_at", 1), ("schedule.local_time", 1)]
+        )
+
+    @pytest.mark.unit
     def test_list_due_active_filters_active_reminders_with_next_fire_at(
         self, reminder_dao, mock_collection
     ):

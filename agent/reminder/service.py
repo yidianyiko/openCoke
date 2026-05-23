@@ -329,10 +329,18 @@ class ReminderService:
                 to_date=to_date,
                 timezone=timezone,
             )
+        else:
+            request_bounds = None
+        dao_range_end_at = (
+            request_bounds[1]
+            if request_bounds is not None
+            else datetime.combine(to_date + timedelta(days=2), time.min, tzinfo=UTC)
+        )
         documents_by_id = {
             str(document["_id"]): document
-            for document in self.reminder_dao.list_for_owner(
+            for document in self.reminder_dao.list_visible_occupied_sources_for_owner(
                 owner_user_id,
+                range_end_at=dao_range_end_at,
                 lifecycle_states=lifecycle_states,
             )
         }
@@ -343,14 +351,14 @@ class ReminderService:
             duration = reminder.schedule.duration_minutes
             if duration is None:
                 continue
-            range_start_at, range_end_at = (
-                request_bounds
-                or _local_date_range_utc_bounds(
+            if request_bounds is None:
+                range_start_at, range_end_at = _local_date_range_utc_bounds(
                     from_date=from_date,
                     to_date=to_date,
                     timezone=reminder.schedule.timezone,
                 )
-            )
+            else:
+                range_start_at, range_end_at = request_bounds
             for start_at in expand_schedule_anchors_overlapping_utc_range(
                 reminder.schedule,
                 range_start_at=range_start_at,

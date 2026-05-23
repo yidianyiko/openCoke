@@ -122,6 +122,26 @@ class ReminderDAO:
             )
         )
 
+    def list_visible_occupied_sources_for_owner(
+        self,
+        owner_user_id: str,
+        *,
+        range_end_at: datetime,
+        lifecycle_states: List[str],
+    ) -> List[Dict]:
+        selector: Dict = {
+            "owner_user_id": owner_user_id,
+            "visibility": "visible",
+            "lifecycle_state": {"$in": lifecycle_states},
+            "schedule.duration_minutes": {"$exists": True, "$ne": None},
+            "schedule.anchor_at": {"$lt": range_end_at},
+        }
+        return list(
+            self.collection.find(selector).sort(
+                [("schedule.anchor_at", 1), ("schedule.local_time", 1)]
+            )
+        )
+
     def list_due_active(self) -> List[Dict]:
         return list(
             self.collection.find(

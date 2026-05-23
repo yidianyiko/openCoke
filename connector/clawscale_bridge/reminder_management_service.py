@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -163,6 +163,11 @@ class ReminderManagementService:
             ).days + 1 > _MAX_LIST_RANGE_DAYS_INCLUSIVE:
                 raise ValueError("invalid_body")
             ReminderRuntimeContract.validate_timezone(timezone)
+            range_start_at, range_end_at = _local_date_range_utc_bounds(
+                from_date=parsed_from_date,
+                to_date=parsed_to_date,
+                timezone=timezone,
+            )
             occurrences = self.reminder_runtime.list_occupied_reminder_occurrences_in_local_date_range(
                 owner_user_id=_require_string(customer_id, "customer_id"),
                 from_date=parsed_from_date,
@@ -183,12 +188,20 @@ class ReminderManagementService:
             },
             "busyIntervals": [
                 {
-                    "startAt": _datetime_to_json(item.start_at),
-                    "endAt": _datetime_to_json(item.end_at),
-                    "localStart": _format_local_interval(item.start_at, timezone),
-                    "localEnd": _format_local_interval(item.end_at, timezone),
+                    "startAt": _datetime_to_json(clipped_start_at),
+                    "endAt": _datetime_to_json(clipped_end_at),
+                    "localStart": _format_local_interval(clipped_start_at, timezone),
+                    "localEnd": _format_local_interval(clipped_end_at, timezone),
                 }
                 for item in occurrences
+                for clipped_start_at, clipped_end_at in [
+                    _clip_interval_to_range(
+                        item.start_at,
+                        item.end_at,
+                        range_start_at,
+                        range_end_at,
+                    )
+                ]
             ],
             "privacy": {"eventDetailsIncluded": False},
         }
@@ -367,6 +380,30 @@ def _datetime_to_json(value: datetime | None) -> str | None:
 
 def _format_local_interval(value: datetime, timezone: str) -> str:
     return value.astimezone(ZoneInfo(timezone)).strftime("%Y-%m-%d %H:%M")
+
+
+def _local_date_range_utc_bounds(
+    *,
+    from_date: date,
+    to_date: date,
+    timezone: str,
+) -> tuple[datetime, datetime]:
+    local_zone = ZoneInfo(timezone)
+    range_start = datetime.combine(from_date, time.min, tzinfo=local_zone)
+    range_end = datetime.combine(to_date + timedelta(days=1), time.min, tzinfo=local_zone)
+    return range_start.astimezone(UTC), range_end.astimezone(UTC)
+
+
+def _clip_interval_to_range(
+    start_at: datetime,
+    end_at: datetime,
+    range_start_at: datetime,
+    range_end_at: datetime,
+) -> tuple[datetime, datetime]:
+    return (
+        max(start_at.astimezone(UTC), range_start_at),
+        min(end_at.astimezone(UTC), range_end_at),
+    )
 
 
 def _parse_local_date(value: Any) -> date:

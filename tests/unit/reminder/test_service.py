@@ -117,6 +117,28 @@ class InMemoryReminderDAO:
                 results.append(dict(document))
         return results
 
+    def list_visible_occupied_sources_for_owner(
+        self,
+        owner_user_id: str,
+        *,
+        range_end_at: datetime,
+        lifecycle_states: list[str],
+    ) -> list[dict]:
+        results = []
+        for document in self.documents.values():
+            if document["owner_user_id"] != owner_user_id:
+                continue
+            if document.get("visibility") != "visible":
+                continue
+            if document["lifecycle_state"] not in lifecycle_states:
+                continue
+            if document["schedule"].get("duration_minutes") is None:
+                continue
+            if document["schedule"]["anchor_at"] >= range_end_at:
+                continue
+            results.append(dict(document))
+        return results
+
     def replace_reminder(
         self,
         reminder_id: str,
