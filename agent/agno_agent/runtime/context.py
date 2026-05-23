@@ -95,6 +95,7 @@ class AgentRunContext:
     agent_instance_profile: AgentInstanceProfileContext = field(
         default_factory=AgentInstanceProfileContext
     )
+    is_new_user: bool = False
     runtime_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -227,5 +228,6 @@ def build_agent_run_context(
         agent_instance_profile=_build_agent_instance_profile(
             legacy_context.get("agent_instance_profile")
         ),
+        is_new_user=bool(legacy_context.get("is_new_user")),
         runtime_metadata=runtime_metadata or {},
     )

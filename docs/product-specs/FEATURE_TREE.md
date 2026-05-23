@@ -69,6 +69,8 @@ directory alone.
   - `gateway/packages/api/src/routes/customer-claim-routes.ts`
   - subscription and account-management routes
 - Friend Link And Shared Reminders
+  - customer web entry:
+    `gateway/packages/web/app/(customer)/account/friends/page.tsx`
   - public web entry: `gateway/packages/web/app/u/[code]/page.tsx`
   - public QR route: `gateway/packages/web/app/u/[code]/qr/route.ts`
   - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`

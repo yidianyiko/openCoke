@@ -8,6 +8,7 @@ from typing import Any
 from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.inputs import AgentInput, ReminderFirePayload, UserTurnPayload
 from agent.prompt.agent_instructions_prompt import INSTRUCTIONS_CHAT_RESPONSE
+from agent.prompt.onboarding_prompt import get_onboarding_context
 
 _FORBIDDEN_LINE_PATTERNS = (
     re.compile(r"^3\.\s*Output structured multi-modal messages.*$", re.MULTILINE),
@@ -118,6 +119,15 @@ def _character_prompt_block(run_context: AgentRunContext) -> str:
     return "Default character prompt:\n" + description.strip()
 
 
+def _onboarding_prompt_block(run_context: AgentRunContext) -> str:
+    onboarding_context = get_onboarding_context(
+        bool(getattr(run_context, "is_new_user", False))
+    ).strip()
+    if not onboarding_context:
+        return ""
+    return "First-chat onboarding prompt:\n" + onboarding_context
+
+
 def _agent_instance_profile_block(run_context: AgentRunContext) -> str:
     profile = run_context.agent_instance_profile
     if profile.is_empty():
@@ -151,10 +161,13 @@ def build_chat_response_instructions(
     cleaned = _strip_legacy_artifacts(INSTRUCTIONS_CHAT_RESPONSE)
     timezone = run_context.user.timezone or "UTC"
     character_prompt_block = _character_prompt_block(run_context)
+    onboarding_prompt_block = _onboarding_prompt_block(run_context)
     profile_block = _agent_instance_profile_block(run_context)
     parts = [cleaned]
     if character_prompt_block:
         parts.append(character_prompt_block)
+    if onboarding_prompt_block:
+        parts.append(onboarding_prompt_block)
     parts.append(_runtime_context_block(run_context, agent_input))
     if profile_block:
         parts.append(profile_block)

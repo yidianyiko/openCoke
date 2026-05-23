@@ -157,6 +157,52 @@ def test_prompt_renders_repo_controlled_character_prompt_before_runtime_context(
     )
 
 
+def test_prompt_renders_first_chat_onboarding_after_character_prompt():
+    ctx = AgentRunContext(
+        user=TrustedUserContext(id="u1", nickname="Alice", timezone="UTC"),
+        character=TrustedCharacterContext(
+            id="c1",
+            nickname="Coke",
+            metadata={
+                "description": "<system_prompt>你是用户在微信中的健康搭子</system_prompt>"
+            },
+        ),
+        conversation=TrustedConversationContext(
+            id="conv1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="u1", cid="c1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
+        is_new_user=True,
+    )
+
+    prompt = build_chat_response_instructions(ctx, _agent_input())
+
+    assert "First-chat onboarding prompt:" in prompt
+    assert "我是 Coke，你的健康搭子" in prompt
+    assert "帮你约课" in prompt
+    assert "9点提醒我运动" in prompt
+    assert "随手备忘" in prompt
+    assert "不要承诺已经设置提醒" in prompt
+    assert prompt.index("Default character prompt:") < prompt.index(
+        "First-chat onboarding prompt:"
+    )
+    assert prompt.index("First-chat onboarding prompt:") < prompt.index(
+        "Trusted runtime context:"
+    )
+    assert prompt.index("First-chat onboarding prompt:") < prompt.index(
+        "User-visible reply boundary:"
+    )
+
+
+def test_prompt_omits_onboarding_for_existing_user():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "First-chat onboarding prompt:" not in prompt
+    assert "<onboarding_and_first_dialogue>" not in prompt
+
+
 def test_prompt_includes_reminder_fired_contract_for_reminder_payload():
     agent_input = AgentInput(
         input_type="reminder.fired",

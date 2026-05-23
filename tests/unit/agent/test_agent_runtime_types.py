@@ -136,6 +136,29 @@ def test_agent_run_context_carries_file_backed_character_description():
     )
 
 
+def test_agent_run_context_carries_first_chat_onboarding_flag():
+    context = build_agent_run_context(
+        {
+            "user": {
+                "id": "user-1",
+                "nickname": "User",
+                "timezone": "Asia/Tokyo",
+            },
+            "character": {"id": "char-1", "nickname": "Coke"},
+            "conversation": {
+                "id": "conv-1",
+                "platform": "business",
+                "route_key": "route-1",
+            },
+            "relation": {"uid": "user-1", "cid": "char-1"},
+            "is_new_user": True,
+        },
+        current_time=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+    )
+
+    assert context.is_new_user is True
+
+
 def test_run_result_has_output_contract_fields():
     result = AgentRunResult(
         visible_messages=[
