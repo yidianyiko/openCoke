@@ -197,6 +197,12 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
     assert result.operations[0].action == "create"
     assert result.operations[0].entity_id == "rem-1"
     assert result.operations[0].facts["title"] == "hydrate"
+    assert result.reply_contract.intent == "confirm_execution"
+    assert [item.path for item in result.reply_contract.required_facts] == [
+        "operations[0].facts.title",
+        "operations[0].facts.local_date",
+        "operations[0].facts.local_time",
+    ]
     assert calls == [
         {
             "action": "create",
@@ -361,6 +367,8 @@ def test_tool_failure_result_is_propagated_as_failed_capability():
     assert result.error.message == (
         "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。"
     )
+    assert result.reply_contract.intent == "report_failure"
+    assert result.reply_contract.prohibited_claims == ("reminder_created",)
     assert result.operations[0].ok is False
     assert result.operations[0].error == result.error
 
@@ -410,6 +418,36 @@ def test_partial_batch_success_is_not_collapsed_to_last_failure():
     assert result.operations[0].facts["title"] == "通知"
     assert result.operations[1].error is not None
     assert result.operations[1].error.code == "InvalidSchedule"
+
+
+def test_batch_reply_contract_points_to_first_successful_write_after_failure():
+    def tool_entrypoint(**kwargs):
+        return {
+            "ok": True,
+            "action": "batch",
+            "operations": [
+                {
+                    "ok": False,
+                    "action": "create",
+                    "error_code": "InvalidSchedule",
+                    "summary": "创建提醒失败：这个提醒时间已经过去了，请告诉我一个未来的时间。",
+                },
+                _tool_reminder_result(title="喝水"),
+            ],
+        }
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute({"action": "batch"}, _run_context())
+
+    assert [operation.ok for operation in result.operations] == [False, True]
+    assert result.operations[1].effect == "write"
+    assert [item.path for item in result.reply_contract.required_facts] == [
+        "operations[1].facts.title",
+        "operations[1].facts.local_date",
+        "operations[1].facts.local_time",
+    ]
 
 
 def test_batch_operations_from_reminder_detect_decision_are_dicts():
