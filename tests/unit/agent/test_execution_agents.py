@@ -245,10 +245,15 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
             )
 
     assert captured["instructions"] == (
-        "You are the friend-link and shared-reminder execution worker. "
+        "You are the friend-link, friend-calendar, and shared-reminder execution worker. "
         "Call exactly one scheduling tool that matches the intent. "
+        "Call list_friends before list_friend_calendar_facts when the friend is not resolved. "
         "Do not create shared reminder state unless the named person resolves to "
         "one active friend. Ask for clarification when the name is ambiguous. "
+        "Coke reminders are the source for friend availability. "
+        "Do not use Google Calendar for friend availability. "
+        "Do not ask the backend for recommended slots. "
+        "Pass duration_minutes only after the conversation or policy determines it. "
         "Ordinary personal reminders are not scheduling-domain work. "
         "Do not treat an iLink QR as a public user-link QR."
     )
