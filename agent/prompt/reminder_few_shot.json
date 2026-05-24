@@ -81,7 +81,7 @@
     "decision": {
       "intent_type": "clarify",
       "action": "",
-      "clarification_question": "每天几点提醒你打卡多邻国、学西班牙语？"
+      "clarification_reason": "date_only_missing_time"
     }
   },
   {

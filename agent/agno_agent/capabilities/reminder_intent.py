@@ -1355,16 +1355,6 @@ def _input_has_high_frequency_without_deadline(text: str) -> bool:
     return not any(token in normalized for token in deadline_tokens)
 
 
-def _clarification_result(decision: Any) -> DomainExecutionResult:
-    question = str(_decision_value(decision, "clarification_question") or "").strip()
-    return _needs_clarification_result(
-        summary=question or "请补充提醒信息。",
-        missing_fields=("target_reminder",),
-        safety_boundary="ambiguous_request",
-        required_questions=("target_reminder",),
-    )
-
-
 def _unbounded_high_frequency_cadence_clarification_result(
     decision: Any,
 ) -> DomainExecutionResult:

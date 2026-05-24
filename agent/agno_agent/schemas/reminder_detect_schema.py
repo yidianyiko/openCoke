@@ -143,15 +143,6 @@ class ReminderDetectDecision(BaseModel):
             "Each create operation must include action, title, and trigger_at."
         ),
     )
-    clarification_question: str = Field(
-        default="",
-        description=(
-            "Short missing-information question for clarify intent. Use the "
-            "same language as the current user message, not the profile, prior "
-            "messages, or retrieved context."
-        ),
-    )
-    reason: str = Field(default="", description="Brief classification rationale.")
     clarification_reason: Literal[
         "",
         "date_only_missing_time",
@@ -176,10 +167,9 @@ class ReminderDetectDecision(BaseModel):
     def normalize_intent_from_action(cls, data):
         if not isinstance(data, dict):
             return data
-        clarification_question = str(data.get("clarification_question") or "").strip()
+        action = str(data.get("action") or "")
         explicit_intent = str(data.get("intent_type") or "").strip()
-        if clarification_question and explicit_intent == "clarify":
-            return _strip_executable_fields_for_clarification(data)
+        clarification_reason = str(data.get("clarification_reason") or "").strip()
         executable_field_names = (
             "title",
             "trigger_at",
@@ -196,13 +186,14 @@ class ReminderDetectDecision(BaseModel):
         has_executable_fields = any(
             bool(data.get(name)) for name in executable_field_names
         )
-        action = str(data.get("action") or "")
-        if clarification_question and not has_executable_fields:
-            return {**data, "intent_type": "clarify", "action": ""}
+        if explicit_intent == "clarify" and not has_executable_fields:
+            return _strip_executable_fields_for_clarification(data)
         if action in {"create", "update", "delete", "cancel", "complete", "batch"}:
             return {**data, "intent_type": "crud"}
         if action == "list":
             return {**data, "intent_type": "query"}
+        if clarification_reason and not action and not has_executable_fields:
+            return {**data, "intent_type": "clarify", "action": ""}
         return data
 
     @model_validator(mode="after")

@@ -366,7 +366,6 @@ async def test_reminder_intent_port_returns_primary_weekday_range_clarification(
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "你想在那天几点提醒你？",
                     "clarification_reason": "ambiguous_request",
                 }
             )
@@ -397,7 +396,6 @@ async def test_reminder_intent_port_returns_primary_clocked_task_clarification()
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "你想让我提醒你做什么？",
                     "clarification_reason": "ambiguous_request",
                 }
             )
@@ -479,7 +477,6 @@ async def test_reminder_intent_port_returns_relative_delay_clarification():
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "提醒设置还没完成。请确认具体提醒时间和提醒内容。",
                     "clarification_reason": "ambiguous_request",
                 }
             )
@@ -901,7 +898,6 @@ async def test_reminder_intent_port_returns_primary_clarification_without_retryi
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "你是想每天提醒还是只提醒一次？",
                     "clarification_reason": "ambiguous_request",
                 }
             )
@@ -934,7 +930,6 @@ async def test_reminder_intent_port_returns_primary_clarification_directly():
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "下周二几点提醒你去杭州？",
                     "clarification_reason": "ambiguous_request",
                 }
             )
@@ -1724,7 +1719,6 @@ async def test_reminder_intent_port_returns_clarification_for_mixed_clocked_clau
                 content={
                     "intent_type": "clarify",
                     "action": "",
-                    "clarification_question": "具体什么时间提醒你？",
                     "clarification_reason": "ambiguous_request",
                 }
             )

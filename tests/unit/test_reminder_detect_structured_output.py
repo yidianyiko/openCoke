@@ -21,7 +21,6 @@ def test_reminder_detect_schema_normalizes_mislabeled_clarification():
     decision = ReminderDetectDecision(
         intent_type="crud",
         action="",
-        clarification_question="结束具体是几点？",
         clarification_reason="ambiguous_request",
     )
 
@@ -35,7 +34,6 @@ def test_reminder_detect_schema_drops_action_for_non_executable_clarification():
     decision = ReminderDetectDecision(
         intent_type="clarify",
         action="create",
-        clarification_question="结束具体是几点？",
         clarification_reason="ambiguous_request",
     )
 
@@ -377,17 +375,6 @@ def test_reminder_detect_agents_use_structured_decision_schema():
     assert reminder_detect_agent.use_json_mode is False
 
 
-def test_reminder_detect_clarification_question_schema_keeps_current_language():
-    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-
-    description = ReminderDetectDecision.model_fields[
-        "clarification_question"
-    ].description
-
-    assert "same language as the current user message" in description
-    assert "not the profile, prior messages, or retrieved context" in description
-
-
 def test_reminder_detect_schedule_evidence_schema_rejects_vague_references():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -442,7 +429,6 @@ def test_reminder_detect_schema_rejects_free_form_workflow_key():
         ReminderDetectDecision(
             intent_type="clarify",
             action="",
-            clarification_question="还需要结束时间。",
             clarification_reason="ambiguous_request",
             workflow={"id": "wrong"},
         )
@@ -456,16 +442,23 @@ def test_reminder_detect_clarify_requires_clarification_reason():
         ReminderDetectDecision(intent_type="clarify", action="", clarification_reason="")
 
 
-def test_reminder_detect_non_clarify_rejects_clarification_reason():
-    import pytest
-    from pydantic import ValidationError
+def test_reminder_detect_non_clarify_with_reason_normalizes_to_clarify():
+    """Discussion intent + a clarification_reason is treated as model confusion;
+    the normalizer upgrades to clarify intent so the user gets a clarification
+    rather than a silent no_action. The after-validator's strict ⇔ invariant
+    still applies — see test_reminder_detect_clarify_requires_clarification_reason
+    for the reverse direction."""
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
-    with pytest.raises(ValidationError, match="clarification_reason"):
-        ReminderDetectDecision(
-            intent_type="discussion",
-            action="",
-            clarification_reason="date_only_missing_time",
-        )
+
+    decision = ReminderDetectDecision(
+        intent_type="discussion",
+        action="",
+        clarification_reason="date_only_missing_time",
+    )
+
+    assert decision.intent_type == "clarify"
+    assert decision.action == ""
+    assert decision.clarification_reason == "date_only_missing_time"
 
 
 def test_reminder_detect_clarify_accepts_known_reason():
