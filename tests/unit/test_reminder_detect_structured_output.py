@@ -22,6 +22,7 @@ def test_reminder_detect_schema_normalizes_mislabeled_clarification():
         intent_type="crud",
         action="",
         clarification_question="结束具体是几点？",
+        clarification_reason="ambiguous_request",
     )
 
     assert decision.intent_type == "clarify"
@@ -35,6 +36,7 @@ def test_reminder_detect_schema_drops_action_for_non_executable_clarification():
         intent_type="clarify",
         action="create",
         clarification_question="结束具体是几点？",
+        clarification_reason="ambiguous_request",
     )
 
     assert decision.intent_type == "clarify"
@@ -441,5 +443,48 @@ def test_reminder_detect_schema_rejects_free_form_workflow_key():
             intent_type="clarify",
             action="",
             clarification_question="还需要结束时间。",
+            clarification_reason="ambiguous_request",
             workflow={"id": "wrong"},
+        )
+
+
+def test_reminder_detect_clarify_requires_clarification_reason():
+    import pytest
+    from pydantic import ValidationError
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    with pytest.raises(ValidationError, match="clarification_reason"):
+        ReminderDetectDecision(intent_type="clarify", action="", clarification_reason="")
+
+
+def test_reminder_detect_non_clarify_rejects_clarification_reason():
+    import pytest
+    from pydantic import ValidationError
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    with pytest.raises(ValidationError, match="clarification_reason"):
+        ReminderDetectDecision(
+            intent_type="discussion",
+            action="",
+            clarification_reason="date_only_missing_time",
+        )
+
+
+def test_reminder_detect_clarify_accepts_known_reason():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    decision = ReminderDetectDecision(
+        intent_type="clarify",
+        action="",
+        clarification_reason="date_only_missing_time",
+    )
+    assert decision.clarification_reason == "date_only_missing_time"
+
+
+def test_reminder_detect_rejects_unknown_clarification_reason():
+    import pytest
+    from pydantic import ValidationError
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="clarify",
+            action="",
+            clarification_reason="not_a_real_reason",
         )

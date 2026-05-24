@@ -152,6 +152,24 @@ class ReminderDetectDecision(BaseModel):
         ),
     )
     reason: str = Field(default="", description="Brief classification rationale.")
+    clarification_reason: Literal[
+        "",
+        "date_only_missing_time",
+        "ambiguous_time_range",
+        "completion_condition_missing_time",
+        "status_only_content",
+        "deadline_without_trigger",
+        "advance_offset_missing",
+        "high_frequency_requires_end",
+        "missing_reminder_content",
+        "ambiguous_request",
+    ] = Field(
+        default="",
+        description=(
+            "Reason code that selects the clarification template. "
+            "Must be non-empty when intent_type='clarify'; must be empty otherwise."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -203,6 +221,13 @@ class ReminderDetectDecision(BaseModel):
             "operations",
         )
         has_write_fields = any(bool(getattr(self, name)) for name in write_field_names)
+
+        if self.intent_type == "clarify" and not self.clarification_reason:
+            raise ValueError("clarify intent requires clarification_reason")
+        if self.intent_type != "clarify" and self.clarification_reason:
+            raise ValueError(
+                "clarification_reason is only allowed for intent_type='clarify'"
+            )
 
         if self.intent_type == "crud":
             if not self.action:
