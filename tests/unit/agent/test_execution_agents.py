@@ -357,6 +357,155 @@ async def test_run_scheduling_domain_returns_called_tool_result():
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_returns_friend_calendar_facts_as_read_only_result():
+    captured_args: dict[str, dict] = {}
+
+    class _CalendarFactsAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["list_friend_calendar_facts"](
+                target_account_id="acct_coach",
+                from_date="2026-05-25",
+                to_date="2026-05-31",
+                timezone="Asia/Tokyo",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={
+                    "target_account_id": "acct_coach",
+                    "range": {
+                        "from": "2026-05-25",
+                        "to": "2026-05-31",
+                        "timezone": "Asia/Tokyo",
+                    },
+                    "busy_intervals": [
+                        {
+                            "start_at": "2026-05-25T01:00:00+00:00",
+                            "end_at": "2026-05-25T02:00:00+00:00",
+                            "local_start": "2026-05-25 10:00",
+                            "local_end": "2026-05-25 11:00",
+                        }
+                    ],
+                    "privacy": {"event_details_included": False},
+                },
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _CalendarFactsAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="A 这周有什么空余时间",
+                intent="list_friend_calendar_facts for resolved friend acct_coach",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert captured_args["list_friend_calendar_facts"] == {
+        "target_account_id": "acct_coach",
+        "from_date": "2026-05-25",
+        "to_date": "2026-05-31",
+        "timezone": "Asia/Tokyo",
+    }
+    operation = result["operations"][0]
+    assert operation["action"] == "list_friend_calendar_facts"
+    assert operation["effect"] == "read"
+    assert operation["entity_type"] == "friend_calendar_facts"
+    assert operation["facts"]["busy_intervals"] == [
+        {
+            "start_at": "2026-05-25T01:00:00+00:00",
+            "end_at": "2026-05-25T02:00:00+00:00",
+            "local_start": "2026-05-25 10:00",
+            "local_end": "2026-05-25 11:00",
+        }
+    ]
+    assert operation["facts"]["privacy"] == {"event_details_included": False}
+    assert not {
+        "reminder_id",
+        "title",
+        "prompt",
+        "metadata",
+        "agent_output_target",
+    } & set(operation["facts"])
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder():
+    captured_args: dict[str, dict] = {}
+
+    class _SharedReminderAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["create_shared_reminder"](
+                invitee_account_id="acct_coach",
+                title="lesson",
+                fire_at="2026-05-26T01:00:00+00:00",
+                duration_minutes=60,
+                timezone="Asia/Tokyo",
+                idempotency_key="lesson:acct_coach:2026-05-26T01:00:00Z",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={
+                    "id": "srr_1",
+                    "status": "pending_invitee_confirmation",
+                },
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _SharedReminderAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="那周二 10 点上课",
+                intent="create_shared_reminder for resolved friend acct_coach",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert captured_args["create_shared_reminder"] == {
+        "invitee_account_id": "acct_coach",
+        "title": "lesson",
+        "fire_at": "2026-05-26T01:00:00+00:00",
+        "duration_minutes": 60,
+        "timezone": "Asia/Tokyo",
+        "idempotency_key": "lesson:acct_coach:2026-05-26T01:00:00Z",
+    }
+    operation = result["operations"][0]
+    assert operation["action"] == "create_shared_reminder"
+    assert operation["effect"] == "write"
+    assert operation["entity_type"] == "shared_reminder_request"
+    assert operation["entity_id"] == "srr_1"
+    assert operation["facts"]["status"] == "pending_invitee_confirmation"
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_preserves_success_when_later_tool_call_duplicates():
     successful_write = CapabilityResult(
         name="reset_user_link",
