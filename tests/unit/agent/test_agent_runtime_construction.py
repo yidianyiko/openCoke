@@ -1037,6 +1037,76 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent
     }
 
 
+def test_scheduling_intent_inference_treats_own_invite_link_as_get_user_link():
+    assert (
+        agent_runtime._infer_scheduling_intent_from_message(
+            "把我自己的好友邀请链接给我，我要分享给一个朋友。"
+        )
+        == "get_user_link"
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_honors_tool_key_intent(
+    monkeypatch,
+):
+    captured = {}
+    run_context = _run_context()
+    capability_results = []
+    domain_results = []
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "visible_summary": "这是你的好友邀请链接",
+        "synthesis_context": None,
+        "content": {"visible_summary": "这是你的好友邀请链接"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "run_context": run_context,
+                "domain_results": domain_results,
+            }
+        )
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=run_context,
+        agent_input=_agent_input(),
+        input_message="把我自己的好友邀请链接给我，我要分享给一个朋友。",
+        capability_results=capability_results,
+        domain_results=domain_results,
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(intent={"get_user_link": {}})
+
+    assert result is envelope
+    assert captured == {
+        "input_message": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+        "intent": "get_user_link",
+        "run_context": run_context,
+        "domain_results": domain_results,
+    }
+
+
 @pytest.mark.asyncio
 async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
     monkeypatch,

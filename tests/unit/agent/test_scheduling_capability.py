@@ -53,6 +53,31 @@ def test_get_user_link_calls_gateway_tool_with_trusted_customer_identity():
     ]
 
 
+def test_get_user_link_provides_visible_summary_for_empty_chat_text():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "url": "https://kap.example/u/AbCdEfGhIjK_",
+                "code": "AbCdEfGhIjK_",
+            },
+        }
+
+    port = SchedulingCapabilityPort(tool_name="get_user_link", handler=handler)
+    result = port.run("把我自己的好友邀请链接给我", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "这是你的好友邀请链接：https://kap.example/u/AbCdEfGhIjK_"
+    )
+    assert result.visible_summary == (
+        "这是你的好友邀请链接：https://kap.example/u/AbCdEfGhIjK_"
+    )
+
+
 def test_create_shared_reminder_forwards_required_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

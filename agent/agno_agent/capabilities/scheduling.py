@@ -149,6 +149,14 @@ class SchedulingCapabilityPort:
             data = {"value": data}
         content = dict(data)
         durable_write = self.tool_name not in _READ_ONLY_TOOL_NAMES
+        if (
+            ok
+            and self.tool_name == "get_user_link"
+            and not _has_explicit_visible_summary(content)
+        ):
+            url = content.get("url")
+            if isinstance(url, str) and url.strip():
+                content["visible_summary"] = f"这是你的好友邀请链接：{url.strip()}"
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name

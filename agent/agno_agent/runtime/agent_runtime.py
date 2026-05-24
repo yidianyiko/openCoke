@@ -30,6 +30,25 @@ logger = logging.getLogger(__name__)
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired"}
 _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _MAX_VISIBLE_TEXT_SEGMENTS = 3
+_SCHEDULING_INTENT_NAMES = {
+    "create_shared_reminder",
+    "accept_shared_reminder",
+    "reject_shared_reminder",
+    "cancel_shared_reminder",
+    "send_friend_request_by_user_link_code",
+    "list_friend_requests",
+    "accept_friend_request",
+    "reject_friend_request",
+    "cancel_friend_request",
+    "list_friends",
+    "remove_friendship",
+    "block_account",
+    "unblock_account",
+    "get_user_link",
+    "reset_user_link",
+    "disable_user_link",
+    "list_friend_calendar_facts",
+}
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -78,10 +97,20 @@ def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
 def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     text = input_message.casefold()
 
+    if _contains_any(input_message, ("我的", "我自己的", "自己的")) and _contains_any(
+        input_message, ("用户链接", "邀请链接", "好友邀请链接", "邀请码")
+    ):
+        if _contains_any(input_message, ("重置", "reset")):
+            return "reset_user_link"
+        if _contains_any(input_message, ("停用", "禁用", "disable")):
+            return "disable_user_link"
+        return "get_user_link"
+
     if _contains_any(input_message, ("链接码", "邀请链接")) or (
         "add friend" in text and (_contains_any(text, ("link", "code")) or "friend" in text)
     ):
-        return "send_friend_request_by_user_link_code"
+        if _contains_any(input_message, ("加好友", "加上", "添加好友")) or "add friend" in text:
+            return "send_friend_request_by_user_link_code"
 
     if _contains_any(input_message, ("好友请求", "待处理好友请求", "未处理好友请求")) or (
         "friend request" in text or "friend-request" in text
@@ -146,30 +175,16 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
             inferred = _infer_scheduling_intent_from_message(input_message)
             return inferred or ""
         prefix = candidate.split(":", 1)[0].strip()
-        if prefix in {
-            "create_shared_reminder",
-            "accept_shared_reminder",
-            "reject_shared_reminder",
-            "cancel_shared_reminder",
-            "send_friend_request_by_user_link_code",
-            "list_friend_requests",
-            "accept_friend_request",
-            "reject_friend_request",
-            "cancel_friend_request",
-            "list_friends",
-            "remove_friendship",
-            "block_account",
-            "unblock_account",
-            "get_user_link",
-            "reset_user_link",
-            "disable_user_link",
-            "list_friend_calendar_facts",
-        }:
+        if prefix in _SCHEDULING_INTENT_NAMES:
             return prefix
         inferred = _infer_scheduling_intent_from_message(input_message)
         return inferred or candidate
 
     if isinstance(raw_intent, Mapping):
+        for key in raw_intent:
+            if isinstance(key, str) and key in _SCHEDULING_INTENT_NAMES:
+                return key
+
         for key in ("intent", "action", "tool", "tool_name", "name"):
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
