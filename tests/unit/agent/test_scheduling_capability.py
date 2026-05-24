@@ -85,6 +85,37 @@ def test_create_shared_reminder_forwards_required_args():
     assert result.durable_write is True
 
 
+def test_send_friend_request_does_not_treat_note_message_as_visible_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "id": "fr_1",
+                "status": "pending",
+                "message": "跑步搭子",
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="send_friend_request_by_user_link_code",
+        handler=handler,
+    )
+
+    result = port.run(
+        "我要加好友，链接码 AbCdEfGhIjK_，备注：跑步搭子。",
+        _run_context(),
+        {"user_link_code": "AbCdEfGhIjK_", "message": "跑步搭子"},
+    )
+
+    assert result.ok is True
+    assert result.content["message"] == "跑步搭子"
+    assert result.content["visible_summary"] == "已发送好友请求。"
+    assert result.visible_summary == "已发送好友请求。"
+
+
 def test_write_tools_generate_idempotency_key_when_model_omits_it():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

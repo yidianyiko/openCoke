@@ -47,9 +47,16 @@ async def _run_with_fake_agent(
             return FakeOutput(messages, content)
 
     def patched_create(
-        *, run_context, agent_input, input_message, capability_results, domain_results
+        *,
+        run_context,
+        agent_input,
+        input_message,
+        capability_results,
+        domain_results,
+        preloaded_scheduling_domain_result=None,
     ):
         del run_context, agent_input, input_message, domain_results
+        del preloaded_scheduling_domain_result
         capability_results.extend(captured_results)
         return FakeAgent()
 

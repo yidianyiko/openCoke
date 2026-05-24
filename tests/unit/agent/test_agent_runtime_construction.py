@@ -352,6 +352,81 @@ async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_scheduling_action(
+    monkeypatch,
+):
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="accept_friend_request",
+                ok=True,
+                effect="write",
+                entity_type="friend_request",
+                entity_id="fr-1",
+                facts={"visible_summary": "已通过好友请求。"},
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("not_accepted",),
+            allow_rephrase=True,
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+    ):
+        del input_message, intent, run_context
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="哎呀，系统刚才出了点状况，没能成功处理你的好友请求。",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="通过 Bob 的好友请求。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "已通过好友请求。"
+    ]
+    assert result.domain_results == (preloaded_domain_result,)
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promise(
     monkeypatch,
 ):
@@ -895,7 +970,68 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
     assert result is envelope
     assert captured == {
         "input_message": "confirm it",
-        "intent": "accept_shared_reminder: request_id=srr_1",
+        "intent": "accept_shared_reminder",
+        "run_context": run_context,
+        "domain_results": domain_results,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent(
+    monkeypatch,
+):
+    captured = {}
+    run_context = _run_context()
+    capability_results = []
+    domain_results = []
+    envelope = {
+        "ok": True,
+        "domain": "scheduling",
+        "visible_summary": "已通过好友请求",
+        "synthesis_context": None,
+        "content": {"visible_summary": "已通过好友请求"},
+        "error": None,
+    }
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "run_context": run_context,
+                "domain_results": domain_results,
+            }
+        )
+        return envelope
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=run_context,
+        agent_input=_agent_input(),
+        input_message="通过 Bob 的好友请求",
+        capability_results=capability_results,
+        domain_results=domain_results,
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    result = await scheduling_domain(intent={"domain": "friend-request_pending", "params": {}})
+
+    assert result is envelope
+    assert captured == {
+        "input_message": "通过 Bob 的好友请求",
+        "intent": "accept_friend_request",
         "run_context": run_context,
         "domain_results": domain_results,
     }
@@ -950,7 +1086,7 @@ async def test_create_interaction_agent_scheduling_domain_caches_parallel_calls(
 
     assert calls == 1
     assert first is second
-    assert first == envelope | {"intent": "accept_shared_reminder: request_id=srr_1"}
+    assert first == envelope | {"intent": "accept_shared_reminder"}
 
 
 def test_create_interaction_agent_resolves_default_session_db(monkeypatch):

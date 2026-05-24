@@ -69,6 +69,122 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+
+
+def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
+    return any(pattern in text for pattern in patterns)
+
+
+def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
+    text = input_message.casefold()
+
+    if _contains_any(input_message, ("链接码", "邀请链接")) or (
+        "add friend" in text and (_contains_any(text, ("link", "code")) or "friend" in text)
+    ):
+        return "send_friend_request_by_user_link_code"
+
+    if _contains_any(input_message, ("好友请求", "待处理好友请求", "未处理好友请求")) or (
+        "friend request" in text or "friend-request" in text
+    ):
+        if _contains_any(input_message, ("通过", "接受")) or _contains_any(
+            text, ("accept", "approve")
+        ):
+            return "accept_friend_request"
+        if _contains_any(input_message, ("拒绝", "不通过")) or "reject" in text:
+            return "reject_friend_request"
+        if _contains_any(input_message, ("取消", "撤回")) or "cancel" in text:
+            return "cancel_friend_request"
+        if _contains_any(
+            input_message,
+            ("列表", "有哪些", "看一下", "查看", "未处理", "待处理"),
+        ) or "list" in text:
+            return "list_friend_requests"
+
+    if _contains_any(input_message, ("好友列表", "我的好友", "都有哪些好友")) or (
+        "list friends" in text
+    ):
+        return "list_friends"
+
+    if _contains_any(input_message, ("屏蔽", "拉黑")) or "block" in text:
+        if _contains_any(input_message, ("解除", "取消")) or "unblock" in text:
+            return "unblock_account"
+        return "block_account"
+
+    if _contains_any(input_message, ("移除好友", "删除好友", "解除好友")) or (
+        "unfriend" in text
+        or "remove friend" in text
+        or "remove friendship" in text
+    ):
+        return "remove_friendship"
+
+    if _contains_any(input_message, ("共享提醒", "shared reminder")):
+        if _contains_any(input_message, ("通过", "接受", "同意")) or "accept" in text:
+            return "accept_shared_reminder"
+        if _contains_any(input_message, ("拒绝", "不通过")) or "reject" in text:
+            return "reject_shared_reminder"
+        if _contains_any(input_message, ("取消", "撤回")) or "cancel" in text:
+            return "cancel_shared_reminder"
+        if _contains_any(input_message, ("建", "创建", "设置", "约")) or "create" in text:
+            return "create_shared_reminder"
+        if _contains_any(input_message, ("列表", "看看", "查看")) or "list" in text:
+            return "list_pending_shared_reminders"
+
+    if _contains_any(input_message, ("用户链接", "我的链接", "邀请码")):
+        if _contains_any(input_message, ("重置", "reset")):
+            return "reset_user_link"
+        if _contains_any(input_message, ("停用", "禁用", "disable")):
+            return "disable_user_link"
+        return "get_user_link"
+
+    return None
+
+
+def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
+    if isinstance(raw_intent, str):
+        candidate = raw_intent.strip()
+        if not candidate:
+            inferred = _infer_scheduling_intent_from_message(input_message)
+            return inferred or ""
+        prefix = candidate.split(":", 1)[0].strip()
+        if prefix in {
+            "create_shared_reminder",
+            "accept_shared_reminder",
+            "reject_shared_reminder",
+            "cancel_shared_reminder",
+            "send_friend_request_by_user_link_code",
+            "list_friend_requests",
+            "accept_friend_request",
+            "reject_friend_request",
+            "cancel_friend_request",
+            "list_friends",
+            "remove_friendship",
+            "block_account",
+            "unblock_account",
+            "get_user_link",
+            "reset_user_link",
+            "disable_user_link",
+            "list_friend_calendar_facts",
+        }:
+            return prefix
+        inferred = _infer_scheduling_intent_from_message(input_message)
+        return inferred or candidate
+
+    if isinstance(raw_intent, Mapping):
+        for key in ("intent", "action", "tool", "tool_name", "name"):
+            value = raw_intent.get(key)
+            if isinstance(value, str) and value.strip():
+                normalized = _normalize_scheduling_intent(value, input_message)
+                if normalized:
+                    return normalized
+
+        inferred = _infer_scheduling_intent_from_message(input_message)
+        if inferred:
+            return inferred
+
+    inferred = _infer_scheduling_intent_from_message(input_message)
+    if inferred:
+        return inferred
+    raise ValueError("scheduling intent could not be resolved")
 def _float_env(name: str, default: float) -> float:
     raw_value = os.environ.get(name)
     if raw_value is None:
@@ -111,6 +227,7 @@ def _create_interaction_agent(
     input_message: str,
     capability_results: list[CapabilityResult],
     domain_results: list[DomainExecutionResult],
+    preloaded_scheduling_domain_result: dict[str, Any] | None = None,
     session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
@@ -138,7 +255,11 @@ def _create_interaction_agent(
         reminder_domain_lock = asyncio.Lock()
         reminder_domain_result: dict[str, Any] = {}
         scheduling_domain_lock = asyncio.Lock()
-        scheduling_domain_result: dict[str, Any] = {}
+        scheduling_domain_result: dict[str, Any] = (
+            {"result": preloaded_scheduling_domain_result}
+            if preloaded_scheduling_domain_result is not None
+            else {}
+        )
 
         async def reminder_domain(**_model_supplied_args: Any) -> dict[str, Any]:
             """Use for explicit reminder create, update, cancel, complete, or list requests."""
@@ -153,14 +274,15 @@ def _create_interaction_agent(
                 reminder_domain_result["result"] = result
                 return result
 
-        async def scheduling_domain(intent: str) -> dict[str, Any]:
+        async def scheduling_domain(intent: Any = None) -> dict[str, Any]:
             """Use for explicit user-link, friend-request, friendship/block, or shared-reminder actions."""
             async with scheduling_domain_lock:
                 if "result" in scheduling_domain_result:
                     return scheduling_domain_result["result"]
+                normalized_intent = _normalize_scheduling_intent(intent, input_message)
                 result = await run_scheduling_domain(
                     input_message=input_message,
-                    intent=intent,
+                    intent=normalized_intent,
                     run_context=run_context,
                     domain_results=domain_results,
                 )
@@ -411,6 +533,19 @@ def _resolve_visible_text(
     return ""
 
 
+def _resolve_domain_visible_text(
+    domain_results: Sequence[DomainExecutionResult],
+) -> str:
+    for result in reversed(domain_results):
+        for operation in result.operations:
+            facts = operation.facts
+            for key in ("visible_summary", "summary", "message"):
+                value = facts.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+    return ""
+
+
 def _check_durable_write_contract(
     capability_results: Sequence[CapabilityResult],
 ) -> RuntimeErrorDisposition | None:
@@ -607,6 +742,8 @@ async def run_agent_runtime(
     agent_input: AgentInput,
     run_context: AgentRunContext,
 ) -> AgentRunResult:
+    from agent.agno_agent.runtime.execution_agents import run_scheduling_domain
+
     capability_results: list[CapabilityResult] = []
     domain_results: list[DomainExecutionResult] = []
     try:
@@ -614,12 +751,24 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
+        preloaded_scheduling_domain_result: dict[str, Any] | None = None
+        preselected_scheduling_intent = _infer_scheduling_intent_from_message(
+            input_message
+        )
+        if preselected_scheduling_intent:
+            preloaded_scheduling_domain_result = await run_scheduling_domain(
+                input_message=input_message,
+                intent=preselected_scheduling_intent,
+                run_context=run_context,
+                domain_results=domain_results,
+            )
         agent = _create_interaction_agent(
             run_context=run_context,
             agent_input=agent_input,
             input_message=input_message,
             capability_results=capability_results,
             domain_results=domain_results,
+            preloaded_scheduling_domain_result=preloaded_scheduling_domain_result,
         )
         timeout_seconds = _agent_runtime_timeout_seconds()
         try:
@@ -640,6 +789,10 @@ async def run_agent_runtime(
                 domain_results=domain_results,
             )
         final_text = _string_content(getattr(run_output, "content", None))
+        if preselected_scheduling_intent:
+            domain_visible_text = _resolve_domain_visible_text(domain_results)
+            if domain_visible_text:
+                final_text = domain_visible_text
         final_text_segments = _parse_visible_text_segments(final_text)
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
@@ -655,6 +808,8 @@ async def run_agent_runtime(
         visible_text_segments = final_text_segments
         if not final_text:
             fallback_text = _resolve_visible_text("", captured_capability_results)
+            if not fallback_text:
+                fallback_text = _resolve_domain_visible_text(captured_domain_results)
             visible_text_segments = (fallback_text,) if fallback_text else ()
         if runtime_contract_error is not None:
             visible_text_segments = ()

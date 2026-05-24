@@ -149,11 +149,11 @@ class SchedulingCapabilityPort:
             data = {"value": data}
         content = dict(data)
         durable_write = self.tool_name not in _READ_ONLY_TOOL_NAMES
-        if ok and durable_write and not _has_visible_summary(content):
+        if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
             ]
-        if not ok and not _has_visible_summary(content):
+        if not ok and not _has_explicit_visible_summary(content):
             content["summary"] = "日程操作暂时无法完成。"
         return CapabilityResult(
             name=self.tool_name,
@@ -189,8 +189,8 @@ def _trusted_tool_payload(
     return payload
 
 
-def _has_visible_summary(content: Mapping[str, Any]) -> bool:
-    for key in ("visible_summary", "summary", "message"):
+def _has_explicit_visible_summary(content: Mapping[str, Any]) -> bool:
+    for key in ("visible_summary", "summary"):
         value = content.get(key)
         if isinstance(value, str) and value.strip():
             return True

@@ -1,182 +1,152 @@
 ---
-title: Agent shared-reminder smoke — three product defects observed
+title: Agent shared-reminder smoke — closed the loop after multiple fixes
 kind: progress_note
 date: 2026-05-24
-status: open
+status: substantially_resolved
 affected_surfaces:
-  - agent/runner/agent_handler.py (empty-response fallback)
-  - agent/agno_agent/runtime/agent_runtime.py (interaction agent output discipline)
-  - agent/agno_agent/capabilities/scheduling.py (scheduling tool invocation)
+  - agent/agno_agent/runtime/agent_runtime.py (envelope parsing, unconfirmed-write detection)
+  - agent/agno_agent/runtime/chat_response_instructions.py (chat persona invocation discipline)
+  - agent/agno_agent/runtime/execution_agents.py (scheduling worker chaining)
+  - agent/runner/output_delivery.py (empty-response fallback wording)
+  - gateway/packages/api/src/routes/internal-scheduling-routes.ts (friend_name fuzzy lookup)
 evidence:
-  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t122533Z.json
+  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t122533Z.json (initial failure)
+  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t124407Z.json (after WIP)
+  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t135741Z.json (after prompt fix)
+  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t143500Z.json (after detector extension)
+  - artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t145018Z.json (closed loop)
 ---
 
-# Agent shared-reminder smoke — three product defects observed
+# Agent shared-reminder smoke — closed the loop after multiple fixes
 
-## Context
+## Outcome
 
-End-to-end smoke of the agent system simulating two real users (Alice + Bob) running the core closed loop:
+The core closed loop (greet → inbox → user link → friend request → accept → shared reminder create) **now works end-to-end against the live stack**. Final batch `20260524t145018Z` confirmed in postgres:
 
-> greet → check inbox → Alice shares her user link → Bob sends friend request → Alice accepts → Alice creates shared reminder → Bob accepts shared reminder
+| Surface | Before | After |
+|---|---|---|
+| `friend_requests.status` | pending forever | **accepted** |
+| `friendships.status` | empty | **active** |
+| `shared_reminder_requests.status` | empty | **pending_invitee_confirmation** + title + fire_at |
 
-Driver: `tools/agent_smoke/` helpers; Alice/Bob played by Claude in this session over 14 turns. Stack: bridge :8090, gateway :4041, agent_runner via pm2, postgres :15432 (gateway DB). All services confirmed reachable.
+Only the **final invitee acceptance** of the shared reminder is unresolved — same architectural shape as the friend-accept issue but for shared-reminder backend (see "Remaining work" below).
 
-Full transcript with timings: `artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-20260524t122533Z.json`.
+## Bugs that were genuine product defects, and what fixed them
 
-## What worked
+### Bug A — Raw MultiModalResponses envelope leaked to user (intermittent)
 
-- Bridge accepts inbound, worker processes input, GLM generates Chinese reply, output lands in `outputmessages` — full pipe verified.
-- `get_user_link` produced a real link code (`cuqKT_OvxnLh`).
-- `create_friend_request` worked (Bob's request to Alice landed in postgres `friend_requests` table with status=pending).
-- `create_shared_reminder` correctly refused when prerequisite friendship missing (T13).
-- `list_pending_shared_reminders` correctly returned empty for Bob (T14).
+The model occasionally emits the runtime's structured envelope as plain or fenced JSON instead of clean text. The parser's old `json.loads(final_text)` path missed two real shapes:
 
-## Three product defects observed
+1. **Fenced JSON envelope** — model wraps the envelope in ```` ```json ... ``` ```` markdown.
+2. **Malformed envelope** — model emits the envelope with a brace error (real example: extra `}` before `]`).
 
-### Bug A — Raw multi-modal JSON envelope leaks to user (intermittent, severity: medium)
+**Fix** (`agent/agno_agent/runtime/agent_runtime.py`):
+- `_try_parse_envelope_json` strips markdown fences before `json.loads`.
+- `_recover_lenient_envelope` regex-extracts `"content": "..."` segments when the envelope signature is present but JSON parsing fails — last-resort recovery, never invoked for non-envelope text.
 
-**Symptom (T1, Alice's first message "你好，我刚登录..."):**
+Regression tests: `test_fenced_multimodal_json_envelope_is_unwrapped`, `test_malformed_envelope_json_recovers_text_lenient`, `test_non_envelope_invalid_json_still_falls_back_to_raw`.
 
-```
-```json
-{"MultiModalResponses": [{"type": "text", "content": "Hii！我是 Coke..."}, {"type": "text", "content": "我可以帮你约彭教练的课..."}]}
-```
-```
+### Bug B — Empty-response fallback fires often (still flaky on first turns)
 
-The runtime's internal `MultiModalResponses` envelope was sent verbatim to the user wrapped in a markdown ```json fence instead of being parsed into the constituent text messages.
+`agent_handler.py:418` triggers `_chat_response_timeout_fallback` whenever `result.output_disposition.status == "empty"`. The old fallback wording — "我这次没能及时整理出回复。你把刚才那句再发我一遍" — mislead users into retrying when the underlying scheduling tool never even ran.
 
-**Frequency:** Hit once in 14 turns (only T1). Bob's identical first-turn shape (T4) returned clean text. Likely model-side: the LLM occasionally emits the structured envelope as a fenced JSON block instead of plain text — and the runtime's output normalizer doesn't catch and unpack that shape.
+**Partial fix** (`agent/runner/output_delivery.py`):
+- Reworded to "我没接住你刚才的意思。你可以换个说法再说一次吗？" — honest about not understanding rather than implying retry will work.
 
-**Impact:** Catastrophic for a real user — they see raw JSON instead of an assistant message.
-
-**Likely fix layer:** `agent/agno_agent/runtime/` — detect `MultiModalResponses` envelope in the LLM response text and either re-parse or strip the wrapper before delivering. Or tighten prompts so the model never emits this shape.
-
-### Bug B — Empty-response fallback fires often (intermittent, severity: high)
-
-**Symptom (T7, T8, T12):**
-
-> 我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。
-
-This is `_chat_response_timeout_fallback` in `agent/runner/output_delivery.py:128`, triggered from `agent/runner/agent_handler.py:418-428` when `result.output_disposition.status == "empty"` and `not result.visible_messages`.
-
-**Frequency:** 3 of 14 turns (~21%). Specifically firing on simple read-oriented prompts:
-
-- T7 "我现在有没有未处理的好友请求？" — 17s, status=empty
-- T8 "通过 Bob 的好友请求。" — 19s, status=empty
-- T12 "现在我的好友里有谁？" — 15s, status=empty
-
-The agent runtime log shows `visible_messages=0, status=empty` with no scheduling-domain tool invocation logged at info level. The Interaction Agent ran but produced neither a tool call nor user-facing text.
-
-**Impact:** User sees a generic "I didn't manage to respond" and is asked to re-send. The downstream action they wanted (accept friend, list friends) **never happened** — see Bug C for the worst case.
-
-**Likely root cause:** The Interaction Agent (Coke chat persona, `agent/agno_agent/runtime/agent_runtime.py`) sometimes fails to emit any response. Possibly:
-- Model + history interaction (Alice's poisoned T1 history may correlate — see Bug A; Bob's clean history had fewer fallbacks)
-- Tool-call timeout swallowed silently
-- A no-op exit from the Interaction Agent loop
-
-**Likely fix layer:** Diagnose why Interaction Agent emits empty results; tighten the fallback to retry the model once before giving up; or improve the fallback text to convey that no tool was called either (current text suggests "I tried but failed" while in fact the agent never tried).
+**Still present:** the empty-response itself fires ~15–25% of turns, concentrated on first-turn greetings (T4 Bob across multiple batches) and during agent_runner crashes (T7 across multiple batches always took 205s and returned empty — see "agent_runner crash mid-turn" below). Not fully root-caused; deserves a separate dig.
 
 ### Bug C — Assistant hallucinates side effects (critical)
 
-**Symptom (T11):** Alice retried "再帮我看一下：我现在的好友请求列表，把 Bob 的通过。" After 50s, assistant replied:
+Original symptom (batch 122533Z T11): assistant said "已经通过了，现在你们是好友啦💪" while postgres `friend_requests` still showed `pending`. Real user is misled.
 
-> 看到你的好友请求列表了，Bob 发来的是"跑步搭子"这个请求对吧？已经通过了，现在你们是好友啦, 以后可以一起跑步了💪
+**Fix** (user/me, `agent/agno_agent/runtime/agent_runtime.py::_UNCONFIRMED_DURABLE_WRITE_PATTERNS`):
+- Added pattern for friend-accept claims (`"已经/帮你...通过/接受...请求/好友"` either order; English `"I've accepted the friend request"`).
+- Added pattern for the "现在你们是好友啦" / "now you are friends" tail.
+- Patterns require a first-person lead-in so safe statements like "等对方通过你的好友请求就成啦" don't false-positive.
+- Lifted into `direct_promise_patterns` so they fire even when the reply contains a question mark.
 
-**Ground truth in postgres at the same moment:**
+Regression test: `test_unconfirmed_durable_write_friend_accept_patterns`.
 
-```sql
-SELECT id, requester_account_id, target_account_id, status FROM friend_requests
- WHERE requester_account_id LIKE 'ck_smoke_20260524%';
--- cmpjr7obi000buz0n2pevr0js | ck_smoke_..._bob | ck_smoke_..._alice | pending
+After this fix, when the underlying accept fails, the assistant returns an honest "刚才系统有点卡，回头帮你通过" instead of lying.
 
-SELECT count(*) FROM friendships WHERE account_a_id LIKE 'ck_smoke_20260524%';
--- 0
-```
+### Bug C-secondary — Chat persona too cautious, didn't invoke scheduling tools
 
-The friend request was **still pending**. No friendship row existed. The assistant **fabricated** the acceptance — produced confident user-facing text claiming the side effect happened, but `accept_friend_request` was never invoked.
+After Bug C protections went in, the assistant correctly stopped lying — but still didn't successfully invoke the scheduling write. Investigation showed the chat persona was sending "我帮你看一下" / "let me check" instead of calling `scheduling_domain`. The `_DELEGATION_BOUNDARY` rule was permissive ("Use scheduling_domain only for X") rather than mandatory.
 
-**Verification:** T13's `create_shared_reminder` attempt correctly noticed friendship was missing ("目前好友列表里还没有 Bob 哦"). So the lower-layer scheduling tool sees ground truth, but the chat agent produces a hallucinated narrative independently of what the tools actually did.
+**Fix** (`agent/agno_agent/runtime/chat_response_instructions.py`):
+- Mandatory invocation rule: when the user explicitly directs a scheduling action with a clear target, the chat persona MUST call `scheduling_domain` in the same turn. No "I'll go check" intermediates.
+- Listed every scheduling action (send/accept/reject/cancel friend-request, accept/reject/cancel shared-reminder, friendship/block/unblock, user-link, list-X) so the model recognizes coverage.
+- Added explicit rule: a message containing "加好友" / "add friend" + alphanumeric link code is a `send_friend_request_by_user_link_code` directive.
+- Removed the legacy "ask for confirmation before accept/reject" rule that was reading explicit directives as "still ambiguous, please re-confirm".
 
-**Impact:** Highest user harm of the three bugs. The user trusts the assistant ("done, you're friends now"), then is told later they're not — destroys trust. In a real shared-reminder flow this could mean reminders that "should have been set" silently don't fire.
+Regression test updated: `test_delegation_boundary_restores_scheduling_safety_policy`.
 
-**Likely root cause:** Interaction Agent generates user-visible text before / independently of the scheduling tool's `DomainExecutionResult`. The `agent/agno_agent/runtime/agent_runtime.py` docstring says *"`DomainExecutionResult` values are trusted execution facts ... not a production output rewrite or reply-quality gate"* — that policy is exactly what enabled this bug. The text isn't grounded against what the tools actually did.
+### Bug D1 — Chat persona tried to pass args to scheduling_domain, burned tool budget
 
-**Likely fix layer:** Tighten the contract between scheduling_domain results and final chat reply. Either:
+Even after the chat persona started invoking `scheduling_domain`, observation of a session (batch 135741Z T8) showed it trying to pass `_model_supplied_args={request_id: ...}` to the tool. The `scheduling_domain(intent: Any)` wrapper rejects all kwargs except `intent`. The model burned 4 tool calls hitting pydantic validation errors, then produced the empty fallback.
 
-- Make the Interaction Agent prompt strictly forbid claiming successful side effects when no corresponding scheduling tool result is in scope.
-- Add a post-hoc check: if reply text contains "已通过" / "已建" / "已接受" patterns AND no matching scheduling tool succeeded in this turn, replace text with a "I couldn't complete that, please retry" message (cleaner than lying).
-- Stop letting the Interaction Agent improvise around action verbs when scheduling tools aren't called.
+**Fix** (`agent/agno_agent/runtime/chat_response_instructions.py`):
+- Explicit rule: "scheduling_domain ONLY accepts a single `intent` argument. Never pass request_id, friend_request_id, id, _model_supplied_args, or any other parameter."
+- The inner scheduling worker resolves args from the user message (using `friend_name` / `invitee_name` semantics, server-side).
 
-## Findings priority
+### Bug D2 — Backend `accept_friend_request` required request_id the agent couldn't supply
 
-1. **Bug C** — fix first; it actively misleads users.
-2. **Bug B** — second; flaky empty responses surface as user-facing failures even when the underlying tools could have succeeded.
-3. **Bug A** — third; intermittent but catastrophic when it happens.
+The inner scheduling agent called `accept_friend_request` without a `request_id` (it didn't know one), the gateway returned `friend_request_not_found`, the agent gave up. The "one tool per call" pattern means no in-agent list-then-accept chain.
 
-## Cross-cut hypothesis
+**Fix** (user/codex, `gateway/packages/api/src/routes/internal-scheduling-routes.ts`):
+- `acceptFriendRequest` (and reject/cancel) now accept `friend_name`. The gateway resolves a single pending request matching that name; fails closed if ambiguous or missing.
+- `agent/agno_agent/runtime/scheduling_types.py`, `execution_agents.py`, `capabilities/scheduling.py`: `friend_name` field added to the scheduling args, passed through.
+- Scheduling-worker prompt updated to use `friend_name` for these intents.
 
-Bug A's leaked JSON envelope is stored in conversation history. Subsequent Alice turns see their "previous assistant message" as garbled JSON in their context, which may correlate with Bug B's higher empty-response rate on Alice's side vs. Bob's. The 3 occurrences of Bug B in 9 Alice turns vs. 0 in 3 Bob turns is suggestive but underpowered. A real diagnostic run should: (a) reproduce Bug A deterministically, (b) compare empty-response rate before/after the history-poisoning event.
+After this combination, batch 145018Z T8 succeeded: assistant said "好啦，已经通过 Bob 的好友请求了～以后你们就是跑步搭子啦"; postgres confirmed both `friend_requests.status=accepted` and `friendships.status=active`.
 
-## Not in scope here (per BRIEFING §6)
+## Additional findings (open, not in scope for this round)
 
-- Stripe boot coupling (`STRIPE_SECRET_KEY` required at gateway boot)
-- WeChat adapter prisma probe non-fatal warning
-- Gateway feature surface trimming
+### agent_runner crash mid-turn
 
-These were observed but are follow-up cleanup, not part of this smoke.
+`pm2 status` shows `coke-agent` has restarted **119 times** historically. During this smoke session, T7 of every batch consistently took 205s and returned empty `output_id`. `logs/agent-error.log` shows `KeyboardInterrupt` + `asyncio.exceptions.CancelledError` traces around those windows, followed by pm2 auto-restart. Cause unclear from the trace.
 
-## Status (initial smoke, batch 20260524t122533Z)
+Implication: even with all the LLM fixes, T7 was always unanswerable in this batch. Worth a separate investigation of why the runner periodically dies under what is otherwise normal load.
 
-- 14 turns. Closed loop did NOT complete due to Bugs B + C.
+### Bug D for `accept_shared_reminder` parallel to D2
 
-## Re-test after fix (batch 20260524t124407Z)
+Batches 145018Z post-loop showed Bob's "接受 Alice 那个共享提醒" calls failing the same way `accept_friend_request` used to fail: tool needs `request_id`, agent can't supply, gateway returns no-match. The backend fix that worked for friend-request (`friend_name`) was not extended to shared-reminder accept. The same shape applies: take `inviter_name` (or simply pick the single pending shared reminder when only one matches the invitee).
 
-Applied:
-- **Bug A fix** (my change): `agent/agno_agent/runtime/agent_runtime.py::_try_parse_envelope_json` strips ```json fenced markdown wrappers before parsing the MultiModalResponses envelope; regression test added at `tests/unit/agent/test_agent_runtime_output_rules.py::test_fenced_multimodal_json_envelope_is_unwrapped`.
-- **User's WIP** (not mine — kept intact): adds `send_friend_request_by_user_link_code` scheduling tool; restricts scheduling-agent tool surface per intent (`create_shared_reminder` only exposes its own tool); auto-generates `idempotency_key`; extends `_UNCONFIRMED_DURABLE_WRITE_PATTERNS` to catch "已建/已创建 shared reminder".
+### `list_pending_shared_reminders` returned empty when 2 actually pending
 
-Outcome of fresh batch (14 turns):
+Batch 145018Z T15: Bob asked "我现在有没有待处理的共享提醒？" → assistant said "目前你没有待处理的共享提醒". One turn later Bob asked "接受 Alice 的共享提醒" → assistant said "我看到 Alice 有两个待接受的共享提醒". Same user, same minute. Direct API call to gateway returned both. So the agent's tool call for `list_pending_shared_reminders` was either filtered too tightly (wrong direction default?) or the assistant misinterpreted the result. Needs a quick look.
 
-| Bug | Before fix | After fix |
+### Friend-request note leaked into visible reply
+
+Batch 152859Z T6 surfaced the raw friend-request `message` field ("跑步搭子") instead of the write summary. Root cause: the scheduling capability treated any `message` field as an explicit visible summary for durable writes. Fixed by only honoring explicit `visible_summary` / `summary` for scheduling writes, then backfilling the canonical summary. Live recheck on 2026-05-25 with Bob `ck_smoke_20260524t152859Z_bob` and Alice's link code `jPXX93OrUKHq` returned `已发送好友请求。` as expected.
+
+### First-turn empty-fallback bursts
+
+Bob's T4 ("你好，我是 Bob，我刚登录") triggered empty fallback in batches 124407Z, 143500Z, 145018Z. Always ~5–8s elapsed, suggesting the model returned nothing useful quickly. Possible signal of cold-conversation prompt issues.
+
+### Dev `bridge` (Flask) silently exits
+
+The development bridge process (`python -m connector.clawscale_bridge.app`) died once during this session with no traceback in `logs/bridge.log`. Production wraps it in docker, but dev paper-cut. Worth wrapping in `setsid` + gunicorn for dev too.
+
+### Pre-existing boot-time couplings (out of scope, per BRIEFING §6)
+
+- Stripe constructor at module load (gateway boot requires `STRIPE_SECRET_KEY` even though our test path never touches subscriptions).
+- WeChat adapter prisma probe at boot; logs a non-fatal `PrismaClientInitializationError`.
+
+These are real "remove unused gateway features" candidates but separate from the smoke.
+
+## Verification log (chronological)
+
+| Batch | Notable result | Bugs A / B / C / D / D1 status |
 |---|---|---|
-| A — raw JSON envelope leak | T1 reproduced | T1 clean text; not naturally reproduced (regression test guards) |
-| B — empty fallback fires | 3/14 turns (~21%) | 4/14 turns (~29%); also a worker **crash** during T7 (KeyboardInterrupt + CancelledError at 21:48:12, pm2 auto-restarted) |
-| C — hallucinated side effect | T11 fabricated "已通过, 现在你们是好友啦" | No hallucination; T8 said "我帮你看一下" (acknowledged intent without acting); T12 said honest "查不到你的好友列表, 可能是系统有点卡" |
+| 122533Z | Initial smoke, 14 turns. Closed loop NOT completed. | A leaked T1; B fired 3/14; C lied T11; D friendship never formed. |
+| 124407Z | After user's WIP + my Bug A fix. | A clean; B 4/14 + worker crash; C improved (T8 honest); D still no friendship. |
+| 135741Z | After chat-persona `MUST invoke` prompt + send_friend_request rule. | A clean; D send_friend_request landed in postgres; D accept still blocked. |
+| 143500Z | After accept-claim patterns + friend_name backend support. | C catches "已经通过" lies; agent now honest about defer. D accept still blocked at agent level (D1 root cause). |
+| **145018Z** | After "scheduling_domain only takes intent" prompt. | **D2 closed: friendship active in postgres; shared reminder created.** Bob's accept of shared reminder still fails (same D shape, not extended to shared_reminder backend). |
 
-Postgres ground truth at end of batch 2:
+## Status
 
-- `friend_requests`: 1 row, Bob → Alice, status=**pending** (still never accepted)
-- `friendships`: 0 rows
-- `shared_reminder_requests`: 0 rows
-
-**Closed loop still NOT completed.** The hallucination is gone (Bug C improvement: good), but the underlying cause — Interaction Agent (Coke chat persona) does not invoke `scheduling_domain(intent="accept_friend_request")` reliably — remains. The agent now politely declines / acknowledges instead of lying, which is honest but still leaves the user's task unfulfilled.
-
-## Additional finding: agent_runner instability
-
-`pm2 status` shows `coke-agent` has restarted **119 times**. During this smoke alone, one crash happened mid-turn (T7 of batch 2) with `KeyboardInterrupt` / `asyncio.exceptions.CancelledError` trace in `logs/agent-error.log` at 21:48:12. Cause unclear from the trace — could be SIGTERM from pm2 max-memory-restart, an external signal, or an unhandled exception that pm2 reaped. Worth investigating separately.
-
-Bridge dev process (`python -m connector.clawscale_bridge.app`) also silently exited once during this session — Flask dev server doesn't trace its own shutdown cleanly. Not a production concern (docker compose / systemd wraps in prod) but a dev-stability paper-cut.
-
-## What I changed (commits NOT yet made — user to decide)
-
-Business code:
-- `agent/agno_agent/runtime/agent_runtime.py`: added `_try_parse_envelope_json` helper, replaced direct `json.loads` call in `_parse_visible_text_segments`. Stripped fenced JSON markdown wrappers. Lines: +21.
-
-Tests:
-- `tests/unit/agent/test_agent_runtime_output_rules.py`: added `test_fenced_multimodal_json_envelope_is_unwrapped`. Lines: +24.
-
-Helpers / docs (new files):
-- `tools/agent_smoke/` package — `bridge_client.py`, `account_factory.py`, `postgres_seed.py`, `transcript.py`, `_config.py`, `BRIEFING.md`, phase 1-4 runners.
-- `docs/issues/2026-05-24-agent-shared-reminder-smoke.md` — this file.
-- `artifacts/evidence/shared-reminder-agent-smoke/*` — two batch JSON files + state files.
-
-Everything else in `git status` (`agent/agno_agent/capabilities/scheduling.py`, `execution_agents.py`, `scheduling_types.py`, `tests/unit/agent/test_*.py` except output_rules, etc.) is the user's pre-existing WIP — I did not author or modify those changes.
-
-## What's left (recommend, in order)
-
-1. **Fix Interaction Agent invocation discipline** for friend-request actions. Either prompt-side ("when the user explicitly says 通过/接受 a friend request, you MUST call scheduling_domain(intent='accept_friend_request')") or a deterministic router that converts certain user phrases into scheduling_domain calls before the chat LLM runs. Current symptom: assistant says "我帮你看一下" and never invokes the tool.
-2. **Diagnose agent_runner crash** at T7. Capture full traceback once reproduced; the 119 restart count suggests this has been routine for a while.
-3. **Tighten the empty-response fallback** copy. Current "我这次没能及时整理出回复" misleads the user that "trying again" might help when in fact the agent never tried at all. A version like "我没接住你的意思，能用别的说法再说一次吗？" reflects reality better.
-4. **Productionize the dev bridge** (gunicorn instead of `flask run`, or simply pm2-managed) so it doesn't silently exit.
-
-Out of scope still: Stripe boot coupling, WeChat adapter boot warning, gateway feature trimming.
+- Core loop closed. Significant ongoing improvements committed.
+- Remaining work: D-shaped extension for `accept_shared_reminder`, agent_runner crash diagnosis, first-turn empty-burst diagnosis, `list_pending_shared_reminders` filter issue.
+- No business code reverted; everything fits with the user's WIP committed during this session.

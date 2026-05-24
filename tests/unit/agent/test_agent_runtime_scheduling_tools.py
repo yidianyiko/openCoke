@@ -190,6 +190,31 @@ async def test_scheduling_tool_fn_dispatches_user_link_code_friend_request_args(
     }
 
 
+@pytest.mark.asyncio
+async def test_scheduling_tool_fn_dispatches_friend_name_for_friend_request_actions():
+    port = RecordingPort(name="accept_friend_request")
+    fn = _make_scheduling_tool_fn(
+        "accept_friend_request",
+        port,
+        input_message="通过 Bob 的好友请求",
+        run_context=_run_context(),
+        domain_results=[],
+    )
+
+    await fn(
+        friend_name="Bob",
+        requester_name="Bob",
+        request_id="",
+        idempotency_key="friend:req:accept",
+    )
+
+    assert port.calls[0][2] == {
+        "friend_name": "Bob",
+        "requester_name": "Bob",
+        "idempotency_key": "friend:req:accept",
+    }
+
+
 def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
     from agent.agno_agent.runtime import execution_agents
 

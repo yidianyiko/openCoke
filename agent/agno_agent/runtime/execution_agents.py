@@ -30,16 +30,14 @@ _SCHEDULING_SYSTEM_PROMPT = (
     "When a user asks to add a friend by public user-link code, call "
     "send_friend_request_by_user_link_code with user_link_code. "
     "For accept_friend_request / reject_friend_request / cancel_friend_request "
-    "when you do not yet have a concrete request_id, first call "
-    "list_friend_requests for the actor, find the single pending request that "
-    "matches the named target (use requesterAccountId when the actor is the "
-    "target of the request, otherwise targetAccountId), then call the action "
-    "tool with that request_id. If the target name is ambiguous or no pending "
-    "request matches, do not invent a request_id — return without writing and "
-    "let the chat persona ask the user. "
-    "For accept_shared_reminder / reject_shared_reminder / cancel_shared_reminder "
-    "without a concrete request_id, follow the same lookup pattern using "
-    "list_pending_shared_reminders first. "
+    "when you do not yet have a concrete request_id, pass friend_name with the "
+    "other person's name; the gateway resolves a single pending request and "
+    "fails closed if the name is ambiguous or missing. "
+    "For accept_shared_reminder / reject_shared_reminder when you do not yet "
+    "have a concrete request_id, pass requester_name with the inviter's name; "
+    "for cancel_shared_reminder pass invitee_name. The gateway resolves a "
+    "single pending shared reminder and fails closed if the name is missing "
+    "or matches more than one pending reminder. "
     "For create_shared_reminder, pass invitee_name when the user named a friend "
     "but did not provide an account id; do not call list_friends for this intent. "
     "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
@@ -250,6 +248,8 @@ def _make_scheduling_tool_fn(
         duration_minutes: int | None = None,
         timezone: str | None = None,
         request_id: str | None = None,
+        friend_name: str | None = None,
+        requester_name: str | None = None,
         friendship_id: str | None = None,
         blocked_account_id: str | None = None,
         user_link_code: str | None = None,
@@ -297,6 +297,8 @@ def _make_scheduling_tool_fn(
                     "duration_minutes": duration_minutes,
                     "timezone": timezone,
                     "request_id": request_id,
+                    "friend_name": friend_name,
+                    "requester_name": requester_name,
                     "friendship_id": friendship_id,
                     "blocked_account_id": blocked_account_id,
                     "user_link_code": user_link_code,

@@ -1,0 +1,92 @@
+{
+  "batch_id": "20260524t152859Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_xudYnN2eCM3_5DPB-kogl",
+      "clawscale_user_id": "csu_GrGyuS3FaAklTOgmLH0ZE"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t152859Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_iK6qyTCxY1RWKVcw9PJaw",
+      "clawscale_user_id": "csu_kCD1hRpjPIysZkXVkgDpL"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_7a482da9d2f649d19528006c1e2d7019",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a1319425938703d9bfd1ed7",
+      "elapsed_ms": 9036,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_b82ba067f90343329d282bb67cd9da51",
+      "reply_text": "目前没有待处理的好友请求。",
+      "output_id": "6a1319555938703d9bfd1ef4",
+      "elapsed_ms": 19058,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_c1bb73ada2524d06bb30bb203662a353",
+      "reply_text": "哎，好像系统这会儿拿不到你的邀请链接。你去 App 里看一下个人设置或者分享二维码那应该能找到，复制链接就可以发给朋友了～",
+      "output_id": "6a1319845938703d9bfd1f2c",
+      "elapsed_ms": 46209,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t152859Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_da2cfe47361b4076851d723e1a0ccede",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a13199b5938703d9bfd1f4e",
+      "elapsed_ms": 5024,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t152859Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_651023ca7865415d822f988aff736b93",
+      "reply_text": "目前没有待处理的好友请求或通知哦。",
+      "output_id": "6a1319a75938703d9bfd1f64",
+      "elapsed_ms": 12041,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t152859Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：jPXX93OrUKHq。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_3fec3c5bb11045039f2026e8e4630d79",
+      "reply_text": "跑步搭子",
+      "output_id": "6a1319b55938703d9bfd1f7d",
+      "elapsed_ms": 15047,
+      "note": "friend_request_via_link"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": []
+  }
+}

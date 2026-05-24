@@ -82,6 +82,50 @@
       "output_id": "6a130d0ef0944198a4c4f043",
       "elapsed_ms": 25174,
       "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143500Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_c1d44d16809b4a109d9f42169ceb5c74",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205460,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143500Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_6e7a91d8ae154264bd17d0e72e561a9a",
+      "reply_text": "我看到 Bob 发来了好友请求，是想加你当跑步搭子对吧？不过刚才系统有点卡，我先帮你记一下，回头再帮你通过这块儿。你先等等哈～",
+      "output_id": "6a130e35f0944198a4c4f182",
+      "elapsed_ms": 82167,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143500Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_75b99a58bc1942a2a64b50a40b82e7c2",
+      "reply_text": "你现在还没有加任何好友呢。想加点运动搭子或者让朋友一起互相督促吗？",
+      "output_id": "6a130e44f0944198a4c4f19c",
+      "elapsed_ms": 16051,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143500Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_166fe67b9cb549529f4bd96d6434fc21",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a130e6cf0944198a4c4f1d0",
+      "elapsed_ms": 38597,
+      "note": "alice_create_shared_reminder"
     }
   ],
   "findings": [],
