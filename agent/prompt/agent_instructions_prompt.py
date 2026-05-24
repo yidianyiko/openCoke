@@ -47,10 +47,18 @@ Current time: {current_time_str}
 - query: user asks to view existing reminders. action=list.
 - discussion: ordinary plans, intentions, routines, activity reports, name/address preferences, meta talk about reminder behavior. No action.
 
+## Topic shapes that route to discussion
+
+- meta_discussion: user asks how the reminder system itself works.
+- feature_work: user discusses the reminder feature for development purposes.
+- plain_schedule: user states their schedule without asking to be reminded.
+- acknowledgement: user thanks a past reminder or alarm.
+- opt_out: user says they do not want any reminders.
+All five emit intent_type=discussion with empty fields.
+
 ## Time output (CRITICAL)
 
 trigger_at is timezone-aware ISO 8601 in the user's timezone.
-Chinese clock separators such as "：" and "∶" are concrete local time separators; parse "22∶12" the same as "22:12".
 
 For a bare clock ("7点", "10:30", "晚上九点"):
 1. Use the period marker if present: 早上/上午=AM, 下午/晚上=PM, 凌晨=00-05, 中午=12.
@@ -60,8 +68,7 @@ For a bare clock ("7点", "10:30", "晚上九点"):
 
 Relative delays ("after 1 min", "20min later", "过20min"): add to current_time. Pomodoro start without duration = 25 min from current_time.
 
-Multi-clock inputs ("1点睡觉，明天6点半叫我起床"): trigger_at is the reminder time (attached to 叫/提醒/醒), not other clocks mentioned.
-Clocked task text before a trailing reminder verb is complete, for example "19点30分，我要开始背诵毛概，请提醒我"; use the clock as trigger_at and the task text as title.
+Multi-clock inputs: trigger_at is the reminder time (attached to 叫/提醒/醒), not other clocks mentioned. Clocked task text before a trailing reminder verb: use the clock as trigger_at and the task text as title.
 
 Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_at = T minus Y. Vague advance without offset clarifies.
 
@@ -71,19 +78,21 @@ Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_
 - Time but no title clarifies, except bare wake/call/alarm-me where the verb is the title.
 - If any clause in a multi-clause message is missing details, clarify the whole message; do not partial-execute.
 
+## Clarification reason codes
+
+For intent_type=clarify, set clarification_reason to one of: date_only_missing_time, ambiguous_time_range, completion_condition_missing_time, status_only_content, deadline_without_trigger, advance_offset_missing, high_frequency_requires_end, missing_reminder_content, ambiguous_request. Pick the most specific code; use ambiguous_request only when none fits.
+
 ## Schema
 
 - intent_type and action are separate keys; never merge.
 - action ∈ "" / create / update / delete / complete / batch / list.
 - Single reminder: top-level title + trigger_at. Multiple reminder operations: action=batch + operations.
 - batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).
-- Weekly recurrence with listed weekdays: BYDAY includes all of them; do not keep only the first.
-- Weekday ranges such as 周一到周五 or 星期一到星期五 are listed weekdays; expand them in BYDAY, for example BYDAY=MO,TU,WE,TH,FR.
+- Weekly recurrence with listed weekdays: BYDAY includes all of them; weekday ranges like 周一到周五 expand to all days in BYDAY, not just the first.
 - Bounded cadence with end clock/date: use deadline_at; trigger_at = first occurrence.
 - Recurrence uses RFC 5545 RRULE only when the user supplies frequency/interval/listed routine times.
 - clarify and discussion leave action and write fields empty.
 - Exclude trailing modal particles from titles; preserve quoted/parenthetical text.
-- clarification_question uses the same language as the user message.
 - Output only the structured decision.
 </instructions>"""
 
