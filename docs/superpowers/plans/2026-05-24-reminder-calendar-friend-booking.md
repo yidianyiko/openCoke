@@ -1,5 +1,10 @@
 # Reminder Calendar Friend Booking Implementation Plan
 
+**Plan Status:** completed
+**Status Date:** 2026-05-24
+**Freshness Check:** Verified against `main`, `docs/ARCHITECTURE.md`, and
+touched runtime code before merge.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enable friend-gated lesson booking where Coke reminders are the calendar source, Gateway returns privacy-preserving busy facts, and the LLM owns scheduling reasoning.
@@ -214,7 +219,7 @@ Friendship-required result:
 - Test: `gateway/packages/api/src/routes/customer-reminder-routes.test.ts`
 - Test: `gateway/packages/web/lib/customer-reminders.test.ts`
 
-- [ ] **Step 1: Write failing Python duration storage and serialization tests**
+- [x] **Step 1: Write failing Python duration storage and serialization tests**
 
 Add this test to `tests/unit/reminder/test_service.py`:
 
@@ -334,7 +339,7 @@ it('sends durationMinutes to bridge create and update requests', async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -345,7 +350,7 @@ pnpm --dir gateway/packages/api test -- src/lib/reminder-runtime-client.test.ts
 
 Expected: FAIL because `ReminderSchedule.duration_minutes`, Bridge `durationMinutes`, and Gateway client duration input do not exist.
 
-- [ ] **Step 3: Add duration to the reminder schedule model**
+- [x] **Step 3: Add duration to the reminder schedule model**
 
 In `agent/reminder/models.py`, replace `ReminderSchedule` with:
 
@@ -404,7 +409,7 @@ def validate_duration_minutes(duration_minutes: int | None) -> int | None:
     return duration_minutes
 ```
 
-- [ ] **Step 4: Store and map duration in ReminderService**
+- [x] **Step 4: Store and map duration in ReminderService**
 
 In `agent/reminder/service.py`, import `validate_duration_minutes` from `agent.reminder.schedule`.
 
@@ -430,7 +435,7 @@ duration_minutes=schedule_document.get("duration_minutes"),
 
 If `_map_document` currently builds the schedule inline, keep the current field parsing and only add the duration field.
 
-- [ ] **Step 5: Accept and serialize duration in Bridge reminder management**
+- [x] **Step 5: Accept and serialize duration in Bridge reminder management**
 
 In `connector/clawscale_bridge/reminder_management_service.py`, update `serialize_reminder` schedule JSON:
 
@@ -470,7 +475,7 @@ In `_build_schedule_from_body`, pass:
 duration_minutes=_validate_optional_duration_minutes(body.get("durationMinutes")),
 ```
 
-- [ ] **Step 6: Pass duration through Gateway API and web wrappers**
+- [x] **Step 6: Pass duration through Gateway API and web wrappers**
 
 In `gateway/packages/api/src/lib/reminder-runtime-client.ts`, add to `CreateReminderInput` and `UpdateReminderInput`:
 
@@ -517,7 +522,7 @@ In `reminderBody`, include:
 durationMinutes: input.durationMinutes ?? null,
 ```
 
-- [ ] **Step 7: Run focused tests to verify pass**
+- [x] **Step 7: Run focused tests to verify pass**
 
 Run:
 
@@ -529,7 +534,7 @@ pnpm --dir gateway/packages/web test -- lib/customer-reminders.test.ts
 
 Expected: PASS. Existing tests that instantiate `ReminderSchedule` without duration continue to pass because the field defaults to `None`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 From `/data/projects/coke/gateway`, commit Gateway files:
 
@@ -561,7 +566,7 @@ git commit -m "feat: add reminder duration to runtime"
 - Test: `tests/unit/dao/test_reminder_dao.py`
 - Test: `tests/unit/connector/clawscale_bridge/test_reminder_management_service.py`
 
-- [ ] **Step 1: Write failing occurrence expansion tests**
+- [x] **Step 1: Write failing occurrence expansion tests**
 
 Add to `tests/unit/reminder/test_schedule.py`:
 
@@ -699,7 +704,7 @@ def test_list_calendar_facts_returns_busy_intervals_without_private_details():
     }
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -709,7 +714,7 @@ Run:
 
 Expected: FAIL because occurrence expansion, occupied occurrence objects, and `list_calendar_facts` are absent.
 
-- [ ] **Step 3: Add occurrence type and expansion helper**
+- [x] **Step 3: Add occurrence type and expansion helper**
 
 In `agent/reminder/models.py`, add:
 
@@ -755,7 +760,7 @@ def expand_schedule_anchors_in_local_date_range(
     return [item.astimezone(UTC) for item in rule.between(range_start, range_end, inc=True)]
 ```
 
-- [ ] **Step 4: Add occupied occurrence service method**
+- [x] **Step 4: Add occupied occurrence service method**
 
 In `agent/reminder/service.py`, import `timedelta`, `ReminderOccurrence`, and `expand_schedule_anchors_in_local_date_range`.
 
@@ -799,7 +804,7 @@ Add method:
 
 If existing DAO date filtering misses recurring reminders whose `schedule.local_date` is before `from_date`, add `ReminderDAO.list_visible_recurrence_sources_for_owner(...)` and have the service merge active recurring sources with the one-shot date-range results. Keep the same selector fields: `owner_user_id`, `visibility: "visible"`, and `lifecycle_state`.
 
-- [ ] **Step 5: Expose runtime contract and Bridge facts method**
+- [x] **Step 5: Expose runtime contract and Bridge facts method**
 
 In `agent/reminder/runtime_contract.py`, add:
 
@@ -871,7 +876,7 @@ Add method:
         }
 ```
 
-- [ ] **Step 6: Add Bridge route**
+- [x] **Step 6: Add Bridge route**
 
 In `connector/clawscale_bridge/app.py`, add a route matching existing internal auth patterns:
 
@@ -898,7 +903,7 @@ def bridge_internal_reminder_calendar_facts():
     return jsonify({"ok": True, "data": result})
 ```
 
-- [ ] **Step 7: Run focused tests to verify pass**
+- [x] **Step 7: Run focused tests to verify pass**
 
 Run:
 
@@ -908,7 +913,7 @@ Run:
 
 Expected: PASS. The new calendar facts result contains no reminder ids, titles, prompts, output target, or metadata.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add agent/reminder/models.py agent/reminder/schedule.py agent/reminder/service.py agent/reminder/runtime_contract.py dao/reminder_dao.py connector/clawscale_bridge/reminder_management_service.py connector/clawscale_bridge/app.py tests/unit/reminder/test_models.py tests/unit/reminder/test_schedule.py tests/unit/reminder/test_service.py tests/unit/reminder/test_runtime_contract.py tests/unit/dao/test_reminder_dao.py tests/unit/connector/clawscale_bridge/test_reminder_management_service.py
@@ -926,7 +931,7 @@ git commit -m "feat: expose reminder calendar busy facts"
 - Test: `gateway/packages/api/src/scheduling/friend-calendar-facts-service.test.ts`
 - Test: `gateway/packages/api/src/routes/internal-scheduling-routes.test.ts`
 
-- [ ] **Step 1: Write failing Gateway client and service tests**
+- [x] **Step 1: Write failing Gateway client and service tests**
 
 Create `gateway/packages/api/src/scheduling/friend-calendar-facts-service.test.ts`:
 
@@ -1078,7 +1083,7 @@ And mock the module:
 vi.mock('../scheduling/friend-calendar-facts-service.js', () => friendCalendarFacts);
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -1088,7 +1093,7 @@ pnpm --dir gateway/packages/api test -- src/scheduling/friend-calendar-facts-ser
 
 Expected: FAIL because the new service, route wiring, and `listRuntimeCalendarFacts` client are absent.
 
-- [ ] **Step 3: Add Bridge client method**
+- [x] **Step 3: Add Bridge client method**
 
 In `gateway/packages/api/src/lib/reminder-runtime-client.ts`, add:
 
@@ -1122,7 +1127,7 @@ export async function listRuntimeCalendarFacts(
 }
 ```
 
-- [ ] **Step 4: Add friend calendar facts service**
+- [x] **Step 4: Add friend calendar facts service**
 
 Create `gateway/packages/api/src/scheduling/friend-calendar-facts-service.ts`:
 
@@ -1244,7 +1249,7 @@ export async function listFriendCalendarFacts(
 }
 ```
 
-- [ ] **Step 5: Wire internal scheduling route**
+- [x] **Step 5: Wire internal scheduling route**
 
 In `gateway/packages/api/src/routes/internal-scheduling-routes.ts`, import:
 
@@ -1280,7 +1285,7 @@ Add route branch before `create_shared_reminder`:
 
 Do not add any free-slot calculation in this route or service.
 
-- [ ] **Step 6: Run focused tests to verify pass**
+- [x] **Step 6: Run focused tests to verify pass**
 
 Run:
 
@@ -1290,7 +1295,7 @@ pnpm --dir gateway/packages/api test -- src/scheduling/friend-calendar-facts-ser
 
 Expected: PASS. Tests prove active friendship is required and private reminder details are absent from the returned facts.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 From `/data/projects/coke/gateway`:
 
@@ -1311,7 +1316,7 @@ git commit -m "feat: add friend calendar facts tool route"
 - Test: `gateway/packages/api/src/scheduling/shared-reminder-service.test.ts`
 - Test: `gateway/packages/api/src/routes/internal-scheduling-routes.test.ts`
 
-- [ ] **Step 1: Write failing schema and shared reminder tests**
+- [x] **Step 1: Write failing schema and shared reminder tests**
 
 Add to `gateway/packages/api/src/scheduling/schema-contract.test.ts`:
 
@@ -1386,7 +1391,7 @@ it('does not reject shared reminders because another reminder overlaps', async (
 });
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -1396,7 +1401,7 @@ pnpm --dir gateway/packages/api test -- src/scheduling/schema-contract.test.ts s
 
 Expected: FAIL because schema duration, route duration args, and service projection duration are absent.
 
-- [ ] **Step 3: Add schema and migration**
+- [x] **Step 3: Add schema and migration**
 
 In `gateway/packages/api/prisma/schema.prisma`, add this field to `SharedReminderRequest` after `timezone`:
 
@@ -1411,7 +1416,7 @@ ALTER TABLE "shared_reminder_requests"
   ADD COLUMN "duration_minutes" INTEGER;
 ```
 
-- [ ] **Step 4: Add duration to shared reminder service input and projection**
+- [x] **Step 4: Add duration to shared reminder service input and projection**
 
 In `gateway/packages/api/src/scheduling/shared-reminder-service.ts`, add `durationMinutes?: number | null;` to `SharedReminderRequestRecord`, `createProjection` input, and `createSharedReminder` input.
 
@@ -1455,7 +1460,7 @@ In `createProjection`, pass to Runtime:
 
 Do not add a query that checks existing runtime reminders for overlap.
 
-- [ ] **Step 5: Wire duration through internal route**
+- [x] **Step 5: Wire duration through internal route**
 
 In `gateway/packages/api/src/routes/internal-scheduling-routes.ts`, update the `create_shared_reminder` branch:
 
@@ -1467,7 +1472,7 @@ durationMinutes: numberField(body, 'duration_minutes', 0) > 0
 
 If `numberField` returns only a fallback for missing values, keep invalid duration handling inside `createSharedReminder`.
 
-- [ ] **Step 6: Run focused tests to verify pass**
+- [x] **Step 6: Run focused tests to verify pass**
 
 Run:
 
@@ -1477,7 +1482,7 @@ pnpm --dir gateway/packages/api test -- src/scheduling/schema-contract.test.ts s
 
 Expected: PASS. The overlap test proves this backend layer persists the LLM-chosen interval and does not become a conflict-decision engine.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 From `/data/projects/coke/gateway`:
 
@@ -1496,7 +1501,7 @@ git commit -m "feat: persist shared reminder duration"
 - Test: `tests/unit/agent/test_agent_runtime_scheduling_tools.py`
 - Test: `tests/unit/agent/test_scheduling_types.py`
 
-- [ ] **Step 1: Write failing scheduling capability tests**
+- [x] **Step 1: Write failing scheduling capability tests**
 
 Add to `tests/unit/agent/test_scheduling_capability.py`:
 
@@ -1582,7 +1587,7 @@ async def test_scheduling_tool_fn_exposes_calendar_fact_and_duration_args():
     assert "duration_minutes" in function.parameters["properties"]
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -1592,7 +1597,7 @@ Run:
 
 Expected: FAIL because `list_friend_calendar_facts`, range args, and `duration_minutes` are not exposed to the scheduling runtime.
 
-- [ ] **Step 3: Add scheduling tool name and read-only classification**
+- [x] **Step 3: Add scheduling tool name and read-only classification**
 
 In `agent/agno_agent/capabilities/scheduling.py`, add `"list_friend_calendar_facts"` to `SCHEDULING_TOOL_NAMES` after `"list_friends"`.
 
@@ -1602,7 +1607,7 @@ Add it to `_READ_ONLY_TOOL_NAMES`:
 "list_friend_calendar_facts",
 ```
 
-- [ ] **Step 4: Extend scheduling args model**
+- [x] **Step 4: Extend scheduling args model**
 
 In `agent/agno_agent/runtime/scheduling_types.py`, replace `SharedReminderSchedulingArgs` with:
 
@@ -1622,7 +1627,7 @@ class SharedReminderSchedulingArgs(BaseModel):
     idempotency_key: str | None = None
 ```
 
-- [ ] **Step 5: Expose args in scheduling tool function**
+- [x] **Step 5: Expose args in scheduling tool function**
 
 In `agent/agno_agent/runtime/execution_agents.py`, add parameters to `scheduling_tool`:
 
@@ -1649,7 +1654,7 @@ if tool_name == "list_friend_calendar_facts":
     return "friend_calendar_facts"
 ```
 
-- [ ] **Step 6: Run focused tests to verify pass**
+- [x] **Step 6: Run focused tests to verify pass**
 
 Run:
 
@@ -1659,7 +1664,7 @@ Run:
 
 Expected: PASS. `list_friend_calendar_facts` is read-only, while `create_shared_reminder` remains a durable write.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add agent/agno_agent/capabilities/scheduling.py agent/agno_agent/runtime/scheduling_types.py agent/agno_agent/runtime/execution_agents.py tests/unit/agent/test_scheduling_capability.py tests/unit/agent/test_agent_runtime_scheduling_tools.py tests/unit/agent/test_scheduling_types.py
@@ -1674,7 +1679,7 @@ git commit -m "feat: add friend calendar scheduling tool"
 - Test: `tests/unit/agent/test_chat_response_scheduling_instructions.py`
 - Test: `tests/unit/agent/test_agent_runtime_scheduling_tools.py`
 
-- [ ] **Step 1: Write failing prompt-policy tests**
+- [x] **Step 1: Write failing prompt-policy tests**
 
 Add to `tests/unit/agent/test_chat_response_scheduling_instructions.py`:
 
@@ -1711,7 +1716,7 @@ def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
     assert "Pass duration_minutes only after the conversation or policy determines it" in prompt
 ```
 
-- [ ] **Step 2: Run focused tests to verify failure**
+- [x] **Step 2: Run focused tests to verify failure**
 
 Run:
 
@@ -1721,7 +1726,7 @@ Run:
 
 Expected: FAIL because the new reminder-calendar policy is not present.
 
-- [ ] **Step 3: Update main chat response delegation policy**
+- [x] **Step 3: Update main chat response delegation policy**
 
 In `agent/agno_agent/runtime/chat_response_instructions.py`, add these bullets to `_DELEGATION_BOUNDARY`:
 
@@ -1734,7 +1739,7 @@ In `agent/agno_agent/runtime/chat_response_instructions.py`, add these bullets t
 - For a fitness class, lesson, or session, use 60 minutes unless the user states another duration. This duration choice is LLM policy; the backend must only persist the chosen interval.
 ```
 
-- [ ] **Step 4: Update scheduling execution worker prompt**
+- [x] **Step 4: Update scheduling execution worker prompt**
 
 In `agent/agno_agent/runtime/execution_agents.py`, replace `_SCHEDULING_SYSTEM_PROMPT` with:
 
@@ -1754,7 +1759,7 @@ _SCHEDULING_SYSTEM_PROMPT = (
 )
 ```
 
-- [ ] **Step 5: Run focused tests to verify pass**
+- [x] **Step 5: Run focused tests to verify pass**
 
 Run:
 
@@ -1764,7 +1769,7 @@ Run:
 
 Expected: PASS. These tests prove the 7-day query range and 60-minute fitness lesson default live in prompt/runtime policy, not in Gateway services.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add agent/agno_agent/runtime/chat_response_instructions.py agent/agno_agent/runtime/execution_agents.py tests/unit/agent/test_chat_response_scheduling_instructions.py tests/unit/agent/test_agent_runtime_scheduling_tools.py
@@ -1778,7 +1783,7 @@ git commit -m "feat: teach agent friend calendar policy"
 - Modify: `docs/product-specs/FEATURE_TREE.md`
 - Modify: `docs/superpowers/specs/2026-05-24-reminder-calendar-friend-booking-design.md` only if implementation discovers the accepted spec has a factual error.
 
-- [ ] **Step 1: Update architecture docs**
+- [x] **Step 1: Update architecture docs**
 
 In `docs/ARCHITECTURE.md`, update the Reminder System section with:
 
@@ -1794,7 +1799,7 @@ In `docs/ARCHITECTURE.md`, update the Reminder System section with:
 
 Update the scheduling domain paragraph to add `list_friend_calendar_facts` to the tool list.
 
-- [ ] **Step 2: Update product feature tree**
+- [x] **Step 2: Update product feature tree**
 
 In `docs/product-specs/FEATURE_TREE.md`, update the Reminder System entry:
 
@@ -1811,7 +1816,7 @@ Update Friend Link And Shared Reminders:
     participant Reminder Runtime records
 ```
 
-- [ ] **Step 3: Run docs structure checks**
+- [x] **Step 3: Run docs structure checks**
 
 Run:
 
@@ -1827,7 +1832,7 @@ Expected:
 - `suggest-verification` includes the surfaces touched by this feature, at minimum `repo-os`, `worker-runtime`, `bridge`, and `gateway-api`.
 - `review-trigger` may require human review because this is a cross-surface feature; record that output in the implementation final response.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/ARCHITECTURE.md docs/product-specs/FEATURE_TREE.md docs/superpowers/specs/2026-05-24-reminder-calendar-friend-booking-design.md gateway
@@ -1841,7 +1846,7 @@ If the spec file was not changed, omit it from `git add`.
 **Files:**
 - No new source files unless a previous task found a spec/code mismatch that required a documented correction.
 
-- [ ] **Step 1: Check worktree boundaries**
+- [x] **Step 1: Check worktree boundaries**
 
 Run:
 
@@ -1856,7 +1861,7 @@ Expected:
 - Gateway status is clean after Gateway commits.
 - No unrelated user edits are staged.
 
-- [ ] **Step 2: Run root Python unit tests for touched runtime surfaces**
+- [x] **Step 2: Run root Python unit tests for touched runtime surfaces**
 
 Run:
 
@@ -1866,7 +1871,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Run Gateway API tests for touched surfaces**
+- [x] **Step 3: Run Gateway API tests for touched surfaces**
 
 Run:
 
@@ -1876,7 +1881,7 @@ pnpm --dir gateway/packages/api test -- src/lib/reminder-runtime-client.test.ts 
 
 Expected: PASS.
 
-- [ ] **Step 4: Run Gateway web projection tests**
+- [x] **Step 4: Run Gateway web projection tests**
 
 Run:
 
@@ -1886,7 +1891,7 @@ pnpm --dir gateway/packages/web test -- lib/customer-reminders.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Run diff-aware verification routing**
+- [x] **Step 5: Run diff-aware verification routing**
 
 Run from `/data/projects/coke`:
 
@@ -1901,7 +1906,7 @@ Expected:
 - `verify-surface` passes for all named surfaces, or the implementation final response records the exact failing command and failure class.
 - `review-trigger` output is reported exactly; do not suppress a human-review requirement.
 
-- [ ] **Step 6: Final implementation response**
+- [x] **Step 6: Final implementation response**
 
 Report:
 
