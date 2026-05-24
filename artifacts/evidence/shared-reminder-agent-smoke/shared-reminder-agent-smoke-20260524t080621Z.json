@@ -1,0 +1,30 @@
+{
+  "batch_id": "20260524t080621Z",
+  "accounts": [],
+  "turns": [],
+  "findings": [
+    {
+      "severity": "blocker",
+      "summary": "bridge healthz unavailable before smoke",
+      "detail": "command=curl -sS -i --max-time 5 http://127.0.0.1:8090/bridge/healthz; exit_code=7; stderr=\"curl: (7) Failed to connect to 127.0.0.1 port 8090 after 0 ms: Couldn't connect to server\"; stdout=''",
+      "logged_at": 1779609981
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "problems": [
+      "Environment blocker: bridge health check failed, so the stack is not running on http://127.0.0.1:8090/bridge/healthz. Per task policy, ./start.sh was not run."
+    ]
+  },
+  "turn_count": 0,
+  "turn_summaries": [],
+  "preflight": {
+    "bridge_healthz_url": "http://127.0.0.1:8090/bridge/healthz",
+    "command": "curl -sS -i --max-time 5 http://127.0.0.1:8090/bridge/healthz",
+    "exit_code": 7,
+    "stdout": "",
+    "stderr": "curl: (7) Failed to connect to 127.0.0.1 port 8090 after 0 ms: Couldn't connect to server\n",
+    "classification": "environment issue",
+    "start_sh_run": false
+  }
+}

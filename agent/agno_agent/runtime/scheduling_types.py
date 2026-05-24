@@ -11,6 +11,8 @@ class SharedReminderSchedulingArgs(BaseModel):
     from_date: str | None = None
     to_date: str | None = None
     invitee_account_id: str | None = None
+    invitee_name: str | None = None
+    friend_account_id: str | None = None
     title: str | None = None
     fire_at: str | None = None
     duration_minutes: int | None = None
@@ -18,6 +20,8 @@ class SharedReminderSchedulingArgs(BaseModel):
     request_id: str | None = None
     friendship_id: str | None = None
     blocked_account_id: str | None = None
+    user_link_code: str | None = None
+    message: str | None = None
     idempotency_key: str | None = None
 
 

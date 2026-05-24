@@ -85,6 +85,31 @@ def test_create_shared_reminder_forwards_required_args():
     assert result.durable_write is True
 
 
+def test_write_tools_generate_idempotency_key_when_model_omits_it():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {"ok": True, "data": {"id": "srr_1"}}
+
+    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
+    result = port.run(
+        "Help me and Nora remember the meeting",
+        _run_context(user_id="acct_b"),
+        {
+            "invitee_name": "Nora",
+            "title": "meeting",
+            "fire_at": "2026-05-22T07:00:00.000Z",
+            "timezone": "Asia/Shanghai",
+        },
+    )
+
+    assert result.ok is True
+    assert captured["payload"]["idempotency_key"].startswith("create_shared_reminder:")
+
+
 def test_list_friend_calendar_facts_is_read_only_and_forwards_range_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

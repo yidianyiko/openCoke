@@ -34,6 +34,13 @@ def send_as(
     text: str,
     *,
     display_name: str | None = None,
+    tenant_id: str | None = None,
+    clawscale_user_id: str | None = None,
+    channel_id: str | None = None,
+    platform: str = "wechat_personal",
+    external_id: str | None = None,
+    end_user_id: str | None = None,
+    channel_scope: str = "personal",
     inbound_event_id: str | None = None,
     timestamp: int | None = None,
     request_timeout: float = 180.0,
@@ -43,11 +50,25 @@ def send_as(
     The bridge waits for the worker to produce a reply, so this is synchronous
     from the caller's view. `request_timeout` is the HTTP-level timeout — it
     must exceed the bridge's `reply_timeout_seconds`.
+
+    `tenant_id` / `clawscale_user_id` come from `account_factory.provision_account`
+    and may be `None` when provisioning was skipped — we synthesize deterministic
+    placeholders so the bridge's required-context check passes (it only checks
+    non-empty strings, not DB existence).
     """
+    label = coke_account_id.replace("ck_smoke_", "").replace("ck_", "")
     payload = {
         "customer_id": coke_account_id,
         "coke_account_id": coke_account_id,
-        "message": text,
+        "tenant_id": tenant_id or f"tnt_smoke_{label}",
+        "clawscale_user_id": clawscale_user_id or f"csu_smoke_{label}",
+        "channel_id": channel_id or f"chn_smoke_{label}",
+        "platform": platform,
+        "external_id": external_id or f"ext_smoke_{label}",
+        "end_user_id": end_user_id or f"eu_smoke_{label}",
+        "channel_scope": channel_scope,
+        "input": text,
+        "text": text,
         "message_type": "text",
         "timestamp": int(timestamp or time.time()),
         "inbound_event_id": inbound_event_id or f"smoke_evt_{uuid.uuid4().hex}",
@@ -69,9 +90,37 @@ def send_as(
     if response.status_code != 200 or not isinstance(body, dict) or not body.get("ok"):
         raise BridgeError(response.status_code, body)
 
+    reply_text = body.get("reply") or ""
+    output_id = body.get("output_id")
+    event_id = body.get("causal_inbound_event_id") or payload["inbound_event_id"]
+
+    # Bridge's reply_timeout_seconds (default 25) is short for shared dev where
+    # workers may be contended. If the bridge returned ok but no reply yet, poll
+    # mongo for the assistant's output keyed by causal_inbound_event_id.
+    if not reply_text:
+        reply_text, output_id = _poll_for_reply(event_id, request_timeout)
+
     return BridgeReply(
-        reply=body.get("reply") or "",
-        output_id=body.get("output_id"),
-        causal_inbound_event_id=body.get("causal_inbound_event_id") or payload["inbound_event_id"],
+        reply=reply_text,
+        output_id=output_id,
+        causal_inbound_event_id=event_id,
         raw=body,
     )
+
+
+def _poll_for_reply(event_id: str, deadline_seconds: float) -> tuple[str, str | None]:
+    from pymongo import MongoClient  # local import to keep the basic send path lean
+
+    client = MongoClient(_config.mongo_uri())
+    collection = client[_config.mongo_db_name()].outputmessages
+    deadline = time.monotonic() + deadline_seconds
+    while time.monotonic() < deadline:
+        cursor = collection.find(
+            {"metadata.business_protocol.causal_inbound_event_id": event_id}
+        ).sort("input_timestamp", 1)
+        messages = list(cursor)
+        if messages:
+            text = "\n".join(m.get("message", "") for m in messages if m.get("message"))
+            return text, str(messages[0].get("_id")) if messages else None
+        time.sleep(1.5)
+    return "", None

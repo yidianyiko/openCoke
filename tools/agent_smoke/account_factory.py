@@ -26,6 +26,17 @@ class SmokeAccount:
     tenant_id: str | None
     clawscale_user_id: str | None
 
+    def send_kwargs(self) -> dict:
+        """Kwargs to splat into bridge_client.send_as so identity is wired."""
+        kwargs: dict = {
+            "display_name": self.display_name,
+        }
+        if self.tenant_id:
+            kwargs["tenant_id"] = self.tenant_id
+        if self.clawscale_user_id:
+            kwargs["clawscale_user_id"] = self.clawscale_user_id
+        return kwargs
+
 
 _LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,32}$")
 
@@ -64,6 +75,18 @@ def provision_account(
     clawscale_user_id: str | None = None
 
     if not skip_provision:
+        # Gateway provision needs an existing Customer + Identity + Membership.
+        # No public API for test accounts, so we seed the platform graph first.
+        from tools.agent_smoke.postgres_seed import seed_customer_graph
+
+        identity_id = f"id_smoke_{batch_id}_{label}"
+        seed_customer_graph(
+            coke_account_id=coke_account_id,
+            identity_id=identity_id,
+            email=f"{label}.{batch_id}.smoke@example.test",
+            display_name=display_name,
+        )
+
         url = _config.gateway_api_base_url() + "/api/internal/coke-users/provision"
         headers = {
             "Authorization": f"Bearer {_config.gateway_identity_api_key()}",

@@ -28,6 +28,8 @@ def test_compact_scheduling_args_serializes_shared_reminder_args():
             "from_date": None,
             "to_date": None,
             "invitee_account_id": "acct_a",
+            "invitee_name": None,
+            "friend_account_id": None,
             "title": "meeting",
             "fire_at": "2026-05-22T07:00:00.000Z",
             "duration_minutes": None,
@@ -35,6 +37,8 @@ def test_compact_scheduling_args_serializes_shared_reminder_args():
             "request_id": None,
             "friendship_id": None,
             "blocked_account_id": None,
+            "user_link_code": None,
+            "message": None,
             "idempotency_key": "shared-1",
         }
     }
@@ -65,6 +69,8 @@ def test_shared_reminder_scheduling_args_round_trips():
         "from_date": None,
         "to_date": None,
         "invitee_account_id": "acct_a",
+        "invitee_name": None,
+        "friend_account_id": None,
         "title": "meeting",
         "fire_at": "2026-05-22T07:00:00.000Z",
         "duration_minutes": None,
@@ -72,6 +78,8 @@ def test_shared_reminder_scheduling_args_round_trips():
         "request_id": "srr_1",
         "friendship_id": "fs_1",
         "blocked_account_id": "acct_c",
+        "user_link_code": None,
+        "message": None,
         "idempotency_key": "shared-1",
     }
 

@@ -26,6 +26,11 @@ from agent.agno_agent.runtime.scheduling_types import _compact_scheduling_args
 _SCHEDULING_SYSTEM_PROMPT = (
     "You are the friend-link, friend-calendar, and shared-reminder execution worker. "
     "Call exactly one scheduling tool that matches the intent. "
+    "When a user asks to add a friend by public user-link code, call "
+    "send_friend_request_by_user_link_code with user_link_code. "
+    "For create_shared_reminder, pass invitee_name when the user named a friend "
+    "but did not provide an account id; do not call list_friends for this intent. "
+    "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
     "Call list_friends before list_friend_calendar_facts when the friend is not resolved. "
     "Do not create shared reminder state unless the named person resolves to "
     "one active friend. Ask for clarification when the name is ambiguous. "
@@ -226,6 +231,8 @@ def _make_scheduling_tool_fn(
         from_date: str | None = None,
         to_date: str | None = None,
         invitee_account_id: str | None = None,
+        invitee_name: str | None = None,
+        friend_account_id: str | None = None,
         title: str | None = None,
         fire_at: str | None = None,
         duration_minutes: int | None = None,
@@ -233,6 +240,8 @@ def _make_scheduling_tool_fn(
         request_id: str | None = None,
         friendship_id: str | None = None,
         blocked_account_id: str | None = None,
+        user_link_code: str | None = None,
+        message: str | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
@@ -269,7 +278,8 @@ def _make_scheduling_tool_fn(
                     "target_account_id": target_account_id,
                     "from_date": from_date,
                     "to_date": to_date,
-                    "invitee_account_id": invitee_account_id,
+                    "invitee_account_id": invitee_account_id or friend_account_id,
+                    "invitee_name": invitee_name,
                     "title": title,
                     "fire_at": fire_at,
                     "duration_minutes": duration_minutes,
@@ -277,6 +287,8 @@ def _make_scheduling_tool_fn(
                     "request_id": request_id,
                     "friendship_id": friendship_id,
                     "blocked_account_id": blocked_account_id,
+                    "user_link_code": user_link_code,
+                    "message": message,
                     "idempotency_key": idempotency_key,
                 }
             ),
@@ -289,6 +301,13 @@ def _make_scheduling_tool_fn(
         return domain_result.to_dict()
 
     return scheduling_tool
+
+
+def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
+    normalized = intent.lower()
+    if "create_shared_reminder" in normalized:
+        return ("create_shared_reminder",)
+    return SCHEDULING_TOOL_NAMES
 
 
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
@@ -308,8 +327,9 @@ async def run_scheduling_domain(
     """Spawn SchedulingExecutionAgent and append typed scheduling domain results."""
     local_domain_results: list[DomainExecutionResult] = []
     execution_guard = _SchedulingExecutionGuard()
+    tool_names = _tool_names_for_intent(intent)
     ports = {
-        name: SchedulingCapabilityPort(tool_name=name) for name in SCHEDULING_TOOL_NAMES
+        name: SchedulingCapabilityPort(tool_name=name) for name in tool_names
     }
     tools = [
         tool(name=name)(

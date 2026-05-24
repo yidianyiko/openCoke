@@ -1,0 +1,216 @@
+{
+  "batch_id": "20260524t124407Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_5hXuBW25RrgH4Ku78K8em",
+      "clawscale_user_id": "csu_2ccyX_UuF3yLpkvl5JFMs"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t124407Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_4wtdK18GqJ9y0Nv2DMvse",
+      "clawscale_user_id": "csu_rnPKb5nKA3AOeQdJs7ntE"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_96afa94e7ae94b109bf32f132632cf07",
+      "reply_text": "Hii！我是 Coke，你的健康搭子～\n\n我能帮你做的事主要就三个：\n1️⃣ 约课——想跟彭教练上课直接告诉我就行\n2️⃣ 提醒——运动、吃药、喝水各种事都能设提醒\n3️⃣ 聊聊健康问题——训练、康复、减肥这些都能聊\n\n你最近有什么健康目标吗？",
+      "output_id": "6a12f2a37890bec68e037b87",
+      "elapsed_ms": 13048,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_e126c5ae36f94003a7fc4976bcaa5d50",
+      "reply_text": "目前没有待处理的好友请求，也没有未处理的通知。",
+      "output_id": "6a12f2b27890bec68e037ba1",
+      "elapsed_ms": 15045,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_346a89859ac840a2b544dd619c680fc7",
+      "reply_text": "这是你的邀请链接，发给朋友让他/她加你吧：\nhttp://localhost:4040/u/oX01YGJrrYmh",
+      "output_id": "6a12f2ca7890bec68e037bc3",
+      "elapsed_ms": 24068,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t124407Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_b0af5969b84a4ec09cb56a4d3fd737ce",
+      "reply_text": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+      "output_id": "6a12f2f87890bec68e037bfd",
+      "elapsed_ms": 5025,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t124407Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_a4893c8fa6cb46f7b74cacf1e9990934",
+      "reply_text": "目前没有待处理的好友请求或通知哦。",
+      "output_id": "6a12f3067890bec68e037c15",
+      "elapsed_ms": 15047,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t124407Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：oX01YGJrrYmh。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_47c425ec16ef4836a01a9d97be615e83",
+      "reply_text": "好友请求已经发送过去了，备注写的是“跑步搭子”。等对方同意后你们就能一起跑步互相督促啦～ 还有其他需要帮忙的吗？",
+      "output_id": "6a12f3157890bec68e037c2f",
+      "elapsed_ms": 15047,
+      "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_b615688e71474e4db6890de5ea764e84",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205451,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_edc8145757654e0fb58bbd5a73530f97",
+      "reply_text": "我帮你看一下有没有 Bob 的好友请求哈~",
+      "output_id": "6a12f40b98db230fcce92c33",
+      "elapsed_ms": 26578,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_a39b36100da8427a93a5b4a43b0e3828",
+      "reply_text": "你现在的好友列表是空的，还没有添加任何好友哦。",
+      "output_id": "6a12f41698db230fcce92c48",
+      "elapsed_ms": 11036,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_2911f1d24ecf45d1a47964be42b83b7a",
+      "reply_text": "想帮你和 Bob 建共享提醒，但遇到了一点系统问题，暂时查不了好友列表。\n\n建共享提醒需要先把 Bob 加为好友，你之前已经加过 Bob 了吗？",
+      "output_id": "6a12f44398db230fcce92c80",
+      "elapsed_ms": 44609,
+      "note": "alice_create_shared_reminder"
+    },
+    {
+      "turn": 11,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "好像刚才有问题。再帮我看一下：我现在的好友请求列表，把 Bob 的通过。",
+      "inbound_event_id": "smoke_evt_9b1a2dc1937e477fad8fbfff35cba70a",
+      "reply_text": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+      "output_id": "6a12f4e598db230fcce92d2b",
+      "elapsed_ms": 18058,
+      "note": "retry_after_empty_response"
+    },
+    {
+      "turn": 12,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "现在我的好友里有谁？",
+      "inbound_event_id": "smoke_evt_ab3897dd28c74716be1d92a60281c494",
+      "reply_text": "抱歉，目前暂时查不到你的好友列表，可能是系统有点卡。你可以稍后再问我，或者直接告诉我你想找谁？",
+      "output_id": "6a12f4fd98db230fcce92d4c",
+      "elapsed_ms": 23065,
+      "note": "alice_friends_after_retry"
+    },
+    {
+      "turn": 13,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t124407Z_alice",
+      "input_text": "约 Bob 这周五晚上 19:30 在小区操场跑步 40 分钟，帮我们俩建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_4cf774c4f42b45d2983ab7fe6dfb68d9",
+      "reply_text": "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。",
+      "output_id": "6a12f50e98db230fcce92d68",
+      "elapsed_ms": 18054,
+      "note": "alice_shared_reminder_after_friend"
+    },
+    {
+      "turn": 14,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t124407Z_bob",
+      "input_text": "我有没有待处理的共享提醒？只列待处理的。",
+      "inbound_event_id": "smoke_evt_4039557869eb4755be979718874f330f",
+      "reply_text": "没有待处理的共享提醒。",
+      "output_id": "6a12f51e98db230fcce92d82",
+      "elapsed_ms": 15047,
+      "note": "bob_pending_shared_reminders"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "summary": "Bug A: Raw MultiModalResponses JSON envelope leak",
+      "detail": "FIXED via agent_runtime.py _try_parse_envelope_json. Regression test added. Not naturally reproduced this batch.",
+      "logged_at": 1779627398
+    },
+    {
+      "severity": "high",
+      "summary": "Bug B: Empty-response fallback fires often",
+      "detail": "STILL PRESENT. 4/14 turns this batch (T4,T11,T13 + worker crash T7).",
+      "logged_at": 1779627398
+    },
+    {
+      "severity": "critical",
+      "summary": "Bug C: Assistant hallucinates side effects",
+      "detail": "IMPROVED via WIP unconfirmed-write detector. T8/T12 now honest about not knowing instead of lying.",
+      "logged_at": 1779627398
+    },
+    {
+      "severity": "medium",
+      "summary": "agent_runner crash + restart mid-turn (T7)",
+      "detail": "KeyboardInterrupt/CancelledError at 21:48:12. pm2 has restarted coke-agent 119 times historically.",
+      "logged_at": 1779627398
+    },
+    {
+      "severity": "medium",
+      "summary": "Bridge dev process silently exited",
+      "detail": "Flask dev server died without traceback. Production wraps in docker/systemd, but dev paper-cut.",
+      "logged_at": 1779627398
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "problems": [
+      "bug_b_empty_response_remaining",
+      "bug_c_action_not_taken_remaining",
+      "agent_runner_unstable",
+      "bridge_dev_unstable"
+    ]
+  }
+}

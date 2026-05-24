@@ -1,0 +1,23 @@
+{
+  "batch_id": "20260524t121613Z",
+  "accounts": [],
+  "turns": [],
+  "findings": [
+    {
+      "severity": "blocker",
+      "summary": "environment/access: sandbox cannot reach live local stack",
+      "detail": "Health probes to http://127.0.0.1:8090/bridge/healthz and http://127.0.0.1:4041/health failed with curl exit 7. Process inspection shows this Codex command is running under bwrap with --unshare-net, so the sandbox has an isolated network namespace. pm2 status also failed with EPERM against /home/ydyk/.pm2 sockets/logs. No accounts were provisioned and no agent turns were sent because the live bridge/gateway are inaccessible from this sandbox.",
+      "logged_at": 1779624973
+    }
+  ],
+  "verdict": {
+    "passed": false,
+    "problems": [
+      "environment/access: live bridge and gateway are inaccessible from the sandbox network namespace; smoke could not start provisioning or turns"
+    ]
+  },
+  "turn_count": 0,
+  "errors": [
+    "environment/access: live bridge and gateway are inaccessible from the sandbox network namespace; smoke could not start provisioning or turns"
+  ]
+}

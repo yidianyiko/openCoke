@@ -215,6 +215,30 @@ async def test_multimodal_json_becomes_ordered_visible_text_segments(monkeypatch
 
 
 @pytest.mark.asyncio
+async def test_fenced_multimodal_json_envelope_is_unwrapped(monkeypatch):
+    """Model occasionally emits the MultiModalResponses envelope wrapped in
+    a ```json markdown fence. The runtime must strip the fence before parsing
+    so the user never sees the raw envelope."""
+    envelope = _segments_payload(
+        {"type": "text", "content": "Hii！我是 Coke"},
+        {"type": "text", "content": "我可以帮你约课"},
+    )
+    fenced = f"```json\n{envelope}\n```"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": fenced}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=fenced,
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "Hii！我是 Coke",
+        "我可以帮你约课",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_malformed_multimodal_json_falls_back_to_single_text(monkeypatch):
     raw = '{"MultiModalResponses": [{"type": "text", "content": "缺了括号"}'
 
@@ -329,6 +353,22 @@ async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch
     )
 
     assert calls == 0
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
+async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_write(monkeypatch):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": "好啦，已经帮你和 Nora 建了共享提醒。"}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="帮我和 Nora 建一个共享提醒",
+        content="好啦，已经帮你和 Nora 建了共享提醒。",
+    )
+
     assert result.visible_messages == ()
     assert result.output_disposition.status == "empty"
     assert result.error_disposition is not None

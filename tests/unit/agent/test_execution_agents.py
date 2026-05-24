@@ -247,6 +247,11 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
     assert captured["instructions"] == (
         "You are the friend-link, friend-calendar, and shared-reminder execution worker. "
         "Call exactly one scheduling tool that matches the intent. "
+        "When a user asks to add a friend by public user-link code, call "
+        "send_friend_request_by_user_link_code with user_link_code. "
+        "For create_shared_reminder, pass invitee_name when the user named a friend "
+        "but did not provide an account id; do not call list_friends for this intent. "
+        "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
         "Call list_friends before list_friend_calendar_facts when the friend is not resolved. "
         "Do not create shared reminder state unless the named person resolves to "
         "one active friend. Ask for clarification when the name is ambiguous. "
@@ -503,6 +508,50 @@ async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder
     assert operation["entity_type"] == "shared_reminder_request"
     assert operation["entity_id"] == "srr_1"
     assert operation["facts"]["status"] == "pending_invitee_confirmation"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_exposes_only_create_tool_for_shared_reminder_intent():
+    captured_tools: set[str] = set()
+
+    class _SharedReminderAgent:
+        def __init__(self, **kwargs):
+            captured_tools.update(item.name for item in kwargs["tools"])
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["create_shared_reminder"](
+                invitee_name="Nora",
+                title="meeting",
+                fire_at="2026-05-25T06:00:00+00:00",
+                timezone="Asia/Tokyo",
+                idempotency_key="shared:nora:2026-05-25T06:00:00Z",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+            )
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _SharedReminderAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            await run_scheduling_domain(
+                input_message="帮我和 Nora 建一个共享提醒",
+                intent="create_shared_reminder for Nora",
+                run_context=_run_context(),
+                domain_results=[],
+            )
+
+    assert captured_tools == {"create_shared_reminder"}
 
 
 @pytest.mark.asyncio

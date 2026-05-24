@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from hashlib import sha256
 from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -14,6 +15,7 @@ SCHEDULING_TOOL_NAMES = (
     "get_user_link",
     "reset_user_link",
     "disable_user_link",
+    "send_friend_request_by_user_link_code",
     "list_friend_requests",
     "accept_friend_request",
     "reject_friend_request",
@@ -41,6 +43,7 @@ _READ_ONLY_TOOL_NAMES = {
 _DURABLE_WRITE_VISIBLE_SUMMARIES = {
     "reset_user_link": "已重置用户链接。",
     "disable_user_link": "已停用用户链接。",
+    "send_friend_request_by_user_link_code": "已发送好友请求。",
     "accept_friend_request": "已通过好友请求。",
     "reject_friend_request": "已拒绝好友请求。",
     "cancel_friend_request": "已取消好友请求。",
@@ -121,6 +124,7 @@ class SchedulingCapabilityPort:
             args or {},
             input_message=input_message,
             run_context=run_context,
+            tool_name=self.tool_name,
         )
         try:
             raw = (
@@ -168,8 +172,12 @@ def _trusted_tool_payload(
     *,
     input_message: str,
     run_context: AgentRunContext,
+    tool_name: str,
 ) -> dict[str, Any]:
     payload = dict(args)
+    if tool_name not in _READ_ONLY_TOOL_NAMES and not str(payload.get("idempotency_key") or "").strip():
+        seed = f"{run_context.user.id}:{run_context.conversation.id}:{tool_name}:{input_message}"
+        payload["idempotency_key"] = f"{tool_name}:{sha256(seed.encode()).hexdigest()[:32]}"
     payload.update(
         {
             "customer_id": run_context.user.id,

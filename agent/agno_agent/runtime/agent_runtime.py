@@ -43,6 +43,12 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         r"(\u63d0\u9192|\u901a\u77e5)"
     ),
     re.compile(
+        r"(\u5df2\u7ecf|\u5df2|\u5e2e\u4f60|\u597d\u5566).{0,24}"
+        r"(\u5efa\u4e86|\u521b\u5efa|created|set up).{0,24}"
+        r"(\u5171\u4eab\u63d0\u9192|shared reminder)",
+        re.IGNORECASE,
+    ),
+    re.compile(
         r"\b(i(?:'ll| will|'ve| have)|we(?:'ll| will)).{0,40}"
         r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
         re.IGNORECASE,
@@ -282,13 +288,35 @@ def _string_content(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+_FENCED_JSON_RE = re.compile(
+    r"^\s*```(?:json|JSON)?\s*\n?(?P<body>.*?)\n?```\s*$",
+    re.DOTALL,
+)
+
+
+def _try_parse_envelope_json(final_text: str) -> Any:
+    """Parse a MultiModalResponses envelope, transparently stripping markdown
+    code fences the model sometimes wraps it in. Returns the parsed object or
+    None when nothing JSON-shaped can be recovered."""
+    try:
+        return json.loads(final_text)
+    except json.JSONDecodeError:
+        pass
+    match = _FENCED_JSON_RE.match(final_text)
+    if match is None:
+        return None
+    try:
+        return json.loads(match.group("body"))
+    except json.JSONDecodeError:
+        return None
+
+
 def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
     if not final_text:
         return ()
 
-    try:
-        payload = json.loads(final_text)
-    except json.JSONDecodeError:
+    payload = _try_parse_envelope_json(final_text)
+    if payload is None:
         return (final_text,)
 
     if not isinstance(payload, Mapping):
@@ -398,6 +426,7 @@ def _check_unconfirmed_durable_write_promise(
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[2],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[3],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[4],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[5],
         )
         if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
             return None
