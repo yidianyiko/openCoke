@@ -91,5 +91,81 @@
       "intent_type": "discussion",
       "action": ""
     }
+  },
+  {
+    "decision_class": "clarify.status_only",
+    "input": "提醒我没做完",
+    "decision": {
+      "intent_type": "clarify",
+      "action": "",
+      "clarification_reason": "status_only_content"
+    }
+  },
+  {
+    "decision_class": "clarify.completion_condition",
+    "input": "看完书后提醒我",
+    "decision": {
+      "intent_type": "clarify",
+      "action": "",
+      "clarification_reason": "completion_condition_missing_time"
+    }
+  },
+  {
+    "decision_class": "clarify.date_only",
+    "input": "5月25号提醒我交报告",
+    "decision": {
+      "intent_type": "clarify",
+      "action": "",
+      "clarification_reason": "date_only_missing_time"
+    }
+  },
+  {
+    "decision_class": "clarify.ambiguous_range",
+    "input": "下午两三点提醒我开会",
+    "decision": {
+      "intent_type": "clarify",
+      "action": "",
+      "clarification_reason": "ambiguous_time_range"
+    }
+  },
+  {
+    "decision_class": "discussion.meta",
+    "input": "你这个提醒功能怎么保持发出去之后还得回复啊",
+    "decision": {
+      "intent_type": "discussion",
+      "action": ""
+    }
+  },
+  {
+    "decision_class": "discussion.feature_work",
+    "input": "我们来测试一下提醒功能能不能讨论一下",
+    "decision": {
+      "intent_type": "discussion",
+      "action": ""
+    }
+  },
+  {
+    "decision_class": "discussion.plain_schedule",
+    "input": "今天晚上8点我要看电影",
+    "decision": {
+      "intent_type": "discussion",
+      "action": ""
+    }
+  },
+  {
+    "decision_class": "discussion.acknowledgement",
+    "input": "谢谢闹钟",
+    "decision": {
+      "intent_type": "discussion",
+      "action": ""
+    }
+  },
+  {
+    "decision_class": "discussion.opt_out",
+    "input": "All good, no reminders pls",
+    "decision": {
+      "intent_type": "discussion",
+      "action": ""
+    }
   }
 ]

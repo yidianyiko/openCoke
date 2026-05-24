@@ -95,7 +95,7 @@ def test_reminder_few_shot_fixture_stays_small_and_representative():
     shots = load_reminder_few_shots()
     classes = {shot["decision_class"] for shot in shots}
 
-    assert len(shots) <= 8
+    assert len(shots) <= 18
     assert classes == {
         "crud.create",
         "crud.batch",
@@ -104,4 +104,13 @@ def test_reminder_few_shot_fixture_stays_small_and_representative():
         "query",
         "clarify",
         "discussion",
+        "clarify.status_only",
+        "clarify.completion_condition",
+        "clarify.date_only",
+        "clarify.ambiguous_range",
+        "discussion.meta",
+        "discussion.feature_work",
+        "discussion.plain_schedule",
+        "discussion.acknowledgement",
+        "discussion.opt_out",
     }
