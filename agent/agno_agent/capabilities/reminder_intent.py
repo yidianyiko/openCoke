@@ -183,16 +183,6 @@ class ReminderIntentPort:
                 input_message,
                 _invalid_decision_clarification_result(),
             )
-        if _should_execute_decision(
-            decision
-        ) and _input_has_large_today_time_range_points_request(input_message):
-            return _ambiguous_time_range_clarification_result()
-        if _should_execute_decision(
-            decision
-        ) and _is_today_time_range_points_incomplete_or_recurring(
-            input_message, decision
-        ):
-            return _ambiguous_time_range_clarification_result()
         if _should_execute_decision(decision) and _is_bounded_cadence_deadline_loss(
             input_message, decision
         ):
@@ -223,7 +213,13 @@ class ReminderIntentPort:
                 input_message
             ) or _input_is_reminder_feature_work_topic(input_message):
                 return _no_action_discussion_result()
-            return _clarification_result(decision)
+            reason = str(
+                _decision_value(decision, "clarification_reason") or ""
+            ).strip()
+            builder = _CLARIFICATION_TEMPLATES.get(reason)
+            if builder is None:
+                return _invalid_decision_clarification_result()
+            return builder()
         intent_type = _decision_value(decision, "intent_type")
         if intent_type in {"discussion", "none"}:
             return _no_action_discussion_result()
@@ -246,14 +242,6 @@ class ReminderIntentPort:
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
         )
-        if _should_clarify_date_only_create(input_message, decision):
-            return _date_only_missing_time_clarification_result()
-        if _should_clarify_ambiguous_time_range_create(input_message, decision):
-            return _ambiguous_time_range_clarification_result()
-        if _should_clarify_completion_condition_create(input_message, decision):
-            return _completion_condition_missing_time_clarification_result()
-        if _should_clarify_status_only_content_create(input_message, decision):
-            return _missing_reminder_content_clarification_result()
         if (
             (
                 _should_reject_title_schedule_evidence_leak(decision)
@@ -999,67 +987,6 @@ def _copy_decision_with_operations(decision: Any, operations: list[Any]) -> Any:
     return SimpleNamespace(**data)
 
 
-def _should_clarify_date_only_create(input_message: str, decision: Any) -> bool:
-    if not _decision_has_create_operation(decision):
-        return False
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    has_date_reference = bool(
-        _EXPLICIT_DATE_PATTERN.search(current_user_text)
-        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
-    )
-    if not has_date_reference or _BARE_CLOCK_PATTERN.search(current_user_text):
-        return False
-    return True
-
-
-def _should_clarify_ambiguous_time_range_create(
-    input_message: str, decision: Any
-) -> bool:
-    if not _decision_has_create_operation(decision):
-        return False
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    return bool(_AMBIGUOUS_ADJACENT_HOUR_RANGE_PATTERN.search(current_user_text))
-
-
-def _should_clarify_completion_condition_create(
-    input_message: str, decision: Any
-) -> bool:
-    if not _decision_has_create_operation(decision):
-        return False
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not _REMINDER_VERB_PATTERN.search(current_user_text):
-        return False
-    if not _COMPLETION_CONDITION_PATTERN.search(current_user_text):
-        return False
-    if (
-        _RELATIVE_DELAY_PATTERN.search(current_user_text)
-        or _BARE_CLOCK_PATTERN.search(current_user_text)
-        or _EXPLICIT_DATE_PATTERN.search(current_user_text)
-        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
-    ):
-        return False
-    return True
-
-
-def _should_clarify_status_only_content_create(input_message: str, decision: Any) -> bool:
-    if not _decision_has_create_operation(decision):
-        return False
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not _REMINDER_VERB_PATTERN.search(current_user_text):
-        return False
-    if not _BARE_CLOCK_PATTERN.search(current_user_text):
-        return False
-    if _input_has_clocked_task_before_trailing_reminder_verb(input_message):
-        return False
-    if _input_has_concrete_time_without_reminder_content(current_user_text):
-        return True
-    for title in _decision_titles(decision):
-        normalized_title = re.sub(r"\s+", "", title).strip().lower()
-        if _STATUS_ONLY_REMINDER_TITLE_PATTERN.fullmatch(normalized_title):
-            return True
-    return False
-
-
 def _should_reject_ungoverned_single_create_title(
     input_message: str, decision: Any
 ) -> bool:
@@ -1285,41 +1212,6 @@ def _create_trigger_values(decision: Any) -> tuple[str, ...]:
     return tuple(values)
 
 
-def _is_today_time_range_points_incomplete_or_recurring(
-    input_message: str, decision: Any
-) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not _input_has_today_time_range_points_request(current_user_text):
-        return False
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action != "batch":
-        return True
-    if _decision_has_recurring_create(decision):
-        return True
-    create_count = sum(
-        1
-        for operation in (_decision_value(decision, "operations") or [])
-        if str(_operation_value(operation, "action") or "").strip() == "create"
-    )
-    return create_count < 2
-
-
-def _input_has_today_time_range_points_request(text: str) -> bool:
-    normalized = str(text or "").strip()
-    if "今天" not in normalized or "这些时间点" not in normalized:
-        return False
-    if "提醒" not in normalized:
-        return False
-    return len(_CLOCK_RANGE_PATTERN.findall(normalized)) >= 2
-
-
-def _input_has_large_today_time_range_points_request(text: str) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", text).strip()
-    if not _input_has_today_time_range_points_request(current_user_text):
-        return False
-    return len(_CLOCK_RANGE_PATTERN.findall(current_user_text)) >= 4
-
-
 def _decision_has_recurring_create(decision: Any) -> bool:
     action = str(_decision_value(decision, "action") or "").strip()
     if action == "create":
@@ -1375,9 +1267,7 @@ def _decision_titles(decision: Any) -> tuple[str, ...]:
 
 
 def _is_clarification_decision(decision: Any) -> bool:
-    return _decision_value(decision, "intent_type") == "clarify" and bool(
-        str(_decision_value(decision, "clarification_question") or "").strip()
-    )
+    return _decision_value(decision, "intent_type") == "clarify"
 
 
 def _is_unbounded_high_frequency_cadence(
@@ -1540,65 +1430,6 @@ def _input_has_high_frequency_without_deadline(text: str) -> bool:
         "end at",
     )
     return not any(token in normalized for token in deadline_tokens)
-
-
-def _input_has_one_shot_deadline_without_trigger(text: str) -> bool:
-    normalized = str(text or "").strip().lower()
-    if _is_high_frequency_evidence(normalized):
-        return False
-    has_reminder_request = any(
-        token in normalized
-        for token in (
-            "提醒",
-            "叫我",
-            "喊我",
-            "通知",
-            "remind",
-            "notify",
-            "alarm",
-        )
-    )
-    if not has_reminder_request:
-        return False
-    has_deadline_word = any(
-        token in normalized for token in ("之前", "以前", "前", "before", "by ")
-    )
-    has_clock = bool(
-        re.search(r"\d{1,2}\s*[:：点]", normalized)
-        or re.search(r"[一二三四五六七八九十两]+点", normalized)
-    )
-    return has_deadline_word and has_clock
-
-
-def _input_has_concrete_time_without_reminder_content(text: str) -> bool:
-    normalized = str(text or "").strip().lower()
-    if not normalized:
-        return False
-    has_concrete_time = bool(
-        re.search(r"\d{1,2}\s*[:：点]", normalized)
-        or re.search(r"[一二三四五六七八九十两]+点", normalized)
-        or re.search(r"(今天|今晚|明天|后天|周[一二三四五六日天])", normalized)
-    )
-    if not has_concrete_time:
-        return False
-    return bool(
-        re.search(
-            r"(?:提醒我一下|提醒我|提醒一下我|提醒一下|提醒|叫我|喊我)"
-            r"(?:吧|哦|噢|啊|呀|啦|哈|呢)?[。.!！?？~～\s]*$",
-            normalized,
-        )
-    )
-
-
-def _input_has_event_time_with_vague_advance_request(text: str) -> bool:
-    normalized = str(text or "").strip().lower()
-    if not normalized:
-        return False
-    if not _VAGUE_ADVANCE_REMINDER_PATTERN.search(normalized):
-        return False
-    if not _BARE_CLOCK_PATTERN.search(normalized):
-        return False
-    return bool(_REMINDER_VERB_PATTERN.search(normalized))
 
 
 def _input_is_plain_schedule_statement_without_reminder_request(text: str) -> bool:
@@ -1803,40 +1634,9 @@ def _fallback_clarification_for_input(
 ) -> DomainExecutionResult:
     if _input_is_standalone_reminder_opt_out(input_message):
         return _no_action_discussion_result()
-    if _input_has_high_frequency_without_deadline(input_message):
-        return _high_frequency_input_clarification_result()
     if _input_is_plain_schedule_statement_without_reminder_request(input_message):
         return _no_action_discussion_result()
-    error_code = fallback.error.code if fallback.error else ""
-    if error_code in {
-        "ReminderDetectInvalidDecision",
-        "ReminderDetectTimeout",
-    } and _input_has_date_reference_without_clock(input_message):
-        return _date_only_missing_time_clarification_result()
-    if error_code in {
-        "ReminderDetectInvalidDecision",
-        "ReminderDetectTimeout",
-    } and _input_has_event_time_with_vague_advance_request(input_message):
-        return _advance_offset_missing_clarification_result()
-    if error_code == "ReminderDetectInvalidDecision":
-        if _input_has_concrete_time_without_reminder_content(input_message):
-            return _missing_reminder_content_clarification_result()
-        if _input_has_one_shot_deadline_without_trigger(input_message):
-            return _deadline_without_trigger_clarification_result()
     return fallback
-
-
-def _input_has_date_reference_without_clock(input_message: str) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not _REMINDER_VERB_PATTERN.search(current_user_text):
-        return False
-    if _input_has_concrete_time_without_reminder_content(current_user_text):
-        return False
-    has_date_reference = bool(
-        _EXPLICIT_DATE_PATTERN.search(current_user_text)
-        or _STANDALONE_DAY_OF_MONTH_PATTERN.search(current_user_text)
-    )
-    return has_date_reference and not bool(_BARE_CLOCK_PATTERN.search(current_user_text))
 
 
 def _timeout_clarification_result() -> DomainExecutionResult:
@@ -1963,3 +1763,25 @@ def _needs_clarification_result(
         ),
         error=error,
     )
+
+
+def _ambiguous_request_clarification_result() -> DomainExecutionResult:
+    return _needs_clarification_result(
+        summary="请补充提醒信息。",
+        missing_fields=("target_reminder",),
+        safety_boundary="ambiguous_request",
+        required_questions=("target_reminder",),
+    )
+
+
+_CLARIFICATION_TEMPLATES = {
+    "date_only_missing_time": _date_only_missing_time_clarification_result,
+    "ambiguous_time_range": _ambiguous_time_range_clarification_result,
+    "completion_condition_missing_time": _completion_condition_missing_time_clarification_result,
+    "status_only_content": _missing_reminder_content_clarification_result,
+    "deadline_without_trigger": _deadline_without_trigger_clarification_result,
+    "advance_offset_missing": _advance_offset_missing_clarification_result,
+    "high_frequency_requires_end": _high_frequency_input_clarification_result,
+    "missing_reminder_content": _missing_reminder_content_clarification_result,
+    "ambiguous_request": _ambiguous_request_clarification_result,
+}

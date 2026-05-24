@@ -445,8 +445,7 @@ async def test_reminder_intent_port_failcloses_single_create_title_before_remind
 
     _assert_needs_clarification(
         result,
-        safety_boundary="deadline_without_trigger",
-        missing_fields=("trigger_at",),
+        error_code="ReminderDetectInvalidDecision",
     )
 
 
@@ -1581,176 +1580,43 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_date_only_create():
+@pytest.mark.parametrize("reason,expected_boundary,expected_missing", [
+    ("date_only_missing_time", "date_only_missing_time", ("trigger_at",)),
+    ("ambiguous_time_range", "ambiguous_time_range", ("trigger_at",)),
+    ("completion_condition_missing_time", "completion_condition_missing_time", ("trigger_at",)),
+    ("status_only_content", "missing_reminder_content", ("title",)),
+    ("deadline_without_trigger", "deadline_without_trigger", ("trigger_at",)),
+    ("advance_offset_missing", "advance_offset_missing", ("advance_offset",)),
+    ("high_frequency_requires_end", "high_frequency_requires_end", ("trigger_at", "end_time")),
+    ("missing_reminder_content", "missing_reminder_content", ("title",)),
+    ("ambiguous_request", "ambiguous_request", ("target_reminder",)),
+])
+async def test_reminder_intent_port_routes_clarification_reason_to_template(
+    reason, expected_boundary, expected_missing,
+):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="create",
-        title="预定礼盒",
-        trigger_at="2026-05-10T09:00:00+00:00",
-    )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
+            return SimpleNamespace(content=SimpleNamespace(
+                intent_type="clarify",
+                action="",
+                clarification_reason=reason,
+            ))
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
-            raise AssertionError("date-only midnight create must clarify before tool")
+            raise AssertionError("clarify must not execute")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
-    ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
+    ).run("ignored — routing test", _run_context())
 
     _assert_needs_clarification(
         result,
-        safety_boundary="date_only_missing_time",
-        missing_fields=("trigger_at",),
-    )
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_completion_condition_without_time():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="create",
-        title="进入论文研究",
-        trigger_at="2026-05-11T06:00:00+00:00",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("unschedulable completion condition should clarify")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("我现在要先看两篇文章，看完继续提醒我进入论文研究", _run_context())
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="completion_condition_missing_time",
-        missing_fields=("trigger_at",),
-    )
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_date_only_batch_create():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="10号",
-        operations=[
-            SimpleNamespace(
-                action="create",
-                title="预定礼盒",
-                trigger_at="2026-05-10T09:00:00+00:00",
-            )
-        ],
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("date-only batch create must clarify before tool")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("10号提醒我预定饼干、甜品礼盒", _run_context())
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="date_only_missing_time",
-        missing_fields=("trigger_at",),
-    )
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_ambiguous_adjacent_hour_range():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="周四下午四五点",
-        operations=[
-            SimpleNamespace(
-                action="create",
-                title="准备 resume",
-                trigger_at="2026-05-14T16:00:00+09:00",
-            ),
-            SimpleNamespace(
-                action="create",
-                title="准备 resume",
-                trigger_at="2026-05-14T17:00:00+09:00",
-            ),
-        ],
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("ambiguous adjacent hour range must clarify")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("提醒我周四下午四五点，准备下resume", _run_context())
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="ambiguous_time_range",
-        missing_fields=("trigger_at",),
-    )
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_status_only_reminder_content():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="create",
-        title="还没弄完",
-        trigger_at="2026-05-11T11:00:00+09:00",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("status-only reminder content must clarify")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("十一点提醒我吧 还没弄完", _run_context())
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="missing_reminder_content",
-        missing_fields=("title",),
+        safety_boundary=expected_boundary,
+        missing_fields=expected_missing,
     )
 
 
@@ -1992,90 +1858,6 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
     _assert_executed(result)
     assert len(executor.received) == 1
     assert [op.title for op in executor.received[0].operations] == ["打卡"]
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_today_time_range_recurring_compression():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="create",
-        title="看法考网课和做题",
-        trigger_at="2026-05-11T11:30:00+09:00",
-        rrule="FREQ=DAILY",
-        schedule_basis="explicit_cadence",
-        schedule_evidence="今天的任务时间点",
-    )
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def __init__(self):
-            self.received = []
-
-        def execute(self, received_decision, run_context):
-            self.received.append(received_decision)
-            return _executed_result("已创建提醒：看法考网课；已创建提醒：健身")
-
-    executor = FakeExecutor()
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=executor,
-    ).run(
-        "这是我今天的任务 11：30-13：30 看法考网课；13：30-15：30 健身 请在这些时间点提醒我学习",
-        _run_context(),
-    )
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="ambiguous_time_range",
-        missing_fields=("trigger_at",),
-    )
-    assert executor.received == []
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_clarifies_large_today_time_range_plan():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="batch",
-        schedule_basis="explicit_occurrences",
-        schedule_evidence="这些时间点",
-        operations=[
-            SimpleNamespace(
-                action="create",
-                title="学习",
-                trigger_at=f"2026-05-11T{hour:02d}:00:00+09:00",
-            )
-            for hour in range(11, 15)
-        ],
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("large ambiguous day plan must clarify before tool")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run(
-        "这是我今天的任务 11-12 吃饭；12-13 学习；13-14 健身；14-15 洗澡 请在这些时间点提醒我学习",
-        _run_context(),
-    )
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="ambiguous_time_range",
-        missing_fields=("trigger_at",),
-    )
 
 
 @pytest.mark.asyncio
@@ -2433,51 +2215,3 @@ async def test_reminder_intent_port_fails_when_primary_detector_times_out(
     _assert_needs_clarification(result, error_code="ReminderDetectTimeout")
 
 
-@pytest.mark.asyncio
-async def test_reminder_intent_port_timeout_asks_deadline_for_high_frequency_input(
-    monkeypatch,
-):
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-
-    class SlowAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            await asyncio.sleep(60)
-
-    result = await asyncio.wait_for(
-        ReminderIntentPort(
-            detector_agent=SlowAgent(),
-        ).run("冥想可以每个小时提醒我做一次冥想吗", _run_context()),
-        timeout=0.5,
-    )
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="high_frequency_requires_end",
-        missing_fields=("end_time",),
-    )
-    assert result.error is None
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_primary_timeout_asks_window_for_whole_hour_input(
-    monkeypatch,
-):
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    monkeypatch.setenv("COKE_AGENT_RUNTIME_REMINDER_DETECT_TIMEOUT_SECONDS", "0.01")
-
-    class SlowPrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            await asyncio.sleep(60)
-
-    result = await ReminderIntentPort(
-        detector_agent=SlowPrimaryAgent(),
-    ).run("每个整点喊我打卡吧", _run_context())
-
-    _assert_needs_clarification(
-        result,
-        safety_boundary="high_frequency_requires_end",
-        missing_fields=("trigger_at", "end_time"),
-    )
