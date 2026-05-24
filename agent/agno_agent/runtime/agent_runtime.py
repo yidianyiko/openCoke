@@ -53,6 +53,21 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         r"\b(remind|notify|set (?:up )?(?:the )?reminder)",
         re.IGNORECASE,
     ),
+    # Friend-request accept claims without a successful write. Requires a
+    # first-person / completed lead-in so we don't trip on "wait for the other
+    # side to accept your request" — those are safe statements, not promises.
+    re.compile(
+        r"(已经|已|帮你|好啦|好嘞|I(?:'ve| have))"
+        r"(?:(?:.{0,32}(通过|接受|accepted|approved).{0,32}(请求|好友|friend request|friend-request))"
+        r"|(?:.{0,32}(请求|好友|friend request|friend-request).{0,16}(通过|接受|accepted|approved)))",
+        re.IGNORECASE,
+    ),
+    # "Now you're friends" claims: "你们现在是好友/好朋友啦", "now you are friends".
+    re.compile(
+        r"(你们现在|现在你们|now you(?:'re| are))"
+        r".{0,12}(是好(友|朋友)|friends?)",
+        re.IGNORECASE,
+    ),
 )
 def _float_env(name: str, default: float) -> float:
     raw_value = os.environ.get(name)
@@ -303,12 +318,41 @@ def _try_parse_envelope_json(final_text: str) -> Any:
     except json.JSONDecodeError:
         pass
     match = _FENCED_JSON_RE.match(final_text)
-    if match is None:
+    if match is not None:
+        try:
+            return json.loads(match.group("body"))
+        except json.JSONDecodeError:
+            pass
+    return _recover_lenient_envelope(final_text)
+
+
+_LENIENT_ENVELOPE_RE = re.compile(r'"MultiModalResponses"\s*:\s*\[')
+_LENIENT_CONTENT_RE = re.compile(
+    r'"type"\s*:\s*"text"[^{}]*?"content"\s*:\s*"((?:\\.|[^"\\])*)"',
+    re.DOTALL,
+)
+
+
+def _recover_lenient_envelope(final_text: str) -> Any:
+    """Last-resort recovery when the model emits a malformed envelope (e.g.
+    extra brace, missing comma). We don't try to repair the JSON; we just pull
+    out the text segments verbatim. Returns a synthetic envelope dict or None
+    when no plausible envelope signature is present."""
+    if _LENIENT_ENVELOPE_RE.search(final_text) is None:
         return None
-    try:
-        return json.loads(match.group("body"))
-    except json.JSONDecodeError:
+    segments: list[dict[str, str]] = []
+    for match in _LENIENT_CONTENT_RE.finditer(final_text):
+        raw = match.group(1)
+        try:
+            decoded = json.loads(f'"{raw}"')
+        except json.JSONDecodeError:
+            decoded = raw
+        decoded = decoded.strip()
+        if decoded:
+            segments.append({"type": "text", "content": decoded})
+    if not segments:
         return None
+    return {"MultiModalResponses": segments}
 
 
 def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
@@ -427,6 +471,8 @@ def _check_unconfirmed_durable_write_promise(
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[3],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[4],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[5],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[6],
+            _UNCONFIRMED_DURABLE_WRITE_PATTERNS[7],
         )
         if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
             return None

@@ -1,0 +1,180 @@
+{
+  "batch_id": "20260524t141327Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_17inTKUO5E92vh4-5srTR",
+      "clawscale_user_id": "csu_XiC6n0bM9I2A-TIFEq9og"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t141327Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_RQzuZT_NnmxiCMLUAT2q-",
+      "clawscale_user_id": "csu_vlp9rr9j1XX5w4avYga4Z"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_534cfa0f02dd4bb2a0f6bcc8c9f3d191",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a13078c2cdd3394aee03ef6",
+      "elapsed_ms": 6028,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_e25fd381d92b49719beb2e2e0b209497",
+      "reply_text": "目前没有待处理的好友请求，也没有系统通知。",
+      "output_id": "6a1307ae2cdd3394aee03f22",
+      "elapsed_ms": 34214,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_0846fda8f06f47cba554a8c673f2f769",
+      "reply_text": "这是你的邀请链接，发给朋友让他加你就行：http://localhost:4040/u/ctuH1nXBi6wR",
+      "output_id": "6a1307cd2cdd3394aee03f4c",
+      "elapsed_ms": 31094,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t141327Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_b151ca2aebb94012af27c758ff39e429",
+      "reply_text": "Hii Bob！我是 Coke，你的健康搭子，也能帮你约课。最近在忙什么呀，有想达成的健康目标吗？",
+      "output_id": "6a1307e82cdd3394aee03f72",
+      "elapsed_ms": 8035,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t141327Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_b8d1287b90444f2294184946a08c8f54",
+      "reply_text": "目前没有待处理的好友请求。",
+      "output_id": "6a1307f92cdd3394aee03f8e",
+      "elapsed_ms": 18059,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t141327Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：ctuH1nXBi6wR。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_c3035da0a9fc425b82f3477b3d565cae",
+      "reply_text": "已经帮你发送好友申请了，备注写的是“跑步搭子”，等对方通过就行～",
+      "output_id": "6a1308082cdd3394aee03fa7",
+      "elapsed_ms": 14046,
+      "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_b0a6d25fa4074abc960852aa425e6317",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205469,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_28b46ccb044f471eb9168ba778ab0994",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a1309402cdd3394aee040f6",
+      "elapsed_ms": 101699,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_85c975ee2e6a49db80513976471cd4a7",
+      "reply_text": "你目前还没有添加任何好友哦。要不要加一个一起监督健康目标的朋友？",
+      "output_id": "6a1309482cdd3394aee04108",
+      "elapsed_ms": 8030,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_a3498e9e2f5f48f08e1da9292bc2407e",
+      "reply_text": "想建共享提醒，得先加 Bob 为好友才行。你有他的邀请链接吗？或者你们互相加一下好友，我这边就能帮你们建提醒了。",
+      "output_id": "6a1309582cdd3394aee04122",
+      "elapsed_ms": 16050,
+      "note": "alice_create_shared_reminder"
+    },
+    {
+      "turn": 11,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "列一下我所有待处理的好友请求，每条都告诉我是谁发的。",
+      "inbound_event_id": "smoke_evt_3e6a02341f4f407dbd1fa72a6a65e639",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a130a462cdd3394aee04219",
+      "elapsed_ms": 14048,
+      "note": "explicit_list"
+    },
+    {
+      "turn": 12,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "刚才那条 Bob 的请求，通过。",
+      "inbound_event_id": "smoke_evt_30621715a2b64be98ed858a0fbcc056e",
+      "reply_text": "好嘞，Bob 的跑步搭子请求已经通过啦！你们现在是好朋友了，挺好的，跑步有个伴更容易坚持下去～",
+      "output_id": "6a130a9a2cdd3394aee04276",
+      "elapsed_ms": 83767,
+      "note": "accept_via_reference"
+    },
+    {
+      "turn": 13,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t141327Z_alice",
+      "input_text": "我现在的好友列表里有谁？",
+      "inbound_event_id": "smoke_evt_1647489cd1b347b9b8e1ef2455e182d4",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a130aa32cdd3394aee0428a",
+      "elapsed_ms": 10058,
+      "note": "verify_after_accept"
+    },
+    {
+      "turn": 14,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t141327Z_bob",
+      "input_text": "我现在的好友列表里有谁？",
+      "inbound_event_id": "smoke_evt_13b9e20196264d8ea5b5c9f249057816",
+      "reply_text": "看起来你的好友列表现在是空的噢。之前有加过好友吗？",
+      "output_id": "6a130ab82cdd3394aee042a8",
+      "elapsed_ms": 20058,
+      "note": "bob_verify_friendship"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": []
+  }
+}

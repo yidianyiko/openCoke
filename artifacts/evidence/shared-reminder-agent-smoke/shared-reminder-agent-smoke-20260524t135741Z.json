@@ -82,6 +82,50 @@
       "output_id": "6a130438eb9b7fb24282fe5b",
       "elapsed_ms": 21062,
       "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t135741Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_05e62409ea484cc9a1ae99554007faa6",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205451,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t135741Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_c44329182b3241e78620c3741b48ff88",
+      "reply_text": "好像找不到 Bob 的好友请求了，可能已经处理过或者已经失效。你能确认一下，或者有他的邀请链接吗？",
+      "output_id": "6a13054a042f0eafe6602474",
+      "elapsed_ms": 49115,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t135741Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_3fe98316fc7f4d60bac93219af60c183",
+      "reply_text": "你现在还没有加任何好友哦。要加新朋友的话，可以把对方的邀请链接发给你，点开就能，加上好友啦。",
+      "output_id": "6a130560042f0eafe6602495",
+      "elapsed_ms": 23067,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t135741Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_484366ed12e24600ba2b9ed2dd9a04d7",
+      "reply_text": "建共享提醒需要先把对方加为好友。目前好友列表里还没有 Bob，要不要先加他为好友？",
+      "output_id": "6a1305a1042f0eafe66024ea",
+      "elapsed_ms": 64136,
+      "note": "alice_create_shared_reminder"
     }
   ],
   "findings": [],

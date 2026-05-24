@@ -1,0 +1,92 @@
+{
+  "batch_id": "20260524t143020Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t143020Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_YClDQ1yrgDzL2S1tYAfBY",
+      "clawscale_user_id": "csu_FSBYviwUrGUVzu--RP6Dw"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t143020Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_iFDTDLTgGwPz8k78CGFWp",
+      "clawscale_user_id": "csu__s4F1D-is8TnoOhsPfJcM"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143020Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_b7ff67d627034dc7893d60eb4335cb65",
+      "reply_text": "Hii！我是 Coke，你的健康搭子，也能帮你约课～\n你可以这样用我：\n1. 约课：直接说想约彭教练的课程时间就行\n2. 日程提醒：比如\"9点提醒我运动\"，我帮你记着\n3. 随手备忘：有什么健康相关的想法或待办，先丢给我\n最近有什么健康上的目标吗？",
+      "output_id": "6a130b817b5bb7b0942295d2",
+      "elapsed_ms": 7028,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143020Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_cb6d0cf1a6684895af2c01e34e6d0cd6",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a130b957b5bb7b0942295f9",
+      "elapsed_ms": 19057,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t143020Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_a3bd39236c5044fd9b8b2a8a0d80782a",
+      "reply_text": "这是你的好友邀请链接，分享给朋友就可以加你啦：\n\nhttp://localhost:4040/u/aOyBZLhAdRi5",
+      "output_id": "6a130ba87b5bb7b094229617",
+      "elapsed_ms": 20060,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t143020Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_78f1f69929ae473ead38ed101a9ecacd",
+      "reply_text": "Hii Bob！我是 Coke，你的健康搭子，也能帮你约课～ 刚登录是准备开始搞点健康目标吗？",
+      "output_id": "6a130bd27b5bb7b09422964c",
+      "elapsed_ms": 11042,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t143020Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_f0c5ae9be19548b4b6d84975830c21e5",
+      "reply_text": "{\"MultiModalResponses\": [{\"type\": \"text\", \"content\": \"没有待处理的好友请求，目前都是清空的。\"}}]}",
+      "output_id": "6a130be87b5bb7b09422966d",
+      "elapsed_ms": 23071,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t143020Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：aOyBZLhAdRi5。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_5aed5a7b7b4d4e039e57832b3226d67e",
+      "reply_text": "好啦，好友请求已经发给对方了，备注写的是\"跑步搭子\"。等对方同意，你们就是跑友啦～",
+      "output_id": "6a130c0c7b5bb7b09422969b",
+      "elapsed_ms": 34198,
+      "note": "friend_request_via_link"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": []
+  }
+}

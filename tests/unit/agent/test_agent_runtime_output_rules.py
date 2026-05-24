@@ -214,6 +214,33 @@ async def test_multimodal_json_becomes_ordered_visible_text_segments(monkeypatch
     assert result.output_disposition.status == "ok"
 
 
+def test_unconfirmed_durable_write_friend_accept_patterns():
+    """Regression: when the assistant lies about accepting a friend request
+    without a successful scheduling write, the unconfirmed-write detector
+    must trip. The chat persona occasionally produces "已经通过 / 你们现在是
+    好友啦" text even when accept_friend_request returned friend_request_not_found."""
+    from agent.agno_agent.runtime.agent_runtime import (
+        _UNCONFIRMED_DURABLE_WRITE_PATTERNS,
+    )
+
+    must_match = [
+        "好嘞，Bob 的跑步搭子请求已经通过啦！",
+        "已经通过 Bob 的好友请求。",
+        "I've accepted the friend request.",
+        "now you are friends.",
+        "你们现在是好朋友啦~",
+    ]
+    must_skip = [
+        "等对方通过你的好友请求就成啦",  # safe — describes the other side, no first-person claim
+        "建共享提醒需要先把对方加为好友。",  # decline
+        "要通过还是拒绝？",  # asking user
+    ]
+    for text in must_match:
+        assert any(p.search(text) for p in _UNCONFIRMED_DURABLE_WRITE_PATTERNS), text
+    for text in must_skip:
+        assert not any(p.search(text) for p in _UNCONFIRMED_DURABLE_WRITE_PATTERNS), text
+
+
 @pytest.mark.asyncio
 async def test_fenced_multimodal_json_envelope_is_unwrapped(monkeypatch):
     """Model occasionally emits the MultiModalResponses envelope wrapped in
@@ -239,7 +266,32 @@ async def test_fenced_multimodal_json_envelope_is_unwrapped(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_malformed_multimodal_json_falls_back_to_single_text(monkeypatch):
+async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
+    """Model occasionally emits a MultiModalResponses envelope with broken
+    braces / commas. Regression: lenient recovery should still extract the
+    text contents so the user does not see raw JSON."""
+    # Real example from smoke batch 143020Z T5: extra closing `}` before `]`.
+    raw = (
+        '{"MultiModalResponses": [{"type": "text", "content": '
+        '"没有待处理的好友请求，目前都是清空的。"}}]}'
+    )
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": raw}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=raw,
+    )
+    assert [m.content for m in result.visible_messages] == [
+        "没有待处理的好友请求，目前都是清空的。",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_malformed_multimodal_json_recovers_text_lenient(monkeypatch):
+    """When the envelope signature is present but the JSON is truncated /
+    malformed, we still recover the user-visible content rather than leak
+    the raw envelope. Updated from the previous fall-back-to-raw behavior
+    after observing real malformed envelopes in production smoke runs."""
     raw = '{"MultiModalResponses": [{"type": "text", "content": "缺了括号"}'
 
     result = await _run_with_fake_agent(
@@ -249,6 +301,21 @@ async def test_malformed_multimodal_json_falls_back_to_single_text(monkeypatch):
         content=raw,
     )
 
+    assert [message.content for message in result.visible_messages] == ["缺了括号"]
+
+
+@pytest.mark.asyncio
+async def test_non_envelope_invalid_json_still_falls_back_to_raw(monkeypatch):
+    """Sanity: random invalid JSON without the MultiModalResponses signature
+    must not trigger lenient recovery — it would silently swallow user-meant
+    content. Pass it through unchanged."""
+    raw = "just broken JSON {{ }}"
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": raw}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=raw,
+    )
     assert [message.content for message in result.visible_messages] == [raw]
 
 
