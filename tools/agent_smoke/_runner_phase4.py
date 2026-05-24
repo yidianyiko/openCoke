@@ -1,4 +1,16 @@
-"""Phase 4: retry Alice's accept + close the loop or document failure."""
+"""Phase 4: Bob receives the shared-reminder notification, lists pending,
+and accepts Alice's invitation. Closes the loop.
+
+Pre-condition: phases 1-3 ran in this batch_id; postgres has
+`shared_reminder_requests.status=pending_invitee_confirmation` from Alice
+to Bob. If that's not true, this phase will have nothing to accept and
+the assistant should honestly say so — that itself is a finding.
+
+Post-condition expected by SKILL.md:
+- shared_reminder_requests.status=accepted
+- both requester_reminder_id and invitee_reminder_id populated
+- mongo `reminders` has two active docs (one per owner)
+"""
 
 from __future__ import annotations
 
@@ -43,39 +55,75 @@ def step(transcript, speaker, account, text, note=""):
     print(f"\n[T{turn_no:02d} {speaker}] >> {text}", flush=True)
     reply = send_as(account.coke_account_id, text, **account.send_kwargs())
     elapsed_ms = int((time.monotonic() - start) * 1000)
-    print(f"[T{turn_no:02d} {speaker}] <<  ({elapsed_ms}ms, out={reply.output_id}) {reply.reply}", flush=True)
-    transcript.add_turn(Turn(
-        turn=turn_no, speaker=speaker,
-        coke_account_id=account.coke_account_id,
-        input_text=text,
-        inbound_event_id=reply.causal_inbound_event_id,
-        reply_text=reply.reply, output_id=reply.output_id,
-        elapsed_ms=elapsed_ms, note=note or None,
-    ))
+    print(
+        f"[T{turn_no:02d} {speaker}] <<  ({elapsed_ms}ms, out={reply.output_id}) {reply.reply}",
+        flush=True,
+    )
+    transcript.add_turn(
+        Turn(
+            turn=turn_no,
+            speaker=speaker,
+            coke_account_id=account.coke_account_id,
+            input_text=text,
+            inbound_event_id=reply.causal_inbound_event_id,
+            reply_text=reply.reply,
+            output_id=reply.output_id,
+            elapsed_ms=elapsed_ms,
+            note=note or None,
+        )
+    )
     return reply.reply
 
 
 def main():
     state = json.loads(STATE_PATH.read_text())
-    alice_d = state["alice"]; alice_d.setdefault("label", "alice"); alice_d.setdefault("display_name", "Alice Smoke")
-    bob_d = state["bob"]; bob_d.setdefault("label", "bob"); bob_d.setdefault("display_name", "Bob Smoke")
-    alice = load_account(alice_d)
+    bob_d = state["bob"]
+    bob_d.setdefault("label", "bob")
+    bob_d.setdefault("display_name", "Bob Smoke")
     bob = load_account(bob_d)
 
     t = load_transcript()
     print(f"Resumed transcript at turn={len(t.turns)} with batch={BATCH_ID}")
 
-    # T11 — Alice retries: explicit re-request to see if bug is transient or persistent.
-    step(t, "alice", alice, "好像刚才有问题。再帮我看一下：我现在的好友请求列表，把 Bob 的通过。", "retry_after_empty_response")
+    # T11 — Bob asks for pending shared reminders. Should see Alice's invite.
+    step(
+        t,
+        "bob",
+        bob,
+        "我现在有没有待处理的共享提醒？只列待处理的，告诉我是谁发的、什么内容。",
+        "bob_list_pending_shared_reminders",
+    )
 
-    # T12 — Alice lists friends again to verify the accept landed.
-    step(t, "alice", alice, "现在我的好友里有谁？", "alice_friends_after_retry")
+    # T12 — Bob explicitly accepts Alice's shared reminder. The scheduling
+    # backend resolves the single matching invite by requester_name="Alice"
+    # (gateway resolveSharedReminderRequestId fuzzy lookup); fails closed if
+    # ambiguous.
+    step(
+        t,
+        "bob",
+        bob,
+        "接受 Alice 发来的共享提醒。",
+        "bob_accept_shared_reminder",
+    )
 
-    # T13 — If alice has friends, try shared reminder again.
-    step(t, "alice", alice, "约 Bob 这周五晚上 19:30 在小区操场跑步 40 分钟，帮我们俩建一个共享提醒。", "alice_shared_reminder_after_friend")
+    # T13 — Bob confirms his own reminder list now contains the event.
+    step(
+        t,
+        "bob",
+        bob,
+        "看看我现在所有的提醒，特别是和 Alice 的那条。",
+        "bob_verify_own_reminders",
+    )
 
-    # T14 — Bob: check pending shared reminders.
-    step(t, "bob", bob, "我有没有待处理的共享提醒？只列待处理的。", "bob_pending_shared_reminders")
+    # T14 — Friendly close-out turn so the transcript ends on a clean reply
+    # rather than a write action. Useful when the next codex inspects history.
+    step(
+        t,
+        "bob",
+        bob,
+        "搞定了，谢谢～",
+        "bob_close_out",
+    )
 
     t.save("artifacts/evidence/shared-reminder-agent-smoke")
     print(f"\nevidence={EVIDENCE_PATH}")
