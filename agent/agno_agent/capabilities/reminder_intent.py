@@ -183,32 +183,14 @@ class ReminderIntentPort:
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
         )
-        if (
-            (
-                _should_reject_title_schedule_evidence_leak(decision)
-                or _should_reject_weekday_mismatch(
-                    input_message, decision, run_context
-                )
-            )
-        ):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
+        if _should_reject_title_schedule_evidence_leak(decision):
+            return _invalid_decision_clarification_result()
+        if _should_reject_weekday_mismatch(input_message, decision, run_context):
+            return _invalid_decision_clarification_result()
         if _should_reject_ungoverned_single_create_title(input_message, decision):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
-        if (
-            _should_reject_day_of_month_mismatch(
-                input_message, decision, run_context
-            )
-        ):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
+            return _invalid_decision_clarification_result()
+        if _should_reject_day_of_month_mismatch(input_message, decision, run_context):
+            return _invalid_decision_clarification_result()
         if _should_reject_missing_scheduled_clauses(input_message, decision):
             return _invalid_decision_clarification_result()
         return self.command_executor.execute(decision, run_context)
@@ -1422,13 +1404,6 @@ def _high_frequency_input_clarification_result() -> DomainExecutionResult:
         safety_boundary="high_frequency_requires_end",
         required_questions=("trigger_at", "end_time"),
     )
-
-
-def _fallback_clarification_for_input(
-    input_message: str,
-    fallback: DomainExecutionResult,
-) -> DomainExecutionResult:
-    return fallback
 
 
 def _timeout_clarification_result() -> DomainExecutionResult:
