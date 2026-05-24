@@ -184,8 +184,13 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
         return inferred or candidate
 
     if isinstance(raw_intent, Mapping):
-        for key in raw_intent:
+        for key, value in raw_intent.items():
             if isinstance(key, str) and key in _SCHEDULING_INTENT_NAMES:
+                if isinstance(value, Mapping) and value:
+                    return (
+                        f"{key}: "
+                        f"{json.dumps(_normalize_scheduling_intent_args(key, value), ensure_ascii=False)}"
+                    )
                 return key
 
         for key in ("intent", "action", "tool", "tool_name", "name"):
@@ -203,6 +208,23 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
     if inferred:
         return inferred
     raise ValueError("scheduling intent could not be resolved")
+
+
+def _normalize_scheduling_intent_args(
+    tool_name: str,
+    args: Mapping[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(args)
+    if tool_name == "create_shared_reminder":
+        if "invitee_name" not in normalized and "friend_name" in normalized:
+            normalized["invitee_name"] = normalized.pop("friend_name")
+        if "title" not in normalized and "reminder_title" in normalized:
+            normalized["title"] = normalized.pop("reminder_title")
+        if "fire_at" not in normalized and "reminder_time" in normalized:
+            normalized["fire_at"] = normalized.pop("reminder_time")
+    return normalized
+
+
 def _float_env(name: str, default: float) -> float:
     raw_value = os.environ.get(name)
     if raw_value is None:
