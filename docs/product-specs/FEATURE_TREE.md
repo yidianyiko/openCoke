@@ -119,7 +119,7 @@ directory alone.
   - `gateway/packages/api/src/lib/route-message.ts`
   - `gateway/packages/api/src/routes/customer-channel-routes.ts`
   - `gateway/packages/api/src/routes/outbound.ts`
-  - provider-specific config and dispatch helpers under `gateway/packages/api/src/lib/`
+  - provider-specific config and dispatch helpers under `gateway/packages/api/src/channel/`
 
 ## Operations Surfaces
 

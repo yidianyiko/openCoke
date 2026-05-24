@@ -99,9 +99,20 @@ def test_delegation_boundary_restores_scheduling_safety_policy():
     assert "ask the user to choose one friend" in text
     assert "Do not treat an iLink QR as a public friend-link QR" in text
     assert "personal-channel binding" in text
-    assert "Ask for confirmation before reset/disable user link" in text
-    assert "accept/reject/cancel requests" in text
-    assert "remove friendship, block, or unblock" in text
+    # The legacy "ask for confirmation" rule was over-cautious — the model
+    # interpreted an explicit "通过 Bob 的好友请求" command as still needing
+    # a re-prompt. The replacement rule mandates the scheduling call directly
+    # when the user gives an unambiguous directive, and folds the action
+    # surface (accept/reject/cancel, remove friendship, block/unblock,
+    # shared-reminder ops, user-link ops) into one place.
+    assert "you MUST call scheduling_domain" in text
+    assert "accept / reject / cancel a friend request" in text
+    assert "remove a friendship" in text
+    assert "block / unblock an account" in text
+    assert "create / accept / reject / cancel a shared reminder" in text
+    assert "get / reset / disable the user link" in text
+    assert "intention-only phrasing" in text
+    assert "explicit user directive IS the confirmation" in text
 
 
 def test_friend_calendar_policy_uses_coke_reminders_not_google_calendar():

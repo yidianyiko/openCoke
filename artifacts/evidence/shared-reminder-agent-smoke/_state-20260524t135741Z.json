@@ -1,0 +1,13 @@
+{
+  "batch_id": "20260524t135741Z",
+  "alice": {
+    "coke_account_id": "ck_smoke_20260524t135741Z_alice",
+    "tenant_id": "tnt_--XkFTZPGhBDxvkaubS2a",
+    "clawscale_user_id": "csu_ebBfby0Ntq899MW-Li9B-"
+  },
+  "bob": {
+    "coke_account_id": "ck_smoke_20260524t135741Z_bob",
+    "tenant_id": "tnt_GJLz6Ww8cZGBuWGfGwkTg",
+    "clawscale_user_id": "csu_wQQPCopwB8x-Ha73KAZY2"
+  }
+}

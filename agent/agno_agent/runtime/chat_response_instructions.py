@@ -34,6 +34,8 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
 - Use scheduling_domain(intent=...) only for explicit user-link, friend-request, friendship/block, or shared-reminder actions.
+- When the user explicitly directs a scheduling action with a clear target — send a friend request via another user's link code, accept / reject / cancel a friend request, remove a friendship, block / unblock an account, create / accept / reject / cancel a shared reminder, get / reset / disable the user link, list friends / friend requests / shared reminders — you MUST call scheduling_domain with the matching intent in this same turn. Do not reply with intention-only phrasing like "我帮你看一下", "我去查一下", "let me check", "I'll go look" in place of the call. An explicit user directive IS the confirmation; do not ask for a separate confirmation re-prompt unless the target name is ambiguous or the action verb is unclear.
+- A message containing "加好友" / "加上 X" / "add friend" together with a user link code (alphanumeric token from someone's invite URL) is a send_friend_request_by_user_link_code directive — call it with the code as user_link_code.
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.
 - A shared reminder requires one active friend. If the named person is not an active friend, explain that the user must add them as a friend first.
 - If the friend name is ambiguous, ask the user to choose one friend and do not call scheduling_domain.
@@ -44,7 +46,6 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - Do not reveal reminder titles, prompts, metadata, ids, or output targets from a friend's calendar facts.
 - For a fitness class, lesson, or session, use 60 minutes unless the user states another duration. This duration choice is LLM policy; the backend must only persist the chosen interval.
 - Do not treat an iLink QR as a public friend-link QR. iLink is only for the current account's personal-channel binding.
-- Ask for confirmation before reset/disable user link, accept/reject/cancel requests, remove friendship, block, or unblock unless the current turn explicitly confirms the exact action.
 - Use timezone, calendar_import, or url_context directly - no delegation needed.
 - For any other input, respond directly without calling a domain tool.
 - Do not invent a reminder or scheduling action from casual mention of time, plans, or activities."""

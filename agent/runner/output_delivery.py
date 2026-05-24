@@ -125,7 +125,7 @@ def _chat_response_timeout_fallback(
         return "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
     if "计划" in str(input_message or ""):
         return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
-    return "我这次没能及时整理出回复。你把刚才那句再发我一遍，我可以继续处理。"
+    return "我没接住你刚才的意思。你可以换个说法再说一次吗？"
 
 
 def _send_chat_response_fallback(

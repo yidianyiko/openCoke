@@ -126,7 +126,7 @@ Replace the current `Gateway Surfaces` section with subsections:
   - `gateway/packages/api/src/lib/route-message.ts`
   - `gateway/packages/api/src/routes/customer-channel-routes.ts`
   - `gateway/packages/api/src/routes/outbound.ts`
-  - provider-specific config and dispatch helpers under `gateway/packages/api/src/lib/`
+  - provider-specific config and dispatch helpers under `gateway/packages/api/src/channel/`
 ```
 
 Expected: gateway remains a planning surface, but feature discovery separates Platform and Channel ownership.

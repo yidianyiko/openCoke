@@ -307,6 +307,15 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
     normalized = intent.lower()
     if "create_shared_reminder" in normalized:
         return ("create_shared_reminder",)
+    if "send_friend_request_by_user_link_code" in normalized:
+        return ("send_friend_request_by_user_link_code",)
+    if (
+        ("user_link" in normalized or "user link" in normalized or "link code" in normalized)
+        and ("friend" in normalized or "add" in normalized)
+    ):
+        return ("send_friend_request_by_user_link_code",)
+    if ("链接码" in intent or "邀请链接" in intent) and ("加好友" in intent or "好友" in intent):
+        return ("send_friend_request_by_user_link_code",)
     return SCHEDULING_TOOL_NAMES
 
 

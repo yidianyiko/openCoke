@@ -555,6 +555,55 @@ async def test_run_scheduling_domain_exposes_only_create_tool_for_shared_reminde
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_exposes_only_user_link_code_tool_for_link_friend_intent():
+    captured_tools: set[str] = set()
+    captured_args: dict[str, dict] = {}
+
+    class _UserLinkFriendAgent:
+        def __init__(self, **kwargs):
+            captured_tools.update(item.name for item in kwargs["tools"])
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["send_friend_request_by_user_link_code"](
+                user_link_code="AbCdEfGhIjK_",
+                message="跑步搭子",
+                idempotency_key="friend-link:1",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"friend_request_id": "fr_1", "status": "pending"},
+            )
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UserLinkFriendAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            await run_scheduling_domain(
+                input_message="我想加好友。这是对方的邀请链接码：AbCdEfGhIjK_。备注：跑步搭子。",
+                intent="通过邀请链接码加好友",
+                run_context=_run_context(),
+                domain_results=[],
+            )
+
+    assert captured_tools == {"send_friend_request_by_user_link_code"}
+    assert captured_args["send_friend_request_by_user_link_code"] == {
+        "user_link_code": "AbCdEfGhIjK_",
+        "message": "跑步搭子",
+        "idempotency_key": "friend-link:1",
+    }
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_preserves_success_when_later_tool_call_duplicates():
     successful_write = CapabilityResult(
         name="reset_user_link",

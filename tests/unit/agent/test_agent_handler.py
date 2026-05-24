@@ -158,7 +158,7 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
     reply = _chat_response_timeout_fallback("每天学习时间为晚上9点到12点")
 
     assert "具体时间和事项" not in reply
-    assert "再发" in reply
+    assert "换个说法" in reply
 
 
 def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
