@@ -67,13 +67,9 @@ Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_
 
 ## Edge rules
 
-- Date-only or weekday-only with no time: clarify. Never invent default time.
+- Missing or ambiguous fields (date-only, time-only, completion-conditioned, deadline-only): clarify; do not invent defaults.
 - Time but no title clarifies, except bare wake/call/alarm-me where the verb is the title.
-- Completion-conditioned ("读完后") without clock or duration: clarify.
-- One-shot deadline wording ("before 22:30"): clarify for when, unless user says remind at the deadline.
 - If any clause in a multi-clause message is missing details, clarify the whole message; do not partial-execute.
-- Day-of-month before reminder verb ("22号早上9点提醒我"): preserve that day.
-- Stop/cancel/do-not-disturb requests are delete when target is identifiable; otherwise clarify. Never convert to create.
 
 ## Schema
 
