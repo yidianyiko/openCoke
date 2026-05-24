@@ -243,10 +243,12 @@ def _operations_from_tool_result(
                 entity_type="reminder",
                 entity_id=None,
                 facts={
+                    "summary": tool_result.get("summary"),
                     "count": len(reminders),
                     "reminder_ids": tuple(
                         str(item.get("id") or "") for item in reminders
                     ),
+                    "reminders": tuple(_reminder_facts(item) for item in reminders),
                 },
             ),
         )
@@ -298,6 +300,7 @@ def _reminder_facts(reminder: Mapping[str, Any]) -> dict[str, Any]:
         "route_key": target.get("route_key"),
         "lifecycle_state": reminder.get("lifecycle_state"),
         "owner_user_id": reminder.get("owner_user_id"),
+        "metadata": dict(reminder.get("metadata") or {}),
     }
 
 

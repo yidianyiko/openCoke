@@ -238,6 +238,43 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_routes_explicit_list_query_without_detector():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FailingAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError("detector should not run for explicit list query")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            return DomainExecutionResult(
+                domain="reminder",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="list",
+                        ok=True,
+                        effect="read",
+                        entity_type="reminder",
+                        entity_id=None,
+                        facts={"summary": "- 跑步 @ 2026-05-29T10:30:00"},
+                    ),
+                ),
+                reply_contract=ReplyContract(intent="direct_answer"),
+            )
+
+    result = await ReminderIntentPort(
+        detector_agent=FailingAgent(),
+        command_executor=FakeExecutor(),
+    ).run("看看我现在所有的提醒，特别是和 Alice 的那条。", _run_context())
+
+    _assert_executed(result)
+    assert result.operations[0].action == "list"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_creates_primary_detector_per_invocation(
     monkeypatch,
 ):
@@ -2078,5 +2115,4 @@ async def test_reminder_intent_port_fails_when_primary_detector_times_out(
     ).run("17:57提醒我喝水", _run_context())
 
     _assert_needs_clarification(result, error_code="ReminderDetectTimeout")
-
 

@@ -125,6 +125,11 @@ class ReminderIntentPort:
             "conversation": {"id": run_context.conversation.id},
             "platform": run_context.platform,
         }
+        if _is_explicit_reminder_list_query(input_message):
+            return self.command_executor.execute(
+                SimpleNamespace(intent_type="query", action="list"),
+                run_context,
+            )
         try:
             detector_agent = self.detector_agent or _create_reminder_detector()
             response = await asyncio.wait_for(
@@ -200,6 +205,18 @@ def _should_execute_decision(decision: Any) -> bool:
     intent_type = _decision_value(decision, "intent_type")
     action = _decision_value(decision, "action")
     return intent_type == "crud" or (intent_type == "query" and action == "list")
+
+
+def _is_explicit_reminder_list_query(input_message: str) -> bool:
+    text = input_message.casefold()
+    if "共享提醒" in input_message or "shared reminder" in text:
+        return False
+    if not ("提醒" in input_message or "通知" in input_message or "reminder" in text):
+        return False
+    return any(
+        marker in input_message
+        for marker in ("所有", "全部", "列表", "都有哪些", "看看", "看一下", "查一下")
+    ) or "list" in text or "show" in text
 
 
 def _is_unrecognized_decision(decision: Any) -> bool:

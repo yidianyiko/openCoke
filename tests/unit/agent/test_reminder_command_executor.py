@@ -298,6 +298,46 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
     assert calls[0]["operations"] is None
 
 
+def test_list_result_preserves_summary_and_reminder_facts():
+    def tool_entrypoint(**kwargs):
+        assert kwargs["action"] == "list"
+        return {
+            "ok": True,
+            "action": "list",
+            "summary": "- 跑步 @ 2026-05-29T10:30:00",
+            "reminders": [
+                {
+                    "id": "rem-1",
+                    "title": "跑步",
+                    "owner_user_id": "user-1",
+                    "lifecycle_state": "active",
+                    "metadata": {"counterparty_account_id": "ck_alice"},
+                    "schedule": {
+                        "local_date": "2026-05-29",
+                        "local_time": "19:30:00",
+                        "timezone": "Asia/Tokyo",
+                    },
+                }
+            ],
+        }
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(
+        {"intent_type": "query", "action": "list"},
+        _run_context(),
+    )
+
+    assert result.outcome == "executed"
+    assert result.operations[0].action == "list"
+    assert result.operations[0].facts["summary"] == "- 跑步 @ 2026-05-29T10:30:00"
+    assert result.operations[0].facts["reminders"][0]["title"] == "跑步"
+    assert result.operations[0].facts["reminders"][0]["metadata"] == {
+        "counterparty_account_id": "ck_alice"
+    }
+
+
 def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     monkeypatch: pytest.MonkeyPatch,
 ):
