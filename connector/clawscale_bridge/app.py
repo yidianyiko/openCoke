@@ -317,6 +317,7 @@ class BusinessOnlyBridgeGateway:
         latest_user_message = self._latest_user_message(messages)
         inbound_text = (
             inbound_payload.get("input")
+            or inbound_payload.get("text")
             or latest_user_message.get("content")
             or last_message.get("content")
             or ""
@@ -344,6 +345,10 @@ class BusinessOnlyBridgeGateway:
             or metadata.get("inboundEventId"),
             "sync_reply_token": inbound_payload.get("sync_reply_token")
             or metadata.get("syncReplyToken"),
+            "message_type": inbound_payload.get("message_type")
+            or metadata.get("messageType"),
+            "product_notification": inbound_payload.get("product_notification")
+            or metadata.get("productNotification"),
             "input": format_input_with_attachments(inbound_text, attachments),
             "inbound_text": inbound_text,
             "attachments": attachments,
@@ -440,6 +445,10 @@ class BusinessOnlyBridgeGateway:
             enqueue_payload["sync_reply_token"] = inbound["sync_reply_token"]
         if inbound.get("inbound_event_id"):
             enqueue_payload["inbound_event_id"] = inbound["inbound_event_id"]
+        if inbound.get("message_type"):
+            enqueue_payload["message_type"] = inbound["message_type"]
+        if isinstance(inbound.get("product_notification"), dict):
+            enqueue_payload["product_notification"] = inbound["product_notification"]
         if inbound.get("coke_account_id"):
             enqueue_payload["customer_id"] = inbound["coke_account_id"]
             enqueue_payload["coke_account_id"] = inbound["coke_account_id"]
@@ -457,6 +466,16 @@ class BusinessOnlyBridgeGateway:
             text=inbound["input"],
             inbound=enqueue_payload,
         )
+        if inbound.get("message_type") == "product_notification":
+            response = {
+                "status": "ok",
+                "causal_inbound_event_id": causal_inbound_event_id,
+            }
+            if inbound.get("business_conversation_key"):
+                response["business_conversation_key"] = inbound[
+                    "business_conversation_key"
+                ]
+            return response
         sync_reply_token = inbound.get("sync_reply_token")
         try:
             if sync_reply_token:

@@ -1302,6 +1302,46 @@ def test_bridge_inbound_uses_last_user_message_attachments_as_fallback(monkeypat
     )
 
 
+def test_bridge_inbound_uses_top_level_text_for_product_notifications(monkeypatch):
+    app, message_gateway, reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "customer_id": "acct_1",
+            "tenant_id": "ten_1",
+            "channel_id": "ch_1",
+            "platform": "wechat_personal",
+            "external_id": "wxid_123",
+            "end_user_id": "eu_1",
+            "channel_scope": "personal",
+            "clawscale_user_id": "csu_1",
+            "inbound_event_id": "friend-request:fr_1:target",
+            "text": "你有一个新的好友请求，请确认或拒绝。",
+            "message_type": "product_notification",
+            "product_notification": {
+                "request_id": "fr_1",
+                "request_type": "friend_request",
+                "allowed_actions": ["accept", "reject"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert message_gateway.enqueue.call_args.kwargs["text"] == (
+        "你有一个新的好友请求，请确认或拒绝。"
+    )
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert inbound["message_type"] == "product_notification"
+    assert inbound["product_notification"] == {
+        "request_id": "fr_1",
+        "request_type": "friend_request",
+        "allowed_actions": ["accept", "reject"],
+    }
+    reply_waiter.wait_for_reply.assert_not_called()
+
+
 def test_bridge_inbound_invalid_attachment_only_is_ignored_after_account_validation(
     monkeypatch,
 ):
