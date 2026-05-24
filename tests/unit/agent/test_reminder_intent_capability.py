@@ -1890,140 +1890,31 @@ async def test_reminder_intent_port_fails_invalid_structured_output_without_seco
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_treats_standalone_english_opt_out_as_no_action():
+@pytest.mark.parametrize("input_text", [
+    "All good, no reminders pls",
+    "谢谢闹钟",
+    "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+    "可以呀，明天测试多线程能力，和提醒功能增强",
+    "今天晚上8点我要看电影",
+])
+async def test_reminder_intent_port_routes_intent_discussion_to_no_action(input_text):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="clarify",
-        action="",
-        clarification_question="Which reminder should I cancel?",
-        clarification_reason="ambiguous_request",
-    )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
+            return SimpleNamespace(content=SimpleNamespace(
+                intent_type="discussion",
+                action="",
+            ))
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
-            raise AssertionError("standalone reminder opt-out should not execute")
+            raise AssertionError("discussion intent must not execute")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
         command_executor=FakeExecutor(),
-    ).run("All good, no reminders pls", _run_context())
-
-    _assert_no_action(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_suppresses_delete_for_standalone_english_opt_out():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="cancel",
-        keyword="",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("standalone reminder opt-out should not execute")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("All good, no reminders pls", _run_context())
-
-    _assert_no_action(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_suppresses_management_for_alarm_acknowledgement():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="crud",
-        action="complete",
-        keyword="闹钟",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("standalone alarm acknowledgement should not execute")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("谢谢闹钟", _run_context())
-
-    _assert_no_action(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_treats_behavior_meta_discussion_as_no_action():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="clarify",
-        action="",
-        clarification_question="请问你需要我给你创建什么样的提醒？",
-        clarification_reason="ambiguous_request",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("reminder behavior discussion should not execute")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run(
-        "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
-        _run_context(),
-    )
-
-    _assert_no_action(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_treats_feature_work_topic_as_no_action():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    primary_decision = SimpleNamespace(
-        intent_type="clarify",
-        action="",
-        clarification_question="提醒设置还没完成。请确认具体提醒时间和提醒内容。",
-        clarification_reason="ambiguous_request",
-    )
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=primary_decision)
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("feature work topic should not execute")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run(
-        "可以呀，明天测试多线程能力，和提醒功能增强",
-        _run_context(),
-    )
+    ).run(input_text, _run_context())
 
     _assert_no_action(result)
 
@@ -2042,26 +1933,6 @@ async def test_reminder_intent_port_does_not_retry_feature_work_discussion():
         "可以呀，明天测试多线程能力，和提醒功能增强",
         _run_context(),
     )
-
-    _assert_no_action(result)
-
-
-@pytest.mark.asyncio
-async def test_reminder_intent_port_suppresses_invalid_structured_for_english_opt_out():
-    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
-
-    class PrimaryAgent:
-        async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidStructuredOutput")
-
-    class FakeExecutor:
-        def execute(self, received_decision, run_context):
-            raise AssertionError("standalone reminder opt-out should not execute")
-
-    result = await ReminderIntentPort(
-        detector_agent=PrimaryAgent(),
-        command_executor=FakeExecutor(),
-    ).run("All good, no reminders pls", _run_context())
 
     _assert_no_action(result)
 

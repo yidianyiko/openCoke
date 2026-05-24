@@ -144,45 +144,21 @@ class ReminderIntentPort:
                 "ReminderDetectAgent timed out in single-Agent runtime: timeout=%.1fs",
                 _agent_runtime_reminder_detect_timeout_seconds(),
             )
-            if _input_is_reminder_feature_work_topic(
-                input_message
-            ) or _input_is_reminder_behavior_meta_discussion(input_message):
-                return _no_action_discussion_result()
-            return _fallback_clarification_for_input(
-                input_message,
-                _timeout_clarification_result(),
-            )
-        if _input_is_reminder_feature_work_topic(
-            input_message
-        ) or _input_is_reminder_behavior_meta_discussion(input_message):
-            return _no_action_discussion_result()
-        if _is_unrecognized_decision(
-            decision
-        ) and _input_is_standalone_reminder_opt_out(input_message):
+            return _timeout_clarification_result()
+        if _decision_value(decision, "intent_type") in {"discussion", "none"}:
             return _no_action_discussion_result()
         if _is_unrecognized_decision(decision):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
+            return _invalid_decision_clarification_result()
         if _should_reject_quoted_title_loss(input_message, decision):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
-        if _is_clarification_decision(
-            decision
-        ) and (
-            _input_is_standalone_reminder_opt_out(input_message)
-            or _input_is_reminder_behavior_meta_discussion(input_message)
-            or _input_is_reminder_feature_work_topic(input_message)
-        ):
-            return _no_action_discussion_result()
-        if _is_unrecognized_decision(decision):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
+            return _invalid_decision_clarification_result()
+        if _is_clarification_decision(decision):
+            reason = str(
+                _decision_value(decision, "clarification_reason") or ""
+            ).strip()
+            builder = _CLARIFICATION_TEMPLATES.get(reason)
+            if builder is None:
+                return _invalid_decision_clarification_result()
+            return builder()
         if _should_execute_decision(decision) and _is_bounded_cadence_deadline_loss(
             input_message, decision
         ):
@@ -191,43 +167,8 @@ class ReminderIntentPort:
             decision, input_message=input_message
         ):
             return _unbounded_high_frequency_cadence_clarification_result(decision)
-        if (
-            _should_execute_decision(decision)
-            and _input_is_standalone_reminder_opt_out(input_message)
-            and str(_decision_value(decision, "action") or "").strip()
-            in {"delete", "cancel"}
-        ):
-            return _no_action_discussion_result()
-        if _should_execute_decision(
-            decision
-        ) and _input_is_standalone_reminder_acknowledgement(input_message):
-            return _no_action_discussion_result()
-        if _input_is_reminder_behavior_meta_discussion(
-            input_message
-        ) or _input_is_reminder_feature_work_topic(input_message):
-            return _no_action_discussion_result()
-        if _is_clarification_decision(decision):
-            if _input_is_standalone_reminder_opt_out(
-                input_message
-            ) or _input_is_reminder_behavior_meta_discussion(
-                input_message
-            ) or _input_is_reminder_feature_work_topic(input_message):
-                return _no_action_discussion_result()
-            reason = str(
-                _decision_value(decision, "clarification_reason") or ""
-            ).strip()
-            builder = _CLARIFICATION_TEMPLATES.get(reason)
-            if builder is None:
-                return _invalid_decision_clarification_result()
-            return builder()
-        intent_type = _decision_value(decision, "intent_type")
-        if intent_type in {"discussion", "none"}:
-            return _no_action_discussion_result()
         if not _should_execute_decision(decision):
-            return _fallback_clarification_for_input(
-                input_message,
-                _invalid_decision_clarification_result(),
-            )
+            return _invalid_decision_clarification_result()
         decision = _normalize_relative_delay_create_trigger(
             input_message,
             decision,
@@ -1432,151 +1373,6 @@ def _input_has_high_frequency_without_deadline(text: str) -> bool:
     return not any(token in normalized for token in deadline_tokens)
 
 
-def _input_is_plain_schedule_statement_without_reminder_request(text: str) -> bool:
-    normalized = str(text or "").strip().lower()
-    if not normalized:
-        return False
-    if _is_high_frequency_evidence(normalized):
-        return False
-    reminder_request_tokens = (
-        "提醒",
-        "叫我",
-        "喊我",
-        "通知",
-        "闹钟",
-        "叫醒",
-        "监督",
-        "打卡",
-        "remind",
-        "notify",
-        "alarm",
-        "wake me",
-        "call me",
-        "check in",
-        "nudge",
-    )
-    if any(token in normalized for token in reminder_request_tokens):
-        return False
-    has_schedule_time = bool(
-        _BARE_CLOCK_PATTERN.search(normalized)
-        or _EXPLICIT_DATE_PATTERN.search(normalized)
-        or re.search(r"\b(?:today|tomorrow|tonight)\b", normalized)
-    )
-    if not has_schedule_time:
-        return False
-    return bool(re.search(r"[\u4e00-\u9fffA-Za-z]", normalized))
-
-
-def _input_is_standalone_reminder_opt_out(text: str) -> bool:
-    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
-    if not normalized:
-        return False
-    if re.search(r"\b(?:cancel|delete|remove|stop)\b", normalized):
-        return False
-    if (
-        _BARE_CLOCK_PATTERN.search(normalized)
-        or _EXPLICIT_DATE_PATTERN.search(normalized)
-        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after)\b", normalized)
-    ):
-        return False
-    words = re.findall(r"[a-z']+", normalized)
-    if len(words) > 8:
-        return False
-    return bool(
-        re.search(
-            r"\b(?:no|without)\s+reminders?\b|"
-            r"\bdon't\s+need\s+(?:any\s+)?reminders?\b|"
-            r"\bdo\s+not\s+need\s+(?:any\s+)?reminders?\b|"
-            r"\bno\s+need\s+for\s+reminders?\b",
-            normalized,
-        )
-    )
-
-
-def _input_is_standalone_reminder_acknowledgement(text: str) -> bool:
-    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
-    if not normalized:
-        return False
-    if (
-        _BARE_CLOCK_PATTERN.search(normalized)
-        or _EXPLICIT_DATE_PATTERN.search(normalized)
-        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after)\b", normalized)
-    ):
-        return False
-    if re.search(r"取消|删除|停止|停掉|完成|做完|不用|不要|别提醒|不提醒", normalized):
-        return False
-    if not re.search(r"谢谢|谢啦|感谢|thanks?|thank\s+you", normalized, re.IGNORECASE):
-        return False
-    if not re.search(
-        r"闹钟|提醒|叫我|喊我|alarm|reminder|notification|nudge",
-        normalized,
-        re.IGNORECASE,
-    ):
-        return False
-    words = re.findall(r"[a-z']+", normalized)
-    if words and len(words) > 8:
-        return False
-    chinese_chars = re.findall(r"[\u4e00-\u9fff]", normalized)
-    return len(chinese_chars) <= 12
-
-
-def _input_is_reminder_behavior_meta_discussion(text: str) -> bool:
-    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
-    if not normalized:
-        return False
-    if (
-        _BARE_CLOCK_PATTERN.search(normalized)
-        or _EXPLICIT_DATE_PATTERN.search(normalized)
-        or _RELATIVE_DELAY_PATTERN.search(normalized)
-        or re.search(r"\b(?:today|tomorrow|tonight|at|by|before|after|in)\b", normalized)
-    ):
-        return False
-    if not re.search(
-        r"闹钟|提醒|叫我|喊我|alarm|reminder|notification|nudge",
-        normalized,
-        re.IGNORECASE,
-    ):
-        return False
-    if re.search(r"取消|删除|停止|停掉|完成|做完|不用|不要|别提醒|不提醒", normalized):
-        return False
-    return bool(
-        re.search(
-            r"当.*闹钟|闹钟.*(?:就行|模式)|保持提醒|回复.*提醒|还得回复|"
-            r"提醒.*(?:机制|规则|方式|逻辑|怎么|为什么|保持|回复)|"
-            r"(?:how|why).*(?:reminder|alarm|notification)",
-            normalized,
-            re.IGNORECASE,
-        )
-    )
-
-
-def _input_is_reminder_feature_work_topic(text: str) -> bool:
-    normalized = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", str(text or "")).strip().lower()
-    if not normalized:
-        return False
-    if _REMINDER_VERB_PATTERN.search(normalized):
-        return False
-    has_feature_reference = bool(
-        re.search(
-            r"提醒\s*(?:功能|能力|系统|模块)|"
-            r"(?:reminder|alarm|notification)\s+"
-            r"(?:feature|functionality|capability|system|module)",
-            normalized,
-            re.IGNORECASE,
-        )
-    )
-    if not has_feature_reference:
-        return False
-    return bool(
-        re.search(
-            r"测试|增强|改进|优化|讨论|研究|能力|功能|"
-            r"\b(?:test|improve|enhance|discuss|research)\b",
-            normalized,
-            re.IGNORECASE,
-        )
-    )
-
-
 def _clarification_result(decision: Any) -> DomainExecutionResult:
     question = str(_decision_value(decision, "clarification_question") or "").strip()
     return _needs_clarification_result(
@@ -1632,10 +1428,6 @@ def _fallback_clarification_for_input(
     input_message: str,
     fallback: DomainExecutionResult,
 ) -> DomainExecutionResult:
-    if _input_is_standalone_reminder_opt_out(input_message):
-        return _no_action_discussion_result()
-    if _input_is_plain_schedule_statement_without_reminder_request(input_message):
-        return _no_action_discussion_result()
     return fallback
 
 
