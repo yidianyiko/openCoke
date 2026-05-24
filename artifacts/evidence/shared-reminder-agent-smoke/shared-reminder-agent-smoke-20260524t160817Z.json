@@ -1,0 +1,180 @@
+{
+  "batch_id": "20260524t160817Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_zmyWL3R9iHwp_51g3SzYW",
+      "clawscale_user_id": "csu_tYcARGrEVG4dk9sS2KF-u"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t160817Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_Et2DR08yKFsOVoutY6Z2s",
+      "clawscale_user_id": "csu_OGFiPBbf94LngO4AfCKXL"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_ac82c1ec643a4a80b0a011af813b7940",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a132276c7303f9fcf0b61e5",
+      "elapsed_ms": 6028,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_fd7dc71984704d65aec09bad5e2eea8f",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a132294c7303f9fcf0b620b",
+      "elapsed_ms": 28180,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_5ad96e5ff74d4996b8902754b38e7426",
+      "reply_text": "哎呀，现在系统好像有点状况，我这边暂时拿不到你的邀请链接。你可以稍等一下再试试，或者在微信里找找之前有没有分享过的链接？",
+      "output_id": "6a1322b3c7303f9fcf0b6234",
+      "elapsed_ms": 31091,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t160817Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_077e145bf50a4946a799a8c56eba5e00",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a1322c6c7303f9fcf0b6253",
+      "elapsed_ms": 5026,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t160817Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_d690a5ce7f9244fb916c0d22846dc9d9",
+      "reply_text": "你现在没有待处理的好友请求。列表是空的。",
+      "output_id": "6a1322d5c7303f9fcf0b626c",
+      "elapsed_ms": 15050,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t160817Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：YKSZxUyfW8gu。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_1a08b3e4ab6e4f82bb0148e08fc2a369",
+      "reply_text": "已发送好友请求。",
+      "output_id": "6a1322efc7303f9fcf0b6291",
+      "elapsed_ms": 26681,
+      "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_497d6cd9e11144078159acd9f43eb540",
+      "reply_text": "有一条待处理的好友请求，来自 Bob Smoke，备注是「跑步搭子」。要接受还是拒绝？",
+      "output_id": "6a132330c7303f9fcf0b62e4",
+      "elapsed_ms": 34202,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_6be3c2ac930c49a58a93ef9bc41924fe",
+      "reply_text": "已通过好友请求。",
+      "output_id": "6a132345c7303f9fcf0b6304",
+      "elapsed_ms": 23070,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_77e2fc859ed24579a7932603053461d8",
+      "reply_text": "你目前有一个好友：Bob Smoke",
+      "output_id": "6a13236dc7303f9fcf0b6340",
+      "elapsed_ms": 38611,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_e41270eed7e54ca5b4e55ce7fa326039",
+      "reply_text": "已提交共享提醒请求。",
+      "output_id": "6a1323a4c7303f9fcf0b6380",
+      "elapsed_ms": 55151,
+      "note": "alice_create_shared_reminder"
+    },
+    {
+      "turn": 11,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "好像刚才有问题。再帮我看一下：我现在的好友请求列表，把 Bob 的通过。",
+      "inbound_event_id": "smoke_evt_398d61aa1f5341b9966c0b4f0def579c",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a1323f2c7303f9fcf0b63e3",
+      "elapsed_ms": 67285,
+      "note": "retry_after_empty_response"
+    },
+    {
+      "turn": 12,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "现在我的好友里有谁？",
+      "inbound_event_id": "smoke_evt_18c1bf4fc9944216879e0ca2dcc17d6f",
+      "reply_text": "你现在好友列表里有一位：Bob Smoke（上个月刚加的）。",
+      "output_id": "6a132414c7303f9fcf0b640e",
+      "elapsed_ms": 32598,
+      "note": "alice_friends_after_retry"
+    },
+    {
+      "turn": 13,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t160817Z_alice",
+      "input_text": "约 Bob 这周五晚上 19:30 在小区操场跑步 40 分钟，帮我们俩建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_ddc9983658b34f7eabc4f3287b506f52",
+      "reply_text": "已提交共享提醒请求。",
+      "output_id": "6a13242fc7303f9fcf0b6434",
+      "elapsed_ms": 28084,
+      "note": "alice_shared_reminder_after_friend"
+    },
+    {
+      "turn": 14,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t160817Z_bob",
+      "input_text": "我有没有待处理的共享提醒？只列待处理的。",
+      "inbound_event_id": "smoke_evt_81febbdbb4f445daa159dd155a7264ae",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205594,
+      "note": "bob_pending_shared_reminders"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": []
+  }
+}

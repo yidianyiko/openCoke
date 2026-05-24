@@ -169,7 +169,10 @@ def check_import_boundaries(
             continue
         if not normalized.endswith((".ts", ".tsx", ".mts")):
             continue
-        text = read_text(normalized)
+        try:
+            text = read_text(normalized)
+        except FileNotFoundError:
+            continue
         # Backend-only paths are forbidden in frontend import statements.
         for match in _STATIC_IMPORT_RE.finditer(text):
             target = match.group(2)

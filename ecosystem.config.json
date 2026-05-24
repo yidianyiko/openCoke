@@ -15,7 +15,7 @@
         "DISABLE_DAILY_AGENTS": "true",
         "DISABLE_BACKGROUND_AGENTS": "false",
         "AGNO_TELEMETRY": "false",
-        "AGENT_WORKERS": "1",
+        "AGENT_WORKERS": "10",
         "SKIP_POST_ANALYZE": "1"
       },
       "error_file": "./logs/agent-error.log",

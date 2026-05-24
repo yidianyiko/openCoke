@@ -74,6 +74,8 @@ directory alone.
   - customer web entry:
     `gateway/packages/web/app/(customer)/account/friends/page.tsx`
   - public web entry: `gateway/packages/web/app/u/[code]/page.tsx`
+    - opens public link sessions for unauthenticated visitors, then hands
+      authenticated `link_session` traffic to the customer Friends page
   - public QR route: `gateway/packages/web/app/u/[code]/qr/route.ts`
   - public API: `gateway/packages/api/src/routes/public-user-link-routes.ts`
   - customer API: `gateway/packages/api/src/routes/customer-scheduling-routes.ts`

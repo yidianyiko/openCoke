@@ -265,6 +265,20 @@ def test_check_import_boundaries_ignores_non_web_files():
     assert errors == []
 
 
+def test_check_import_boundaries_ignores_deleted_web_files():
+    from scripts import guardrails
+
+    def read_deleted(_path):
+        raise FileNotFoundError("deleted")
+
+    errors = guardrails.check_import_boundaries(
+        ["gateway/packages/web/app/u/[code]/claim-handoff.tsx"],
+        read_text=read_deleted,
+    )
+
+    assert errors == []
+
+
 def test_collect_tracked_web_files_reads_nested_gateway_repo(monkeypatch):
     from scripts import guardrails
 

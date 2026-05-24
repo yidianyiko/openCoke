@@ -1,0 +1,136 @@
+{
+  "batch_id": "20260524t162032Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_g6aoXe4ydOXo9_3D1eINw",
+      "clawscale_user_id": "csu_7qmXT5d9mJJsMuT8cPu-n"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t162032Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_FPPZFEBeEicAtOdu0VGSU",
+      "clawscale_user_id": "csu_faK8o5SxMi3rk3MD-t3XA"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_0e0aca39a72d40958a6a6d26e25b9f34",
+      "reply_text": "Hii！我是 Coke，你的健康搭子～\n\n我能帮你做这几件事：\n1. 约课 — 直接告诉我想约彭教练的时间就行\n2. 日常提醒 — 运动、喝水、吃药啥的都可以叫我提醒你\n3. 备忘录 — 有什么健康相关的想法先丢给我，我帮你记着\n\n最近在健康方面有什么想达成的目标吗？",
+      "output_id": "6a132559c7303f9fcf0b657b",
+      "elapsed_ms": 11044,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_31bd48baf49047a197bed685495963e2",
+      "reply_text": "目前没有待处理的好友请求哦。系统通知的话，你需要检查一下微信里的服务通知或者消息订阅，那里会有相关提醒。",
+      "output_id": "6a132571c7303f9fcf0b659e",
+      "elapsed_ms": 23072,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_0db061581d724c2daa684b9680767484",
+      "reply_text": "哎，暂时拿不到你的邀请链接，系统这边有点问题。你先看看能不能从 App 里手动复制一下？我这边再试试看能不能弄出来。",
+      "output_id": "6a132599c7303f9fcf0b65d1",
+      "elapsed_ms": 40224,
+      "note": "request_user_link"
+    },
+    {
+      "turn": 4,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t162032Z_bob",
+      "input_text": "你好，我是 Bob，我刚登录。",
+      "inbound_event_id": "smoke_evt_da7156b0f09c44e890dd7c2c4ef6520e",
+      "reply_text": "我没接住你刚才的意思。你可以换个说法再说一次吗？",
+      "output_id": "6a1325a8c7303f9fcf0b65eb",
+      "elapsed_ms": 6035,
+      "note": "first_turn_repro"
+    },
+    {
+      "turn": 5,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t162032Z_bob",
+      "input_text": "我现在有没有未处理的好友请求或通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_34ec056c500c4b94858867b2b8bc882e",
+      "reply_text": "目前没有待处理的好友请求哦。",
+      "output_id": "6a1325bbc7303f9fcf0b6608",
+      "elapsed_ms": 19060,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 6,
+      "speaker": "bob",
+      "coke_account_id": "ck_smoke_20260524t162032Z_bob",
+      "input_text": "我想加好友。这是对方的邀请链接码：yFL4KXQh9K0N。备注：跑步搭子。",
+      "inbound_event_id": "smoke_evt_8c5222b785ef429f8f34a6bc66e50ca4",
+      "reply_text": "已发送好友请求。",
+      "output_id": "6a1325c9c7303f9fcf0b661f",
+      "elapsed_ms": 13044,
+      "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_7885fc46d899443895eaa34465abf61b",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205696,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_8e3820af999e410abffb68cb887c373f",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a1326d1744da23dd93649c7",
+      "elapsed_ms": 55153,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_503134c53a23479dbea89411d983cf9e",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a1326df744da23dd93649df",
+      "elapsed_ms": 16044,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t162032Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_fca6ef0057c446a9870b582f834345a3",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a1326f5744da23dd93649ff",
+      "elapsed_ms": 21054,
+      "note": "alice_create_shared_reminder"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": []
+  }
+}
