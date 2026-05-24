@@ -155,7 +155,10 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             return "cancel_shared_reminder"
         if _contains_any(input_message, ("建", "创建", "设置", "约")) or "create" in text:
             return "create_shared_reminder"
-        if _contains_any(input_message, ("列表", "看看", "查看")) or "list" in text:
+        if _contains_any(
+            input_message,
+            ("列表", "列", "看看", "查看", "有没有", "待处理"),
+        ) or "list" in text:
             return "list_pending_shared_reminders"
 
     if _contains_any(input_message, ("用户链接", "我的链接", "邀请码")):
@@ -243,6 +246,7 @@ def _create_interaction_agent(
     capability_results: list[CapabilityResult],
     domain_results: list[DomainExecutionResult],
     preloaded_scheduling_domain_result: dict[str, Any] | None = None,
+    preselected_scheduling_intent: str | None = None,
     session_db: Any | None = None,
 ) -> Any:
     from agno.agent import Agent
@@ -304,12 +308,17 @@ def _create_interaction_agent(
                 scheduling_domain_result["result"] = result
                 return result
 
-        domain_tools = [
-            tool(name="reminder_domain", stop_after_tool_call=False)(reminder_domain),
-            tool(name="scheduling_domain", stop_after_tool_call=False)(
-                scheduling_domain
-            ),
-        ]
+        scheduling_tool = tool(name="scheduling_domain", stop_after_tool_call=False)(
+            scheduling_domain
+        )
+        domain_tools = [scheduling_tool]
+        if preselected_scheduling_intent is None:
+            domain_tools.insert(
+                0,
+                tool(name="reminder_domain", stop_after_tool_call=False)(
+                    reminder_domain
+                ),
+            )
         final_tools = domain_tools + utility_tools
 
     resolved_session_db = session_db or get_agent_session_db()
@@ -791,6 +800,7 @@ async def run_agent_runtime(
             capability_results=capability_results,
             domain_results=domain_results,
             preloaded_scheduling_domain_result=preloaded_scheduling_domain_result,
+            preselected_scheduling_intent=preselected_scheduling_intent,
         )
         timeout_seconds = _agent_runtime_timeout_seconds()
         try:

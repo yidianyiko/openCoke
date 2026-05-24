@@ -157,6 +157,12 @@ class SchedulingCapabilityPort:
             url = content.get("url")
             if isinstance(url, str) and url.strip():
                 content["visible_summary"] = f"这是你的好友邀请链接：{url.strip()}"
+        if (
+            ok
+            and self.tool_name == "list_pending_shared_reminders"
+            and not _has_explicit_visible_summary(content)
+        ):
+            content["visible_summary"] = _pending_shared_reminders_summary(content)
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
@@ -203,6 +209,35 @@ def _has_explicit_visible_summary(content: Mapping[str, Any]) -> bool:
         if isinstance(value, str) and value.strip():
             return True
     return False
+
+
+def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
+    raw_items = content.get("value")
+    if raw_items is None:
+        raw_items = content.get("pending")
+    if not isinstance(raw_items, list) or not raw_items:
+        return "目前没有待处理的共享提醒。"
+
+    labels = [
+        _pending_shared_reminder_label(item)
+        for item in raw_items[:3]
+        if isinstance(item, Mapping)
+    ]
+    if not labels:
+        return f"你有 {len(raw_items)} 个待处理的共享提醒。"
+    return f"你有 {len(raw_items)} 个待处理的共享提醒：" + "；".join(labels) + "。"
+
+
+def _pending_shared_reminder_label(item: Mapping[str, Any]) -> str:
+    requester = (
+        item.get("requesterName")
+        or item.get("requester_name")
+        or item.get("requesterAccountId")
+        or item.get("requester_account_id")
+        or "对方"
+    )
+    title = item.get("title") or "共享提醒"
+    return f"{requester} 发来的“{title}”"
 
 
 def _read_gateway_api_base_url() -> str:

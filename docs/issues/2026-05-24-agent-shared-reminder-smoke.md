@@ -116,6 +116,21 @@ Batches 145018Z post-loop showed Bob's "接受 Alice 那个共享提醒" calls f
 
 Batch 145018Z T15: Bob asked "我现在有没有待处理的共享提醒？" → assistant said "目前你没有待处理的共享提醒". One turn later Bob asked "接受 Alice 的共享提醒" → assistant said "我看到 Alice 有两个待接受的共享提醒". Same user, same minute. Direct API call to gateway returned both. So the agent's tool call for `list_pending_shared_reminders` was either filtered too tightly (wrong direction default?) or the assistant misinterpreted the result. Needs a quick look.
 
+Also observed in batch `20260524t170827Z` T11. Bob asked "我现在有没有待处理的共享提醒？只列待处理的，告诉我是谁发的、什么内容。" while Postgres had one `pending_invitee_confirmation` shared-reminder request for Bob. `agent_sessions` showed the chat agent called `reminder_domain` instead of `scheduling_domain`, so the reply was grounded in Bob's personal reminder list and said there were no pending shared reminders.
+
+Fix implemented in the agent runtime and scheduling capability:
+
+- `_infer_scheduling_intent_from_message` now treats "有没有 / 待处理 / 列" shared-reminder wording as `list_pending_shared_reminders`.
+- When the runtime has preselected a scheduling intent, it exposes only `scheduling_domain` to the interaction agent for that turn, preventing reminder-domain misrouting.
+- `list_pending_shared_reminders` now returns a visible summary so an empty model response can still surface the pending shared-reminder facts.
+
+Verification:
+
+- `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py::test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduling tests/unit/agent/test_agent_runtime_construction.py::test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_domain tests/unit/agent/test_scheduling_capability.py::test_list_pending_shared_reminders_provides_visible_summary tests/unit/agent/test_scheduling_capability.py::test_list_pending_shared_reminders_empty_summary -q`
+  failed before the fix and passed after it.
+- `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_scheduling_capability.py -q`
+  passed after the fix.
+
 ### Friend-request note leaked into visible reply
 
 Batch 152859Z T6 surfaced the raw friend-request `message` field ("跑步搭子") instead of the write summary. Root cause: the scheduling capability treated any `message` field as an explicit visible summary for durable writes. Fixed by only honoring explicit `visible_summary` / `summary` for scheduling writes, then backfilling the canonical summary. Live recheck on 2026-05-25 with Bob `ck_smoke_20260524t152859Z_bob` and Alice's link code `jPXX93OrUKHq` returned `已发送好友请求。` as expected.

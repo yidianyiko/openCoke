@@ -78,6 +78,54 @@ def test_get_user_link_provides_visible_summary_for_empty_chat_text():
     )
 
 
+def test_list_pending_shared_reminders_provides_visible_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": [
+                {
+                    "id": "sr_1",
+                    "requesterAccountId": "ck_alice",
+                    "title": "跑步",
+                    "fireAt": "2026-05-29T10:30:00.000Z",
+                    "status": "pending_invitee_confirmation",
+                }
+            ],
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_pending_shared_reminders",
+        handler=handler,
+    )
+    result = port.run("我现在有没有待处理的共享提醒？", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "你有 1 个待处理的共享提醒：ck_alice 发来的“跑步”。"
+    )
+    assert result.visible_summary == "你有 1 个待处理的共享提醒：ck_alice 发来的“跑步”。"
+
+
+def test_list_pending_shared_reminders_empty_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {"ok": True, "data": []}
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_pending_shared_reminders",
+        handler=handler,
+    )
+    result = port.run("我现在有没有待处理的共享提醒？", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == "目前没有待处理的共享提醒。"
+
+
 def test_create_shared_reminder_forwards_required_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

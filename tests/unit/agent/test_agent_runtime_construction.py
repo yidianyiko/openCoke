@@ -1046,6 +1046,15 @@ def test_scheduling_intent_inference_treats_own_invite_link_as_get_user_link():
     )
 
 
+def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduling():
+    assert (
+        agent_runtime._infer_scheduling_intent_from_message(
+            "我现在有没有待处理的共享提醒？只列待处理的，告诉我是谁发的、什么内容。"
+        )
+        == "list_pending_shared_reminders"
+    )
+
+
 @pytest.mark.asyncio
 async def test_create_interaction_agent_scheduling_domain_honors_tool_key_intent(
     monkeypatch,
@@ -1105,6 +1114,23 @@ async def test_create_interaction_agent_scheduling_domain_honors_tool_key_intent
         "run_context": run_context,
         "domain_results": domain_results,
     }
+
+
+def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_domain():
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="我现在有没有待处理的共享提醒？",
+        capability_results=[],
+        domain_results=[],
+        preloaded_scheduling_domain_result={"domain": "scheduling"},
+        preselected_scheduling_intent="list_pending_shared_reminders",
+    )
+
+    tool_names = {tool.name for tool in agent.tools}
+
+    assert "scheduling_domain" in tool_names
+    assert "reminder_domain" not in tool_names
 
 
 @pytest.mark.asyncio
