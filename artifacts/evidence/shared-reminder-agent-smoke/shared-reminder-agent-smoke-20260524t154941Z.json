@@ -1,0 +1,61 @@
+{
+  "batch_id": "20260524t154941Z",
+  "accounts": [
+    {
+      "coke_account_id": "ck_smoke_20260524t154941Z_alice",
+      "display_name": "Alice Smoke",
+      "label": "alice",
+      "tenant_id": "tnt_yw5AgMyZq2GkiveM4gMle",
+      "clawscale_user_id": "csu_eY6eopHomY0VVeZwiWzUQ"
+    },
+    {
+      "coke_account_id": "ck_smoke_20260524t154941Z_bob",
+      "display_name": "Bob Smoke",
+      "label": "bob",
+      "tenant_id": "tnt_nZ0I9GcAvn2GUJBQV0GvE",
+      "clawscale_user_id": "csu_A6Hr5eY04AG_MX2lSwvn6"
+    }
+  ],
+  "turns": [
+    {
+      "turn": 1,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t154941Z_alice",
+      "input_text": "你好，我刚登录。能简单介绍一下你能帮我做什么吗？",
+      "inbound_event_id": "smoke_evt_be1e866da8994e7986ef36a4228a8b62",
+      "reply_text": "Hii！我是 Coke，你的健康搭子，也能帮你约课～\n你可以让我帮你约彭教练的课程、定日程提醒，或者丢一些健康相关的问题给我\n最近有什么健康目标想聊聊吗？",
+      "output_id": "6a131e19c7303f9fcf0b5d5e",
+      "elapsed_ms": 5025,
+      "note": "greeting"
+    },
+    {
+      "turn": 2,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t154941Z_alice",
+      "input_text": "我现在有没有未处理的好友请求或系统通知？只列待处理的。",
+      "inbound_event_id": "smoke_evt_9325f1873bbb49478c1632179633dda7",
+      "reply_text": "没有待处理的好友请求，也没有待处理的提醒或通知。现在是清净的～",
+      "output_id": "6a131e2fc7303f9fcf0b5d88",
+      "elapsed_ms": 22067,
+      "note": "inbox_check"
+    },
+    {
+      "turn": 3,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t154941Z_alice",
+      "input_text": "把我自己的好友邀请链接给我，我要分享给一个朋友。",
+      "inbound_event_id": "smoke_evt_28a9884767c24ff5b04a4b2a1d44470a",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a131e45c7303f9fcf0b5da9",
+      "elapsed_ms": 22065,
+      "note": "request_user_link"
+    }
+  ],
+  "findings": [],
+  "verdict": {
+    "passed": false,
+    "problems": [
+      "phase1_only_no_verdict_yet"
+    ]
+  }
+}

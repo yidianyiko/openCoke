@@ -82,6 +82,50 @@
       "output_id": "6a1319b55938703d9bfd1f7d",
       "elapsed_ms": 15047,
       "note": "friend_request_via_link"
+    },
+    {
+      "turn": 7,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "我现在有没有未处理的好友请求？",
+      "inbound_event_id": "smoke_evt_8bbd1bf6ad3f4152b89be9c2a261cfc3",
+      "reply_text": "",
+      "output_id": null,
+      "elapsed_ms": 205462,
+      "note": "alice_inbox_after_bob_request"
+    },
+    {
+      "turn": 8,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "通过 Bob 的好友请求。",
+      "inbound_event_id": "smoke_evt_7b3e1b6ad4384f8980e94971e3af6133",
+      "reply_text": "已通过好友请求。",
+      "output_id": "6a131aaec7303f9fcf0b59b7",
+      "elapsed_ms": 28080,
+      "note": "alice_accept_bob"
+    },
+    {
+      "turn": 9,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "看看我现在都有哪些好友。",
+      "inbound_event_id": "smoke_evt_564c2fb9faf94347b06ccf8d978d588b",
+      "reply_text": "你现在有 1 位好友：Bob Smoke 就是上次那个~",
+      "output_id": "6a131acbc7303f9fcf0b59e8",
+      "elapsed_ms": 28076,
+      "note": "alice_list_friends"
+    },
+    {
+      "turn": 10,
+      "speaker": "alice",
+      "coke_account_id": "ck_smoke_20260524t152859Z_alice",
+      "input_text": "我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+      "inbound_event_id": "smoke_evt_656781734e054b3eb04e1f2ef6654b77",
+      "reply_text": "日程操作暂时无法完成。",
+      "output_id": "6a131addc7303f9fcf0b5a06",
+      "elapsed_ms": 20058,
+      "note": "alice_create_shared_reminder"
     }
   ],
   "findings": [],

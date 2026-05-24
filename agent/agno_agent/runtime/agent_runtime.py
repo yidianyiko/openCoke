@@ -425,6 +425,10 @@ def _string_content(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _text_message_segments(content: str) -> tuple[str, ...]:
+    return tuple(segment.strip() for segment in content.splitlines() if segment.strip())
+
+
 _FENCED_JSON_RE = re.compile(
     r"^\s*```(?:json|JSON)?\s*\n?(?P<body>.*?)\n?```\s*$",
     re.DOTALL,
@@ -501,7 +505,10 @@ def _parse_visible_text_segments(final_text: str) -> tuple[str, ...]:
         content = _string_content(item.get("content"))
         if not content:
             continue
-        segments.append(content)
+        for segment in _text_message_segments(content):
+            segments.append(segment)
+            if len(segments) >= _MAX_VISIBLE_TEXT_SEGMENTS:
+                break
         if len(segments) >= _MAX_VISIBLE_TEXT_SEGMENTS:
             break
     return tuple(segments)

@@ -221,6 +221,26 @@ async def test_multimodal_json_becomes_ordered_visible_text_segments(monkeypatch
     assert result.output_disposition.status == "ok"
 
 
+@pytest.mark.asyncio
+async def test_multimodal_text_content_newlines_become_visible_segments(monkeypatch):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": ""}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content=_segments_payload(
+            {
+                "type": "text",
+                "content": "目前你还没有加好友哦~ List是空的。\n要想一起用共享提醒啥的功能，可以先加个好友，你想加谁呀？",
+            },
+        ),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "目前你还没有加好友哦~ List是空的。",
+        "要想一起用共享提醒啥的功能，可以先加个好友，你想加谁呀？",
+    ]
+
+
 def test_unconfirmed_durable_write_friend_accept_patterns():
     """Regression: when the assistant lies about accepting a friend request
     without a successful scheduling write, the unconfirmed-write detector

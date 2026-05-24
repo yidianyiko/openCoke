@@ -96,9 +96,19 @@ def send_as(
 
     # Bridge's reply_timeout_seconds (default 25) is short for shared dev where
     # workers may be contended. If the bridge returned ok but no reply yet, poll
-    # mongo for the assistant's output keyed by causal_inbound_event_id.
+    # mongo for the assistant's output. First try the causal_inbound_event_id
+    # (production-correct match); fall back to recipient + timestamp because the
+    # worker batches a user message with a concurrently-injected product
+    # notification and propagates the FIRST batched message's causal id onto
+    # the output, orphaning our user message's id. (See bug F in
+    # docs/issues/2026-05-24-agent-shared-reminder-smoke.md.)
     if not reply_text:
-        reply_text, output_id = _poll_for_reply(event_id, request_timeout)
+        reply_text, output_id = _poll_for_reply(
+            event_id,
+            request_timeout,
+            recipient_account_id=payload["coke_account_id"],
+            since_ts=payload["timestamp"],
+        )
 
     return BridgeReply(
         reply=reply_text,
@@ -108,7 +118,13 @@ def send_as(
     )
 
 
-def _poll_for_reply(event_id: str, deadline_seconds: float) -> tuple[str, str | None]:
+def _poll_for_reply(
+    event_id: str,
+    deadline_seconds: float,
+    *,
+    recipient_account_id: str,
+    since_ts: int,
+) -> tuple[str, str | None]:
     from pymongo import MongoClient  # local import to keep the basic send path lean
 
     client = MongoClient(_config.mongo_uri())
@@ -122,5 +138,19 @@ def _poll_for_reply(event_id: str, deadline_seconds: float) -> tuple[str, str | 
         if messages:
             text = "\n".join(m.get("message", "") for m in messages if m.get("message"))
             return text, str(messages[0].get("_id")) if messages else None
+        # Fallback: causal_id may be hijacked by a concurrent product
+        # notification batched into the same worker turn. Match by recipient
+        # + timestamp window — pick the most recent pending output sent to
+        # this account after we sent the inbound.
+        if recipient_account_id and since_ts:
+            recent = collection.find_one(
+                {
+                    "to_user": recipient_account_id,
+                    "input_timestamp": {"$gte": since_ts - 5},
+                },
+                sort=[("input_timestamp", -1)],
+            )
+            if recent and recent.get("message"):
+                return recent.get("message", ""), str(recent.get("_id"))
         time.sleep(1.5)
     return "", None
