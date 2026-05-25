@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: active
+status: resolved
 surface:
   - agent-runner
   - tools/agent_smoke
@@ -66,15 +66,33 @@ request-response caller for the superseding message never receives the reply.
 
 ## Current Status
 
-- Partially fixed locally. Rollback detection now ignores pending or handled
+- Resolved. Rollback detection now ignores pending or handled
   messages older than the current message and only treats later user messages as
   interrupts.
 - The smoke runner records late Mongo outputs, verifies the second event's
   causal binding, checks active reminders, and uses the correct Postgres
   customer id column.
-- Still blocked. The combined interrupted turn binds output to the first causal
-  event and does not create the corrected Monday 9am water reminder.
+- Batched request-response replies bind to the latest request-response inbound
+  event.
+- Superseding batched reminder creates now use the reminder domain's grounded
+  visible summary, so stale free-form text from the interrupted first request is
+  not echoed.
+- Rolled-back visible reminder creates are compensated by cancelling the
+  reminder written by the discarded older turn.
 
 ## Resolution
 
 - Partial fix commit: included in the scenario commit `smoke(interruption): expose superseding turn gaps`.
+- Resolution commit: `34892737`.
+- Verified green at 2026-05-25:
+  `.venv/bin/python -m pytest tests/unit/runner/test_agent_handler_inflight_interrupt.py tests/unit/agent/test_agent_handler.py tests/unit/agent/test_message_util_clawscale_routing.py tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test_reminder_command_executor.py tests/unit/agent/test_agent_runtime_construction.py -q`
+  passed with `168 passed`.
+- Verified green at 2026-05-25:
+  `.venv/bin/python -m tools.agent_smoke._runner_phase_interruption` passed with
+  `VERDICT=PASSED`; evidence:
+  `artifacts/evidence/shared-reminder-agent-smoke/interruption-interruption-20260525t133035Z.json`.
+  Mongo showed the stale 2026-05-26 reminder cancelled and the corrected
+  2026-06-01 周一 09:00 reminder active. Postgres snapshot showed one smoke
+  customer and no stray shared-reminder/block rows. Gateway/bridge logs showed
+  the two inbound bridge calls returning 200 and the late ClawScale reply linked
+  to second causal event `smoke_evt_9027cc20d1094c55ac2acd14d045a827`.
