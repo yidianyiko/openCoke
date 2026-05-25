@@ -197,6 +197,13 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
     assert result.operations[0].action == "create"
     assert result.operations[0].entity_id == "rem-1"
     assert result.operations[0].facts["title"] == "hydrate"
+    assert (
+        result.operations[0].facts["summary"]
+        == "已创建提醒：hydrate（2026-05-01 09:30）"
+    )
+    assert result.operations[0].facts["visible_summary"] == (
+        "已创建提醒：hydrate（2026-05-01 周五 09:30）"
+    )
     assert result.reply_contract.intent == "confirm_execution"
     assert [item.path for item in result.reply_contract.required_facts] == [
         "operations[0].facts.title",

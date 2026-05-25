@@ -265,8 +265,8 @@ def send_message_via_context(
             .get("input_messages", [])
         )
         if input_messages and len(input_messages) > 0:
-            first_input = input_messages[0]
-            input_metadata = first_input.get("metadata", {})
+            input_message = _select_reply_metadata_input_message(input_messages)
+            input_metadata = input_message.get("metadata", {})
             # 将 inputmessage 的 metadata 合并到输出消息
             metadata = {**input_metadata, **metadata}
         metadata = _inject_business_key_into_clawscale_reply_metadata(
@@ -283,9 +283,7 @@ def send_message_via_context(
         )
     elif get_agent_entity_id(context.get("user")):
         account_id = get_agent_entity_id(context.get("user"))
-        clawscale_metadata = build_clawscale_push_metadata(
-            account_id, context=context
-        )
+        clawscale_metadata = build_clawscale_push_metadata(account_id, context=context)
         if clawscale_metadata:
             metadata = {**clawscale_metadata, **metadata}
         else:
@@ -313,9 +311,17 @@ def send_message_via_context(
 
     output_message = send_message(
         platform=None if is_proactive_message else context["conversation"]["platform"],
-        from_user=None if is_proactive_message else get_agent_entity_id(context.get("character")),
-        to_user=None if is_proactive_message else get_agent_entity_id(context.get("user")),
-        chatroom_name=None if is_proactive_message else context["conversation"]["chatroom_name"],
+        from_user=(
+            None
+            if is_proactive_message
+            else get_agent_entity_id(context.get("character"))
+        ),
+        to_user=(
+            None if is_proactive_message else get_agent_entity_id(context.get("user"))
+        ),
+        chatroom_name=(
+            None if is_proactive_message else context["conversation"]["chatroom_name"]
+        ),
         message=message,
         message_type=message_type,
         status=status,
@@ -330,8 +336,31 @@ def send_message_via_context(
     return output_message
 
 
+def _select_reply_metadata_input_message(input_messages: list[dict]) -> dict:
+    """Choose the inbound event a request-response output should answer."""
+    request_response_messages: list[tuple[int, int, dict]] = []
+    for index, message in enumerate(input_messages):
+        if not isinstance(message, dict):
+            continue
+        metadata = message.get("metadata")
+        if not _is_clawscale_request_response_metadata(metadata):
+            continue
+        try:
+            timestamp = int(message.get("input_timestamp") or 0)
+        except (TypeError, ValueError):
+            timestamp = 0
+        request_response_messages.append((timestamp, index, message))
+    if request_response_messages:
+        return max(request_response_messages, key=lambda item: (item[0], item[1]))[2]
+    return input_messages[0]
+
+
 def _prepare_clawscale_sync_reply_output(
-    *, context: dict | None, status: str, handled_timestamp: int | None, metadata: dict | None
+    *,
+    context: dict | None,
+    status: str,
+    handled_timestamp: int | None,
+    metadata: dict | None,
 ) -> tuple[str, int | None, dict, bool]:
     if not isinstance(metadata, dict):
         normalized_metadata = {} if metadata is None else metadata

@@ -303,7 +303,13 @@ def _operations_from_tool_result(
             effect=_effect_for_reminder_action(action),
             entity_type="reminder",
             entity_id=_optional_str(reminder.get("id")),
-            facts=_reminder_facts(reminder),
+            facts={
+                **_reminder_facts(reminder),
+                "summary": tool_result.get("summary"),
+                "visible_summary": _visible_reminder_summary(
+                    action, tool_result, reminder
+                ),
+            },
         ),
     )
 
@@ -333,6 +339,38 @@ def _reminder_facts(reminder: Mapping[str, Any]) -> dict[str, Any]:
         "owner_user_id": reminder.get("owner_user_id"),
         "metadata": dict(reminder.get("metadata") or {}),
     }
+
+
+_WEEKDAY_LABELS = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+
+def _visible_reminder_summary(
+    action: str,
+    tool_result: Mapping[str, Any],
+    reminder: Mapping[str, Any],
+) -> str | None:
+    if action not in {"create", "update"}:
+        summary = tool_result.get("summary")
+        return str(summary) if isinstance(summary, str) and summary.strip() else None
+    schedule = (
+        reminder.get("schedule")
+        if isinstance(reminder.get("schedule"), Mapping)
+        else {}
+    )
+    title = str(reminder.get("title") or "").strip()
+    local_date = str(schedule.get("local_date") or "").strip()
+    local_time = str(schedule.get("local_time") or "").strip()
+    if not title or not local_date or not local_time:
+        summary = tool_result.get("summary")
+        return str(summary) if isinstance(summary, str) and summary.strip() else None
+    try:
+        weekday = _WEEKDAY_LABELS[datetime.fromisoformat(local_date).weekday()]
+    except (ValueError, IndexError):
+        weekday = ""
+    time_label = local_time[:5]
+    if weekday:
+        return f"已创建提醒：{title}（{local_date} {weekday} {time_label}）"
+    return f"已创建提醒：{title}（{local_date} {time_label}）"
 
 
 def _effect_for_reminder_action(action: str) -> str:

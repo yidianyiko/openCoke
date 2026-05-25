@@ -43,7 +43,9 @@ def test_message_util_emits_business_only_output_doc_for_reminder_message(
         },
     )
 
-    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
         output = {
             "message": message,
             "message_type": kwargs["message_type"],
@@ -202,11 +204,15 @@ def test_message_util_marks_reminder_output_failed_when_business_key_missing(
     def fake_warning(msg, *args, **kwargs):
         logged_messages.append(msg % args if args else msg)
 
-    monkeypatch.setattr(message_util, "build_clawscale_push_metadata", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        message_util, "build_clawscale_push_metadata", lambda *args, **kwargs: {}
+    )
     monkeypatch.setattr(message_util.time, "time", lambda: now_ts)
     monkeypatch.setattr(message_util.logger, "warning", fake_warning)
 
-    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
         output = {
             "message": message,
             "status": kwargs["status"],
@@ -229,7 +235,10 @@ def test_message_util_marks_reminder_output_failed_when_business_key_missing(
 
     assert message["status"] == "failed"
     assert message["handled_timestamp"] == now_ts
-    assert message["metadata"]["failure_reason"] == "missing_clawscale_business_conversation_key"
+    assert (
+        message["metadata"]["failure_reason"]
+        == "missing_clawscale_business_conversation_key"
+    )
     assert message["metadata"]["delivery_mode"] == "push"
     assert "platform" not in message
     assert any(
@@ -253,7 +262,9 @@ def test_message_util_does_not_auto_inject_clawscale_metadata_for_non_proactive_
 
     monkeypatch.setattr(message_util, "build_clawscale_push_metadata", fail_if_called)
 
-    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
         output = {
             "message": message,
             "metadata": kwargs["metadata"],
@@ -295,7 +306,9 @@ def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
         }
     ]
 
-    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
         return {
             "message": message,
             "metadata": kwargs["metadata"],
@@ -314,6 +327,62 @@ def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(
             "gateway_conversation_id": "gw_conv_1",
             "business_conversation_key": "bc_1",
         },
+    }
+
+
+def test_message_util_binds_batched_sync_reply_to_latest_request_response_event(
+    sample_context, monkeypatch
+):
+    from agent.util import message_util
+
+    sample_context["message_source"] = "user"
+    sample_context["conversation"]["chatroom_name"] = None
+    sample_context["conversation"]["platform"] = "business"
+    sample_context["conversation"]["business_conversation_key"] = "bc_1"
+    sample_context["conversation"]["conversation_info"]["input_messages"] = [
+        {
+            "input_timestamp": 1710000000,
+            "metadata": {
+                "source": "clawscale",
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "causal_inbound_event_id": "in_evt_old",
+                    "sync_reply_token": "sync_tok_old",
+                    "business_conversation_key": "bc_1",
+                },
+            },
+        },
+        {
+            "input_timestamp": 1710000001,
+            "metadata": {
+                "source": "clawscale",
+                "business_protocol": {
+                    "delivery_mode": "request_response",
+                    "causal_inbound_event_id": "in_evt_new",
+                    "sync_reply_token": "sync_tok_new",
+                    "business_conversation_key": "bc_1",
+                },
+            },
+        },
+    ]
+
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
+        return {
+            "message": message,
+            "metadata": kwargs["metadata"],
+        }
+
+    monkeypatch.setattr(message_util, "send_message", fake_send_message)
+
+    message = message_util.send_message_via_context(sample_context, "已按新的请求处理")
+
+    assert message["metadata"]["business_protocol"] == {
+        "delivery_mode": "request_response",
+        "causal_inbound_event_id": "in_evt_new",
+        "sync_reply_token": "sync_tok_new",
+        "business_conversation_key": "bc_1",
     }
 
 
@@ -367,7 +436,9 @@ def test_message_util_merges_extra_clawscale_sync_outputs_into_first_reply(
 
     monkeypatch.setattr(message_util, "MongoDBBase", lambda: FakeMongo())
 
-    def fake_send_message(platform, from_user, to_user, chatroom_name, message, **kwargs):
+    def fake_send_message(
+        platform, from_user, to_user, chatroom_name, message, **kwargs
+    ):
         payload = {
             "_id": "out_1",
             "message": message,

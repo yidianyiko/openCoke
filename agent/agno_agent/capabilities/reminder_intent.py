@@ -186,6 +186,11 @@ class ReminderIntentPort:
             decision,
             run_context,
         )
+        decision = _normalize_weekday_bare_create_trigger(
+            input_message,
+            decision,
+            run_context,
+        )
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
@@ -585,6 +590,71 @@ def _normalize_past_bare_create_trigger(
     if normalized_trigger_at and normalized_trigger_at != trigger_at:
         return _copy_decision_with_value(decision, field_name, normalized_trigger_at)
     return decision
+
+
+def _normalize_weekday_bare_create_trigger(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    if _WEEKDAY_RANGE_PATTERN.search(current_user_text):
+        return decision
+    weekday = _explicit_weekday_index(current_user_text)
+    if weekday is None:
+        return decision
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return decision
+    parsed_clock = _parse_bare_clock_match(current_user_text, matches[0])
+    if parsed_clock is None:
+        return decision
+    hour, minute = parsed_clock
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    current_local = (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+    candidate = current_local.replace(
+        hour=hour,
+        minute=minute,
+        second=0,
+        microsecond=0,
+    )
+    days_ahead = (weekday - candidate.weekday()) % 7
+    candidate += timedelta(days=days_ahead)
+    if candidate <= current_local:
+        candidate += timedelta(days=7)
+
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    if trigger_at:
+        try:
+            parsed_trigger = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+        except ValueError:
+            parsed_trigger = None
+        if parsed_trigger is not None:
+            trigger_local = (
+                parsed_trigger.replace(tzinfo=timezone)
+                if parsed_trigger.tzinfo is None
+                else parsed_trigger.astimezone(timezone)
+            )
+            if trigger_local.weekday() == weekday and trigger_local > current_local:
+                return decision
+    return _copy_decision_with_value(decision, "trigger_at", candidate.isoformat())
+
+
+def _latest_user_turn_text(input_message: str) -> str:
+    parts = re.split(r"（[^）]*发来了文本消息）", input_message)
+    if len(parts) > 1:
+        return parts[-1].strip()
+    return _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
 
 
 def _next_future_trigger_at_for_single_bare_clock(

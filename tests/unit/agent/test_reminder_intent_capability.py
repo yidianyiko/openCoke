@@ -1311,6 +1311,46 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_normalizes_wrong_weekday_bare_clock_to_next_matching_day():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 13, 7, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="喝水",
+        trigger_at="2026-05-26T09:00:00+08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.trigger_at == "2026-06-01T09:00:00+08:00"
+            return _executed_result("已创建提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("等一下，先取消刚才说的，改成只设周一 9 点提醒", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_normalizes_past_bare_clock_update_time():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

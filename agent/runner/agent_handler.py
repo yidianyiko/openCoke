@@ -223,6 +223,65 @@ def _derive_agent_runtime_user_turn_occurred_at(context: dict) -> datetime:
     return max(wall_now, message_time)
 
 
+def _cancel_visible_reminder_for_rollback(
+    *, owner_user_id: str, reminder_id: str
+) -> None:
+    from agent.reminder.runtime_contract import ReminderRuntimeContract
+
+    ReminderRuntimeContract().cancel_visible_reminder(
+        owner_user_id=owner_user_id,
+        reminder_id=reminder_id,
+    )
+
+
+def _rolled_back_visible_reminder_create_ids(result: Any) -> List[str]:
+    reminder_ids: List[str] = []
+    for domain_result in getattr(result, "domain_results", ()) or ():
+        if getattr(domain_result, "domain", None) != "reminder":
+            continue
+        for operation in getattr(domain_result, "operations", ()) or ():
+            if (
+                getattr(operation, "action", None) == "create"
+                and getattr(operation, "ok", None) is True
+                and getattr(operation, "effect", None) == "write"
+                and getattr(operation, "entity_type", None) == "reminder"
+                and getattr(operation, "entity_id", None)
+            ):
+                reminder_ids.append(str(operation.entity_id))
+    return reminder_ids
+
+
+def _compensate_rolled_back_domain_writes(
+    *, result: Any, context: dict, worker_tag: str
+) -> None:
+    reminder_ids = _rolled_back_visible_reminder_create_ids(result)
+    if not reminder_ids:
+        return
+
+    owner_user_id = get_agent_entity_id(context.get("user"))
+    if not owner_user_id:
+        logger.warning(
+            f"{worker_tag} rollback compensation skipped: missing owner user id"
+        )
+        return
+
+    for reminder_id in reminder_ids:
+        try:
+            _cancel_visible_reminder_for_rollback(
+                owner_user_id=owner_user_id,
+                reminder_id=reminder_id,
+            )
+            logger.info(
+                f"{worker_tag} rollback compensation cancelled reminder "
+                f"{reminder_id}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"{worker_tag} rollback compensation failed for reminder "
+                f"{reminder_id}: {exc}"
+            )
+
+
 # ========== 核心消息处理函数 ==========
 
 
@@ -365,11 +424,21 @@ async def handle_message(
         ):
             logger.warning(f"{worker_tag} 锁已丢失，停止接受 single-Agent runtime 结果")
             context["MultiModalResponses"] = all_multimodal_responses
+            _compensate_rolled_back_domain_writes(
+                result=result,
+                context=context,
+                worker_tag=worker_tag,
+            )
             return resp_messages, context, True, False
 
         if result.output_disposition.status == "rollback":
             logger.info(f"{worker_tag} AgentRuntime rollback")
             context["MultiModalResponses"] = all_multimodal_responses
+            _compensate_rolled_back_domain_writes(
+                result=result,
+                context=context,
+                worker_tag=worker_tag,
+            )
             return resp_messages, context, True, False
 
         for visible_message in result.visible_messages:
@@ -383,6 +452,11 @@ async def handle_message(
                 if not verify_lock_ownership(conversation_id, lock_id):
                     logger.warning(f"{worker_tag} 锁已丢失，停止发送 runtime 消息")
                     context["MultiModalResponses"] = all_multimodal_responses
+                    _compensate_rolled_back_domain_writes(
+                        result=result,
+                        context=context,
+                        worker_tag=worker_tag,
+                    )
                     return resp_messages, context, True, False
 
             try:
@@ -392,15 +466,17 @@ async def handle_message(
                     expect_output_timestamp=expect_output_timestamp,
                     is_first=(len(all_multimodal_responses) == 0),
                     interrupt_check=(
-                        lambda: is_new_message_coming_in(
-                            get_agent_entity_id(user),
-                            get_agent_entity_id(character),
-                            current_platform,
-                            current_message_ids,
+                        (
+                            lambda: is_new_message_coming_in(
+                                get_agent_entity_id(user),
+                                get_agent_entity_id(character),
+                                current_platform,
+                                current_message_ids,
+                            )
                         )
-                    )
-                    if check_new_message and message_source == "user"
-                    else None,
+                        if check_new_message and message_source == "user"
+                        else None
+                    ),
                 )
             except OutboundSendInterrupted as exc:
                 resp_messages.extend(exc.sent_messages)
@@ -410,6 +486,11 @@ async def handle_message(
                     f"{worker_tag} rollback: new message during runtime message send"
                 )
                 context["MultiModalResponses"] = all_multimodal_responses
+                _compensate_rolled_back_domain_writes(
+                    result=result,
+                    context=context,
+                    worker_tag=worker_tag,
+                )
                 return resp_messages, context, True, False
             if outputmessage is not None:
                 all_multimodal_responses.append(multimodal_response)
@@ -430,6 +511,11 @@ async def handle_message(
             ):
                 logger.warning(f"{worker_tag} 锁已丢失，跳过 runtime 兜底回复")
                 context["MultiModalResponses"] = all_multimodal_responses
+                _compensate_rolled_back_domain_writes(
+                    result=result,
+                    context=context,
+                    worker_tag=worker_tag,
+                )
                 return resp_messages, context, True, False
 
             if check_new_message and message_source == "user":
@@ -443,6 +529,11 @@ async def handle_message(
                         f"{worker_tag} rollback: new message before runtime fallback send"
                     )
                     context["MultiModalResponses"] = all_multimodal_responses
+                    _compensate_rolled_back_domain_writes(
+                        result=result,
+                        context=context,
+                        worker_tag=worker_tag,
+                    )
                     return resp_messages, context, True, False
 
             outputmessage, expect_output_timestamp = send_chat_response_fallback(
@@ -461,9 +552,7 @@ async def handle_message(
         ):
             post_context = copy.deepcopy(context)
             post_conversation_id = str(
-                post_context.get("conversation", {}).get("_id")
-                or conversation_id
-                or ""
+                post_context.get("conversation", {}).get("_id") or conversation_id or ""
             )
             asyncio.create_task(
                 _run_post_analyze_background(

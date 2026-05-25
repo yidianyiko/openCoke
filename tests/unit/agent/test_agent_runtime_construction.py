@@ -576,6 +576,80 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_prefers_domain_summary_for_superseding_batched_write(
+    monkeypatch,
+):
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="已设置周一9点喝水提醒。再给你5个健康早餐推荐：燕麦。",
+                messages=[
+                    SimpleNamespace(
+                        role="assistant",
+                        content="已设置周一9点喝水提醒。再给你5个健康早餐推荐：燕麦。",
+                    )
+                ],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["domain_results"].append(
+            DomainExecutionResult(
+                domain="reminder",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="create",
+                        ok=True,
+                        effect="write",
+                        entity_type="reminder",
+                        entity_id="rem-1",
+                        facts={
+                            "summary": "已创建提醒：喝水（2026-06-01 09:00）",
+                            "title": "喝水",
+                            "local_date": "2026-06-01",
+                            "local_time": "09:00:00",
+                        },
+                    ),
+                ),
+                missing_fields=(),
+                safety_boundary=None,
+                reply_contract=ReplyContract(
+                    intent="confirm_execution",
+                    required_facts=(),
+                    required_questions=(),
+                    prohibited_claims=("not_created",),
+                    allow_rephrase=True,
+                ),
+            )
+        )
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv-1",
+            text=(
+                "（2026年05月25日21时15分 Alice发来了文本消息）"
+                "帮我把这周每天 9 点都设个喝水提醒，再给我推荐 5 个健康早餐\n"
+                "（2026年05月25日21时15分 Alice发来了文本消息）"
+                "等一下，先取消刚才说的，改成只设周一 9 点提醒"
+            ),
+            payload=UserTurnPayload(current_message_ids=["msg-1", "msg-2"]),
+            occurred_at=datetime(2026, 5, 25, 13, 15, tzinfo=UTC),
+        ),
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：喝水（2026-06-01 09:00）"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
     monkeypatch,
 ):
@@ -1120,7 +1194,9 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
     )
 
-    result = await scheduling_domain(intent={"domain": "friend-request_pending", "params": {}})
+    result = await scheduling_domain(
+        intent={"domain": "friend-request_pending", "params": {}}
+    )
 
     assert result is envelope
     assert captured == {
@@ -1405,7 +1481,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_start_datet
     agent = agent_runtime._create_interaction_agent(
         run_context=_run_context(),
         agent_input=_agent_input(),
-        input_message="今晚九点，给我们约一个60分钟的短会",
+        input_message="今晚九点，给我们约一个60分钟的共同提醒",
         capability_results=[],
         domain_results=[],
     )
@@ -1417,7 +1493,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_start_datet
         intent={
             "create_shared_reminder": {
                 "invitee_name": "eva",
-                "title": "一起运动",
+                "title": "共同提醒",
                 "start_datetime": "2026-05-25T21:00:00",
                 "timezone": "Asia/Shanghai",
                 "duration_minutes": 60,
@@ -1429,7 +1505,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_start_datet
         "intent": "create_shared_reminder",
         "forced_args": {
             "invitee_name": "eva",
-            "title": "一起运动",
+            "title": "共同提醒",
             "fire_at": "2026-05-25T21:00:00",
             "timezone": "Asia/Shanghai",
             "duration_minutes": 60,

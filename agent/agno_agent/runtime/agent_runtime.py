@@ -90,8 +90,7 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     ),
     # "Now you're friends" claims: "你们现在是好友/好朋友啦", "now you are friends".
     re.compile(
-        r"(你们现在|现在你们|now you(?:'re| are))"
-        r".{0,12}(是好(友|朋友)|friends?)",
+        r"(你们现在|现在你们|now you(?:'re| are))" r".{0,12}(是好(友|朋友)|friends?)",
         re.IGNORECASE,
     ),
 )
@@ -159,7 +158,9 @@ def _allows_product_notification_action(
     return action in normalized
 
 
-def _product_notification_decision(input_message: str) -> Literal["accept", "reject"] | None:
+def _product_notification_decision(
+    input_message: str,
+) -> Literal["accept", "reject"] | None:
     normalized = re.sub(r"[\s。.!！?？,，、~～]+", "", input_message.casefold())
     if not normalized or len(normalized) > 16:
         return None
@@ -170,7 +171,19 @@ def _product_notification_decision(input_message: str) -> Literal["accept", "rej
         return "reject"
     if _contains_any(
         normalized,
-        ("确认", "同意", "接受", "通过", "可以", "好的", "好", "yes", "ok", "accept", "approve"),
+        (
+            "确认",
+            "同意",
+            "接受",
+            "通过",
+            "可以",
+            "好的",
+            "好",
+            "yes",
+            "ok",
+            "accept",
+            "approve",
+        ),
     ):
         return "accept"
     return None
@@ -183,14 +196,22 @@ def _infer_scheduling_intent_from_product_notification(
     if not product_notification:
         return None
     decision = _product_notification_decision(input_message)
-    if decision is None or not _allows_product_notification_action(product_notification, decision):
+    if decision is None or not _allows_product_notification_action(
+        product_notification, decision
+    ):
         return None
 
     request_type = str(product_notification.get("request_type") or "")
     if request_type == "friend_request":
-        return "accept_friend_request" if decision == "accept" else "reject_friend_request"
+        return (
+            "accept_friend_request" if decision == "accept" else "reject_friend_request"
+        )
     if request_type == "shared_reminder_request":
-        return "accept_shared_reminder" if decision == "accept" else "reject_shared_reminder"
+        return (
+            "accept_shared_reminder"
+            if decision == "accept"
+            else "reject_shared_reminder"
+        )
     return None
 
 
@@ -215,7 +236,9 @@ def _infer_scheduling_intent_and_args_from_agent_input(
         product_notification,
     )
     if product_notification_intent:
-        return product_notification_intent, _product_notification_request_args(product_notification)
+        return product_notification_intent, _product_notification_request_args(
+            product_notification
+        )
     return _infer_scheduling_intent_from_message(input_message), {}
 
 
@@ -243,14 +266,18 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         return "get_user_link"
 
     if _contains_any(input_message, ("链接码", "邀请链接")) or (
-        "add friend" in text and (_contains_any(text, ("link", "code")) or "friend" in text)
+        "add friend" in text
+        and (_contains_any(text, ("link", "code")) or "friend" in text)
     ):
-        if _contains_any(input_message, ("加好友", "加上", "添加好友")) or "add friend" in text:
+        if (
+            _contains_any(input_message, ("加好友", "加上", "添加好友"))
+            or "add friend" in text
+        ):
             return "send_friend_request_by_user_link_code"
 
-    if _contains_any(input_message, ("好友请求", "待处理好友请求", "未处理好友请求")) or (
-        "friend request" in text or "friend-request" in text
-    ):
+    if _contains_any(
+        input_message, ("好友请求", "待处理好友请求", "未处理好友请求")
+    ) or ("friend request" in text or "friend-request" in text):
         if _contains_any(input_message, ("通过", "接受")) or _contains_any(
             text, ("accept", "approve")
         ):
@@ -259,10 +286,13 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             return "reject_friend_request"
         if _contains_any(input_message, ("取消", "撤回")) or "cancel" in text:
             return "cancel_friend_request"
-        if _contains_any(
-            input_message,
-            ("列表", "有哪些", "看一下", "查看", "未处理", "待处理"),
-        ) or "list" in text:
+        if (
+            _contains_any(
+                input_message,
+                ("列表", "有哪些", "看一下", "查看", "未处理", "待处理"),
+            )
+            or "list" in text
+        ):
             return "list_friend_requests"
 
     if _contains_any(input_message, ("屏蔽", "拉黑")) or "block" in text:
@@ -270,13 +300,15 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             return "unblock_account"
         return "block_account"
 
-    if _contains_any(input_message, ("移除好友", "删除好友", "解除好友", "删好友")) or (
-        "好友" in input_message
-        and _contains_any(input_message, ("删了", "删掉", "删除"))
-    ) or (
-        "unfriend" in text
-        or "remove friend" in text
-        or "remove friendship" in text
+    if (
+        _contains_any(input_message, ("移除好友", "删除好友", "解除好友", "删好友"))
+        or (
+            "好友" in input_message
+            and _contains_any(input_message, ("删了", "删掉", "删除"))
+        )
+        or (
+            "unfriend" in text or "remove friend" in text or "remove friendship" in text
+        )
     ):
         return "remove_friendship"
 
@@ -289,7 +321,19 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     # "X 什么时候有空", "约 X 时间一起 Y" before settling — all map to
     # list_friend_calendar_facts so the gateway returns busy intervals.
     if (
-        _contains_any(input_message, ("时间空", "时间有空", "什么时候有空", "空闲时间", "空闲时段", "哪些时间", "日程", "档期"))
+        _contains_any(
+            input_message,
+            (
+                "时间空",
+                "时间有空",
+                "什么时候有空",
+                "空闲时间",
+                "空闲时段",
+                "哪些时间",
+                "日程",
+                "档期",
+            ),
+        )
         or "free time" in text
         or "availability" in text
         or "available" in text
@@ -297,10 +341,13 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         return "list_friend_calendar_facts"
 
     if _contains_any(input_message, ("共享提醒", "shared reminder")):
-        if _contains_any(
-            input_message,
-            ("状态", "怎么样", "进展", "现在是什么状态", "是什么状态", "status"),
-        ) or "shared reminder status" in text:
+        if (
+            _contains_any(
+                input_message,
+                ("状态", "怎么样", "进展", "现在是什么状态", "是什么状态", "status"),
+            )
+            or "shared reminder status" in text
+        ):
             return "list_shared_reminders"
         if _contains_any(input_message, ("通过", "接受", "同意")) or "accept" in text:
             return "accept_shared_reminder"
@@ -308,12 +355,18 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             return "reject_shared_reminder"
         if _contains_any(input_message, ("取消", "撤回")) or "cancel" in text:
             return "cancel_shared_reminder"
-        if _contains_any(input_message, ("建", "创建", "设置", "约")) or "create" in text:
+        if (
+            _contains_any(input_message, ("建", "创建", "设置", "约"))
+            or "create" in text
+        ):
             return "create_shared_reminder"
-        if _contains_any(
-            input_message,
-            ("列表", "列", "看看", "查看", "有没有", "待处理"),
-        ) or "list" in text:
+        if (
+            _contains_any(
+                input_message,
+                ("列表", "列", "看看", "查看", "有没有", "待处理"),
+            )
+            or "list" in text
+        ):
             return "list_pending_shared_reminders"
 
     if _contains_any(input_message, ("用户链接", "我的链接", "邀请码")):
@@ -346,7 +399,9 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
         prefix = candidate.split(":", 1)[0].strip()
         if prefix in _SCHEDULING_INTENT_NAMES:
             if prefix == "list_friend_requests":
-                friend_request_write = _explicit_friend_request_write_intent(input_message)
+                friend_request_write = _explicit_friend_request_write_intent(
+                    input_message
+                )
                 if friend_request_write:
                     return friend_request_write
             return prefix
@@ -386,7 +441,8 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                         args = {
                             arg_key: arg_value
                             for arg_key, arg_value in raw_intent.items()
-                            if arg_key not in {"intent", "action", "tool", "tool_name", "name"}
+                            if arg_key
+                            not in {"intent", "action", "tool", "tool_name", "name"}
                         }
                         if args:
                             return (
@@ -860,6 +916,41 @@ def _resolve_domain_visible_text(
     return ""
 
 
+def _should_prefer_domain_visible_text(
+    *,
+    agent_input: AgentInput,
+    input_message: str,
+    domain_results: Sequence[DomainExecutionResult],
+) -> bool:
+    payload = getattr(agent_input, "payload", None)
+    current_message_ids = tuple(getattr(payload, "current_message_ids", ()) or ())
+    if len(current_message_ids) < 2:
+        return False
+    latest_text = _latest_user_turn_text(input_message)
+    if not _contains_any(
+        latest_text,
+        (
+            "等一下",
+            "先取消",
+            "取消刚才",
+            "改成",
+            "改为",
+            "别按刚才",
+            "wait",
+            "instead",
+        ),
+    ):
+        return False
+    return bool(_resolve_domain_visible_text(domain_results))
+
+
+def _latest_user_turn_text(input_message: str) -> str:
+    parts = re.split(r"（[^）]*发来了文本消息）", input_message)
+    if len(parts) > 1:
+        return parts[-1].strip()
+    return input_message.strip()
+
+
 def _check_durable_write_contract(
     capability_results: Sequence[CapabilityResult],
 ) -> RuntimeErrorDisposition | None:
@@ -953,7 +1044,9 @@ def _is_reminder_capability_offer_not_write_claim(final_text: str) -> bool:
 def _check_visible_identifier_leak(final_text: str) -> RuntimeErrorDisposition | None:
     if not final_text:
         return None
-    if not any(pattern.search(final_text) for pattern in _VISIBLE_IDENTIFIER_LEAK_PATTERNS):
+    if not any(
+        pattern.search(final_text) for pattern in _VISIBLE_IDENTIFIER_LEAK_PATTERNS
+    ):
         return None
     return RuntimeErrorDisposition(
         code="visible_identifier_leak",
@@ -1124,7 +1217,9 @@ async def run_agent_runtime(
             "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
         }
         if preselected_scheduling_intent is not None:
-            create_agent_kwargs["preselected_scheduling_intent"] = preselected_scheduling_intent
+            create_agent_kwargs["preselected_scheduling_intent"] = (
+                preselected_scheduling_intent
+            )
         create_agent_signature = inspect.signature(_create_interaction_agent)
         accepts_arbitrary_kwargs = any(
             parameter.kind == inspect.Parameter.VAR_KEYWORD
@@ -1162,6 +1257,12 @@ async def run_agent_runtime(
             domain_visible_text = _resolve_domain_visible_text(domain_results)
             if domain_visible_text:
                 final_text = domain_visible_text
+        elif _should_prefer_domain_visible_text(
+            agent_input=agent_input,
+            input_message=input_message,
+            domain_results=domain_results,
+        ):
+            final_text = _resolve_domain_visible_text(domain_results)
         final_text_segments = _parse_visible_text_segments(final_text)
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,

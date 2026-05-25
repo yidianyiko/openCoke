@@ -78,6 +78,93 @@ async def test_send_loop_aborts_when_new_message_arrives_between_sends(
 
 
 @pytest.mark.asyncio
+async def test_rolled_back_visible_reminder_create_is_cancelled(
+    monkeypatch, sample_context
+):
+    _install_agent_handler_agno_stubs(monkeypatch)
+
+    from agent.agno_agent.runtime.domain_results import (
+        DomainExecutionResult,
+        DomainOperationResult,
+        ReplyContract,
+    )
+    from agent.agno_agent.runtime.result import (
+        AgentRunResult,
+        OutputDisposition,
+        VisibleMessage,
+    )
+    from agent.runner import agent_handler
+
+    sample_context["platform"] = "business"
+    sample_context["user"]["id"] = "alice"
+    cancelled = []
+
+    async def fake_run_agent_runtime_event(**kwargs):
+        return AgentRunResult(
+            visible_messages=[VisibleMessage(message_type="text", content="done")],
+            post_analyze_input=None,
+            domain_results=[
+                DomainExecutionResult(
+                    domain="reminder",
+                    outcome="executed",
+                    operations=(
+                        DomainOperationResult(
+                            action="create",
+                            ok=True,
+                            effect="write",
+                            entity_type="reminder",
+                            entity_id="rem-stale",
+                        ),
+                    ),
+                    reply_contract=ReplyContract(intent="confirm_execution"),
+                )
+            ],
+            capability_results=[],
+            metrics={},
+            trace={"runtime": "agent_runtime"},
+            output_disposition=OutputDisposition(status="ok"),
+        )
+
+    new_message_checks = iter([False, True])
+
+    monkeypatch.setattr(
+        agent_handler, "_run_agent_runtime_event", fake_run_agent_runtime_event
+    )
+    monkeypatch.setattr(agent_handler, "_verify_lock_ownership", lambda *args: True)
+    monkeypatch.setattr(
+        agent_handler, "_agent_runtime_should_skip_post_analyze", lambda: True
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "_cancel_visible_reminder_for_rollback",
+        lambda *, owner_user_id, reminder_id: cancelled.append(
+            (owner_user_id, reminder_id)
+        ),
+    )
+    monkeypatch.setattr(
+        agent_handler,
+        "is_new_message_coming_in",
+        lambda u_id, c_id, platform, current_message_ids: next(new_message_checks),
+    )
+
+    resp_messages, _, is_rollback, is_content_blocked = (
+        await agent_handler.handle_message(
+            context=sample_context,
+            input_message_str="提醒我喝水",
+            message_source="user",
+            check_new_message=True,
+            worker_tag="[T]",
+            current_message_ids=["msg-1"],
+        )
+    )
+
+    assert resp_messages == []
+    assert is_rollback is True
+    assert is_content_blocked is False
+    assert cancelled == [("alice", "rem-stale")]
+
+
+@pytest.mark.asyncio
 async def test_empty_output_fallback_skipped_when_new_message_arrives(
     monkeypatch, sample_context
 ):
