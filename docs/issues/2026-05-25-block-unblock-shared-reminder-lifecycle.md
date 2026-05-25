@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: resolved
 surface:
   - agent-runtime
   - gateway-scheduling
@@ -83,15 +83,20 @@ users must become friends again.
 
 ## Current Status
 
-- Open.
-- The smoke runner exists locally and exposes the lifecycle gap, but the live
-  verdict is still failed:
-  `block_row_count_after_unblock=1, final_retry_did_not_create_shared_reminder`.
-- Product behavior was not changed because post-unblock success appears to need
-  a contract decision: unblock either restores the prior friendship, leaves the
-  users non-friends and requires re-friending, or shared reminders gain a
-  different post-unblock path.
+- Resolved by feature removal. Block / unblock is no longer a Coke
+  capability. Users coordinate via `removeFriendship`; if a user wants
+  to stop a friend, they remove the friendship and decline future
+  invites. Removing the feature also removed the underlying bugs (the
+  unblock 400, the empty-fallback on a blocked write attempt, and the
+  open friendship-restore contract question).
 
 ## Resolution
 
-Record the fix commit and final verification when resolved.
+- Gateway commit `af48532 fix: retire account blocking scheduling
+  surface` (drops `account_blocks` table + removes `blockAccount` /
+  `unblockAccount` + HTTP routes + tests).
+- Outer commit `763a22af fix: stabilize shared reminder scheduling
+  flow` (removes `block_account` / `unblock_account` intent + tool
+  surface in the agent).
+- Smoke runner `tools/agent_smoke/_runner_phase_block_unblock.py` is
+  obsolete and was retired as part of the removal.
