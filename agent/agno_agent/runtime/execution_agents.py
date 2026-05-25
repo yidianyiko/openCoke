@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
+from collections.abc import Mapping
 from typing import Any
 
 from agno.agent import Agent
@@ -385,6 +387,62 @@ def _scheduling_agent_input(input_message: str, intent: str) -> str:
     )
 
 
+def _partial_friend_calendar_name_needs_clarification(
+    *,
+    input_message: str,
+    intent: str,
+    forced_args: Mapping[str, Any] | None = None,
+) -> bool:
+    if "list_friend_calendar_facts" not in intent.lower():
+        return False
+
+    friend_name = (
+        str(forced_args.get("friend_name") or "").strip()
+        if forced_args is not None
+        else ""
+    )
+    if not friend_name:
+        friend_name_match = re.search(
+            r"""["']?friend_name["']?\s*[:=]\s*["']?([A-Za-z])["']?""",
+            intent,
+        )
+        friend_name = friend_name_match.group(1) if friend_name_match else ""
+    if not friend_name:
+        friend_name_match = re.search(
+            r"(?<![A-Za-z])([A-Za-z])(?![A-Za-z])"
+            r"\s*(?:那个|那位|这个|这位)?朋友",
+            input_message,
+            flags=re.IGNORECASE,
+        )
+        friend_name = friend_name_match.group(1) if friend_name_match else ""
+    if not re.fullmatch(r"[A-Za-z]", friend_name):
+        return False
+
+    return re.search(
+        rf"(?<![A-Za-z]){re.escape(friend_name)}(?![A-Za-z])"
+        r"\s*(?:那个|那位|这个|这位)?朋友",
+        input_message,
+        flags=re.IGNORECASE,
+    ) is not None
+
+
+def _ambiguous_friend_calendar_name_result() -> DomainExecutionResult:
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="needs_clarification",
+        operations=(),
+        missing_fields=("friend_name",),
+        safety_boundary="ambiguous_friend_name",
+        reply_contract=ReplyContract(
+            intent="ask_clarification",
+            required_facts=(),
+            required_questions=("which_friend",),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+    )
+
+
 async def run_scheduling_domain(
     *,
     input_message: str,
@@ -394,6 +452,15 @@ async def run_scheduling_domain(
     forced_args: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Spawn SchedulingExecutionAgent and append typed scheduling domain results."""
+    if _partial_friend_calendar_name_needs_clarification(
+        input_message=input_message,
+        intent=intent,
+        forced_args=forced_args,
+    ):
+        result = _ambiguous_friend_calendar_name_result()
+        domain_results.append(result)
+        return result.to_dict()
+
     local_domain_results: list[DomainExecutionResult] = []
     execution_guard = _SchedulingExecutionGuard()
     tool_names = _tool_names_for_intent(intent)

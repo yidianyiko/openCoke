@@ -650,6 +650,108 @@ async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_clarifies_partial_friend_calendar_name_before_tools():
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("ambiguous friend names should not spawn the worker agent")
+
+    class _UnexpectedSchedulingPort:
+        def __init__(self, *, tool_name: str) -> None:
+            raise AssertionError(
+                f"ambiguous friend names should not create scheduling port {tool_name}"
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            _UnexpectedSchedulingPort,
+        ):
+            result = await run_scheduling_domain(
+                input_message="看 B 那个朋友这周的空闲时间。",
+                intent='list_friend_calendar_facts: {"friend_name": "B"}',
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert result["domain"] == "scheduling"
+    assert result["outcome"] == "needs_clarification"
+    assert result["missing_fields"] == ["friend_name"]
+    assert result["safety_boundary"] == "ambiguous_friend_name"
+    assert result["reply_contract"]["intent"] == "ask_clarification"
+    assert result["reply_contract"]["required_questions"] == ["which_friend"]
+    assert result["operations"] == []
+    assert result["error"] is None
+    assert len(domain_results) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_clarifies_partial_friend_calendar_preselected_intent():
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError(
+                "preselected ambiguous friend calendar intent should not spawn worker agent"
+            )
+
+    class _UnexpectedSchedulingPort:
+        def __init__(self, *, tool_name: str) -> None:
+            raise AssertionError(
+                f"ambiguous friend names should not create scheduling port {tool_name}"
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            _UnexpectedSchedulingPort,
+        ):
+            result = await run_scheduling_domain(
+                input_message="看 B 那个朋友这周的空闲时间。",
+                intent="list_friend_calendar_facts",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert result["outcome"] == "needs_clarification"
+    assert result["missing_fields"] == ["friend_name"]
+    assert result["safety_boundary"] == "ambiguous_friend_name"
+    assert result["operations"] == []
+    assert len(domain_results) == 1
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_clarifies_partial_friend_calendar_forced_args_before_port():
+    class _UnexpectedSchedulingPort:
+        def __init__(self, *, tool_name: str) -> None:
+            raise AssertionError(
+                f"ambiguous friend names should not create scheduling port {tool_name}"
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch(
+        "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+        _UnexpectedSchedulingPort,
+    ):
+        result = await run_scheduling_domain(
+            input_message="看 B 那个朋友这周的空闲时间。",
+            intent="list_friend_calendar_facts",
+            run_context=_run_context(),
+            domain_results=domain_results,
+            forced_args={"friend_name": "B"},
+        )
+
+    assert result["outcome"] == "needs_clarification"
+    assert result["missing_fields"] == ["friend_name"]
+    assert result["safety_boundary"] == "ambiguous_friend_name"
+    assert result["reply_contract"]["intent"] == "ask_clarification"
+    assert result["operations"] == []
+    assert len(domain_results) == 1
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_agent():
     captured_args: dict[str, dict] = {}
 
