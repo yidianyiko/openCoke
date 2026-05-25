@@ -348,6 +348,7 @@ class BusinessOnlyBridgeGateway:
             "message_type": inbound_payload.get("message_type")
             or metadata.get("messageType"),
             "product_notification": inbound_payload.get("product_notification")
+            or metadata.get("product_notification")
             or metadata.get("productNotification"),
             "input": format_input_with_attachments(inbound_text, attachments),
             "inbound_text": inbound_text,

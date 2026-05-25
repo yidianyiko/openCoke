@@ -199,6 +199,35 @@ def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
     ) == datetime.fromtimestamp(1893456060, UTC)
 
 
+def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner import agent_handler
+
+    metadata = agent_handler._extract_user_turn_runtime_metadata(
+        [
+            {
+                "_id": "msg-1",
+                "metadata": {
+                    "source": "clawscale",
+                    "product_notification": {
+                        "request_id": "srr_1",
+                        "request_type": "shared_reminder_request",
+                        "allowed_actions": ["accept", "reject"],
+                    },
+                },
+            }
+        ]
+    )
+
+    assert metadata == {
+        "product_notification": {
+            "request_id": "srr_1",
+            "request_type": "shared_reminder_request",
+            "allowed_actions": ["accept", "reject"],
+        }
+    }
+
+
 def test_agent_handler_initializes_shared_agent_session_db_at_boot(monkeypatch):
     created_agent_session_dbs = _install_agent_handler_agno_stubs(monkeypatch)
 

@@ -82,3 +82,17 @@ no deterministic link back to the pending friend request or shared reminder.
   `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_execution_agents.py -q`;
   `pnpm --dir gateway/packages/api build`;
   `zsh scripts/verify-surface repo-os-docs worker-runtime`.
+
+## 2026-05-25 Follow-up: Bridge Dropped Shared Reminder Context
+
+Production showed a later short confirmation reply for a shared-reminder
+notification still reached the agent without trusted product-notification
+context. Gateway sent the context under `metadata.product_notification`, but
+the bridge only read top-level `product_notification` and camelCase
+`metadata.productNotification`. The snake_case metadata shape was therefore
+dropped before persistence, so the agent saw `确认` as an ordinary user turn.
+
+The bridge now preserves snake_case `metadata.product_notification` as the
+canonical product-notification context for inbound turns. Verification evidence
+is recorded in
+`artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-title-context-20260525t134846Z.md`.

@@ -24,7 +24,7 @@ import copy
 import time
 import traceback
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from util.log_util import get_logger
 
@@ -221,6 +221,17 @@ def _derive_agent_runtime_user_turn_occurred_at(context: dict) -> datetime:
     except (OverflowError, OSError, ValueError):
         return wall_now
     return max(wall_now, message_time)
+
+
+def _extract_user_turn_runtime_metadata(input_messages: List[Dict]) -> Dict[str, Any]:
+    for message in reversed(input_messages or []):
+        metadata = message.get("metadata") if isinstance(message, Mapping) else None
+        if not isinstance(metadata, Mapping):
+            continue
+        product_notification = metadata.get("product_notification")
+        if isinstance(product_notification, Mapping):
+            return {"product_notification": dict(product_notification)}
+    return {}
 
 
 def _cancel_visible_reminder_for_rollback(
@@ -649,6 +660,9 @@ def create_handler(worker_id: int = 0):
                             context=msg_ctx.context,
                             input_message_str=input_message_str,
                             message_source="user",
+                            metadata=_extract_user_turn_runtime_metadata(
+                                msg_ctx.input_messages
+                            ),
                             check_new_message=True,
                             worker_tag=worker_tag,
                             lock_id=msg_ctx.lock_id,

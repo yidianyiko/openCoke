@@ -1342,6 +1342,35 @@ def test_bridge_inbound_uses_top_level_text_for_product_notifications(monkeypatc
     reply_waiter.wait_for_reply.assert_not_called()
 
 
+def test_bridge_inbound_preserves_snake_case_product_notification_metadata(monkeypatch):
+    app, message_gateway, reply_waiter = _install_bridge_service(monkeypatch)
+
+    response = app.test_client().post(
+        "/bridge/inbound",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={
+            "messages": [{"role": "user", "content": "确认"}],
+            "metadata": {
+                **_trusted_metadata(),
+                "product_notification": {
+                    "request_id": "srr_1",
+                    "request_type": "shared_reminder_request",
+                    "allowed_actions": ["accept", "reject"],
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    inbound = message_gateway.enqueue.call_args.kwargs["inbound"]
+    assert inbound["product_notification"] == {
+        "request_id": "srr_1",
+        "request_type": "shared_reminder_request",
+        "allowed_actions": ["accept", "reject"],
+    }
+    reply_waiter.wait_for_reply.assert_called_once()
+
+
 def test_bridge_inbound_invalid_attachment_only_is_ignored_after_account_validation(
     monkeypatch,
 ):

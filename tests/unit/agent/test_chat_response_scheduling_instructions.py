@@ -142,6 +142,13 @@ def test_shared_reminder_status_policy_routes_to_list_shared_reminders():
     assert "status too when the user asks about a specific state" in text
 
 
+def test_shared_reminder_title_policy_prefers_current_user_activity():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "derive the title from the concrete shared item" in text
+    assert "Do not substitute a product-domain default" in text
+
+
 def test_chat_response_instructions_render_agent_instance_profile_before_boundaries():
     from agent.agno_agent.runtime.chat_response_instructions import (
         build_chat_response_instructions,

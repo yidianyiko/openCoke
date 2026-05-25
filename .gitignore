@@ -180,6 +180,7 @@ cython_debug/
 .beads/
 .codex
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .claude/worktrees/
 .patchlinks/
 .tmp/
