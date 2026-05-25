@@ -15,6 +15,9 @@ logger = get_logger(__name__)
 
 typing_speed = 2.2
 
+_GREETING_TOKENS = ("你好", "您好", "hello", "hi", "嗨")
+_CAPABILITY_TOKENS = ("能帮我做什么", "可以帮我做什么", "介绍一下", "你能做什么")
+
 
 class _OutboundSendInterrupted(Exception):
     """Raised when a newer user message arrives between outbound writes."""
@@ -113,6 +116,7 @@ def _chat_response_timeout_fallback(
     input_message: str, context: dict | None = None
 ) -> str:
     context = context or {}
+    normalized_input = str(input_message or "").casefold()
     if (
         context.get("prepare_reminder_intent_hint") == "stop_or_cancel"
         and context.get("orchestrator", {}).get("need_reminder_detect") is True
@@ -123,7 +127,11 @@ def _chat_response_timeout_fallback(
         )
     ):
         return "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
-    if "计划" in str(input_message or ""):
+    if any(token in normalized_input for token in _GREETING_TOKENS) and any(
+        token in normalized_input for token in _CAPABILITY_TOKENS
+    ):
+        return "Hii，我是 Coke，你的健康搭子。可以帮你管理提醒、查看好友请求和共享提醒，也可以陪你梳理健康计划。"
+    if "计划" in normalized_input:
         return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
     return "我没接住你刚才的意思。你可以换个说法再说一次吗？"
 

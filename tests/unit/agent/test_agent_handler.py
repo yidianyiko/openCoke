@@ -161,6 +161,17 @@ def test_chat_response_timeout_fallback_is_neutral_for_schedule_statements(monke
     assert "换个说法" in reply
 
 
+def test_chat_response_timeout_fallback_answers_simple_greetings(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner.output_delivery import _chat_response_timeout_fallback
+
+    reply = _chat_response_timeout_fallback("你好，我刚登录。能简单介绍一下你能帮我做什么吗？")
+
+    assert "Coke" in reply
+    assert "提醒" in reply
+    assert "换个说法" not in reply
+
+
 def test_agent_runtime_user_turn_occurred_at_uses_future_message_timestamp(
     monkeypatch, sample_context
 ):
