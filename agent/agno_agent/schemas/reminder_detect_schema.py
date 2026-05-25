@@ -26,6 +26,10 @@ class ReminderOperation(BaseModel):
         ),
     )
     trigger_at: str = Field(default="", description="Aware ISO 8601 trigger time.")
+    duration_minutes: int | None = Field(
+        default=None,
+        description="Optional positive duration in minutes for create operations.",
+    )
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword.")
     new_title: str = Field(
@@ -90,6 +94,13 @@ class ReminderDetectDecision(BaseModel):
         description=(
             "Aware ISO 8601 trigger time; crud create only. Do not use midnight "
             "as a default for date-only reminder requests."
+        ),
+    )
+    duration_minutes: int | None = Field(
+        default=None,
+        description=(
+            "Optional positive duration in minutes; crud create only. "
+            "Use when the user explicitly states how long the reminder lasts."
         ),
     )
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
@@ -173,6 +184,7 @@ class ReminderDetectDecision(BaseModel):
         executable_field_names = (
             "title",
             "trigger_at",
+            "duration_minutes",
             "reminder_id",
             "keyword",
             "new_title",
@@ -201,6 +213,7 @@ class ReminderDetectDecision(BaseModel):
         write_field_names = (
             "title",
             "trigger_at",
+            "duration_minutes",
             "reminder_id",
             "keyword",
             "new_title",

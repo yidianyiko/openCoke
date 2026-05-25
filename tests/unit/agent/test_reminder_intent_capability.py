@@ -237,6 +237,103 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_extracts_duration_minutes_and_strips_title():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="开会一小时",
+        trigger_at="2026-05-07T19:00:00+09:00",
+    )
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            del input, session_state, session_id
+            return SimpleNamespace(content=decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            del run_context
+            assert received_decision.title == "开会"
+            assert received_decision.duration_minutes == 60
+            return _executed_result("已创建提醒：开会")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FakeExecutor(),
+    ).run("提醒我明天 19:00 开会一小时", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_command_executor_forwards_duration_minutes_to_tool_entrypoint():
+    from agent.agno_agent.adapters.reminder_command_executor import ReminderCommandExecutor
+
+    captured_kwargs = {}
+
+    def tool_entrypoint(**kwargs):
+        captured_kwargs.update(kwargs)
+        return {
+            "ok": True,
+            "action": "create",
+            "reminder": {
+                "id": "rem-1",
+                "title": "开会",
+                "schedule": {
+                    "anchor_at": "2026-05-07T10:00:00+00:00",
+                    "local_date": "2026-05-07",
+                    "local_time": "19:00:00",
+                    "timezone": "Asia/Tokyo",
+                    "rrule": None,
+                    "duration_minutes": 60,
+                },
+                "agent_output_target": {
+                    "conversation_id": "conv-1",
+                    "character_id": "char-1",
+                    "route_key": None,
+                },
+                "created_by_system": "agent",
+                "origin": "user",
+                "visibility": "visible",
+                "fire_mode": "notify",
+                "prompt": None,
+                "metadata": {},
+                "lifecycle_state": "active",
+                "next_fire_at": "2026-05-07T10:00:00+00:00",
+                "last_fired_at": None,
+                "last_event_ack_at": None,
+                "last_error": None,
+                "created_at": "2026-05-07T10:00:00+00:00",
+                "updated_at": "2026-05-07T10:00:00+00:00",
+                "completed_at": None,
+                "cancelled_at": None,
+                "failed_at": None,
+            },
+            "summary": "已创建提醒：开会（2026-05-07 19:00）",
+        }
+
+    executor = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    )
+    result = executor.execute(
+        SimpleNamespace(
+            intent_type="crud",
+            action="create",
+            title="开会",
+            trigger_at="2026-05-07T19:00:00+09:00",
+            duration_minutes=60,
+        ),
+        _run_context(),
+    )
+
+    assert captured_kwargs["duration_minutes"] == 60
+    assert result.outcome == "executed"
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_routes_explicit_list_query_without_detector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

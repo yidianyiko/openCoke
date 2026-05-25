@@ -50,6 +50,7 @@ def _execute_visible_reminder_tool_action(
     action: str,
     title: str | None = None,
     trigger_at: str | None = None,
+    duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
     new_title: str | None = None,
@@ -110,6 +111,7 @@ def _execute_visible_reminder_tool_action(
             action=canonical_action,
             title=title,
             trigger_at=trigger_at,
+            duration_minutes=duration_minutes,
             reminder_id=reminder_id,
             keyword=keyword,
             new_title=new_title,
@@ -171,6 +173,7 @@ def _execute_batch_operations(
                 action=str(operation.get("action") or ""),
                 title=operation.get("title"),
                 trigger_at=operation.get("trigger_at"),
+                duration_minutes=operation.get("duration_minutes"),
                 reminder_id=operation.get("reminder_id"),
                 keyword=operation.get("keyword"),
                 new_title=operation.get("new_title"),
@@ -258,6 +261,7 @@ def _run_operation(
     action: str,
     title: str | None = None,
     trigger_at: str | None = None,
+    duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
     new_title: str | None = None,
@@ -272,6 +276,7 @@ def _run_operation(
             action=canonical_action,
             title=title,
             trigger_at=trigger_at,
+            duration_minutes=duration_minutes,
             reminder_id=reminder_id,
             keyword=keyword,
             new_title=new_title,
@@ -342,6 +347,7 @@ def _execute_one(
     action: str,
     title: str | None,
     trigger_at: str | None,
+    duration_minutes: int | None,
     reminder_id: str | None,
     keyword: str | None,
     new_title: str | None,
@@ -359,7 +365,12 @@ def _execute_one(
         created = runtime.create_visible_reminder(
             owner_user_id=context.owner_user_id,
             title=title,
-            schedule=_schedule_from_iso(trigger_at or "", context.timezone, rrule),
+            schedule=_schedule_from_iso(
+                trigger_at or "",
+                context.timezone,
+                rrule,
+                duration_minutes=duration_minutes,
+            ),
             target=context.target,
         )
         return {
@@ -479,6 +490,8 @@ def _schedule_from_iso(
     trigger_at: str,
     timezone: str,
     rrule: str | None,
+    *,
+    duration_minutes: int | None = None,
 ):
     if not trigger_at:
         raise ValueError("trigger_at is required")
@@ -488,7 +501,12 @@ def _schedule_from_iso(
         raise ValueError("trigger_at must be an ISO 8601 datetime") from exc
     if anchor_at.tzinfo is None or anchor_at.utcoffset() is None:
         raise ValueError("trigger_at must include a timezone offset or Z")
-    return build_schedule_from_anchor(anchor_at, timezone, _normalize_rrule(rrule))
+    return build_schedule_from_anchor(
+        anchor_at,
+        timezone,
+        _normalize_rrule(rrule),
+        duration_minutes=duration_minutes,
+    )
 
 
 def _normalize_rrule(rrule: str | None) -> str | None:
@@ -504,11 +522,17 @@ def _build_patch(
     trigger_at: str | None,
     timezone: str,
     rrule: str | None,
+    duration_minutes: int | None = None,
 ) -> ReminderPatch:
     return ReminderPatch(
         title=title,
         schedule=(
-            _schedule_from_iso(trigger_at, timezone, rrule)
+            _schedule_from_iso(
+                trigger_at,
+                timezone,
+                rrule,
+                duration_minutes=duration_minutes,
+            )
             if trigger_at is not None
             else None
         ),
@@ -566,6 +590,7 @@ def _reminder_to_dict(reminder: Reminder) -> dict[str, Any]:
             "local_time": _isoformat_or_none(schedule.local_time),
             "timezone": schedule.timezone,
             "rrule": schedule.rrule,
+            "duration_minutes": schedule.duration_minutes,
         },
         "agent_output_target": {
             "conversation_id": target.conversation_id,
@@ -765,6 +790,7 @@ def visible_reminder_tool(
     action: str | None = None,
     title: str | None = None,
     trigger_at: str | None = None,
+    duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
     new_title: str | None = None,
@@ -777,6 +803,7 @@ def visible_reminder_tool(
         action=resolved_action,
         title=title,
         trigger_at=trigger_at,
+        duration_minutes=duration_minutes,
         reminder_id=reminder_id,
         keyword=keyword,
         new_title=new_title,
