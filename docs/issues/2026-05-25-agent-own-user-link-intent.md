@@ -2,7 +2,7 @@
 title: Agent misclassifies own user-link requests as friend-add requests
 kind: incident
 date: 2026-05-25
-status: fix_in_progress
+status: resolved
 affected_surfaces:
   - agent/agno_agent/capabilities/scheduling.py
   - agent/agno_agent/runtime/agent_runtime.py
@@ -66,6 +66,11 @@ own-link wording (`我的` / `我自己的` / `自己的` plus link words) as
 For successful `get_user_link` results, add a visible summary containing the
 public invite URL so the runtime can return the link even if the model emits
 empty final text after the tool call.
+
+## Resolution
+
+- Resolution commit: `e037b313`.
+- Verified green at 2026-05-25.
 
 ## Verification
 

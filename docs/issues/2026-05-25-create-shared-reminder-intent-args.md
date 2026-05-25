@@ -2,7 +2,7 @@
 title: Shared-reminder create drops structured scheduling intent arguments
 kind: incident
 date: 2026-05-25
-status: fix_in_progress
+status: resolved
 affected_surfaces:
   - agent/agno_agent/runtime/agent_runtime.py
   - tests/unit/agent/test_agent_runtime_construction.py
@@ -50,6 +50,11 @@ the intent to the scheduling worker:
 - `friend_name` -> `invitee_name`
 - `reminder_title` -> `title`
 - `reminder_time` -> `fire_at`
+
+## Resolution
+
+- Resolution commit: `d0898fc6`.
+- Verified green at 2026-05-25.
 
 ## Verification
 

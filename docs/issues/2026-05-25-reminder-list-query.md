@@ -2,7 +2,7 @@
 title: Reminder list query asks for missing create fields
 kind: incident
 date: 2026-05-25
-status: fix_in_progress
+status: resolved
 affected_surfaces:
   - agent/agno_agent/capabilities/reminder_intent.py
   - agent/agno_agent/adapters/reminder_command_executor.py
@@ -49,6 +49,11 @@ without running the detector, while shared-reminder wording remains owned by
 the scheduling domain. Reminder list domain results preserve the tool summary,
 compact reminder facts, and reminder metadata so the interaction agent can
 answer from read evidence, including shared-reminder counterparty metadata.
+
+## Resolution
+
+- Resolution commit: `37abf8e1`.
+- Verified green at 2026-05-25.
 
 ## Verification
 
