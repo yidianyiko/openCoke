@@ -1243,26 +1243,6 @@ def test_scheduling_intent_inference_treats_delete_friend_wording_as_remove_frie
     )
 
 
-def test_scheduling_intent_normalizes_block_friend_alias():
-    assert (
-        agent_runtime._normalize_scheduling_intent(
-            {"block_friend": {"friend_name": "Bob"}},
-            "屏蔽 Bob 的账号。",
-        )
-        == 'block_account: {"friend_name": "Bob"}'
-    )
-
-
-def test_scheduling_intent_normalizes_action_block_user_alias_with_args():
-    assert (
-        agent_runtime._normalize_scheduling_intent(
-            {"action": "block_user", "friend_name": "Bob"},
-            "屏蔽 Bob 的账号。",
-        )
-        == 'block_account: {"friend_name": "Bob"}'
-    )
-
-
 def test_product_notification_context_turns_short_confirmation_into_friend_request_accept():
     agent_input = AgentInput(
         input_type="user.turn",
@@ -1311,6 +1291,31 @@ def test_product_notification_context_turns_short_confirmation_into_shared_remin
     )
     assert agent_runtime._infer_scheduling_intent_and_args_from_agent_input(
         "同意",
+        agent_input,
+    ) == ("accept_shared_reminder", {"request_id": "srr_1"})
+
+
+def test_product_notification_confirmation_uses_raw_current_text_when_turn_is_formatted():
+    agent_input = AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="（2026年05月25日23时07分 eva 发来了文本消息）确认",
+        payload=UserTurnPayload(
+            current_message_ids=["msg-1"],
+            metadata={
+                "product_notification_input_text": "确认",
+                "product_notification": {
+                    "request_id": "srr_1",
+                    "request_type": "shared_reminder_request",
+                    "allowed_actions": ["accept", "reject"],
+                },
+            },
+        ),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+    assert agent_runtime._infer_scheduling_intent_and_args_from_agent_input(
+        agent_input.text,
         agent_input,
     ) == ("accept_shared_reminder", {"request_id": "srr_1"})
 

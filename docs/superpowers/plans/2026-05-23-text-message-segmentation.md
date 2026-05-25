@@ -32,7 +32,7 @@
 - Add `docs/superpowers/specs/2026-05-23-text-message-segmentation-design.md`
   - Keep the design spec with the implementation branch.
 
-Do not modify `agent/agno_agent/schemas/chat_response_schema.py` in this implementation. The design spec explicitly states that file is not an active runtime contract unless the implementation chooses to enable Agno `output_schema`; this plan keeps enforcement in instructions plus parser helper.
+Do not reintroduce `agent/agno_agent/schemas/chat_response_schema.py`. The design spec explicitly states that schema was not an active runtime contract unless the implementation chose to enable Agno `output_schema`; this plan keeps enforcement in instructions plus parser helper.
 
 ---
 

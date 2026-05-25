@@ -207,6 +207,7 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
         [
             {
                 "_id": "msg-1",
+                "message": "确认",
                 "metadata": {
                     "source": "clawscale",
                     "product_notification": {
@@ -224,7 +225,8 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
             "request_id": "srr_1",
             "request_type": "shared_reminder_request",
             "allowed_actions": ["accept", "reject"],
-        }
+        },
+        "product_notification_input_text": "确认",
     }
 
 

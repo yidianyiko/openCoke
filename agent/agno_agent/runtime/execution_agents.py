@@ -109,8 +109,6 @@ def _scheduling_entity_type(tool_name: str) -> str:
         return "friend_request"
     if "friendship" in tool_name or tool_name == "list_friends":
         return "friendship"
-    if "block" in tool_name:
-        return "account_block"
     return "user_link"
 
 
@@ -118,7 +116,6 @@ def _scheduling_entity_id(tool_name: str, content: dict[str, Any]) -> str | None
     for key in (
         "request_id",
         "friendship_id",
-        "blocked_account_id",
         "shared_reminder_request_id",
         "friend_request_id",
         "user_link_id",
@@ -273,7 +270,6 @@ def _make_scheduling_tool_fn(
         friend_name: str | None = None,
         requester_name: str | None = None,
         friendship_id: str | None = None,
-        blocked_account_id: str | None = None,
         user_link_code: str | None = None,
         message: str | None = None,
         idempotency_key: str | None = None,
@@ -323,7 +319,6 @@ def _make_scheduling_tool_fn(
                     "friend_name": friend_name,
                     "requester_name": requester_name,
                     "friendship_id": friendship_id,
-                    "blocked_account_id": blocked_account_id,
                     "user_link_code": user_link_code,
                     "message": message,
                     "idempotency_key": idempotency_key,
@@ -364,8 +359,6 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
         "reject_friend_request",
         "cancel_friend_request",
         "remove_friendship",
-        "block_account",
-        "unblock_account",
         "accept_shared_reminder",
         "reject_shared_reminder",
         "cancel_shared_reminder",

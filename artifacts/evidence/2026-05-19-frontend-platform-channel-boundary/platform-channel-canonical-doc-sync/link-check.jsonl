@@ -1,6 +1,0 @@
-{"doc": "docs/ARCHITECTURE.md", "found_refs": ["docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md", "Ownership"], "missing_refs": []}
-{"doc": "docs/design-docs/interface-contract.md", "found_refs": ["docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md", "Ownership"], "missing_refs": []}
-{"doc": "docs/product-specs/FEATURE_TREE.md", "found_refs": ["docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md", "Ownership"], "missing_refs": []}
-{"doc": "docs/design-docs/coke-working-contract.md", "found_refs": ["docs/superpowers/specs/2026-05-19-frontend-platform-channel-boundary-design.md", "Ownership"], "missing_refs": []}
-{"doc": "docs/design-docs/interface-contract.md", "found_refs": ["/api/customer/reminders -> Reminder System", "/api/customer/channels/wechat-personal -> Channel semantics", "/api/customer/google-calendar-import -> Calendar Import System", "/api/customer/calendar-import-handoffs -> Calendar Import System"], "missing_refs": []}
-{"doc": "canonical-docs", "found_refs": ["no stale bridge auth/bind or ownership shortcut claims"], "missing_refs": []}

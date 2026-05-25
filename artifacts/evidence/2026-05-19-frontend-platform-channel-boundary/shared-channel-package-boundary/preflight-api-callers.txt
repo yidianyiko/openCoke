@@ -1,6 +1,0 @@
-gateway/packages/api/src/channel/provider-config-schema.test.ts:2:import { CHANNEL_CONFIG_SCHEMA } from './provider-config-schema.js';
-gateway/packages/api/src/channel/provider-config-schema.test.ts:6:    expect(CHANNEL_CONFIG_SCHEMA.whatsapp_business.fields.map((field) => field.key)).toEqual([
-gateway/packages/api/src/channel/provider-config-schema.test.ts:11:    expect(CHANNEL_CONFIG_SCHEMA.wechat_ecloud.fields.map((field) => field.key)).toEqual([
-gateway/packages/api/src/channel/provider-config-schema.test.ts:16:    expect(CHANNEL_CONFIG_SCHEMA.linq.fields.map((field) => field.key)).toEqual([
-gateway/packages/api/src/channel/provider-config-schema.ts:3:export interface ChannelConfigField {
-gateway/packages/api/src/channel/provider-config-schema.ts:12:export const CHANNEL_CONFIG_SCHEMA: Record<ChannelType, { label: string; fields: ChannelConfigField[] }> = {

@@ -22,7 +22,6 @@ class SharedReminderSchedulingArgs(BaseModel):
     friend_name: str | None = None
     requester_name: str | None = None
     friendship_id: str | None = None
-    blocked_account_id: str | None = None
     user_link_code: str | None = None
     message: str | None = None
     idempotency_key: str | None = None

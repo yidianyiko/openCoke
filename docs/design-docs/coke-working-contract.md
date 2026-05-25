@@ -29,7 +29,6 @@ Primary files:
 - `agent/agno_agent/adapters/`
 - `agent/agno_agent/schemas/`
 - `agent/agno_agent/model_factory.py`
-- `agent/agno_agent/workflows/`
 - `agent/agno_agent/tools/`
 - `agent/prompt/`
 
@@ -39,7 +38,7 @@ Use this surface when the change affects:
 - turn processing
 - single-Agent runtime, typed runtime events, and capability tool wrappers
 - background handling
-- prompt or workflow behavior
+- prompt behavior
 - reminder, context, or runtime state logic
 
 ### 2. Coke Bridge

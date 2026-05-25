@@ -29,7 +29,6 @@ surfaces:
       - agent/agno_agent/runtime/**
       - agent/agno_agent/schemas/**
       - agent/agno_agent/tools/**
-      - agent/agno_agent/workflows/**
       - agent/agno_agent/utils/**
       - agent/prompt/**
       - agent/reminder/**

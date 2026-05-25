@@ -1,8 +1,0 @@
-gateway/packages/web/lib/i18n.ts:702:            eyebrow: 'Channel created',
-gateway/packages/web/lib/admin-copy.ts:70:        name: 'Channel',
-gateway/packages/web/lib/admin-copy.ts:81:        channelId: 'Channel ID',
-gateway/packages/web/lib/admin-copy.ts:88:        channelId: 'Channel',
-gateway/packages/web/lib/admin-copy.ts:164:        name: 'Channel',
-gateway/packages/web/app/(admin)/admin/shared-channels/page.test.tsx:63:        name: 'New Shared Channel',
-gateway/packages/web/app/(admin)/admin/shared-channels/page.test.tsx:113:    nameInput.value = 'New Shared Channel';
-gateway/packages/web/app/(admin)/admin/shared-channels/page.test.tsx:126:      name: 'New Shared Channel',

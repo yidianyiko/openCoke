@@ -39,7 +39,6 @@ def test_compact_scheduling_args_serializes_shared_reminder_args():
             "friend_name": None,
             "requester_name": None,
             "friendship_id": None,
-            "blocked_account_id": None,
             "user_link_code": None,
             "message": None,
             "idempotency_key": "shared-1",
@@ -61,7 +60,6 @@ def test_shared_reminder_scheduling_args_round_trips():
         timezone="Asia/Shanghai",
         request_id="srr_1",
         friendship_id="fs_1",
-        blocked_account_id="acct_c",
         idempotency_key="shared-1",
     )
 
@@ -83,7 +81,6 @@ def test_shared_reminder_scheduling_args_round_trips():
         "friend_name": None,
         "requester_name": None,
         "friendship_id": "fs_1",
-        "blocked_account_id": "acct_c",
         "user_link_code": None,
         "message": None,
         "idempotency_key": "shared-1",

@@ -8,7 +8,6 @@ and do not interfere with other unit tests that import real modules.
 """
 
 import importlib.util
-import importlib.machinery
 import sys
 import types
 from pathlib import Path
@@ -228,11 +227,3 @@ class TestWebSearchTool:
 
         assert hasattr(tools, "web_search_tool")
         assert "web_search_tool" in tools.__all__
-
-    def test_web_search_stubs_do_not_hide_workflows_package(self):
-        """测试 web_search stubs 不会让 workflows 包变得不可发现"""
-        spec = importlib.machinery.PathFinder.find_spec(
-            "workflows", sys.modules["agent.agno_agent"].__path__
-        )
-
-        assert spec is not None

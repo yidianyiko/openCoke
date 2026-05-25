@@ -42,20 +42,13 @@ _SCHEDULING_INTENT_NAMES = {
     "cancel_friend_request",
     "list_friends",
     "remove_friendship",
-    "block_account",
-    "unblock_account",
     "get_user_link",
     "reset_user_link",
     "disable_user_link",
     "list_friend_calendar_facts",
     "list_shared_reminders",
 }
-_SCHEDULING_INTENT_ALIASES = {
-    "block_friend": "block_account",
-    "block_user": "block_account",
-    "unblock_friend": "unblock_account",
-    "unblock_user": "unblock_account",
-}
+_SCHEDULING_INTENT_ALIASES: dict[str, str] = {}
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -231,8 +224,19 @@ def _infer_scheduling_intent_and_args_from_agent_input(
     agent_input: AgentInput,
 ) -> tuple[str | None, dict[str, Any]]:
     product_notification = _product_notification_metadata(agent_input)
+    decision_input = input_message
+    payload_metadata = getattr(agent_input.payload, "metadata", None)
+    if isinstance(payload_metadata, Mapping):
+        raw_product_notification_text = payload_metadata.get(
+            "product_notification_input_text"
+        )
+        if (
+            isinstance(raw_product_notification_text, str)
+            and raw_product_notification_text.strip()
+        ):
+            decision_input = raw_product_notification_text.strip()
     product_notification_intent = _infer_scheduling_intent_from_product_notification(
-        input_message,
+        decision_input,
         product_notification,
     )
     if product_notification_intent:
@@ -294,11 +298,6 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             or "list" in text
         ):
             return "list_friend_requests"
-
-    if _contains_any(input_message, ("屏蔽", "拉黑")) or "block" in text:
-        if _contains_any(input_message, ("解除", "取消")) or "unblock" in text:
-            return "unblock_account"
-        return "block_account"
 
     if (
         _contains_any(input_message, ("移除好友", "删除好友", "解除好友", "删好友"))
@@ -601,7 +600,7 @@ def _create_interaction_agent(
                 return result
 
         async def scheduling_domain(intent: Any = None) -> dict[str, Any]:
-            """Use for explicit user-link, friend-request, friendship/block, or shared-reminder actions."""
+            """Use for explicit user-link, friend-request, friendship, or shared-reminder actions."""
             async with scheduling_domain_lock:
                 if "result" in scheduling_domain_result:
                     return scheduling_domain_result["result"]

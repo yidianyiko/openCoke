@@ -230,7 +230,15 @@ def _extract_user_turn_runtime_metadata(input_messages: List[Dict]) -> Dict[str,
             continue
         product_notification = metadata.get("product_notification")
         if isinstance(product_notification, Mapping):
-            return {"product_notification": dict(product_notification)}
+            runtime_metadata: Dict[str, Any] = {
+                "product_notification": dict(product_notification)
+            }
+            message_text = message.get("message")
+            if isinstance(message_text, str) and message_text.strip():
+                runtime_metadata["product_notification_input_text"] = (
+                    message_text.strip()
+                )
+            return runtime_metadata
     return {}
 
 

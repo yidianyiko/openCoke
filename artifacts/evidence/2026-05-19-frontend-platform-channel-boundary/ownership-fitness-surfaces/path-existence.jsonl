@@ -1,6 +1,0 @@
-{"command": ".venv/bin/python -m pytest tests/unit/reminder/ tests/unit/agent/test_reminder_intent_capability.py tests/unit/agent/test_reminder_command_executor.py tests/unit/runner/test_reminder_event_handler.py tests/unit/runner/test_reminder_scheduler.py -v", "missing_paths": [], "surface": "product-reminder"}
-{"command": ".venv/bin/python -m pytest tests/unit/agent/test_memo_capability_adapter.py -v", "missing_paths": [], "surface": "product-memo"}
-{"command": ".venv/bin/python -m pytest memo-runtime/tests -v", "missing_paths": [], "surface": "product-memo"}
-{"command": ".venv/bin/python -m pytest tests/unit/agent/test_calendar_import_handoff_tool.py tests/unit/connector/clawscale_bridge/test_google_calendar_import_service.py -v", "missing_paths": [], "surface": "product-calendar-import"}
-{"command": "pnpm --dir gateway/packages/api test calendar-import", "missing_paths": [], "surface": "product-calendar-import"}
-{"command": ".venv/bin/python -m pytest tests/unit/agent/test_timezone_port.py tests/unit/agent/test_timezone_service.py tests/unit/test_timezone_tools.py tests/unit/test_user_dao_timezone.py -v", "missing_paths": [], "surface": "product-timezone"}

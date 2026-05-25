@@ -67,7 +67,6 @@ Use when changing:
 - `agent/agno_agent/adapters/`
 - `agent/agno_agent/schemas/`
 - `agent/agno_agent/model_factory.py`
-- `agent/agno_agent/workflows/`
 - `agent/agno_agent/tools/`
 - `agent/reminder/`
 - `dao/reminder_dao.py`

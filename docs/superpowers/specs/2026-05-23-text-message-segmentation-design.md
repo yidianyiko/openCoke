@@ -71,15 +71,16 @@ Behavior:
   should remain one visible text message unless a later implementation
   explicitly adds deterministic segmentation for summaries.
 
-### `agent/agno_agent/schemas/chat_response_schema.py`
+### Removed structured-output schema
 
-This file is not an active runtime contract today because the current
-Interaction Agent construction does not pass an Agno `output_schema`.
+`agent/agno_agent/schemas/chat_response_schema.py` has been removed because it
+was not an active runtime contract. The current Interaction Agent construction
+does not pass an Agno `output_schema`.
 
-Keep the file aligned only if the implementation chooses to make the schema an
-active structured-output contract. Otherwise, leave it historical/inactive and
-enforce the first version through `chat_response_instructions.py` plus the
-runtime parser helper.
+Keep the first version enforced through `chat_response_instructions.py` plus the
+runtime parser helper. If a future implementation introduces an active
+structured-output contract, add a new schema at that point instead of reviving
+the historical file.
 
 If the schema becomes active:
 

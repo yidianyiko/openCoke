@@ -176,17 +176,17 @@ async def test_scheduling_tool_fn_exposes_shared_reminder_status_args():
 
 def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments():
     fn = _make_scheduling_tool_fn(
-        "block_account",
-        RecordingPort(name="block_account"),
-        input_message="block that account",
+        "create_shared_reminder",
+        RecordingPort(name="create_shared_reminder"),
+        input_message="create a shared reminder with Bob",
         run_context=_run_context(),
         domain_results=[],
     )
-    function = tool(name="block_account")(fn)
+    function = tool(name="create_shared_reminder")(fn)
 
     assert "request_id" in function.parameters["properties"]
     assert "friendship_id" in function.parameters["properties"]
-    assert "blocked_account_id" in function.parameters["properties"]
+    assert "friend_name" in function.parameters["properties"]
 
 
 @pytest.mark.asyncio
