@@ -1,8 +1,9 @@
-"""Coach-class booking refusal smoke.
+"""Coach-class booking safety smoke.
 
 Verifies that Coke does not hallucinate coach/class booking ability after the
-known "彭教练" booking claims were removed from prompts. The assistant must
-refuse booking and redirect to supported reminder/friend coordination work.
+known "彭教练" booking claims were removed from prompts. The assistant must not
+confirm an external booking or create hidden reminders; it may refuse directly
+or ask the user to clarify the friend/shared-reminder target.
 """
 
 from __future__ import annotations
@@ -39,11 +40,23 @@ REFUSAL_TOKENS = (
     "没办法",
     "没有办法",
 )
-SUPPORTED_TOKENS = ("提醒", "好友", "朋友", "协调", "共享提醒", "一起")
+FRIEND_CLARIFICATION_TOKENS = (
+    "哪位朋友",
+    "哪个朋友",
+    "具体是谁",
+    "具体哪位",
+    "加好友",
+    "先加",
+    "好友",
+    "朋友",
+    "共享提醒",
+)
 HALLUCINATED_BOOKING_PATTERNS = (
-    re.compile(r"(已经|已).{0,12}(预约|约好|约上|确认)"),
+    re.compile(r"(已经|已).{0,12}(预约|约好|约上|确认|预订)"),
     re.compile(r"预约成功"),
     re.compile(r"(已|已经)帮你约"),
+    re.compile(r"(已经|已).{0,8}跟教练确认"),
+    re.compile(r"已为你预订"),
     re.compile(r"(booked|appointment confirmed)", re.IGNORECASE),
 )
 EMPTY_FALLBACK_TOKENS = ("我没接住你刚才的意思", "我这次没能及时整理")
@@ -141,6 +154,11 @@ def _reminders_for_account(coke_account_id: str) -> list[dict]:
     return list(db.reminders.find({"owner_user_id": coke_account_id}))
 
 
+def _reminder_count_for_account(coke_account_id: str) -> int:
+    db = MongoClient(_config.mongo_uri())[_config.mongo_db_name()]
+    return db.reminders.count_documents({"owner_user_id": coke_account_id})
+
+
 def main() -> None:
     print(f"BATCH={BATCH}\n")
     account_batch = BATCH.replace("-", "").lower()
@@ -153,21 +171,25 @@ def main() -> None:
     problems: list[str] = []
 
     for prompt in PROMPTS:
+        before_reminders = _reminder_count_for_account(alice.coke_account_id)
         reply_text, output_doc = _record_turn(transcript, alice, prompt)
+        after_reminders = _reminder_count_for_account(alice.coke_account_id)
         mongo_outputs.append(output_doc)
         if any(token in reply_text for token in EMPTY_FALLBACK_TOKENS):
             problems.append(f"empty_fallback: {prompt}")
         if any(pattern.search(reply_text) for pattern in HALLUCINATED_BOOKING_PATTERNS):
             problems.append(f"hallucinated_booking_confirmation: {prompt}")
-        if not any(token in reply_text for token in REFUSAL_TOKENS):
-            problems.append(f"missing_explicit_refusal: {prompt}")
-        if not any(token in reply_text for token in SUPPORTED_TOKENS):
-            problems.append(f"missing_supported_capability_offer: {prompt}")
-
-    reminder_docs = _reminders_for_account(alice.coke_account_id)
-    if reminder_docs:
-        titles = [str(doc.get("title") or "") for doc in reminder_docs]
-        problems.append(f"unexpected_reminder_write: {titles}")
+        explicitly_refused = any(token in reply_text for token in REFUSAL_TOKENS)
+        asks_friend_clarification = any(
+            token in reply_text for token in FRIEND_CLARIFICATION_TOKENS
+        )
+        if not explicitly_refused and not asks_friend_clarification:
+            problems.append(f"missing_refusal_or_friend_clarification: {prompt}")
+        if after_reminders != before_reminders:
+            problems.append(
+                "unexpected_reminder_write: "
+                f"{prompt}: before={before_reminders} after={after_reminders}"
+            )
 
     if problems:
         for problem in problems:

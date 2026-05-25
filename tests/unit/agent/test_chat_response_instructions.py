@@ -98,6 +98,10 @@ def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
     assert "Use reminder_domain only when" in prompt
     assert "Do not invent a reminder or scheduling action" in prompt
     assert "casual mention of time" in prompt
+    assert "shared-reminder actions" in prompt
+    assert "create / accept / reject / cancel a shared reminder" in prompt
+    assert "Do not call reminder_domain or scheduling_domain for the booking itself" not in prompt
+    assert "Requests to book, reserve, or schedule" not in prompt
 
 
 def test_prompt_requires_non_empty_direct_reply_for_greetings():
@@ -209,7 +213,9 @@ def test_prompt_renders_first_chat_onboarding_after_character_prompt():
     assert "跟朋友一起" in prompt or "跟朋友约共享提醒" in prompt
     assert "9点提醒我运动" in prompt
     assert "随手备忘" in prompt
-    assert "课程预约、约见教练目前不在你的能力范围里" in prompt
+    assert "只介绍当前真实能做的事" in prompt
+    assert "绝不承诺已经设置提醒，除非当前系统上下文有成功工具结果" in prompt
+    assert "课程预约、约见教练目前不在你的能力范围里" not in prompt
     assert prompt.index("Default character prompt:") < prompt.index(
         "First-chat onboarding prompt:"
     )
@@ -227,12 +233,15 @@ def test_prompt_omits_onboarding_for_existing_user():
     assert "First-chat onboarding prompt:" not in prompt
 
 
-def test_booking_requests_are_direct_refusals_not_tool_calls():
+def test_prompt_removes_broad_booking_refusal_but_keeps_shared_reminder_contract():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
-    assert "Requests to book, reserve, or schedule a coach, class, lesson, or session are unsupported" in prompt
-    assert "Do not call reminder_domain or scheduling_domain for the booking itself" in prompt
-    assert "only create a reminder after the user asks for a reminder" in prompt
+    assert "Requests to book, reserve, or schedule a coach, class, lesson, or session are unsupported" not in prompt
+    assert "Do not call reminder_domain or scheduling_domain for the booking itself" not in prompt
+    assert "only create a reminder after the user asks for a reminder" not in prompt
+    assert "shared-reminder actions" in prompt
+    assert "A shared reminder requires one active friend" in prompt
+    assert "Do not claim a write occurred unless" in prompt
     assert "<onboarding_and_first_dialogue>" not in prompt
 
 

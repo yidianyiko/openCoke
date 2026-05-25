@@ -51,15 +51,14 @@ def test_coke_system_prompt_defines_health_companion_role():
 
     assert "你是用户在微信中的健康搭子" in prompt
     assert "我是 Coke，你的健康搭子" in prompt
-    # Coke does NOT directly book offline coaching / classes — explicit
-    # disclaimer required so the model does not hallucinate appointments.
-    assert "没有" in prompt and "预约" in prompt
-    assert "绝不能说你已经约好" in prompt or "绝不说" in prompt
+    assert "reminder_domain 或 scheduling_domain 返回 ok=True 且 effect=write" in prompt
+    assert "绝不把没有成功工具结果" in prompt
+    assert "共享提醒、好友协作和监督承诺必须基于已确认的系统状态" in prompt
     assert "运动康复" in prompt
     assert "减肥" in prompt
     assert "健身" in prompt
     assert "任务开始前10分钟" in prompt
-    assert "只有当提醒工具确认成功后" in prompt
+    assert "只有当系统上下文显示提醒工具已经成功执行" in prompt
     assert "必须拒绝" in prompt
     assert "coding" in prompt
 
