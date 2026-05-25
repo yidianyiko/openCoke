@@ -1381,6 +1381,63 @@ async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_arg
 
 
 @pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_start_datetime_alias(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="今晚九点，给我们约一个60分钟的短会",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "create_shared_reminder": {
+                "invitee_name": "eva",
+                "title": "一起运动",
+                "start_datetime": "2026-05-25T21:00:00",
+                "timezone": "Asia/Shanghai",
+                "duration_minutes": 60,
+            }
+        }
+    )
+
+    assert captured == {
+        "intent": "create_shared_reminder",
+        "forced_args": {
+            "invitee_name": "eva",
+            "title": "一起运动",
+            "fire_at": "2026-05-25T21:00:00",
+            "timezone": "Asia/Shanghai",
+            "duration_minutes": 60,
+        },
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_interaction_agent_scheduling_domain_normalizes_common_create_aliases(
     monkeypatch,
 ):

@@ -421,6 +421,8 @@ def _normalize_scheduling_intent_args(
             normalized["fire_at"] = normalized.pop("time")
         if "fire_at" not in normalized and "scheduled_time" in normalized:
             normalized["fire_at"] = normalized.pop("scheduled_time")
+        if "fire_at" not in normalized and "start_datetime" in normalized:
+            normalized["fire_at"] = normalized.pop("start_datetime")
         if "duration_minutes" not in normalized and "duration" in normalized:
             normalized["duration_minutes"] = normalized.pop("duration")
         activity = normalized.pop("activity", None)
