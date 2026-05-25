@@ -219,6 +219,55 @@ def test_reminder_detect_schema_accepts_structured_target_selector_fields():
     assert decision.target_scope == "current_conversation"
 
 
+def test_reminder_detect_schema_accepts_query_list_scope_fields():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="query",
+        action="list",
+        list_from_local_date="2026-05-26",
+        list_to_local_date="2026-05-26",
+        list_title_query="喝水",
+        list_states=["active"],
+    )
+
+    assert decision.list_from_local_date == "2026-05-26"
+    assert decision.list_to_local_date == "2026-05-26"
+    assert decision.list_title_query == "喝水"
+    assert decision.list_states == ["active"]
+
+
+def test_reminder_detect_schema_rejects_list_scope_fields_on_write_decisions():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError, match="list scope fields"):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="create",
+            title="喝水",
+            trigger_at="2026-05-26T09:00:00+08:00",
+            list_title_query="喝水",
+        )
+
+
+def test_reminder_detect_schema_rejects_invalid_list_scope_shapes():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError, match="list_from_local_date must be YYYY-MM-DD"):
+        ReminderDetectDecision(
+            intent_type="query",
+            action="list",
+            list_from_local_date="2026-5-26",
+        )
+
+    with pytest.raises(ValidationError, match="list_states must not be empty"):
+        ReminderDetectDecision(
+            intent_type="query",
+            action="list",
+            list_states=[],
+        )
+
+
 def test_reminder_detect_schema_rejects_invalid_target_selector_shapes():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

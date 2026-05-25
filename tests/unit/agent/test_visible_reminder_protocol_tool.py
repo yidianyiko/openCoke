@@ -161,6 +161,32 @@ class FakeReminderService:
             if item.lifecycle_state in query.lifecycle_states
         ]
 
+    def list_for_user_in_local_date_range(
+        self,
+        *,
+        owner_user_id: str,
+        from_date,
+        to_date,
+        lifecycle_states: list[str],
+    ) -> list[Reminder]:
+        self.calls.append(
+            (
+                "list_for_user_in_local_date_range",
+                {
+                    "owner_user_id": owner_user_id,
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "lifecycle_states": lifecycle_states,
+                },
+            )
+        )
+        return [
+            item
+            for item in self.reminders
+            if item.lifecycle_state in lifecycle_states
+            and from_date <= item.schedule.local_date <= to_date
+        ]
+
 
 class FailingCreateReminderService(FakeReminderService):
     def create(
@@ -411,6 +437,67 @@ def test_create_formats_weekly_interval_rrule_as_every_two_weeks(monkeypatch):
         == "已创建提醒：开例会（每两周的周三、周四 20:00，截止 2026-06-25 20:00）"
     )
     assert session_state["tool_results"][0]["result_summary"] == result["summary"]
+
+
+def test_list_with_date_range_uses_runtime_range_and_active_state(monkeypatch):
+    service = FakeReminderService(
+        reminders=[
+            reminder(
+                "today",
+                title="买菜",
+                reminder_schedule=schedule(datetime(2026, 5, 26, 1, 0, tzinfo=UTC)),
+            ),
+            reminder(
+                "tomorrow",
+                title="洗车",
+                reminder_schedule=schedule(datetime(2026, 5, 27, 1, 0, tzinfo=UTC)),
+            ),
+        ]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1", "timezone": "Asia/Shanghai"},
+            "character": {"id": "char-1"},
+            "conversation": {"id": "conv-1"},
+        }
+    )
+
+    result = call_tool(
+        action="list",
+        list_from_local_date="2026-05-26",
+        list_to_local_date="2026-05-26",
+    )
+
+    assert result["ok"] is True
+    assert [item["title"] for item in result["reminders"]] == ["买菜"]
+    assert service.calls[-1][0] == "list_for_user_in_local_date_range"
+    assert service.calls[-1][1]["lifecycle_states"] == ["active"]
+
+
+def test_list_title_query_filters_after_state_scope(monkeypatch):
+    service = FakeReminderService(
+        reminders=[
+            reminder("water", title="喝水"),
+            reminder("book", title="读书"),
+            reminder("cancelled-water", title="喝水", lifecycle_state="cancelled"),
+        ]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1", "timezone": "Asia/Shanghai"},
+            "character": {"id": "char-1"},
+            "conversation": {"id": "conv-1"},
+        }
+    )
+
+    result = call_tool(action="list", list_title_query="喝 水")
+
+    assert result["ok"] is True
+    assert [item["id"] for item in result["reminders"]] == ["water"]
+    assert "喝水" in result["summary"]
+    assert "读书" not in result["summary"]
 
 
 def test_llm_arguments_cannot_override_owner_or_target(monkeypatch):

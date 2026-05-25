@@ -443,6 +443,40 @@ def test_list_result_preserves_summary_and_reminder_facts():
     }
 
 
+def test_list_scope_fields_are_forwarded_to_tool():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return {
+            "ok": True,
+            "action": "list",
+            "summary": "目前没有提醒。",
+            "reminders": [],
+        }
+
+    decision = ReminderDetectDecision(
+        intent_type="query",
+        action="list",
+        list_from_local_date="2026-05-26",
+        list_to_local_date="2026-05-26",
+        list_title_query="喝水",
+        list_states=["active"],
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.outcome == "executed"
+    assert calls[0]["list_from_local_date"] == "2026-05-26"
+    assert calls[0]["list_to_local_date"] == "2026-05-26"
+    assert calls[0]["list_title_query"] == "喝水"
+    assert calls[0]["list_states"] == ["active"]
+    assert result.operations[0].facts["count"] == 0
+
+
 def test_real_visible_reminder_tool_receives_trusted_context_from_session_state(
     monkeypatch: pytest.MonkeyPatch,
 ):

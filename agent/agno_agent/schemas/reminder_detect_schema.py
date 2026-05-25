@@ -163,6 +163,22 @@ class ReminderDetectDecision(BaseModel):
             "trigger_at must be at or before it."
         ),
     )
+    list_from_local_date: str | None = Field(
+        default=None,
+        description="Query/list lower local date bound in YYYY-MM-DD.",
+    )
+    list_to_local_date: str | None = Field(
+        default=None,
+        description="Query/list upper local date bound in YYYY-MM-DD.",
+    )
+    list_title_query: str | None = Field(
+        default=None,
+        description="Query/list title containment phrase.",
+    )
+    list_states: list[str] | None = Field(
+        default=None,
+        description='Query/list lifecycle states; default runtime scope is ["active"].',
+    )
     schedule_basis: Literal[
         "", "one_shot", "explicit_occurrences", "explicit_cadence"
     ] = Field(
@@ -272,7 +288,16 @@ class ReminderDetectDecision(BaseModel):
             "schedule_evidence",
             "operations",
         )
+        list_scope_field_names = (
+            "list_from_local_date",
+            "list_to_local_date",
+            "list_title_query",
+            "list_states",
+        )
         has_write_fields = any(bool(getattr(self, name)) for name in write_field_names)
+        has_list_scope_fields = any(
+            bool(getattr(self, name)) for name in list_scope_field_names
+        )
 
         if self.intent_type == "clarify" and not self.clarification_reason:
             raise ValueError("clarify intent requires clarification_reason")
@@ -282,6 +307,8 @@ class ReminderDetectDecision(BaseModel):
             )
 
         if self.intent_type == "crud":
+            if has_list_scope_fields:
+                raise ValueError("list scope fields are only allowed for query list")
             if not self.action:
                 raise ValueError("crud intent requires action")
             if self.action == "batch" and not self.operations:
@@ -304,7 +331,13 @@ class ReminderDetectDecision(BaseModel):
         if self.intent_type == "query":
             if self.action not in {"", "list"}:
                 raise ValueError("query intent may only use action=list")
+            if has_list_scope_fields and self.action != "list":
+                raise ValueError("list scope fields require action=list")
+            self._validate_list_scope()
             return self
+
+        if has_list_scope_fields:
+            raise ValueError("list scope fields are only allowed for query list")
 
         if self.action:
             raise ValueError("clarify and discussion intents must not include action")
@@ -344,6 +377,22 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError(
                     f"operations[{index}].target_local_time must be HH:MM"
                 )
+
+    def _validate_list_scope(self) -> None:
+        from_date = str(self.list_from_local_date or "").strip()
+        to_date = str(self.list_to_local_date or "").strip()
+        for field_name, value in (
+            ("list_from_local_date", from_date),
+            ("list_to_local_date", to_date),
+        ):
+            if value and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+                raise ValueError(f"{field_name} must be YYYY-MM-DD")
+        if bool(from_date) != bool(to_date):
+            raise ValueError("list date scope requires both from and to dates")
+        if self.list_states is not None:
+            states = [str(value).strip() for value in self.list_states]
+            if not states or any(not value for value in states):
+                raise ValueError("list_states must not be empty")
 
     def _validate_schedule_basis(self) -> None:
         if self.action not in {"create", "update", "batch"}:

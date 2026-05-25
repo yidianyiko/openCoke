@@ -44,7 +44,10 @@ Current time: {current_time_str}
 
 - crud: user asks to be reminded/notified/woken/called/checked-on/supervised at a concrete time or cadence (including Chinese 打卡/监督/问问完成情况). action ∈ create/update/delete/complete/batch.
 - clarify: reminder intent present but title or time is missing/ambiguous; status-only or referential content ("还没做", "这件事") clarifies for the task.
-- query: user asks to view existing reminders. action=list.
+- query: user asks to view existing reminders. action=list. For reminder list
+  requests, use list_from_local_date/list_to_local_date for explicit local date
+  scope, list_title_query for bounded title phrases, and list_states only when
+  the user asks for non-active states.
 - discussion: ordinary plans, intentions, routines, activity reports, name/address preferences, meta talk about reminder behavior. No action.
 
 ## Topic shapes that route to discussion
@@ -89,6 +92,10 @@ For intent_type=clarify, set clarification_reason to one of: date_only_missing_t
 - Single reminder: top-level title + trigger_at. Multiple reminder operations: action=batch + operations.
 - For update/delete/cancel/complete, keep reminder_id as strongest target when known. Otherwise populate structured target selectors instead of inventing ids:
   target_title for phrases like "喝水的", target_local_date for "今天/明天/5月26号的", target_local_time for "8点的", target_rrule for "每天的/每周的", and target_scope=current_conversation/recent_active for "刚才那个/刚刚设的".
+- For query/list, never use write target selectors. Use list_from_local_date and
+  list_to_local_date for 今天/今日/今晚/今早 (today) and 明天/明日 (tomorrow).
+  Use list_title_query for bounded phrases like "哪些喝水提醒" or "喝水提醒".
+  Default active-state listing can omit list_states.
 - If the user says "再过 N 分钟提醒我" with no new reminder content, treat it as snoozing the recent active reminder: action=update, target_scope=recent_active, new_trigger_at=current_time+offset. If no unique recent reminder exists, the runtime will ask which one; do not create a generic "提醒" reminder.
 - If a write request has no usable target selector, emit clarify with clarification_reason=ambiguous_request.
 - batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).

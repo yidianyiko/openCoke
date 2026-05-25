@@ -501,6 +501,79 @@ async def test_reminder_intent_port_routes_explicit_list_query_without_detector(
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_extracts_today_scope_for_explicit_list_query():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FailingAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError("detector should not run for explicit list query")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            assert received_decision.list_from_local_date == "2026-05-06"
+            assert received_decision.list_to_local_date == "2026-05-06"
+            assert received_decision.list_title_query is None
+            assert received_decision.list_states == ["active"]
+            return _executed_result("listed")
+
+    result = await ReminderIntentPort(
+        detector_agent=FailingAgent(),
+        command_executor=FakeExecutor(),
+    ).run("我今天有什么提醒？", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_keeps_general_list_query_unfiltered():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FailingAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError("detector should not run for explicit list query")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            assert received_decision.list_title_query is None
+            return _executed_result("listed")
+
+    result = await ReminderIntentPort(
+        detector_agent=FailingAgent(),
+        command_executor=FakeExecutor(),
+    ).run("列一下我的提醒。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_extracts_title_query_for_explicit_list_query():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FailingAgent:
+        async def arun(self, **_kwargs):
+            raise AssertionError("detector should not run for explicit list query")
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.intent_type == "query"
+            assert received_decision.action == "list"
+            assert received_decision.list_title_query == "喝水"
+            assert received_decision.list_states == ["active"]
+            return _executed_result("listed")
+
+    result = await ReminderIntentPort(
+        detector_agent=FailingAgent(),
+        command_executor=FakeExecutor(),
+    ).run("我设过哪些喝水提醒？", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_creates_primary_detector_per_invocation(
     monkeypatch,
 ):

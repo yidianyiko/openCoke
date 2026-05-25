@@ -35,10 +35,23 @@ _REMINDER_DECISION_FIELDS = (
     "new_trigger_at",
     "rrule",
     "deadline_at",
+    "list_from_local_date",
+    "list_to_local_date",
+    "list_title_query",
+    "list_states",
     "operations",
 )
 _TOOL_DECISION_FIELDS = tuple(
     field for field in _REMINDER_DECISION_FIELDS if field != "deadline_at"
+)
+_LIST_SCOPE_FIELDS = (
+    "list_from_local_date",
+    "list_to_local_date",
+    "list_title_query",
+    "list_states",
+)
+_OPERATION_TOOL_DECISION_FIELDS = tuple(
+    field for field in _TOOL_DECISION_FIELDS if field not in _LIST_SCOPE_FIELDS
 )
 
 
@@ -93,7 +106,7 @@ def _normalize_tool_operation(operation: Any) -> Any:
             if field == "action"
             else _empty_string_to_none(operation.get(field))
         )
-        for field in _TOOL_DECISION_FIELDS
+        for field in _OPERATION_TOOL_DECISION_FIELDS
         if field != "operations"
     }
 
@@ -188,6 +201,9 @@ class ReminderCommandExecutor:
                 )
                 for field in _TOOL_DECISION_FIELDS
             }
+            if kwargs.get("action") != "list":
+                for field in _LIST_SCOPE_FIELDS:
+                    kwargs.pop(field, None)
 
             tool_result = self._tool_entrypoint(**kwargs)
         except Exception as exc:
@@ -279,6 +295,7 @@ def _operations_from_tool_result(
                 entity_id=None,
                 facts={
                     "summary": tool_result.get("summary"),
+                    "visible_summary": tool_result.get("summary"),
                     "count": len(reminders),
                     "reminder_ids": tuple(
                         str(item.get("id") or "") for item in reminders
@@ -421,6 +438,28 @@ def _reply_contract_for_operations(
             ),
             required_questions=(),
             prohibited_claims=("not_created", "needs_more_info"),
+            allow_rephrase=True,
+        )
+    list_index = next(
+        (
+            index
+            for index, operation in enumerate(operations)
+            if operation.action == "list" and operation.ok
+        ),
+        None,
+    )
+    if list_index is not None:
+        return ReplyContract(
+            intent="direct_answer",
+            required_facts=(
+                ReplyFactRequirement(path=f"operations[{list_index}].facts.count"),
+                ReplyFactRequirement(path=f"operations[{list_index}].facts.reminders"),
+                ReplyFactRequirement(
+                    path=f"operations[{list_index}].facts.visible_summary"
+                ),
+            ),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
             allow_rephrase=True,
         )
     return ReplyContract(

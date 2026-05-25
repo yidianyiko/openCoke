@@ -499,6 +499,61 @@ async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_prefers_reminder_list_visible_summary(monkeypatch):
+    list_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="list",
+                ok=True,
+                effect="read",
+                entity_type="reminder",
+                entity_id=None,
+                facts={
+                    "count": 2,
+                    "reminders": (
+                        {"title": "买菜", "local_date": "2026-05-26"},
+                        {"title": "喝水", "local_date": "2026-05-26"},
+                    ),
+                    "visible_summary": "你今天有 2 个提醒：\n- 买菜（2026-05-26 10:00）\n- 喝水（2026-05-26 12:00）",
+                },
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="direct_answer",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+        ),
+    )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content='{"MultiModalResponses":[{"type":"text","content":"你今天有2个提醒：\\n- 喝水"}]}',
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["domain_results"].append(list_result)
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "你今天有 2 个提醒：\n- 买菜（2026-05-26 10:00）\n- 喝水（2026-05-26 12:00）"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_model(
     monkeypatch,
 ):

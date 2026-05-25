@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextvars
 import re
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -67,6 +67,10 @@ def _execute_visible_reminder_tool_action(
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
+    list_from_local_date: str | None = None,
+    list_to_local_date: str | None = None,
+    list_title_query: str | None = None,
+    list_states: list[str] | None = None,
     operations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     session_state = _get_session_state()
@@ -133,6 +137,10 @@ def _execute_visible_reminder_tool_action(
             new_title=new_title,
             new_trigger_at=new_trigger_at,
             rrule=rrule,
+            list_from_local_date=list_from_local_date,
+            list_to_local_date=list_to_local_date,
+            list_title_query=list_title_query,
+            list_states=list_states,
         )
     except Exception:
         logger.exception("visible reminder tool adapter action failed")
@@ -293,6 +301,10 @@ def _run_operation(
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
+    list_from_local_date: str | None = None,
+    list_to_local_date: str | None = None,
+    list_title_query: str | None = None,
+    list_states: list[str] | None = None,
 ) -> dict[str, Any]:
     canonical_action = _canonical_action(action)
     try:
@@ -313,6 +325,10 @@ def _run_operation(
             new_title=new_title,
             new_trigger_at=new_trigger_at,
             rrule=rrule,
+            list_from_local_date=list_from_local_date,
+            list_to_local_date=list_to_local_date,
+            list_title_query=list_title_query,
+            list_states=list_states,
         )
     except _KeywordResolutionError as exc:
         summary = f"{_action_failure_label(canonical_action)}失败：{exc}"
@@ -389,6 +405,10 @@ def _execute_one(
     new_title: str | None,
     new_trigger_at: str | None,
     rrule: str | None,
+    list_from_local_date: str | None,
+    list_to_local_date: str | None,
+    list_title_query: str | None,
+    list_states: list[str] | None,
 ) -> dict[str, Any]:
     context = _derive_runtime_context(session_state)
 
@@ -418,9 +438,13 @@ def _execute_one(
         }
 
     if action == "list":
-        reminders = runtime.list_visible_reminders(
+        reminders = _list_visible_reminders(
+            runtime=runtime,
             owner_user_id=context.owner_user_id,
-            query=ReminderQuery(lifecycle_states=["active"]),
+            list_from_local_date=list_from_local_date,
+            list_to_local_date=list_to_local_date,
+            list_title_query=list_title_query,
+            list_states=list_states,
         )
         return {
             "ok": True,
@@ -524,6 +548,81 @@ def _execute_one(
         "Unsupported reminder action",
         detail={"action": action},
     )
+
+
+def _list_visible_reminders(
+    *,
+    runtime: ReminderRuntimeContract,
+    owner_user_id: str,
+    list_from_local_date: str | None,
+    list_to_local_date: str | None,
+    list_title_query: str | None,
+    list_states: list[str] | None,
+) -> list[Reminder]:
+    states = _normalize_list_states(list_states)
+    from_date = _parse_optional_local_date(
+        list_from_local_date,
+        field_name="list_from_local_date",
+    )
+    to_date = _parse_optional_local_date(
+        list_to_local_date,
+        field_name="list_to_local_date",
+    )
+    if bool(from_date) != bool(to_date):
+        raise InvalidArgument(
+            "List date scope requires both from and to dates",
+            detail={"reason": "invalid_list_date_scope"},
+        )
+
+    if from_date is not None and to_date is not None:
+        reminders = runtime.list_visible_reminders_in_local_date_range(
+            owner_user_id=owner_user_id,
+            from_date=from_date,
+            to_date=to_date,
+            lifecycle_states=states,
+        )
+    else:
+        reminders = runtime.list_visible_reminders(
+            owner_user_id=owner_user_id,
+            query=ReminderQuery(lifecycle_states=states),
+        )
+
+    title_query = _normalize_list_title_query(list_title_query)
+    if not title_query:
+        return reminders
+    return [
+        reminder
+        for reminder in reminders
+        if title_query in _normalize_list_title_query(reminder.title)
+    ]
+
+
+def _normalize_list_states(value: list[str] | None) -> list[str]:
+    if value is None:
+        return ["active"]
+    states = [str(item).strip() for item in value if str(item).strip()]
+    if not states:
+        raise InvalidArgument(
+            "List states must not be empty",
+            detail={"reason": "invalid_list_states"},
+        )
+    return states
+
+
+def _parse_optional_local_date(value: str | None, *, field_name: str) -> date | None:
+    if value is None or not str(value).strip():
+        return None
+    try:
+        return date.fromisoformat(str(value).strip())
+    except ValueError as exc:
+        raise InvalidArgument(
+            f"{field_name} must be YYYY-MM-DD",
+            detail={"field": field_name, "value": value},
+        ) from exc
+
+
+def _normalize_list_title_query(value: Any) -> str:
+    return re.sub(r"\s+", "", str(value or "").casefold())
 
 
 def _derive_runtime_context(session_state: dict):
@@ -732,11 +831,10 @@ def _reminder_to_dict(reminder: Reminder) -> dict[str, Any]:
 def _format_list_summary(reminders: list[Reminder]) -> str:
     if not reminders:
         return "暂无提醒"
-    return "\n".join(
-        f"- {item.title} @ "
-        f"{item.next_fire_at.isoformat() if item.next_fire_at else 'none'}"
-        for item in reminders
-    )
+    count = len(reminders)
+    lines = [f"你有 {count} 个提醒："]
+    lines.extend(f"- {_format_reminder_with_schedule(item)}" for item in reminders)
+    return "\n".join(lines)
 
 
 def _format_reminder_with_schedule(reminder: Reminder) -> str:
@@ -921,6 +1019,10 @@ def visible_reminder_tool(
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
+    list_from_local_date: str | None = None,
+    list_to_local_date: str | None = None,
+    list_title_query: str | None = None,
+    list_states: list[str] | None = None,
     operations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     resolved_action = action or ("batch" if operations is not None else "")
@@ -939,5 +1041,9 @@ def visible_reminder_tool(
         new_title=new_title,
         new_trigger_at=new_trigger_at,
         rrule=rrule,
+        list_from_local_date=list_from_local_date,
+        list_to_local_date=list_to_local_date,
+        list_title_query=list_title_query,
+        list_states=list_states,
         operations=operations,
     )
