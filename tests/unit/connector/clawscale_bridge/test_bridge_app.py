@@ -1573,7 +1573,10 @@ def test_bridge_inbound_turns_sync_timeout_into_async_late_reply_fallback(monkey
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True}
+    assert response.get_json() == {
+        "ok": True,
+        "reply": bridge_app.SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+    }
     late_reply_fallback.start_async.assert_called_once_with(
         causal_inbound_event_id="in_evt_timeout_1",
         customer_id="acct_1",

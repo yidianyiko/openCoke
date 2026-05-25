@@ -26,6 +26,7 @@ from dao.user_dao import UserDAO
 
 logger = logging.getLogger(__name__)
 MAX_BRIDGE_INBOUND_REQUEST_BYTES = MAX_ATTACHMENT_JSON_BYTES
+SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
 
 
 def _is_unresolved_bridge_setting(value) -> bool:
@@ -501,7 +502,10 @@ class BusinessOnlyBridgeGateway:
                     external_end_user_id=inbound.get("external_id"),
                     sync_reply_token=sync_reply_token,
                 )
-                return {"status": "ok"}
+                return {
+                    "status": "ok",
+                    "reply": SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
+                }
             raise
         if isinstance(reply, dict):
             return {"status": "ok", **reply}

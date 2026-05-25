@@ -92,6 +92,17 @@ QUEUE_MODE=poll bash agent/runner/agent_start.sh
 - `transport`: `http`
 - `responseFormat`: `json-auto`
 
+## Inbound reply behavior
+
+- If the runtime produces a text reply within the bridge request/response window,
+  `/bridge/inbound` returns that reply synchronously.
+- If the synchronous wait times out, `/bridge/inbound` returns a short
+  processing receipt immediately so the user is not left without visible
+  feedback.
+- The bridge then keeps watching for the late runtime reply and promotes it
+  into the async push path so the final answer is still delivered through the
+  gateway.
+
 ## Coke User Frontend
 
 - User login: `http://<web-host>:4040/auth/login`
