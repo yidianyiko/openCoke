@@ -9,6 +9,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from agno.tools import tool
 
 from agent.agno_agent.tools.tool_result import append_tool_result
+from agent.agno_agent.capabilities.reminder_target_resolver import (
+    Clarify,
+    ReminderTargetSelector,
+    ResolvedOne,
+    resolve_target,
+)
 from agent.reminder.errors import InvalidArgument, ReminderError
 from agent.reminder.models import (
     Reminder,
@@ -53,6 +59,11 @@ def _execute_visible_reminder_tool_action(
     duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
+    target_title: str | None = None,
+    target_local_date: str | None = None,
+    target_local_time: str | None = None,
+    target_rrule: str | None = None,
+    target_scope: str | None = None,
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
@@ -114,6 +125,11 @@ def _execute_visible_reminder_tool_action(
             duration_minutes=duration_minutes,
             reminder_id=reminder_id,
             keyword=keyword,
+            target_title=target_title,
+            target_local_date=target_local_date,
+            target_local_time=target_local_time,
+            target_rrule=target_rrule,
+            target_scope=target_scope,
             new_title=new_title,
             new_trigger_at=new_trigger_at,
             rrule=rrule,
@@ -176,6 +192,11 @@ def _execute_batch_operations(
                 duration_minutes=operation.get("duration_minutes"),
                 reminder_id=operation.get("reminder_id"),
                 keyword=operation.get("keyword"),
+                target_title=operation.get("target_title"),
+                target_local_date=operation.get("target_local_date"),
+                target_local_time=operation.get("target_local_time"),
+                target_rrule=operation.get("target_rrule"),
+                target_scope=operation.get("target_scope"),
                 new_title=operation.get("new_title"),
                 new_trigger_at=operation.get("new_trigger_at"),
                 rrule=operation.get("rrule"),
@@ -264,6 +285,11 @@ def _run_operation(
     duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
+    target_title: str | None = None,
+    target_local_date: str | None = None,
+    target_local_time: str | None = None,
+    target_rrule: str | None = None,
+    target_scope: str | None = None,
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
@@ -279,6 +305,11 @@ def _run_operation(
             duration_minutes=duration_minutes,
             reminder_id=reminder_id,
             keyword=keyword,
+            target_title=target_title,
+            target_local_date=target_local_date,
+            target_local_time=target_local_time,
+            target_rrule=target_rrule,
+            target_scope=target_scope,
             new_title=new_title,
             new_trigger_at=new_trigger_at,
             rrule=rrule,
@@ -350,6 +381,11 @@ def _execute_one(
     duration_minutes: int | None,
     reminder_id: str | None,
     keyword: str | None,
+    target_title: str | None,
+    target_local_date: str | None,
+    target_local_time: str | None,
+    target_rrule: str | None,
+    target_scope: str | None,
     new_title: str | None,
     new_trigger_at: str | None,
     rrule: str | None,
@@ -395,21 +431,30 @@ def _execute_one(
         }
 
     if action == "update":
-        target_id = _resolve_reminder_id(
+        resolved = _resolve_reminder_target(
             runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
+            target_title=target_title,
+            target_local_date=target_local_date,
+            target_local_time=target_local_time,
+            target_rrule=target_rrule,
+            target_scope=target_scope,
+            current_conversation_id=context.target.conversation_id,
             action=action,
+            require_existing=True,
         )
         patch = _build_patch(
             title=new_title if new_title is not None else title,
             trigger_at=new_trigger_at if new_trigger_at is not None else trigger_at,
             timezone=context.timezone,
             rrule=rrule,
+            duration_minutes=duration_minutes,
+            existing_schedule=resolved.reminder.schedule if resolved.reminder else None,
         )
         updated = runtime.update_visible_reminder(
-            reminder_id=target_id,
+            reminder_id=resolved.reminder_id,
             owner_user_id=context.owner_user_id,
             patch=patch,
         )
@@ -422,15 +467,22 @@ def _execute_one(
         }
 
     if action == "cancel":
-        target_id = _resolve_reminder_id(
+        resolved = _resolve_reminder_target(
             runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
+            target_title=target_title,
+            target_local_date=target_local_date,
+            target_local_time=target_local_time,
+            target_rrule=target_rrule,
+            target_scope=target_scope,
+            current_conversation_id=context.target.conversation_id,
             action=action,
+            require_existing=False,
         )
         cancelled = runtime.cancel_visible_reminder(
-            reminder_id=target_id,
+            reminder_id=resolved.reminder_id,
             owner_user_id=context.owner_user_id,
         )
         return {
@@ -442,15 +494,22 @@ def _execute_one(
         }
 
     if action == "complete":
-        target_id = _resolve_reminder_id(
+        resolved = _resolve_reminder_target(
             runtime=runtime,
             owner_user_id=context.owner_user_id,
             reminder_id=reminder_id,
             keyword=keyword,
+            target_title=target_title,
+            target_local_date=target_local_date,
+            target_local_time=target_local_time,
+            target_rrule=target_rrule,
+            target_scope=target_scope,
+            current_conversation_id=context.target.conversation_id,
             action=action,
+            require_existing=False,
         )
         completed = runtime.complete_visible_reminder(
-            reminder_id=target_id,
+            reminder_id=resolved.reminder_id,
             owner_user_id=context.owner_user_id,
         )
         return {
@@ -523,54 +582,108 @@ def _build_patch(
     timezone: str,
     rrule: str | None,
     duration_minutes: int | None = None,
+    existing_schedule: Any | None = None,
 ) -> ReminderPatch:
+    schedule = None
+    if trigger_at is not None:
+        schedule = _schedule_from_iso(
+            trigger_at,
+            timezone,
+            rrule if rrule is not None else getattr(existing_schedule, "rrule", None),
+            duration_minutes=(
+                duration_minutes
+                if duration_minutes is not None and duration_minutes > 0
+                else getattr(existing_schedule, "duration_minutes", None)
+            ),
+        )
+    elif rrule is not None and existing_schedule is not None:
+        schedule = type(existing_schedule)(
+            anchor_at=existing_schedule.anchor_at,
+            local_date=existing_schedule.local_date,
+            local_time=existing_schedule.local_time,
+            timezone=existing_schedule.timezone,
+            rrule=_normalize_rrule(rrule),
+            duration_minutes=existing_schedule.duration_minutes,
+        )
+
     return ReminderPatch(
         title=title,
-        schedule=(
-            _schedule_from_iso(
-                trigger_at,
-                timezone,
-                rrule,
-                duration_minutes=duration_minutes,
-            )
-            if trigger_at is not None
-            else None
-        ),
+        schedule=schedule,
     )
 
 
-def _resolve_reminder_id(
+def _resolve_reminder_target(
     *,
     runtime: ReminderRuntimeContract,
     owner_user_id: str,
     reminder_id: str | None,
     keyword: str | None,
+    target_title: str | None,
+    target_local_date: str | None,
+    target_local_time: str | None,
+    target_rrule: str | None,
+    target_scope: str | None,
+    current_conversation_id: str | None,
     action: str,
-) -> str:
-    if reminder_id:
-        return reminder_id
-    if not keyword:
+    require_existing: bool,
+) -> ResolvedOne:
+    title_selector = target_title or keyword
+    has_selector = any(
+        [
+            reminder_id,
+            title_selector,
+            target_local_date,
+            target_local_time,
+            target_rrule,
+            target_scope,
+        ]
+    )
+    if not has_selector:
         raise InvalidArgument(
             _target_resolution_message(action, None),
             detail={"action": action, "reason": "missing_target"},
         )
+    if reminder_id and not require_existing:
+        return ResolvedOne(reminder_id=reminder_id)
 
-    reminders = runtime.list_visible_reminders(
-        owner_user_id=owner_user_id,
-        query=ReminderQuery(lifecycle_states=["active"]),
+    selector = ReminderTargetSelector(
+        reminder_id=reminder_id,
+        target_title=title_selector,
+        target_local_date=target_local_date,
+        target_local_time=target_local_time,
+        target_rrule=target_rrule,
+        target_scope=target_scope,  # type: ignore[arg-type]
+        current_conversation_id=current_conversation_id,
     )
-    exact_matches = [item for item in reminders if item.title == keyword]
-    if exact_matches:
-        matches = exact_matches
-    else:
-        matches = [item for item in reminders if keyword in item.title]
-    if len(matches) != 1:
+    result = resolve_target(owner_user_id, selector, runtime)
+    if (
+        isinstance(result, Clarify)
+        and not result.candidates
+        and target_scope == "current_conversation"
+        and not any(
+            [reminder_id, title_selector, target_local_date, target_local_time, target_rrule]
+        )
+    ):
+        result = resolve_target(
+            owner_user_id,
+            ReminderTargetSelector(
+                target_scope="recent_active",
+                current_conversation_id=current_conversation_id,
+            ),
+            runtime,
+        )
+    if isinstance(result, ResolvedOne):
+        return result
+    if isinstance(result, Clarify):
         raise _KeywordResolutionError(
             action=action,
-            keyword=keyword,
-            match_count=len(matches),
+            keyword=title_selector or "",
+            match_count=len(result.candidates),
         )
-    return matches[0].id
+    raise InvalidArgument(
+        _target_resolution_message(action, None),
+        detail={"action": action, "reason": "missing_target"},
+    )
 
 
 def _isoformat_or_none(value: Any) -> str | None:
@@ -793,6 +906,11 @@ def visible_reminder_tool(
     duration_minutes: int | None = None,
     reminder_id: str | None = None,
     keyword: str | None = None,
+    target_title: str | None = None,
+    target_local_date: str | None = None,
+    target_local_time: str | None = None,
+    target_rrule: str | None = None,
+    target_scope: str | None = None,
     new_title: str | None = None,
     new_trigger_at: str | None = None,
     rrule: str | None = None,
@@ -806,6 +924,11 @@ def visible_reminder_tool(
         duration_minutes=duration_minutes,
         reminder_id=reminder_id,
         keyword=keyword,
+        target_title=target_title,
+        target_local_date=target_local_date,
+        target_local_time=target_local_time,
+        target_rrule=target_rrule,
+        target_scope=target_scope,
         new_title=new_title,
         new_trigger_at=new_trigger_at,
         rrule=rrule,

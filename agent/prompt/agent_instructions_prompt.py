@@ -87,6 +87,10 @@ For intent_type=clarify, set clarification_reason to one of: date_only_missing_t
 - intent_type and action are separate keys; never merge.
 - action ∈ "" / create / update / delete / complete / batch / list.
 - Single reminder: top-level title + trigger_at. Multiple reminder operations: action=batch + operations.
+- For update/delete/cancel/complete, keep reminder_id as strongest target when known. Otherwise populate structured target selectors instead of inventing ids:
+  target_title for phrases like "喝水的", target_local_date for "今天/明天/5月26号的", target_local_time for "8点的", target_rrule for "每天的/每周的", and target_scope=current_conversation/recent_active for "刚才那个/刚刚设的".
+- If the user says "再过 N 分钟提醒我" with no new reminder content, treat it as snoozing the recent active reminder: action=update, target_scope=recent_active, new_trigger_at=current_time+offset. If no unique recent reminder exists, the runtime will ask which one; do not create a generic "提醒" reminder.
+- If a write request has no usable target selector, emit clarify with clarification_reason=ambiguous_request.
 - batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).
 - Weekly recurrence with listed weekdays: BYDAY includes all of them; weekday ranges like 周一到周五 expand to all days in BYDAY, not just the first.
 - Bounded cadence with end clock/date: use deadline_at; trigger_at = first occurrence.

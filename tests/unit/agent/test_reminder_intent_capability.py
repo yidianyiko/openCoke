@@ -761,6 +761,698 @@ async def test_reminder_intent_port_returns_relative_delay_clarification():
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_converts_referential_relative_delay_to_snooze_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 提醒我 30 分钟后喝水。\nCoke: 好嘞，30分钟后提醒你喝水",
+        current_time=datetime(2026, 5, 25, 18, 46, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_reason": "ambiguous_request",
+                }
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_trigger_at == "2026-05-25T18:56:00+00:00"
+            assert received_decision.new_title in {"", None}
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("再过 10 分钟提醒我。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_short_circuits_bare_snooze_before_detector():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 18, 46, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            raise AssertionError("detector should not run")
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_trigger_at == "2026-05-25T18:56:00+00:00"
+            return _executed_result("已更新提醒")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("再过 10 分钟提醒我。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_converts_invalid_referential_delay_to_snooze_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 提醒我 30 分钟后喝水。\nCoke: 好嘞。",
+        current_time=datetime(2026, 5, 25, 18, 46, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_trigger_at == "2026-05-25T18:56:00+00:00"
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("再过 10 分钟提醒我。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_derives_title_time_selector_for_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 19, 37, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        target_scope="current_conversation",
+        new_trigger_at="2026-05-27T16:00:00+08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.target_title == "喝水"
+            assert getattr(received_decision, "target_local_time", None) is None
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_trigger_at == "2026-05-27T16:00:00+08:00"
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把那个喝水提醒改成下午 4 点。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_falls_back_update_from_invalid_detector_with_history():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 提醒我明天 8 点喝水。\nCoke: 好嘞。",
+        current_time=datetime(2026, 5, 25, 19, 50, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.target_title == "喝水"
+            assert received_decision.target_local_time == "08:00"
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_title == "吃药"
+            return _executed_result("已更新提醒：吃药")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把那个 8 点的提醒改成「吃药」。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_repairs_malformed_update_decision():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 19, 50, tzinfo=UTC),
+    )
+    malformed_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        reminder_id="25202445",
+        title="吃药",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=malformed_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.reminder_id == ""
+            assert received_decision.target_local_time == "08:00"
+            assert received_decision.target_scope == "recent_active"
+            assert received_decision.new_title == "吃药"
+            return _executed_result("已更新提醒：吃药")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run(
+        "（2026年05月26日04时26分 Alice Personal Reminder 25202445发来了文本消息）把那个 8 点的提醒改成「吃药」。",
+        run_context,
+    )
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_repairs_malformed_daily_create_decision():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 20, 30, tzinfo=UTC),
+    )
+    malformed_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="写日记",
+        recurrence="daily",
+        trigger_time="08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=malformed_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "create"
+            assert received_decision.title == "写日记"
+            assert received_decision.trigger_at == "2026-05-26T08:00:00+08:00"
+            assert received_decision.rrule == "FREQ=DAILY"
+            return _executed_result("已创建提醒：写日记")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run(
+        "（2026年05月26日04时30分 Alice Personal Reminder 25202445发来了文本消息）每天 8 点提醒我写日记。",
+        run_context,
+    )
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_repairs_malformed_weekly_create_decision():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 20, 40, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "create"
+            assert received_decision.title == "开会"
+            assert received_decision.trigger_at == "2026-05-27T14:00:00+08:00"
+            assert received_decision.rrule == "FREQ=WEEKLY;BYDAY=WE"
+            return _executed_result("已创建提醒：开会")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("每周三 14:00 提醒我开会。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_repairs_weekday_recurrence_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 20, 38, tzinfo=UTC),
+    )
+    malformed_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        reminder_id="25203618",
+        recurrence="weekday",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=malformed_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "update"
+            assert received_decision.reminder_id == ""
+            assert received_decision.target_local_time == "08:00"
+            assert received_decision.target_rrule == "FREQ=DAILY"
+            assert received_decision.rrule == "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把每天 8 点的提醒改成只有工作日。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_normalizes_update_time_from_text():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 20, 37, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        target_title="喝水",
+        new_trigger_at="2026-05-26T15:00:00+08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.new_trigger_at == "2026-05-26T16:00:00+08:00"
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把那个喝水提醒改成下午 4 点。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_rejects_single_occurrence_skip_without_write():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            raise AssertionError("detector should not run")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=object(),
+    ).run("这周的不用了。", _run_context())
+
+    _assert_needs_clarification(
+        result,
+        safety_boundary="ambiguous_request",
+        missing_fields=("哪一个提醒",),
+    )
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_clears_spurious_target_date_for_bare_time_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 19, 37, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        target_local_date="2026-05-26",
+        target_local_time="08:00",
+        new_title="吃药",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.target_local_date is None
+            assert received_decision.target_local_time == "08:00"
+            assert received_decision.new_title == "吃药"
+            return _executed_result("已更新提醒：吃药")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把那个 8 点的提醒改成「吃药」。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_corrects_tomorrow_create_misread_as_today():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 20, 17, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="吃药",
+        trigger_at="2026-05-26T09:00:00+08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.trigger_at == "2026-05-27T09:00:00+08:00"
+            return _executed_result("已创建提醒：吃药")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("提醒我明天 9:00 吃药。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_derives_daily_rrule_update_selector():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        reminder_id="25193553",
+        rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            del run_context
+            assert received_decision.reminder_id in {"", None}
+            assert received_decision.target_rrule == "FREQ=DAILY"
+            assert received_decision.target_local_time == "08:00"
+            assert received_decision.rrule == "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+            return _executed_result("已更新提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把每天 8 点的提醒改成只有工作日。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_derives_complete_selector_from_today_title():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 19, 40, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="complete",
+        reminder_id="25193553",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.reminder_id in {"", None}
+            assert received_decision.target_title == "吃药"
+            assert received_decision.target_local_date == "2026-05-26"
+            return _executed_result("已完成提醒：吃药")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("完成今天的吃药提醒。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_falls_back_for_explicit_workday_create():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 25, 19, 40, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "create"
+            assert received_decision.title == "喝水"
+            assert received_decision.trigger_at == "2026-05-26T08:00:00+08:00"
+            assert received_decision.rrule == "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+            return _executed_result("已创建提醒：喝水")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("工作日早 8 点提醒我喝水。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_derives_daily_cancel_selector():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="cancel",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            del run_context
+            assert received_decision.target_rrule == "FREQ=DAILY"
+            return _executed_result("已取消提醒：写日记")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把每天的提醒停掉。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_derives_recent_history_title_for_daily_cancel():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 每天 8 点提醒我写日记。\nCoke: 好嘞。",
+        current_time=datetime(2026, 5, 25, 19, 54, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="cancel",
+        target_rrule="FREQ=DAILY",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.target_title == "写日记"
+            assert received_decision.target_rrule == "FREQ=DAILY"
+            assert received_decision.target_scope == "recent_active"
+            return _executed_result("已取消提醒：写日记")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("把每天的提醒停掉。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_clarifies_next_whole_hour_misread_as_cadence():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

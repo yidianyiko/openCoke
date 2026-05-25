@@ -494,9 +494,134 @@ def test_keyword_update_resolves_by_listing_owner_reminders_and_matching_title(
             "query": ReminderQuery(lifecycle_states=["active"]),
         },
     )
-    assert service.calls[1][0] == "update"
-    assert service.calls[1][1]["reminder_id"] == "rem-1"
+    assert service.calls[-1][0] == "update"
+    assert service.calls[-1][1]["reminder_id"] == "rem-1"
     assert service.calls[1][1]["patch"].title == "buy oat milk"
+
+
+def test_update_resolves_structured_time_selector(monkeypatch):
+    service = FakeReminderService(
+        [
+            reminder(
+                "rem-1",
+                title="吃药",
+                reminder_schedule=schedule(
+                    anchor_at=datetime(2026, 5, 26, 8, 0, tzinfo=UTC),
+                ),
+            ),
+            reminder(
+                "rem-2",
+                title="喝水",
+                reminder_schedule=schedule(
+                    anchor_at=datetime(2026, 5, 26, 9, 0, tzinfo=UTC),
+                ),
+            ),
+        ]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1"},
+            "character": {"_id": "char-1"},
+            "conversation": {"_id": "conv-1"},
+        }
+    )
+
+    call_tool(action="update", target_local_time="08:00", new_title="吃维生素")
+
+    assert service.calls[-1][0] == "update"
+    assert service.calls[-1][1]["reminder_id"] == "rem-1"
+    assert service.calls[1][1]["patch"].title == "吃维生素"
+
+
+def test_rrule_only_update_preserves_existing_schedule_anchor(monkeypatch):
+    original_schedule = schedule(
+        anchor_at=datetime(2026, 5, 26, 8, 0, tzinfo=UTC),
+        rrule=None,
+    )
+    service = FakeReminderService(
+        [reminder("rem-1", title="吃药", reminder_schedule=original_schedule)]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+            "character": {"_id": "char-1"},
+            "conversation": {"_id": "conv-1"},
+        }
+    )
+
+    call_tool(action="update", reminder_id="rem-1", rrule="FREQ=DAILY")
+
+    patch = service.calls[1][1]["patch"]
+    assert patch.title is None
+    assert patch.schedule is not None
+    assert patch.schedule.anchor_at == original_schedule.anchor_at
+    assert patch.schedule.local_date == original_schedule.local_date
+    assert patch.schedule.local_time == original_schedule.local_time
+    assert patch.schedule.timezone == original_schedule.timezone
+    assert patch.schedule.rrule == "FREQ=DAILY"
+
+
+def test_time_only_update_preserves_existing_rrule_and_duration(monkeypatch):
+    original_schedule = schedule(
+        anchor_at=datetime(2026, 5, 26, 8, 0, tzinfo=UTC),
+        rrule="FREQ=DAILY",
+    )
+    original_schedule.duration_minutes = 45
+    service = FakeReminderService(
+        [reminder("rem-1", title="吃药", reminder_schedule=original_schedule)]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1", "effective_timezone": "Asia/Tokyo"},
+            "character": {"_id": "char-1"},
+            "conversation": {"_id": "conv-1"},
+        }
+    )
+
+    call_tool(
+        action="update",
+        reminder_id="rem-1",
+        new_trigger_at="2026-05-27T09:30:00+09:00",
+        duration_minutes=0,
+    )
+
+    patch = service.calls[1][1]["patch"]
+    assert patch.title is None
+    assert patch.schedule is not None
+    assert patch.schedule.rrule == "FREQ=DAILY"
+    assert patch.schedule.duration_minutes == 45
+
+
+def test_scope_only_update_retries_recent_active_when_conversation_empty(monkeypatch):
+    service = FakeReminderService(
+        [
+            reminder(
+                "rem-1",
+                title="喝水",
+                output_target=target(conversation_id="previous-conv"),
+            )
+        ]
+    )
+    install_service(monkeypatch, service)
+    set_session_state(
+        {
+            "user": {"id": "user-1"},
+            "character": {"_id": "char-1"},
+            "conversation": {"_id": "current-conv"},
+        }
+    )
+
+    call_tool(
+        action="update",
+        target_scope="current_conversation",
+        new_trigger_at="2026-05-27T09:30:00+09:00",
+    )
+
+    assert service.calls[-1][0] == "update"
+    assert service.calls[-1][1]["reminder_id"] == "rem-1"
 
 
 def test_ambiguous_keyword_appends_failed_tool_result(monkeypatch):

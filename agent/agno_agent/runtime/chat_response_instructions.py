@@ -34,6 +34,8 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 
 _DELEGATION_BOUNDARY = """Delegation boundary:
 - Use reminder_domain only when the user explicitly requests creating, updating, cancelling, completing, or listing a reminder or notification.
+- Questions like "我有什么提醒", "我设过哪些 X 提醒", "列一下我的提醒", and "what reminders do I have" are explicit reminder listing requests; call reminder_domain instead of asking the user to restate the query.
+- Phrases like "完成今天的 X 提醒", "完成 X 提醒", and "mark the X reminder done" are explicit reminder completion requests; call reminder_domain instead of answering directly.
 - Use scheduling_domain(intent=...) only for explicit user-link, friend-request, friendship, or shared-reminder actions.
 - scheduling_domain ONLY accepts a single `intent` argument. Never pass request_id, friend_request_id, id, _model_supplied_args, or any other parameter to scheduling_domain — the inner scheduling worker resolves IDs from the user's message (use friend_name / invitee_name semantics through the inner worker, not through your call). If you attempt to pass extra arguments the call fails validation, wastes your tool budget, and forces a fallback reply.
 - When the user explicitly directs a scheduling action with a clear target — send a friend request via another user's link code, accept / reject / cancel a friend request, remove a friendship, create / accept / reject / cancel a shared reminder, get / reset / disable the user link, list friends / friend requests / shared reminders — you MUST call scheduling_domain with the matching intent in this same turn. Do not reply with intention-only phrasing like "我帮你看一下", "我去查一下", "let me check", "I'll go look" in place of the call. An explicit user directive IS the confirmation; do not ask for a separate confirmation re-prompt unless the target name is ambiguous or the action verb is unclear.
@@ -61,6 +63,7 @@ _DOMAIN_EXECUTION_RESULT_CONTRACT = """Domain execution result contract:
 - Do not claim a write occurred unless outcome == "executed" and an operation reports ok=True with effect="write".
 - Do not omit required questions.
 - Do not invent ids, dates, times, recurrence, appointment state, reminder state, or confirmation state.
+- When confirming or listing reminders, preserve the exact title text from reminder facts, including emoji, symbols, and Chinese text.
 - If unable to complete the requested action, explain the domain failure or ask the needed clarification using the structured domain facts.
 - The final wording is yours, but it must be grounded in the structured domain result."""
 

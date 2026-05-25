@@ -218,6 +218,11 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
             "duration_minutes": None,
             "reminder_id": None,
             "keyword": None,
+            "target_title": None,
+            "target_local_date": None,
+            "target_local_time": None,
+            "target_rrule": None,
+            "target_scope": None,
             "new_title": None,
             "new_trigger_at": None,
             "rrule": None,
@@ -332,6 +337,36 @@ def test_structured_update_time_decision_does_not_send_empty_title_fields():
     assert calls[0]["new_title"] is None
     assert calls[0]["keyword"] == "跑步"
     assert calls[0]["new_trigger_at"] == "2026-05-26T07:30:00+08:00"
+
+
+def test_structured_target_selector_fields_are_forwarded_to_tool():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return _tool_reminder_result(action="cancel", title="吃药")
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="cancel",
+        target_title="吃药",
+        target_local_date="2026-05-26",
+        target_local_time="08:00",
+        target_rrule="FREQ=DAILY",
+        target_scope="current_conversation",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.outcome == "executed"
+    assert calls[0]["target_title"] == "吃药"
+    assert calls[0]["target_local_date"] == "2026-05-26"
+    assert calls[0]["target_local_time"] == "08:00"
+    assert calls[0]["target_rrule"] == "FREQ=DAILY"
+    assert calls[0]["target_scope"] == "current_conversation"
 
 
 def test_list_result_preserves_summary_and_reminder_facts():
@@ -561,6 +596,11 @@ def test_batch_operations_from_reminder_detect_decision_are_dicts():
             "duration_minutes": None,
             "reminder_id": None,
             "keyword": None,
+            "target_title": None,
+            "target_local_date": None,
+            "target_local_time": None,
+            "target_rrule": None,
+            "target_scope": None,
             "new_title": None,
             "new_trigger_at": None,
             "rrule": None,

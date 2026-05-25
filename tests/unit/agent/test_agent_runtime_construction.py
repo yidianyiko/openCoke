@@ -971,7 +971,7 @@ async def test_create_interaction_agent_reminder_domain_delegates_with_domain_re
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
+async def test_create_interaction_agent_reminder_domain_rejects_duplicate_calls(
     monkeypatch,
 ):
     calls = 0
@@ -1018,11 +1018,31 @@ async def test_create_interaction_agent_reminder_domain_caches_parallel_calls(
         tool.entrypoint for tool in agent.tools if tool.name == "reminder_domain"
     )
 
-    first, second = await asyncio.gather(reminder_domain(), reminder_domain())
+    first = await reminder_domain()
+    second = await reminder_domain()
 
     assert calls == 1
     assert first is envelope
-    assert second is envelope
+    assert second == {
+        "domain": "reminder",
+        "outcome": "failed",
+        "operations": [],
+        "missing_fields": [],
+        "safety_boundary": "duplicate_call",
+        "reply_contract": {
+            "intent": "report_failure",
+            "required_facts": [],
+            "required_questions": [],
+            "prohibited_claims": ["reminder_created"],
+            "allow_rephrase": True,
+        },
+        "error": {
+            "code": "duplicate_call",
+            "message": "reminder_domain may only be called once per turn; answer from the first result",
+            "retryable": False,
+            "detail": {},
+        },
+    }
 
 
 @pytest.mark.asyncio

@@ -119,6 +119,29 @@ def test_prompt_does_not_roleplay_user_messages_as_due_reminders():
     assert "Use reminder_domain only when" in prompt
 
 
+def test_prompt_treats_complete_reminder_phrasing_as_domain_request():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "完成今天的 X 提醒" in prompt
+    assert "explicit reminder completion requests" in prompt
+    assert "call reminder_domain instead of answering directly" in prompt
+
+
+def test_prompt_treats_reminder_listing_questions_as_domain_request():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "我有什么提醒" in prompt
+    assert "我设过哪些 X 提醒" in prompt
+    assert "explicit reminder listing requests" in prompt
+
+
+def test_prompt_requires_exact_reminder_title_preservation():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "preserve the exact title text from reminder facts" in prompt
+    assert "including emoji, symbols, and Chinese text" in prompt
+
+
 def test_prompt_includes_runtime_context_without_recent_chat_history():
     ctx = _ctx()
     ctx = AgentRunContext(

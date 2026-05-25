@@ -705,7 +705,29 @@ def _create_interaction_agent(
             """Use for explicit reminder create, update, cancel, complete, or list requests."""
             async with reminder_domain_lock:
                 if "result" in reminder_domain_result:
-                    return reminder_domain_result["result"]
+                    return {
+                        "domain": "reminder",
+                        "outcome": "failed",
+                        "operations": [],
+                        "missing_fields": [],
+                        "safety_boundary": "duplicate_call",
+                        "reply_contract": {
+                            "intent": "report_failure",
+                            "required_facts": [],
+                            "required_questions": [],
+                            "prohibited_claims": ["reminder_created"],
+                            "allow_rephrase": True,
+                        },
+                        "error": {
+                            "code": "duplicate_call",
+                            "message": (
+                                "reminder_domain may only be called once per turn; "
+                                "answer from the first result"
+                            ),
+                            "retryable": False,
+                            "detail": {},
+                        },
+                    }
                 result = await run_reminder_domain(
                     input_message=input_message,
                     run_context=run_context,

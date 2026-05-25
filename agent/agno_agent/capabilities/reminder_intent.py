@@ -132,6 +132,20 @@ class ReminderIntentPort:
                 SimpleNamespace(intent_type="query", action="list"),
                 run_context,
             )
+        if _is_recurring_occurrence_skip_text(_latest_user_turn_text(input_message)):
+            return _needs_clarification_result(
+                summary="请确认这周的哪一个提醒不用了。",
+                missing_fields=("哪一个提醒",),
+                safety_boundary="ambiguous_request",
+                required_questions=("哪一个提醒",),
+            )
+        snooze_update = _snooze_update_decision(
+            input_message,
+            SimpleNamespace(intent_type="clarify", action=""),
+            run_context,
+        )
+        if snooze_update is not None:
+            return self.command_executor.execute(snooze_update, run_context)
         try:
             detector_agent = self.detector_agent or _create_reminder_detector()
             response = await asyncio.wait_for(
@@ -152,12 +166,23 @@ class ReminderIntentPort:
                 _agent_runtime_reminder_detect_timeout_seconds(),
             )
             return _timeout_clarification_result()
+        fallback_decision = _fallback_decision_from_text(
+            input_message, decision, run_context
+        )
+        if fallback_decision is not None:
+            decision = fallback_decision
         if _decision_value(decision, "intent_type") in {"discussion", "none"}:
             return _no_action_discussion_result()
         if _is_unrecognized_decision(decision):
             return _invalid_decision_clarification_result()
         if _should_reject_quoted_title_loss(input_message, decision):
             return _invalid_decision_clarification_result()
+        snooze_update = _snooze_update_decision(input_message, decision, run_context)
+        if snooze_update is not None:
+            decision = snooze_update
+        decision = _normalize_write_target_selectors_from_text(
+            input_message, decision, run_context
+        )
         if _is_clarification_decision(decision):
             reason = str(
                 _decision_value(decision, "clarification_reason") or ""
@@ -182,6 +207,16 @@ class ReminderIntentPort:
             run_context,
         )
         decision = _normalize_past_bare_create_trigger(
+            input_message,
+            decision,
+            run_context,
+        )
+        decision = _normalize_relative_day_create_trigger(
+            input_message,
+            decision,
+            run_context,
+        )
+        decision = _normalize_update_trigger_from_text(
             input_message,
             decision,
             run_context,
@@ -236,6 +271,12 @@ def _is_explicit_reminder_list_query(input_message: str) -> bool:
         )
         or "list" in text
         or "show" in text
+    )
+
+
+def _is_recurring_occurrence_skip_text(current_user_text: str) -> bool:
+    return bool(
+        re.search(r"(?:这周|本周|这星期|本星期)的?(?:不用|不要|取消|跳过)", current_user_text)
     )
 
 
@@ -429,6 +470,506 @@ def _normalize_relative_delay_create_trigger(
     return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
 
 
+def _snooze_update_decision(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any | None:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    delay = _single_relative_delay(current_user_text)
+    if delay is None:
+        return None
+    if not _is_bare_snooze_reference(current_user_text):
+        return None
+    intent_type = str(_decision_value(decision, "intent_type") or "").strip()
+    action = str(_decision_value(decision, "action") or "").strip()
+    if intent_type == "crud" and action not in {"", "create", "update"}:
+        return None
+    if intent_type not in {"crud", "clarify"} and not _is_unrecognized_decision(
+        decision
+    ):
+        return None
+    target_title = _latest_reminder_title_from_history(run_context.recent_chat_history)
+    return SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        title="",
+        trigger_at="",
+        duration_minutes=None,
+        reminder_id="",
+        keyword="",
+        target_title=target_title or None,
+        target_local_date=None,
+        target_local_time=None,
+        target_rrule=None,
+        target_scope="recent_active",
+        new_title="",
+        new_trigger_at=_relative_delay_trigger_at(run_context, delay),
+        rrule="",
+        deadline_at="",
+        schedule_basis="one_shot",
+        schedule_evidence="",
+        operations=[],
+        clarification_reason="",
+    )
+
+
+def _fallback_decision_from_text(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any | None:
+    current_user_text = _latest_user_turn_text(input_message)
+    snooze_update = _snooze_update_decision(input_message, decision, run_context)
+    if snooze_update is not None:
+        return snooze_update
+    update_decision = _fallback_update_decision_from_text(
+        current_user_text,
+        run_context,
+    )
+    if update_decision is not None and _should_repair_update_decision(decision):
+        return update_decision
+
+    create_decision = _fallback_recurring_create_decision_from_text(
+        current_user_text,
+        run_context,
+    )
+    if create_decision is not None and _should_repair_create_decision(
+        current_user_text,
+        decision,
+    ):
+        return create_decision
+
+    if not _is_unrecognized_decision(decision):
+        return None
+    if not _is_explicit_workday_create_text(current_user_text):
+        return None
+    title = _extract_create_title_after_reminder_verb(current_user_text)
+    trigger_at = _next_future_trigger_at_for_single_bare_clock(
+        current_user_text,
+        run_context,
+    )
+    if not title or not trigger_at:
+        return None
+    return SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title=title,
+        trigger_at=trigger_at,
+        duration_minutes=None,
+        reminder_id="",
+        keyword="",
+        target_title=None,
+        target_local_date=None,
+        target_local_time=None,
+        target_rrule=None,
+        target_scope=None,
+        new_title="",
+        new_trigger_at="",
+        rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+        deadline_at="",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="工作日",
+        operations=[],
+        clarification_reason="",
+    )
+
+
+def _should_repair_update_decision(decision: Any) -> bool:
+    if not _should_execute_decision(decision):
+        return True
+    if str(_decision_value(decision, "action") or "").strip() != "update":
+        return False
+    return not any(
+        _decision_value(decision, field)
+        for field in ("new_title", "new_trigger_at", "rrule")
+    )
+
+
+def _should_repair_create_decision(current_user_text: str, decision: Any) -> bool:
+    if not _should_execute_decision(decision):
+        return True
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return False
+    if not _decision_value(decision, "trigger_at"):
+        return True
+    if "每天" in current_user_text and not _decision_value(decision, "rrule"):
+        return True
+    return False
+
+
+def _normalize_write_target_selectors_from_text(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action not in {"update", "cancel", "complete", "delete"}:
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    updated = decision
+
+    if _is_prefix_pseudo_reminder_id(_decision_value(updated, "reminder_id")):
+        updated = _copy_decision_with_value(updated, "reminder_id", "")
+
+    if not _selector_value(updated, "target_title") and not _selector_value(
+        updated, "keyword"
+    ):
+        title = _extract_target_title_from_write_text(current_user_text)
+        title_from_history = False
+        if not title:
+            title = _latest_reminder_title_from_history(
+                run_context.recent_chat_history
+            )
+            title_from_history = bool(title)
+        if title:
+            updated = _copy_decision_with_value(updated, "target_title", title)
+            if title_from_history:
+                updated = _copy_decision_with_value(
+                    updated, "target_scope", "recent_active"
+                )
+    else:
+        history_title = _latest_reminder_title_from_history(
+            run_context.recent_chat_history
+        )
+        if history_title and history_title in {
+            _selector_value(updated, "target_title"),
+            _selector_value(updated, "keyword"),
+        }:
+            updated = _copy_decision_with_value(
+                updated, "target_scope", "recent_active"
+            )
+
+    if not _selector_value(updated, "target_local_time"):
+        local_time = _extract_single_local_time_selector(current_user_text)
+        if local_time:
+            updated = _copy_decision_with_value(
+                updated, "target_local_time", local_time
+            )
+
+    if _selector_value(updated, "target_local_date") and not _has_explicit_target_date(
+        current_user_text
+    ):
+        updated = _copy_decision_with_value(updated, "target_local_date", None)
+
+    if "今天" in current_user_text and not _selector_value(updated, "target_local_date"):
+        updated = _copy_decision_with_value(
+            updated,
+            "target_local_date",
+            _current_local_date(run_context),
+        )
+
+    if "每天" in current_user_text and not _selector_value(updated, "target_rrule"):
+        updated = _copy_decision_with_value(updated, "target_rrule", "FREQ=DAILY")
+
+    if action in {"update", "cancel"} and _is_workday_text(current_user_text):
+        if not _selector_value(updated, "rrule"):
+            updated = _copy_decision_with_value(
+                updated,
+                "rrule",
+                "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+            )
+
+    if _is_recent_reference_text(current_user_text) and _has_structured_target_selector(
+        updated
+    ):
+        updated = _copy_decision_with_value(updated, "target_scope", "recent_active")
+    elif _is_title_only_write_reference(updated):
+        updated = _copy_decision_with_value(updated, "target_scope", "recent_active")
+
+    if (
+        _selector_value(updated, "target_scope") == "current_conversation"
+        and _has_structured_target_selector(updated)
+    ):
+        updated = _copy_decision_with_value(updated, "target_scope", None)
+
+    return updated
+
+
+def _selector_value(decision: Any, field: str) -> str:
+    return str(_decision_value(decision, field) or "").strip()
+
+
+def _has_structured_target_selector(decision: Any) -> bool:
+    return any(
+        _selector_value(decision, field)
+        for field in (
+            "target_title",
+            "keyword",
+            "target_local_date",
+            "target_local_time",
+            "target_rrule",
+        )
+    )
+
+
+def _is_title_only_write_reference(decision: Any) -> bool:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action not in {"update", "cancel", "complete", "delete"}:
+        return False
+    if not (_selector_value(decision, "target_title") or _selector_value(decision, "keyword")):
+        return False
+    return not any(
+        _selector_value(decision, field)
+        for field in ("target_local_date", "target_local_time", "target_rrule")
+    )
+
+
+def _fallback_update_decision_from_text(
+    current_user_text: str,
+    run_context: AgentRunContext,
+) -> Any | None:
+    if not re.search(r"改成|改到|改为|换成|设成|调整到", current_user_text):
+        return None
+    if "提醒" not in current_user_text:
+        return None
+    target_title = _extract_target_title_from_write_text(current_user_text)
+    if not target_title:
+        target_title = _latest_reminder_title_from_history(
+            run_context.recent_chat_history
+        )
+    target_local_time = _extract_single_local_time_selector(current_user_text)
+    new_title = _extract_new_title_from_update_text(current_user_text)
+    new_trigger_at = _extract_new_trigger_at_from_update_text(
+        current_user_text,
+        run_context,
+    )
+    next_rrule = ""
+    if _is_workday_text(current_user_text):
+        next_rrule = "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"
+        new_title = ""
+    target_rrule = "FREQ=DAILY" if "每天" in current_user_text else None
+    if not any([target_title, target_local_time, target_rrule]) or not any(
+        [new_title, new_trigger_at, next_rrule]
+    ):
+        return None
+    return SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        title="",
+        trigger_at="",
+        duration_minutes=None,
+        reminder_id="",
+        keyword="",
+        target_title=target_title or None,
+        target_local_date=None,
+        target_local_time=target_local_time or None,
+        target_rrule=target_rrule,
+        target_scope="recent_active",
+        new_title=new_title,
+        new_trigger_at=new_trigger_at,
+        rrule=next_rrule,
+        deadline_at="",
+        schedule_basis="",
+        schedule_evidence="",
+        operations=[],
+        clarification_reason="",
+    )
+
+
+def _fallback_recurring_create_decision_from_text(
+    current_user_text: str,
+    run_context: AgentRunContext,
+) -> Any | None:
+    if re.search(r"改成|改到|改为|换成|设成|调整到", current_user_text):
+        return None
+    if "提醒" not in current_user_text:
+        return None
+    title = _extract_create_title_after_reminder_verb(current_user_text)
+    trigger_at = ""
+    rrule = ""
+    evidence = ""
+    weekday = _explicit_weekday_index(current_user_text)
+    if "每天" in current_user_text:
+        trigger_at = _next_future_trigger_at_for_single_bare_clock(
+            current_user_text,
+            run_context,
+        )
+        rrule = "FREQ=DAILY"
+        evidence = "每天"
+    elif weekday is not None:
+        trigger_at = _next_weekday_trigger_at_for_single_bare_clock(
+            current_user_text,
+            run_context,
+            weekday,
+        )
+        rrule = f"FREQ=WEEKLY;BYDAY={_WEEKDAY_RRULE_CODES[weekday]}"
+        evidence = f"每周{_WEEKDAY_RRULE_CODES[weekday]}"
+    if not title or not trigger_at:
+        return None
+    return SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title=title,
+        trigger_at=trigger_at,
+        duration_minutes=None,
+        reminder_id="",
+        keyword="",
+        target_title=None,
+        target_local_date=None,
+        target_local_time=None,
+        target_rrule=None,
+        target_scope=None,
+        new_title="",
+        new_trigger_at="",
+        rrule=rrule,
+        deadline_at="",
+        schedule_basis="explicit_cadence",
+        schedule_evidence=evidence,
+        operations=[],
+        clarification_reason="",
+    )
+
+
+def _is_prefix_pseudo_reminder_id(value: Any) -> bool:
+    text = str(value or "").strip()
+    return text.isdigit() and 6 <= len(text) <= 12
+
+
+def _is_recent_reference_text(text: str) -> bool:
+    return bool(re.search(r"刚才|那个|这个|那条|这条|每天的|今天的|明天的", text))
+
+
+def _is_workday_text(text: str) -> bool:
+    return bool(
+        re.search(r"工作日|周一\s*(?:到|至|-|—|~)\s*周五|星期一\s*(?:到|至|-|—|~)\s*星期五", text)
+    )
+
+
+def _is_explicit_workday_create_text(text: str) -> bool:
+    return _is_workday_text(text) and bool(_REMINDER_VERB_PATTERN.search(text))
+
+
+def _extract_create_title_after_reminder_verb(text: str) -> str:
+    match = _REMINDER_VERB_PATTERN.search(text)
+    if match is None:
+        return ""
+    title = text[match.end() :]
+    title = re.split(r"[。.!！？?；;，,]", title, maxsplit=1)[0]
+    return _clean_target_title_text(title)
+
+
+def _latest_reminder_title_from_history(history: str) -> str:
+    for line in reversed(str(history or "").splitlines()):
+        text = line.strip()
+        if not text:
+            continue
+        if ":" in text:
+            text = text.split(":", 1)[1].strip()
+        if "提醒" not in text:
+            continue
+        title = _extract_create_title_after_reminder_verb(text)
+        if title:
+            return title
+    return ""
+
+
+def _extract_target_title_from_write_text(text: str) -> str:
+    quoted = _quoted_segments(text)
+    if quoted and re.search(r"改成|改为|换成|设成|叫做", text):
+        return ""
+    match = re.search(
+        r"(?:那个|这个|那条|这条|今天的|明天的|删掉|删除|取消|完成|停掉|关闭|把)?"
+        r"(?P<title>[\u4e00-\u9fffA-Za-z0-9_ -]{1,24}?)提醒",
+        text,
+    )
+    if match:
+        return _clean_target_title_text(match.group("title"))
+    if str(text or "").strip().startswith(("删掉", "删除", "取消", "完成")):
+        match = re.search(r"(?:删掉|删除|取消|完成)\s*(?P<title>[\u4e00-\u9fffA-Za-z0-9_ -]{1,24})", text)
+        if match:
+            return _clean_target_title_text(match.group("title"))
+    return ""
+
+
+def _clean_target_title_text(text: str) -> str:
+    value = str(text or "")
+    value = _RELATIVE_DELAY_PATTERN.sub("", value)
+    value = _BARE_CLOCK_PATTERN.sub("", value)
+    value = re.sub(
+        r"(?:那个|这个|那条|这条|今天的|明天的|今天|明天|后天|每天的|每天|工作日|只有|早上|早|上午|下午|晚上|"
+        r"把|改成|改为|换成|设成|删掉|删除|取消|完成|停掉|关闭|的|提醒事项|提醒|我|请|麻烦|帮我|"
+        r"[「」“”\"'。.!！？?；;，,\s])+",
+        "",
+        value,
+    )
+    return value.strip()
+
+
+def _extract_new_title_from_update_text(text: str) -> str:
+    quoted = _quoted_segments(text)
+    if quoted:
+        return _clean_target_title_text(quoted[-1])
+    match = re.search(r"(?:改成|改为|换成|设成)\s*(?P<title>[\u4e00-\u9fffA-Za-z0-9_ -]{1,24})", text)
+    if match and not _BARE_CLOCK_PATTERN.search(match.group("title")):
+        return _clean_target_title_text(match.group("title"))
+    return ""
+
+
+def _extract_new_trigger_at_from_update_text(
+    text: str,
+    run_context: AgentRunContext,
+) -> str:
+    parts = re.split(r"改成|改到|改为|换成|设成|调整到", text, maxsplit=1)
+    if len(parts) < 2:
+        return ""
+    return _next_future_trigger_at_for_single_bare_clock(parts[1], run_context)
+
+
+def _extract_single_local_time_selector(text: str) -> str:
+    selector_text = re.split(
+        r"改成|改到|改为|换成|设成|改在|调整到",
+        text,
+        maxsplit=1,
+    )[0]
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(selector_text))
+    if len(matches) != 1:
+        return ""
+    parsed = _parse_bare_clock_match(selector_text, matches[0])
+    if parsed is None:
+        return ""
+    hour, minute = parsed
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _has_explicit_target_date(text: str) -> bool:
+    return bool(
+        re.search(
+            r"今天|今日|今晚|今早|明天|明早|后天|大后天|"
+            r"\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|\d{1,2}[/-]\d{1,2}",
+            text,
+        )
+    )
+
+
+def _current_local_date(run_context: AgentRunContext) -> str:
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    current_local = (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+    return current_local.date().isoformat()
+
+
+def _is_bare_snooze_reference(current_user_text: str) -> bool:
+    text = current_user_text
+    text = _RELATIVE_DELAY_PATTERN.sub("", text)
+    text = _REMINDER_VERB_PATTERN.sub("", text)
+    text = re.sub(
+        r"(?:再过|再|过|后|之后|稍后|我|一下|吧|哦|噢|啊|呀|啦|哈|呢|么|吗|请|麻烦|帮我|"
+        r"[。.!！?？~～,，；;\s])+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return not text
+
+
 def _single_relative_delay(current_user_text: str) -> timedelta | None:
     matches = list(_RELATIVE_DELAY_PATTERN.finditer(current_user_text))
     if len(matches) != 1:
@@ -583,6 +1124,10 @@ def _normalize_past_bare_create_trigger(
     trigger_at = str(_decision_value(decision, field_name) or "").strip()
     if not trigger_at:
         return decision
+    if action == "update" and _future_or_present_trigger_at(
+        trigger_at, run_context.current_time
+    ):
+        return decision
     normalized_trigger_at = _next_future_trigger_at_for_single_bare_clock(
         current_user_text,
         run_context,
@@ -650,6 +1195,90 @@ def _normalize_weekday_bare_create_trigger(
     return _copy_decision_with_value(decision, "trigger_at", candidate.isoformat())
 
 
+def _normalize_relative_day_create_trigger(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    if "明天" not in current_user_text and "明早" not in current_user_text:
+        return decision
+    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    if not trigger_at:
+        return decision
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    try:
+        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+    except ValueError:
+        return decision
+    trigger_local = (
+        parsed.replace(tzinfo=timezone)
+        if parsed.tzinfo is None
+        else parsed.astimezone(timezone)
+    )
+    current_time = run_context.current_time
+    current_local = (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+    expected_date = current_local.date() + timedelta(days=1)
+    if trigger_local.date() >= expected_date:
+        return decision
+    corrected = trigger_local.replace(
+        year=expected_date.year,
+        month=expected_date.month,
+        day=expected_date.day,
+    )
+    return _copy_decision_with_value(decision, "trigger_at", corrected.isoformat())
+
+
+def _normalize_update_trigger_from_text(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "update":
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    trigger_at = _extract_new_trigger_at_from_update_text(
+        current_user_text,
+        run_context,
+    )
+    if not trigger_at:
+        return decision
+    existing = str(_decision_value(decision, "new_trigger_at") or "").strip()
+    if existing:
+        try:
+            existing_dt = datetime.fromisoformat(existing.replace("Z", "+00:00"))
+            parsed_trigger = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+        except ValueError:
+            existing_dt = None
+            parsed_trigger = None
+        if existing_dt is not None and parsed_trigger is not None:
+            normalized = existing_dt.replace(
+                hour=parsed_trigger.hour,
+                minute=parsed_trigger.minute,
+                second=0,
+                microsecond=0,
+            ).isoformat()
+            if normalized != existing:
+                return _copy_decision_with_value(
+                    decision,
+                    "new_trigger_at",
+                    normalized,
+                )
+            return decision
+    if existing == trigger_at:
+        return decision
+    return _copy_decision_with_value(decision, "new_trigger_at", trigger_at)
+
+
 def _latest_user_turn_text(input_message: str) -> str:
     parts = re.split(r"（[^）]*发来了文本消息）", input_message)
     if len(parts) > 1:
@@ -693,6 +1322,41 @@ def _next_future_trigger_at_for_single_bare_clock(
     )
     if candidate <= current_local:
         candidate += timedelta(days=1)
+    return candidate.isoformat()
+
+
+def _next_weekday_trigger_at_for_single_bare_clock(
+    current_user_text: str,
+    run_context: AgentRunContext,
+    weekday: int,
+) -> str:
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return ""
+    parsed = _parse_bare_clock_match(current_user_text, matches[0])
+    if parsed is None:
+        return ""
+    hour, minute = parsed
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    current_local = (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+    candidate = current_local.replace(
+        hour=hour,
+        minute=minute,
+        second=0,
+        microsecond=0,
+    )
+    days_ahead = (weekday - candidate.weekday()) % 7
+    candidate += timedelta(days=days_ahead)
+    if candidate <= current_local:
+        candidate += timedelta(days=7)
     return candidate.isoformat()
 
 
@@ -969,6 +1633,16 @@ def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:
     return parsed.isoformat()
 
 
+def _future_or_present_trigger_at(trigger_at: str, current_time: datetime) -> bool:
+    try:
+        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is not None and current_time.tzinfo is not None:
+        current_time = current_time.astimezone(parsed.tzinfo)
+    return parsed >= current_time
+
+
 def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:
     if isinstance(decision, Mapping):
         return {**dict(decision), field: value}
@@ -1227,6 +1901,7 @@ _CHINESE_WEEKDAY_INDEX = {
     "天": 6,
     "7": 6,
 }
+_WEEKDAY_RRULE_CODES = ("MO", "TU", "WE", "TH", "FR", "SA", "SU")
 _EXPLICIT_WEEKDAY_PATTERN = re.compile(
     r"(?:下周|本周|这周|这星期|下星期|星期|周)([一二三四五六日天1-7])"
 )

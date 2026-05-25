@@ -198,6 +198,52 @@ def test_reminder_detect_schema_accepts_schedule_changing_update_evidence():
     assert decision.schedule_basis == "explicit_cadence"
 
 
+def test_reminder_detect_schema_accepts_structured_target_selector_fields():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="update",
+        target_title="吃药",
+        target_local_date="2026-05-26",
+        target_local_time="08:00",
+        target_rrule="FREQ=DAILY",
+        target_scope="current_conversation",
+        new_title="吃维生素",
+    )
+
+    assert decision.target_title == "吃药"
+    assert decision.target_local_date == "2026-05-26"
+    assert decision.target_local_time == "08:00"
+    assert decision.target_rrule == "FREQ=DAILY"
+    assert decision.target_scope == "current_conversation"
+
+
+def test_reminder_detect_schema_rejects_invalid_target_selector_shapes():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="cancel",
+            target_local_date="2026-5-26",
+        )
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="cancel",
+            target_local_time="8:00",
+        )
+
+    with pytest.raises(ValidationError):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="cancel",
+            target_scope="latest",
+        )
+
+
 def test_reminder_detect_schema_accepts_batch_operation_before_deadline():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 

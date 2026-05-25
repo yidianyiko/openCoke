@@ -32,6 +32,25 @@ class ReminderOperation(BaseModel):
     )
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword.")
+    target_title: str | None = Field(
+        default=None,
+        description="Structured write target title or fuzzy title phrase.",
+    )
+    target_local_date: str | None = Field(
+        default=None,
+        description="Structured write target local date in YYYY-MM-DD.",
+    )
+    target_local_time: str | None = Field(
+        default=None,
+        description="Structured write target local clock in HH:MM.",
+    )
+    target_rrule: str | None = Field(
+        default=None,
+        description='Structured write target recurrence selector such as "FREQ=DAILY".',
+    )
+    target_scope: Literal["current_conversation", "recent_active", "all_active"] | None = (
+        Field(default=None, description="Structured write target search scope.")
+    )
     new_title: str = Field(
         default="",
         description="Updated title; update only, do not use for create.",
@@ -105,6 +124,25 @@ class ReminderDetectDecision(BaseModel):
     )
     reminder_id: str = Field(default="", description="Exact reminder id if known.")
     keyword: str = Field(default="", description="Reminder target keyword for crud.")
+    target_title: str | None = Field(
+        default=None,
+        description="Structured write target title or fuzzy title phrase.",
+    )
+    target_local_date: str | None = Field(
+        default=None,
+        description="Structured write target local date in YYYY-MM-DD.",
+    )
+    target_local_time: str | None = Field(
+        default=None,
+        description="Structured write target local clock in HH:MM.",
+    )
+    target_rrule: str | None = Field(
+        default=None,
+        description='Structured write target recurrence selector such as "FREQ=DAILY".',
+    )
+    target_scope: Literal["current_conversation", "recent_active", "all_active"] | None = (
+        Field(default=None, description="Structured write target search scope.")
+    )
     new_title: str = Field(default="", description="Updated title; crud update only.")
     new_trigger_at: str = Field(
         default="",
@@ -187,6 +225,11 @@ class ReminderDetectDecision(BaseModel):
             "duration_minutes",
             "reminder_id",
             "keyword",
+            "target_title",
+            "target_local_date",
+            "target_local_time",
+            "target_rrule",
+            "target_scope",
             "new_title",
             "new_trigger_at",
             "rrule",
@@ -216,6 +259,11 @@ class ReminderDetectDecision(BaseModel):
             "duration_minutes",
             "reminder_id",
             "keyword",
+            "target_title",
+            "target_local_date",
+            "target_local_time",
+            "target_rrule",
+            "target_scope",
             "new_title",
             "new_trigger_at",
             "rrule",
@@ -243,6 +291,7 @@ class ReminderDetectDecision(BaseModel):
             if self.action == "create" and _is_generic_reminder_title(self.title):
                 raise ValueError("create action requires non-generic title")
             self._validate_executable_datetimes()
+            self._validate_target_selector()
             self._validate_schedule_basis()
             self._validate_deadline_operations()
             return self
@@ -275,6 +324,26 @@ class ReminderDetectDecision(BaseModel):
                         value,
                         f"operations[{index}].{field_name}",
                     )
+
+    def _validate_target_selector(self) -> None:
+        local_date = str(self.target_local_date or "").strip()
+        if local_date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", local_date):
+            raise ValueError("target_local_date must be YYYY-MM-DD")
+        local_time = str(self.target_local_time or "").strip()
+        if local_time and not re.fullmatch(r"\d{2}:\d{2}", local_time):
+            raise ValueError("target_local_time must be HH:MM")
+
+        for index, operation in enumerate(self.operations):
+            operation_date = str(operation.target_local_date or "").strip()
+            if operation_date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", operation_date):
+                raise ValueError(
+                    f"operations[{index}].target_local_date must be YYYY-MM-DD"
+                )
+            operation_time = str(operation.target_local_time or "").strip()
+            if operation_time and not re.fullmatch(r"\d{2}:\d{2}", operation_time):
+                raise ValueError(
+                    f"operations[{index}].target_local_time must be HH:MM"
+                )
 
     def _validate_schedule_basis(self) -> None:
         if self.action not in {"create", "update", "batch"}:
@@ -353,6 +422,10 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
         "trigger_at",
         "reminder_id",
         "keyword",
+        "target_title",
+        "target_local_date",
+        "target_local_time",
+        "target_rrule",
         "new_title",
         "new_trigger_at",
         "rrule",
@@ -361,6 +434,14 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
         "schedule_evidence",
     ):
         normalized[field_name] = ""
+    for field_name in (
+        "target_title",
+        "target_local_date",
+        "target_local_time",
+        "target_rrule",
+        "target_scope",
+    ):
+        normalized[field_name] = None
     normalized["operations"] = []
     return normalized
 
