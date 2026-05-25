@@ -213,10 +213,22 @@ def _is_explicit_reminder_list_query(input_message: str) -> bool:
         return False
     if not ("提醒" in input_message or "通知" in input_message or "reminder" in text):
         return False
-    return any(
-        marker in input_message
-        for marker in ("所有", "全部", "列表", "都有哪些", "看看", "看一下", "查一下")
-    ) or "list" in text or "show" in text
+    return (
+        any(
+            marker in input_message
+            for marker in (
+                "所有",
+                "全部",
+                "列表",
+                "都有哪些",
+                "看看",
+                "看一下",
+                "查一下",
+            )
+        )
+        or "list" in text
+        or "show" in text
+    )
 
 
 def _is_unrecognized_decision(decision: Any) -> bool:
@@ -355,7 +367,11 @@ def _normalize_relative_delay_create_trigger(
             return decision
         return _copy_decision_with_operations(
             decision,
-            [_copy_operation_with_value(operation, "trigger_at", normalized_trigger_at)],
+            [
+                _copy_operation_with_value(
+                    operation, "trigger_at", normalized_trigger_at
+                )
+            ],
         )
 
     trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
@@ -375,7 +391,9 @@ def _single_relative_delay(current_user_text: str) -> timedelta | None:
         or match.group("timer_amount")
         or ""
     )
-    amount = int(amount_text) if amount_text.isdigit() else _parse_chinese_hour(amount_text)
+    amount = (
+        int(amount_text) if amount_text.isdigit() else _parse_chinese_hour(amount_text)
+    )
     if amount is None or amount <= 0:
         return None
     unit = (
@@ -471,7 +489,7 @@ def _normalize_past_bare_create_trigger(
     run_context: AgentRunContext,
 ) -> Any:
     action = str(_decision_value(decision, "action") or "").strip()
-    if action not in {"create", "batch"}:
+    if action not in {"create", "update", "batch"}:
         return decision
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     if not _BARE_CLOCK_PATTERN.search(current_user_text):
@@ -486,10 +504,14 @@ def _normalize_past_bare_create_trigger(
         normalized_operations = []
         changed = False
         for operation in operations:
-            if str(_operation_value(operation, "action") or "").strip() != "create":
+            operation_action = str(_operation_value(operation, "action") or "").strip()
+            if operation_action not in {"create", "update"}:
                 normalized_operations.append(operation)
                 continue
-            trigger_at = str(_operation_value(operation, "trigger_at") or "").strip()
+            field_name = (
+                "new_trigger_at" if operation_action == "update" else "trigger_at"
+            )
+            trigger_at = str(_operation_value(operation, field_name) or "").strip()
             normalized_trigger_at = _next_future_trigger_at(
                 trigger_at, run_context.current_time
             )
@@ -497,7 +519,7 @@ def _normalize_past_bare_create_trigger(
                 normalized_operations.append(
                     _copy_operation_with_value(
                         operation,
-                        "trigger_at",
+                        field_name,
                         normalized_trigger_at,
                     )
                 )
@@ -508,7 +530,8 @@ def _normalize_past_bare_create_trigger(
             return _copy_decision_with_operations(decision, normalized_operations)
         return decision
 
-    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
+    field_name = "new_trigger_at" if action == "update" else "trigger_at"
+    trigger_at = str(_decision_value(decision, field_name) or "").strip()
     if not trigger_at:
         return decision
     normalized_trigger_at = _next_future_trigger_at_for_single_bare_clock(
@@ -516,7 +539,7 @@ def _normalize_past_bare_create_trigger(
         run_context,
     ) or _next_future_trigger_at(trigger_at, run_context.current_time)
     if normalized_trigger_at and normalized_trigger_at != trigger_at:
-        return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
+        return _copy_decision_with_value(decision, field_name, normalized_trigger_at)
     return decision
 
 
@@ -886,9 +909,7 @@ def _title_has_local_schedule_context(text: str, title: str) -> bool:
         clause_start = _previous_clause_boundary(text, position)
         clause_end = _next_clause_boundary(text, position + len(title))
         clause = text[clause_start:clause_end]
-        if _BARE_CLOCK_PATTERN.search(clause) or _RELATIVE_DELAY_PATTERN.search(
-            clause
-        ):
+        if _BARE_CLOCK_PATTERN.search(clause) or _RELATIVE_DELAY_PATTERN.search(clause):
             return True
         start = position + len(title)
 
@@ -977,7 +998,9 @@ _CHINESE_WEEKDAY_INDEX = {
     "天": 6,
     "7": 6,
 }
-_EXPLICIT_WEEKDAY_PATTERN = re.compile(r"(?:下周|本周|这周|这星期|下星期|星期|周)([一二三四五六日天1-7])")
+_EXPLICIT_WEEKDAY_PATTERN = re.compile(
+    r"(?:下周|本周|这周|这星期|下星期|星期|周)([一二三四五六日天1-7])"
+)
 
 
 def _should_reject_weekday_mismatch(
@@ -1059,9 +1082,7 @@ def _should_reject_day_of_month_mismatch(
     return False
 
 
-def _should_reject_missing_scheduled_clauses(
-    input_message: str, decision: Any
-) -> bool:
+def _should_reject_missing_scheduled_clauses(input_message: str, decision: Any) -> bool:
     expected_count = _explicit_scheduled_clause_count(input_message)
     if expected_count < 2:
         return False
@@ -1087,7 +1108,9 @@ def _explicit_scheduled_clause_count(input_message: str) -> int:
         return len({re.sub(r"\s+", "", match.group(0)) for match in matches})
     governed_matches: set[str] = set()
     for index, match in enumerate(matches):
-        next_start = matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        next_start = (
+            matches[index + 1].start() if index + 1 < len(matches) else len(normalized)
+        )
         clause = normalized[match.end() : next_start]
         if _REMINDER_VERB_PATTERN.search(clause) or re.search(
             r"询问我|告诉我|问问我|check in|report",

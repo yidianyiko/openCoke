@@ -117,7 +117,6 @@ def _assert_failed(result: DomainExecutionResult, code: str) -> None:
     assert result.error.code == code
 
 
-
 def test_build_reminder_intent_input_carries_dynamic_context_only():
     """v2: input carries dynamic context (time, tz, conversation, history,
     few-shots, user message). It must NOT embed the legacy Workflow
@@ -876,7 +875,10 @@ async def test_reminder_intent_port_returns_executor_failure_without_recurring_r
         def execute(self, received_decision, run_context):
             self.decisions.append(received_decision)
             if len(self.decisions) == 1:
-                return _failed_result("InvalidSchedule", "创建提醒失败：Recurring reminder schedule has no future fire time")
+                return _failed_result(
+                    "InvalidSchedule",
+                    "创建提醒失败：Recurring reminder schedule has no future fire time",
+                )
             return _executed_result("ok")
 
     executor = FakeExecutor()
@@ -1076,6 +1078,52 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
         "（2026年05月10日14时44分 reminder-e2e-user-18发来了文本消息）十一点开始提醒我离开时手机",
         _run_context(),
     )
+
+    assert len(executor.received) == 1
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_normalizes_past_bare_clock_update_time():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: 提醒我明天早上 7 点跑步 30 分钟。",
+        current_time=datetime(2026, 5, 25, 0, 36, tzinfo=UTC),
+    )
+    primary_decision = SimpleNamespace(
+        intent_type="crud",
+        action="update",
+        keyword="跑步",
+        new_trigger_at="2026-05-25T07:30:00+09:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=primary_decision)
+
+    class FakeExecutor:
+        def __init__(self):
+            self.received = []
+
+        def execute(self, received_decision, received_context):
+            self.received.append(received_decision)
+            assert received_context is run_context
+            assert received_decision.new_trigger_at == "2026-05-26T07:30:00+09:00"
+            return _executed_result("已更新提醒：跑步 30 分钟")
+
+    executor = FakeExecutor()
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=executor,
+    ).run("把刚才那个跑步提醒改到早上 7 点半。", run_context)
 
     assert len(executor.received) == 1
     _assert_executed(result)
@@ -1598,7 +1646,10 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
             if received_decision is primary_decision:
-                return _failed_result("InvalidSchedule", "这个提醒时间已经过去了，请告诉我一个未来的时间。")
+                return _failed_result(
+                    "InvalidSchedule",
+                    "这个提醒时间已经过去了，请告诉我一个未来的时间。",
+                )
             return _executed_result("已创建提醒：离开时手机")
 
     executor = FakeExecutor()
@@ -1612,29 +1663,44 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("reason,expected_boundary,expected_missing", [
-    ("date_only_missing_time", "date_only_missing_time", ("trigger_at",)),
-    ("ambiguous_time_range", "ambiguous_time_range", ("trigger_at",)),
-    ("completion_condition_missing_time", "completion_condition_missing_time", ("trigger_at",)),
-    ("status_only_content", "missing_reminder_content", ("title",)),
-    ("deadline_without_trigger", "deadline_without_trigger", ("trigger_at",)),
-    ("advance_offset_missing", "advance_offset_missing", ("advance_offset",)),
-    ("high_frequency_requires_end", "high_frequency_requires_end", ("trigger_at", "end_time")),
-    ("missing_reminder_content", "missing_reminder_content", ("title",)),
-    ("ambiguous_request", "ambiguous_request", ("target_reminder",)),
-])
+@pytest.mark.parametrize(
+    "reason,expected_boundary,expected_missing",
+    [
+        ("date_only_missing_time", "date_only_missing_time", ("trigger_at",)),
+        ("ambiguous_time_range", "ambiguous_time_range", ("trigger_at",)),
+        (
+            "completion_condition_missing_time",
+            "completion_condition_missing_time",
+            ("trigger_at",),
+        ),
+        ("status_only_content", "missing_reminder_content", ("title",)),
+        ("deadline_without_trigger", "deadline_without_trigger", ("trigger_at",)),
+        ("advance_offset_missing", "advance_offset_missing", ("advance_offset",)),
+        (
+            "high_frequency_requires_end",
+            "high_frequency_requires_end",
+            ("trigger_at", "end_time"),
+        ),
+        ("missing_reminder_content", "missing_reminder_content", ("title",)),
+        ("ambiguous_request", "ambiguous_request", ("target_reminder",)),
+    ],
+)
 async def test_reminder_intent_port_routes_clarification_reason_to_template(
-    reason, expected_boundary, expected_missing,
+    reason,
+    expected_boundary,
+    expected_missing,
 ):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=SimpleNamespace(
-                intent_type="clarify",
-                action="",
-                clarification_reason=reason,
-            ))
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="clarify",
+                    action="",
+                    clarification_reason=reason,
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -1921,22 +1987,27 @@ async def test_reminder_intent_port_fails_invalid_structured_output_without_seco
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("input_text", [
-    "All good, no reminders pls",
-    "谢谢闹钟",
-    "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
-    "可以呀，明天测试多线程能力，和提醒功能增强",
-    "今天晚上8点我要看电影",
-])
+@pytest.mark.parametrize(
+    "input_text",
+    [
+        "All good, no reminders pls",
+        "谢谢闹钟",
+        "我以为把你纯当闹钟就行了……没想到还得回复你你才会保持提醒……",
+        "可以呀，明天测试多线程能力，和提醒功能增强",
+        "今天晚上8点我要看电影",
+    ],
+)
 async def test_reminder_intent_port_routes_intent_discussion_to_no_action(input_text):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=SimpleNamespace(
-                intent_type="discussion",
-                action="",
-            ))
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="discussion",
+                    action="",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -1981,6 +2052,7 @@ async def test_reminder_intent_port_clarifies_bounded_cadence_deadline_loss_with
         schedule_basis="explicit_cadence",
         schedule_evidence="每天晚上八点",
     )
+
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(content=primary_decision)
@@ -2115,4 +2187,3 @@ async def test_reminder_intent_port_fails_when_primary_detector_times_out(
     ).run("17:57提醒我喝水", _run_context())
 
     _assert_needs_clarification(result, error_code="ReminderDetectTimeout")
-
