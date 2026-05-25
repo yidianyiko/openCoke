@@ -496,6 +496,21 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
 
 
 @pytest.mark.asyncio
+async def test_visible_identifier_leak_guardrail_trips_on_account_id_patterns(monkeypatch):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": ""}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content="你有 1 个待处理的共享提醒：ck_smoke_20260525t045815z_alice 发来的“打羽毛球”。",
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "visible_identifier_leak"
+
+
+@pytest.mark.asyncio
 async def test_rule4_empty_disposition_when_nothing_resolves(monkeypatch):
     no_summary = CapabilityResult(
         name="reminder",

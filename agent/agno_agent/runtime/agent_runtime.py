@@ -88,6 +88,10 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
+_VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
+    re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
+    re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
+)
 
 
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
@@ -833,6 +837,18 @@ def _check_unconfirmed_durable_write_promise(
     )
 
 
+def _check_visible_identifier_leak(final_text: str) -> RuntimeErrorDisposition | None:
+    if not final_text:
+        return None
+    if not any(pattern.search(final_text) for pattern in _VISIBLE_IDENTIFIER_LEAK_PATTERNS):
+        return None
+    return RuntimeErrorDisposition(
+        code="visible_identifier_leak",
+        retryable=False,
+        metadata={},
+    )
+
+
 async def _run_capability_port(
     port: Any,
     *,
@@ -1051,6 +1067,10 @@ async def run_agent_runtime(
             if not fallback_text:
                 fallback_text = _resolve_domain_visible_text(captured_domain_results)
             visible_text_segments = (fallback_text,) if fallback_text else ()
+        identifier_leak_error = _check_visible_identifier_leak(
+            _visible_text_for_guardrails(visible_text_segments)
+        )
+        runtime_contract_error = runtime_contract_error or identifier_leak_error
         if runtime_contract_error is not None:
             visible_text_segments = ()
         visible_messages = tuple(
