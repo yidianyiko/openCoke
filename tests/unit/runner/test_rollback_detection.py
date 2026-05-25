@@ -1,0 +1,79 @@
+from agent.runner import rollback_detection
+
+
+def test_product_notification_pending_message_does_not_interrupt_user_turn(monkeypatch):
+    monkeypatch.setattr(
+        rollback_detection,
+        "read_all_inputmessages",
+        lambda u_id, c_id, platform, status: [
+            {
+                "_id": "current",
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "delivery_mode": "request_response",
+                        "causal_inbound_event_id": "direct_evt",
+                    },
+                },
+            },
+            {
+                "_id": "product_notification",
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "delivery_mode": "request_response",
+                        "business_conversation_key": "product-notification:acct_1",
+                    },
+                },
+            },
+        ],
+    )
+
+    assert (
+        rollback_detection.is_new_message_coming_in(
+            "acct_1",
+            "char_1",
+            "business",
+            current_message_ids=["current"],
+        )
+        is False
+    )
+
+
+def test_new_user_message_still_interrupts_user_turn(monkeypatch):
+    monkeypatch.setattr(
+        rollback_detection,
+        "read_all_inputmessages",
+        lambda u_id, c_id, platform, status: [
+            {
+                "_id": "current",
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "delivery_mode": "request_response",
+                        "causal_inbound_event_id": "direct_evt",
+                    },
+                },
+            },
+            {
+                "_id": "new_direct",
+                "metadata": {
+                    "source": "clawscale",
+                    "business_protocol": {
+                        "delivery_mode": "request_response",
+                        "causal_inbound_event_id": "new_direct_evt",
+                    },
+                },
+            },
+        ],
+    )
+
+    assert (
+        rollback_detection.is_new_message_coming_in(
+            "acct_1",
+            "char_1",
+            "business",
+            current_message_ids=["current"],
+        )
+        is True
+    )
