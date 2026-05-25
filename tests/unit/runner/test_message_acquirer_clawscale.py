@@ -446,3 +446,93 @@ def test_message_acquirer_falls_back_to_business_key_when_gateway_conversation_i
     assert captured["nickname1"] == "ydyk"
     assert captured["user_id2"] == "clawscale-character:65f000000000000000000002"
     assert top_message.get("status") == "pending"
+
+
+def test_message_acquirer_filters_clawscale_request_response_batch_by_business_thread(
+    monkeypatch,
+):
+    from agent.runner import message_processor as mp
+
+    fake_user_dao = types.SimpleNamespace(
+        get_user_by_id=lambda user_id: (
+            {
+                "_id": "ck_alice",
+                "display_name": "Alice",
+                "platforms": {},
+            }
+            if user_id == "ck_alice"
+            else {
+                "_id": "65f000000000000000000002",
+                "name": "coke",
+                "platforms": {},
+            }
+        ),
+        find_characters=lambda query: [],
+    )
+    fake_conversation_dao = types.SimpleNamespace(
+        get_or_create_private_conversation=lambda **kwargs: ("conv_product", True),
+        get_conversation_by_id=lambda conversation_id: {
+            "_id": conversation_id,
+            "conversation_info": {},
+        },
+        update_conversation=lambda conversation_id, update_data: True,
+    )
+    fake_lock_manager = types.SimpleNamespace(
+        acquire_lock=lambda *args, **kwargs: "lock_1",
+    )
+
+    product_message = {
+        "_id": "msg_product",
+        "from_user": "ck_alice",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "你有一个新的好友请求，请确认或拒绝。",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "business_conversation_key": "product-notification:ck_alice",
+                "causal_inbound_event_id": "friend-request:req-1:target",
+            },
+        },
+    }
+    direct_message = {
+        "_id": "msg_direct",
+        "from_user": "ck_alice",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "拒绝 Bob 的好友请求。",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "smoke_evt_direct",
+            },
+        },
+    }
+
+    monkeypatch.setattr(mp, "UserDAO", lambda *args, **kwargs: fake_user_dao)
+    monkeypatch.setattr(
+        mp, "ConversationDAO", lambda *args, **kwargs: fake_conversation_dao
+    )
+    monkeypatch.setattr(
+        mp, "MongoDBLockManager", lambda *args, **kwargs: fake_lock_manager
+    )
+    monkeypatch.setattr(
+        mp,
+        "read_all_inputmessages",
+        lambda from_user, to_user, platform, status=None: [
+            product_message,
+            direct_message,
+        ],
+    )
+
+    acquirer = mp.MessageAcquirer("[W1]")
+    ctx = acquirer._try_acquire_message(product_message, set())
+
+    assert ctx is not None
+    assert ctx.input_messages == [product_message]

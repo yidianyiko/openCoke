@@ -284,6 +284,10 @@ class MessageAcquirer:
         input_messages = read_all_inputmessages(
             user_id, character_id, platform, "pending"
         )
+        input_messages = self._filter_clawscale_request_response_messages(
+            top_message=top_message,
+            input_messages=input_messages,
+        )
 
         if should_log_message_content():
             logger.info(
@@ -300,6 +304,49 @@ class MessageAcquirer:
             lock_id=lock_id,
             input_messages=input_messages,
         )
+
+    def _filter_clawscale_request_response_messages(
+        self, *, top_message: Dict, input_messages: List[Dict]
+    ) -> List[Dict]:
+        stable_id = self._clawscale_request_response_stable_id(top_message)
+        if stable_id is None:
+            return input_messages
+        return [
+            message
+            for message in input_messages
+            if self._clawscale_request_response_stable_id(message) == stable_id
+        ]
+
+    def _clawscale_request_response_stable_id(self, message: Dict) -> Optional[str]:
+        metadata = message.get("metadata") or {}
+        if metadata.get("source") != "clawscale":
+            return None
+
+        business_protocol = metadata.get("business_protocol")
+        if not isinstance(business_protocol, dict):
+            business_protocol = {}
+        delivery_mode = business_protocol.get("delivery_mode") or metadata.get(
+            "delivery_mode"
+        )
+        if delivery_mode != "request_response":
+            return None
+
+        stable_id = (
+            business_protocol.get("business_conversation_key")
+            or business_protocol.get("gateway_conversation_id")
+            or business_protocol.get("causal_inbound_event_id")
+        )
+        if stable_id:
+            return str(stable_id)
+
+        clawscale_meta = metadata.get("clawscale")
+        if isinstance(clawscale_meta, dict):
+            stable_id = clawscale_meta.get("conversation_id") or clawscale_meta.get(
+                "external_id"
+            )
+        if stable_id:
+            return str(stable_id)
+        return None
 
     def _ensure_business_conversation_key(
         self, *, conversation_id: str, conversation: Dict | None, top_message: Dict
