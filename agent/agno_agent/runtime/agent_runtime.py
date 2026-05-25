@@ -255,6 +255,17 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     ):
         return "list_friends"
 
+    # Friend calendar availability: "看看 X 这周哪些时间空", "X 这周空闲时间",
+    # "X 什么时候有空", "约 X 时间一起 Y" before settling — all map to
+    # list_friend_calendar_facts so the gateway returns busy intervals.
+    if (
+        _contains_any(input_message, ("时间空", "时间有空", "什么时候有空", "空闲时间", "空闲时段", "哪些时间", "日程", "档期"))
+        or "free time" in text
+        or "availability" in text
+        or "available" in text
+    ):
+        return "list_friend_calendar_facts"
+
     if _contains_any(input_message, ("共享提醒", "shared reminder")):
         if _contains_any(
             input_message,
