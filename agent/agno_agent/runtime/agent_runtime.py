@@ -94,6 +94,78 @@ def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern in text for pattern in patterns)
 
 
+def _product_notification_metadata(agent_input: AgentInput) -> Mapping[str, Any] | None:
+    payload = agent_input.payload
+    metadata = getattr(payload, "metadata", None)
+    if not isinstance(metadata, Mapping):
+        return None
+    product_notification = metadata.get("product_notification")
+    if not isinstance(product_notification, Mapping):
+        return None
+    return product_notification
+
+
+def _allows_product_notification_action(
+    product_notification: Mapping[str, Any],
+    action: str,
+) -> bool:
+    allowed_actions = product_notification.get("allowed_actions")
+    if not isinstance(allowed_actions, Sequence) or isinstance(
+        allowed_actions, (str, bytes, bytearray)
+    ):
+        return True
+    normalized = {str(item).casefold() for item in allowed_actions}
+    return action in normalized
+
+
+def _product_notification_decision(input_message: str) -> Literal["accept", "reject"] | None:
+    normalized = re.sub(r"[\s。.!！?？,，、~～]+", "", input_message.casefold())
+    if not normalized or len(normalized) > 16:
+        return None
+    if _contains_any(
+        normalized,
+        ("拒绝", "不通过", "不同意", "不要", "decline", "reject"),
+    ):
+        return "reject"
+    if _contains_any(
+        normalized,
+        ("确认", "同意", "接受", "通过", "可以", "好的", "好", "yes", "ok", "accept", "approve"),
+    ):
+        return "accept"
+    return None
+
+
+def _infer_scheduling_intent_from_product_notification(
+    input_message: str,
+    product_notification: Mapping[str, Any] | None,
+) -> str | None:
+    if not product_notification:
+        return None
+    decision = _product_notification_decision(input_message)
+    if decision is None or not _allows_product_notification_action(product_notification, decision):
+        return None
+
+    request_type = str(product_notification.get("request_type") or "")
+    if request_type == "friend_request":
+        return "accept_friend_request" if decision == "accept" else "reject_friend_request"
+    if request_type == "shared_reminder_request":
+        return "accept_shared_reminder" if decision == "accept" else "reject_shared_reminder"
+    return None
+
+
+def _infer_scheduling_intent_from_agent_input(
+    input_message: str,
+    agent_input: AgentInput,
+) -> str | None:
+    product_notification_intent = _infer_scheduling_intent_from_product_notification(
+        input_message,
+        _product_notification_metadata(agent_input),
+    )
+    if product_notification_intent:
+        return product_notification_intent
+    return _infer_scheduling_intent_from_message(input_message)
+
+
 def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     text = input_message.casefold()
 
@@ -805,8 +877,9 @@ async def run_agent_runtime(
 
         input_message = _input_message(agent_input)
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
-        preselected_scheduling_intent = _infer_scheduling_intent_from_message(
-            input_message
+        preselected_scheduling_intent = _infer_scheduling_intent_from_agent_input(
+            input_message,
+            agent_input,
         )
         if preselected_scheduling_intent:
             preloaded_scheduling_domain_result = await run_scheduling_domain(
@@ -815,15 +888,28 @@ async def run_agent_runtime(
                 run_context=run_context,
                 domain_results=domain_results,
             )
-        agent = _create_interaction_agent(
-            run_context=run_context,
-            agent_input=agent_input,
-            input_message=input_message,
-            capability_results=capability_results,
-            domain_results=domain_results,
-            preloaded_scheduling_domain_result=preloaded_scheduling_domain_result,
-            preselected_scheduling_intent=preselected_scheduling_intent,
+        create_agent_kwargs: dict[str, Any] = {
+            "run_context": run_context,
+            "agent_input": agent_input,
+            "input_message": input_message,
+            "capability_results": capability_results,
+            "domain_results": domain_results,
+            "preloaded_scheduling_domain_result": preloaded_scheduling_domain_result,
+        }
+        if preselected_scheduling_intent is not None:
+            create_agent_kwargs["preselected_scheduling_intent"] = preselected_scheduling_intent
+        create_agent_signature = inspect.signature(_create_interaction_agent)
+        accepts_arbitrary_kwargs = any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in create_agent_signature.parameters.values()
         )
+        if not accepts_arbitrary_kwargs:
+            create_agent_kwargs = {
+                key: value
+                for key, value in create_agent_kwargs.items()
+                if key in create_agent_signature.parameters
+            }
+        agent = _create_interaction_agent(**create_agent_kwargs)
         timeout_seconds = _agent_runtime_timeout_seconds()
         try:
             run_output = await asyncio.wait_for(

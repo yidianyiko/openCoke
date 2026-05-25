@@ -4,6 +4,7 @@ status: resolved
 surface:
   - gateway-api
   - bridge
+  - agent-runtime
 created_at: 2026-05-25
 updated_at: 2026-05-25
 ---
@@ -49,12 +50,35 @@ the UI and database claim success while no WeChat delivery was attempted.
 
 ## Current Status
 
-Resolved in gateway commits `827630c` and `103e8c4`. Product notifications now
-resolve the recipient's latest active delivery route and call gateway
-`/api/outbound` directly. Missing delivery routes now mark the notification
-failed instead of pretending delivery succeeded.
+Resolved in gateway commits `827630c` and `103e8c4`, then follow-up fixes for
+confirmation context. Product notifications now resolve the recipient's latest
+active delivery route and call gateway `/api/outbound` directly. Missing
+delivery routes now mark the notification failed instead of pretending delivery
+succeeded.
+
+The follow-up production check showed Eva replied `确认`, but the agent treated
+that message as ordinary appointment conversation context and did not call
+`accept_friend_request`. The root cause was that outbound product notifications
+were delivered through the gateway but were not threaded into the next inbound
+turn as trusted product-notification context. Short confirmations therefore had
+no deterministic link back to the pending friend request or shared reminder.
 
 ## Resolution
 
 - Fix commits: gateway `827630c`, gateway `103e8c4`.
 - Verification: `pnpm --dir gateway/packages/api test -- src/scheduling/notification-service.test.ts src/scheduling/friendship-service.test.ts src/scheduling/user-link-service.test.ts src/scheduling/shared-reminder-service.test.ts`.
+- Follow-up fix: gateway inbound routing now attaches the latest recently
+  delivered, still-pending product notification to
+  `metadata.product_notification`; agent runtime only treats short
+  `确认/同意/接受/通过/拒绝` replies as product actions when that trusted context
+  exists. The internal friend-request tool now resolves a single unnamed
+  pending request and fails closed when multiple pending requests exist.
+- Manual data repair: request `cmpjvx6ed0003p51uh6nobcu1` was accepted through
+  `/api/internal/scheduling/tools/accept_friend_request`, creating friendship
+  `cmpklyheu0002pb1t24ahoz7h` and delivering the accepted notification to the
+  requester.
+- Follow-up verification:
+  `pnpm --dir gateway/packages/api test -- src/lib/route-message.test.ts src/routes/internal-scheduling-routes.test.ts`;
+  `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_execution_agents.py -q`;
+  `pnpm --dir gateway/packages/api build`;
+  `zsh scripts/verify-surface repo-os-docs worker-runtime`.

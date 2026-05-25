@@ -427,6 +427,84 @@ async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_sch
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_preloads_scheduling_action_from_product_notification_context(
+    monkeypatch,
+):
+    captured = {}
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="accept_friend_request",
+                ok=True,
+                effect="write",
+                entity_type="friend_request",
+                entity_id="fr-1",
+                facts={"visible_summary": "已通过好友请求。"},
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("not_accepted",),
+            allow_rephrase=True,
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+    ):
+        captured.update({"input_message": input_message, "intent": intent})
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(content="ignored", messages=[])
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv-1",
+            text="确认",
+            payload=UserTurnPayload(
+                current_message_ids=["msg-1"],
+                metadata={
+                    "product_notification": {
+                        "request_id": "fr_1",
+                        "request_type": "friend_request",
+                        "allowed_actions": ["accept", "reject"],
+                    }
+                },
+            ),
+            occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+        ),
+        run_context=_run_context(),
+    )
+
+    assert captured == {"input_message": "确认", "intent": "accept_friend_request"}
+    assert [message.content for message in result.visible_messages] == [
+        "已通过好友请求。"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promise(
     monkeypatch,
 ):
@@ -1052,6 +1130,61 @@ def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduli
             "我现在有没有待处理的共享提醒？只列待处理的，告诉我是谁发的、什么内容。"
         )
         == "list_pending_shared_reminders"
+    )
+
+
+def test_product_notification_context_turns_short_confirmation_into_friend_request_accept():
+    agent_input = AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="确认",
+        payload=UserTurnPayload(
+            current_message_ids=["msg-1"],
+            metadata={
+                "product_notification": {
+                    "request_id": "fr_1",
+                    "request_type": "friend_request",
+                    "allowed_actions": ["accept", "reject"],
+                }
+            },
+        ),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+    assert (
+        agent_runtime._infer_scheduling_intent_from_agent_input("确认", agent_input)
+        == "accept_friend_request"
+    )
+
+
+def test_product_notification_context_turns_short_confirmation_into_shared_reminder_accept():
+    agent_input = AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="同意",
+        payload=UserTurnPayload(
+            current_message_ids=["msg-1"],
+            metadata={
+                "product_notification": {
+                    "request_id": "srr_1",
+                    "request_type": "shared_reminder_request",
+                    "allowed_actions": ["accept", "reject"],
+                }
+            },
+        ),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+    assert (
+        agent_runtime._infer_scheduling_intent_from_agent_input("同意", agent_input)
+        == "accept_shared_reminder"
+    )
+
+
+def test_short_confirmation_without_product_notification_stays_non_scheduling():
+    assert (
+        agent_runtime._infer_scheduling_intent_from_agent_input("确认", _agent_input())
+        is None
     )
 
 
