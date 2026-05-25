@@ -183,3 +183,7 @@ cython_debug/
 .claude/worktrees/
 .patchlinks/
 .tmp/
+
+# Generated coordination and evidence artifacts
+artifacts/coordination/
+artifacts/evidence/
