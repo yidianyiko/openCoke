@@ -32,13 +32,24 @@ def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = N
     Returns:
         bool: 是否有新消息
     """
-    input_messages = read_all_inputmessages(u_id, c_id, platform, "pending")
+    input_messages = read_all_inputmessages(
+        u_id, c_id, platform, None if current_message_ids else "pending"
+    )
 
     # 排除当前正在处理的消息
+    current_latest = None
     if current_message_ids:
         current_ids_set = set(current_message_ids)
+        current_messages = [
+            m for m in input_messages if str(m.get("_id", "")) in current_ids_set
+        ]
+        current_latest = _latest_message_position(current_messages)
         input_messages = [
             m for m in input_messages if str(m.get("_id", "")) not in current_ids_set
+        ]
+    else:
+        input_messages = [
+            m for m in input_messages if m.get("status", "pending") == "pending"
         ]
 
     input_messages = [
@@ -46,5 +57,24 @@ def is_new_message_coming_in(u_id, c_id, platform, current_message_ids: list = N
         for message in input_messages
         if not _is_product_notification_message(message)
     ]
+    if current_latest is not None:
+        input_messages = [
+            message
+            for message in input_messages
+            if _message_position(message) > current_latest
+        ]
 
     return len(input_messages) > 0
+
+
+def _latest_message_position(messages: list[dict]) -> tuple[int, str] | None:
+    positions = [_message_position(message) for message in messages]
+    return max(positions) if positions else None
+
+
+def _message_position(message: dict) -> tuple[int, str]:
+    try:
+        timestamp = int(message.get("input_timestamp") or 0)
+    except (TypeError, ValueError):
+        timestamp = 0
+    return (timestamp, str(message.get("_id", "")))
