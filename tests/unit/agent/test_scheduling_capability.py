@@ -89,6 +89,7 @@ def test_list_pending_shared_reminders_provides_visible_summary():
                 {
                     "id": "sr_1",
                     "requesterAccountId": "ck_alice",
+                    "requester": {"displayName": "Alice Smoke"},
                     "title": "跑步",
                     "fireAt": "2026-05-29T10:30:00.000Z",
                     "status": "pending_invitee_confirmation",
@@ -104,9 +105,9 @@ def test_list_pending_shared_reminders_provides_visible_summary():
 
     assert result.ok is True
     assert result.content["visible_summary"] == (
-        "你有 1 个待处理的共享提醒：ck_alice 发来的“跑步”。"
+        "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
     )
-    assert result.visible_summary == "你有 1 个待处理的共享提醒：ck_alice 发来的“跑步”。"
+    assert result.visible_summary == "你有 1 个待处理的共享提醒：Alice Smoke 发来的“跑步”。"
 
 
 def test_list_pending_shared_reminders_empty_summary():
@@ -124,6 +125,48 @@ def test_list_pending_shared_reminders_empty_summary():
 
     assert result.ok is True
     assert result.content["visible_summary"] == "目前没有待处理的共享提醒。"
+
+
+def test_list_shared_reminders_provides_visible_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "friend_name": "Bob",
+                "shared_reminders": [
+                    {
+                        "id": "srr_1",
+                        "title": "打羽毛球",
+                        "status": "accepted",
+                        "fireAt": "2026-05-25T08:00:00.000Z",
+                        "timezone": "Asia/Tokyo",
+                        "requester": {"displayName": "Alice Badminton"},
+                        "invitee": {"displayName": "Bob Badminton"},
+                    }
+                ],
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_shared_reminders",
+        handler=handler,
+    )
+    result = port.run(
+        "我和 Bob 的共享提醒现在是什么状态？",
+        _run_context(),
+        {"friend_name": "Bob", "status": "accepted"},
+    )
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 accepted。"
+    )
+    assert result.visible_summary == (
+        "你有 1 个共享提醒：Bob 的“打羽毛球”，2026-05-25 17:00，状态 accepted。"
+    )
 
 
 def test_list_friend_requests_empty_summary():
@@ -290,6 +333,47 @@ def test_list_friend_calendar_facts_is_read_only_and_forwards_range_args():
     assert captured["payload"]["target_account_id"] == "acct_a"
     assert captured["payload"]["from_date"] == "2026-05-25"
     assert captured["payload"]["to_date"] == "2026-05-31"
+
+
+def test_list_friend_calendar_facts_forwards_friend_name_when_target_account_id_is_missing():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {
+                "target_account_id": "acct_a",
+                "range": {
+                    "from": "2026-05-25",
+                    "to": "2026-05-31",
+                    "timezone": "Asia/Tokyo",
+                },
+                "busy_intervals": [],
+                "privacy": {"event_details_included": False},
+            },
+        }
+
+    port = SchedulingCapabilityPort(tool_name="list_friend_calendar_facts", handler=handler)
+    result = port.run(
+        "What free time does Coach A have this week?",
+        _run_context(user_id="acct_b"),
+        {
+            "friend_name": "Coach A",
+            "from_date": "2026-05-25",
+            "to_date": "2026-05-31",
+            "timezone": "Asia/Tokyo",
+        },
+    )
+
+    assert result.ok is True
+    assert result.durable_write is False
+    assert captured["tool_name"] == "list_friend_calendar_facts"
+    assert captured["payload"]["customer_id"] == "acct_b"
+    assert captured["payload"]["friend_name"] == "Coach A"
+    assert "target_account_id" not in captured["payload"]
 
 
 def test_scheduling_gateway_client_uses_internal_auth():

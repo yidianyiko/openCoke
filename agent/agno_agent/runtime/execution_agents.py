@@ -42,6 +42,13 @@ _SCHEDULING_SYSTEM_PROMPT = (
     "For create_shared_reminder, pass invitee_name when the user named a friend "
     "but did not provide an account id; do not call list_friends for this intent. "
     "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
+    "For list_shared_reminders, pass friend_name when the user names a friend; "
+    "if the user asks about a specific state, also pass status for that state. "
+    "The gateway resolves the friend server-side and returns the shared reminders "
+    "between the two people. "
+    "For list_friend_calendar_facts, when you do not yet have a concrete target_account_id, "
+    "pass friend_name with the other person's name; the gateway resolves one active "
+    "friend and fails closed if the name is missing or ambiguous. "
     "Call list_friends before list_friend_calendar_facts when the friend is not resolved. "
     "Do not create shared reminder state unless the named person resolves to "
     "one active friend. Ask for clarification when the name is ambiguous. "
@@ -253,6 +260,7 @@ def _make_scheduling_tool_fn(
         title: str | None = None,
         fire_at: str | None = None,
         duration_minutes: int | None = None,
+        status: str | None = None,
         timezone: str | None = None,
         request_id: str | None = None,
         friend_name: str | None = None,
@@ -302,6 +310,7 @@ def _make_scheduling_tool_fn(
                     "title": title,
                     "fire_at": fire_at,
                     "duration_minutes": duration_minutes,
+                    "status": status,
                     "timezone": timezone,
                     "request_id": request_id,
                     "friend_name": friend_name,
@@ -326,6 +335,8 @@ def _make_scheduling_tool_fn(
 
 def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
     normalized = intent.lower()
+    if "list_shared_reminders" in normalized:
+        return ("list_shared_reminders",)
     if "create_shared_reminder" in normalized:
         return ("create_shared_reminder",)
     if "send_friend_request_by_user_link_code" in normalized:
