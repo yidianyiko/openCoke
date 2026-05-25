@@ -340,6 +340,14 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
     return SCHEDULING_TOOL_NAMES
 
 
+def _forced_tool_name_for_intent(intent: str) -> str | None:
+    normalized = intent.lower()
+    for tool_name in SCHEDULING_TOOL_NAMES:
+        if tool_name in normalized:
+            return tool_name
+    return None
+
+
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
     return (
         f"Resolved scheduling intent: {intent}\n"
@@ -353,11 +361,31 @@ async def run_scheduling_domain(
     intent: str,
     run_context: AgentRunContext,
     domain_results: list[DomainExecutionResult],
+    forced_args: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Spawn SchedulingExecutionAgent and append typed scheduling domain results."""
     local_domain_results: list[DomainExecutionResult] = []
     execution_guard = _SchedulingExecutionGuard()
     tool_names = _tool_names_for_intent(intent)
+    if forced_args is not None:
+        tool_name = _forced_tool_name_for_intent(intent)
+        if tool_name is None:
+            result = _no_scheduling_tool_called_result(intent)
+            domain_results.append(result)
+            return result.to_dict()
+        port = SchedulingCapabilityPort(tool_name=tool_name)
+        capability_result = await _run_port(
+            port,
+            input_message=input_message,
+            run_context=run_context,
+            args=dict(forced_args),
+        )
+        domain_result = _scheduling_capability_to_domain_result(
+            tool_name=tool_name,
+            result=capability_result,
+        )
+        domain_results.append(domain_result)
+        return domain_result.to_dict()
     ports = {
         name: SchedulingCapabilityPort(tool_name=name) for name in tool_names
     }

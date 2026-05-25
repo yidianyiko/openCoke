@@ -153,17 +153,40 @@ def _infer_scheduling_intent_from_product_notification(
     return None
 
 
+def _product_notification_request_args(
+    product_notification: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if not product_notification:
+        return {}
+    request_id = str(product_notification.get("request_id") or "").strip()
+    if not request_id:
+        return {}
+    return {"request_id": request_id}
+
+
+def _infer_scheduling_intent_and_args_from_agent_input(
+    input_message: str,
+    agent_input: AgentInput,
+) -> tuple[str | None, dict[str, Any]]:
+    product_notification = _product_notification_metadata(agent_input)
+    product_notification_intent = _infer_scheduling_intent_from_product_notification(
+        input_message,
+        product_notification,
+    )
+    if product_notification_intent:
+        return product_notification_intent, _product_notification_request_args(product_notification)
+    return _infer_scheduling_intent_from_message(input_message), {}
+
+
 def _infer_scheduling_intent_from_agent_input(
     input_message: str,
     agent_input: AgentInput,
 ) -> str | None:
-    product_notification_intent = _infer_scheduling_intent_from_product_notification(
+    intent, _args = _infer_scheduling_intent_and_args_from_agent_input(
         input_message,
-        _product_notification_metadata(agent_input),
+        agent_input,
     )
-    if product_notification_intent:
-        return product_notification_intent
-    return _infer_scheduling_intent_from_message(input_message)
+    return intent
 
 
 def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
@@ -683,7 +706,11 @@ def _resolve_domain_visible_text(
     domain_results: Sequence[DomainExecutionResult],
 ) -> str:
     for result in reversed(domain_results):
+        if result.outcome != "executed":
+            continue
         for operation in result.operations:
+            if not operation.ok:
+                continue
             facts = operation.facts
             for key in ("visible_summary", "summary", "message"):
                 value = facts.get(key)
@@ -898,16 +925,24 @@ async def run_agent_runtime(
 
         input_message = _input_message(agent_input)
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
-        preselected_scheduling_intent = _infer_scheduling_intent_from_agent_input(
+        (
+            preselected_scheduling_intent,
+            preselected_scheduling_args,
+        ) = _infer_scheduling_intent_and_args_from_agent_input(
             input_message,
             agent_input,
         )
         if preselected_scheduling_intent:
+            run_scheduling_kwargs: dict[str, Any] = {
+                "input_message": input_message,
+                "intent": preselected_scheduling_intent,
+                "run_context": run_context,
+                "domain_results": domain_results,
+            }
+            if preselected_scheduling_args:
+                run_scheduling_kwargs["forced_args"] = preselected_scheduling_args
             preloaded_scheduling_domain_result = await run_scheduling_domain(
-                input_message=input_message,
-                intent=preselected_scheduling_intent,
-                run_context=run_context,
-                domain_results=domain_results,
+                **run_scheduling_kwargs
             )
         create_agent_kwargs: dict[str, Any] = {
             "run_context": run_context,

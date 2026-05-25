@@ -525,6 +525,46 @@ async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_agent():
+    captured_args: dict[str, dict] = {}
+
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("forced scheduling args should not spawn the worker agent")
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "fr_1", "status": "accepted"},
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="确认",
+                intent="accept_friend_request",
+                run_context=_run_context(),
+                domain_results=domain_results,
+                forced_args={"request_id": "fr_1"},
+            )
+
+    assert captured_args == {"accept_friend_request": {"request_id": "fr_1"}}
+    assert result["operations"][0]["action"] == "accept_friend_request"
+    assert result["operations"][0]["entity_id"] == "fr_1"
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder():
     captured_args: dict[str, dict] = {}
 

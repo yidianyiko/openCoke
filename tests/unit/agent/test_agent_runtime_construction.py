@@ -461,8 +461,15 @@ async def test_run_agent_runtime_preloads_scheduling_action_from_product_notific
         intent,
         run_context,
         domain_results,
+        forced_args=None,
     ):
-        captured.update({"input_message": input_message, "intent": intent})
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "forced_args": forced_args,
+            }
+        )
         domain_results.append(preloaded_domain_result)
         return preloaded_domain_result.to_dict()
 
@@ -498,7 +505,11 @@ async def test_run_agent_runtime_preloads_scheduling_action_from_product_notific
         run_context=_run_context(),
     )
 
-    assert captured == {"input_message": "确认", "intent": "accept_friend_request"}
+    assert captured == {
+        "input_message": "确认",
+        "intent": "accept_friend_request",
+        "forced_args": {"request_id": "fr_1"},
+    }
     assert [message.content for message in result.visible_messages] == [
         "已通过好友请求。"
     ]
@@ -1179,6 +1190,10 @@ def test_product_notification_context_turns_short_confirmation_into_shared_remin
         agent_runtime._infer_scheduling_intent_from_agent_input("同意", agent_input)
         == "accept_shared_reminder"
     )
+    assert agent_runtime._infer_scheduling_intent_and_args_from_agent_input(
+        "同意",
+        agent_input,
+    ) == ("accept_shared_reminder", {"request_id": "srr_1"})
 
 
 def test_short_confirmation_without_product_notification_stays_non_scheduling():
