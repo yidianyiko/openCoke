@@ -1141,6 +1141,16 @@ def test_scheduling_intent_inference_treats_own_invite_link_as_get_user_link():
     )
 
 
+def test_scheduling_intent_normalization_prefers_explicit_friend_request_accept_over_list():
+    assert (
+        agent_runtime._normalize_scheduling_intent(
+            {"list_friend_requests": {"status": "pending", "from_friend_name": "Bob"}},
+            "我有没有未处理的好友请求？通过 Bob 的。",
+        )
+        == "accept_friend_request"
+    )
+
+
 def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduling():
     assert (
         agent_runtime._infer_scheduling_intent_from_message(

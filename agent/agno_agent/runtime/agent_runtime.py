@@ -285,6 +285,17 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     return None
 
 
+def _explicit_friend_request_write_intent(input_message: str) -> str | None:
+    inferred = _infer_scheduling_intent_from_message(input_message)
+    if inferred in {
+        "accept_friend_request",
+        "reject_friend_request",
+        "cancel_friend_request",
+    }:
+        return inferred
+    return None
+
+
 def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
     if isinstance(raw_intent, str):
         candidate = raw_intent.strip()
@@ -293,6 +304,10 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
             return inferred or ""
         prefix = candidate.split(":", 1)[0].strip()
         if prefix in _SCHEDULING_INTENT_NAMES:
+            if prefix == "list_friend_requests":
+                friend_request_write = _explicit_friend_request_write_intent(input_message)
+                if friend_request_write:
+                    return friend_request_write
             return prefix
         inferred = _infer_scheduling_intent_from_message(input_message)
         return inferred or candidate
@@ -308,6 +323,12 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                 isinstance(normalized_key, str)
                 and normalized_key in _SCHEDULING_INTENT_NAMES
             ):
+                if normalized_key == "list_friend_requests":
+                    friend_request_write = _explicit_friend_request_write_intent(
+                        input_message
+                    )
+                    if friend_request_write:
+                        return friend_request_write
                 if isinstance(value, Mapping) and value:
                     return (
                         f"{normalized_key}: "
