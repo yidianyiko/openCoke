@@ -17,6 +17,18 @@ typing_speed = 2.2
 
 _GREETING_TOKENS = ("你好", "您好", "hello", "hi", "嗨")
 _CAPABILITY_TOKENS = ("能帮我做什么", "可以帮我做什么", "介绍一下", "你能做什么")
+_ACTION_TOKENS = (
+    "提醒",
+    "好友",
+    "请求",
+    "约",
+    "取消",
+    "拒绝",
+    "通过",
+    "设置",
+    "改",
+    "完成",
+)
 
 
 class _OutboundSendInterrupted(Exception):
@@ -127,9 +139,12 @@ def _chat_response_timeout_fallback(
         )
     ):
         return "你是想停掉哪条提醒？告诉我具体是哪条，我再帮你处理。"
-    if any(token in normalized_input for token in _GREETING_TOKENS) and any(
-        token in normalized_input for token in _CAPABILITY_TOKENS
-    ):
+    has_greeting = any(token in normalized_input for token in _GREETING_TOKENS)
+    asks_capability = any(token in normalized_input for token in _CAPABILITY_TOKENS)
+    is_plain_greeting = has_greeting and not any(
+        token in normalized_input for token in _ACTION_TOKENS
+    )
+    if has_greeting and (asks_capability or is_plain_greeting):
         return "Hii，我是 Coke，你的健康搭子。可以帮你管理提醒、查看好友请求和共享提醒，也可以陪你梳理健康计划。"
     if "计划" in normalized_input:
         return "我这次没能及时查到昨天那份计划。你把计划内容再发我一遍，我可以继续帮你整理或设置提醒。"
