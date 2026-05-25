@@ -320,7 +320,39 @@ def _normalize_scheduling_intent_args(
             normalized["title"] = normalized.pop("reminder_title")
         if "fire_at" not in normalized and "reminder_time" in normalized:
             normalized["fire_at"] = normalized.pop("reminder_time")
+        if "fire_at" not in normalized and "time" in normalized:
+            normalized["fire_at"] = normalized.pop("time")
+        if "fire_at" not in normalized and "scheduled_time" in normalized:
+            normalized["fire_at"] = normalized.pop("scheduled_time")
+        if "duration_minutes" not in normalized and "duration" in normalized:
+            normalized["duration_minutes"] = normalized.pop("duration")
+        activity = normalized.pop("activity", None)
+        location = normalized.pop("location", None)
+        if "title" not in normalized:
+            title_parts = [
+                str(value).strip()
+                for value in (location, activity)
+                if str(value or "").strip()
+            ]
+            if title_parts:
+                normalized["title"] = "".join(title_parts)
     return normalized
+
+
+def _split_scheduling_intent_args(
+    normalized_intent: str,
+) -> tuple[str, dict[str, Any] | None]:
+    intent, separator, raw_args = normalized_intent.partition(":")
+    tool_name = intent.strip()
+    if not separator or tool_name not in _SCHEDULING_INTENT_NAMES:
+        return normalized_intent, None
+    try:
+        args = json.loads(raw_args.strip())
+    except json.JSONDecodeError:
+        return normalized_intent, None
+    if not isinstance(args, Mapping):
+        return normalized_intent, None
+    return tool_name, _normalize_scheduling_intent_args(tool_name, args)
 
 
 def _float_env(name: str, default: float) -> float:
@@ -419,12 +451,19 @@ def _create_interaction_agent(
                 if "result" in scheduling_domain_result:
                     return scheduling_domain_result["result"]
                 normalized_intent = _normalize_scheduling_intent(intent, input_message)
-                result = await run_scheduling_domain(
-                    input_message=input_message,
-                    intent=normalized_intent,
-                    run_context=run_context,
-                    domain_results=domain_results,
-                )
+                (
+                    scheduling_intent,
+                    forced_scheduling_args,
+                ) = _split_scheduling_intent_args(normalized_intent)
+                run_scheduling_kwargs: dict[str, Any] = {
+                    "input_message": input_message,
+                    "intent": scheduling_intent,
+                    "run_context": run_context,
+                    "domain_results": domain_results,
+                }
+                if forced_scheduling_args is not None:
+                    run_scheduling_kwargs["forced_args"] = forced_scheduling_args
+                result = await run_scheduling_domain(**run_scheduling_kwargs)
                 scheduling_domain_result["result"] = result
                 return result
 

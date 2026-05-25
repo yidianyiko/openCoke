@@ -1027,6 +1027,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         intent,
         run_context,
         domain_results,
+        forced_args=None,
     ):
         captured.update(
             {
@@ -1034,6 +1035,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
                 "intent": intent,
                 "run_context": run_context,
                 "domain_results": domain_results,
+                "forced_args": forced_args,
             }
         )
         return envelope
@@ -1062,6 +1064,7 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         "intent": "accept_shared_reminder",
         "run_context": run_context,
         "domain_results": domain_results,
+        "forced_args": None,
     }
 
 
@@ -1088,6 +1091,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent
         intent,
         run_context,
         domain_results,
+        forced_args=None,
     ):
         captured.update(
             {
@@ -1095,6 +1099,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent
                 "intent": intent,
                 "run_context": run_context,
                 "domain_results": domain_results,
+                "forced_args": forced_args,
             }
         )
         return envelope
@@ -1123,6 +1128,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_dict_intent
         "intent": "accept_friend_request",
         "run_context": run_context,
         "domain_results": domain_results,
+        "forced_args": None,
     }
 
 
@@ -1294,6 +1300,7 @@ async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_arg
         intent,
         run_context,
         domain_results,
+        forced_args=None,
     ):
         captured.update(
             {
@@ -1301,6 +1308,7 @@ async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_arg
                 "intent": intent,
                 "run_context": run_context,
                 "domain_results": domain_results,
+                "forced_args": forced_args,
             }
         )
         return envelope
@@ -1333,11 +1341,69 @@ async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_arg
     )
 
     assert result is envelope
-    assert captured["intent"].startswith("create_shared_reminder: ")
-    assert '"invitee_name": "Bob"' in captured["intent"]
-    assert '"title": "跑步"' in captured["intent"]
-    assert '"fire_at": "2026-05-29T19:30:00"' in captured["intent"]
-    assert '"duration_minutes": 40' in captured["intent"]
+    assert captured["intent"] == "create_shared_reminder"
+    assert captured["forced_args"] == {
+        "invitee_name": "Bob",
+        "title": "跑步",
+        "fire_at": "2026-05-29T19:30:00",
+        "duration_minutes": 40,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_common_create_aliases(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="我想约 Bob 这周五晚上 19:30 一起在小区操场跑步 40 分钟，帮我们两个建一个共享提醒。",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "create_shared_reminder": {
+                "invitee_name": "Bob",
+                "scheduled_time": "2026-05-29T19:30:00",
+                "duration": 40,
+                "activity": "跑步",
+                "location": "小区操场",
+            }
+        }
+    )
+
+    assert captured == {
+        "intent": "create_shared_reminder",
+        "forced_args": {
+            "invitee_name": "Bob",
+            "title": "小区操场跑步",
+            "fire_at": "2026-05-29T19:30:00",
+            "duration_minutes": 40,
+        },
+    }
 
 
 def test_create_interaction_agent_preselected_scheduling_intent_hides_reminder_domain():
