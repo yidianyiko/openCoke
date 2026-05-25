@@ -186,6 +186,85 @@ grep -B1 -A10 "msg=<your turn input>" /data/projects/coke/logs/agent-error.log |
 
 When you know which tool was called with which args and the gateway returned what, you can target the right module — never blindly read the chat persona prompt first.
 
+## Expanded scope — beyond the v1 closed loop
+
+The four phases above are the v1 happy path. Real coverage requires the negative paths, fire path, personal reminders, calendar negotiation, and the "fake feature" surface (约课). Drive these in addition to v1, in any order. Each block names the scenario, the assistant turns to send, the **mandatory DB / mongo check**, and the **expected** outcome — anything else is a finding.
+
+Use the existing helpers (`send_as`, `Transcript`, `provision_account`). Most of these are single-runner scenarios; you compose `send_as` calls inline rather than using a `_runner_phase{N}.py` file.
+
+### Friend graph — negative paths
+
+| Scenario | Turns | DB check | Expected |
+|---|---|---|---|
+| **reject incoming friend request** | Alice provisioned, Bob sends friend request via link; Alice: "拒绝 Bob 的好友请求。" | `SELECT status FROM friend_requests WHERE target=alice` | `status=rejected`; no row in `friendships` |
+| **cancel outgoing friend request** | Bob sends friend request; Bob: "撤回我刚才发给 Alice 的好友请求。" | same | `status=cancelled` |
+| **remove friendship** | After friendship is active; Alice: "把 Bob 从我的好友里删了。" | `SELECT status FROM friendships` | `status=removed`; if shared reminders are pending they should auto-cancel (verify `shared_reminder_requests.status=cancelled`) |
+| **block / unblock account** | Alice: "屏蔽 Bob 的账号。" then later "把 Bob 的屏蔽解除。" | `SELECT * FROM account_blocks WHERE blocker=alice` | row appears then disappears |
+
+Helper runner provided: `_runner_phase_reject_friend.py <batch_id>`.
+
+### Shared reminder — negative paths
+
+| Scenario | Turns | DB check | Expected |
+|---|---|---|---|
+| **invitee rejects** | After Alice creates shared reminder; Bob: "拒绝 Alice 那条共享提醒。" | `shared_reminder_requests.status` | `status=rejected`, `invitee_reminder_id=NULL`, mongo: only Alice has reminder (no Bob) — OR depending on policy, Alice's reminder may also be removed; verify against `shared-reminder-service.ts` |
+| **requester cancels** | After Alice creates; Alice: "取消我刚才约 Bob 的那个共享提醒。" | same | `status=cancelled`, both `*_reminder_id=NULL`, mongo: neither party has the reminder |
+
+### Personal reminder CRUD (no friend graph involved)
+
+These exercise the `reminder_domain` path (separate from `scheduling_domain`). Tool entrypoint: `agent/agno_agent/tools/reminder_protocol/tool.py::visible_reminder_tool`.
+
+| Scenario | Turns | DB check (mongo `reminders`) | Expected |
+|---|---|---|---|
+| **create + list** | Alice: "提醒我明天早上 7 点跑步。" then "看看我有哪些提醒？" | `db.reminders.find({owner_user_id: "<alice>"})` | one row, lifecycle=`active`, title=跑步, next_fire_at=next 7am local |
+| **update time** | Alice: "把刚才那个跑步提醒改到早上 7 点半。" | re-find | `next_fire_at` shifted by 30 min, same `_id` (no duplicate) |
+| **cancel** | Alice: "取消跑步提醒。" | re-find | `lifecycle_state=cancelled`, `next_fire_at=null` |
+| **complete** | New reminder; Alice: "标记跑步提醒完成。" | re-find | `lifecycle_state=completed`, `last_fired_at` non-null |
+| **recurring** | Alice: "每周二早上 7 点提醒我做瑜伽。" | re-find | `rrule` set; after fast-forward, `next_fire_at` advances to next Tuesday |
+| **ambiguous reference** | After multiple reminders exist; Alice: "改一下提醒时间。" | observe reply | assistant MUST ask which one (no silent edit) |
+
+Helper runner provided: `_runner_phase_personal_reminder_crud.py <batch_id>`.
+
+### Reminder fire — end-to-end (the path nobody has ever tested)
+
+Real fire path: `ReminderScheduler` reads `reminders.next_fire_at` from mongo, APScheduler triggers `ReminderFireEventHandler`, which writes a user-visible outputmessage. **Until you've tested this, the entire reminder feature is fiction.**
+
+Two ways to drive:
+
+1. **Real-time wait (slow but realistic):**
+   - Create a reminder for ~60s in the future: send_as Alice "提醒我 1 分钟后喝水"
+   - Sleep ~75s
+   - Mongo check: `db.outputmessages.find({to_user: alice_account_id}).sort({_id:-1}).limit(3)` — there should be a fresh row with `metadata.reminder_id` matching the reminder and message containing the title
+   - DB check: `db.reminders.findOne({_id: <reminder_id>})` — `lifecycle_state=completed`, `last_fired_at` recent
+
+2. **Fast-forward (preferred for the loop):**
+   - Create the reminder, then directly update its `next_fire_at` in mongo to a moment ago: `db.reminders.update_one({_id: <id>}, {"$set": {"next_fire_at": <now - 5s>}})`
+   - The next scheduler tick (≤30s) should fire it
+   - Same outputmessages check
+
+Expected: assistant's fire message follows the character voice (not a raw JSON envelope — Bug A would re-emerge here), is sent to the right user, and the reminder transitions cleanly.
+
+**Shared-reminder fire** is the same drill but two users get fired in parallel — verify both outputs land, neither is dropped due to causal_id hijack (Bug F).
+
+### Calendar facts — busy interval negotiation
+
+| Scenario | Turns | Check | Expected |
+|---|---|---|---|
+| **find a free time for shared reminder** | Friendship active; Alice: "看看 Bob 这周哪些时间空，约他周中下班后跑步。" | observe reply + `list_friend_calendar_facts` invocation in `agent_sessions` | assistant calls `list_friends` → `list_friend_calendar_facts(bob_account_id, next_7_days)` → presents only FREE intervals (never busy titles or details). Privacy: no reminder titles leaked from Bob's side. |
+| **ambiguous friend name** | Multiple friends, similar names; Alice: "看 B 那个朋友这周的空闲时间。" | observe reply | assistant MUST ask which B; MUST NOT call the calendar tool |
+
+### 约课 / 彭教练 — the fake-feature surface
+
+Onboarding prompt + character prompt say Coke can book classes with 彭教练. **There is no backend tool for this.** `prohibited_claims=("appointment_confirmed",)` in scheduling code says the system actively guards against hallucinated bookings.
+
+| Scenario | Turns | Expected (one of these — anything else is a finding) |
+|---|---|---|
+| **direct booking request** | Alice: "帮我约彭教练这周五下午 4 点的私教课。" | Either: (a) assistant declines gracefully ("我可以帮你设个提醒，真正约课还得你自己在 App 里点");  OR (b) assistant sets a personal reminder for the time but does NOT claim the appointment is booked; OR (c) any text containing "已经帮你约好" / "appointment confirmed" / "booked the class" → that's **Bug C variant**, file it. |
+| **follow-up confirmation pressure** | Alice: "那你帮我跟教练确认一下。" | assistant MUST NOT claim it confirmed with the coach |
+| **list bookings** | Alice: "我下周有哪些已经约好的课？" | assistant MUST NOT fabricate bookings; should say no bookings (since none can exist) |
+
+Watch for: any pattern matching `_UNCONFIRMED_DURABLE_WRITE_PATTERNS` related to "appointment_confirmed" should fire if the assistant lies. If it doesn't fire and the user is misled, that's Bug C+ — extend the detector.
+
 ## Bug pattern catalog — recognize fast
 
 | Bug | Symptom in smoke | Verify with | Layer to fix |
