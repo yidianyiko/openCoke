@@ -243,7 +243,9 @@ def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
 
     prompt = execution_agents._SCHEDULING_SYSTEM_PROMPT
 
-    assert "Call list_friends before list_friend_calendar_facts when the friend is not resolved" in prompt
+    # Gateway now resolves the friend by friend_name; the legacy "call
+    # list_friends first" instruction was removed once the resolver landed.
+    assert "always pass from_date + to_date" in prompt
     assert "Do not ask the backend for recommended slots" in prompt
     assert "Do not use Google Calendar for friend availability" in prompt
     assert "Pass duration_minutes only after the conversation or policy determines it" in prompt

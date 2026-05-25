@@ -350,6 +350,23 @@ def _tool_names_for_intent(intent: str) -> tuple[str, ...]:
         return ("send_friend_request_by_user_link_code",)
     if ("链接码" in intent or "邀请链接" in intent) and ("加好友" in intent or "好友" in intent):
         return ("send_friend_request_by_user_link_code",)
+    # Single-write intents — restrict to that one tool so the inner LLM cannot
+    # silently fall back to a read tool like list_friend_requests when the
+    # user message also contains read-tinted keywords ("未处理", "看一下").
+    # Gateway resolves friend_name / requester_name server-side.
+    for single in (
+        "accept_friend_request",
+        "reject_friend_request",
+        "cancel_friend_request",
+        "remove_friendship",
+        "block_account",
+        "unblock_account",
+        "accept_shared_reminder",
+        "reject_shared_reminder",
+        "cancel_shared_reminder",
+    ):
+        if single in normalized:
+            return (single,)
     return SCHEDULING_TOOL_NAMES
 
 
