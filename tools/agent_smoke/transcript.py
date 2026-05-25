@@ -19,6 +19,11 @@ class Turn:
     output_id: str | None
     elapsed_ms: int
     note: str | None = None
+    placeholder_received: bool = False
+    late_reply_landed: bool = False
+    polling_seconds_used: float = 0.0
+    placeholder_reply: str | None = None
+    placeholder_output_id: str | None = None
 
 
 @dataclass

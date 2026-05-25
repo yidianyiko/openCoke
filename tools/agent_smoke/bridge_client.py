@@ -13,6 +13,8 @@ import requests
 
 from tools.agent_smoke import _config
 
+SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
+
 
 @dataclass
 class BridgeReply:
@@ -20,6 +22,11 @@ class BridgeReply:
     output_id: str | None
     causal_inbound_event_id: str
     raw: dict
+    placeholder_received: bool = False
+    late_reply_landed: bool = False
+    placeholder_reply: str | None = None
+    placeholder_output_id: str | None = None
+    polling_seconds_used: float = 0.0
 
 
 class BridgeError(RuntimeError):
@@ -93,6 +100,23 @@ def send_as(
     reply_text = body.get("reply") or ""
     output_id = body.get("output_id")
     event_id = body.get("causal_inbound_event_id") or payload["inbound_event_id"]
+    placeholder_received = SYNC_REPLY_TIMEOUT_FALLBACK_REPLY in reply_text
+    late_reply_landed = False
+    placeholder_reply = reply_text if placeholder_received else None
+    placeholder_output_id = output_id if placeholder_received else None
+    polling_seconds_used = 0.0
+
+    if placeholder_received:
+        poll_start = time.monotonic()
+        late_reply_text, late_output_doc = poll_late_reply_text(
+            causal_inbound_event_id=event_id,
+            coke_account_id=payload["coke_account_id"],
+        )
+        polling_seconds_used = time.monotonic() - poll_start
+        if late_reply_text and late_output_doc:
+            reply_text = late_reply_text
+            output_id = str(late_output_doc.get("_id")) if late_output_doc.get("_id") else None
+            late_reply_landed = True
 
     # Bridge's reply_timeout_seconds (default 25) is short for shared dev where
     # workers may be contended. If the bridge returned ok but no reply yet, poll
@@ -115,7 +139,65 @@ def send_as(
         output_id=output_id,
         causal_inbound_event_id=event_id,
         raw=body,
+        placeholder_received=placeholder_received,
+        late_reply_landed=late_reply_landed,
+        placeholder_reply=placeholder_reply,
+        placeholder_output_id=placeholder_output_id,
+        polling_seconds_used=polling_seconds_used,
     )
+
+
+def poll_late_reply_text(
+    *,
+    causal_inbound_event_id: str,
+    coke_account_id: str,
+    poll_seconds: float = 45.0,
+    poll_interval_seconds: float = 1.5,
+) -> tuple[str | None, dict | None]:
+    """
+    After send_as returns the placeholder (sync timeout), poll mongo for
+    the late real reply on the same causal_inbound_event_id.
+    Returns (reply_text, output_doc) or (None, None) on timeout.
+    """
+    from pymongo import MongoClient  # local import to keep the basic send path lean
+
+    client = MongoClient(_config.mongo_uri())
+    collection = client[_config.mongo_db_name()].outputmessages
+    deadline = time.monotonic() + poll_seconds
+    query = {
+        "$and": [
+            {"$or": [{"to_user": coke_account_id}, {"account_id": coke_account_id}]},
+            {
+                "$or": [
+                    {
+                        "metadata.business_protocol.causal_inbound_event_id": causal_inbound_event_id
+                    },
+                    {"metadata.causal_inbound_event_id": causal_inbound_event_id},
+                ]
+            },
+            {"message": {"$nin": ["", SYNC_REPLY_TIMEOUT_FALLBACK_REPLY]}},
+        ]
+    }
+    try:
+        while time.monotonic() < deadline:
+            for doc in collection.find(query).sort("_id", -1):
+                reply_text = _output_reply_text(doc)
+                if reply_text and reply_text != SYNC_REPLY_TIMEOUT_FALLBACK_REPLY:
+                    return reply_text, doc
+            time.sleep(poll_interval_seconds)
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+    return None, None
+
+
+def _output_reply_text(doc: dict) -> str:
+    for key in ("message", "text", "reply"):
+        value = doc.get(key)
+        if isinstance(value, str) and value.strip():
+            return value
+    return ""
 
 
 def _poll_for_reply(

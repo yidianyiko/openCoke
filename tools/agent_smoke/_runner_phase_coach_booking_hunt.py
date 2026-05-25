@@ -226,6 +226,11 @@ def _record_turn(
         output_id=reply.output_id,
         elapsed_ms=elapsed_ms,
         note=note,
+        placeholder_received=reply.placeholder_received,
+        late_reply_landed=reply.late_reply_landed,
+        polling_seconds_used=reply.polling_seconds_used,
+        placeholder_reply=reply.placeholder_reply,
+        placeholder_output_id=reply.placeholder_output_id,
     )
     with guard:
         transcript.add_turn(turn)
@@ -234,6 +239,29 @@ def _record_turn(
             flush=True,
         )
     return turn
+
+
+def _late_reply_evidence(turns: list[Turn]) -> dict[str, Any]:
+    return {
+        "placeholder_received": any(turn.placeholder_received for turn in turns),
+        "late_reply_landed": any(turn.late_reply_landed for turn in turns),
+        "polling_seconds_used": round(
+            sum(float(turn.polling_seconds_used or 0.0) for turn in turns), 3
+        ),
+    }
+
+
+def _with_late_reply_evidence(result: dict[str, Any], turns: list[Turn]) -> dict[str, Any]:
+    evidence = _late_reply_evidence(turns)
+    result.update(evidence)
+    if evidence["placeholder_received"] and not evidence["late_reply_landed"]:
+        result["verdict"] = "BLOCKED-LATE-REPLY-TIMEOUT"
+        result["bug_pattern"] = ""
+        result["severity"] = "smoke-infra"
+        observed = str(result.get("observed") or "")
+        suffix = "late reply did not land before smoke poll timeout"
+        result["observed"] = f"{observed}; {suffix}" if observed else suffix
+    return result
 
 
 def _reply_text(turns: list[Turn]) -> str:
@@ -448,15 +476,21 @@ def _case_result(
         after = snapshot(accounts)
         delta = _diff_snapshot(before, after)
         print(f"[{case_id}] delta={json.dumps(_brief_delta(delta), ensure_ascii=False, default=str)}", flush=True)
-        return judge(turns, delta, after)
+        return _with_late_reply_evidence(judge(turns, delta, after), turns)
     except BridgeError as exc:
         after = snapshot(accounts)
         delta = _diff_snapshot(before, after)
-        return _blocked(case_id, expected, f"bridge_error status={exc.status} body={exc.body!r}", turns, delta)
+        return _with_late_reply_evidence(
+            _blocked(case_id, expected, f"bridge_error status={exc.status} body={exc.body!r}", turns, delta),
+            turns,
+        )
     except Exception as exc:
         after = snapshot(accounts)
         delta = _diff_snapshot(before, after)
-        return _blocked(case_id, expected, f"{type(exc).__name__}: {exc}", turns, delta)
+        return _with_late_reply_evidence(
+            _blocked(case_id, expected, f"{type(exc).__name__}: {exc}", turns, delta),
+            turns,
+        )
 
 
 def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> list[dict[str, Any]]:
@@ -688,6 +722,11 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
                 output_id=reply.output_id,
                 elapsed_ms=elapsed_ms,
                 note=note,
+                placeholder_received=reply.placeholder_received,
+                late_reply_landed=reply.late_reply_landed,
+                polling_seconds_used=reply.polling_seconds_used,
+                placeholder_reply=reply.placeholder_reply,
+                placeholder_output_id=reply.placeholder_output_id,
             )
             print(
                 f"[T{turn_no:02d} {speaker}] << ({elapsed_ms}ms, out={reply.output_id}) {reply.reply}",
@@ -742,7 +781,7 @@ def _accepted_on_date_count(snapshot_after: dict[str, Any], coach: SmokeAccount,
 def _write_evidence(transcript: Transcript, results: list[dict[str, Any]], setup_status: str) -> Path:
     EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
     findings = [result for result in results if result["verdict"] == "FINDING"]
-    blocked = [result for result in results if result["verdict"] == "BLOCKED"]
+    blocked = [result for result in results if str(result["verdict"]).startswith("BLOCKED")]
     transcript.set_verdict(
         passed=not findings and not blocked and setup_status == "PASSED",
         problems=[f"{item['case_id']}: {item['observed']}" for item in findings + blocked],
@@ -793,7 +832,7 @@ def main() -> int:
     path = _write_evidence(transcript, results, setup_status)
     _print_summary(results)
     print(f"\nevidence={path}")
-    return 0 if all(result["verdict"] != "BLOCKED" for result in results) else 2
+    return 0 if all(not str(result["verdict"]).startswith("BLOCKED") for result in results) else 2
 
 
 if __name__ == "__main__":
