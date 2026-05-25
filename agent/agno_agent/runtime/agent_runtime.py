@@ -1119,6 +1119,19 @@ def _should_prefer_domain_visible_text(
         result.domain == "reminder"
         and result.outcome == "executed"
         and any(
+            operation.effect == "write"
+            and operation.ok
+            and isinstance(operation.facts.get("visible_summary"), str)
+            and operation.facts.get("visible_summary", "").strip()
+            for operation in result.operations
+        )
+        for result in domain_results
+    ):
+        return True
+    if any(
+        result.domain == "reminder"
+        and result.outcome == "executed"
+        and any(
             operation.action == "list"
             and operation.ok
             and operation.effect == "read"

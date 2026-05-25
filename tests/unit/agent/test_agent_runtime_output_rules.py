@@ -42,6 +42,7 @@ async def _run_with_fake_agent(
     monkeypatch: pytest.MonkeyPatch,
     input_text: str = "hi",
     content: str = "",
+    domain_results: list[DomainExecutionResult] | None = None,
 ):
     class FakeOutput:
         def __init__(self, msgs, text):
@@ -61,12 +62,14 @@ async def _run_with_fake_agent(
         domain_results,
         preloaded_scheduling_domain_result=None,
     ):
-        del run_context, agent_input, input_message, domain_results
+        del run_context, agent_input, input_message
         del preloaded_scheduling_domain_result
         capability_results.extend(captured_results)
+        domain_results.extend(captured_domain_results)
         return FakeAgent()
 
     captured_results = list(capability_results)
+    captured_domain_results = list(domain_results or [])
     monkeypatch.setattr(agent_runtime, "_create_interaction_agent", patched_create)
     return await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
@@ -185,6 +188,54 @@ async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatc
 
     assert [message.content for message in result.visible_messages] == [
         "已创建提醒：离开时手机（2026-05-10 11:00）"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_reminder_write_uses_domain_summary_to_preserve_exact_title(monkeypatch):
+    emoji_title = "🍅 番茄钟 ⏰"
+    reminder_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-emoji",
+                facts={
+                    "title": emoji_title,
+                    "local_date": "2026-05-27",
+                    "local_time": "09:00:00",
+                    "rrule": None,
+                    "visible_summary": f"已创建提醒：{emoji_title}（2026-05-27 周三 09:00）",
+                },
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("not_created", "needs_more_info"),
+        ),
+    )
+    model_reply = _segments_payload(
+        {
+            "type": "text",
+            "content": "好嘞，明天早上9点🍅番茄钟提醒已经设好了~",
+        }
+    )
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_reply}],
+        capability_results=[],
+        domain_results=[reminder_result],
+        monkeypatch=monkeypatch,
+        input_text="明天 9 点提醒我 🍅 番茄钟 ⏰",
+        content=model_reply,
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：🍅 番茄钟 ⏰（2026-05-27 周三 09:00）"
     ]
 
 

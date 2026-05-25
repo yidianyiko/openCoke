@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import calendar
 import json
 import logging
 import os
@@ -239,6 +240,7 @@ class ReminderIntentPort:
         if isinstance(time_evidence_result, DomainExecutionResult):
             return time_evidence_result
         decision = time_evidence_result
+        decision = _normalize_create_title_from_user_text(input_message, decision)
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
@@ -958,6 +960,18 @@ def _should_repair_create_decision(current_user_text: str, decision: Any) -> boo
         return True
     if "每天" in current_user_text and not _decision_value(decision, "rrule"):
         return True
+    if (
+        _explicit_biweekly_weekday_index(current_user_text) is not None
+        and str(_decision_value(decision, "rrule") or "").strip()
+        != "FREQ=WEEKLY;INTERVAL=2;BYDAY="
+        + _WEEKDAY_RRULE_CODES[_explicit_biweekly_weekday_index(current_user_text)]
+    ):
+        return True
+    if (
+        _explicit_monthly_day_create_text(current_user_text) is not None
+        and str(_decision_value(decision, "rrule") or "").strip() != "FREQ=MONTHLY"
+    ):
+        return True
     return False
 
 
@@ -1138,11 +1152,13 @@ def _fallback_recurring_create_decision_from_text(
         return None
     if "提醒" not in current_user_text:
         return None
-    title = _extract_create_title_after_reminder_verb(current_user_text)
+    title = _extract_create_title_after_reminder_verb_verbatim(current_user_text)
     trigger_at = ""
     rrule = ""
     evidence = ""
     weekday = _explicit_weekday_index(current_user_text)
+    biweekly_weekday = _explicit_biweekly_weekday_index(current_user_text)
+    monthly_day = _explicit_monthly_day_create_text(current_user_text)
     if "每天" in current_user_text:
         trigger_at = _next_future_trigger_at_for_single_bare_clock(
             current_user_text,
@@ -1150,6 +1166,25 @@ def _fallback_recurring_create_decision_from_text(
         )
         rrule = "FREQ=DAILY"
         evidence = "每天"
+    elif biweekly_weekday is not None:
+        trigger_at = _next_weekday_trigger_at_for_single_bare_clock(
+            current_user_text,
+            run_context,
+            biweekly_weekday,
+        )
+        rrule = (
+            "FREQ=WEEKLY;INTERVAL=2;BYDAY="
+            f"{_WEEKDAY_RRULE_CODES[biweekly_weekday]}"
+        )
+        evidence = "每隔一周"
+    elif monthly_day is not None:
+        trigger_at = _next_monthly_day_trigger_at_for_single_bare_clock(
+            current_user_text,
+            run_context,
+            monthly_day,
+        )
+        rrule = "FREQ=MONTHLY"
+        evidence = "每月"
     elif weekday is not None:
         trigger_at = _next_weekday_trigger_at_for_single_bare_clock(
             current_user_text,
@@ -1210,6 +1245,40 @@ def _extract_create_title_after_reminder_verb(text: str) -> str:
     title = text[match.end() :]
     title = re.split(r"[。.!！？?；;，,]", title, maxsplit=1)[0]
     return _clean_target_title_text(title)
+
+
+def _extract_create_title_after_reminder_verb_verbatim(text: str) -> str:
+    match = _REMINDER_VERB_PATTERN.search(text)
+    if match is None:
+        return ""
+    title = text[match.end() :]
+    title = re.split(r"[。.!！？?；;]", title, maxsplit=1)[0]
+    return title.strip()
+
+
+def _normalize_create_title_from_user_text(input_message: str, decision: Any) -> Any:
+    if str(_decision_value(decision, "action") or "").strip() != "create":
+        return decision
+    current_title = str(_decision_value(decision, "title") or "").strip()
+    if not current_title:
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    user_title = _extract_create_title_after_reminder_verb_verbatim(current_user_text)
+    if not user_title or user_title == current_title:
+        return decision
+    if (
+        user_title.casefold().startswith("to ")
+        or _BARE_CLOCK_PATTERN.search(user_title)
+        or _VAGUE_DATE_EVIDENCE_PATTERN.search(user_title)
+    ):
+        return decision
+    compact_current = re.sub(r"\s+", "", current_title)
+    compact_user = re.sub(r"\s+", "", user_title)
+    if current_title in user_title or (
+        compact_current and compact_current in compact_user
+    ):
+        return _copy_decision_with_value(decision, "title", user_title)
+    return decision
 
 
 def _latest_reminder_title_from_history(history: str) -> str:
@@ -1446,6 +1515,12 @@ def _normalize_past_bare_create_trigger(
         return decision
     current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
     if not _BARE_CLOCK_PATTERN.search(current_user_text):
+        return decision
+    if (
+        action == "create"
+        and str(_decision_value(decision, "rrule") or "").strip().upper()
+        == "FREQ=MONTHLY"
+    ):
         return decision
     if _EXPLICIT_DATE_PATTERN.search(current_user_text):
         return decision
@@ -1721,6 +1796,50 @@ def _next_weekday_trigger_at_for_single_bare_clock(
     if candidate <= current_local:
         candidate += timedelta(days=7)
     return candidate.isoformat()
+
+
+def _next_monthly_day_trigger_at_for_single_bare_clock(
+    current_user_text: str,
+    run_context: AgentRunContext,
+    day: int,
+) -> str:
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return ""
+    parsed = _parse_bare_clock_match(current_user_text, matches[0])
+    if parsed is None or not 1 <= day <= 31:
+        return ""
+    hour, minute = parsed
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    current_local = (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+    year = current_local.year
+    month = current_local.month
+    for _ in range(24):
+        if day <= calendar.monthrange(year, month)[1]:
+            candidate = current_local.replace(
+                year=year,
+                month=month,
+                day=day,
+                hour=hour,
+                minute=minute,
+                second=0,
+                microsecond=0,
+            )
+            if candidate > current_local:
+                return candidate.isoformat()
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+    return ""
 
 
 def _should_treat_bare_clock_as_same_afternoon(
@@ -2268,6 +2387,9 @@ _WEEKDAY_RRULE_CODES = ("MO", "TU", "WE", "TH", "FR", "SA", "SU")
 _EXPLICIT_WEEKDAY_PATTERN = re.compile(
     r"(?:下周|本周|这周|这星期|下星期|星期|周)([一二三四五六日天1-7])"
 )
+_EXPLICIT_BIWEEKLY_WEEKDAY_PATTERN = re.compile(
+    r"(?:每隔\s*(?:一|1)\s*周|隔周)\s*(?:周|星期|礼拜)([一二三四五六日天1-7])"
+)
 
 
 def _should_reject_weekday_mismatch(
@@ -2308,6 +2430,19 @@ def _explicit_weekday_index(text: str) -> int | None:
     if match is None:
         return None
     return _CHINESE_WEEKDAY_INDEX.get(match.group(1))
+
+
+def _explicit_biweekly_weekday_index(text: str) -> int | None:
+    match = _EXPLICIT_BIWEEKLY_WEEKDAY_PATTERN.search(text)
+    if match is None:
+        return None
+    return _CHINESE_WEEKDAY_INDEX.get(match.group(1))
+
+
+def _explicit_monthly_day_create_text(text: str) -> int | None:
+    if "每月" not in str(text or ""):
+        return None
+    return _explicit_schedule_day_of_month_before_reminder_verb(text)
 
 
 def _decision_has_create_operation(decision: Any) -> bool:
@@ -2635,11 +2770,14 @@ def _is_high_frequency_evidence(evidence: str) -> bool:
         "每个小时",
         "每一小时",
         "每分钟",
-        "每隔",
         "每个整点",
         "整点",
     )
-    return any(token in text for token in tokens)
+    interval_high_frequency = re.search(
+        r"每隔\s*(?:\d+|[零〇一二两三四五六七八九十半]+)?\s*(?:分钟|分|小时|个小时|整点)",
+        text,
+    )
+    return any(token in text for token in tokens) or bool(interval_high_frequency)
 
 
 def _input_has_high_frequency_without_deadline(text: str) -> bool:
