@@ -1144,6 +1144,13 @@ def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduli
     )
 
 
+def test_scheduling_intent_inference_treats_delete_friend_wording_as_remove_friendship():
+    assert (
+        agent_runtime._infer_scheduling_intent_from_message("把 Bob 从我的好友里删了。")
+        == "remove_friendship"
+    )
+
+
 def test_product_notification_context_turns_short_confirmation_into_friend_request_accept():
     agent_input = AgentInput(
         input_type="user.turn",

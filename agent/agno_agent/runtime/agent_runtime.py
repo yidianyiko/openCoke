@@ -224,22 +224,25 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         ) or "list" in text:
             return "list_friend_requests"
 
-    if _contains_any(input_message, ("好友列表", "我的好友", "都有哪些好友")) or (
-        "list friends" in text
-    ):
-        return "list_friends"
-
     if _contains_any(input_message, ("屏蔽", "拉黑")) or "block" in text:
         if _contains_any(input_message, ("解除", "取消")) or "unblock" in text:
             return "unblock_account"
         return "block_account"
 
-    if _contains_any(input_message, ("移除好友", "删除好友", "解除好友")) or (
+    if _contains_any(input_message, ("移除好友", "删除好友", "解除好友", "删好友")) or (
+        "好友" in input_message
+        and _contains_any(input_message, ("删了", "删掉", "删除"))
+    ) or (
         "unfriend" in text
         or "remove friend" in text
         or "remove friendship" in text
     ):
         return "remove_friendship"
+
+    if _contains_any(input_message, ("好友列表", "我的好友", "都有哪些好友")) or (
+        "list friends" in text
+    ):
+        return "list_friends"
 
     if _contains_any(input_message, ("共享提醒", "shared reminder")):
         if _contains_any(input_message, ("通过", "接受", "同意")) or "accept" in text:
