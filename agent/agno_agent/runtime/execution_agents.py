@@ -49,8 +49,10 @@ _SCHEDULING_SYSTEM_PROMPT = (
     "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
     "For list_shared_reminders, pass friend_name when the user names a friend; "
     "if the user asks about a specific state, also pass status for that state. "
-    "The gateway resolves the friend server-side and returns the shared reminders "
-    "between the two people. "
+    "For current-account overview queries such as my courses today, omit "
+    "friend_name and pass from_date, to_date, and timezone for the requested "
+    "local day. The gateway resolves named friends server-side and can also "
+    "return shared reminders involving the current account without a friend filter. "
     "For list_friend_calendar_facts: pass friend_name with the other person's "
     "name (gateway resolves to account_id and fails closed on ambiguity), AND "
     "always pass from_date + to_date as ISO YYYY-MM-DD strings. Default to "
@@ -376,6 +378,50 @@ def _forced_tool_name_for_intent(intent: str) -> str | None:
     return None
 
 
+def _normalize_forced_scheduling_call(
+    *,
+    intent: str,
+    forced_args: dict[str, Any],
+) -> tuple[str, dict[str, Any] | None]:
+    normalized_intent = intent
+    normalized_args = dict(forced_args)
+    for key in ("operation", "intent", "action"):
+        value = normalized_args.get(key)
+        if not isinstance(value, str):
+            continue
+        candidate = value.strip()
+        if candidate in {
+            "accept_shared_reminder",
+            "reject_shared_reminder",
+            "cancel_shared_reminder",
+        }:
+            normalized_intent = candidate
+            normalized_args.pop(key, None)
+            break
+
+    tool_name = _forced_tool_name_for_intent(normalized_intent)
+    if tool_name == "create_shared_reminder":
+        if "invitee_name" not in normalized_args and "friend_name" in normalized_args:
+            normalized_args["invitee_name"] = normalized_args.pop("friend_name")
+        if "fire_at" not in normalized_args and "date_time" in normalized_args:
+            normalized_args["fire_at"] = normalized_args.pop("date_time")
+        has_counterparty = any(
+            str(normalized_args.get(key) or "").strip()
+            for key in (
+                "invitee_account_id",
+                "invitee_name",
+                "friend_account_id",
+                "friend_name",
+            )
+        )
+        has_title = bool(str(normalized_args.get("title") or "").strip())
+        has_fire_at = bool(str(normalized_args.get("fire_at") or "").strip())
+        if not (has_counterparty and has_title and has_fire_at):
+            return "create_shared_reminder", None
+
+    return normalized_intent, normalized_args
+
+
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
     return (
         f"Resolved scheduling intent: {intent}\n"
@@ -461,24 +507,32 @@ async def run_scheduling_domain(
     execution_guard = _SchedulingExecutionGuard()
     tool_names = _tool_names_for_intent(intent)
     if forced_args is not None:
-        tool_name = _forced_tool_name_for_intent(intent)
-        if tool_name is None:
-            result = _no_scheduling_tool_called_result(intent)
-            domain_results.append(result)
-            return result.to_dict()
-        port = SchedulingCapabilityPort(tool_name=tool_name)
-        capability_result = await _run_port(
-            port,
-            input_message=input_message,
-            run_context=run_context,
-            args=dict(forced_args),
+        intent, forced_args = _normalize_forced_scheduling_call(
+            intent=intent,
+            forced_args=forced_args,
         )
-        domain_result = _scheduling_capability_to_domain_result(
-            tool_name=tool_name,
-            result=capability_result,
-        )
-        domain_results.append(domain_result)
-        return domain_result.to_dict()
+        if forced_args is None:
+            tool_names = _tool_names_for_intent(intent)
+        else:
+            tool_name = _forced_tool_name_for_intent(intent)
+            if tool_name is None:
+                result = _no_scheduling_tool_called_result(intent)
+                domain_results.append(result)
+                return result.to_dict()
+            port = SchedulingCapabilityPort(tool_name=tool_name)
+            capability_result = await _run_port(
+                port,
+                input_message=input_message,
+                run_context=run_context,
+                args=dict(forced_args),
+            )
+            domain_result = _scheduling_capability_to_domain_result(
+                tool_name=tool_name,
+                result=capability_result,
+            )
+            domain_results.append(domain_result)
+            return domain_result.to_dict()
+
     ports = {
         name: SchedulingCapabilityPort(tool_name=name) for name in tool_names
     }

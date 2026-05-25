@@ -7,9 +7,10 @@ import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel
 
@@ -230,6 +231,7 @@ def _product_notification_request_args(
 def _infer_scheduling_intent_and_args_from_agent_input(
     input_message: str,
     agent_input: AgentInput,
+    run_context: AgentRunContext | None = None,
 ) -> tuple[str | None, dict[str, Any]]:
     product_notification = _product_notification_metadata(agent_input)
     decision_input = input_message
@@ -251,7 +253,15 @@ def _infer_scheduling_intent_and_args_from_agent_input(
         return product_notification_intent, _product_notification_request_args(
             product_notification
         )
-    return _infer_scheduling_intent_from_message(input_message), {}
+    inferred = _infer_scheduling_intent_from_message(input_message)
+    if inferred == "list_shared_reminders":
+        overview_args = _shared_reminder_overview_range_args(
+            input_message,
+            run_context,
+        )
+        if overview_args:
+            return inferred, overview_args
+    return inferred, {}
 
 
 def _infer_scheduling_intent_from_agent_input(
@@ -266,6 +276,11 @@ def _infer_scheduling_intent_from_agent_input(
 
 
 def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
+    latest_message = _latest_user_turn_text(input_message)
+    coach_class_intent = _infer_coach_class_scheduling_intent(latest_message)
+    if coach_class_intent:
+        return coach_class_intent
+
     text = input_message.casefold()
 
     if _contains_any(input_message, ("我的", "我自己的", "自己的")) and _contains_any(
@@ -386,6 +401,96 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     return None
 
 
+def _infer_coach_class_scheduling_intent(message: str) -> str | None:
+    text = message.strip()
+    if not text:
+        return None
+
+    if _is_course_overview_query(text):
+        return "list_shared_reminders"
+
+    has_class_wording = _contains_any(text, ("上课", "一节课", "节课", "课程", "课"))
+    has_coach_wording = "教练" in text
+    has_appointment_wording = _contains_any(text, ("预约", "约课"))
+    has_named_counterparty = _has_named_counterparty_token(text)
+    has_time = _has_time_wording(text)
+    if not has_named_counterparty:
+        return None
+
+    if (
+        _contains_any(text, ("接受", "同意", "通过"))
+        and (has_appointment_wording or has_class_wording)
+        and (has_time or has_appointment_wording)
+    ):
+        return "accept_shared_reminder"
+    if (
+        _contains_any(text, ("拒绝", "不通过"))
+        and (has_appointment_wording or has_class_wording)
+        and (has_time or has_appointment_wording)
+    ):
+        return "reject_shared_reminder"
+    if (
+        _contains_any(text, ("取消", "撤回"))
+        and (has_appointment_wording or has_class_wording)
+        and (has_time or has_appointment_wording)
+    ):
+        return "cancel_shared_reminder"
+
+    directive_match = re.search(
+        r"(?:约|预约|安排).{0,24}(?:[A-Za-z][A-Za-z0-9_-]{1,}|教练)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if directive_match and (has_class_wording or has_coach_wording) and has_time:
+        return "create_shared_reminder"
+    return None
+
+
+def _has_named_counterparty_token(text: str) -> bool:
+    return bool(re.search(r"(?<![A-Za-z])[A-Za-z][A-Za-z0-9_-]{1,}(?![A-Za-z])", text))
+
+
+def _has_time_wording(text: str) -> bool:
+    return bool(
+        re.search(
+            r"(今天|明天|后天|大后天|昨天|周[一二三四五六日天0-9]|星期[一二三四五六日天0-9]|上午|下午|晚上|凌晨|早上|\d{1,2}\s*(?::|：|点))",
+            text,
+        )
+    )
+
+
+def _is_course_overview_query(text: str) -> bool:
+    if re.search(r"我(?:今天|明天).{0,8}有几节课", text):
+        return True
+    return bool(
+        _contains_any(text, ("列一下", "列出", "看一下", "看看", "查看"))
+        and _contains_any(text, ("我的课程", "我的课", "今天的课程", "明天的课程"))
+    )
+
+
+def _shared_reminder_overview_range_args(
+    input_message: str,
+    run_context: AgentRunContext | None,
+) -> dict[str, Any]:
+    if run_context is None:
+        return {}
+    text = _latest_user_turn_text(input_message)
+    if not _is_course_overview_query(text):
+        return {}
+    timezone = str(getattr(run_context.user, "timezone", "") or "UTC").strip() or "UTC"
+    try:
+        local_today = run_context.current_time.astimezone(ZoneInfo(timezone)).date()
+    except ZoneInfoNotFoundError:
+        timezone = "UTC"
+        local_today = run_context.current_time.astimezone(ZoneInfo("UTC")).date()
+    target_date = local_today + (timedelta(days=1) if "明天" in text else timedelta())
+    return {
+        "from_date": target_date.isoformat(),
+        "to_date": target_date.isoformat(),
+        "timezone": timezone,
+    }
+
+
 def _explicit_friend_request_write_intent(input_message: str) -> str | None:
     inferred = _infer_scheduling_intent_from_message(input_message)
     if inferred in {
@@ -439,7 +544,7 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                     )
                 return normalized_key
 
-        for key in ("intent", "action", "tool", "tool_name", "name"):
+        for key in ("intent", "action", "operation", "tool", "tool_name", "name"):
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
                 normalized = _normalize_scheduling_intent(value, input_message)
@@ -486,6 +591,8 @@ def _normalize_scheduling_intent_args(
             normalized["fire_at"] = normalized.pop("scheduled_time")
         if "fire_at" not in normalized and "start_datetime" in normalized:
             normalized["fire_at"] = normalized.pop("start_datetime")
+        if "fire_at" not in normalized and "date_time" in normalized:
+            normalized["fire_at"] = normalized.pop("date_time")
         if "duration_minutes" not in normalized and "duration" in normalized:
             normalized["duration_minutes"] = normalized.pop("duration")
         activity = normalized.pop("activity", None)
@@ -908,6 +1015,8 @@ def _resolve_visible_text(
 
 def _resolve_domain_visible_text(
     domain_results: Sequence[DomainExecutionResult],
+    *,
+    include_failed_generic: bool = False,
 ) -> str:
     for result in reversed(domain_results):
         if result.outcome != "executed":
@@ -920,7 +1029,39 @@ def _resolve_domain_visible_text(
                 value = facts.get(key)
                 if isinstance(value, str) and value.strip():
                     return value.strip()
+    for result in reversed(domain_results):
+        if result.domain != "scheduling" or result.outcome != "failed":
+            continue
+        for operation in result.operations:
+            facts = operation.facts
+            for key in ("visible_summary", "summary", "message"):
+                value = facts.get(key)
+                if _is_safe_scheduling_failure_summary(value):
+                    return str(value).strip()
+        if include_failed_generic:
+            return "日程操作暂时无法完成。"
     return ""
+
+
+def _is_safe_scheduling_failure_summary(value: Any) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    if value.strip() == "日程操作暂时无法完成。":
+        return False
+    lowered = value.casefold()
+    unsafe_markers = (
+        "traceback",
+        "stack trace",
+        "exception",
+        "runtimeerror",
+        "valueerror",
+        "typeerror",
+        "mongodb",
+        "postgres",
+        "prisma",
+        "sql",
+    )
+    return not any(marker in lowered for marker in unsafe_markers)
 
 
 def _should_prefer_domain_visible_text(
@@ -1476,6 +1617,7 @@ async def run_agent_runtime(
         ) = _infer_scheduling_intent_and_args_from_agent_input(
             input_message,
             agent_input,
+            run_context=run_context,
         )
         if preselected_scheduling_intent:
             run_scheduling_kwargs: dict[str, Any] = {
@@ -1563,7 +1705,10 @@ async def run_agent_runtime(
         if not final_text:
             fallback_text = _resolve_visible_text("", captured_capability_results)
             if not fallback_text:
-                fallback_text = _resolve_domain_visible_text(captured_domain_results)
+                fallback_text = _resolve_domain_visible_text(
+                    captured_domain_results,
+                    include_failed_generic=True,
+                )
             visible_text_segments = (fallback_text,) if fallback_text else ()
         identifier_leak_error = _check_visible_identifier_leak(
             _visible_text_for_guardrails(visible_text_segments)

@@ -268,8 +268,10 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
         "The gateway resolves invitee_name to one active friend and fails closed otherwise. "
         "For list_shared_reminders, pass friend_name when the user names a friend; "
         "if the user asks about a specific state, also pass status for that state. "
-        "The gateway resolves the friend server-side and returns the shared reminders "
-        "between the two people. "
+        "For current-account overview queries such as my courses today, omit "
+        "friend_name and pass from_date, to_date, and timezone for the requested "
+        "local day. The gateway resolves named friends server-side and can also "
+        "return shared reminders involving the current account without a friend filter. "
         "For list_friend_calendar_facts: pass friend_name with the other person's "
         "name (gateway resolves to account_id and fails closed on ambiguity), AND "
         "always pass from_date + to_date as ISO YYYY-MM-DD strings. Default to "
@@ -792,6 +794,138 @@ async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_
     assert captured_args == {"accept_friend_request": {"request_id": "fr_1"}}
     assert result["operations"][0]["action"] == "accept_friend_request"
     assert result["operations"][0]["entity_id"] == "fr_1"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_forced_create_normalizes_date_time_alias():
+    captured_args: dict[str, dict] = {}
+
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("complete forced scheduling args should not spawn the worker agent")
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+            )
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            await run_scheduling_domain(
+                input_message="约 Alex 明天下午 3 点上课",
+                intent="create_shared_reminder",
+                run_context=_run_context(),
+                domain_results=[],
+                forced_args={
+                    "invitee_name": "Alex",
+                    "title": "上课",
+                    "date_time": "2026-05-27T15:00:00+08:00",
+                    "timezone": "Asia/Shanghai",
+                },
+            )
+
+    assert captured_args == {
+        "create_shared_reminder": {
+            "invitee_name": "Alex",
+            "title": "上课",
+            "fire_at": "2026-05-27T15:00:00+08:00",
+            "timezone": "Asia/Shanghai",
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_forced_operation_alias_selects_shared_reminder_action():
+    captured_args: dict[str, dict] = {}
+
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("forced shared-reminder action should not spawn the worker agent")
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            captured_args[self.tool_name] = args
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "srr_1", "status": "rejected"},
+            )
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="拒绝 Kai 的预约。",
+                intent="scheduling",
+                run_context=_run_context(),
+                domain_results=[],
+                forced_args={"operation": "reject_shared_reminder", "friend_name": "Kai"},
+            )
+
+    assert captured_args == {"reject_shared_reminder": {"friend_name": "Kai"}}
+    assert result["operations"][0]["action"] == "reject_shared_reminder"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_ignores_incomplete_forced_create_args():
+    captured_tools: set[str] = set()
+    captured_input: dict[str, str] = {}
+
+    class _SharedReminderAgent:
+        def __init__(self, **kwargs):
+            captured_tools.update(item.name for item in kwargs["tools"])
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            captured_input["input"] = kwargs["input"]
+            await self.tools["create_shared_reminder"](
+                invitee_name="Alex",
+                title="上课",
+                fire_at="2026-05-27T07:00:00+00:00",
+                timezone="Asia/Shanghai",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "srr_1", "status": "pending_invitee_confirmation"},
+            )
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _SharedReminderAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            await run_scheduling_domain(
+                input_message="约 Alex 明天下午 3 点上课",
+                intent="create_shared_reminder",
+                run_context=_run_context(),
+                domain_results=[],
+                forced_args={"date_time": "2026-05-27T15:00:00+08:00"},
+            )
+
+    assert captured_tools == {"create_shared_reminder"}
+    assert captured_input["input"].startswith("Resolved scheduling intent: create_shared_reminder")
 
 
 @pytest.mark.asyncio

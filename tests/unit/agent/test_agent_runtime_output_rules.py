@@ -11,6 +11,12 @@ from agent.agno_agent.runtime.context import (
     TrustedRelationContext,
     TrustedUserContext,
 )
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 from agent.agno_agent.runtime.result import CapabilityResult
 
@@ -196,6 +202,85 @@ async def test_rule3_no_tool_results_uses_final_text(monkeypatch):
 
 def _segments_payload(*segments: object) -> str:
     return json.dumps({"MultiModalResponses": list(segments)}, ensure_ascii=False)
+
+
+@pytest.mark.asyncio
+async def test_preselected_scheduling_failure_summary_becomes_visible_text(monkeypatch):
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, intent, run_context, forced_args
+        result = DomainExecutionResult(
+            domain="scheduling",
+            outcome="failed",
+            operations=(
+                DomainOperationResult(
+                    action="create_shared_reminder",
+                    ok=False,
+                    effect="none",
+                    entity_type="shared_reminder_request",
+                    entity_id=None,
+                    facts={"summary": "这个时间已经过去了，请给我一个未来的上课时间。"},
+                    error=DomainError(
+                        code="invalid_body",
+                        message="invalid_body",
+                        retryable=True,
+                        detail={},
+                    ),
+                ),
+            ),
+            missing_fields=(),
+            safety_boundary=None,
+            reply_contract=ReplyContract(
+                intent="report_failure",
+                required_facts=(),
+                required_questions=(),
+                prohibited_claims=("appointment_confirmed",),
+                allow_rephrase=True,
+            ),
+            error=DomainError(
+                code="invalid_body",
+                message="invalid_body",
+                retryable=True,
+                detail={},
+            ),
+        )
+        domain_results.append(result)
+        return result.to_dict()
+
+    class FakeAgent:
+        async def arun(self, **_kwargs):
+            return type("FakeOutput", (), {"content": "", "messages": []})()
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        lambda **_kwargs: FakeAgent(),
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=AgentInput(
+            input_type="user.turn",
+            conversation_id="conv1",
+            text="约教练 Alex 昨天 10 点。",
+            payload=UserTurnPayload(current_message_ids=["msg1"]),
+            occurred_at=datetime.now(UTC),
+        ),
+        run_context=_ctx(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "这个时间已经过去了，请给我一个未来的上课时间。"
+    ]
 
 
 @pytest.mark.asyncio

@@ -1247,6 +1247,56 @@ def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduli
     )
 
 
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("约教练 Alex 明天 10:00 上一节课。", "create_shared_reminder"),
+        ("约 Alex 教练 明天下午 15:00 上课。", "create_shared_reminder"),
+        ("接受 Mei 明天 10 点的预约。", "accept_shared_reminder"),
+        ("拒绝 Kai 的预约。", "reject_shared_reminder"),
+        ("取消和 Alex 明天 10 点的课程。", "cancel_shared_reminder"),
+        ("我今天有几节课？", "list_shared_reminders"),
+        ("列一下我的课程。", "list_shared_reminders"),
+    ],
+)
+def test_scheduling_intent_inference_routes_coach_class_shared_reminder_intents(
+    message,
+    expected,
+):
+    assert agent_runtime._infer_scheduling_intent_from_message(message) == expected
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "我下周要去打羽毛球。",
+        "我明天想练瑜伽课。",
+        "下周和 Alex 聊聊课程安排。",
+    ],
+)
+def test_scheduling_intent_inference_does_not_route_casual_class_mentions(message):
+    assert agent_runtime._infer_scheduling_intent_from_message(message) is None
+
+
+def test_scheduling_overview_preselection_adds_local_day_range():
+    agent_input = AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="我今天有几节课？",
+        payload=UserTurnPayload(current_message_ids=["msg-1"]),
+        occurred_at=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+    )
+
+    assert agent_runtime._infer_scheduling_intent_and_args_from_agent_input(
+        "我今天有几节课？",
+        agent_input,
+        run_context=_run_context(),
+    ) == (
+        "list_shared_reminders",
+        {"from_date": "2026-05-09", "to_date": "2026-05-09", "timezone": "UTC"},
+    )
+
+
 def test_scheduling_intent_inference_treats_delete_friend_wording_as_remove_friendship():
     assert (
         agent_runtime._infer_scheduling_intent_from_message("把 Bob 从我的好友里删了。")
