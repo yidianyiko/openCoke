@@ -19,6 +19,7 @@ from agent.agno_agent.runtime.context import AgentRunContext
 from agent.agno_agent.runtime.domain_results import (
     DomainError,
     DomainExecutionResult,
+    DomainOperationResult,
     ReplyContract,
 )
 from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
@@ -226,6 +227,14 @@ class ReminderIntentPort:
             decision,
             run_context,
         )
+        time_evidence_result = _normalize_time_evidence_decision(
+            input_message,
+            decision,
+            run_context,
+        )
+        if isinstance(time_evidence_result, DomainExecutionResult):
+            return time_evidence_result
+        decision = time_evidence_result
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
@@ -429,6 +438,255 @@ _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
 )
 _PM_DAY_PERIOD_PATTERN = re.compile(r"(下午|晚上|今晚|傍晚|每晚)")
 _AM_DAY_PERIOD_PATTERN = re.compile(r"(早上|早晨|上午|凌晨|清晨|今早|明早)")
+_VAGUE_DATE_EVIDENCE_PATTERN = re.compile(
+    r"(?:今天|今日|明天|明早|后天|大后天|"
+    r"(?:下下|下|本|这)?(?:周|星期|礼拜)[一二三四五六日天1-7]|"
+    r"\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|"
+    r"\d{1,2}\s*月\s*\d{1,2}\s*[日号]?|"
+    r"\d{1,2}[/-]\d{1,2})"
+)
+_EXPLICIT_PAST_DATE_WORD_PATTERN = re.compile(r"(?:昨天|昨日|前天|大前天)")
+_CLOCK_WITH_SECONDS_PATTERN = re.compile(
+    r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})\s*[:：.]\s*(?P<second>\d{1,2})"
+    r"|(?P<hour_only>\d{1,2})\s*(?:点|时)\s*"
+    r"(?P<hour_only_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分\s*"
+    r"(?P<hour_only_second>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*秒"
+    r"|(?P<chinese_hour>[零〇一二两三四五六七八九十]{1,3})\s*(?:点|时)\s*"
+    r"(?P<chinese_minute>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*分\s*"
+    r"(?P<chinese_second>\d{1,2}|[零〇一二两三四五六七八九十]{1,3})\s*秒"
+)
+
+
+def _normalize_time_evidence_decision(
+    input_message: str,
+    decision: Any,
+    run_context: AgentRunContext,
+) -> Any | DomainExecutionResult:
+    if not _decision_has_write_action(decision):
+        return decision
+    current_user_text = _latest_user_turn_text(input_message)
+    if _single_relative_delay(current_user_text) is None:
+        if _explicit_past_time_evidence(current_user_text, run_context):
+            return _invalid_past_schedule_result()
+        if _vague_date_without_clock_evidence(current_user_text):
+            return _date_only_missing_time_clarification_result()
+    return _preserve_explicit_seconds_from_text(
+        current_user_text,
+        decision,
+    )
+
+
+def _decision_has_write_action(decision: Any) -> bool:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action in {"create", "update"}:
+        return True
+    if action != "batch":
+        return False
+    return any(
+        str(_operation_value(operation, "action") or "").strip()
+        in {"create", "update"}
+        for operation in (_decision_value(decision, "operations") or [])
+    )
+
+
+def _explicit_past_time_evidence(
+    current_user_text: str,
+    run_context: AgentRunContext,
+) -> bool:
+    if _EXPLICIT_PAST_DATE_WORD_PATTERN.search(current_user_text):
+        return _has_exact_clock_evidence(current_user_text)
+    clock = _extract_single_clock_evidence(current_user_text)
+    if clock is None:
+        return False
+    hour, minute, second = clock
+    current_local = _current_local_datetime(run_context)
+    if re.search(r"(?:今天|今日|今早|今晚)", current_user_text):
+        candidate = current_local.replace(
+            hour=hour,
+            minute=minute,
+            second=second,
+            microsecond=0,
+        )
+        runtime_local = _runtime_local_datetime(run_context)
+        runtime_candidate = runtime_local.replace(
+            hour=hour,
+            minute=minute,
+            second=second,
+            microsecond=0,
+        )
+        return candidate <= current_local or runtime_candidate <= runtime_local
+    explicit_date = _explicit_local_date_from_text(current_user_text, current_local)
+    if explicit_date is None:
+        return False
+    candidate = datetime.combine(
+        explicit_date,
+        current_local.timetz().replace(
+            hour=hour,
+            minute=minute,
+            second=second,
+            microsecond=0,
+        ),
+    )
+    return candidate <= current_local
+
+
+def _vague_date_without_clock_evidence(current_user_text: str) -> bool:
+    if not _VAGUE_DATE_EVIDENCE_PATTERN.search(current_user_text):
+        return False
+    if _has_exact_clock_evidence(current_user_text):
+        return False
+    return bool(_REMINDER_VERB_PATTERN.search(current_user_text))
+
+
+def _has_exact_clock_evidence(current_user_text: str) -> bool:
+    return bool(
+        _CLOCK_WITH_SECONDS_PATTERN.search(current_user_text)
+        or _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.search(current_user_text)
+    )
+
+
+def _extract_single_clock_evidence(current_user_text: str) -> tuple[int, int, int] | None:
+    seconds_match = _single_seconds_clock_match(current_user_text)
+    if seconds_match is not None:
+        return seconds_match
+    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return None
+    parsed = _parse_bare_clock_match(current_user_text, matches[0])
+    if parsed is None:
+        return None
+    hour, minute = parsed
+    return hour, minute, 0
+
+
+def _single_seconds_clock_match(current_user_text: str) -> tuple[int, int, int] | None:
+    matches = list(_CLOCK_WITH_SECONDS_PATTERN.finditer(current_user_text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    if match.group("hour") is not None:
+        hour = int(match.group("hour"))
+        minute = int(match.group("minute"))
+        second = int(match.group("second"))
+    elif match.group("hour_only") is not None:
+        hour = int(match.group("hour_only"))
+        minute = _parse_clock_minute(match.group("hour_only_minute") or "")
+        second = _parse_clock_minute(match.group("hour_only_second") or "")
+    else:
+        hour = _parse_chinese_hour(match.group("chinese_hour") or "")
+        minute = _parse_chinese_minute(match.group("chinese_minute") or "")
+        second = _parse_chinese_minute(match.group("chinese_second") or "")
+    if hour is None or minute is None or second is None:
+        return None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+        return None
+    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
+    if 1 <= hour < 12 and _PM_DAY_PERIOD_PATTERN.search(prefix):
+        hour += 12
+    return hour, minute, second
+
+
+def _current_local_datetime(run_context: AgentRunContext) -> datetime:
+    try:
+        timezone = ZoneInfo(run_context.user.timezone or "UTC")
+    except ZoneInfoNotFoundError:
+        timezone = ZoneInfo("UTC")
+    current_time = run_context.current_time
+    return (
+        current_time.replace(tzinfo=timezone)
+        if current_time.tzinfo is None
+        else current_time.astimezone(timezone)
+    )
+
+
+def _runtime_local_datetime(run_context: AgentRunContext) -> datetime:
+    current_time = run_context.current_time
+    return current_time.astimezone() if current_time.tzinfo is not None else current_time
+
+
+def _explicit_local_date_from_text(
+    current_user_text: str,
+    current_local: datetime,
+) -> date | None:
+    match = re.search(
+        r"(?:(?P<year>\d{4})\s*年\s*)?(?P<month>\d{1,2})\s*月\s*(?P<day>\d{1,2})\s*[日号]?",
+        current_user_text,
+    )
+    if match is None:
+        match = re.search(
+            r"(?P<month>\d{1,2})[/-](?P<day>\d{1,2})",
+            current_user_text,
+        )
+    if match is None:
+        return None
+    explicit_year = match.groupdict().get("year")
+    if explicit_year:
+        year = int(explicit_year)
+    elif re.search(r"明年|next\s+year", current_user_text, re.IGNORECASE):
+        year = current_local.year + 1
+    else:
+        year = current_local.year
+    month = int(match.group("month"))
+    day = int(match.group("day"))
+    try:
+        return date(year, month, day)
+    except ValueError:
+        return None
+
+
+def _preserve_explicit_seconds_from_text(current_user_text: str, decision: Any) -> Any:
+    clock = _single_seconds_clock_match(current_user_text)
+    if clock is None:
+        return decision
+    _, _, second = clock
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        return _copy_trigger_second(decision, "trigger_at", second)
+    if action == "update":
+        return _copy_trigger_second(decision, "new_trigger_at", second)
+    if action != "batch":
+        return decision
+    operations = list(_decision_value(decision, "operations") or [])
+    write_operations = [
+        operation
+        for operation in operations
+        if str(_operation_value(operation, "action") or "").strip()
+        in {"create", "update"}
+    ]
+    if len(write_operations) != 1:
+        return decision
+    updated_operations = []
+    changed = False
+    for operation in operations:
+        operation_action = str(_operation_value(operation, "action") or "").strip()
+        field = "new_trigger_at" if operation_action == "update" else "trigger_at"
+        if operation_action not in {"create", "update"}:
+            updated_operations.append(operation)
+            continue
+        updated = _copy_trigger_second(operation, field, second)
+        changed = changed or updated is not operation
+        updated_operations.append(updated)
+    if changed:
+        return _copy_decision_with_operations(decision, updated_operations)
+    return decision
+
+
+def _copy_trigger_second(target: Any, field: str, second: int) -> Any:
+    trigger_at = str(_operation_value(target, field) or "").strip()
+    if not trigger_at:
+        trigger_at = str(_decision_value(target, field) or "").strip()
+    if not trigger_at:
+        return target
+    try:
+        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
+    except ValueError:
+        return target
+    normalized = parsed.replace(second=second, microsecond=0).isoformat()
+    if normalized == trigger_at:
+        return target
+    if isinstance(target, Mapping) or not hasattr(target, field):
+        return _copy_operation_with_value(target, field, normalized)
+    return _copy_decision_with_value(target, field, normalized)
 
 
 def _normalize_relative_delay_create_trigger(
@@ -2438,6 +2696,41 @@ def _invalid_decision_clarification_result() -> DomainExecutionResult:
             retryable=True,
             detail={},
         ),
+    )
+
+
+def _invalid_past_schedule_result() -> DomainExecutionResult:
+    message = "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    error = DomainError(
+        code="InvalidSchedule",
+        message=message,
+        retryable=False,
+        detail={"reason": "past_one_shot"},
+    )
+    return DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={"visible_summary": message},
+                error=error,
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary="explicit_past",
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
+        error=error,
     )
 
 

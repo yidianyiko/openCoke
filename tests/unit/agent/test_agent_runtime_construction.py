@@ -18,6 +18,7 @@ from agent.agno_agent.runtime.inputs import (
     UserTurnPayload,
 )
 from agent.agno_agent.runtime.domain_results import (
+    DomainError,
     DomainExecutionResult,
     DomainOperationResult,
     ReplyContract,
@@ -435,6 +436,99 @@ async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_sch
         "已通过好友请求。"
     ]
     assert result.domain_results == (preloaded_domain_result,)
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
+    monkeypatch,
+):
+    past_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                facts={
+                    "visible_summary": "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+                },
+            ),
+        ),
+        safety_boundary="explicit_past",
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("reminder_created",),
+        ),
+        error=DomainError(
+            code="InvalidSchedule",
+            message="这个提醒时间已经过去了，请告诉我一个未来的时间。",
+            retryable=False,
+            detail={"reason": "past_one_shot"},
+        ),
+    )
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="我没接住你刚才的意思。你可以换个说法再说一次吗？",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        kwargs["domain_results"].append(past_result)
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    ]
+    assert result.domain_results == (past_result,)
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_model(
+    monkeypatch,
+):
+    def fail_create_interaction_agent(**kwargs):
+        raise AssertionError("explicit past reminders should be handled deterministically")
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="提醒我昨天 10 点开会。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "这个提醒时间已经过去了，请告诉我一个未来的时间。"
+    ]
+    assert result.domain_results[0].safety_boundary == "explicit_past"
+    assert result.output_disposition.status == "ok"
 
 
 @pytest.mark.asyncio

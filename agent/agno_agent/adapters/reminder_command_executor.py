@@ -372,10 +372,19 @@ def _visible_reminder_summary(
         weekday = _WEEKDAY_LABELS[datetime.fromisoformat(local_date).weekday()]
     except (ValueError, IndexError):
         weekday = ""
-    time_label = local_time[:5]
+    time_label = _local_time_label(local_time)
     if weekday:
         return f"已创建提醒：{title}（{local_date} {weekday} {time_label}）"
     return f"已创建提醒：{title}（{local_date} {time_label}）"
+
+
+def _local_time_label(local_time: str) -> str:
+    parts = str(local_time or "").split(":")
+    if len(parts) >= 3 and parts[2][:2] != "00":
+        return ":".join((parts[0].zfill(2), parts[1].zfill(2), parts[2][:2].zfill(2)))
+    if len(parts) >= 2:
+        return ":".join((parts[0].zfill(2), parts[1].zfill(2)))
+    return str(local_time or "")
 
 
 def _effect_for_reminder_action(action: str) -> str:
@@ -408,6 +417,7 @@ def _reply_contract_for_operations(
                 ReplyFactRequirement(
                     path=f"operations[{write_index}].facts.local_time"
                 ),
+                ReplyFactRequirement(path=f"operations[{write_index}].facts.rrule"),
             ),
             required_questions=(),
             prohibited_claims=("not_created", "needs_more_info"),

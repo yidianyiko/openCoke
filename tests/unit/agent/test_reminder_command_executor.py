@@ -209,6 +209,7 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
         "operations[0].facts.title",
         "operations[0].facts.local_date",
         "operations[0].facts.local_time",
+        "operations[0].facts.rrule",
     ]
     assert calls == [
         {
@@ -240,6 +241,39 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
             "delivery_route_key": "route-1",
         }
     ]
+
+
+def test_create_visible_summary_displays_nonzero_seconds():
+    base_result = _tool_reminder_result()
+
+    def tool_entrypoint(**kwargs):
+        return {
+            **base_result,
+            "reminder": {
+                **base_result["reminder"],
+                "schedule": {
+                    **base_result["reminder"]["schedule"],
+                    "local_time": "09:30:45",
+                },
+            },
+            "summary": "已创建提醒：hydrate（2026-05-01 09:30:45）",
+        }
+
+    decision = SimpleNamespace(
+        action="create",
+        title="hydrate",
+        trigger_at="2026-05-01T09:30:45+09:00",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.operations[0].facts["local_time"] == "09:30:45"
+    assert result.operations[0].facts["visible_summary"] == (
+        "已创建提醒：hydrate（2026-05-01 周五 09:30:45）"
+    )
 
 
 def test_deadline_at_is_preserved_as_rrule_until_for_bounded_recurring_create():
@@ -558,6 +592,7 @@ def test_batch_reply_contract_points_to_first_successful_write_after_failure():
         "operations[1].facts.title",
         "operations[1].facts.local_date",
         "operations[1].facts.local_time",
+        "operations[1].facts.rrule",
     ]
 
 

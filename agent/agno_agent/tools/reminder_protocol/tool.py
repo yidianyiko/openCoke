@@ -267,7 +267,7 @@ def _batch_create_dedupe_key(
     except (ValueError, TypeError, KeyError):
         return None
 
-    local_time = local_dt.time().replace(second=0, microsecond=0).isoformat()
+    local_time = local_dt.time().replace(microsecond=0).isoformat()
     return (title, local_time)
 
 
@@ -741,7 +741,7 @@ def _format_list_summary(reminders: list[Reminder]) -> str:
 
 def _format_reminder_with_schedule(reminder: Reminder) -> str:
     schedule = reminder.schedule
-    time_text = schedule.local_time.strftime("%H:%M")
+    time_text = _format_local_time(schedule.local_time)
     until_text = _format_rrule_until(schedule.rrule, schedule.timezone)
     weekly_text = _format_weekly_rrule(schedule.rrule)
     if schedule.rrule == "FREQ=DAILY" or (
@@ -761,6 +761,13 @@ def _format_reminder_with_schedule(reminder: Reminder) -> str:
     else:
         schedule_text = f"{schedule.local_date.isoformat()} {time_text}"
     return f"{reminder.title}（{schedule_text}）"
+
+
+def _format_local_time(value: Any) -> str:
+    second = getattr(value, "second", 0)
+    if second:
+        return value.strftime("%H:%M:%S")
+    return value.strftime("%H:%M")
 
 
 def _format_weekly_rrule(rrule: str | None) -> str:

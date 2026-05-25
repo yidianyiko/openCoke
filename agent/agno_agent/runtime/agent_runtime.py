@@ -1062,6 +1062,22 @@ def _resolve_domain_visible_text(
                     return str(value).strip()
         if include_failed_generic:
             return "日程操作暂时无法完成。"
+    for result in reversed(domain_results):
+        if (
+            result.domain != "reminder"
+            or result.outcome != "failed"
+            or result.safety_boundary != "explicit_past"
+        ):
+            continue
+        for operation in result.operations:
+            facts = operation.facts
+            for key in ("visible_summary", "summary", "message"):
+                value = facts.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+        error = result.error
+        if error is not None and error.message.strip():
+            return error.message.strip()
     return ""
 
 
@@ -1092,6 +1108,13 @@ def _should_prefer_domain_visible_text(
     input_message: str,
     domain_results: Sequence[DomainExecutionResult],
 ) -> bool:
+    if any(
+        result.domain == "reminder"
+        and result.outcome == "failed"
+        and result.safety_boundary == "explicit_past"
+        for result in domain_results
+    ):
+        return True
     payload = getattr(agent_input, "payload", None)
     current_message_ids = tuple(getattr(payload, "current_message_ids", ()) or ())
     if len(current_message_ids) < 2:
@@ -1290,6 +1313,88 @@ def _exception_result(
         trace=trace,
         output_disposition=output_disposition,
         error_disposition=error_disposition,
+    )
+
+
+def _explicit_past_reminder_precheck(
+    input_message: str,
+    run_context: AgentRunContext,
+) -> DomainExecutionResult | None:
+    from agent.agno_agent.capabilities import reminder_intent
+
+    current_user_text = reminder_intent._latest_user_turn_text(input_message)
+    if not reminder_intent._REMINDER_VERB_PATTERN.search(current_user_text):
+        return None
+    if reminder_intent._single_relative_delay(current_user_text) is not None:
+        return None
+    if not reminder_intent._explicit_past_time_evidence(
+        current_user_text,
+        run_context,
+    ):
+        return None
+    return reminder_intent._invalid_past_schedule_result()
+
+
+def _domain_visible_text_result(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    started_at: datetime,
+    domain_result: DomainExecutionResult,
+) -> AgentRunResult:
+    domain_results = (domain_result,)
+    visible_text = _resolve_domain_visible_text(domain_results)
+    visible_messages = (
+        (VisibleMessage(message_type="text", content=visible_text),)
+        if visible_text
+        else ()
+    )
+    output_disposition = OutputDisposition(status="ok" if visible_text else "empty")
+    trace = _build_runtime_trace(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+        started_at=started_at,
+        status="ok" if visible_text else "empty_output",
+        failure_stage=None,
+        timeout_seconds=None,
+        preselected_scheduling_intent=None,
+        forced_args_present=False,
+        tool_names=_available_tool_names(agent_input, None),
+        selected_tool_names=_selected_tool_names(domain_results, ()),
+        capability_results=(),
+        domain_results=domain_results,
+        output=TraceOutput(
+            disposition_status=output_disposition.status,
+            output_source="domain_summary" if visible_text else "empty",
+            visible_message_count=len(visible_messages),
+            output_reference_count=0,
+            post_analyze_requested=bool(visible_text),
+            fallback_reason=None,
+        ),
+        output_disposition=output_disposition,
+        error_disposition=None,
+        content_evidence={
+            "input_text": input_message,
+            "visible_output_text": [message.content for message in visible_messages],
+        }
+        if visible_messages
+        else None,
+    )
+    return AgentRunResult(
+        visible_messages=visible_messages,
+        post_analyze_input={
+            "input_message": input_message,
+            "message_source": _message_source(agent_input, run_context),
+        }
+        if visible_messages
+        else None,
+        domain_results=domain_results,
+        capability_results=(),
+        metrics={"capability_result_count": 0, "domain_result_count": 1},
+        trace=trace,
+        output_disposition=output_disposition,
     )
 
 
@@ -1632,6 +1737,18 @@ async def run_agent_runtime(
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
 
         input_message = _input_message(agent_input)
+        explicit_past_result = _explicit_past_reminder_precheck(
+            input_message,
+            run_context,
+        )
+        if explicit_past_result is not None:
+            return _domain_visible_text_result(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+                started_at=started_at,
+                domain_result=explicit_past_result,
+            )
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         (
             preselected_scheduling_intent,
