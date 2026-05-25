@@ -143,6 +143,23 @@ def test_list_friend_requests_empty_summary():
     assert result.content["visible_summary"] == "目前没有待处理的好友请求。"
 
 
+def test_list_friends_empty_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {"ok": True, "data": []}
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friends",
+        handler=handler,
+    )
+    result = port.run("看看我现在的好友列表。", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == "你现在还没有好友。"
+
+
 def test_create_shared_reminder_forwards_required_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
