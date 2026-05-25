@@ -298,6 +298,34 @@ def test_dict_decision_input_is_supported_and_empty_operations_becomes_none():
     assert calls[0]["operations"] is None
 
 
+def test_structured_update_time_decision_does_not_send_empty_title_fields():
+    calls = []
+
+    def tool_entrypoint(**kwargs):
+        calls.append(kwargs)
+        return _tool_reminder_result(action="update", title="跑步 30 分钟")
+
+    decision = ReminderDetectDecision(
+        intent_type="crud",
+        action="update",
+        keyword="跑步",
+        new_trigger_at="2026-05-26T07:30:00+08:00",
+        schedule_basis="one_shot",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.outcome == "executed"
+    assert calls[0]["action"] == "update"
+    assert calls[0]["title"] is None
+    assert calls[0]["new_title"] is None
+    assert calls[0]["keyword"] == "跑步"
+    assert calls[0]["new_trigger_at"] == "2026-05-26T07:30:00+08:00"
+
+
 def test_list_result_preserves_summary_and_reminder_facts():
     def tool_entrypoint(**kwargs):
         assert kwargs["action"] == "list"
@@ -522,11 +550,11 @@ def test_batch_operations_from_reminder_detect_decision_are_dicts():
             "action": "create",
             "title": "hydrate",
             "trigger_at": "2026-05-01T09:00:00+09:00",
-            "reminder_id": "",
-            "keyword": "",
-            "new_title": "",
-            "new_trigger_at": "",
-            "rrule": "",
+            "reminder_id": None,
+            "keyword": None,
+            "new_title": None,
+            "new_trigger_at": None,
+            "rrule": None,
         }
     ]
 

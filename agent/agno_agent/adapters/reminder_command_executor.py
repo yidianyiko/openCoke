@@ -71,15 +71,36 @@ def _normalize_operation(operation: Any) -> Any:
     return public_values or operation
 
 
+def _empty_string_to_none(value: Any) -> Any:
+    if isinstance(value, str) and not value.strip():
+        return None
+    return value
+
+
+def _normalize_tool_operation(operation: Any) -> Any:
+    operation = _normalize_operation(operation)
+    if not isinstance(operation, Mapping):
+        return operation
+    return {
+        field: (
+            str(operation.get("action") or "")
+            if field == "action"
+            else _empty_string_to_none(operation.get(field))
+        )
+        for field in _TOOL_DECISION_FIELDS
+        if field != "operations"
+    }
+
+
 def _normalize_operations(operations: Any) -> list[Any] | None:
     if not operations:
         return None
     if isinstance(operations, (str, bytes)):
         return [operations]
     try:
-        return [_normalize_operation(operation) for operation in operations]
+        return [_normalize_tool_operation(operation) for operation in operations]
     except TypeError:
-        return [_normalize_operation(operations)]
+        return [_normalize_tool_operation(operations)]
 
 
 def _rrule_with_deadline(rrule: Any, deadline_at: Any) -> Any:
@@ -153,6 +174,14 @@ class ReminderCommandExecutor:
                 kwargs.get("deadline_at"),
             )
             kwargs = {field: kwargs.get(field) for field in _TOOL_DECISION_FIELDS}
+            kwargs = {
+                field: (
+                    kwargs.get(field)
+                    if field in {"action", "operations"}
+                    else _empty_string_to_none(kwargs.get(field))
+                )
+                for field in _TOOL_DECISION_FIELDS
+            }
 
             tool_result = self._tool_entrypoint(**kwargs)
         except Exception as exc:
