@@ -66,6 +66,24 @@ Three issues combined:
 
 ## Verification
 
-- `.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_bridge_app.py -q`
-- `.venv/bin/python -m pytest tests/unit/agent/test_execution_agents.py -q`
-- `pnpm --filter @clawscale/api test -- business-conversation.test.ts`
+- `.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/test_bridge_app.py tests/unit/agent/test_execution_agents.py tests/unit/agent/test_agent_runtime_scheduling_tools.py -q`
+- `pnpm --dir gateway/packages/api test src/lib/business-conversation.test.ts src/routes/coke-delivery-routes.test.ts -- --runInBand`
+- `pnpm --dir gateway/packages/api build`
+- `git diff --check && git -C gateway diff --check`
+- `zsh scripts/check`
+- `.venv/bin/python -m pytest tests/unit/runner/ -v`
+- `.venv/bin/python -m pytest tests/unit/agent/ -v`
+- `.venv/bin/python -m pytest tests/unit/connector/clawscale_bridge/ -v tests/unit/test_clawscale_only_topology.py tests/unit/agent/test_message_util_clawscale_routing.py -v`
+- Scoped production deploy: synced
+  `connector/clawscale_bridge/app.py`,
+  `agent/agno_agent/runtime/execution_agents.py`, and
+  `gateway/packages/api/src/lib/business-conversation.ts`; rebuilt and
+  restarted `coke-agent`, `coke-bridge`, and `gateway`.
+- Production health checks: `http://127.0.0.1:4041/health` and
+  `http://127.0.0.1:8090/bridge/healthz` returned OK; compose showed gateway
+  and bridge healthy.
+- Production idempotency smoke: replaying the incident's internal
+  `/api/internal/coke-delivery` bind payload returned HTTP 200 with
+  `ok: true`, not 409.
+
+Evidence report: `artifacts/evidence/2026-05-25-late-friend-availability-reply-dropped.md`.

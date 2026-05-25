@@ -2,7 +2,8 @@
 title: Personal reminder creation drops duration ("一小时"/"半小时") — calendar facts under-reports busy time
 kind: incident
 date: 2026-05-25
-status: open
+status: fix_implemented_pending_verification
+fix_commit: 83bfc484
 affected_surfaces:
   - agent/agno_agent/capabilities/reminder_intent.py
   - agent/agno_agent/adapters/reminder_command_executor.py
