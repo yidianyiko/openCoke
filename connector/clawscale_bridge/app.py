@@ -198,12 +198,11 @@ class LateReplyFallbackPromoter:
                     )
                 except Exception:
                     logger.exception(
-                        "late_clawscale_reply_delivery_route_bind_failed: "
+                        "late_clawscale_reply_delivery_route_bind_failed_continuing: "
                         "causal_inbound_event_id=%s output_id=%s",
                         causal_inbound_event_id,
                         output_id,
                     )
-                    return False
             else:
                 logger.warning(
                     "late_clawscale_reply_missing_route_context: "

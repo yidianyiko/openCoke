@@ -1656,6 +1656,63 @@ def test_late_reply_fallback_promotes_pending_sync_reply_for_async_dispatch():
     )
 
 
+def test_late_reply_fallback_promotes_reply_even_when_route_bind_fails():
+    import connector.clawscale_bridge.app as bridge_app
+
+    mongo = MagicMock()
+    mongo.update_one.return_value = 1
+    reply_waiter = MagicMock()
+    delivery_route_client = MagicMock()
+    delivery_route_client.bind.side_effect = RuntimeError("gateway conflict")
+    reply_waiter.wait_for_reply_message.return_value = {
+        "_id": "out_late_2",
+        "status": "pending",
+        "message": "超时后补发",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "in_evt_late_2",
+                "business_conversation_key": "bc_late_2",
+            },
+        },
+    }
+
+    promoter = bridge_app.LateReplyFallbackPromoter(
+        mongo=mongo,
+        reply_waiter=reply_waiter,
+        delivery_route_client=delivery_route_client,
+    )
+
+    promoted = promoter._promote_for_async_dispatch(
+        causal_inbound_event_id="in_evt_late_2",
+        customer_id="acct_1",
+        tenant_id="ten_1",
+        conversation_id="conv_1",
+        channel_id="ch_1",
+        end_user_id="eu_1",
+        external_end_user_id="wxid_1",
+    )
+
+    assert promoted is True
+    delivery_route_client.bind.assert_called_once()
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_late_2", "status": "pending"},
+        {
+            "$set": {
+                "customer_id": "acct_1",
+                "metadata.business_conversation_key": "bc_late_2",
+                "metadata.delivery_mode": "push",
+                "metadata.output_id": "out_late_2",
+                "metadata.idempotency_key": "late_sync_reply:out_late_2",
+                "metadata.trace_id": "late_sync_reply:out_late_2",
+                "metadata.causal_inbound_event_id": "in_evt_late_2",
+            }
+        },
+    )
+
+
 def test_bridge_inbound_accepts_live_messages_and_metadata_shape(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app
