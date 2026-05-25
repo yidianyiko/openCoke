@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: wont_fix
 surface:
   - agent-runtime
   - gateway
@@ -85,12 +85,20 @@ mode is downstream of correct dispatch.
 
 ## Current Status
 
-- Open. Root cause confirmed; no fix in code yet.
-- Smoke fixture caveat: `_runner_fire_scenario.py` currently reports FAILED
-  for the wrong reason — it doesn't yet distinguish "pipeline broken" from
-  "no DeliveryRoute available". Either teach the runner to PASS when fire
-  reached the gateway with correct content, or seed a stub channel.
+- Decision (2026-05-25): keep current behavior. Real users go through
+  WeChat / WhatsApp / Linq webhooks that auto-create a `DeliveryRoute`,
+  so they receive fires. Accounts without a route (smoke fixtures,
+  claim-only dev accounts) silently fail at the push boundary — this is
+  acceptable for now because no real user is in that state in
+  production.
 
 ## Resolution
 
-(unfilled)
+- `wont_fix`. If a real user appears in production without a
+  `DeliveryRoute` (e.g., a future dashboard-only or web-claim flow
+  starts creating accounts that never go through a messenger webhook),
+  reopen and choose one of:
+  - Fall back to an alternate delivery channel (dashboard / web push).
+  - Gate reminder creation on an existing `DeliveryRoute` and surface
+    the gap to the user before they set a reminder.
+  - Defer / queue fires until a route appears.
