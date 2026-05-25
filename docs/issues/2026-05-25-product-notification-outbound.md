@@ -49,12 +49,12 @@ the UI and database claim success while no WeChat delivery was attempted.
 
 ## Current Status
 
-Resolved in gateway commit `827630c`. Product notifications now resolve the recipient's
-latest active delivery route and call gateway `/api/outbound` directly. Missing
-delivery routes now mark the notification failed instead of pretending delivery
-succeeded.
+Resolved in gateway commits `827630c` and `103e8c4`. Product notifications now
+resolve the recipient's latest active delivery route and call gateway
+`/api/outbound` directly. Missing delivery routes now mark the notification
+failed instead of pretending delivery succeeded.
 
 ## Resolution
 
-- Fix commit: gateway `827630c`.
+- Fix commits: gateway `827630c`, gateway `103e8c4`.
 - Verification: `pnpm --dir gateway/packages/api test -- src/scheduling/notification-service.test.ts src/scheduling/friendship-service.test.ts src/scheduling/user-link-service.test.ts src/scheduling/shared-reminder-service.test.ts`.
