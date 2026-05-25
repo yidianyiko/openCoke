@@ -99,6 +99,36 @@ _VISIBLE_IDENTIFIER_LEAK_PATTERNS = (
     re.compile(r"ck_[a-zA-Z0-9_]{8,}"),
     re.compile(r"acct_[a-zA-Z0-9_]{8,}"),
 )
+_CAPABILITY_BOUNDARY_MARKERS = (
+    "不能",
+    "无法",
+    "没法",
+    "没有办法",
+    "没办法",
+    "帮不了",
+    "做不了",
+    "暂时不",
+    "暂时没有",
+    "还不能",
+    "只能",
+)
+_REMINDER_OFFER_MARKERS = (
+    "可以帮你",
+    "可以告诉我",
+    "随时告诉我",
+    "需要我",
+    "要不要",
+    "要不要我",
+    "帮你设吗",
+    "我能做",
+    "如果",
+    "想要提醒",
+    "只能帮你",
+)
+_COMPLETED_WRITE_CLAIM_PATTERNS = (
+    re.compile(r"(已经|已).{0,24}(设置|设好|创建|建了).{0,24}(提醒|通知)"),
+    re.compile(r"(设置好|设好|创建好|建好).{0,8}(了|啦)"),
+)
 
 
 def _contains_any(text: str, patterns: tuple[str, ...]) -> bool:
@@ -880,6 +910,8 @@ def _check_unconfirmed_durable_write_promise(
     ]
     if not matched:
         return None
+    if _is_reminder_capability_offer_not_write_claim(final_text):
+        return None
     has_question = "?" in final_text or "\uff1f" in final_text or "\u5417" in final_text
     if has_question:
         direct_promise_patterns = (
@@ -898,6 +930,22 @@ def _check_unconfirmed_durable_write_promise(
         retryable=False,
         metadata={"input_type": agent_input.input_type},
     )
+
+
+def _is_reminder_capability_offer_not_write_claim(final_text: str) -> bool:
+    """Allow refusal text that offers reminder help without claiming a write.
+
+    The durable-write guardrail should block claims like "已经帮你设置好了提醒"
+    when no tool write succeeded. It should not block a capability boundary
+    such as "我不能预约教练，只能帮你设置提醒，需要我提醒你吗？".
+    """
+    if not _contains_any(final_text, _CAPABILITY_BOUNDARY_MARKERS):
+        return False
+    if not _contains_any(final_text, _REMINDER_OFFER_MARKERS):
+        return False
+    if any(pattern.search(final_text) for pattern in _COMPLETED_WRITE_CLAIM_PATTERNS):
+        return False
+    return True
 
 
 def _check_visible_identifier_leak(final_text: str) -> RuntimeErrorDisposition | None:

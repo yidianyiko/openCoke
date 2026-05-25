@@ -237,6 +237,62 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    [
+        "帮我约一节羽毛球教练课",
+        "周日下午 3 点帮我约彭教练",
+        "帮我约下周六上午的网球课",
+    ],
+)
+async def test_reminder_intent_port_rejects_unsupported_booking_requests(message):
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    class FailingAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            raise AssertionError("unsupported booking should not reach detector")
+
+    class FailingExecutor:
+        def execute(self, received_decision, run_context):
+            raise AssertionError("unsupported booking should not write reminders")
+
+    result = await ReminderIntentPort(
+        detector_agent=FailingAgent(),
+        command_executor=FailingExecutor(),
+    ).run(message, _run_context())
+
+    _assert_no_action(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_allows_explicit_reminder_about_booking():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="约彭教练",
+        trigger_at="2026-05-31T15:00:00+08:00",
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(content=decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            assert received_decision.title == "约彭教练"
+            return _executed_result("已创建提醒：约彭教练")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("周日下午3点提醒我约彭教练", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_extracts_duration_minutes_and_strips_title():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

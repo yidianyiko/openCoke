@@ -125,6 +125,8 @@ class ReminderIntentPort:
             "conversation": {"id": run_context.conversation.id},
             "platform": run_context.platform,
         }
+        if _is_unsupported_booking_request(input_message):
+            return _no_action_discussion_result()
         if _is_explicit_reminder_list_query(input_message):
             return self.command_executor.execute(
                 SimpleNamespace(intent_type="query", action="list"),
@@ -232,6 +234,15 @@ def _is_explicit_reminder_list_query(input_message: str) -> bool:
     )
 
 
+def _is_unsupported_booking_request(input_message: str) -> bool:
+    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
+    if not current_user_text:
+        return False
+    if _REMINDER_VERB_PATTERN.search(current_user_text):
+        return False
+    return bool(_UNSUPPORTED_BOOKING_REQUEST_PATTERN.search(current_user_text))
+
+
 def _is_unrecognized_decision(decision: Any) -> bool:
     if decision is None:
         return False
@@ -297,6 +308,13 @@ _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 _REMINDER_VERB_PATTERN = re.compile(
     r"提醒我|叫我|喊我|通知我|监督我|问我|检查我|"
     r"remind me|call me|notify me|nudge me",
+    re.IGNORECASE,
+)
+_UNSUPPORTED_BOOKING_REQUEST_PATTERN = re.compile(
+    r"(?:帮我|给我|替我|麻烦|please\s+)?"
+    r"(?:约|预约|预订|订|book|reserve|schedule)"
+    r".{0,24}?"
+    r"(?:彭教练|教练课|教练|私教|网球课|羽毛球课|课程|课|coach|class|lesson|session)",
     re.IGNORECASE,
 )
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(

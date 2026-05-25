@@ -461,6 +461,74 @@ async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model_text",
+    [
+        (
+            "看了你的消息，我需要先说明一下：我是没有办法直接帮你预约教练的，"
+            "只能帮你设置提醒。\n\n"
+            "如果你是想周日下午3点去健身，需要我提前提醒你准备出发吗？"
+            "或者提醒你那个时间去 App 上约课？"
+        ),
+        (
+            "喂，我没办法帮你直接约教练课哦，这个需要你自行去 App 或者线下跟教练约。\n\n"
+            "不过我可以帮你设个提醒——比如提前一天提醒你记得去约课？要不要我帮你设一个？"
+        ),
+        (
+            "我没法帮你直接约彭教练的课程哦，预约得上你自己去App或线下处理。\n\n"
+            "不过可以帮你设个提醒：周日下午3点前提醒你记得预约，这样到时候不会忘。可以帮你设吗？"
+        ),
+        (
+            "我没法帮你直接约教练哦，预约得你自己去 App 或找教练那边确认。"
+            "我能做的呢是——到点提醒你该去约课了，或者提醒你准时去上课。"
+        ),
+        (
+            "抱歉呀，我暂时没有帮你直接预约网球课的能力哦。"
+            "网球课需要通过对应的 App 或直接联系教练来约。"
+            "不过，我可以帮你设置一个提醒——比如这周六上午几点提醒你记得去约课？"
+            "到点我提醒你，你就可以顺手把课程约上~"
+        ),
+        (
+            "哎，约教练这些线下预约我还帮你做不了哈。"
+            "不过你可以告诉我具体想几点去、打算练多久，我到点提醒你，"
+            "自己去 App 或找教练约就行。"
+        ),
+    ],
+)
+async def test_booking_refusal_can_offer_reminder_help_without_write_claim(
+    monkeypatch, model_text
+):
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_text}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="周日下午 3 点帮我约彭教练",
+        content=model_text,
+    )
+
+    assert [message.content for message in result.visible_messages] == [model_text]
+    assert result.output_disposition.status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_booking_refusal_still_blocks_completed_reminder_claim(monkeypatch):
+    model_text = "我不能帮你预约教练，但已经帮你设置好了周日下午3点约课提醒。"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": model_text}],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        input_text="周日下午 3 点帮我约彭教练",
+        content=model_text,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "unconfirmed_durable_write_promise"
+
+
+@pytest.mark.asyncio
 async def test_direct_reminder_promise_does_not_invoke_recovery_port(monkeypatch):
     calls = 0
 

@@ -129,7 +129,7 @@ def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate()
     assert "When no date range is provided, supply the next 7 local calendar days" in text
     assert "only free intervals" in text
     assert "Do not reveal reminder titles, prompts, metadata, ids, or output targets" in text
-    assert "For a fitness class, lesson, or session, use 60 minutes unless the user states another duration" in text
+    assert "For a reminder about attending a fitness class, lesson, or session, use 60 minutes unless the user states another duration" in text
     assert "The tool returns busy intervals only; you calculate how to describe free time" in text
 
 

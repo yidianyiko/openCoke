@@ -225,6 +225,14 @@ def test_prompt_omits_onboarding_for_existing_user():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 
     assert "First-chat onboarding prompt:" not in prompt
+
+
+def test_booking_requests_are_direct_refusals_not_tool_calls():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "Requests to book, reserve, or schedule a coach, class, lesson, or session are unsupported" in prompt
+    assert "Do not call reminder_domain or scheduling_domain for the booking itself" in prompt
+    assert "only create a reminder after the user asks for a reminder" in prompt
     assert "<onboarding_and_first_dialogue>" not in prompt
 
 
