@@ -9,6 +9,7 @@ from agent.agno_agent.runtime.result import (
     OutputDisposition,
     VisibleMessage,
 )
+from agent.agno_agent.runtime.trace import AgentTurnTrace
 
 
 def _domain_result() -> DomainExecutionResult:
@@ -52,4 +53,5 @@ def test_agent_run_result_has_domain_and_capability_result_collections():
 
     assert result.domain_results[0].domain == "reminder"
     assert result.capability_results[0].name == "timezone"
+    assert isinstance(result.trace, AgentTurnTrace)
     assert not hasattr(result, "tool_results")

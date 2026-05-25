@@ -177,7 +177,7 @@ def test_run_result_has_output_contract_fields():
     assert result.visible_messages[0].content == "Done"
     assert result.capability_results[0].content == {"id": "r1"}
     assert result.metrics["latency_ms"] == 12
-    assert result.trace["runtime"] == "agent_runtime"
+    assert result.trace.runtime.name == "agent_runtime"
     assert result.output_disposition.status == "ok"
     assert result.output_disposition.output_references == ("out-1",)
 
@@ -315,8 +315,8 @@ def test_metadata_mappings_are_read_only_after_construction():
         payload.metadata["outer"]["inner"] = "changed"
     with pytest.raises(TypeError):
         result.metrics["latency_ms"] = 13
-    with pytest.raises(TypeError):
-        result.trace["runtime"] = "other"
+    with pytest.raises(AttributeError):
+        result.trace.runtime.name = "other"
     with pytest.raises(TypeError):
         result.capability_results[0].content["id"] = "r2"
 

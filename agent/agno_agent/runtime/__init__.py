@@ -18,15 +18,22 @@ from agent.agno_agent.runtime.result import (
     VisibleMessage,
     with_output_references,
 )
+from agent.agno_agent.runtime.trace import (
+    AgentTurnTrace,
+    TraceOutput,
+    trace_summary_pointer,
+)
 
 __all__ = [
     "AgentInput",
     "AgentRunContext",
     "AgentRunResult",
+    "AgentTurnTrace",
     "CapabilityResult",
     "OutputDisposition",
     "ReminderFirePayload",
     "RuntimeErrorDisposition",
+    "TraceOutput",
     "TrustedCharacterContext",
     "TrustedConversationContext",
     "TrustedRelationContext",
@@ -34,6 +41,7 @@ __all__ = [
     "UserTurnPayload",
     "VisibleMessage",
     "run_agent_runtime_event",
+    "trace_summary_pointer",
     "with_output_references",
 ]
 

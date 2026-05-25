@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from agent.agno_agent.runtime._immutability import (
     freeze_mapping,
@@ -10,6 +10,9 @@ from agent.agno_agent.runtime._immutability import (
     freeze_value,
 )
 from agent.agno_agent.runtime.domain_results import DomainExecutionResult
+
+if TYPE_CHECKING:
+    from agent.agno_agent.runtime.trace import AgentTurnTrace
 
 
 @dataclass(frozen=True)
@@ -105,7 +108,7 @@ class AgentRunResult:
     domain_results: Sequence[DomainExecutionResult]
     capability_results: Sequence[CapabilityResult]
     metrics: Mapping[str, Any]
-    trace: Mapping[str, Any]
+    trace: "AgentTurnTrace | Mapping[str, Any]"
     output_disposition: OutputDisposition
     error_disposition: RuntimeErrorDisposition | None = None
 
@@ -131,7 +134,9 @@ class AgentRunResult:
             freeze_sequence(self.capability_results),
         )
         object.__setattr__(self, "metrics", freeze_mapping(self.metrics))
-        object.__setattr__(self, "trace", freeze_mapping(self.trace))
+        from agent.agno_agent.runtime.trace import coerce_agent_turn_trace
+
+        object.__setattr__(self, "trace", coerce_agent_turn_trace(self.trace))
 
 
 def with_output_references(

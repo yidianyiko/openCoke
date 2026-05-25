@@ -7,7 +7,8 @@ import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import UTC, date, datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -24,6 +25,13 @@ from agent.agno_agent.runtime.result import (
     VisibleMessage,
 )
 from agent.agno_agent.runtime.session import get_agent_session_db
+from agent.agno_agent.runtime.trace import (
+    TraceOutput,
+    build_agent_turn_trace,
+    emit_agent_turn_trace_jsonl,
+    resolve_agent_turn_trace_config,
+    trace_evidence_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1068,10 +1076,45 @@ async def _run_capability_port(
 
 
 def _exception_result(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    started_at: datetime,
     capability_results: Sequence[CapabilityResult] = (),
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
     logger.exception("Agent runtime failed closed")
+    output_disposition = OutputDisposition(status="empty")
+    error_disposition = RuntimeErrorDisposition(
+        code="agent_runtime_exception",
+        retryable=True,
+    )
+    trace = _build_runtime_trace(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+        started_at=started_at,
+        status="exception",
+        failure_stage="agent_run",
+        timeout_seconds=None,
+        preselected_scheduling_intent=None,
+        forced_args_present=False,
+        tool_names=_available_tool_names(agent_input, None),
+        selected_tool_names=_selected_tool_names(domain_results, capability_results),
+        capability_results=capability_results,
+        domain_results=domain_results,
+        output=TraceOutput(
+            disposition_status=output_disposition.status,
+            output_source="empty",
+            visible_message_count=0,
+            output_reference_count=0,
+            post_analyze_requested=False,
+            fallback_reason=None,
+        ),
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
+    )
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
@@ -1081,21 +1124,53 @@ def _exception_result(
             "capability_result_count": len(capability_results),
             "domain_result_count": len(domain_results),
         },
-        trace={"runtime": "agent", "status": "exception"},
-        output_disposition=OutputDisposition(status="empty"),
-        error_disposition=RuntimeErrorDisposition(
-            code="agent_runtime_exception",
-            retryable=True,
-        ),
+        trace=trace,
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
     )
 
 
 def _unknown_tool_result(
     exc: UnknownToolError,
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    started_at: datetime,
     capability_results: Sequence[CapabilityResult] = (),
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
     logger.error("Agent runtime received unknown tool name: %s", exc)
+    output_disposition = OutputDisposition(status="empty")
+    error_disposition = RuntimeErrorDisposition(
+        code="agent_runtime_unknown_tool",
+        retryable=False,
+    )
+    trace = _build_runtime_trace(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+        started_at=started_at,
+        status="unknown_tool",
+        failure_stage="tool_selection",
+        timeout_seconds=None,
+        preselected_scheduling_intent=None,
+        forced_args_present=False,
+        tool_names=_available_tool_names(agent_input, None),
+        selected_tool_names=_selected_tool_names(domain_results, capability_results),
+        capability_results=capability_results,
+        domain_results=domain_results,
+        output=TraceOutput(
+            disposition_status=output_disposition.status,
+            output_source="empty",
+            visible_message_count=0,
+            output_reference_count=0,
+            post_analyze_requested=False,
+            fallback_reason=None,
+        ),
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
+    )
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
@@ -1105,12 +1180,9 @@ def _unknown_tool_result(
             "capability_result_count": len(capability_results),
             "domain_result_count": len(domain_results),
         },
-        trace={"runtime": "agent", "status": "unknown_tool", "unknown_tool": str(exc)},
-        output_disposition=OutputDisposition(status="empty"),
-        error_disposition=RuntimeErrorDisposition(
-            code="agent_runtime_unknown_tool",
-            retryable=False,
-        ),
+        trace=trace,
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
     )
 
 
@@ -1119,7 +1191,10 @@ def _timeout_result(
     agent_input: AgentInput,
     run_context: AgentRunContext,
     input_message: str,
+    started_at: datetime,
     timeout_seconds: float,
+    preselected_scheduling_intent: str | None = None,
+    forced_args_present: bool = False,
     capability_results: Sequence[CapabilityResult] = (),
     domain_results: Sequence[DomainExecutionResult] = (),
 ) -> AgentRunResult:
@@ -1141,6 +1216,37 @@ def _timeout_result(
         else ()
     )
     if visible_messages and durable_write_error is None:
+        output_disposition = OutputDisposition(status="ok")
+        trace = _build_runtime_trace(
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+            started_at=started_at,
+            status="timeout",
+            failure_stage="agent_run",
+            timeout_seconds=timeout_seconds,
+            preselected_scheduling_intent=preselected_scheduling_intent,
+            forced_args_present=forced_args_present,
+            tool_names=_available_tool_names(
+                agent_input, preselected_scheduling_intent
+            ),
+            selected_tool_names=_selected_tool_names(
+                captured_domain_results,
+                captured_capability_results,
+            ),
+            capability_results=captured_capability_results,
+            domain_results=captured_domain_results,
+            output=TraceOutput(
+                disposition_status=output_disposition.status,
+                output_source="capability_summary",
+                visible_message_count=len(visible_messages),
+                output_reference_count=0,
+                post_analyze_requested=True,
+                fallback_reason="timeout_visible_summary",
+            ),
+            output_disposition=output_disposition,
+            error_disposition=timeout_error,
+        )
         return AgentRunResult(
             visible_messages=visible_messages,
             post_analyze_input={
@@ -1153,11 +1259,41 @@ def _timeout_result(
                 "capability_result_count": len(captured_capability_results),
                 "domain_result_count": len(captured_domain_results),
             },
-            trace={"runtime": "agent", "status": "timeout_with_visible_summary"},
-            output_disposition=OutputDisposition(status="ok"),
+            trace=trace,
+            output_disposition=output_disposition,
             error_disposition=timeout_error,
         )
 
+    output_disposition = OutputDisposition(status="empty")
+    error_disposition = durable_write_error or timeout_error
+    trace = _build_runtime_trace(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+        started_at=started_at,
+        status="timeout",
+        failure_stage="agent_run",
+        timeout_seconds=timeout_seconds,
+        preselected_scheduling_intent=preselected_scheduling_intent,
+        forced_args_present=forced_args_present,
+        tool_names=_available_tool_names(agent_input, preselected_scheduling_intent),
+        selected_tool_names=_selected_tool_names(
+            captured_domain_results,
+            captured_capability_results,
+        ),
+        capability_results=captured_capability_results,
+        domain_results=captured_domain_results,
+        output=TraceOutput(
+            disposition_status=output_disposition.status,
+            output_source="empty",
+            visible_message_count=0,
+            output_reference_count=0,
+            post_analyze_requested=False,
+            fallback_reason=None,
+        ),
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
+    )
     return AgentRunResult(
         visible_messages=(),
         post_analyze_input=None,
@@ -1167,9 +1303,151 @@ def _timeout_result(
             "capability_result_count": len(captured_capability_results),
             "domain_result_count": len(captured_domain_results),
         },
-        trace={"runtime": "agent", "status": "timeout"},
-        output_disposition=OutputDisposition(status="empty"),
-        error_disposition=durable_write_error or timeout_error,
+        trace=trace,
+        output_disposition=output_disposition,
+        error_disposition=error_disposition,
+    )
+
+
+def _available_tool_names(
+    agent_input: AgentInput,
+    preselected_scheduling_intent: str | None,
+) -> tuple[str, ...]:
+    if agent_input.input_type == "reminder.fired":
+        return ()
+    names = ["scheduling_domain", *_utility_capability_ports().keys()]
+    if preselected_scheduling_intent is None:
+        names.insert(0, "reminder_domain")
+    return tuple(names)
+
+
+def _selected_tool_names(
+    domain_results: Sequence[DomainExecutionResult],
+    capability_results: Sequence[CapabilityResult],
+) -> tuple[str, ...]:
+    names = [result.domain for result in domain_results]
+    names.extend(result.name for result in capability_results)
+    return tuple(names)
+
+
+def _trace_route(
+    *,
+    agent_input: AgentInput,
+    domain_results: Sequence[DomainExecutionResult],
+    capability_results: Sequence[CapabilityResult],
+    preselected_scheduling_intent: str | None,
+    output_disposition: OutputDisposition,
+) -> tuple[
+    Literal[
+        "direct_reply",
+        "reminder_domain",
+        "scheduling_domain",
+        "utility_capability",
+        "reminder_fired",
+        "fallback",
+        "unknown",
+    ],
+    str,
+]:
+    if agent_input.input_type == "reminder.fired":
+        return "reminder_fired", "reminder_fired_event"
+    if preselected_scheduling_intent is not None:
+        return "scheduling_domain", "preselected_scheduling_intent"
+    if any(result.domain == "scheduling" for result in domain_results):
+        return "scheduling_domain", "scheduling_domain_result"
+    if any(result.domain == "reminder" for result in domain_results):
+        return "reminder_domain", "reminder_domain_result"
+    if capability_results:
+        return "utility_capability", "capability_result_present"
+    if output_disposition.status in {"fallback", "rollback"}:
+        return "fallback", "runtime_fallback"
+    return "direct_reply", "no_tool_requested"
+
+
+def _build_runtime_trace(
+    *,
+    agent_input: AgentInput,
+    run_context: AgentRunContext,
+    input_message: str,
+    started_at: datetime,
+    status: str,
+    failure_stage: str | None,
+    timeout_seconds: float | None,
+    preselected_scheduling_intent: str | None,
+    forced_args_present: bool,
+    tool_names: Sequence[str],
+    selected_tool_names: Sequence[str],
+    capability_results: Sequence[CapabilityResult],
+    domain_results: Sequence[DomainExecutionResult],
+    output: TraceOutput,
+    output_disposition: OutputDisposition,
+    error_disposition: RuntimeErrorDisposition | None,
+    content_evidence: Mapping[str, Any] | None = None,
+):
+    finished_at = datetime.now(UTC)
+    route, reason = _trace_route(
+        agent_input=agent_input,
+        domain_results=domain_results,
+        capability_results=capability_results,
+        preselected_scheduling_intent=preselected_scheduling_intent,
+        output_disposition=output_disposition,
+    )
+    if (
+        status in {"exception", "unknown_tool", "timeout"}
+        and reason == "no_tool_requested"
+    ):
+        route = "fallback"
+        reason = "runtime_fallback"
+    trace = build_agent_turn_trace(
+        agent_input=agent_input,
+        run_context=run_context,
+        input_message=input_message,
+        started_at=started_at,
+        finished_at=finished_at,
+        timeout_seconds=timeout_seconds,
+        status=status,
+        failure_stage=failure_stage,
+        route=route,
+        reason=reason,
+        preselected_intent=preselected_scheduling_intent,
+        forced_args_present=forced_args_present,
+        tool_names=tool_names,
+        selected_tool_names=selected_tool_names,
+        capability_results=capability_results,
+        domain_results=domain_results,
+        output=output,
+        error_disposition=error_disposition,
+    )
+    _emit_runtime_trace_if_configured(trace, content_evidence)
+    return trace
+
+
+def _emit_runtime_trace_if_configured(
+    trace: Any,
+    content_evidence: Mapping[str, Any] | None,
+) -> None:
+    config = resolve_agent_turn_trace_config()
+    if not config.enabled:
+        return
+    explicit_path = os.environ.get("COKE_AGENT_TURN_TRACE_JSONL")
+    run_id = os.environ.get("COKE_AGENT_TURN_TRACE_RUN_ID")
+    if not explicit_path and not run_id:
+        return
+    suite = os.environ.get("COKE_AGENT_TURN_TRACE_SUITE", "dev")
+    path = (
+        Path(explicit_path)
+        if explicit_path
+        else trace_evidence_path(
+            suite=suite,
+            run_id=run_id or "run",
+        )
+    )
+    emit_agent_turn_trace_jsonl(
+        path=path,
+        trace=trace,
+        suite=suite,
+        trace_run_id=run_id or path.stem,
+        content_evidence=content_evidence,
     )
 
 
@@ -1182,6 +1460,10 @@ async def run_agent_runtime(
 
     capability_results: list[CapabilityResult] = []
     domain_results: list[DomainExecutionResult] = []
+    started_at = datetime.now(UTC)
+    input_message = ""
+    preselected_scheduling_intent: str | None = None
+    preselected_scheduling_args: dict[str, Any] = {}
     try:
         if agent_input.input_type not in _SUPPORTED_INPUT_TYPES:
             raise ValueError(f"Unsupported agent input type: {agent_input.input_type}")
@@ -1245,7 +1527,10 @@ async def run_agent_runtime(
                 agent_input=agent_input,
                 run_context=run_context,
                 input_message=input_message,
+                started_at=started_at,
                 timeout_seconds=timeout_seconds,
+                preselected_scheduling_intent=preselected_scheduling_intent,
+                forced_args_present=bool(preselected_scheduling_args),
                 capability_results=capability_results,
                 domain_results=domain_results,
             )
@@ -1292,6 +1577,54 @@ async def run_agent_runtime(
         )
 
         if visible_messages and runtime_contract_error is None:
+            output_disposition = OutputDisposition(status="ok")
+            output_source = (
+                "domain_summary"
+                if preselected_scheduling_intent
+                or _should_prefer_domain_visible_text(
+                    agent_input=agent_input,
+                    input_message=input_message,
+                    domain_results=captured_domain_results,
+                )
+                else "model"
+            )
+            trace = _build_runtime_trace(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+                started_at=started_at,
+                status="ok",
+                failure_stage=None,
+                timeout_seconds=timeout_seconds,
+                preselected_scheduling_intent=preselected_scheduling_intent,
+                forced_args_present=bool(preselected_scheduling_args),
+                tool_names=_available_tool_names(
+                    agent_input,
+                    preselected_scheduling_intent,
+                ),
+                selected_tool_names=_selected_tool_names(
+                    captured_domain_results,
+                    captured_capability_results,
+                ),
+                capability_results=captured_capability_results,
+                domain_results=captured_domain_results,
+                output=TraceOutput(
+                    disposition_status=output_disposition.status,
+                    output_source=output_source,
+                    visible_message_count=len(visible_messages),
+                    output_reference_count=0,
+                    post_analyze_requested=True,
+                    fallback_reason=None,
+                ),
+                output_disposition=output_disposition,
+                error_disposition=None,
+                content_evidence={
+                    "input_text": input_message,
+                    "visible_output_text": [
+                        message.content for message in visible_messages
+                    ],
+                },
+            )
             return AgentRunResult(
                 visible_messages=visible_messages,
                 post_analyze_input={
@@ -1304,10 +1637,41 @@ async def run_agent_runtime(
                     "capability_result_count": len(captured_capability_results),
                     "domain_result_count": len(captured_domain_results),
                 },
-                trace={"runtime": "agent"},
-                output_disposition=OutputDisposition(status="ok"),
+                trace=trace,
+                output_disposition=output_disposition,
             )
 
+        output_disposition = OutputDisposition(status="empty")
+        trace = _build_runtime_trace(
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+            started_at=started_at,
+            status="empty_output",
+            failure_stage=None,
+            timeout_seconds=timeout_seconds,
+            preselected_scheduling_intent=preselected_scheduling_intent,
+            forced_args_present=bool(preselected_scheduling_args),
+            tool_names=_available_tool_names(
+                agent_input, preselected_scheduling_intent
+            ),
+            selected_tool_names=_selected_tool_names(
+                captured_domain_results,
+                captured_capability_results,
+            ),
+            capability_results=captured_capability_results,
+            domain_results=captured_domain_results,
+            output=TraceOutput(
+                disposition_status=output_disposition.status,
+                output_source="empty",
+                visible_message_count=len(visible_messages),
+                output_reference_count=0,
+                post_analyze_requested=False,
+                fallback_reason=None,
+            ),
+            output_disposition=output_disposition,
+            error_disposition=runtime_contract_error,
+        )
         return AgentRunResult(
             visible_messages=visible_messages,
             post_analyze_input=None,
@@ -1317,11 +1681,26 @@ async def run_agent_runtime(
                 "capability_result_count": len(captured_capability_results),
                 "domain_result_count": len(captured_domain_results),
             },
-            trace={"runtime": "agent", "status": "empty_output"},
-            output_disposition=OutputDisposition(status="empty"),
+            trace=trace,
+            output_disposition=output_disposition,
             error_disposition=runtime_contract_error,
         )
     except UnknownToolError as exc:
-        return _unknown_tool_result(exc, capability_results, domain_results)
+        return _unknown_tool_result(
+            exc,
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+            started_at=started_at,
+            capability_results=capability_results,
+            domain_results=domain_results,
+        )
     except Exception:
-        return _exception_result(capability_results, domain_results)
+        return _exception_result(
+            agent_input=agent_input,
+            run_context=run_context,
+            input_message=input_message,
+            started_at=started_at,
+            capability_results=capability_results,
+            domain_results=domain_results,
+        )

@@ -144,7 +144,15 @@ def test_main_writes_default_evidence_and_uses_serial_batches(monkeypatch, tmp_p
     evidence_path = tmp_path / "artifacts/evidence/reminder-normal/unit-evidence.json"
     assert evidence_path.exists()
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    assert evidence["history_two_turn_eval"]["name"] == "history-hourly-checkin-two-turn"
+    assert (
+        evidence["history_two_turn_eval"]["name"] == "history-hourly-checkin-two-turn"
+    )
+    assert evidence["trace"]["enabled"] is True
+    assert evidence["trace"]["schema_version"] == "agent_turn_trace.v1"
+    assert evidence["trace"]["path"] == (
+        "artifacts/evidence/agent-turn-traces/reminder-normal/unit-evidence.jsonl"
+    )
+    assert evidence["trace"]["record_count"] == 0
 
 
 def test_case_input_timestamp_defaults_to_fresh_corpus_wall_clock_for_worker_eligibility(

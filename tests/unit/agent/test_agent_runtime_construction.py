@@ -90,6 +90,10 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
         "input_message": "hi",
         "message_source": "user",
     }
+    assert result.trace.schema_version == "agent_turn_trace.v1"
+    assert result.trace.runtime.status == "ok"
+    assert result.trace.routing.route == "direct_reply"
+    assert result.trace.routing.reason == "no_tool_requested"
     assert create_kwargs["agent_input"] == _agent_input()
     assert create_kwargs["input_message"] == "hi"
     assert create_kwargs["capability_results"] == []
@@ -186,7 +190,8 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
 
     assert result.visible_messages[0].content == "已创建提醒：出门（2026-05-10 18:05）"
     assert [tool.name for tool in result.capability_results] == ["reminder"]
-    assert result.trace == {"runtime": "agent"}
+    assert result.trace.runtime.name == "agent_runtime"
+    assert result.trace.routing.route == "utility_capability"
     assert created["called"] is True
     assert created["model_input"] == "18:05提醒我出门"
 
@@ -212,6 +217,9 @@ async def test_run_agent_runtime_fails_closed_when_agent_raises(monkeypatch):
     assert result.error_disposition is not None
     assert result.error_disposition.code == "agent_runtime_exception"
     assert result.error_disposition.retryable is True
+    assert result.trace.runtime.status == "exception"
+    assert result.trace.error is not None
+    assert result.trace.error.code == "agent_runtime_exception"
 
 
 @pytest.mark.asyncio
@@ -235,6 +243,9 @@ async def test_run_agent_runtime_times_out_when_agent_hangs(monkeypatch):
     assert result.error_disposition is not None
     assert result.error_disposition.code == "agent_runtime_timeout"
     assert result.error_disposition.retryable is True
+    assert result.trace.runtime.status == "timeout"
+    assert result.trace.error is not None
+    assert result.trace.error.code == "agent_runtime_timeout"
 
 
 def test_agent_runtime_default_timeout_stays_inside_user_path_budget(monkeypatch):

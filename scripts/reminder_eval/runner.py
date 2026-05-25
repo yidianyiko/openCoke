@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from bson import ObjectId
 from pymongo import MongoClient
 
+from agent.agno_agent.runtime.trace import trace_summary_pointer
 from agent.role.bootstrap import ensure_default_character_seeded
 from conf.config import CONF
 from dao.user_dao import UserDAO
@@ -694,6 +695,11 @@ def main() -> int:
             "transport": args.transport,
             "serial": not args.parallel_submit,
             "history_two_turn_eval": history_two_turn_eval_manifest(),
+            "trace": trace_summary_pointer(
+                suite="reminder-normal",
+                run_id=run_id,
+                record_count=len(all_results),
+            ),
             "summary": summary,
             "batches": batches,
             "results": all_results,
@@ -725,6 +731,11 @@ def main() -> int:
             "use_case_timestamps": args.use_case_timestamps,
             "transport": args.transport,
             "history_two_turn_eval": history_two_turn_eval_manifest(),
+            "trace": trace_summary_pointer(
+                suite="reminder-normal",
+                run_id=run_id,
+                record_count=len(batch_payload["results"]),
+            ),
             **batch_payload,
         }
     text = json.dumps(payload, ensure_ascii=False, indent=2)
