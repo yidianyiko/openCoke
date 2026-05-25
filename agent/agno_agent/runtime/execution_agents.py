@@ -57,14 +57,20 @@ _SCHEDULING_SYSTEM_PROMPT = (
 class _SchedulingExecutionGuard:
     def __init__(self) -> None:
         self._lock = asyncio.Lock()
-        self._claimed = False
+        self._claimed_tools: list[str] = []
 
-    async def claim(self) -> bool:
+    async def claim(self, tool_name: str) -> bool:
         async with self._lock:
-            if self._claimed:
-                return False
-            self._claimed = True
-            return True
+            if not self._claimed_tools:
+                self._claimed_tools.append(tool_name)
+                return True
+            if (
+                self._claimed_tools == ["list_friends"]
+                and tool_name == "list_friend_calendar_facts"
+            ):
+                self._claimed_tools.append(tool_name)
+                return True
+            return False
 
 
 async def _run_port(
@@ -258,7 +264,7 @@ def _make_scheduling_tool_fn(
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Use only for the scheduling action specified in the intent."""
-        if execution_guard is not None and not await execution_guard.claim():
+        if execution_guard is not None and not await execution_guard.claim(tool_name):
             duplicate = DomainExecutionResult(
                 domain="scheduling",
                 outcome="failed",

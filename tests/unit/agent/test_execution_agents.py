@@ -459,6 +459,72 @@ async def test_run_scheduling_domain_returns_friend_calendar_facts_as_read_only_
 
 
 @pytest.mark.asyncio
+async def test_run_scheduling_domain_allows_friend_lookup_then_calendar_facts():
+    calls: list[str] = []
+
+    class _LookupThenCalendarAgent:
+        def __init__(self, **kwargs):
+            self.tools = {item.name: item.entrypoint for item in kwargs["tools"]}
+
+        async def arun(self, **kwargs):
+            await self.tools["list_friends"]()
+            await self.tools["list_friend_calendar_facts"](
+                target_account_id="acct_eva",
+                from_date="2026-05-25",
+                to_date="2026-05-31",
+                timezone="Asia/Tokyo",
+            )
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            calls.append(self.tool_name)
+            if self.tool_name == "list_friends":
+                return CapabilityResult(
+                    name=self.tool_name,
+                    ok=True,
+                    content={
+                        "friends": [
+                            {"account_id": "acct_eva", "display_name": "eva"}
+                        ]
+                    },
+                )
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={
+                    "target_account_id": args["target_account_id"],
+                    "busy_intervals": [],
+                    "privacy": {"event_details_included": False},
+                },
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _LookupThenCalendarAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="eva 有什么时间有空吗？",
+                intent="list_friend_calendar_facts for friend named eva",
+                run_context=_run_context(),
+                domain_results=domain_results,
+            )
+
+    assert calls == ["list_friends", "list_friend_calendar_facts"]
+    assert [item.error.code if item.error else None for item in domain_results] == [
+        None,
+        None,
+    ]
+    assert result["operations"][0]["action"] == "list_friend_calendar_facts"
+    assert result["operations"][0]["facts"]["target_account_id"] == "acct_eva"
+
+
+@pytest.mark.asyncio
 async def test_run_scheduling_domain_forwards_lesson_duration_to_shared_reminder():
     captured_args: dict[str, dict] = {}
 
