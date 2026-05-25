@@ -126,6 +126,23 @@ def test_list_pending_shared_reminders_empty_summary():
     assert result.content["visible_summary"] == "目前没有待处理的共享提醒。"
 
 
+def test_list_friend_requests_empty_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {"ok": True, "data": []}
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_requests",
+        handler=handler,
+    )
+    result = port.run("我现在有没有未处理的好友请求或系统通知？", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == "目前没有待处理的好友请求。"
+
+
 def test_create_shared_reminder_forwards_required_args():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

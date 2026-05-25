@@ -163,6 +163,12 @@ class SchedulingCapabilityPort:
             and not _has_explicit_visible_summary(content)
         ):
             content["visible_summary"] = _pending_shared_reminders_summary(content)
+        if (
+            ok
+            and self.tool_name == "list_friend_requests"
+            and not _has_explicit_visible_summary(content)
+        ):
+            content["visible_summary"] = _friend_requests_summary(content)
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
@@ -226,6 +232,15 @@ def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
     if not labels:
         return f"你有 {len(raw_items)} 个待处理的共享提醒。"
     return f"你有 {len(raw_items)} 个待处理的共享提醒：" + "；".join(labels) + "。"
+
+
+def _friend_requests_summary(content: Mapping[str, Any]) -> str:
+    raw_items = content.get("value")
+    if raw_items is None:
+        raw_items = content.get("requests")
+    if not isinstance(raw_items, list) or not raw_items:
+        return "目前没有待处理的好友请求。"
+    return f"你有 {len(raw_items)} 个待处理的好友请求。"
 
 
 def _pending_shared_reminder_label(item: Mapping[str, Any]) -> str:
