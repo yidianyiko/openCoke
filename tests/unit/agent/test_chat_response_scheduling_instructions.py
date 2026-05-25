@@ -133,6 +133,15 @@ def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate()
     assert "The tool returns busy intervals only; you calculate how to describe free time" in text
 
 
+def test_shared_reminder_status_policy_routes_to_list_shared_reminders():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "For shared-reminder status or history queries with a named friend" in text
+    assert "call list_shared_reminders" in text
+    assert "Pass friend_name" in text
+    assert "status too when the user asks about a specific state" in text
+
+
 def test_chat_response_instructions_render_agent_instance_profile_before_boundaries():
     from agent.agno_agent.runtime.chat_response_instructions import (
         build_chat_response_instructions,

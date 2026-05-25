@@ -1157,6 +1157,26 @@ def test_scheduling_intent_inference_treats_delete_friend_wording_as_remove_frie
     )
 
 
+def test_scheduling_intent_normalizes_block_friend_alias():
+    assert (
+        agent_runtime._normalize_scheduling_intent(
+            {"block_friend": {"friend_name": "Bob"}},
+            "屏蔽 Bob 的账号。",
+        )
+        == 'block_account: {"friend_name": "Bob"}'
+    )
+
+
+def test_scheduling_intent_normalizes_action_block_user_alias_with_args():
+    assert (
+        agent_runtime._normalize_scheduling_intent(
+            {"action": "block_user", "friend_name": "Bob"},
+            "屏蔽 Bob 的账号。",
+        )
+        == 'block_account: {"friend_name": "Bob"}'
+    )
+
+
 def test_product_notification_context_turns_short_confirmation_into_friend_request_accept():
     agent_input = AgentInput(
         input_type="user.turn",

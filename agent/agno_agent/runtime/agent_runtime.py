@@ -48,6 +48,13 @@ _SCHEDULING_INTENT_NAMES = {
     "reset_user_link",
     "disable_user_link",
     "list_friend_calendar_facts",
+    "list_shared_reminders",
+}
+_SCHEDULING_INTENT_ALIASES = {
+    "block_friend": "block_account",
+    "block_user": "block_account",
+    "unblock_friend": "unblock_account",
+    "unblock_user": "unblock_account",
 }
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
@@ -249,6 +256,11 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         return "list_friends"
 
     if _contains_any(input_message, ("共享提醒", "shared reminder")):
+        if _contains_any(
+            input_message,
+            ("状态", "怎么样", "进展", "现在是什么状态", "是什么状态", "status"),
+        ) or "shared reminder status" in text:
+            return "list_shared_reminders"
         if _contains_any(input_message, ("通过", "接受", "同意")) or "accept" in text:
             return "accept_shared_reminder"
         if _contains_any(input_message, ("拒绝", "不通过")) or "reject" in text:
@@ -287,19 +299,38 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
 
     if isinstance(raw_intent, Mapping):
         for key, value in raw_intent.items():
-            if isinstance(key, str) and key in _SCHEDULING_INTENT_NAMES:
+            normalized_key = (
+                _SCHEDULING_INTENT_ALIASES.get(key, key)
+                if isinstance(key, str)
+                else key
+            )
+            if (
+                isinstance(normalized_key, str)
+                and normalized_key in _SCHEDULING_INTENT_NAMES
+            ):
                 if isinstance(value, Mapping) and value:
                     return (
-                        f"{key}: "
-                        f"{json.dumps(_normalize_scheduling_intent_args(key, value), ensure_ascii=False)}"
+                        f"{normalized_key}: "
+                        f"{json.dumps(_normalize_scheduling_intent_args(normalized_key, value), ensure_ascii=False)}"
                     )
-                return key
+                return normalized_key
 
         for key in ("intent", "action", "tool", "tool_name", "name"):
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
                 normalized = _normalize_scheduling_intent(value, input_message)
                 if normalized:
+                    if normalized in _SCHEDULING_INTENT_NAMES:
+                        args = {
+                            arg_key: arg_value
+                            for arg_key, arg_value in raw_intent.items()
+                            if arg_key not in {"intent", "action", "tool", "tool_name", "name"}
+                        }
+                        if args:
+                            return (
+                                f"{normalized}: "
+                                f"{json.dumps(_normalize_scheduling_intent_args(normalized, args), ensure_ascii=False)}"
+                            )
                     return normalized
 
         inferred = _infer_scheduling_intent_from_message(input_message)

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 from hashlib import sha256
+from datetime import datetime
 from collections.abc import Callable, Mapping
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 
@@ -22,6 +24,7 @@ SCHEDULING_TOOL_NAMES = (
     "cancel_friend_request",
     "list_friends",
     "list_friend_calendar_facts",
+    "list_shared_reminders",
     "remove_friendship",
     "block_account",
     "unblock_account",
@@ -37,6 +40,7 @@ _READ_ONLY_TOOL_NAMES = {
     "list_friend_requests",
     "list_friends",
     "list_friend_calendar_facts",
+    "list_shared_reminders",
     "list_pending_shared_reminders",
 }
 
@@ -159,6 +163,12 @@ class SchedulingCapabilityPort:
                 content["visible_summary"] = f"这是你的好友邀请链接：{url.strip()}"
         if (
             ok
+            and self.tool_name == "list_shared_reminders"
+            and not _has_explicit_visible_summary(content)
+        ):
+            content["visible_summary"] = _shared_reminders_summary(content)
+        if (
+            ok
             and self.tool_name == "list_pending_shared_reminders"
             and not _has_explicit_visible_summary(content)
         ):
@@ -259,15 +269,104 @@ def _friends_summary(content: Mapping[str, Any]) -> str:
 
 
 def _pending_shared_reminder_label(item: Mapping[str, Any]) -> str:
-    requester = (
-        item.get("requesterName")
-        or item.get("requester_name")
-        or item.get("requesterAccountId")
-        or item.get("requester_account_id")
-        or "对方"
-    )
+    requester = _shared_reminder_requester_display_name(item)
     title = item.get("title") or "共享提醒"
     return f"{requester} 发来的“{title}”"
+
+
+def _shared_reminder_requester_display_name(item: Mapping[str, Any]) -> str:
+    requester = item.get("requester")
+    if isinstance(requester, Mapping):
+        display_name = requester.get("displayName")
+        if isinstance(display_name, str) and display_name.strip():
+            return display_name.strip()
+    for key in ("requesterName", "requester_name"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return "对方"
+
+
+def _shared_reminders_summary(content: Mapping[str, Any]) -> str:
+    raw_items = content.get("value")
+    if raw_items is None:
+        raw_items = content.get("shared_reminders")
+    if raw_items is None:
+        raw_items = content.get("reminders")
+    if not isinstance(raw_items, list) or not raw_items:
+        return "目前没有符合条件的共享提醒。"
+
+    friend_name = _shared_reminders_friend_name(content)
+    labels = [
+        _shared_reminder_status_label(item, friend_name)
+        for item in raw_items[:3]
+        if isinstance(item, Mapping)
+    ]
+    if not labels:
+        return f"你有 {len(raw_items)} 个共享提醒。"
+    return f"你有 {len(raw_items)} 个共享提醒：" + "；".join(labels) + "。"
+
+
+def _shared_reminders_friend_name(content: Mapping[str, Any]) -> str:
+    for key in ("friend_name", "friendName", "counterpartyName"):
+        value = content.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _shared_reminder_status_label(
+    item: Mapping[str, Any],
+    friend_name: str,
+) -> str:
+    title = str(item.get("title") or "共享提醒").strip() or "共享提醒"
+    status = str(item.get("status") or "unknown").strip() or "unknown"
+    time_text = _shared_reminder_time_text(item)
+    friend = friend_name or _shared_reminder_counterparty_display_name(item)
+
+    parts = []
+    if friend:
+        parts.append(f"{friend} 的“{title}”")
+    else:
+        parts.append(f"“{title}”")
+    if time_text:
+        parts.append(time_text)
+    parts.append(f"状态 {status}")
+    return "，".join(parts)
+
+
+def _shared_reminder_counterparty_display_name(item: Mapping[str, Any]) -> str:
+    requester = item.get("requester")
+    if isinstance(requester, Mapping):
+        display_name = requester.get("displayName")
+        if isinstance(display_name, str) and display_name.strip():
+            return display_name.strip()
+    invitee = item.get("invitee")
+    if isinstance(invitee, Mapping):
+        display_name = invitee.get("displayName")
+        if isinstance(display_name, str) and display_name.strip():
+            return display_name.strip()
+    for key in ("requesterName", "requester_name", "inviteeName", "invitee_name"):
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _shared_reminder_time_text(item: Mapping[str, Any]) -> str:
+    raw_fire_at = item.get("fireAt")
+    if raw_fire_at is None:
+        raw_fire_at = item.get("fire_at")
+    timezone = item.get("timezone")
+    if not isinstance(raw_fire_at, str) or not raw_fire_at.strip():
+        return ""
+    try:
+        fire_at = datetime.fromisoformat(raw_fire_at.replace("Z", "+00:00"))
+        if isinstance(timezone, str) and timezone.strip():
+            fire_at = fire_at.astimezone(ZoneInfo(timezone.strip()))
+        return fire_at.strftime("%Y-%m-%d %H:%M")
+    except (ValueError, ZoneInfoNotFoundError):
+        return raw_fire_at.strip()
 
 
 def _read_gateway_api_base_url() -> str:

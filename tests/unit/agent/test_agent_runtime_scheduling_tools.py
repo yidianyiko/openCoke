@@ -97,6 +97,7 @@ def test_scheduling_tool_fn_schema_exposes_top_level_arguments():
     assert "fire_at" in function.parameters["properties"]
     assert "idempotency_key" in function.parameters["properties"]
     assert "duration_minutes" in function.parameters["properties"]
+    assert "status" in function.parameters["properties"]
 
 
 @pytest.mark.asyncio
@@ -148,6 +149,28 @@ async def test_scheduling_tool_fn_exposes_calendar_fact_args():
         "from_date": "2026-05-25",
         "to_date": "2026-05-31",
         "timezone": "Asia/Tokyo",
+    }
+
+
+@pytest.mark.asyncio
+async def test_scheduling_tool_fn_exposes_shared_reminder_status_args():
+    port = RecordingPort(name="list_shared_reminders")
+    fn = _make_scheduling_tool_fn(
+        "list_shared_reminders",
+        port,
+        input_message="What status is the shared reminder with Bob?",
+        run_context=_run_context(),
+        domain_results=[],
+    )
+    result = await fn(
+        friend_name="Bob",
+        status="accepted",
+    )
+
+    assert result["domain"] == "scheduling"
+    assert port.calls[0][2] == {
+        "friend_name": "Bob",
+        "status": "accepted",
     }
 
 

@@ -43,6 +43,7 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - If the friend name is ambiguous, ask the user to choose one friend and do not call scheduling_domain.
 - Coke reminders are the calendar source for friend availability. Do not use Google Calendar for friend availability in this feature.
 - For friend availability, resolve the target friend with list_friends first. If exactly one active friend matches, call list_friend_calendar_facts with that account id. If multiple friends match, ask the user to choose one friend and do not call the calendar facts tool.
+- For shared-reminder status or history queries with a named friend, call list_shared_reminders. Pass friend_name, and pass status too when the user asks about a specific state like pending, accepted, rejected, cancelled, expired, or invalidated.
 - When no date range is provided, supply the next 7 local calendar days using the target friend's timezone when available, otherwise the current conversation timezone.
 - list_friend_calendar_facts returns privacy-preserving busy intervals only. The tool returns busy intervals only; you calculate how to describe free time and you show only free intervals to the user.
 - Do not reveal reminder titles, prompts, metadata, ids, or output targets from a friend's calendar facts.
