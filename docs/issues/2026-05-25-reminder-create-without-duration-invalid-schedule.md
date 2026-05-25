@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: open
+status: resolved
 surface:
   - agent-runtime
   - reminder-intent
@@ -66,9 +66,23 @@ Control run with explicit duration passed:
 
 ## Current Status
 
-Open. The complete operation itself passed when setup used an explicit duration,
-but no-duration create remains unverified and currently fails in the live smoke.
+Resolved locally. Reminder intent normalization now defaults create and
+batch-create durations to 60 minutes when the user did not provide a positive
+duration.
+
+Fresh live smoke passed:
+
+- Artifact:
+  `artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-reminder-default-duration-complete-20260525t090315Z.json`
+- User said:
+  `提醒我明天早上 8 点做平板支撑。`
+- Mongo reminder:
+  `title=做平板支撑`, `duration_minutes=60`,
+  `lifecycle_state=completed`, `next_fire_at=None`, `completed_at` present.
 
 ## Resolution
 
-(unfilled)
+- Fix: `agent/agno_agent/capabilities/reminder_intent.py` defaults missing or
+  non-positive create durations to 60 minutes before command execution.
+- Regression tests:
+  `.venv/bin/python -m pytest tests/unit/agent/test_reminder_intent_capability.py -q`

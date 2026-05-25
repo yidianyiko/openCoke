@@ -225,7 +225,10 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
-            assert received_decision is decision
+            assert received_decision.intent_type == decision.intent_type
+            assert received_decision.action == decision.action
+            assert received_decision.title == decision.title
+            assert received_decision.duration_minutes == 60
             return _executed_result("已创建提醒：drink water")
 
     result = await ReminderIntentPort(
@@ -324,8 +327,79 @@ async def test_reminder_intent_port_extracts_duration_minutes_and_strips_title()
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_defaults_create_duration_to_one_hour():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="做平板支撑",
+        trigger_at="2026-05-07T08:00:00+09:00",
+        duration_minutes=0,
+    )
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            del input, session_state, session_id
+            return SimpleNamespace(content=decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            del run_context
+            assert received_decision.title == "做平板支撑"
+            assert received_decision.duration_minutes == 60
+            return _executed_result("已创建提醒：做平板支撑")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FakeExecutor(),
+    ).run("提醒我明天早上 8 点做平板支撑。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
+async def test_reminder_intent_port_defaults_batch_create_duration_to_one_hour():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="batch",
+        operations=[
+            {"action": "create", "title": "拉伸", "duration_minutes": None},
+            {"action": "create", "title": "喝水", "duration_minutes": 0},
+        ],
+    )
+
+    class FakeAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            del input, session_state, session_id
+            return SimpleNamespace(content=decision)
+
+    class FakeExecutor:
+        def execute(self, received_decision, run_context):
+            del run_context
+            assert [
+                item["duration_minutes"] for item in received_decision.operations
+            ] == [
+                60,
+                60,
+            ]
+            return _executed_result("已创建提醒")
+
+    result = await ReminderIntentPort(
+        detector_agent=FakeAgent(),
+        command_executor=FakeExecutor(),
+    ).run("提醒我明天早上 8 点拉伸，下午 3 点喝水。", _run_context())
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_command_executor_forwards_duration_minutes_to_tool_entrypoint():
-    from agent.agno_agent.adapters.reminder_command_executor import ReminderCommandExecutor
+    from agent.agno_agent.adapters.reminder_command_executor import (
+        ReminderCommandExecutor,
+    )
 
     captured_kwargs = {}
 
@@ -1798,7 +1872,7 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
 
         def execute(self, received_decision, run_context):
             self.received.append(received_decision)
-            if received_decision is primary_decision:
+            if len(self.received) == 1:
                 return _failed_result(
                     "InvalidSchedule",
                     "这个提醒时间已经过去了，请告诉我一个未来的时间。",
@@ -1811,7 +1885,9 @@ async def test_reminder_intent_port_returns_explicit_today_past_clock_failure():
         command_executor=executor,
     ).run("今天十一点开始提醒我离开时手机", _run_context())
 
-    assert executor.received == [primary_decision]
+    assert len(executor.received) == 1
+    assert executor.received[0].title == primary_decision.title
+    assert executor.received[0].duration_minutes == 60
     _assert_failed(result, "InvalidSchedule")
 
 
@@ -2264,7 +2340,9 @@ async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss
         command_executor=executor,
     ).run("每天睡前提醒我吃药", _run_context())
 
-    assert executor.received == [primary_decision]
+    assert len(executor.received) == 1
+    assert executor.received[0].title == primary_decision.title
+    assert executor.received[0].duration_minutes == 60
     _assert_executed(result)
 
 

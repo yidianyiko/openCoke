@@ -344,9 +344,7 @@ _DURATION_SUFFIX_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
         "half_hour",
     ),
     (
-        re.compile(
-            r"(?i)\s*(?:for\s+)?(?:一刻钟|quarter(?:\s+of)?\s+an?\s+hour)\s*$"
-        ),
+        re.compile(r"(?i)\s*(?:for\s+)?(?:一刻钟|quarter(?:\s+of)?\s+an?\s+hour)\s*$"),
         "quarter_hour",
     ),
     (
@@ -805,6 +803,17 @@ def _parse_duration_minutes_from_title(title: str) -> tuple[str, int | None]:
     return normalized, None
 
 
+_DEFAULT_TASK_DURATION_MINUTES = 60
+
+
+def _duration_minutes_or_default(value: Any) -> int:
+    if isinstance(value, bool):
+        return _DEFAULT_TASK_DURATION_MINUTES
+    if isinstance(value, int) and value > 0:
+        return value
+    return _DEFAULT_TASK_DURATION_MINUTES
+
+
 def _normalize_create_duration_from_title(decision: Any) -> Any:
     action = str(_decision_value(decision, "action") or "").strip()
     if action == "batch":
@@ -818,17 +827,24 @@ def _normalize_create_duration_from_title(decision: Any) -> Any:
                 normalized_operations.append(operation)
                 continue
             title = str(_operation_value(operation, "title") or "").strip()
-            stripped_title, duration_minutes = _parse_duration_minutes_from_title(title)
-            if duration_minutes is None:
-                normalized_operations.append(operation)
-                continue
+            stripped_title, title_duration_minutes = _parse_duration_minutes_from_title(
+                title
+            )
+            duration_minutes = _duration_minutes_or_default(
+                _operation_value(operation, "duration_minutes")
+                if title_duration_minutes is None
+                else title_duration_minutes
+            )
             updated_operation = operation
             if stripped_title and stripped_title != title:
                 updated_operation = _copy_operation_with_value(
                     updated_operation, "title", stripped_title
                 )
                 changed = True
-            if not _operation_value(updated_operation, "duration_minutes"):
+            if (
+                _operation_value(updated_operation, "duration_minutes")
+                != duration_minutes
+            ):
                 updated_operation = _copy_operation_with_value(
                     updated_operation, "duration_minutes", duration_minutes
                 )
@@ -842,16 +858,19 @@ def _normalize_create_duration_from_title(decision: Any) -> Any:
         return decision
 
     title = str(_decision_value(decision, "title") or "").strip()
-    stripped_title, duration_minutes = _parse_duration_minutes_from_title(title)
-    if duration_minutes is None:
-        return decision
+    stripped_title, title_duration_minutes = _parse_duration_minutes_from_title(title)
+    duration_minutes = _duration_minutes_or_default(
+        _decision_value(decision, "duration_minutes")
+        if title_duration_minutes is None
+        else title_duration_minutes
+    )
 
     updated_decision = decision
     if stripped_title and stripped_title != title:
         updated_decision = _copy_decision_with_value(
             updated_decision, "title", stripped_title
         )
-    if not _decision_value(updated_decision, "duration_minutes"):
+    if _decision_value(updated_decision, "duration_minutes") != duration_minutes:
         updated_decision = _copy_decision_with_value(
             updated_decision, "duration_minutes", duration_minutes
         )
