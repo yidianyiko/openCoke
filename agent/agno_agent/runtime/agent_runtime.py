@@ -543,6 +543,27 @@ def _string_content(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _message_field(message: Any, field: str) -> Any:
+    if isinstance(message, Mapping):
+        return message.get(field)
+    return getattr(message, field, None)
+
+
+def _latest_assistant_text(run_output: Any) -> str:
+    messages = getattr(run_output, "messages", None)
+    if not isinstance(messages, Sequence) or isinstance(
+        messages, (str, bytes, bytearray)
+    ):
+        return ""
+    for message in reversed(messages):
+        if _message_field(message, "role") != "assistant":
+            continue
+        content = _string_content(_message_field(message, "content"))
+        if content:
+            return content
+    return ""
+
+
 def _text_message_segments(content: str) -> tuple[str, ...]:
     return tuple(segment.strip() for segment in content.splitlines() if segment.strip())
 
@@ -929,6 +950,8 @@ async def run_agent_runtime(
                 domain_results=domain_results,
             )
         final_text = _string_content(getattr(run_output, "content", None))
+        if not final_text:
+            final_text = _latest_assistant_text(run_output)
         if preselected_scheduling_intent:
             domain_visible_text = _resolve_domain_visible_text(domain_results)
             if domain_visible_text:

@@ -293,6 +293,32 @@ async def test_fenced_multimodal_json_envelope_is_unwrapped(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_fenced_envelope_in_assistant_message_is_used_when_content_empty(
+    monkeypatch,
+):
+    envelope = _segments_payload(
+        {"type": "text", "content": "Hii！我是 Coke"},
+        {"type": "text", "content": "我可以帮你列待处理通知。"},
+    )
+    fenced = f"```json {envelope} ```"
+
+    result = await _run_with_fake_agent(
+        messages=[
+            {"role": "user", "content": "你好"},
+            {"role": "assistant", "content": fenced},
+        ],
+        capability_results=[],
+        monkeypatch=monkeypatch,
+        content="",
+    )
+
+    assert [message.content for message in result.visible_messages] == [
+        "Hii！我是 Coke",
+        "我可以帮你列待处理通知。",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_malformed_envelope_json_recovers_text_segments(monkeypatch):
     """Model occasionally emits a MultiModalResponses envelope with broken
     braces / commas. Regression: lenient recovery should still extract the
