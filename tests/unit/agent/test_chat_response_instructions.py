@@ -100,6 +100,14 @@ def test_prompt_keeps_plain_schedule_statements_out_of_reminder_tool():
     assert "casual mention of time" in prompt
 
 
+def test_prompt_requires_non_empty_direct_reply_for_greetings():
+    prompt = build_chat_response_instructions(_ctx(), _agent_input())
+
+    assert "For greetings, capability questions, and first-chat onboarding" in prompt
+    assert "reply directly with a concise non-empty introduction" in prompt
+    assert "do not return blank content" in prompt
+
+
 def test_prompt_does_not_roleplay_user_messages_as_due_reminders():
     prompt = build_chat_response_instructions(_ctx(), _agent_input())
 

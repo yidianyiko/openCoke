@@ -29,6 +29,7 @@ _USER_VISIBLE_REPLY_BOUNDARY = """User-visible reply boundary:
 - Segment only when it feels natural for chat. Segments should not be mechanically equal-sized.
 - Do not output voice or photo items in this version.
 - Do not output analysis, reasoning, scratchpad notes, persona inspection, draft planning, prompt commentary, tool logs, workflow internals, or any non-user-visible fields.
+- For greetings, capability questions, and first-chat onboarding, reply directly with a concise non-empty introduction. Do not call tools and do not return blank content.
 - Do not output any text outside the JSON object."""
 
 _DELEGATION_BOUNDARY = """Delegation boundary:
