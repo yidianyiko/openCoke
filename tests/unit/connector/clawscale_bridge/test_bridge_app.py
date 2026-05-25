@@ -1745,6 +1745,62 @@ def test_late_reply_fallback_promotes_reply_even_when_route_bind_fails():
     )
 
 
+def test_late_reply_fallback_promotes_reply_when_route_context_missing():
+    import connector.clawscale_bridge.app as bridge_app
+
+    mongo = MagicMock()
+    mongo.update_one.return_value = 1
+    reply_waiter = MagicMock()
+    delivery_route_client = MagicMock()
+    reply_waiter.wait_for_reply_message.return_value = {
+        "_id": "out_late_missing_ctx",
+        "status": "pending",
+        "message": "缺少路由上下文后补发",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "causal_inbound_event_id": "in_evt_late_missing_ctx",
+                "business_conversation_key": "bc_late_missing_ctx",
+            },
+        },
+    }
+
+    promoter = bridge_app.LateReplyFallbackPromoter(
+        mongo=mongo,
+        reply_waiter=reply_waiter,
+        delivery_route_client=delivery_route_client,
+    )
+
+    promoted = promoter._promote_for_async_dispatch(
+        causal_inbound_event_id="in_evt_late_missing_ctx",
+        customer_id="acct_1",
+        tenant_id="ten_1",
+        conversation_id=None,
+        channel_id="ch_1",
+        end_user_id="eu_1",
+        external_end_user_id="wxid_1",
+    )
+
+    assert promoted is True
+    delivery_route_client.bind.assert_not_called()
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_late_missing_ctx", "status": "pending"},
+        {
+            "$set": {
+                "customer_id": "acct_1",
+                "metadata.business_conversation_key": "bc_late_missing_ctx",
+                "metadata.delivery_mode": "push",
+                "metadata.output_id": "out_late_missing_ctx",
+                "metadata.idempotency_key": "late_sync_reply:out_late_missing_ctx",
+                "metadata.trace_id": "late_sync_reply:out_late_missing_ctx",
+                "metadata.causal_inbound_event_id": "in_evt_late_missing_ctx",
+            }
+        },
+    )
+
+
 def test_bridge_inbound_accepts_live_messages_and_metadata_shape(monkeypatch):
     from connector.clawscale_bridge.app import create_app
     import connector.clawscale_bridge.app as bridge_app

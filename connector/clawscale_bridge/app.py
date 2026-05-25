@@ -206,12 +206,11 @@ class LateReplyFallbackPromoter:
                     )
             else:
                 logger.warning(
-                    "late_clawscale_reply_missing_route_context: "
+                    "late_clawscale_reply_missing_route_context_promoting_without_bind: "
                     "causal_inbound_event_id=%s output_id=%s",
                     causal_inbound_event_id,
                     output_id,
                 )
-                return False
 
         updated = self.mongo.update_one(
             "outputmessages",

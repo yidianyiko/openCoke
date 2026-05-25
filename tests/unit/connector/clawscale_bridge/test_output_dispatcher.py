@@ -138,6 +138,7 @@ def test_output_dispatcher_dispatches_pending_push_outputs_when_due(monkeypatch)
 
     class _FakeCollection:
         def find_one_and_update(self, query, update, return_document):
+            assert return_document is output_dispatcher.ReturnDocument.AFTER
             for doc in docs:
                 if (
                     doc["status"] == "pending"
@@ -598,4 +599,95 @@ def test_output_dispatcher_claims_customer_id_messages_during_compatibility_wind
         causal_inbound_event_id=None,
         media_urls=None,
         audio_as_voice=False,
+    )
+
+
+def test_output_dispatcher_posts_promoted_late_reply_to_gateway(monkeypatch):
+    import connector.clawscale_bridge.output_dispatcher as output_dispatcher
+
+    now = 1710000000
+    monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
+
+    promoted_late_reply = _build_message_doc(
+        _id="out_late_missing_ctx",
+        account_id=None,
+        customer_id="acct_1",
+        status="dispatching",
+        message="缺少路由上下文后补发",
+        metadata={
+            "business_conversation_key": "bc_late_missing_ctx",
+            "delivery_mode": "push",
+            "idempotency_key": "late_sync_reply:out_late_missing_ctx",
+            "trace_id": "late_sync_reply:out_late_missing_ctx",
+            "output_id": "out_late_missing_ctx",
+            "causal_inbound_event_id": "in_evt_late_missing_ctx",
+        },
+    )
+    collection = MagicMock()
+    collection.find_one_and_update.return_value = promoted_late_reply
+
+    mongo = MagicMock()
+    mongo.get_collection.return_value = collection
+    gateway_client = MagicMock()
+    gateway_client.post_output.return_value.status_code = 200
+
+    dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
+        mongo=mongo,
+        gateway_client=gateway_client,
+    )
+
+    handled = dispatcher.dispatch_once()
+
+    assert handled is True
+    collection.find_one_and_update.assert_called_once_with(
+        {
+            "$and": [
+                {
+                    "$or": [
+                        {"customer_id": {"$exists": True}},
+                        {"account_id": {"$exists": True}},
+                    ]
+                }
+            ],
+            "expect_output_timestamp": {"$lte": now},
+            "metadata.business_conversation_key": {"$exists": True},
+            "metadata.delivery_mode": "push",
+            "metadata.output_id": {"$exists": True},
+            "$or": [
+                {"status": "pending"},
+                {
+                    "status": "dispatching",
+                    "$or": [
+                        {
+                            "dispatching_timestamp": {
+                                "$lte": now
+                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                            }
+                        },
+                        {"dispatching_timestamp": {"$exists": False}},
+                    ],
+                },
+            ],
+        },
+        {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
+        return_document=output_dispatcher.ReturnDocument.AFTER,
+    )
+    gateway_client.post_output.assert_called_once_with(
+        output_id="out_late_missing_ctx",
+        customer_id="acct_1",
+        business_conversation_key="bc_late_missing_ctx",
+        text="缺少路由上下文后补发",
+        message_type="text",
+        delivery_mode="push",
+        expect_output_timestamp=1710000000,
+        idempotency_key="late_sync_reply:out_late_missing_ctx",
+        trace_id="late_sync_reply:out_late_missing_ctx",
+        causal_inbound_event_id="in_evt_late_missing_ctx",
+        media_urls=None,
+        audio_as_voice=False,
+    )
+    mongo.update_one.assert_called_once_with(
+        "outputmessages",
+        {"_id": "out_late_missing_ctx", "status": "dispatching"},
+        {"$set": {"status": "handled", "handled_timestamp": now}},
     )
