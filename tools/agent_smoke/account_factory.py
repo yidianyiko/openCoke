@@ -70,6 +70,11 @@ def provision_account(
     coke_account_id = synthetic_account_id(batch_id, label)
     if not display_name:
         display_name = f"Smoke {label.title()}"
+    # Display names must be globally unique per the new uniqueness check
+    # in gateway/packages/api/src/lib/customer-auth.ts. Suffix with a short
+    # batch hash so concurrent smoke runs don't collide.
+    short_batch = batch_id.replace("-", "")[-8:]
+    display_name = f"{display_name} {short_batch}"
 
     tenant_id: str | None = None
     clawscale_user_id: str | None = None

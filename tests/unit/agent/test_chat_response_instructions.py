@@ -202,10 +202,14 @@ def test_prompt_renders_first_chat_onboarding_after_character_prompt():
 
     assert "First-chat onboarding prompt:" in prompt
     assert "我是 Coke，你的健康搭子" in prompt
-    assert "帮你约课" in prompt
+    # Booking-claim removed from onboarding because Coke has no booking
+    # backend — the previous "帮你约课" line was a known Bug C catalyst.
+    assert "帮你约课" not in prompt
+    assert "约彭教练" not in prompt
+    assert "跟朋友一起" in prompt or "跟朋友约共享提醒" in prompt
     assert "9点提醒我运动" in prompt
     assert "随手备忘" in prompt
-    assert "不要承诺已经设置提醒" in prompt
+    assert "课程预约、约见教练目前不在你的能力范围里" in prompt
     assert prompt.index("Default character prompt:") < prompt.index(
         "First-chat onboarding prompt:"
     )
