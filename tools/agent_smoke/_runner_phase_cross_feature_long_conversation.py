@@ -230,6 +230,13 @@ def _reply_text(turns: list[Turn]) -> str:
     return "\n".join(turn.reply_text or "" for turn in turns)
 
 
+def _reply_for(ctx: "CaseContext", note: str) -> str:
+    for turn in ctx.turns:
+        if turn.note == note:
+            return turn.reply_text or ""
+    return ""
+
+
 def _agent_trace_excerpt(turn: Turn, after: dict[str, Any]) -> list[dict[str, Any]]:
     excerpts: list[dict[str, Any]] = []
     for session in after["mongo"].get("agent_sessions", []):
@@ -552,8 +559,20 @@ def _run_cases(transcript: Transcript) -> list[dict[str, Any]]:
         alice, bob = ctx.accounts["alice"], ctx.accounts["bob"]
         shared = _shared_rows(after, alice, bob)
         reminders = _reminders_for(after, alice) + _reminders_for(after, bob)
-        ok = bool(_active_friendships(after, alice, bob)) and any(row.get("status") == "accepted" for row in shared) and len(reminders) >= 2
-        return _judge_result(ctx, before, after, expected="Friend bootstrap plus accepted shared reminder is visible to both users", observed=f"shared={[(r.get('status'), r.get('requester_reminder_id'), r.get('invitee_reminder_id')) for r in shared]} reminders={len(reminders)}", ok=ok, bug_pattern="X1", mutation_expected=True, mutation_happened=bool(shared), severity="silent-bad-side-effect")
+        alice_fact = _reply_for(ctx, "L4_alice_fact")
+        bob_fact = _reply_for(ctx, "L4_bob_fact")
+        backref = _reply_for(ctx, "L4_backref")
+        final = _reply_for(ctx, "L4_final")
+        accepted = any(row.get("status") == "accepted" for row in shared)
+        fact_ok = all(("10" in reply or "十" in reply) and "9" not in reply and "九" not in reply for reply in (alice_fact, bob_fact))
+        update_visible = ("10:30" in backref or "十点半" in backref or "10点半" in backref) and "没找到" not in backref
+        final_visible = "Bob" in final and ("10:30" in final or "十点半" in final or "10点半" in final) and not any(token in final for token in ("暂无", "没有", "待处理"))
+        ok = bool(_active_friendships(after, alice, bob)) and accepted and len(reminders) >= 2 and fact_ok and update_visible and final_visible
+        observed = (
+            f"shared={[(r.get('status'), r.get('requester_reminder_id'), r.get('invitee_reminder_id')) for r in shared]} "
+            f"reminders={len(reminders)} fact_ok={fact_ok} update_visible={update_visible} final_visible={final_visible}"
+        )
+        return _judge_result(ctx, before, after, expected="Friend bootstrap plus accepted shared reminder is visible to both users with correct time and update status", observed=observed, ok=ok, bug_pattern="X1", mutation_expected=True, mutation_happened=bool(shared), severity="visible-error")
 
     results.append(_case_result("L4-friend-shared-reminder-bootstrap", {"alice": "Alice Long", "bob": "Bob Long"}, transcript, l4, l4j, "L4 friend shared"))
 
@@ -593,8 +612,23 @@ def _run_cases(transcript: Transcript) -> list[dict[str, Any]]:
 
     def l7j(ctx: CaseContext, before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
         shared = _shared_rows(after, ctx.accounts["alice"], ctx.accounts["mei"])
-        ok = bool(shared)
-        return _judge_result(ctx, before, after, expected="Friend Mei routes to shared reminder; non-friend Jin fails closed", observed=f"shared_rows={len(shared)} statuses={[r.get('status') for r in shared]}", ok=ok, bug_pattern="X1", mutation_expected=True, mutation_happened=bool(shared), severity="silent-bad-side-effect")
+        route = _reply_for(ctx, "L7_route")
+        pending = _reply_for(ctx, "L7_mei_pending")
+        jin = _reply_for(ctx, "L7_jin") + "\n" + _reply_for(ctx, "L7_why")
+        final_shared = _reply_for(ctx, "L7_final_shared")
+        status = _reply_for(ctx, "L7_status")
+        route_ok = "提醒" in route and not any(token in route for token in (*EMPTY_FALLBACK_TOKENS, "加好友", "不太确定", "哪个", "哪一个"))
+        pending_visible = "Mei" in pending or "Alice" in pending or "约" in pending
+        jin_closed = bool(jin.strip()) and len(shared) == 1
+        final_time_ok = "10" in final_shared or "十" in final_shared
+        status_visible = ("Mei" in status or "pending" in status) and "待确认" in status and not any(token in status for token in ("搞不清楚", "更多信息", "还是想"))
+        ok = bool(shared) and route_ok and pending_visible and jin_closed and final_time_ok and status_visible
+        observed = (
+            f"shared_rows={len(shared)} statuses={[r.get('status') for r in shared]} "
+            f"route_ok={route_ok} pending_visible={pending_visible} jin_closed={jin_closed} "
+            f"final_time_ok={final_time_ok} status_visible={status_visible}"
+        )
+        return _judge_result(ctx, before, after, expected="Friend Mei routes to shared reminder; non-friend Jin fails closed; pending/status stay visible", observed=observed, ok=ok, bug_pattern="X1", mutation_expected=True, mutation_happened=bool(shared), severity="visible-error")
 
     results.append(_case_result("L7-friend-vs-shared-reminder", {"alice": "Alice Long", "mei": "Mei Long"}, transcript, l7, l7j, "L7 friend vs shared"))
 
