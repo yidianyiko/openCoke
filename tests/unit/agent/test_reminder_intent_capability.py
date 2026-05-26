@@ -3094,7 +3094,7 @@ async def test_reminder_intent_port_routes_detector_batch_operations_after_remin
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_drops_batch_operation_without_local_schedule_evidence():
+async def test_reminder_intent_port_routes_detector_batch_operation_with_local_schedule_evidence():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
@@ -3103,11 +3103,6 @@ async def test_reminder_intent_port_drops_batch_operation_without_local_schedule
         schedule_basis="explicit_occurrences",
         schedule_evidence="明天；晚上9:00",
         operations=[
-            SimpleNamespace(
-                action="create",
-                title="提醒任务",
-                trigger_at="2026-05-12T09:00:00+09:00",
-            ),
             SimpleNamespace(
                 action="create",
                 title="收起全天学习的作业",

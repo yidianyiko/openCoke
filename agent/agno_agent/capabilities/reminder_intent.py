@@ -170,9 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _drop_batch_operations_without_local_schedule_evidence(
-            input_message, decision
-        )
         if _should_reject_title_schedule_evidence_leak(decision):
             return _invalid_decision_clarification_result()
         if _should_reject_weekday_mismatch(input_message, decision, run_context):
@@ -834,34 +831,6 @@ def _copy_operation_with_value(operation: Any, field: str, value: Any) -> Any:
     return SimpleNamespace(**data)
 
 
-def _drop_batch_operations_without_local_schedule_evidence(
-    input_message: str, decision: Any
-) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "batch":
-        return decision
-    operations = list(_decision_value(decision, "operations") or [])
-    if len(operations) <= 1:
-        return decision
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    kept_operations = []
-    changed = False
-    for operation in operations:
-        if str(_operation_value(operation, "action") or "").strip() != "create":
-            kept_operations.append(operation)
-            continue
-        title = str(_operation_value(operation, "title") or "").strip()
-        if not title or current_user_text.find(title) < 0:
-            kept_operations.append(operation)
-            continue
-        if _title_has_local_schedule_context(current_user_text, title):
-            kept_operations.append(operation)
-            continue
-        changed = True
-    if not changed or not kept_operations:
-        return decision
-    return _copy_decision_with_operations(decision, kept_operations)
-
-
 def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
     if str(_decision_value(decision, "action") or "").strip() != "batch":
         return decision
@@ -922,20 +891,6 @@ def _title_has_local_cadence_context(text: str, title: str) -> bool:
         clause_end = _next_clause_boundary(text, position + len(title))
         clause = text[clause_start:clause_end]
         if _is_high_frequency_evidence(clause):
-            return True
-        start = position + len(title)
-
-
-def _title_has_local_schedule_context(text: str, title: str) -> bool:
-    start = 0
-    while True:
-        position = text.find(title, start)
-        if position < 0:
-            return False
-        clause_start = _previous_clause_boundary(text, position)
-        clause_end = _next_clause_boundary(text, position + len(title))
-        clause = text[clause_start:clause_end]
-        if _BARE_CLOCK_PATTERN.search(clause) or _RELATIVE_DELAY_PATTERN.search(clause):
             return True
         start = position + len(title)
 
