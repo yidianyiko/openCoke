@@ -14,14 +14,28 @@ regression slips through.
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import re
 
 from agent.agno_agent.runtime.chat_response_instructions import (
     _DELEGATION_BOUNDARY,
     _DOMAIN_EXECUTION_RESULT_CONTRACT,
     _USER_VISIBLE_REPLY_BOUNDARY,
+    build_chat_response_instructions,
+)
+from agent.agno_agent.runtime.context import (
+    AgentRunContext,
+    TrustedCharacterContext,
+    TrustedConversationContext,
+    TrustedRelationContext,
+    TrustedUserContext,
 )
 from agent.agno_agent.runtime.execution_agents import _SCHEDULING_SYSTEM_PROMPT
+from agent.agno_agent.runtime.inputs import (
+    AgentInput,
+    ReminderFirePayload,
+    UserTurnPayload,
+)
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_CHAT_RESPONSE,
     INSTRUCTIONS_POST_ANALYZE,
@@ -42,6 +56,67 @@ def approximate_tokens(text: str) -> int:
     return cjk + int(latin_words * 1.3) + int(digits * 0.5) + int(punct * 0.5)
 
 
+_BUDGET_TIME = datetime(2026, 5, 26, 12, 0, tzinfo=UTC)
+
+
+def _chat_response_context(*, is_new_user: bool = False) -> AgentRunContext:
+    return AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="Alice", timezone="Asia/Tokyo"),
+        character=TrustedCharacterContext(
+            id="coke",
+            nickname="Coke",
+            metadata={"description": COKE_SYSTEM_PROMPT},
+        ),
+        conversation=TrustedConversationContext(
+            id="conv-1",
+            platform="business",
+            route_key="wechat_personal:primary",
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="coke"),
+        platform="business",
+        recent_chat_history="",
+        current_time=_BUDGET_TIME,
+        is_new_user=is_new_user,
+    )
+
+
+def _user_turn_input() -> AgentInput:
+    return AgentInput(
+        input_type="user.turn",
+        conversation_id="conv-1",
+        text="hi",
+        payload=UserTurnPayload(current_message_ids=["msg-1"]),
+        occurred_at=_BUDGET_TIME,
+    )
+
+
+def _reminder_fire_input() -> AgentInput:
+    return AgentInput(
+        input_type="reminder.fired",
+        conversation_id="conv-1",
+        text="提醒：喝水",
+        payload=ReminderFirePayload(
+            fire_id="fire-1",
+            reminder_id="reminder-1",
+            title="喝水",
+            scheduled_for=datetime(2026, 5, 26, 9, 0, tzinfo=UTC),
+        ),
+        occurred_at=_BUDGET_TIME,
+    )
+
+
+def _assembled_chat_response_prompt(
+    *,
+    is_new_user: bool = False,
+    reminder_fire: bool = False,
+) -> str:
+    agent_input = _reminder_fire_input() if reminder_fire else _user_turn_input()
+    return build_chat_response_instructions(
+        _chat_response_context(is_new_user=is_new_user),
+        agent_input,
+    )
+
+
 # Budgets are deliberate ceilings, not measurements of current size.
 # Lower numbers below current size = forcing function to diet further.
 # See docs/adr/0004-per-agent-prompt-budget-discipline.md.
@@ -57,6 +132,18 @@ PROMPT_BUDGETS: dict[str, tuple[str, int]] = {
     "USER_VISIBLE_REPLY_BOUNDARY": (_USER_VISIBLE_REPLY_BOUNDARY, 250),
     "DELEGATION_BOUNDARY": (_DELEGATION_BOUNDARY, 1200),
     "DOMAIN_EXECUTION_RESULT_CONTRACT": (_DOMAIN_EXECUTION_RESULT_CONTRACT, 250),
+    "ASSEMBLED_CHAT_RESPONSE_USER_TURN": (
+        _assembled_chat_response_prompt(),
+        4200,
+    ),
+    "ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT": (
+        _assembled_chat_response_prompt(is_new_user=True),
+        4500,
+    ),
+    "ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE": (
+        _assembled_chat_response_prompt(reminder_fire=True),
+        4200,
+    ),
 }
 
 
@@ -86,6 +173,14 @@ def test_prompt_budget_registry_covers_runtime_prompt_surfaces():
         "USER_VISIBLE_REPLY_BOUNDARY",
         "DELEGATION_BOUNDARY",
         "DOMAIN_EXECUTION_RESULT_CONTRACT",
+    }.issubset(PROMPT_BUDGETS)
+
+
+def test_prompt_budget_registry_covers_assembled_chat_response_surfaces():
+    assert {
+        "ASSEMBLED_CHAT_RESPONSE_USER_TURN",
+        "ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT",
+        "ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE",
     }.issubset(PROMPT_BUDGETS)
 
 
