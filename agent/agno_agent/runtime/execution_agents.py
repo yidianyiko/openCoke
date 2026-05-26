@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -477,10 +477,17 @@ def _records_from_freshness_result(
     tool_name: str,
     content: Mapping[str, Any],
 ) -> list[Mapping[str, Any]]:
-    key = "friend_requests" if tool_name == "list_friend_requests" else "shared_reminders"
-    records = content.get(key)
-    if isinstance(records, list):
-        return [record for record in records if isinstance(record, Mapping)]
+    keys = (
+        ("friend_requests", "requests", "value")
+        if tool_name == "list_friend_requests"
+        else ("shared_reminders", "pending", "value")
+    )
+    for key in keys:
+        records = content.get(key)
+        if isinstance(records, Sequence) and not isinstance(
+            records, (str, bytes, bytearray)
+        ):
+            return [record for record in records if isinstance(record, Mapping)]
     return []
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import UTC, datetime
 from unittest.mock import patch
 
@@ -769,6 +770,76 @@ async def test_run_scheduling_domain_forced_args_call_exact_tool_without_worker_
     assert captured_args == {"accept_friend_request": {"request_id": "fr_1"}}
     assert result["operations"][0]["action"] == "accept_friend_request"
     assert result["operations"][0]["entity_id"] == "fr_1"
+
+
+@pytest.mark.asyncio
+async def test_run_scheduling_domain_freshness_accepts_gateway_friend_requests_shape():
+    captured_calls: list[tuple[str, dict]] = []
+    run_context = replace(
+        _run_context(),
+        session_state={
+            "focus": {
+                "current": {
+                    "action_id": "fr_1",
+                    "kind": "friend_request",
+                    "status": "pending",
+                }
+            }
+        },
+    )
+
+    class _UnexpectedAgent:
+        def __init__(self, **kwargs):
+            raise AssertionError("fresh forced scheduling args should not spawn the worker agent")
+
+    class RecordingSchedulingPort:
+        def __init__(self, tool_name: str) -> None:
+            self.tool_name = tool_name
+
+        async def run(self, input_message, run_context, args):
+            del input_message, run_context
+            captured_calls.append((self.tool_name, dict(args)))
+            if self.tool_name == "list_friend_requests":
+                return CapabilityResult(
+                    name=self.tool_name,
+                    ok=True,
+                    content={
+                        "requests": [
+                            {
+                                "id": "fr_1",
+                                "status": "pending",
+                                "targetAccountId": "user-1",
+                            }
+                        ]
+                    },
+                )
+            return CapabilityResult(
+                name=self.tool_name,
+                ok=True,
+                content={"id": "fr_1", "status": "accepted"},
+            )
+
+    domain_results: list[DomainExecutionResult] = []
+
+    with patch("agent.agno_agent.runtime.execution_agents.Agent", _UnexpectedAgent):
+        with patch(
+            "agent.agno_agent.runtime.execution_agents.SchedulingCapabilityPort",
+            side_effect=lambda *, tool_name: RecordingSchedulingPort(tool_name),
+        ):
+            result = await run_scheduling_domain(
+                input_message="确认",
+                intent="accept_friend_request",
+                run_context=run_context,
+                domain_results=domain_results,
+                forced_args={"request_id": "fr_1"},
+            )
+
+    assert captured_calls == [
+        ("list_friend_requests", {}),
+        ("accept_friend_request", {"request_id": "fr_1"}),
+    ]
+    assert result["outcome"] == "executed"
+    assert result["operations"][0]["action"] == "accept_friend_request"
 
 
 @pytest.mark.asyncio
