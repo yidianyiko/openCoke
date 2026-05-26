@@ -22,6 +22,9 @@ sessions.
   identifiers, default durations, cleanup owners, and deletion evidence rules.
 - [`channel-field-inventory.md`](./channel-field-inventory.md): frontend-safe
   and backend-only Channel field classification.
+- [`agent-trace-feedback-loop.md`](./agent-trace-feedback-loop.md): durable
+  loop for turning `AgentTurnTrace` evidence into routing, prompt,
+  tool-interface, and runtime improvements.
 
 ## Canonical Neighbors
 
