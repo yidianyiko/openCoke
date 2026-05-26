@@ -868,7 +868,7 @@ async def test_reminder_intent_port_returns_relative_delay_clarification():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_converts_referential_relative_delay_to_snooze_update():
+async def test_reminder_intent_port_routes_referential_relative_delay_update_from_detector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -886,11 +886,13 @@ async def test_reminder_intent_port_converts_referential_relative_delay_to_snooz
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
             return SimpleNamespace(
-                content={
-                    "intent_type": "clarify",
-                    "action": "",
-                    "clarification_reason": "ambiguous_request",
-                }
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="update",
+                    target_scope="recent_active",
+                    new_title="",
+                    new_trigger_at="2026-05-25T18:56:00+00:00",
+                )
             )
 
     class FakeExecutor:
@@ -954,7 +956,7 @@ async def test_reminder_intent_port_routes_bare_snooze_from_detector():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_converts_invalid_referential_delay_to_snooze_update():
+async def test_reminder_intent_port_routes_detector_referential_delay_update():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -971,7 +973,14 @@ async def test_reminder_intent_port_converts_invalid_referential_delay_to_snooze
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="update",
+                    target_scope="recent_active",
+                    new_trigger_at="2026-05-25T18:56:00+00:00",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1033,7 +1042,7 @@ async def test_reminder_intent_port_derives_title_time_selector_for_update():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_falls_back_update_from_invalid_detector_with_history():
+async def test_reminder_intent_port_routes_detector_update_with_history_selector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1050,7 +1059,16 @@ async def test_reminder_intent_port_falls_back_update_from_invalid_detector_with
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="update",
+                    target_title="喝水",
+                    target_local_time="08:00",
+                    target_scope="recent_active",
+                    new_title="吃药",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1071,7 +1089,7 @@ async def test_reminder_intent_port_falls_back_update_from_invalid_detector_with
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_repairs_malformed_update_decision():
+async def test_reminder_intent_port_routes_detector_update_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1085,16 +1103,18 @@ async def test_reminder_intent_port_repairs_malformed_update_decision():
         recent_chat_history="",
         current_time=datetime(2026, 5, 25, 19, 50, tzinfo=UTC),
     )
-    malformed_decision = SimpleNamespace(
+    detector_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
         reminder_id="25202445",
-        title="吃药",
+        target_local_time="08:00",
+        target_scope="recent_active",
+        new_title="吃药",
     )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=malformed_decision)
+            return SimpleNamespace(content=detector_decision)
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1118,7 +1138,7 @@ async def test_reminder_intent_port_repairs_malformed_update_decision():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_repairs_malformed_daily_create_decision():
+async def test_reminder_intent_port_routes_detector_daily_create_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1132,17 +1152,19 @@ async def test_reminder_intent_port_repairs_malformed_daily_create_decision():
         recent_chat_history="",
         current_time=datetime(2026, 5, 25, 20, 30, tzinfo=UTC),
     )
-    malformed_decision = SimpleNamespace(
+    detector_decision = SimpleNamespace(
         intent_type="crud",
         action="create",
         title="写日记",
-        recurrence="daily",
-        trigger_time="08:00",
+        trigger_at="2026-05-26T08:00:00+08:00",
+        rrule="FREQ=DAILY",
+        schedule_basis="explicit_cadence",
+        schedule_evidence="每天",
     )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=malformed_decision)
+            return SimpleNamespace(content=detector_decision)
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1165,7 +1187,7 @@ async def test_reminder_intent_port_repairs_malformed_daily_create_decision():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_repairs_malformed_weekly_create_decision():
+async def test_reminder_intent_port_routes_detector_weekly_create_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1182,7 +1204,17 @@ async def test_reminder_intent_port_repairs_malformed_weekly_create_decision():
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="create",
+                    title="开会",
+                    trigger_at="2026-05-27T14:00:00+08:00",
+                    rrule="FREQ=WEEKLY;BYDAY=WE",
+                    schedule_basis="explicit_cadence",
+                    schedule_evidence="每周三",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1202,7 +1234,7 @@ async def test_reminder_intent_port_repairs_malformed_weekly_create_decision():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_repairs_biweekly_create_decision():
+async def test_reminder_intent_port_routes_detector_biweekly_create_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1219,7 +1251,17 @@ async def test_reminder_intent_port_repairs_biweekly_create_decision():
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="create",
+                    title="复盘",
+                    trigger_at="2026-06-01T10:00:00+08:00",
+                    rrule="FREQ=WEEKLY;INTERVAL=2;BYDAY=MO",
+                    schedule_basis="explicit_cadence",
+                    schedule_evidence="每隔一周周一",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1239,7 +1281,7 @@ async def test_reminder_intent_port_repairs_biweekly_create_decision():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_repairs_monthly_day_create_decision():
+async def test_reminder_intent_port_routes_detector_monthly_day_create_decision():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1256,7 +1298,17 @@ async def test_reminder_intent_port_repairs_monthly_day_create_decision():
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="create",
+                    title="交房租",
+                    trigger_at="2026-06-01T09:00:00+08:00",
+                    rrule="FREQ=MONTHLY",
+                    schedule_basis="explicit_cadence",
+                    schedule_evidence="每月 1 号",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1588,7 +1640,7 @@ async def test_reminder_intent_port_derives_complete_selector_from_today_title()
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_falls_back_for_explicit_workday_create():
+async def test_reminder_intent_port_routes_detector_explicit_workday_create():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1605,7 +1657,17 @@ async def test_reminder_intent_port_falls_back_for_explicit_workday_create():
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content="ReminderDetectInvalidDecision")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="create",
+                    title="喝水",
+                    trigger_at="2026-05-26T08:00:00+08:00",
+                    rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+                    schedule_basis="explicit_cadence",
+                    schedule_evidence="工作日",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
