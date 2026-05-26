@@ -1898,11 +1898,13 @@ async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
                             "action": "create",
                             "title": "冥想",
                             "trigger_at": "2026-05-10T17:00:00+09:00",
+                            "rrule": "FREQ=HOURLY",
                         },
                         {
                             "action": "create",
                             "title": "冥想",
                             "trigger_at": "2026-05-10T18:00:00+09:00",
+                            "rrule": "FREQ=HOURLY",
                         },
                     ],
                 }
@@ -1925,7 +1927,7 @@ async def test_reminder_intent_port_blocks_unbounded_high_frequency_batch():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_evidence():
+async def test_reminder_intent_port_blocks_detector_unbounded_high_frequency_batch():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
@@ -1934,18 +1936,20 @@ async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_ev
                 content={
                     "intent_type": "crud",
                     "action": "batch",
-                    "schedule_basis": "explicit_occurrences",
-                    "schedule_evidence": "15:00, 16:00",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每小时",
                     "operations": [
                         {
                             "action": "create",
                             "title": "冥想",
                             "trigger_at": "2026-05-10T15:00:00+09:00",
+                            "rrule": "FREQ=HOURLY",
                         },
                         {
                             "action": "create",
                             "title": "冥想",
                             "trigger_at": "2026-05-10T16:00:00+09:00",
+                            "rrule": "FREQ=HOURLY",
                         },
                     ],
                 }
@@ -1968,7 +1972,7 @@ async def test_reminder_intent_port_blocks_input_high_frequency_batch_without_ev
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_frequency_batch():
+async def test_reminder_intent_port_blocks_detector_minutely_cadence_batch_without_end():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
@@ -1977,19 +1981,20 @@ async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_freq
                 content={
                     "intent_type": "crud",
                     "action": "batch",
-                    "schedule_basis": "explicit_occurrences",
-                    "schedule_evidence": "16:00, 17:00",
-                    "deadline_at": "2026-05-10T23:00:00+09:00",
+                    "schedule_basis": "explicit_cadence",
+                    "schedule_evidence": "每分钟",
                     "operations": [
                         {
                             "action": "create",
                             "title": "正念冥想",
                             "trigger_at": "2026-05-10T16:00:00+09:00",
+                            "rrule": "FREQ=MINUTELY",
                         },
                         {
                             "action": "create",
                             "title": "正念冥想",
                             "trigger_at": "2026-05-10T17:00:00+09:00",
+                            "rrule": "FREQ=MINUTELY",
                         },
                     ],
                 }
@@ -1997,7 +2002,7 @@ async def test_reminder_intent_port_blocks_model_inferred_deadline_for_high_freq
 
     class FailingExecutor:
         def execute(self, received_decision, run_context):
-            raise AssertionError("model-inferred deadline must not execute")
+            raise AssertionError("unbounded minutely cadence must not execute")
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
@@ -2130,7 +2135,7 @@ async def test_reminder_intent_port_returns_executor_failure_without_recurring_r
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_blocks_hourly_rrule_with_separate_deadline():
+async def test_reminder_intent_port_blocks_detector_unbounded_hourly_rrule_without_end():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     class PrimaryAgent:
@@ -2142,7 +2147,6 @@ async def test_reminder_intent_port_blocks_hourly_rrule_with_separate_deadline()
                     "title": "冥想",
                     "trigger_at": "2026-05-10T15:00:00+09:00",
                     "rrule": "FREQ=HOURLY",
-                    "deadline_at": "2026-05-10T23:00:00+09:00",
                     "schedule_basis": "explicit_cadence",
                     "schedule_evidence": "每小时",
                 }

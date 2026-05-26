@@ -165,7 +165,7 @@ class ReminderIntentPort:
         ):
             return _bounded_cadence_deadline_loss_clarification_result(decision)
         if _should_execute_decision(decision) and _is_unbounded_high_frequency_cadence(
-            decision, input_message=input_message
+            decision
         ):
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
@@ -429,7 +429,7 @@ def _explicit_local_date_from_text(
         return None
 
 
-# kept for Phase 3 cleanup: _normalize_* helpers and runtime safety path still reference this helper.
+# Runtime safety paths still reference this helper.
 def _single_relative_delay(current_user_text: str) -> timedelta | None:
     matches = list(_RELATIVE_DELAY_PATTERN.finditer(current_user_text))
     if len(matches) != 1:
@@ -1007,13 +1007,7 @@ def _is_clarification_decision(decision: Any) -> bool:
     return _decision_value(decision, "intent_type") == "clarify"
 
 
-def _is_unbounded_high_frequency_cadence(
-    decision: Any,
-    *,
-    input_message: str = "",
-) -> bool:
-    if _input_has_high_frequency_without_deadline(input_message):
-        return True
+def _is_unbounded_high_frequency_cadence(decision: Any) -> bool:
     if _has_explicit_deadline(decision):
         return False
     rrules = [str(_decision_value(decision, "rrule") or "")]
@@ -1023,11 +1017,6 @@ def _is_unbounded_high_frequency_cadence(
     if any(_is_bounded_high_frequency_rrule(rrule) for rrule in rrules):
         return False
     if any(_is_unbounded_high_frequency_rrule(rrule) for rrule in rrules):
-        return True
-    evidence = str(_decision_value(decision, "schedule_evidence") or "")
-    if _decision_value(
-        decision, "schedule_basis"
-    ) == "explicit_cadence" and _is_high_frequency_evidence(evidence):
         return True
     return False
 
@@ -1129,47 +1118,6 @@ def _is_bounded_high_frequency_rrule(rrule: str) -> bool:
     if not _is_high_frequency_rrule(rule):
         return False
     return "UNTIL=" in rule or "COUNT=" in rule
-
-
-def _is_high_frequency_evidence(evidence: str) -> bool:
-    text = str(evidence or "").strip().lower()
-    tokens = (
-        "hourly",
-        "minutely",
-        "every hour",
-        "every minute",
-        "每小时",
-        "每个小时",
-        "每一小时",
-        "每分钟",
-        "每个整点",
-        "整点",
-    )
-    interval_high_frequency = re.search(
-        r"每隔\s*(?:\d+|[零〇一二两三四五六七八九十半]+)?\s*(?:分钟|分|小时|个小时|整点)",
-        text,
-    )
-    return any(token in text for token in tokens) or bool(interval_high_frequency)
-
-
-def _input_has_high_frequency_without_deadline(text: str) -> bool:
-    normalized = str(text or "").strip().lower()
-    if _input_has_next_whole_hour_reference(normalized):
-        return False
-    if not _is_high_frequency_evidence(normalized):
-        return False
-    deadline_tokens = (
-        "到",
-        "截止",
-        "结束",
-        "持续到",
-        "until",
-        "through",
-        "ending",
-        "ends",
-        "end at",
-    )
-    return not any(token in normalized for token in deadline_tokens)
 
 
 def _unbounded_high_frequency_cadence_clarification_result(
