@@ -69,10 +69,11 @@ no deterministic link back to the pending friend request or shared reminder.
 - Verification: `pnpm --dir gateway/packages/api test -- src/scheduling/notification-service.test.ts src/scheduling/friendship-service.test.ts src/scheduling/user-link-service.test.ts src/scheduling/shared-reminder-service.test.ts`.
 - Follow-up fix: gateway inbound routing now attaches the latest recently
   delivered, still-pending product notification to
-  `metadata.product_notification`; agent runtime only treats short
-  `确认/同意/接受/通过/拒绝` replies as product actions when that trusted context
-  exists. The internal friend-request tool now resolves a single unnamed
-  pending request and fails closed when multiple pending requests exist.
+  `metadata.product_notification`; agent runtime now binds that trusted context
+  into Focus and sends the current reply through the semantic interpreter
+  instead of a short confirmation/rejection word list. The internal
+  friend-request tool now resolves a single unnamed pending request and fails
+  closed when multiple pending requests exist.
 - Manual data repair: request `cmpjvx6ed0003p51uh6nobcu1` was accepted through
   `/api/internal/scheduling/tools/accept_friend_request`, creating friendship
   `cmpklyheu0002pb1t24ahoz7h` and delivering the accepted notification to the
