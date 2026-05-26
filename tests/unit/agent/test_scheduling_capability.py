@@ -169,6 +169,60 @@ def test_list_shared_reminders_provides_visible_summary():
     )
 
 
+def test_list_shared_reminders_summary_prefers_viewer_display_fields():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "friend_name": "Mei",
+                "shared_reminders": [
+                    {
+                        "id": "srr_1",
+                        "title": "喝咖啡",
+                        "status": "pending_invitee_confirmation",
+                        "fireAt": "2026-05-27T01:00:00.000Z",
+                        "timezone": "UTC",
+                        "viewer_timezone": "Asia/Tokyo",
+                        "viewer_local_date": "2026-05-27",
+                        "viewer_local_time": "10:00",
+                    }
+                ],
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_shared_reminders",
+        handler=handler,
+    )
+    result = port.run("我有哪些共享提醒？", _run_context(), {})
+
+    assert result.ok is True
+    assert "2026-05-27 10:00" in result.visible_summary
+    assert "01:00" not in result.visible_summary
+
+
+def test_list_shared_reminders_payload_includes_account_timezone_for_viewer_display():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {"ok": True, "data": {"shared_reminders": []}}
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_shared_reminders",
+        handler=handler,
+    )
+    result = port.run("我有哪些共享提醒？", _run_context(), {})
+
+    assert result.ok is True
+    assert captured["payload"]["timezone"] == "Asia/Shanghai"
+
+
 def test_list_friend_requests_empty_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
@@ -367,6 +421,63 @@ def test_create_shared_reminder_forwards_required_args():
     assert captured["payload"]["customer_id"] == "acct_b"
     assert captured["payload"]["invitee_account_id"] == "acct_a"
     assert result.durable_write is True
+
+
+def test_create_shared_reminder_injects_account_timezone_when_model_omits_it():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+        }
+
+    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
+    result = port.run(
+        "约 Nora 明天 10 点喝咖啡",
+        _run_context(user_id="acct_b"),
+        {
+            "invitee_name": "Nora",
+            "title": "喝咖啡",
+            "fire_at": "2026-05-27T01:00:00.000Z",
+            "idempotency_key": "shared-1",
+        },
+    )
+
+    assert result.ok is True
+    assert captured["payload"]["timezone"] == "Asia/Shanghai"
+
+
+def test_create_shared_reminder_preserves_explicit_timezone():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    captured = {}
+
+    def handler(tool_name, payload):
+        captured.update({"tool_name": tool_name, "payload": payload})
+        return {
+            "ok": True,
+            "data": {"id": "srr_1", "status": "pending_invitee_confirmation"},
+        }
+
+    port = SchedulingCapabilityPort(tool_name="create_shared_reminder", handler=handler)
+    result = port.run(
+        "Schedule with Nora",
+        _run_context(user_id="acct_b"),
+        {
+            "invitee_name": "Nora",
+            "title": "meeting",
+            "fire_at": "2026-05-27T17:00:00.000Z",
+            "timezone": "America/Los_Angeles",
+            "idempotency_key": "shared-1",
+        },
+    )
+
+    assert result.ok is True
+    assert captured["payload"]["timezone"] == "America/Los_Angeles"
 
 
 def test_send_friend_request_does_not_treat_note_message_as_visible_summary():

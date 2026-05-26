@@ -42,6 +42,11 @@ _READ_ONLY_TOOL_NAMES = {
     "list_pending_shared_reminders",
 }
 
+_VIEWER_TIMEZONE_TOOL_NAMES = {
+    "create_shared_reminder",
+    "list_shared_reminders",
+}
+
 _DURABLE_WRITE_VISIBLE_SUMMARIES = {
     "reset_user_link": "已重置用户链接。",
     "disable_user_link": "已停用用户链接。",
@@ -217,6 +222,12 @@ def _trusted_tool_payload(
     tool_name: str,
 ) -> dict[str, Any]:
     payload = dict(args)
+    if tool_name in _VIEWER_TIMEZONE_TOOL_NAMES and not str(
+        payload.get("timezone") or ""
+    ).strip():
+        timezone = str(getattr(run_context.user, "timezone", "") or "").strip()
+        if timezone:
+            payload["timezone"] = timezone
     if tool_name not in _READ_ONLY_TOOL_NAMES and not str(payload.get("idempotency_key") or "").strip():
         seed = f"{run_context.user.id}:{run_context.conversation.id}:{tool_name}:{input_message}"
         payload["idempotency_key"] = f"{tool_name}:{sha256(seed.encode()).hexdigest()[:32]}"
@@ -434,19 +445,34 @@ def _shared_reminder_counterparty_display_name(item: Mapping[str, Any]) -> str:
 
 
 def _shared_reminder_time_text(item: Mapping[str, Any]) -> str:
+    viewer_local_date = _string_value(item, "viewer_local_date", "viewerLocalDate")
+    viewer_local_time = _string_value(item, "viewer_local_time", "viewerLocalTime")
+    if viewer_local_date and viewer_local_time:
+        return f"{viewer_local_date} {viewer_local_time[:5]}"
+
     raw_fire_at = item.get("fireAt")
     if raw_fire_at is None:
         raw_fire_at = item.get("fire_at")
-    timezone = item.get("timezone")
+    timezone = _string_value(item, "viewer_timezone", "viewerTimezone")
+    if not timezone:
+        timezone = _string_value(item, "timezone")
     if not isinstance(raw_fire_at, str) or not raw_fire_at.strip():
         return ""
     try:
         fire_at = datetime.fromisoformat(raw_fire_at.replace("Z", "+00:00"))
-        if isinstance(timezone, str) and timezone.strip():
-            fire_at = fire_at.astimezone(ZoneInfo(timezone.strip()))
+        if timezone:
+            fire_at = fire_at.astimezone(ZoneInfo(timezone))
         return fire_at.strftime("%Y-%m-%d %H:%M")
     except (ValueError, ZoneInfoNotFoundError):
         return raw_fire_at.strip()
+
+
+def _string_value(item: Mapping[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = item.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
 
 
 def _read_gateway_api_base_url() -> str:
