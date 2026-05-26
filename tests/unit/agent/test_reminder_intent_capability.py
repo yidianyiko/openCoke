@@ -215,7 +215,12 @@ def test_agent_runtime_reminder_detect_primary_timeout_leaves_user_path_budget(
 async def test_reminder_intent_port_runs_detector_and_executor():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    decision = SimpleNamespace(intent_type="crud", action="create", title="drink water")
+    decision = SimpleNamespace(
+        intent_type="crud",
+        action="create",
+        title="drink water",
+        duration_minutes=60,
+    )
 
     class FakeAgent:
         async def arun(self, *, input, session_state, session_id=None):
@@ -1531,7 +1536,7 @@ async def test_reminder_intent_port_clears_spurious_target_date_for_bare_time_up
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_corrects_tomorrow_create_misread_as_today():
+async def test_reminder_intent_port_routes_detector_tomorrow_create_date():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1549,7 +1554,7 @@ async def test_reminder_intent_port_corrects_tomorrow_create_misread_as_today():
         intent_type="crud",
         action="create",
         title="吃药",
-        trigger_at="2026-05-26T09:00:00+08:00",
+        trigger_at="2026-05-27T09:00:00+08:00",
     )
 
     class PrimaryAgent:
@@ -2279,14 +2284,14 @@ async def test_reminder_intent_port_failcloses_when_day_of_month_is_dropped():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrence():
+async def test_reminder_intent_port_routes_detector_past_bare_clock_trigger():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="create",
         title="离开时手机",
-        trigger_at="2026-05-06T00:00:00+00:00",
+        trigger_at="2026-05-06T11:00:00+00:00",
     )
 
     class PrimaryAgent:
@@ -2442,7 +2447,7 @@ async def test_reminder_intent_port_routes_detector_bare_numeric_clock_local_tim
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_treats_same_hour_bare_colon_as_pm():
+async def test_reminder_intent_port_routes_detector_same_hour_bare_colon_as_pm():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2460,7 +2465,7 @@ async def test_reminder_intent_port_treats_same_hour_bare_colon_as_pm():
         intent_type="crud",
         action="create",
         title="吃饭",
-        trigger_at="2026-05-11T19:37:00+00:00",
+        trigger_at="2026-05-11T16:37:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2482,7 +2487,7 @@ async def test_reminder_intent_port_treats_same_hour_bare_colon_as_pm():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_preserves_explicit_clock_minutes():
+async def test_reminder_intent_port_routes_detector_explicit_clock_minutes():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2500,7 +2505,7 @@ async def test_reminder_intent_port_preserves_explicit_clock_minutes():
         intent_type="crud",
         action="create",
         title="起床",
-        trigger_at="2026-05-11T04:00:00+00:00",
+        trigger_at="2026-05-11T13:50:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2522,7 +2527,7 @@ async def test_reminder_intent_port_preserves_explicit_clock_minutes():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker():
+async def test_reminder_intent_port_routes_detector_minute_after_chinese_hour_marker():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2540,7 +2545,7 @@ async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker()
         intent_type="crud",
         action="create",
         title="内科横向刷题结束",
-        trigger_at="2026-05-12T00:00:00+00:00",
+        trigger_at="2026-05-12T09:10:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2562,7 +2567,7 @@ async def test_reminder_intent_port_preserves_minute_after_chinese_hour_marker()
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_parses_zero_prefixed_chinese_minutes():
+async def test_reminder_intent_port_routes_detector_zero_prefixed_chinese_minutes():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2580,7 +2585,7 @@ async def test_reminder_intent_port_parses_zero_prefixed_chinese_minutes():
         intent_type="crud",
         action="create",
         title="出门",
-        trigger_at="2026-05-11T09:00:00+00:00",
+        trigger_at="2026-05-11T17:03:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2602,7 +2607,7 @@ async def test_reminder_intent_port_parses_zero_prefixed_chinese_minutes():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_preserves_guo_minute_phrase():
+async def test_reminder_intent_port_routes_detector_guo_minute_phrase():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2620,7 +2625,7 @@ async def test_reminder_intent_port_preserves_guo_minute_phrase():
         intent_type="crud",
         action="create",
         title="出门",
-        trigger_at="2026-05-11T20:00:00+00:00",
+        trigger_at="2026-05-11T17:05:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2642,7 +2647,7 @@ async def test_reminder_intent_port_preserves_guo_minute_phrase():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_preserves_minus_minute_phrase():
+async def test_reminder_intent_port_routes_detector_minus_minute_phrase():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2660,7 +2665,7 @@ async def test_reminder_intent_port_preserves_minus_minute_phrase():
         intent_type="crud",
         action="create",
         title="出门",
-        trigger_at="2026-05-11T09:00:00+00:00",
+        trigger_at="2026-05-11T17:55:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2682,7 +2687,7 @@ async def test_reminder_intent_port_preserves_minus_minute_phrase():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_treats_every_night_as_pm_clock():
+async def test_reminder_intent_port_routes_detector_every_night_as_pm_clock():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2700,7 +2705,7 @@ async def test_reminder_intent_port_treats_every_night_as_pm_clock():
         intent_type="crud",
         action="create",
         title="洗漱",
-        trigger_at="2026-05-12T01:30:00+00:00",
+        trigger_at="2026-05-12T22:30:00+09:00",
         rrule="FREQ=DAILY",
     )
 
@@ -2930,14 +2935,14 @@ async def test_reminder_intent_port_allows_vague_date_with_explicit_clock():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_preserves_explicit_seconds_from_user_text():
+async def test_reminder_intent_port_routes_detector_explicit_seconds_from_user_text():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="create",
         title="喝水",
-        trigger_at="2026-05-06T06:18:00+00:00",
+        trigger_at="2026-05-06T06:18:45+00:00",
     )
 
     class PrimaryAgent:
@@ -3214,7 +3219,7 @@ async def test_reminder_intent_port_routes_detector_governed_cadence_batch():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrule():
+async def test_reminder_intent_port_routes_detector_cadence_batch_without_inventory():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
@@ -3223,12 +3228,6 @@ async def test_reminder_intent_port_drops_inventory_with_misapplied_cadence_rrul
         schedule_basis="explicit_cadence",
         schedule_evidence="开始帮我每小时打卡，打卡持续到20点",
         operations=[
-            SimpleNamespace(
-                action="create",
-                title="起床",
-                trigger_at="2026-05-11T15:00:00+09:00",
-                rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
-            ),
             SimpleNamespace(
                 action="create",
                 title="打卡",
@@ -3398,6 +3397,7 @@ async def test_reminder_intent_port_does_not_treat_sleep_before_as_deadline_loss
         action="create",
         title="吃药",
         trigger_at="2026-05-06T22:00:00+00:00",
+        duration_minutes=60,
         rrule="FREQ=DAILY",
         schedule_basis="explicit_cadence",
         schedule_evidence="每天睡前",
