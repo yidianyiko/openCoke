@@ -170,11 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_past_bare_create_trigger(
-            input_message,
-            decision,
-            run_context,
-        )
         decision = _normalize_relative_day_create_trigger(
             input_message,
             decision,
@@ -734,76 +729,6 @@ def _input_has_clocked_task_before_trailing_reminder_verb(input_message: str) ->
     return bool(task_text.strip())
 
 
-def _normalize_past_bare_create_trigger(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any:
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action not in {"create", "update", "batch"}:
-        return decision
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not _BARE_CLOCK_PATTERN.search(current_user_text):
-        return decision
-    if (
-        action == "create"
-        and str(_decision_value(decision, "rrule") or "").strip().upper()
-        == "FREQ=MONTHLY"
-    ):
-        return decision
-    if _EXPLICIT_DATE_PATTERN.search(current_user_text):
-        return decision
-
-    if action == "batch":
-        operations = list(_decision_value(decision, "operations") or [])
-        if not operations:
-            return decision
-        normalized_operations = []
-        changed = False
-        for operation in operations:
-            operation_action = str(_operation_value(operation, "action") or "").strip()
-            if operation_action not in {"create", "update"}:
-                normalized_operations.append(operation)
-                continue
-            field_name = (
-                "new_trigger_at" if operation_action == "update" else "trigger_at"
-            )
-            trigger_at = str(_operation_value(operation, field_name) or "").strip()
-            normalized_trigger_at = _next_future_trigger_at(
-                trigger_at, run_context.current_time
-            )
-            if normalized_trigger_at and normalized_trigger_at != trigger_at:
-                normalized_operations.append(
-                    _copy_operation_with_value(
-                        operation,
-                        field_name,
-                        normalized_trigger_at,
-                    )
-                )
-                changed = True
-                continue
-            normalized_operations.append(operation)
-        if changed:
-            return _copy_decision_with_operations(decision, normalized_operations)
-        return decision
-
-    field_name = "new_trigger_at" if action == "update" else "trigger_at"
-    trigger_at = str(_decision_value(decision, field_name) or "").strip()
-    if not trigger_at:
-        return decision
-    if action == "update" and _future_or_present_trigger_at(
-        trigger_at, run_context.current_time
-    ):
-        return decision
-    normalized_trigger_at = _next_future_trigger_at_for_single_bare_clock(
-        current_user_text,
-        run_context,
-    ) or _next_future_trigger_at(trigger_at, run_context.current_time)
-    if normalized_trigger_at and normalized_trigger_at != trigger_at:
-        return _copy_decision_with_value(decision, field_name, normalized_trigger_at)
-    return decision
-
-
 def _normalize_weekday_bare_create_trigger(
     input_message: str,
     decision: Any,
@@ -953,7 +878,7 @@ def _latest_user_turn_text(input_message: str) -> str:
     return _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
 
 
-# kept for Phase 3 cleanup: _normalize_past_bare_create_trigger still references this helper.
+# kept for Phase 3 cleanup: _normalize_update_trigger_from_text still references this helper.
 def _next_future_trigger_at_for_single_bare_clock(
     current_user_text: str,
     run_context: AgentRunContext,
@@ -1248,32 +1173,6 @@ def _subtract_clock_minutes(hour: int, minutes_before: int) -> tuple[int, int]:
     total_minutes = (hour % 24) * 60 - minutes_before
     total_minutes %= 24 * 60
     return total_minutes // 60, total_minutes % 60
-
-
-def _next_future_trigger_at(trigger_at: str, current_time: datetime) -> str:
-    if not trigger_at:
-        return ""
-    try:
-        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-    except ValueError:
-        return ""
-    if parsed.tzinfo is not None and current_time.tzinfo is not None:
-        current_time = current_time.astimezone(parsed.tzinfo)
-    if parsed > current_time:
-        return trigger_at
-    while parsed <= current_time:
-        parsed += timedelta(days=1)
-    return parsed.isoformat()
-
-
-def _future_or_present_trigger_at(trigger_at: str, current_time: datetime) -> bool:
-    try:
-        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    if parsed.tzinfo is not None and current_time.tzinfo is not None:
-        current_time = current_time.astimezone(parsed.tzinfo)
-    return parsed >= current_time
 
 
 def _copy_decision_with_value(decision: Any, field: str, value: Any) -> Any:

@@ -2355,7 +2355,7 @@ async def test_reminder_intent_port_normalizes_wrong_weekday_bare_clock_to_next_
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_normalizes_past_bare_clock_update_time():
+async def test_reminder_intent_port_routes_detector_future_bare_clock_update_time():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2373,7 +2373,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_update_time():
         intent_type="crud",
         action="update",
         keyword="跑步",
-        new_trigger_at="2026-05-25T07:30:00+09:00",
+        new_trigger_at="2026-05-26T07:30:00+09:00",
     )
 
     class PrimaryAgent:
@@ -2401,7 +2401,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_update_time():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_corrects_bare_numeric_clock_to_user_local_time():
+async def test_reminder_intent_port_routes_detector_bare_numeric_clock_local_time():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2419,7 +2419,7 @@ async def test_reminder_intent_port_corrects_bare_numeric_clock_to_user_local_ti
         intent_type="crud",
         action="create",
         title="回家开会",
-        trigger_at="2026-05-12T10:20:00+00:00",
+        trigger_at="2026-05-12T09:20:00+09:00",
     )
 
     class PrimaryAgent:
