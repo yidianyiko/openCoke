@@ -142,7 +142,7 @@ def test_prompt_requires_exact_reminder_title_preservation():
     assert "including emoji, symbols, and Chinese text" in prompt
 
 
-def test_prompt_includes_runtime_context_without_recent_chat_history():
+def test_prompt_renders_trusted_blocks_and_wraps_transcript_in_conversation():
     ctx = _ctx()
     ctx = AgentRunContext(
         user=ctx.user,
@@ -154,7 +154,7 @@ def test_prompt_includes_runtime_context_without_recent_chat_history():
         ),
         relation=ctx.relation,
         platform=ctx.platform,
-        recent_chat_history="User: should stay out of instructions",
+        recent_chat_history="User: chat history is wrapped",
         current_time=datetime(2026, 5, 21, 1, 2, tzinfo=UTC),
     )
 
@@ -171,7 +171,11 @@ def test_prompt_includes_runtime_context_without_recent_chat_history():
     assert 'conversation_id: "conv1"' in prompt
     assert 'route_key: "route-1"' in prompt
     assert "recent_chat_history" not in prompt
-    assert "should stay out of instructions" not in prompt
+    assert "<conversation>" in prompt and "</conversation>" in prompt
+    conversation_block = prompt.split("<conversation>", 1)[1].split(
+        "</conversation>", 1
+    )[0]
+    assert "chat history is wrapped" in conversation_block
 
 
 def test_prompt_renders_repo_controlled_character_prompt_before_runtime_context():

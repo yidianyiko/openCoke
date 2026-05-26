@@ -317,6 +317,18 @@ async def test_preselected_scheduling_failure_summary_becomes_visible_text(monke
         "_create_interaction_agent",
         lambda **_kwargs: FakeAgent(),
     )
+    from agent.agno_agent.runtime.semantic_interpreter import SemanticIntentResult
+
+    async def fake_interpret_semantic_intent(*, focus, current_utterance, **_kwargs):
+        del focus, current_utterance
+        return SemanticIntentResult(
+            intent="create_shared_reminder",
+            confidence="high",
+        )
+
+    monkeypatch.setattr(
+        agent_runtime, "interpret_semantic_intent", fake_interpret_semantic_intent
+    )
 
     result = await agent_runtime.run_agent_runtime(
         agent_input=AgentInput(
