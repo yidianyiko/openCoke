@@ -174,19 +174,29 @@ class SchedulingCapabilityPort:
             and self.tool_name == "list_friend_requests"
             and not _has_explicit_visible_summary(content)
         ):
-            content["visible_summary"] = _friend_requests_summary(content)
+            content["visible_summary"] = _friend_requests_summary(
+                content,
+                account_id=str(payload.get("customer_id") or ""),
+            )
         if (
             ok
             and self.tool_name == "list_friends"
             and not _has_explicit_visible_summary(content)
         ):
-            content["visible_summary"] = _friends_summary(content)
+            content["visible_summary"] = _friends_summary(
+                content,
+                account_id=str(payload.get("customer_id") or ""),
+            )
         if ok and durable_write and not _has_explicit_visible_summary(content):
             content["visible_summary"] = _DURABLE_WRITE_VISIBLE_SUMMARIES[
                 self.tool_name
             ]
         if not ok and not _has_explicit_visible_summary(content):
-            content["summary"] = "日程操作暂时无法完成。"
+            failure_summary = _scheduling_failure_summary(str(raw.get("error") or ""))
+            if failure_summary:
+                content["visible_summary"] = failure_summary
+            else:
+                content["summary"] = "日程操作暂时无法完成。"
         return CapabilityResult(
             name=self.tool_name,
             ok=bool(ok),
@@ -229,6 +239,14 @@ def _has_explicit_visible_summary(content: Mapping[str, Any]) -> bool:
     return False
 
 
+def _scheduling_failure_summary(error_code: str) -> str:
+    if error_code == "friend_name_ambiguous":
+        return "有多个同名好友，请提供完整好友名称。"
+    if error_code in {"friend_name_not_found", "friend_not_found"}:
+        return "没有找到这个好友，请确认好友名称。"
+    return ""
+
+
 def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
     raw_items = content.get("value")
     if raw_items is None:
@@ -246,22 +264,88 @@ def _pending_shared_reminders_summary(content: Mapping[str, Any]) -> str:
     return f"你有 {len(raw_items)} 个待处理的共享提醒：" + "；".join(labels) + "。"
 
 
-def _friend_requests_summary(content: Mapping[str, Any]) -> str:
+def _friend_requests_summary(content: Mapping[str, Any], *, account_id: str = "") -> str:
     raw_items = content.get("value")
     if raw_items is None:
         raw_items = content.get("requests")
     if not isinstance(raw_items, list) or not raw_items:
         return "目前没有待处理的好友请求。"
-    return f"你有 {len(raw_items)} 个待处理的好友请求。"
+    pending_items = [
+        item
+        for item in raw_items
+        if isinstance(item, Mapping)
+        and str(item.get("status") or "").strip() == "pending"
+    ]
+    summary_items = pending_items or [
+        item for item in raw_items if isinstance(item, Mapping)
+    ]
+    labels = [
+        _friend_request_label(item, account_id)
+        for item in summary_items[:3]
+        if isinstance(item, Mapping)
+    ]
+    if not labels:
+        return f"你有 {len(raw_items)} 个好友请求。"
+    return f"你有 {len(raw_items)} 个好友请求：" + "；".join(labels) + "。"
 
 
-def _friends_summary(content: Mapping[str, Any]) -> str:
+def _friends_summary(content: Mapping[str, Any], *, account_id: str = "") -> str:
     raw_items = content.get("value")
     if raw_items is None:
         raw_items = content.get("friends")
     if not isinstance(raw_items, list) or not raw_items:
         return "你现在还没有好友。"
+    labels = [
+        label
+        for label in (
+            _friendship_counterpart_label(item, account_id)
+            for item in raw_items[:3]
+            if isinstance(item, Mapping)
+        )
+        if label
+    ]
+    if labels:
+        return f"你现在有 {len(raw_items)} 个好友：" + "；".join(labels) + "。"
     return f"你现在有 {len(raw_items)} 个好友。"
+
+
+def _friend_request_label(item: Mapping[str, Any], account_id: str) -> str:
+    status = str(item.get("status") or "unknown").strip() or "unknown"
+    requester_id = str(item.get("requesterAccountId") or "").strip()
+    target_id = str(item.get("targetAccountId") or "").strip()
+    requester_name = _profile_display_name(item.get("requester")) or "对方"
+    target_name = _profile_display_name(item.get("target")) or "对方"
+    if account_id and target_id == account_id:
+        if status == "pending":
+            return f"收到 {requester_name} 的申请"
+        return f"历史：{requester_name}，收到方向，状态 {status}"
+    if account_id and requester_id == account_id:
+        if status == "pending":
+            return f"已向 {target_name} 发出申请"
+        return f"历史：{target_name}，发出方向，状态 {status}"
+    if status == "pending":
+        return f"{requester_name} 向 {target_name} 的申请"
+    return f"历史：{requester_name} 到 {target_name}，状态 {status}"
+
+
+def _friendship_counterpart_label(item: Mapping[str, Any], account_id: str) -> str:
+    account_a_id = str(item.get("accountAId") or "").strip()
+    account_b_id = str(item.get("accountBId") or "").strip()
+    if account_id and account_a_id == account_id:
+        return _profile_display_name(item.get("accountB"))
+    if account_id and account_b_id == account_id:
+        return _profile_display_name(item.get("accountA"))
+    account_a_name = _profile_display_name(item.get("accountA"))
+    account_b_name = _profile_display_name(item.get("accountB"))
+    return account_b_name or account_a_name
+
+
+def _profile_display_name(value: Any) -> str:
+    if isinstance(value, Mapping):
+        display_name = value.get("displayName")
+        if isinstance(display_name, str) and display_name.strip():
+            return display_name.strip()
+    return ""
 
 
 def _pending_shared_reminder_label(item: Mapping[str, Any]) -> str:

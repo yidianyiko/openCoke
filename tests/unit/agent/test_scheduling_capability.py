@@ -186,6 +186,84 @@ def test_list_friend_requests_empty_summary():
     assert result.content["visible_summary"] == "目前没有待处理的好友请求。"
 
 
+def test_list_friend_requests_summary_includes_names_and_direction():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": [
+                {
+                    "id": "fr_in",
+                    "requesterAccountId": "ck_bob",
+                    "targetAccountId": "ck_a",
+                    "status": "pending",
+                    "requester": {"displayName": "Bob Smoke"},
+                    "target": {"displayName": "Alice Smoke"},
+                },
+                {
+                    "id": "fr_out",
+                    "requesterAccountId": "ck_a",
+                    "targetAccountId": "ck_carol",
+                    "status": "pending",
+                    "requester": {"displayName": "Alice Smoke"},
+                    "target": {"displayName": "Carol Smoke"},
+                },
+                {
+                    "id": "fr_old",
+                    "requesterAccountId": "ck_dan",
+                    "targetAccountId": "ck_a",
+                    "status": "rejected",
+                    "requester": {"displayName": "Dan Smoke"},
+                    "target": {"displayName": "Alice Smoke"},
+                },
+            ],
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_requests",
+        handler=handler,
+    )
+    result = port.run("我的好友申请", _run_context(), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "你有 3 个好友请求：收到 Bob Smoke 的申请；已向 Carol Smoke 发出申请。"
+    )
+
+
+def test_list_friend_requests_terminal_only_summary_marks_history():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": [
+                {
+                    "id": "fr_1",
+                    "status": "rejected",
+                    "requesterAccountId": "ck_b",
+                    "targetAccountId": "ck_a",
+                    "requester": {"displayName": "Bob Smoke"},
+                    "target": {"displayName": "Alice Smoke"},
+                }
+            ],
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_requests",
+        handler=handler,
+    )
+    result = port.run("我的好友申请", _run_context(user_id="ck_a"), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "你有 1 个好友请求：历史：Bob Smoke，收到方向，状态 rejected。"
+    )
+
+
 def test_list_friends_empty_summary():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 
@@ -201,6 +279,62 @@ def test_list_friends_empty_summary():
 
     assert result.ok is True
     assert result.content["visible_summary"] == "你现在还没有好友。"
+
+
+def test_list_friends_summary_includes_counterpart_names():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": [
+                {
+                    "id": "fs_1",
+                    "status": "active",
+                    "accountAId": "ck_a",
+                    "accountBId": "ck_b",
+                    "accountA": {"displayName": "Alice Smoke"},
+                    "accountB": {"displayName": "Bob Smoke"},
+                },
+                {
+                    "id": "fs_2",
+                    "status": "active",
+                    "accountAId": "ck_c",
+                    "accountBId": "ck_a",
+                    "accountA": {"displayName": "Carol Smoke"},
+                    "accountB": {"displayName": "Alice Smoke"},
+                },
+            ],
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friends",
+        handler=handler,
+    )
+    result = port.run("我有哪些好友？", _run_context(user_id="ck_a"), {})
+
+    assert result.ok is True
+    assert result.content["visible_summary"] == (
+        "你现在有 2 个好友：Bob Smoke；Carol Smoke。"
+    )
+
+
+def test_friend_name_ambiguous_failure_has_safe_visible_summary():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {"ok": False, "error": "friend_name_ambiguous", "data": {}}
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts",
+        handler=handler,
+    )
+    result = port.run("看看 Bob 这周哪些时间空？", _run_context(), {})
+
+    assert result.ok is False
+    assert result.content["visible_summary"] == "有多个同名好友，请提供完整好友名称。"
 
 
 def test_create_shared_reminder_forwards_required_args():

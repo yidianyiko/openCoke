@@ -15,7 +15,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel
 
 from agent.agno_agent.runtime.context import AgentRunContext
-from agent.agno_agent.runtime.domain_results import DomainExecutionResult
+from agent.agno_agent.runtime.domain_results import (
+    DomainError,
+    DomainExecutionResult,
+    DomainOperationResult,
+    ReplyContract,
+)
 from agent.agno_agent.runtime.errors import UnknownToolError
 from agent.agno_agent.runtime.inputs import AgentInput
 from agent.agno_agent.runtime.result import (
@@ -58,6 +63,36 @@ _SCHEDULING_INTENT_NAMES = {
     "list_shared_reminders",
 }
 _SCHEDULING_INTENT_ALIASES: dict[str, str] = {}
+_SCHEDULING_INTENT_SELECTOR_KEYS = {
+    "intent",
+    "intent_name",
+    "tool",
+    "tool_name",
+    "name",
+    "operation",
+    "action",
+}
+_SCHEDULING_FORCED_ARG_KEYS = {
+    "user_link_code",
+    "friend_name",
+    "requester_name",
+    "target_name",
+    "message",
+    "request_id",
+    "friendship_id",
+    "invitee_name",
+    "invitee_account_id",
+    "target_account_id",
+    "from_date",
+    "to_date",
+    "timezone",
+    "status",
+    "idempotency_key",
+}
+_RETIRED_ACCOUNT_CONTROL_RE = re.compile(
+    r"(屏蔽|拉黑|解除屏蔽|取消屏蔽|\b(?:unblock|block)\b)",
+    re.IGNORECASE,
+)
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -261,7 +296,33 @@ def _infer_scheduling_intent_and_args_from_agent_input(
         )
         if overview_args:
             return inferred, overview_args
+    if inferred == "send_friend_request_by_user_link_code":
+        return inferred, _friend_request_link_args(input_message)
     return inferred, {}
+
+
+def _friend_request_link_args(input_message: str) -> dict[str, Any]:
+    text = _latest_user_turn_text(input_message)
+    args: dict[str, Any] = {}
+    code_match = re.search(
+        r"(?:链接码|邀请码|link\s*code|code)\s*[:：]?\s*([A-Za-z0-9_-]{6,})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if code_match is None:
+        code_match = re.search(r"/u/([A-Za-z0-9_-]{6,})", text)
+    if code_match is not None:
+        args["user_link_code"] = code_match.group(1)
+    note_match = re.search(
+        r"(?:备注|note)\s*[:：]\s*([^。.\n\r]+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if note_match is not None:
+        message = note_match.group(1).strip()
+        if message:
+            args["message"] = message
+    return args
 
 
 def _infer_scheduling_intent_from_agent_input(
@@ -283,6 +344,9 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
 
     text = input_message.casefold()
 
+    if _is_retired_account_control_turn(input_message):
+        return None
+
     if _contains_any(input_message, ("我的", "我自己的", "自己的")) and _contains_any(
         input_message, ("用户链接", "邀请链接", "好友邀请链接", "邀请码")
     ):
@@ -297,13 +361,13 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         and (_contains_any(text, ("link", "code")) or "friend" in text)
     ):
         if (
-            _contains_any(input_message, ("加好友", "加上", "添加好友"))
+            _contains_any(input_message, ("加好友", "加上", "添加好友", "为好友"))
             or "add friend" in text
         ):
             return "send_friend_request_by_user_link_code"
 
     if _contains_any(
-        input_message, ("好友请求", "待处理好友请求", "未处理好友请求")
+        input_message, ("好友请求", "好友申请", "待处理好友", "待处理好友请求", "未处理好友请求")
     ) or ("friend request" in text or "friend-request" in text):
         if _contains_any(input_message, ("通过", "接受")) or _contains_any(
             text, ("accept", "approve")
@@ -319,6 +383,7 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
                 ("列表", "有哪些", "看一下", "查看", "未处理", "待处理"),
             )
             or "list" in text
+            or "申请" in input_message
         ):
             return "list_friend_requests"
 
@@ -334,7 +399,7 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     ):
         return "remove_friendship"
 
-    if _contains_any(input_message, ("好友列表", "我的好友", "都有哪些好友")) or (
+    if _contains_any(input_message, ("好友列表", "我的好友", "我有哪些好友", "都有哪些好友")) or (
         "list friends" in text
     ):
         return "list_friends"
@@ -399,6 +464,10 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
         return "get_user_link"
 
     return None
+
+
+def _is_retired_account_control_turn(input_message: str) -> bool:
+    return bool(_RETIRED_ACCOUNT_CONTROL_RE.search(_latest_user_turn_text(input_message)))
 
 
 def _infer_coach_class_scheduling_intent(message: str) -> str | None:
@@ -544,7 +613,7 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                     )
                 return normalized_key
 
-        for key in ("intent", "action", "operation", "tool", "tool_name", "name"):
+        for key in _SCHEDULING_INTENT_SELECTOR_KEYS:
             value = raw_intent.get(key)
             if isinstance(value, str) and value.strip():
                 normalized = _normalize_scheduling_intent(value, input_message)
@@ -553,14 +622,30 @@ def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
                         args = {
                             arg_key: arg_value
                             for arg_key, arg_value in raw_intent.items()
-                            if arg_key
-                            not in {"intent", "action", "tool", "tool_name", "name"}
+                            if arg_key not in _SCHEDULING_INTENT_SELECTOR_KEYS
                         }
                         if args:
                             return (
                                 f"{normalized}: "
                                 f"{json.dumps(_normalize_scheduling_intent_args(normalized, args), ensure_ascii=False)}"
                             )
+                    return normalized
+            if isinstance(value, Mapping):
+                normalized = _normalize_scheduling_intent(value, input_message)
+                normalized_name = normalized.split(":", 1)[0].strip()
+                if normalized_name in _SCHEDULING_INTENT_NAMES:
+                    if ":" in normalized:
+                        return normalized
+                    args = {
+                        arg_key: arg_value
+                        for arg_key, arg_value in value.items()
+                        if arg_key not in _SCHEDULING_INTENT_SELECTOR_KEYS
+                    }
+                    if args:
+                        return (
+                            f"{normalized}: "
+                            f"{json.dumps(_normalize_scheduling_intent_args(normalized, args), ensure_ascii=False)}"
+                        )
                     return normalized
 
         inferred = _infer_scheduling_intent_from_message(input_message)
@@ -578,6 +663,8 @@ def _normalize_scheduling_intent_args(
     args: Mapping[str, Any],
 ) -> dict[str, Any]:
     normalized = dict(args)
+    if "message" not in normalized and "note" in normalized:
+        normalized["message"] = normalized.pop("note")
     if tool_name == "create_shared_reminder":
         if "invitee_name" not in normalized and "friend_name" in normalized:
             normalized["invitee_name"] = normalized.pop("friend_name")
@@ -605,7 +692,20 @@ def _normalize_scheduling_intent_args(
             ]
             if title_parts:
                 normalized["title"] = "".join(title_parts)
-    return normalized
+    allowed = set(_SCHEDULING_FORCED_ARG_KEYS)
+    if tool_name == "create_shared_reminder":
+        allowed.update(
+            {
+                "title",
+                "fire_at",
+                "duration_minutes",
+            }
+        )
+    return {
+        key: value
+        for key, value in normalized.items()
+        if key in allowed and value is not None and value != ""
+    }
 
 
 def _split_scheduling_intent_args(
@@ -1362,6 +1462,40 @@ def _explicit_past_reminder_precheck(
     return reminder_intent._invalid_past_schedule_result()
 
 
+def _retired_account_control_result() -> DomainExecutionResult:
+    summary = "屏蔽/拉黑账号功能已停用，我不会改动你的好友关系。"
+    error = DomainError(
+        code="retired_account_control",
+        message=summary,
+        retryable=False,
+        detail={},
+    )
+    operation = DomainOperationResult(
+        action="account_control",
+        ok=False,
+        effect="none",
+        entity_type="friendship",
+        entity_id=None,
+        facts={"visible_summary": summary},
+        error=error,
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(operation,),
+        missing_fields=(),
+        safety_boundary="retired_account_control",
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("friendship_removed", "account_blocked", "account_unblocked"),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
+
+
 def _domain_visible_text_result(
     *,
     agent_input: AgentInput,
@@ -1775,6 +1909,14 @@ async def run_agent_runtime(
                 input_message=input_message,
                 started_at=started_at,
                 domain_result=explicit_past_result,
+            )
+        if _is_retired_account_control_turn(input_message):
+            return _domain_visible_text_result(
+                agent_input=agent_input,
+                run_context=run_context,
+                input_message=input_message,
+                started_at=started_at,
+                domain_result=_retired_account_control_result(),
             )
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         (

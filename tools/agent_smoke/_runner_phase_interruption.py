@@ -116,11 +116,7 @@ SELECT 'friend_requests', count(*) FROM friend_requests
 UNION ALL
 SELECT 'shared_reminder_requests', count(*) FROM shared_reminder_requests
  WHERE requester_account_id LIKE '%{batch_label}%'
-    OR invitee_account_id LIKE '%{batch_label}%'
-UNION ALL
-SELECT 'account_blocks', count(*) FROM account_blocks
- WHERE blocker_account_id LIKE '%{batch_label}%'
-    OR blocked_account_id LIKE '%{batch_label}%';
+    OR invitee_account_id LIKE '%{batch_label}%';
 """
     result = subprocess.run(
         [

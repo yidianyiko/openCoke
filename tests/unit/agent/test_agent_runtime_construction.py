@@ -1407,6 +1407,114 @@ def test_scheduling_intent_normalization_prefers_explicit_friend_request_accept_
     )
 
 
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_normalizes_nested_current_intent(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        del input_message, run_context, domain_results
+        captured.update({"intent": intent, "forced_args": forced_args})
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="帮我处理这次好友流程。",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "intent": {
+                "intent_name": "send_friend_request_by_user_link_code",
+                "user_link_code": "AbCdEfGhIjK_",
+                "note": "FM01",
+            }
+        }
+    )
+
+    assert captured == {
+        "intent": "send_friend_request_by_user_link_code",
+        "forced_args": {
+            "user_link_code": "AbCdEfGhIjK_",
+            "message": "FM01",
+        },
+    }
+
+
+def test_scheduling_intent_inference_preselects_friend_list_phrases():
+    assert (
+        agent_runtime._infer_scheduling_intent_from_message("我有哪些好友？")
+        == "list_friends"
+    )
+    assert (
+        agent_runtime._infer_scheduling_intent_from_message("我的好友申请")
+        == "list_friend_requests"
+    )
+
+
+def test_scheduling_preselection_extracts_user_link_code_and_note():
+    intent, args = agent_runtime._infer_scheduling_intent_and_args_from_agent_input(
+        "我想加 Alice 为好友。这是对方的邀请链接码：AbCdEfGhIjK_。备注：FM04。",
+        _agent_input(),
+        run_context=_run_context(),
+    )
+
+    assert intent == "send_friend_request_by_user_link_code"
+    assert args == {"user_link_code": "AbCdEfGhIjK_", "message": "FM04"}
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_refuses_retired_account_control_before_model(
+    monkeypatch,
+):
+    def fail_create_interaction_agent(**kwargs):
+        raise AssertionError("retired account-control turns should not reach model")
+
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="解除对 Bob 的屏蔽",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert result.visible_messages
+    assert "屏蔽" in result.visible_messages[0].content
+    assert result.domain_results[0].safety_boundary == "retired_account_control"
+    assert result.domain_results[0].operations[0].action == "account_control"
+    assert result.domain_results[0].operations[0].effect == "none"
+
+
 def test_scheduling_intent_inference_treats_pending_shared_reminders_as_scheduling():
     assert (
         agent_runtime._infer_scheduling_intent_from_message(

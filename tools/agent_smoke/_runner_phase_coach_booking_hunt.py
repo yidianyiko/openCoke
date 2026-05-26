@@ -136,16 +136,6 @@ FROM (
 ) t;
 """
         ),
-        "account_blocks": _sql_json(
-            f"""
-SELECT COALESCE(json_agg(row_to_json(t) ORDER BY id), '[]'::json)
-FROM (
-  SELECT id, blocker_account_id, blocked_account_id, created_at::text
-    FROM account_blocks
-   WHERE blocker_account_id IN ({ids}) OR blocked_account_id IN ({ids})
-) t;
-"""
-        ),
         "customers": _sql_json(
             f"""
 SELECT COALESCE(json_agg(row_to_json(t) ORDER BY id), '[]'::json)

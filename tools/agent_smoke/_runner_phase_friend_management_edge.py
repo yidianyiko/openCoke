@@ -1041,7 +1041,10 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
         ctx.extras["forced_duplicate_display_name"] = bob.display_name
         _set_customer_display_name(carol, bob.display_name)
         try:
+            lookup_before = snapshot(ctx.accounts)
             turn = ctx.step("alice", "看看 Bob 这周哪些时间空？", "FM-11-ambiguous-bob-calendar")
+            lookup_after = snapshot(ctx.accounts)
+            ctx.extras["ambiguous_lookup_delta"] = _diff_snapshot(lookup_before, lookup_after)
             return [turn]
         finally:
             _set_customer_display_name(carol, original_carol)
@@ -1053,7 +1056,8 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
         ambiguity_tokens = ("哪一个", "哪个", "请确认", "请明确", "无法", "不能", "找不到", "重名", "同名")
         leaked_availability = "空闲" in text or "忙碌" in text or "日程" in text
         safe_ambiguous = _has_any(text, ambiguity_tokens) and not leaked_availability
-        writes = bool(delta["postgres"]["friendships"]["modified"] or delta["postgres"]["friend_requests"]["modified"])
+        lookup_delta = ctx.extras.get("ambiguous_lookup_delta") or delta
+        writes = bool(lookup_delta["postgres"]["friendships"]["modified"] or lookup_delta["postgres"]["friend_requests"]["modified"])
         observed = f"normal_duplicate_rejected={normal_rejected} ambiguous_reply_safe={safe_ambiguous} leaked_availability={leaked_availability} friend_writes={writes}"
         if normal_rejected and safe_ambiguous and not writes:
             return _passed("FM-11-same-display-name", "Duplicate display name is rejected or ambiguity fails closed without writes", observed, turns, delta, before, after, extra=ctx.extras)
@@ -1088,11 +1092,15 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
         ctx.extras["old_bob_display_name"] = old_name
         ctx.extras["new_bob_display_name"] = new_name
         _set_customer_display_name(bob, new_name)
-        return [
+        lookup_before = snapshot(ctx.accounts)
+        turns = [
             ctx.step("alice", "我有哪些好友？", "FM-13-list-after-name-update"),
             ctx.step("alice", "看看 Bobby Friend 这周哪些时间空？", "FM-13-new-name-calendar"),
             ctx.step("alice", "看看 Bob 这周哪些时间空？", "FM-13-old-name-calendar"),
         ]
+        lookup_after = snapshot(ctx.accounts)
+        ctx.extras["display_name_lookup_delta"] = _diff_snapshot(lookup_before, lookup_after)
+        return turns
 
     def fm13_judge(turns: list[Turn], delta: dict[str, Any], before: dict[str, Any], after: dict[str, Any], ctx: CaseContext) -> dict[str, Any]:
         list_reply = turns[0].reply_text if len(turns) > 0 else ""
@@ -1102,7 +1110,8 @@ def _run_cases(accounts: dict[str, SmokeAccount], transcript: Transcript) -> lis
         new_resolves = "Bobby" in new_reply or not _has_any(new_reply, ("找不到", "没有"))
         old_leaked_availability = "空" in old_reply or "忙" in old_reply or "10:00" in old_reply or "10点" in old_reply
         old_fails_closed = _has_any(old_reply, CLARIFY_OR_REFUSE_TOKENS) and not old_leaked_availability
-        writes = bool(delta["postgres"]["friendships"]["modified"] or delta["postgres"]["friend_requests"]["modified"])
+        lookup_delta = ctx.extras.get("display_name_lookup_delta") or delta
+        writes = bool(lookup_delta["postgres"]["friendships"]["modified"] or lookup_delta["postgres"]["friend_requests"]["modified"])
         observed = f"list_current={list_current} new_name_resolves={new_resolves} old_name_fails_closed={old_fails_closed} old_leaked_availability={old_leaked_availability} friend_writes={writes}"
         if list_current and new_resolves and old_fails_closed and not writes:
             return _passed("FM-13-display-name-update", "Friend list uses current name; new name resolves; old name fails closed", observed, turns, delta, before, after, product_contract_unclear=True, extra=ctx.extras)
