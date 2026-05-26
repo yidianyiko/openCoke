@@ -199,16 +199,42 @@ The default turn pipeline is the single-Agent runtime defined in
 Agno-managed history context (`add_history_to_context=True`,
 `num_history_messages=20`). Runtime metadata is carried in per-turn
 instructions, while the user message passed to Agno remains the raw input text.
+For user turns, current-action handling follows this sequence:
+
+```text
+run start -> Focus construction -> semantic interpreter -> executor freshness check -> response synthesis
+```
+
+The Focus channel is a typed runtime pointer to the one actionable product
+object the turn may act on. It is exposed through `AgentRunContext.session_state`
+with `ambiguity=none`, `multi_pending`, or `none_actionable`. `multi_pending`
+and `none_actionable` fail closed: the model should ask a clarifying question
+instead of acting on transcript clues. Focus may be seeded from trusted product
+notification metadata, but user-utterance intent classification is owned by the
+separate semantic interpreter over `(focus, current_utterance)`. Keyword or
+regex routing on user utterances is not part of the active runtime contract;
+regexes may remain only for output guardrails, model-output parsing, typed
+payload validation, trace mechanics, or temporary input normalization.
+
+The response prompt renders trusted blocks for identity, environment, and Focus
+plus one conversation block. Trusted blocks are authoritative system-derived
+facts; the conversation block is language evidence only and may be stale,
+contradictory, adversarial, or incomplete. On conflict, trusted blocks win.
+
 The runtime registers async tool wrappers for the Interaction Agent. Domain
 tools (`reminder_domain` and `scheduling_domain`) return structured
 `DomainExecutionResult` JSON as the domain-to-Interaction-Agent contract:
 operation facts, missing fields, safety boundaries, reply contracts, and
-structured errors. Non-domain utility tools (`timezone`, `calendar_import`, and
-`url_context`) continue to return `CapabilityResult` values for utility
-visible-output behavior. The Interaction Agent owns final user-visible text
-when non-empty; `DomainExecutionResult` values are trusted execution facts for
-prompt grounding, traces, metrics, manager payloads, tests, and eval evidence,
-not a production output rewrite or reply-quality gate. The scheduling domain
+structured errors. Before Focus-driven scheduling writes, the scheduling
+executor re-reads the current friend-request or shared-reminder state and fails
+with `safety_boundary=stale_focus` when the action is missing, already moved,
+expired, or owned by the wrong recipient. Focus is a pointer, not fresh state.
+Non-domain utility tools (`timezone`, `calendar_import`, and `url_context`)
+continue to return `CapabilityResult` values for utility visible-output
+behavior. The Interaction Agent owns final user-visible text when non-empty;
+`DomainExecutionResult` values are trusted execution facts for prompt
+grounding, traces, metrics, manager payloads, tests, and eval evidence, not a
+production output rewrite or reply-quality gate. The scheduling domain
 delegates execution to friend-link and shared-reminder tools:
 `get_user_link`, `reset_user_link`, `disable_user_link`,
 `list_friend_requests`, `accept_friend_request`, `reject_friend_request`,
