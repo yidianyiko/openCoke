@@ -150,6 +150,14 @@ def _trusted_environment_block(
     return "\n".join(lines)
 
 
+def _to_jsonable(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(item) for item in value]
+    return value
+
+
 def _trusted_focus_block(
     run_context: AgentRunContext,
     agent_input: AgentInput,
@@ -157,7 +165,7 @@ def _trusted_focus_block(
     focus = _focus_session_state(run_context, agent_input)
     lines = [
         '<trusted kind="focus">',
-        json.dumps(focus, ensure_ascii=False, sort_keys=True),
+        json.dumps(_to_jsonable(focus), ensure_ascii=False, sort_keys=True),
         "</trusted>",
     ]
     return "\n".join(lines)

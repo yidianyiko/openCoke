@@ -4,6 +4,17 @@ from types import SimpleNamespace
 from agent.agno_agent.runtime.chat_response_instructions import (
     build_chat_response_instructions,
 )
+from agent.agno_agent.runtime.context import (
+    AgentRunContext,
+    TrustedCharacterContext,
+    TrustedConversationContext,
+    TrustedRelationContext,
+    TrustedUserContext,
+)
+from agent.agno_agent.runtime.focus import (
+    FocusChannel,
+    focus_to_session_state,
+)
 from agent.agno_agent.runtime.inputs import AgentInput, UserTurnPayload
 
 
@@ -174,6 +185,34 @@ def test_delegation_boundary_keeps_inner_worker_argument_contracts_out():
     assert "scheduling_domain accepts only one argument" not in text
     assert "Never pass request_id" not in text
     assert "the inner worker resolves names and IDs" not in text
+
+
+def test_trusted_focus_block_survives_frozen_session_state():
+    """Regression: real AgentRunContext.__post_init__ freezes session_state via
+    freeze_mapping() into MappingProxyType. _trusted_focus_block must serialise
+    that without raising. SimpleNamespace test contexts bypass __post_init__
+    and miss this path; production hits it on every turn."""
+    base_focus = FocusChannel(current=None, ambiguity="none_actionable")
+    ctx = AgentRunContext(
+        user=TrustedUserContext(id="u1", nickname="Alice", timezone="UTC"),
+        character=TrustedCharacterContext(id="c1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv1", platform="business", route_key="route-1"
+        ),
+        relation=TrustedRelationContext(uid="u1", cid="c1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 26, 12, 38, tzinfo=UTC),
+        session_state={"focus": focus_to_session_state(base_focus)},
+    )
+
+    text = build_chat_response_instructions(ctx, _user_turn_input())
+
+    assert '<trusted kind="focus">' in text
+    focus_block = text.split('<trusted kind="focus">', 1)[1].split(
+        "</trusted>", 1
+    )[0]
+    assert '"ambiguity": "none_actionable"' in focus_block
 
 
 def test_chat_response_instructions_render_agent_instance_profile_before_boundaries():
