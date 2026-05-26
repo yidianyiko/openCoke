@@ -298,14 +298,15 @@ async def test_reminder_intent_port_allows_explicit_reminder_about_booking():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_extracts_duration_minutes_and_strips_title():
+async def test_reminder_intent_port_routes_detector_duration_minutes_and_stripped_title():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     decision = SimpleNamespace(
         intent_type="crud",
         action="create",
-        title="开会一小时",
+        title="开会",
         trigger_at="2026-05-07T19:00:00+09:00",
+        duration_minutes=60,
     )
 
     class FakeAgent:
@@ -329,7 +330,7 @@ async def test_reminder_intent_port_extracts_duration_minutes_and_strips_title()
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_defaults_create_duration_to_one_hour():
+async def test_reminder_intent_port_routes_detector_default_create_duration():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     decision = SimpleNamespace(
@@ -337,7 +338,7 @@ async def test_reminder_intent_port_defaults_create_duration_to_one_hour():
         action="create",
         title="做平板支撑",
         trigger_at="2026-05-07T08:00:00+09:00",
-        duration_minutes=0,
+        duration_minutes=60,
     )
 
     class FakeAgent:
@@ -361,15 +362,15 @@ async def test_reminder_intent_port_defaults_create_duration_to_one_hour():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_defaults_batch_create_duration_to_one_hour():
+async def test_reminder_intent_port_routes_detector_default_batch_create_duration():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     decision = SimpleNamespace(
         intent_type="crud",
         action="batch",
         operations=[
-            {"action": "create", "title": "拉伸", "duration_minutes": None},
-            {"action": "create", "title": "喝水", "duration_minutes": 0},
+            {"action": "create", "title": "拉伸", "duration_minutes": 60},
+            {"action": "create", "title": "喝水", "duration_minutes": 60},
         ],
     )
 

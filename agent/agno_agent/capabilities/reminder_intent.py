@@ -180,7 +180,6 @@ class ReminderIntentPort:
             return _invalid_decision_clarification_result()
         if _should_reject_missing_scheduled_clauses(input_message, decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_create_duration_from_title(decision)
         return self.command_executor.execute(decision, run_context)
 
 
@@ -277,31 +276,6 @@ _RELATIVE_DELAY_PATTERN = re.compile(
     r"(?P<timer_unit>minutes?|mins?|分钟|分|小时|个小时|天|日)\s*"
     r"(?:计时|倒计时))",
     re.IGNORECASE,
-)
-_DURATION_SUFFIX_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (
-        re.compile(
-            r"(?i)\s*(?:for\s+)?(?:半小时|半个小时|半钟头|half(?:\s+an?)?\s+hour(?:s)?)\s*$"
-        ),
-        "half_hour",
-    ),
-    (
-        re.compile(r"(?i)\s*(?:for\s+)?(?:一刻钟|quarter(?:\s+of)?\s+an?\s+hour)\s*$"),
-        "quarter_hour",
-    ),
-    (
-        re.compile(
-            r"(?i)\s*(?:for\s+)?(?:三刻钟|three\s+quarters?\s+of\s+an?\s+hour)\s*$"
-        ),
-        "three_quarter_hour",
-    ),
-    (
-        re.compile(
-            r"(?i)\s*(?:for\s+)?(?P<amount>\d+|[零〇一二两三四五六七八九十百]{1,4})\s*"
-            r"(?P<unit>个小时|小时|hours?|hrs?|h|分钟|分|minutes?|mins?|min|m)\s*$"
-        ),
-        "numeric_duration",
-    ),
 )
 _SINGLE_BARE_CLOCK_EXTRACTION_PATTERN = re.compile(
     r"(?P<hour>\d{1,2})\s*[:：.]\s*(?P<minute>\d{1,2})"
@@ -676,121 +650,6 @@ def _parse_clock_minute(value: str) -> int | None:
     if text.isdigit():
         return int(text)
     return _parse_chinese_minute(text)
-
-
-def _parse_duration_minutes_from_title(title: str) -> tuple[str, int | None]:
-    normalized = re.sub(r"[。.!！？?；;、,，]+$", "", str(title or "").strip()).strip()
-    if not normalized:
-        return "", None
-
-    for pattern, kind in _DURATION_SUFFIX_PATTERNS:
-        match = pattern.search(normalized)
-        if match is None or match.end() != len(normalized):
-            continue
-
-        if kind == "half_hour":
-            duration_minutes = 30
-        elif kind == "quarter_hour":
-            duration_minutes = 15
-        elif kind == "three_quarter_hour":
-            duration_minutes = 45
-        else:
-            amount_text = str(match.group("amount") or "").strip()
-            if amount_text.isdigit():
-                amount = int(amount_text)
-            else:
-                amount = _parse_chinese_hour(amount_text)
-            if amount is None or amount <= 0:
-                continue
-            unit = str(match.group("unit") or "").strip().lower()
-            if unit in {"小时", "个小时", "hour", "hours", "hr", "hrs", "h"}:
-                duration_minutes = amount * 60
-            elif unit in {"分钟", "分", "minute", "minutes", "min", "mins", "m"}:
-                duration_minutes = amount
-            else:
-                continue
-
-        stripped = normalized[: match.start()].rstrip()
-        stripped = re.sub(r"[。.!！？?；;、,，]+$", "", stripped).strip()
-        if not stripped:
-            continue
-        return stripped, duration_minutes
-
-    return normalized, None
-
-
-_DEFAULT_TASK_DURATION_MINUTES = 60
-
-
-def _duration_minutes_or_default(value: Any) -> int:
-    if isinstance(value, bool):
-        return _DEFAULT_TASK_DURATION_MINUTES
-    if isinstance(value, int) and value > 0:
-        return value
-    return _DEFAULT_TASK_DURATION_MINUTES
-
-
-def _normalize_create_duration_from_title(decision: Any) -> Any:
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action == "batch":
-        operations = list(_decision_value(decision, "operations") or [])
-        if not operations:
-            return decision
-        normalized_operations = []
-        changed = False
-        for operation in operations:
-            if str(_operation_value(operation, "action") or "").strip() != "create":
-                normalized_operations.append(operation)
-                continue
-            title = str(_operation_value(operation, "title") or "").strip()
-            stripped_title, title_duration_minutes = _parse_duration_minutes_from_title(
-                title
-            )
-            duration_minutes = _duration_minutes_or_default(
-                _operation_value(operation, "duration_minutes")
-                if title_duration_minutes is None
-                else title_duration_minutes
-            )
-            updated_operation = operation
-            if stripped_title and stripped_title != title:
-                updated_operation = _copy_operation_with_value(
-                    updated_operation, "title", stripped_title
-                )
-                changed = True
-            if (
-                _operation_value(updated_operation, "duration_minutes")
-                != duration_minutes
-            ):
-                updated_operation = _copy_operation_with_value(
-                    updated_operation, "duration_minutes", duration_minutes
-                )
-                changed = True
-            normalized_operations.append(updated_operation)
-        if changed:
-            return _copy_decision_with_operations(decision, normalized_operations)
-        return decision
-
-    if action != "create":
-        return decision
-
-    title = str(_decision_value(decision, "title") or "").strip()
-    stripped_title, title_duration_minutes = _parse_duration_minutes_from_title(title)
-    duration_minutes = _duration_minutes_or_default(
-        _decision_value(decision, "duration_minutes")
-        if title_duration_minutes is None
-        else title_duration_minutes
-    )
-
-    updated_decision = decision
-    if stripped_title and stripped_title != title:
-        updated_decision = _copy_decision_with_value(
-            updated_decision, "title", stripped_title
-        )
-    if _decision_value(updated_decision, "duration_minutes") != duration_minutes:
-        updated_decision = _copy_decision_with_value(
-            updated_decision, "duration_minutes", duration_minutes
-        )
-    return updated_decision
 
 
 def _subtract_clock_minutes(hour: int, minutes_before: int) -> tuple[int, int]:
