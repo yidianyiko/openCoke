@@ -189,21 +189,6 @@ def _should_execute_decision(decision: Any) -> bool:
     return intent_type == "crud" or (intent_type == "query" and action == "list")
 
 
-def _normalize_explicit_list_title_query(value: str) -> str | None:
-    query = re.sub(
-        r"^(?:我|我的|现在|当前|所有|全部|今天|今日|今晚|今早|明天|明日|设过|有|哪些)+",
-        "",
-        str(value or "").strip(),
-    )
-    query = re.sub(r"(?:的|相关的)$", "", query.strip())
-    query = " ".join(query.split())
-    if query in {"", "我", "我的", "什么", "有什么", "有哪些", "哪些"}:
-        return None
-    if any(marker in query for marker in ("什么", "哪些")):
-        return None
-    return query or None
-
-
 def _is_unrecognized_decision(decision: Any) -> bool:
     if decision is None:
         return False
