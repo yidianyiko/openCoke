@@ -675,43 +675,6 @@ def _copy_operation_with_value(operation: Any, field: str, value: Any) -> Any:
     return SimpleNamespace(**data)
 
 
-def _drop_ungoverned_cadence_task_operations(text: str, decision: Any) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "batch":
-        return decision
-    operations = list(_decision_value(decision, "operations") or [])
-    if len(operations) <= 1:
-        return decision
-    has_high_frequency_recurring_create = any(
-        str(_operation_value(operation, "action") or "").strip() == "create"
-        and _is_high_frequency_rrule(str(_operation_value(operation, "rrule") or ""))
-        for operation in operations
-    )
-    if not has_high_frequency_recurring_create:
-        return decision
-
-    kept_operations = []
-    changed = False
-    for operation in operations:
-        if str(_operation_value(operation, "action") or "").strip() != "create":
-            kept_operations.append(operation)
-            continue
-        title = str(_operation_value(operation, "title") or "").strip()
-        rrule = str(_operation_value(operation, "rrule") or "").strip()
-        if rrule and not _is_high_frequency_rrule(rrule):
-            kept_operations.append(operation)
-            continue
-        if title and (
-            _title_has_local_reminder_verb_context(text, title)
-            or (rrule and _title_has_local_cadence_context(text, title))
-        ):
-            kept_operations.append(operation)
-            continue
-        changed = True
-    if not changed or not kept_operations:
-        return decision
-    return _copy_decision_with_operations(decision, kept_operations)
-
-
 def _title_has_local_reminder_verb_context(text: str, title: str) -> bool:
     start = 0
     while True:
@@ -721,20 +684,6 @@ def _title_has_local_reminder_verb_context(text: str, title: str) -> bool:
         clause_start = _previous_clause_boundary(text, position)
         clause = text[clause_start : position + len(title)]
         if _REMINDER_VERB_PATTERN.search(clause):
-            return True
-        start = position + len(title)
-
-
-def _title_has_local_cadence_context(text: str, title: str) -> bool:
-    start = 0
-    while True:
-        position = text.find(title, start)
-        if position < 0:
-            return False
-        clause_start = _previous_clause_boundary(text, position)
-        clause_end = _next_clause_boundary(text, position + len(title))
-        clause = text[clause_start:clause_end]
-        if _is_high_frequency_evidence(clause):
             return True
         start = position + len(title)
 
