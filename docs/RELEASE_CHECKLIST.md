@@ -9,11 +9,12 @@ Use this checklist before merging or deploying a release-worthy Coke change.
 - [ ] Branch and commit source are confirmed.
 - [ ] Relevant ADR, architecture, product-spec, issue, or release docs are
       updated in the same change.
+- [ ] Every completed in-scope repository change is committed before handoff.
 
 ## Verification
 
 - [ ] `zsh scripts/suggest-verification --base HEAD~1`
-- [ ] `zsh scripts/review-trigger --base HEAD~1`
+- [ ] `zsh scripts/review-trigger --base HEAD~1` non-blocking risk report.
 - [ ] `zsh scripts/verify-surface <surface>` for every affected surface.
 - [ ] Runtime/eval/smoke evidence recorded under `artifacts/evidence/` when
       behavior beyond repo structure is claimed.

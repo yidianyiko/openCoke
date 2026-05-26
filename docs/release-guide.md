@@ -24,7 +24,7 @@ Use this guide when changing:
    git branch --show-current
    ```
 
-2. Run diff-aware routing:
+2. Run diff-aware routing and the non-blocking risk report:
 
    ```bash
    zsh scripts/suggest-verification --base HEAD~1

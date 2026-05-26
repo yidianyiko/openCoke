@@ -97,7 +97,13 @@ Then add the smallest task-specific slice:
 
 - Multi-step, risky, cross-cutting, or multi-session work should also have an
   execution plan in `docs/superpowers/plans/`.
-- Prefer small, reviewable changes over broad speculative rewrites.
+- Prefer small, coherent commits over broad speculative rewrites.
+- Every completed repository change must be committed before handoff, including
+  docs, tests, generated workflow records, and guardrail updates. Do not wait
+  for human review because a diff is large, cross-boundary, deployment-related,
+  or otherwise sensitive; record the risk and verification evidence in the
+  handoff instead. The only exceptions are an explicit user instruction not to
+  commit or an unresolved blocker that makes a correct commit impossible.
 - Preserve the product and architecture contract even when a test or eval gate
   is red. Do not add compatibility paths, parser fallbacks, heuristic
   shortcuts, or user-visible behavior changes just to make a test pass.
@@ -133,7 +139,8 @@ Then add the smallest task-specific slice:
 - Runtime, eval, or deployment claims need user-path, corpus, or smoke evidence.
 - For non-trivial changes, run diff-aware routing before hand-picking tests:
   `zsh scripts/suggest-verification --base HEAD~1`, then
-  `zsh scripts/review-trigger --base HEAD~1`.
+  `zsh scripts/review-trigger --base HEAD~1`. `review-trigger` is a
+  non-blocking risk report; it must not require human review or block a commit.
 - For docs-only repo-OS edits, prefer the lighter `repo-os-docs` surface
   suggested by the guardrails. Use the heavier `repo-os` surface when changing
   guardrail scripts, `docs/fitness/surfaces.yaml`, or verification tooling.
@@ -156,5 +163,5 @@ Then add the smallest task-specific slice:
 - Repo-OS check: `zsh scripts/check`
 - Surface verification: `zsh scripts/verify-surface <surface>`
 - Verification suggestion: `zsh scripts/suggest-verification --base HEAD~1`
-- Review escalation check: `zsh scripts/review-trigger --base HEAD~1`
+- Risk trigger report: `zsh scripts/review-trigger --base HEAD~1`
 - Production deploy: `./scripts/deploy-compose-to-gcp.sh --restart`

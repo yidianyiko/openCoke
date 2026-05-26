@@ -26,8 +26,8 @@ Use the smallest useful layer for the task:
    - lint/format/build
    - operational smoke checks when deployment surfaces changed
 
-4. **Review checks**
-   - diff reviewed
+4. **Risk reporting**
+   - diff inspected
    - assumptions called out
    - remaining risks stated
 
@@ -51,8 +51,8 @@ runtime behavior:
 - Runtime: run the relevant targeted tests for touched code, run broader smoke
   or deployment verification when required, and record any intentionally
   unverified areas.
-- Review: inspect the diff, note assumptions and remaining risks, and avoid
-  claiming success without command evidence.
+- Risk reporting: inspect the diff, note assumptions and remaining risks, and
+  avoid claiming success without command evidence.
 
 Use [`coke-verification-matrix.md`](./coke-verification-matrix.md) when you
 need the repository-specific command mapping for worker, bridge, gateway, or
@@ -62,8 +62,8 @@ surface for guardrail scripts, `surfaces.yaml`, or verification tooling.
 
 ## Coke Guardrails
 
-`surfaces.yaml` is the machine-readable surface and review-trigger contract.
-It keeps the Coke-specific boundaries close to the human-readable verification
+`surfaces.yaml` is the machine-readable surface and risk-trigger contract. It
+keeps the Coke-specific boundaries close to the human-readable verification
 matrix without replacing the existing command runner.
 
 ## Ownership Registry
@@ -82,6 +82,7 @@ zsh scripts/review-trigger --base HEAD~1
 
 - `suggest-verification` maps changed files to Coke surfaces and prints the
   matching `scripts/verify-surface` dry-run command set.
-- `review-trigger` flags changes that should receive human review, such as
-  bridge/gateway cross-boundary changes, deployment changes, oversized diffs,
-  or non-trivial changes without generated evidence.
+- `review-trigger` reports risk triggers such as bridge/gateway cross-boundary
+  changes, deployment changes, oversized diffs, or non-trivial changes without
+  generated evidence. It is non-blocking, exits 0, and never requires human
+  review.

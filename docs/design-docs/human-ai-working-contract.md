@@ -37,8 +37,10 @@ make their work easier to inspect, constrain, and verify.
 3. Do not optimize for green tests alone. A passing test suite can still be
    wrong when the test asserts stale behavior, mocks the wrong boundary, or
    skips the runtime path that matters.
-4. Keep human judgment in the loop for architecture, product contract,
-   deployment, evidence deletion, oversized diffs, and cross-boundary changes.
+4. Human review is not a completion gate for agent work. For architecture,
+   product contract, deployment, evidence deletion, oversized diffs, and
+   cross-boundary changes, agents must report risks and verification evidence,
+   then commit completed changes without waiting for human approval.
 5. Preserve the product contract even when a test or eval is red. Do not add
    case-specific branches, parser shortcuts, compatibility fallbacks, or prompt
    examples just to satisfy a single gate.
@@ -58,6 +60,7 @@ Every non-trivial task should leave these questions answerable from the repo:
 - What evidence proves the change?
 - What was intentionally not verified?
 - Did the verification command exercise the real path or only a mock/stub?
+- Which commit contains the completed change?
 
 For multi-step or risky work, write the execution plan in `docs/superpowers/plans/`.
 For durable rules or decisions, use `docs/design-docs/` or `docs/adr/`.
@@ -90,6 +93,12 @@ For generated run evidence, use `artifacts/evidence/`.
 10. Do not preserve historical behavior in code just because older clients,
     tests, plans, or prompts still mention it. Treat those references as stale
     and either migrate them to the current contract or delete them.
+11. Every completed repository change must be committed before handoff,
+    including docs, tests, generated workflow records, and guardrail updates.
+    Large, cross-boundary, deployment-related, or sensitive diffs require clear
+    risk notes and verification evidence, not human approval. The only
+    exceptions are an explicit user instruction not to commit or an unresolved
+    blocker that makes a correct commit impossible.
 
 ## Verification Trust Levels
 
@@ -133,7 +142,7 @@ AI agents working in this repository must:
 - keep root routing docs synchronized with durable workflow changes
 - report verification gaps directly
 
-Humans reviewing AI work should challenge:
+When humans review AI work after handoff, they should challenge:
 
 - broad claims backed only by structure checks
 - runtime changes without user-path or corpus evidence

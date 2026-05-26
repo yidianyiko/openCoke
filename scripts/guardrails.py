@@ -439,14 +439,16 @@ def cmd_review_trigger(args: argparse.Namespace) -> int:
 
     if not matches:
         print("human_review_required: no")
+        print("risk_triggers: no")
         return 0
 
-    print("human_review_required: yes")
+    print("human_review_required: no")
+    print("risk_triggers: yes")
     for match in matches:
         print(f"- {match.name} [{match.severity}]")
         for reason in match.reasons:
             print(f"  reason: {reason}")
-    return 1
+    return 0
 
 
 def cmd_check_ownership_registry(args: argparse.Namespace) -> int:

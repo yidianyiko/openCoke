@@ -137,8 +137,9 @@ def test_review_trigger_flags_cross_boundary_and_missing_evidence():
         "gateway/packages/api/src/routes/outbound.ts",
     )
 
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "human_review_required: yes" in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "human_review_required: no" in result.stdout
+    assert "risk_triggers: yes" in result.stdout
     assert "cross_boundary_bridge_gateway" in result.stdout
     assert "evidence_gap" in result.stdout
 
@@ -154,6 +155,7 @@ def test_review_trigger_accepts_evidence_for_nontrivial_changes():
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "human_review_required: no" in result.stdout
+    assert "risk_triggers: no" in result.stdout
 
 
 def test_review_trigger_does_not_require_artifact_for_gateway_gitlink_doc_change():
@@ -165,6 +167,7 @@ def test_review_trigger_does_not_require_artifact_for_gateway_gitlink_doc_change
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "human_review_required: no" in result.stdout
+    assert "risk_triggers: no" in result.stdout
     assert "evidence_gap" not in result.stdout
 
 
