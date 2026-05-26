@@ -23,6 +23,7 @@ from agent.agno_agent.runtime.chat_response_instructions import (
     _USER_VISIBLE_REPLY_BOUNDARY,
     build_chat_response_instructions,
 )
+from agent.agno_agent.runtime.post_analyze import _build_userp_template
 from agent.agno_agent.runtime.context import (
     AgentRunContext,
     TrustedCharacterContext,
@@ -117,6 +118,11 @@ def _assembled_chat_response_prompt(
     )
 
 
+def _assembled_post_analyze_prompt(*, skip_followup: bool = False) -> str:
+    state = {"reminder_created_with_time": True} if skip_followup else {}
+    return _build_userp_template(state)
+
+
 # Budgets are deliberate ceilings, not measurements of current size.
 # Lower numbers below current size = forcing function to diet further.
 # See docs/adr/0004-per-agent-prompt-budget-discipline.md.
@@ -143,6 +149,14 @@ PROMPT_BUDGETS: dict[str, tuple[str, int]] = {
     "ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE": (
         _assembled_chat_response_prompt(reminder_fire=True),
         4200,
+    ),
+    "ASSEMBLED_POST_ANALYZE_WITH_FOLLOWUP": (
+        _assembled_post_analyze_prompt(),
+        1800,
+    ),
+    "ASSEMBLED_POST_ANALYZE_SKIP_FOLLOWUP": (
+        _assembled_post_analyze_prompt(skip_followup=True),
+        1400,
     ),
 }
 
@@ -181,6 +195,13 @@ def test_prompt_budget_registry_covers_assembled_chat_response_surfaces():
         "ASSEMBLED_CHAT_RESPONSE_USER_TURN",
         "ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT",
         "ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE",
+    }.issubset(PROMPT_BUDGETS)
+
+
+def test_prompt_budget_registry_covers_assembled_post_analyze_surfaces():
+    assert {
+        "ASSEMBLED_POST_ANALYZE_WITH_FOLLOWUP",
+        "ASSEMBLED_POST_ANALYZE_SKIP_FOLLOWUP",
     }.issubset(PROMPT_BUDGETS)
 
 

@@ -69,6 +69,8 @@ Current enforced surfaces as of 2026-05-26:
 | `ASSEMBLED_CHAT_RESPONSE_USER_TURN` | 4200 | ~3850 |
 | `ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT` | 4500 | ~4211 |
 | `ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE` | 4200 | ~3920 |
+| `ASSEMBLED_POST_ANALYZE_WITH_FOLLOWUP` | 1800 | ~1647 |
+| `ASSEMBLED_POST_ANALYZE_SKIP_FOLLOWUP` | 1400 | ~1283 |
 
 Adding a rule to any prompt that pushes it over budget is a CI failure.
 To merge such a change one of the following must happen:
@@ -123,6 +125,9 @@ changes structurally — never to accommodate prompt sprawl.
 - Tighten assembled prompt ceilings after the next character-prompt or
   delegation-boundary diet. The representative `build_chat_response_instructions()`
   user-turn, first-chat, and reminder-fire scenarios are now covered.
+- Tighten post-analyze assembled prompt ceilings after the next
+  follow-up-planning prompt diet. Both with-followup and skip-followup
+  paths are now covered.
 - Keep dieting the largest active prompts (`COKE_SYSTEM_PROMPT` and
   `REMINDER_FEW_SHOTS`) when touching them. They remain under the 95%
   headroom gate but are still close enough to deserve review.
