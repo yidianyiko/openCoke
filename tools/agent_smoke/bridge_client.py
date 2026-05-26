@@ -14,6 +14,7 @@ import requests
 from tools.agent_smoke import _config
 
 SYNC_REPLY_TIMEOUT_FALLBACK_REPLY = "正在处理中，稍后把结果发给你。"
+FINAL_OUTPUT_STATUSES = {"handled", "failed"}
 
 
 @dataclass
@@ -175,12 +176,15 @@ def poll_late_reply_text(
                     {"metadata.causal_inbound_event_id": causal_inbound_event_id},
                 ]
             },
+            {"status": {"$in": sorted(FINAL_OUTPUT_STATUSES)}},
             {"message": {"$nin": ["", SYNC_REPLY_TIMEOUT_FALLBACK_REPLY]}},
         ]
     }
     try:
         while time.monotonic() < deadline:
             for doc in collection.find(query).sort("_id", -1):
+                if not _is_final_output_doc(doc):
+                    continue
                 reply_text = _output_reply_text(doc)
                 if reply_text and reply_text != SYNC_REPLY_TIMEOUT_FALLBACK_REPLY:
                     return reply_text, doc
@@ -190,6 +194,10 @@ def poll_late_reply_text(
         if callable(close):
             close()
     return None, None
+
+
+def _is_final_output_doc(doc: dict) -> bool:
+    return doc.get("status") in FINAL_OUTPUT_STATUSES
 
 
 def _output_reply_text(doc: dict) -> str:

@@ -237,6 +237,53 @@ def _reply_for(ctx: "CaseContext", note: str) -> str:
     return ""
 
 
+def _is_empty_fallback_text(text: str) -> bool:
+    return not text.strip() or any(token in text for token in EMPTY_FALLBACK_TOKENS)
+
+
+def _fallback_turns(turns: list[Turn]) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    for case_turn, turn in enumerate(turns, start=1):
+        reply_text = turn.reply_text or ""
+        is_sync_placeholder = turn.placeholder_received and not turn.late_reply_landed
+        is_late_reply = turn.placeholder_received and turn.late_reply_landed
+        is_real_empty_fallback = _is_empty_fallback_text(reply_text) and not is_sync_placeholder
+        if not (turn.placeholder_received or is_real_empty_fallback):
+            continue
+        if is_sync_placeholder:
+            output_kind = "sync_placeholder"
+        elif is_real_empty_fallback:
+            output_kind = "real_empty_fallback"
+        else:
+            output_kind = "late_real_reply"
+        evidence.append(
+            {
+                "turn": case_turn,
+                "global_turn": turn.turn,
+                "note": turn.note,
+                "reply_text": reply_text,
+                "placeholder_received": turn.placeholder_received,
+                "late_reply_landed": turn.late_reply_landed,
+                "is_real_empty_fallback": is_real_empty_fallback,
+                "output_kind": output_kind,
+            }
+        )
+    return evidence
+
+
+def _reply_records(ctx: "CaseContext", turns: list[Turn]) -> list[dict[str, Any]]:
+    case_turn_by_id = {id(turn): index for index, turn in enumerate(ctx.turns, start=1)}
+    return [
+        {
+            "turn": case_turn_by_id.get(id(turn), turn.turn),
+            "global_turn": turn.turn,
+            "note": turn.note,
+            "reply_text": turn.reply_text or "",
+        }
+        for turn in turns
+    ]
+
+
 def _agent_trace_excerpt(turn: Turn, after: dict[str, Any]) -> list[dict[str, Any]]:
     excerpts: list[dict[str, Any]] = []
     for session in after["mongo"].get("agent_sessions", []):
@@ -258,18 +305,18 @@ def _agent_trace_excerpt(turn: Turn, after: dict[str, Any]) -> list[dict[str, An
 
 def _base_bug_pattern(turns: list[Turn], default: str, mutation_expected: bool, mutation_happened: bool) -> str:
     text = _reply_text(turns)
+    if any(turn.placeholder_received and not turn.late_reply_landed for turn in turns):
+        return "BLOCKED-LATE-REPLY-TIMEOUT"
     if RAW_ENVELOPE_RE.search(text):
         return "A"
-    if any(token in text for token in EMPTY_FALLBACK_TOKENS) or not text.strip():
-        return "B"
     if "ValidationError" in text or "Tool call limit" in text:
         return "D1"
     if "not_found" in text or "找不到" in text:
         return "D2"
-    if any(turn.placeholder_received and not turn.late_reply_landed for turn in turns):
-        return "BLOCKED-LATE-REPLY-TIMEOUT"
     if mutation_expected and not mutation_happened and any(token in text for token in SUCCESS_CLAIM_TOKENS):
         return "C"
+    if _is_empty_fallback_text(text):
+        return "B" if default in ("", "B") else default
     return default
 
 
@@ -293,6 +340,7 @@ def _active_reminders(after: dict[str, Any], account: SmokeAccount) -> list[dict
 
 def _result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, Any], *, verdict: str, expected: str, observed: str, bug_pattern: str = "", severity: str = "", product_contract_unclear: bool = False, extra: dict[str, Any] | None = None) -> dict[str, Any]:
     delta = _diff_snapshot(before, after)
+    fallback_turns = _fallback_turns(ctx.turns)
     payload = {
         "batch_id": BATCH_ID,
         "model": MODEL,
@@ -312,6 +360,9 @@ def _result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, Any], *
         "snapshot_before": _clean(before),
         "snapshot_after": _clean(after),
     }
+    if fallback_turns:
+        payload["fallback_turns"] = fallback_turns
+        payload["secondary_evidence"] = {"fallback_turns": fallback_turns}
     if extra:
         payload["extra"] = _clean(extra)
     return payload
@@ -321,13 +372,14 @@ def _judge_result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, A
     text = _reply_text(ctx.turns)
     if any(turn.placeholder_received and not turn.late_reply_landed for turn in ctx.turns):
         return _result(ctx, before, after, verdict="BLOCKED", expected=expected, observed="BLOCKED-LATE-REPLY-TIMEOUT", bug_pattern="BLOCKED-LATE-REPLY-TIMEOUT", severity="smoke-infra", product_contract_unclear=product_contract_unclear, extra=extra)
-    bad = "raw envelope leaked" if RAW_ENVELOPE_RE.search(text) else None
-    if not bad and any(token in text for token in EMPTY_FALLBACK_TOKENS):
-        bad = "empty fallback surfaced"
-    if ok and not bad:
+    raw_envelope_leaked = bool(RAW_ENVELOPE_RE.search(text))
+    fallback_turns = _fallback_turns(ctx.turns)
+    real_empty_fallback = any(item["is_real_empty_fallback"] for item in fallback_turns)
+    if ok and not raw_envelope_leaked and not real_empty_fallback:
         return _result(ctx, before, after, verdict="PASSED", expected=expected, observed=observed, product_contract_unclear=product_contract_unclear, extra=extra)
-    if bad:
-        observed = f"{observed}; {bad}"
+    if raw_envelope_leaked:
+        observed = f"{observed}; raw envelope leaked"
+    classification_default = "B" if ok and real_empty_fallback and not raw_envelope_leaked else bug_pattern
     return _result(
         ctx,
         before,
@@ -335,7 +387,7 @@ def _judge_result(ctx: "CaseContext", before: dict[str, Any], after: dict[str, A
         verdict="FINDING",
         expected=expected,
         observed=observed,
-        bug_pattern=_base_bug_pattern(ctx.turns, bug_pattern, mutation_expected, mutation_happened),
+        bug_pattern=_base_bug_pattern(ctx.turns, classification_default, mutation_expected, mutation_happened),
         severity=severity,
         product_contract_unclear=product_contract_unclear,
         extra=extra,
@@ -544,9 +596,12 @@ def _run_cases(transcript: Transcript) -> list[dict[str, Any]]:
 
     def l3j(ctx: CaseContext, before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
         docs = _reminders_for(after, ctx.accounts["alice"])
-        tail = _reply_text(ctx.turns[-2:])
-        ok = len(docs) == 10 and "7" in tail and "16" in tail
-        return _judge_result(ctx, before, after, expected="Ten-reminder long context preserves first/last backreferences", observed=f"reminders={len(docs)} tail_reply={tail[:160]}", ok=ok, bug_pattern="X2", mutation_expected=True, mutation_happened=len(docs) >= 10, severity="silent-bad-side-effect")
+        tail_replies = _reply_records(ctx, ctx.turns[-2:])
+        first_reply = tail_replies[0]["reply_text"] if tail_replies else ""
+        last_reply = tail_replies[1]["reply_text"] if len(tail_replies) > 1 else ""
+        ok = len(docs) == 10 and "7" in first_reply and "16" in last_reply
+        observed = f"reminders={len(docs)} tail_replies={json.dumps(tail_replies, ensure_ascii=False)}"
+        return _judge_result(ctx, before, after, expected="Ten-reminder long context preserves first/last backreferences", observed=observed, ok=ok, bug_pattern="X2", mutation_expected=True, mutation_happened=len(docs) >= 10, severity="silent-bad-side-effect")
 
     results.append(_case_result("L3-long-context-backreference", {"alice": "Alice Long"}, transcript, l3, l3j, "L3 long context"))
 
@@ -600,8 +655,40 @@ def _run_cases(transcript: Transcript) -> list[dict[str, Any]]:
     def l6j(ctx: CaseContext, before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
         alice, bob = ctx.accounts["alice"], ctx.accounts["bob"]
         shared = _shared_rows(after, alice, bob)
+        blocked_paths = []
+        if not shared:
+            blocked_paths.append(
+                {
+                    "path": "shared_reminder_invalidation_after_friend_removal",
+                    "reason": "BLOCKED-PREREQUISITE",
+                    "prerequisite_turn_note": "L6_create",
+                    "detail": "shared reminder create produced no shared_reminder_requests, so removal invalidation was not exercised",
+                }
+            )
+        extra = {"blocked_paths": blocked_paths} if blocked_paths else None
+        if blocked_paths and not RAW_ENVELOPE_RE.search(_reply_text(ctx.turns)) and not any(turn.placeholder_received and not turn.late_reply_landed for turn in ctx.turns):
+            return _result(
+                ctx,
+                before,
+                after,
+                verdict="BLOCKED",
+                expected="Removed friendship makes pending shared reminders non-actionable",
+                observed=(
+                    f"active_friendships={len(_active_friendships(after, alice, bob))} "
+                    f"shared_statuses={[r.get('status') for r in shared]} dependent_path=BLOCKED-PREREQUISITE"
+                ),
+                bug_pattern="BLOCKED-PREREQUISITE",
+                severity="smoke-infra",
+                extra=extra,
+            )
         ok = not _active_friendships(after, alice, bob) and not any(row.get("status") == "accepted" for row in shared)
-        return _judge_result(ctx, before, after, expected="Removed friendship makes pending shared reminders non-actionable", observed=f"active_friendships={len(_active_friendships(after, alice, bob))} shared_statuses={[r.get('status') for r in shared]}", ok=ok, bug_pattern="X4", mutation_expected=True, mutation_happened=not _active_friendships(after, alice, bob), severity="privacy-leak")
+        observed = (
+            f"active_friendships={len(_active_friendships(after, alice, bob))} "
+            f"shared_statuses={[r.get('status') for r in shared]}"
+        )
+        if blocked_paths:
+            observed = f"{observed} dependent_path=BLOCKED-PREREQUISITE"
+        return _judge_result(ctx, before, after, expected="Removed friendship makes pending shared reminders non-actionable", observed=observed, ok=ok, bug_pattern="X4", mutation_expected=True, mutation_happened=not _active_friendships(after, alice, bob), severity="privacy-leak", extra=extra)
 
     results.append(_case_result("L6-friend-remove-mid-flow", {"alice": "Alice Long", "bob": "Bob Long"}, transcript, l6, l6j, "L6 remove mid-flow"))
 

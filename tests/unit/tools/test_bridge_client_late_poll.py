@@ -58,7 +58,7 @@ def _install_fake_mongo(monkeypatch, outputmessages):
 
 def test_poll_late_reply_text_returns_immediate_matching_reply(monkeypatch):
     outputmessages = _FakeOutputMessages(
-        [[{"_id": "out1", "message": "已经帮你约好了。"}]]
+        [[{"_id": "out1", "status": "handled", "message": "已经帮你约好了。"}]]
     )
     _install_fake_mongo(monkeypatch, outputmessages)
 
@@ -70,7 +70,7 @@ def test_poll_late_reply_text_returns_immediate_matching_reply(monkeypatch):
     )
 
     assert reply_text == "已经帮你约好了。"
-    assert output_doc == {"_id": "out1", "message": "已经帮你约好了。"}
+    assert output_doc == {"_id": "out1", "status": "handled", "message": "已经帮你约好了。"}
     query = outputmessages.queries[0]
     assert {"to_user": "ck_alice"} in query["$and"][0]["$or"]
     assert {"account_id": "ck_alice"} in query["$and"][0]["$or"]
@@ -78,7 +78,8 @@ def test_poll_late_reply_text_returns_immediate_matching_reply(monkeypatch):
         "metadata.business_protocol.causal_inbound_event_id": "evt1"
     } in query["$and"][1]["$or"]
     assert {"metadata.causal_inbound_event_id": "evt1"} in query["$and"][1]["$or"]
-    assert query["$and"][2]["message"]["$nin"] == [
+    assert query["$and"][2]["status"]["$in"] == ["failed", "handled"]
+    assert query["$and"][3]["message"]["$nin"] == [
         "",
         SYNC_REPLY_TIMEOUT_FALLBACK_REPLY,
     ]
@@ -89,7 +90,7 @@ def test_poll_late_reply_text_waits_until_reply_lands(monkeypatch):
         [
             [],
             [],
-            [{"_id": "out2", "message": "迟到的真实回复。"}],
+            [{"_id": "out2", "status": "handled", "message": "迟到的真实回复。"}],
         ]
     )
     _install_fake_mongo(monkeypatch, outputmessages)
@@ -102,7 +103,29 @@ def test_poll_late_reply_text_waits_until_reply_lands(monkeypatch):
     )
 
     assert reply_text == "迟到的真实回复。"
-    assert output_doc == {"_id": "out2", "message": "迟到的真实回复。"}
+    assert output_doc == {"_id": "out2", "status": "handled", "message": "迟到的真实回复。"}
+    assert len(outputmessages.queries) == 3
+
+
+def test_poll_late_reply_text_ignores_pending_until_final_output_lands(monkeypatch):
+    outputmessages = _FakeOutputMessages(
+        [
+            [{"_id": "out_pending", "status": "pending", "message": "未最终输出。"}],
+            [{"_id": "out_pending", "status": "pending", "message": "未最终输出。"}],
+            [{"_id": "out_final", "status": "handled", "message": "最终真实回复。"}],
+        ]
+    )
+    _install_fake_mongo(monkeypatch, outputmessages)
+
+    reply_text, output_doc = poll_late_reply_text(
+        causal_inbound_event_id="evt_final",
+        coke_account_id="ck_dana",
+        poll_seconds=1,
+        poll_interval_seconds=0.01,
+    )
+
+    assert reply_text == "最终真实回复。"
+    assert output_doc == {"_id": "out_final", "status": "handled", "message": "最终真实回复。"}
     assert len(outputmessages.queries) == 3
 
 
