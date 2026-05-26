@@ -127,31 +127,6 @@ class ReminderIntentPort:
             "conversation": {"id": run_context.conversation.id},
             "platform": run_context.platform,
         }
-        if _is_unsupported_booking_request(input_message):
-            return _no_action_discussion_result()
-        explicit_list_decision = _explicit_reminder_list_decision(
-            input_message,
-            run_context,
-        )
-        if explicit_list_decision is not None:
-            return self.command_executor.execute(
-                explicit_list_decision,
-                run_context,
-            )
-        if _is_recurring_occurrence_skip_text(_latest_user_turn_text(input_message)):
-            return _needs_clarification_result(
-                summary="请确认这周的哪一个提醒不用了。",
-                missing_fields=("哪一个提醒",),
-                safety_boundary="ambiguous_request",
-                required_questions=("哪一个提醒",),
-            )
-        snooze_update = _snooze_update_decision(
-            input_message,
-            SimpleNamespace(intent_type="clarify", action=""),
-            run_context,
-        )
-        if snooze_update is not None:
-            return self.command_executor.execute(snooze_update, run_context)
         try:
             detector_agent = self.detector_agent or _create_reminder_detector()
             response = await asyncio.wait_for(
@@ -265,116 +240,6 @@ def _should_execute_decision(decision: Any) -> bool:
     return intent_type == "crud" or (intent_type == "query" and action == "list")
 
 
-def _is_explicit_reminder_list_query(input_message: str) -> bool:
-    return _explicit_reminder_list_decision(input_message, None) is not None
-
-
-def _explicit_reminder_list_decision(
-    input_message: str,
-    run_context: AgentRunContext | None,
-) -> SimpleNamespace | None:
-    current_user_text = _latest_user_turn_text(input_message)
-    text = input_message.casefold()
-    current_text = current_user_text.casefold()
-    if "共享提醒" in current_user_text or "shared reminder" in current_text:
-        return None
-    if not (
-        "提醒" in current_user_text
-        or "通知" in current_user_text
-        or "reminder" in current_text
-    ):
-        return None
-    if not (
-        any(
-            marker in current_user_text
-            for marker in (
-                "所有",
-                "全部",
-                "列表",
-                "都有哪些",
-                "有哪些",
-                "有什么",
-                "哪些",
-                "设过哪些",
-                "看看",
-                "看一下",
-                "查一下",
-                "列一下",
-            )
-        )
-        or "list" in text
-        or "show" in text
-        or "what reminders" in text
-    ):
-        return None
-
-    list_from_local_date = None
-    list_to_local_date = None
-    if run_context is not None:
-        local_date = _explicit_list_local_date(current_user_text, run_context)
-        if local_date is not None:
-            list_from_local_date = local_date.isoformat()
-            list_to_local_date = list_from_local_date
-
-    return SimpleNamespace(
-        intent_type="query",
-        action="list",
-        list_from_local_date=list_from_local_date,
-        list_to_local_date=list_to_local_date,
-        list_title_query=_explicit_list_title_query(current_user_text),
-        list_states=["active"],
-    )
-
-
-def _explicit_list_local_date(
-    current_user_text: str,
-    run_context: AgentRunContext,
-) -> date | None:
-    try:
-        local_today = run_context.current_time.astimezone(
-            ZoneInfo(run_context.user.timezone)
-        ).date()
-    except ZoneInfoNotFoundError:
-        local_today = run_context.current_time.date()
-    if any(marker in current_user_text for marker in ("今天", "今日", "今晚", "今早")):
-        return local_today
-    if any(marker in current_user_text for marker in ("明天", "明日")):
-        return local_today + timedelta(days=1)
-    return None
-
-
-def _explicit_list_title_query(current_user_text: str) -> str | None:
-    patterns = (
-        r"设过哪些(.+?)提醒",
-        r"哪些(.+?)提醒",
-    )
-    for pattern in patterns:
-        match = re.search(pattern, current_user_text)
-        if match:
-            query = _normalize_explicit_list_title_query(match.group(1))
-            if query:
-                return query
-    match = re.search(r"(?:我的)?(.+?)提醒(?:有哪些|有什么|列表|$|[？?。])", current_user_text)
-    if match:
-        raw_query = str(match.group(1) or "")
-        if any(
-            marker in raw_query
-            for marker in (
-                "列",
-                "看看",
-                "看一下",
-                "查一下",
-                "所有",
-                "全部",
-                "有什么",
-                "有哪些",
-            )
-        ):
-            return None
-        return _normalize_explicit_list_title_query(raw_query)
-    return None
-
-
 def _normalize_explicit_list_title_query(value: str) -> str | None:
     query = re.sub(
         r"^(?:我|我的|现在|当前|所有|全部|今天|今日|今晚|今早|明天|明日|设过|有|哪些)+",
@@ -388,21 +253,6 @@ def _normalize_explicit_list_title_query(value: str) -> str | None:
     if any(marker in query for marker in ("什么", "哪些")):
         return None
     return query or None
-
-
-def _is_recurring_occurrence_skip_text(current_user_text: str) -> bool:
-    return bool(
-        re.search(r"(?:这周|本周|这星期|本星期)的?(?:不用|不要|取消|跳过)", current_user_text)
-    )
-
-
-def _is_unsupported_booking_request(input_message: str) -> bool:
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if not current_user_text:
-        return False
-    if _REMINDER_VERB_PATTERN.search(current_user_text):
-        return False
-    return bool(_UNSUPPORTED_BOOKING_REQUEST_PATTERN.search(current_user_text))
 
 
 def _is_unrecognized_decision(decision: Any) -> bool:
@@ -470,13 +320,6 @@ _INPUT_MESSAGE_PREFIX_PATTERN = re.compile(r"^(?:（[^）]*）\s*)+")
 _REMINDER_VERB_PATTERN = re.compile(
     r"提醒我|叫我|喊我|通知我|监督我|问我|检查我|"
     r"remind me|call me|notify me|nudge me",
-    re.IGNORECASE,
-)
-_UNSUPPORTED_BOOKING_REQUEST_PATTERN = re.compile(
-    r"(?:帮我|给我|替我|麻烦|please\s+)?"
-    r"(?:约|预约|预订|订|book|reserve|schedule)"
-    r".{0,24}?"
-    r"(?:彭教练|教练课|教练|私教|网球课|羽毛球课|课程|课|coach|class|lesson|session)",
     re.IGNORECASE,
 )
 _SCHEDULE_BACK_REFERENCE_PATTERN = re.compile(

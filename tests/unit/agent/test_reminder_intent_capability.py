@@ -251,16 +251,18 @@ async def test_reminder_intent_port_runs_detector_and_executor():
 async def test_reminder_intent_port_rejects_unsupported_booking_requests(message):
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    class FailingAgent:
+    class FakeAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            raise AssertionError("unsupported booking should not reach detector")
+            return SimpleNamespace(
+                content=SimpleNamespace(intent_type="discussion", action="")
+            )
 
     class FailingExecutor:
         def execute(self, received_decision, run_context):
             raise AssertionError("unsupported booking should not write reminders")
 
     result = await ReminderIntentPort(
-        detector_agent=FailingAgent(),
+        detector_agent=FakeAgent(),
         command_executor=FailingExecutor(),
     ).run(message, _run_context())
 
@@ -464,12 +466,21 @@ async def test_reminder_command_executor_forwards_duration_minutes_to_tool_entry
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_routes_explicit_list_query_without_detector():
+async def test_reminder_intent_port_routes_explicit_list_query_from_detector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    class FailingAgent:
+    decision = SimpleNamespace(
+        intent_type="query",
+        action="list",
+        list_from_local_date=None,
+        list_to_local_date=None,
+        list_title_query=None,
+        list_states=["active"],
+    )
+
+    class FakeAgent:
         async def arun(self, **_kwargs):
-            raise AssertionError("detector should not run for explicit list query")
+            return SimpleNamespace(content=decision)
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -492,7 +503,7 @@ async def test_reminder_intent_port_routes_explicit_list_query_without_detector(
             )
 
     result = await ReminderIntentPort(
-        detector_agent=FailingAgent(),
+        detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("看看我现在所有的提醒，特别是和 Alice 的那条。", _run_context())
 
@@ -504,9 +515,18 @@ async def test_reminder_intent_port_routes_explicit_list_query_without_detector(
 async def test_reminder_intent_port_extracts_today_scope_for_explicit_list_query():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    class FailingAgent:
+    decision = SimpleNamespace(
+        intent_type="query",
+        action="list",
+        list_from_local_date="2026-05-06",
+        list_to_local_date="2026-05-06",
+        list_title_query=None,
+        list_states=["active"],
+    )
+
+    class FakeAgent:
         async def arun(self, **_kwargs):
-            raise AssertionError("detector should not run for explicit list query")
+            return SimpleNamespace(content=decision)
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -519,7 +539,7 @@ async def test_reminder_intent_port_extracts_today_scope_for_explicit_list_query
             return _executed_result("listed")
 
     result = await ReminderIntentPort(
-        detector_agent=FailingAgent(),
+        detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("我今天有什么提醒？", _run_context())
 
@@ -530,9 +550,16 @@ async def test_reminder_intent_port_extracts_today_scope_for_explicit_list_query
 async def test_reminder_intent_port_keeps_general_list_query_unfiltered():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    class FailingAgent:
+    decision = SimpleNamespace(
+        intent_type="query",
+        action="list",
+        list_title_query=None,
+        list_states=["active"],
+    )
+
+    class FakeAgent:
         async def arun(self, **_kwargs):
-            raise AssertionError("detector should not run for explicit list query")
+            return SimpleNamespace(content=decision)
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -542,7 +569,7 @@ async def test_reminder_intent_port_keeps_general_list_query_unfiltered():
             return _executed_result("listed")
 
     result = await ReminderIntentPort(
-        detector_agent=FailingAgent(),
+        detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("列一下我的提醒。", _run_context())
 
@@ -553,9 +580,16 @@ async def test_reminder_intent_port_keeps_general_list_query_unfiltered():
 async def test_reminder_intent_port_extracts_title_query_for_explicit_list_query():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
-    class FailingAgent:
+    decision = SimpleNamespace(
+        intent_type="query",
+        action="list",
+        list_title_query="喝水",
+        list_states=["active"],
+    )
+
+    class FakeAgent:
         async def arun(self, **_kwargs):
-            raise AssertionError("detector should not run for explicit list query")
+            return SimpleNamespace(content=decision)
 
     class FakeExecutor:
         def execute(self, received_decision, run_context):
@@ -566,7 +600,7 @@ async def test_reminder_intent_port_extracts_title_query_for_explicit_list_query
             return _executed_result("listed")
 
     result = await ReminderIntentPort(
-        detector_agent=FailingAgent(),
+        detector_agent=FakeAgent(),
         command_executor=FakeExecutor(),
     ).run("我设过哪些喝水提醒？", _run_context())
 
@@ -877,7 +911,7 @@ async def test_reminder_intent_port_converts_referential_relative_delay_to_snooz
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_short_circuits_bare_snooze_before_detector():
+async def test_reminder_intent_port_routes_bare_snooze_from_detector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -894,7 +928,14 @@ async def test_reminder_intent_port_short_circuits_bare_snooze_before_detector()
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            raise AssertionError("detector should not run")
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="update",
+                    target_scope="recent_active",
+                    new_trigger_at="2026-05-25T18:56:00+00:00",
+                )
+            )
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1370,7 +1411,13 @@ async def test_reminder_intent_port_rejects_single_occurrence_skip_without_write
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            raise AssertionError("detector should not run")
+            return SimpleNamespace(
+                content={
+                    "intent_type": "clarify",
+                    "action": "",
+                    "clarification_reason": "ambiguous_request",
+                }
+            )
 
     result = await ReminderIntentPort(
         detector_agent=PrimaryAgent(),
@@ -1380,7 +1427,7 @@ async def test_reminder_intent_port_rejects_single_occurrence_skip_without_write
     _assert_needs_clarification(
         result,
         safety_boundary="ambiguous_request",
-        missing_fields=("哪一个提醒",),
+        missing_fields=("target_reminder",),
     )
 
 
