@@ -721,6 +721,8 @@ def _split_scheduling_intent_args(
         return normalized_intent, None
     if not isinstance(args, Mapping):
         return normalized_intent, None
+    if tool_name == "create_shared_reminder":
+        return tool_name, None
     return tool_name, _normalize_scheduling_intent_args(tool_name, args)
 
 

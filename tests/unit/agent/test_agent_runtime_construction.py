@@ -1727,7 +1727,65 @@ async def test_create_interaction_agent_scheduling_domain_honors_tool_key_intent
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_args(
+async def test_create_interaction_agent_scheduling_domain_does_not_force_shared_reminder_create_args(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "forced_args": forced_args,
+            }
+        )
+        del run_context, domain_results
+        return {"domain": "scheduling"}
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+
+    agent = agent_runtime._create_interaction_agent(
+        run_context=_run_context(),
+        agent_input=_agent_input(),
+        input_message="今天上午十点半，帮我和 EVA 约一个一个小时的时间去做测试",
+        capability_results=[],
+        domain_results=[],
+    )
+    scheduling_domain = next(
+        tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
+    )
+
+    await scheduling_domain(
+        intent={
+            "create_shared_reminder": {
+                "invitee_name": "EVA",
+                "title": "一起运动",
+                "start_datetime": "2026-05-26T10:30:00+08:00",
+                "duration_minutes": 60,
+            }
+        }
+    )
+
+    assert captured == {
+        "input_message": "今天上午十点半，帮我和 EVA 约一个一个小时的时间去做测试",
+        "intent": "create_shared_reminder",
+        "forced_args": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_create_interaction_agent_scheduling_domain_delegates_tool_key_create_args_to_worker(
     monkeypatch,
 ):
     captured = {}
@@ -1791,16 +1849,11 @@ async def test_create_interaction_agent_scheduling_domain_preserves_tool_key_arg
 
     assert result is envelope
     assert captured["intent"] == "create_shared_reminder"
-    assert captured["forced_args"] == {
-        "invitee_name": "Bob",
-        "title": "跑步",
-        "fire_at": "2026-05-29T19:30:00",
-        "duration_minutes": 40,
-    }
+    assert captured["forced_args"] is None
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_normalizes_start_datetime_alias(
+async def test_create_interaction_agent_scheduling_domain_delegates_start_datetime_alias_to_worker(
     monkeypatch,
 ):
     captured = {}
@@ -1846,18 +1899,12 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_start_datet
 
     assert captured == {
         "intent": "create_shared_reminder",
-        "forced_args": {
-            "invitee_name": "eva",
-            "title": "共同提醒",
-            "fire_at": "2026-05-25T21:00:00",
-            "timezone": "Asia/Shanghai",
-            "duration_minutes": 60,
-        },
+        "forced_args": None,
     }
 
 
 @pytest.mark.asyncio
-async def test_create_interaction_agent_scheduling_domain_normalizes_common_create_aliases(
+async def test_create_interaction_agent_scheduling_domain_delegates_common_create_aliases_to_worker(
     monkeypatch,
 ):
     captured = {}
@@ -1903,12 +1950,7 @@ async def test_create_interaction_agent_scheduling_domain_normalizes_common_crea
 
     assert captured == {
         "intent": "create_shared_reminder",
-        "forced_args": {
-            "invitee_name": "Bob",
-            "title": "小区操场跑步",
-            "fire_at": "2026-05-29T19:30:00",
-            "duration_minutes": 40,
-        },
+        "forced_args": None,
     }
 
 
