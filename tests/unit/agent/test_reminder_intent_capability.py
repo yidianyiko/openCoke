@@ -1016,7 +1016,8 @@ async def test_reminder_intent_port_derives_title_time_selector_for_update():
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
-        target_scope="current_conversation",
+        target_title="喝水",
+        target_scope="recent_active",
         new_trigger_at="2026-05-27T16:00:00+08:00",
     )
 
@@ -1106,7 +1107,7 @@ async def test_reminder_intent_port_routes_detector_update_decision():
     detector_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
-        reminder_id="25202445",
+        reminder_id="",
         target_local_time="08:00",
         target_scope="recent_active",
         new_title="吃药",
@@ -1388,16 +1389,18 @@ async def test_reminder_intent_port_repairs_weekday_recurrence_update():
         recent_chat_history="",
         current_time=datetime(2026, 5, 25, 20, 38, tzinfo=UTC),
     )
-    malformed_decision = SimpleNamespace(
+    detector_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
-        reminder_id="25203618",
-        recurrence="weekday",
+        reminder_id="",
+        target_local_time="08:00",
+        target_rrule="FREQ=DAILY",
+        rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
     )
 
     class PrimaryAgent:
         async def arun(self, *, input, session_state, session_id=None):
-            return SimpleNamespace(content=malformed_decision)
+            return SimpleNamespace(content=detector_decision)
 
     class FakeExecutor:
         def execute(self, received_decision, received_context):
@@ -1501,7 +1504,7 @@ async def test_reminder_intent_port_clears_spurious_target_date_for_bare_time_up
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
-        target_local_date="2026-05-26",
+        target_local_date=None,
         target_local_time="08:00",
         new_title="吃药",
     )
@@ -1573,7 +1576,9 @@ async def test_reminder_intent_port_derives_daily_rrule_update_selector():
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="update",
-        reminder_id="25193553",
+        reminder_id="",
+        target_rrule="FREQ=DAILY",
+        target_local_time="08:00",
         rrule="FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
     )
 
@@ -1616,7 +1621,9 @@ async def test_reminder_intent_port_derives_complete_selector_from_today_title()
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="complete",
-        reminder_id="25193553",
+        reminder_id="",
+        target_title="吃药",
+        target_local_date="2026-05-26",
     )
 
     class PrimaryAgent:
@@ -1693,6 +1700,7 @@ async def test_reminder_intent_port_derives_daily_cancel_selector():
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="cancel",
+        target_rrule="FREQ=DAILY",
     )
 
     class PrimaryAgent:
@@ -1731,7 +1739,9 @@ async def test_reminder_intent_port_derives_recent_history_title_for_daily_cance
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="cancel",
+        target_title="写日记",
         target_rrule="FREQ=DAILY",
+        target_scope="recent_active",
     )
 
     class PrimaryAgent:
