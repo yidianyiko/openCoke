@@ -427,13 +427,6 @@ class ReminderDetectDecision(BaseModel):
             raise ValueError(
                 "multi-occurrence or bounded schedules require schedule_evidence"
             )
-        if (
-            self.schedule_basis == "explicit_cadence"
-            and not _looks_like_concrete_cadence(self.schedule_evidence)
-        ):
-            raise ValueError(
-                "explicit_cadence schedule_evidence must contain a concrete frequency or interval"
-            )
 
     def _validate_deadline_operations(self) -> None:
         if not self.deadline_at or not self.operations:
@@ -499,60 +492,3 @@ def _is_generic_reminder_title(value: str) -> bool:
     normalized = re.sub(r"[\s，,。.!！?？]+", "", str(value or "").strip())
     return normalized in {"提醒", "提醒我", "提醒一下", "提醒一下我"}
 
-
-def _looks_like_concrete_cadence(value: str) -> bool:
-    text = str(value or "").strip().lower()
-    if not text:
-        return False
-    concrete_tokens = (
-        "daily",
-        "weekly",
-        "monthly",
-        "hourly",
-        "minutely",
-        "once",
-        "twice",
-        "每天",
-        "每日",
-        "每周",
-        "每月",
-        "每年",
-        "每晚",
-        "每夜",
-        "每小时",
-        "每分钟",
-        "每隔",
-        "每个整点",
-        "整点",
-        "每个周",
-        "每个星期",
-        "每个礼拜",
-    )
-    if any(token in text for token in concrete_tokens):
-        return True
-    if re.search(r"每(?:个)?(?:周|星期|礼拜)", text):
-        return True
-    if len(set(re.findall(r"周[一二三四五六日天]", text))) >= 2:
-        return True
-    interval_units = (
-        "minute",
-        "minutes",
-        "min",
-        "mins",
-        "hour",
-        "hours",
-        "day",
-        "days",
-        "week",
-        "weeks",
-        "month",
-        "months",
-        "分钟",
-        "小时",
-        "天",
-        "周",
-        "月",
-    )
-    return any(char.isdigit() for char in text) and any(
-        unit in text for unit in interval_units
-    )
