@@ -1347,7 +1347,7 @@ async def test_reminder_intent_port_preserves_long_create_title_from_user_text()
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="create",
-        title="喝水",
+        title=long_title,
         trigger_at="2026-05-27T09:00:00+08:00",
         rrule="",
         schedule_basis="explicit_time",

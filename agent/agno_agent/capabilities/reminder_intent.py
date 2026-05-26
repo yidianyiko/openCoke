@@ -170,7 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_create_title_from_user_text(input_message, decision)
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
@@ -473,41 +472,6 @@ def _explicit_local_date_from_text(
         return date(year, month, day)
     except ValueError:
         return None
-
-
-# kept for Phase 3 cleanup: _normalize_create_title_from_user_text still references this helper.
-def _extract_create_title_after_reminder_verb_verbatim(text: str) -> str:
-    match = _REMINDER_VERB_PATTERN.search(text)
-    if match is None:
-        return ""
-    title = text[match.end() :]
-    title = re.split(r"[。.!！？?；;]", title, maxsplit=1)[0]
-    return title.strip()
-
-
-def _normalize_create_title_from_user_text(input_message: str, decision: Any) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "create":
-        return decision
-    current_title = str(_decision_value(decision, "title") or "").strip()
-    if not current_title:
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    user_title = _extract_create_title_after_reminder_verb_verbatim(current_user_text)
-    if not user_title or user_title == current_title:
-        return decision
-    if (
-        user_title.casefold().startswith("to ")
-        or _BARE_CLOCK_PATTERN.search(user_title)
-        or _VAGUE_DATE_EVIDENCE_PATTERN.search(user_title)
-    ):
-        return decision
-    compact_current = re.sub(r"\s+", "", current_title)
-    compact_user = re.sub(r"\s+", "", user_title)
-    if current_title in user_title or (
-        compact_current and compact_current in compact_user
-    ):
-        return _copy_decision_with_value(decision, "title", user_title)
-    return decision
 
 
 # kept for Phase 3 cleanup: _normalize_* helpers and runtime safety path still reference this helper.
