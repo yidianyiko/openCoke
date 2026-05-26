@@ -170,7 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
             input_message, decision
         )
@@ -833,42 +832,6 @@ def _copy_operation_with_value(operation: Any, field: str, value: Any) -> Any:
         return operation
     data[field] = value
     return SimpleNamespace(**data)
-
-
-def _drop_ungoverned_batch_plan_operations(input_message: str, decision: Any) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "batch":
-        return decision
-    operations = list(_decision_value(decision, "operations") or [])
-    if len(operations) <= 1:
-        return decision
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    if _SCHEDULE_BACK_REFERENCE_PATTERN.search(current_user_text):
-        return decision
-    reminder_match = _REMINDER_VERB_PATTERN.search(current_user_text)
-    if reminder_match is not None:
-        reminder_start = reminder_match.start()
-        kept_operations = []
-        changed = False
-        for operation in operations:
-            if str(_operation_value(operation, "action") or "").strip() != "create":
-                kept_operations.append(operation)
-                continue
-            title = str(_operation_value(operation, "title") or "").strip()
-            if not title:
-                kept_operations.append(operation)
-                continue
-            first_title_at = current_user_text.find(title)
-            if first_title_at < 0:
-                kept_operations.append(operation)
-                continue
-            later_title_at = current_user_text.find(title, reminder_start)
-            if first_title_at < reminder_start and later_title_at < 0:
-                changed = True
-                continue
-            kept_operations.append(operation)
-        if changed and kept_operations:
-            decision = _copy_decision_with_operations(decision, kept_operations)
-    return _drop_ungoverned_cadence_task_operations(current_user_text, decision)
 
 
 def _drop_batch_operations_without_local_schedule_evidence(

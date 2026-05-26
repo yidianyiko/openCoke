@@ -2842,7 +2842,7 @@ async def test_reminder_intent_port_routes_detector_timer_phrase_relative_delay(
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations():
+async def test_reminder_intent_port_routes_detector_future_batch_operations():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
@@ -2854,12 +2854,12 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_batch_operations(
             SimpleNamespace(
                 action="create",
                 title="完成学习任务打卡",
-                trigger_at="2026-05-06T00:00:00+00:00",
+                trigger_at="2026-05-07T00:00:00+00:00",
             ),
             SimpleNamespace(
                 action="create",
                 title="完成学习任务打卡",
-                trigger_at="2026-05-06T00:30:00+00:00",
+                trigger_at="2026-05-07T00:30:00+00:00",
             ),
             SimpleNamespace(
                 action="create",
@@ -3053,20 +3053,15 @@ async def test_reminder_intent_port_routes_clarification_reason_to_template(
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_drops_batch_operations_before_reminder_verb():
+async def test_reminder_intent_port_routes_detector_batch_operations_after_reminder_verb():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
         intent_type="crud",
         action="batch",
         schedule_basis="explicit_occurrences",
-        schedule_evidence="1点睡觉，明天6点半叫我起床",
+        schedule_evidence="明天6点半叫我起床",
         operations=[
-            SimpleNamespace(
-                action="create",
-                title="睡觉",
-                trigger_at="2026-05-11T01:00:00+09:00",
-            ),
             SimpleNamespace(
                 action="create",
                 title="起床",
@@ -3178,7 +3173,7 @@ async def test_reminder_intent_port_returns_clarification_for_mixed_clocked_clau
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence_batch():
+async def test_reminder_intent_port_routes_detector_governed_cadence_batch():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     primary_decision = SimpleNamespace(
@@ -3189,24 +3184,9 @@ async def test_reminder_intent_port_drops_ungoverned_task_inventory_from_cadence
         operations=[
             SimpleNamespace(
                 action="create",
-                title="起床",
-                trigger_at="2026-05-11T15:00:00+09:00",
-            ),
-            SimpleNamespace(
-                action="create",
                 title="打卡",
                 trigger_at="2026-05-11T15:00:00+09:00",
                 rrule="FREQ=HOURLY;UNTIL=20260511T110000Z",
-            ),
-            SimpleNamespace(
-                action="create",
-                title="跑步",
-                trigger_at="2026-05-11T15:00:00+09:00",
-            ),
-            SimpleNamespace(
-                action="create",
-                title="睡觉",
-                trigger_at="2026-05-11T20:00:00+09:00",
             ),
         ],
     )
