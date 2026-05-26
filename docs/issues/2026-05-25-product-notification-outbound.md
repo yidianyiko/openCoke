@@ -96,3 +96,24 @@ The bridge now preserves snake_case `metadata.product_notification` as the
 canonical product-notification context for inbound turns. Verification evidence
 is recorded in
 `artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-title-context-20260525t134846Z.md`.
+
+## 2026-05-26 Follow-up: Formatted Confirmation Was Not Pre-routed
+
+Production showed Eva received a shared-reminder request at
+`2026-05-26T01:22:32.655Z` and replied `确认` at
+`2026-05-26T02:40:04Z`. The inbound Mongo record preserved
+`metadata.product_notification`, but the runtime metadata did not include
+`product_notification_input_text`. The deterministic product-notification
+pre-router therefore evaluated the formatted input string
+`（2026年05月26日10时40分 eva发来了文本消息）确认`, exceeded the short-decision
+threshold, and did not preload `accept_shared_reminder`. The interaction model
+then answered from stale conversation context about adding friends.
+
+A narrow runtime hotfix fell back to extracting the latest raw user-turn text
+from the formatted input whenever trusted product-notification context exists
+and `product_notification_input_text` is absent. **This hotfix and the entire
+deterministic product-notification pre-router were superseded by Spec A**
+(`docs/superpowers/specs/2026-05-26-coke-focus-and-semantic-router-design.md`,
+implementation commits 967138c4..4c173a6d). User-utterance intent is now
+classified by a semantic interpreter over `(focus, current_utterance)`; the
+formatted-prefix extraction is no longer load-bearing.
