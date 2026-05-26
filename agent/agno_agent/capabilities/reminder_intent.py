@@ -170,14 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        time_evidence_result = _normalize_time_evidence_decision(
-            input_message,
-            decision,
-            run_context,
-        )
-        if isinstance(time_evidence_result, DomainExecutionResult):
-            return time_evidence_result
-        decision = time_evidence_result
         decision = _normalize_create_title_from_user_text(input_message, decision)
         decision = _drop_ungoverned_batch_plan_operations(input_message, decision)
         decision = _drop_batch_operations_without_local_schedule_evidence(
@@ -346,38 +338,6 @@ _CLOCK_WITH_SECONDS_PATTERN = re.compile(
 )
 
 
-def _normalize_time_evidence_decision(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any | DomainExecutionResult:
-    if not _decision_has_write_action(decision):
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    if _single_relative_delay(current_user_text) is None:
-        if _explicit_past_time_evidence(current_user_text, run_context):
-            return _invalid_past_schedule_result()
-        if _vague_date_without_clock_evidence(current_user_text):
-            return _date_only_missing_time_clarification_result()
-    return _preserve_explicit_seconds_from_text(
-        current_user_text,
-        decision,
-    )
-
-
-def _decision_has_write_action(decision: Any) -> bool:
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action in {"create", "update"}:
-        return True
-    if action != "batch":
-        return False
-    return any(
-        str(_operation_value(operation, "action") or "").strip()
-        in {"create", "update"}
-        for operation in (_decision_value(decision, "operations") or [])
-    )
-
-
 def _explicit_past_time_evidence(
     current_user_text: str,
     run_context: AgentRunContext,
@@ -417,14 +377,6 @@ def _explicit_past_time_evidence(
         ),
     )
     return candidate <= current_local
-
-
-def _vague_date_without_clock_evidence(current_user_text: str) -> bool:
-    if not _VAGUE_DATE_EVIDENCE_PATTERN.search(current_user_text):
-        return False
-    if _has_exact_clock_evidence(current_user_text):
-        return False
-    return bool(_REMINDER_VERB_PATTERN.search(current_user_text))
 
 
 def _has_exact_clock_evidence(current_user_text: str) -> bool:
@@ -521,61 +473,6 @@ def _explicit_local_date_from_text(
         return date(year, month, day)
     except ValueError:
         return None
-
-
-def _preserve_explicit_seconds_from_text(current_user_text: str, decision: Any) -> Any:
-    clock = _single_seconds_clock_match(current_user_text)
-    if clock is None:
-        return decision
-    _, _, second = clock
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action == "create":
-        return _copy_trigger_second(decision, "trigger_at", second)
-    if action == "update":
-        return _copy_trigger_second(decision, "new_trigger_at", second)
-    if action != "batch":
-        return decision
-    operations = list(_decision_value(decision, "operations") or [])
-    write_operations = [
-        operation
-        for operation in operations
-        if str(_operation_value(operation, "action") or "").strip()
-        in {"create", "update"}
-    ]
-    if len(write_operations) != 1:
-        return decision
-    updated_operations = []
-    changed = False
-    for operation in operations:
-        operation_action = str(_operation_value(operation, "action") or "").strip()
-        field = "new_trigger_at" if operation_action == "update" else "trigger_at"
-        if operation_action not in {"create", "update"}:
-            updated_operations.append(operation)
-            continue
-        updated = _copy_trigger_second(operation, field, second)
-        changed = changed or updated is not operation
-        updated_operations.append(updated)
-    if changed:
-        return _copy_decision_with_operations(decision, updated_operations)
-    return decision
-
-
-def _copy_trigger_second(target: Any, field: str, second: int) -> Any:
-    trigger_at = str(_operation_value(target, field) or "").strip()
-    if not trigger_at:
-        trigger_at = str(_decision_value(target, field) or "").strip()
-    if not trigger_at:
-        return target
-    try:
-        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-    except ValueError:
-        return target
-    normalized = parsed.replace(second=second, microsecond=0).isoformat()
-    if normalized == trigger_at:
-        return target
-    if isinstance(target, Mapping) or not hasattr(target, field):
-        return _copy_operation_with_value(target, field, normalized)
-    return _copy_decision_with_value(target, field, normalized)
 
 
 # kept for Phase 3 cleanup: _normalize_create_title_from_user_text still references this helper.
