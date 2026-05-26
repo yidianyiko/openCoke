@@ -170,11 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_relative_day_create_trigger(
-            input_message,
-            decision,
-            run_context,
-        )
         decision = _normalize_update_trigger_from_text(
             input_message,
             decision,
@@ -785,49 +780,6 @@ def _normalize_weekday_bare_create_trigger(
             if trigger_local.weekday() == weekday and trigger_local > current_local:
                 return decision
     return _copy_decision_with_value(decision, "trigger_at", candidate.isoformat())
-
-
-def _normalize_relative_day_create_trigger(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "create":
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    if "明天" not in current_user_text and "明早" not in current_user_text:
-        return decision
-    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
-    if not trigger_at:
-        return decision
-    try:
-        timezone = ZoneInfo(run_context.user.timezone or "UTC")
-    except ZoneInfoNotFoundError:
-        timezone = ZoneInfo("UTC")
-    try:
-        parsed = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-    except ValueError:
-        return decision
-    trigger_local = (
-        parsed.replace(tzinfo=timezone)
-        if parsed.tzinfo is None
-        else parsed.astimezone(timezone)
-    )
-    current_time = run_context.current_time
-    current_local = (
-        current_time.replace(tzinfo=timezone)
-        if current_time.tzinfo is None
-        else current_time.astimezone(timezone)
-    )
-    expected_date = current_local.date() + timedelta(days=1)
-    if trigger_local.date() >= expected_date:
-        return decision
-    corrected = trigger_local.replace(
-        year=expected_date.year,
-        month=expected_date.month,
-        day=expected_date.day,
-    )
-    return _copy_decision_with_value(decision, "trigger_at", corrected.isoformat())
 
 
 def _normalize_update_trigger_from_text(
