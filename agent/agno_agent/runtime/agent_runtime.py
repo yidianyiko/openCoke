@@ -47,6 +47,13 @@ from agent.agno_agent.runtime.trace import (
 
 logger = logging.getLogger(__name__)
 
+# Spec A diagnostic: surface agno's own logger output (LLM call / tool call /
+# session activity) so a silent hang is no longer silent. Override only if the
+# upstream logger is at WARNING+ (production default).
+_agno_logger = logging.getLogger("agno")
+if _agno_logger.level == logging.NOTSET or _agno_logger.level >= logging.WARNING:
+    _agno_logger.setLevel(logging.INFO)
+
 _SUPPORTED_INPUT_TYPES = {"user.turn", "reminder.fired"}
 _DEFAULT_AGENT_RUNTIME_TIMEOUT_SECONDS = 100.0
 _MAX_VISIBLE_TEXT_SEGMENTS = 3
@@ -1662,6 +1669,16 @@ async def run_agent_runtime(
             }
         agent = _create_interaction_agent(**create_agent_kwargs)
         timeout_seconds = _agent_runtime_timeout_seconds()
+        agent_instructions = getattr(agent, "instructions", "") or ""
+        logger.info(
+            "agent.arun start: timeout=%.1fs, instructions_len=%d, tools=%d, "
+            "has_preselected_intent=%s, session_id=%s",
+            timeout_seconds,
+            len(agent_instructions) if isinstance(agent_instructions, str) else -1,
+            len(getattr(agent, "tools", []) or []),
+            bool(preselected_scheduling_intent),
+            run_context.conversation.id,
+        )
         try:
             run_output = await asyncio.wait_for(
                 agent.arun(
@@ -1670,6 +1687,7 @@ async def run_agent_runtime(
                 ),
                 timeout=timeout_seconds,
             )
+            logger.info("agent.arun returned: session_id=%s", run_context.conversation.id)
         except asyncio.TimeoutError:
             return _timeout_result(
                 agent_input=agent_input,
