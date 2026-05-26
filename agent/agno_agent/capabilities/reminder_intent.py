@@ -213,6 +213,7 @@ def _is_unrecognized_decision(decision: Any) -> bool:
     return True
 
 
+# OUTPUT SAFETY NET: rejects detector writes that drop quoted user title content.
 def _should_reject_quoted_title_loss(input_message: str, decision: Any) -> bool:
     if not _should_execute_decision(decision):
         return False
@@ -722,6 +723,7 @@ def _copy_decision_with_operations(decision: Any, operations: list[Any]) -> Any:
     return SimpleNamespace(**data)
 
 
+# OUTPUT SAFETY NET: rejects creates whose title was lifted from text before the reminder request.
 def _should_reject_ungoverned_single_create_title(
     input_message: str, decision: Any
 ) -> bool:
@@ -748,6 +750,7 @@ def _should_reject_ungoverned_single_create_title(
     return not _title_has_local_reminder_verb_context(current_user_text, title)
 
 
+# OUTPUT SAFETY NET: rejects create titles that include schedule-offset wording.
 def _should_reject_title_schedule_evidence_leak(decision: Any) -> bool:
     if str(_decision_value(decision, "action") or "").strip() != "create":
         return False
@@ -777,6 +780,7 @@ _EXPLICIT_WEEKDAY_PATTERN = re.compile(
 )
 
 
+# OUTPUT SAFETY NET: rejects detector trigger dates that contradict an explicit weekday.
 def _should_reject_weekday_mismatch(
     input_message: str,
     decision: Any,
@@ -830,6 +834,7 @@ def _decision_has_create_operation(decision: Any) -> bool:
     return False
 
 
+# OUTPUT SAFETY NET: rejects detector trigger dates that contradict an explicit day of month.
 def _should_reject_day_of_month_mismatch(
     input_message: str,
     decision: Any,
@@ -856,6 +861,7 @@ def _should_reject_day_of_month_mismatch(
     return False
 
 
+# OUTPUT SAFETY NET: rejects detector batch outputs that drop scheduled clauses.
 def _should_reject_missing_scheduled_clauses(input_message: str, decision: Any) -> bool:
     expected_count = _explicit_scheduled_clause_count(input_message)
     if expected_count < 2:
