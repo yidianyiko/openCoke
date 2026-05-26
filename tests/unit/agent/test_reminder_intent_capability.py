@@ -2722,7 +2722,7 @@ async def test_reminder_intent_port_treats_every_night_as_pm_clock():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_time():
+async def test_reminder_intent_port_routes_detector_relative_delay_trigger():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2740,7 +2740,7 @@ async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_t
         intent_type="crud",
         action="create",
         title="起来休息，倒水喝",
-        trigger_at="2026-05-11T07:00:00+00:00",
+        trigger_at="2026-05-11T06:56:00+00:00",
     )
 
     class PrimaryAgent:
@@ -2762,7 +2762,7 @@ async def test_reminder_intent_port_corrects_relative_delay_trigger_to_runtime_t
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
+async def test_reminder_intent_port_routes_detector_prefixed_min_relative_delay():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2780,7 +2780,7 @@ async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
         intent_type="crud",
         action="create",
         title="check on 我的结论",
-        trigger_at="2026-05-11T03:00:00+00:00",
+        trigger_at="2026-05-11T02:40:00+00:00",
     )
 
     class PrimaryAgent:
@@ -2802,7 +2802,7 @@ async def test_reminder_intent_port_corrects_prefixed_min_relative_delay():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_corrects_timer_phrase_relative_delay():
+async def test_reminder_intent_port_routes_detector_timer_phrase_relative_delay():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2820,7 +2820,7 @@ async def test_reminder_intent_port_corrects_timer_phrase_relative_delay():
         intent_type="crud",
         action="create",
         title="起来休息，喝水",
-        trigger_at="2026-05-11T09:00:00+00:00",
+        trigger_at="2026-05-11T13:02:55+00:00",
     )
 
     class PrimaryAgent:

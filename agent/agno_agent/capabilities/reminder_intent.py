@@ -170,11 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_relative_delay_create_trigger(
-            input_message,
-            decision,
-            run_context,
-        )
         decision = _normalize_past_bare_create_trigger(
             input_message,
             decision,
@@ -603,45 +598,6 @@ def _copy_trigger_second(target: Any, field: str, second: int) -> Any:
     return _copy_decision_with_value(target, field, normalized)
 
 
-def _normalize_relative_delay_create_trigger(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any:
-    action = str(_decision_value(decision, "action") or "").strip()
-    if action not in {"create", "batch"}:
-        return decision
-    current_user_text = _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-    delay = _single_relative_delay(current_user_text)
-    if delay is None:
-        return decision
-    normalized_trigger_at = _relative_delay_trigger_at(run_context, delay)
-
-    if action == "batch":
-        operations = list(_decision_value(decision, "operations") or [])
-        if len(operations) != 1:
-            return decision
-        operation = operations[0]
-        if str(_operation_value(operation, "action") or "").strip() != "create":
-            return decision
-        trigger_at = str(_operation_value(operation, "trigger_at") or "").strip()
-        if not trigger_at or trigger_at == normalized_trigger_at:
-            return decision
-        return _copy_decision_with_operations(
-            decision,
-            [
-                _copy_operation_with_value(
-                    operation, "trigger_at", normalized_trigger_at
-                )
-            ],
-        )
-
-    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
-    if not trigger_at or trigger_at == normalized_trigger_at:
-        return decision
-    return _copy_decision_with_value(decision, "trigger_at", normalized_trigger_at)
-
-
 # kept for Phase 3 cleanup: _normalize_create_title_from_user_text still references this helper.
 def _extract_create_title_after_reminder_verb_verbatim(text: str) -> str:
     match = _REMINDER_VERB_PATTERN.search(text)
@@ -776,21 +732,6 @@ def _input_has_clocked_task_before_trailing_reminder_verb(input_message: str) ->
         task_text,
     )
     return bool(task_text.strip())
-
-
-# kept for Phase 3 cleanup: _normalize_relative_delay_create_trigger still references this helper.
-def _relative_delay_trigger_at(
-    run_context: AgentRunContext,
-    delay: timedelta,
-) -> str:
-    current_time = run_context.current_time
-    if current_time.tzinfo is None:
-        try:
-            timezone = ZoneInfo(run_context.user.timezone or "UTC")
-        except ZoneInfoNotFoundError:
-            timezone = ZoneInfo("UTC")
-        current_time = current_time.replace(tzinfo=timezone)
-    return (current_time + delay).replace(microsecond=0).isoformat()
 
 
 def _normalize_past_bare_create_trigger(
