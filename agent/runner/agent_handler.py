@@ -228,16 +228,33 @@ def _extract_user_turn_runtime_metadata(input_messages: List[Dict]) -> Dict[str,
         metadata = message.get("metadata") if isinstance(message, Mapping) else None
         if not isinstance(metadata, Mapping):
             continue
+        runtime_metadata: Dict[str, Any] = {}
+        source_eval = metadata.get("source_eval")
+        trace_config = metadata.get("agent_turn_trace")
+        if isinstance(source_eval, str) and source_eval.strip():
+            runtime_metadata["source_eval"] = source_eval.strip()
+        if isinstance(trace_config, Mapping):
+            suite = trace_config.get("suite")
+            run_id = trace_config.get("run_id")
+            if (
+                isinstance(suite, str)
+                and suite.strip()
+                and isinstance(run_id, str)
+                and run_id.strip()
+            ):
+                runtime_metadata["agent_turn_trace"] = {
+                    "suite": suite.strip(),
+                    "run_id": run_id.strip(),
+                }
         product_notification = metadata.get("product_notification")
         if isinstance(product_notification, Mapping):
-            runtime_metadata: Dict[str, Any] = {
-                "product_notification": dict(product_notification)
-            }
+            runtime_metadata["product_notification"] = dict(product_notification)
             message_text = message.get("message")
             if isinstance(message_text, str) and message_text.strip():
                 runtime_metadata["product_notification_input_text"] = (
                     message_text.strip()
                 )
+        if runtime_metadata:
             return runtime_metadata
     return {}
 

@@ -165,7 +165,9 @@ def test_chat_response_timeout_fallback_answers_simple_greetings(monkeypatch):
     _install_agent_handler_agno_stubs(monkeypatch)
     from agent.runner.output_delivery import _chat_response_timeout_fallback
 
-    reply = _chat_response_timeout_fallback("你好，我刚登录。能简单介绍一下你能帮我做什么吗？")
+    reply = _chat_response_timeout_fallback(
+        "你好，我刚登录。能简单介绍一下你能帮我做什么吗？"
+    )
 
     assert "Coke" in reply
     assert "提醒" in reply
@@ -227,6 +229,39 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
             "allowed_actions": ["accept", "reject"],
         },
         "product_notification_input_text": "确认",
+    }
+
+
+def test_agent_handler_extracts_eval_trace_metadata_for_runtime(monkeypatch):
+    _install_agent_handler_agno_stubs(monkeypatch)
+    from agent.runner import agent_handler
+
+    metadata = agent_handler._extract_user_turn_runtime_metadata(
+        [
+            {
+                "_id": "msg-1",
+                "message": "18:00 提醒我学英语",
+                "metadata": {
+                    "source": "clawscale",
+                    "source_eval": "reminder_normal_path_eval",
+                    "agent_turn_trace": {
+                        "suite": "reminder-normal",
+                        "run_id": "reminder-normal-first-loop",
+                    },
+                    "business_protocol": {
+                        "delivery_mode": "request_response",
+                    },
+                },
+            }
+        ]
+    )
+
+    assert metadata == {
+        "source_eval": "reminder_normal_path_eval",
+        "agent_turn_trace": {
+            "suite": "reminder-normal",
+            "run_id": "reminder-normal-first-loop",
+        },
     }
 
 

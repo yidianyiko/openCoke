@@ -353,6 +353,10 @@ def test_submit_cases_can_write_clawscale_request_response_envelope(monkeypatch)
     assert document["platform"] == "business"
     assert document["metadata"]["source"] == "clawscale"
     assert document["metadata"]["source_eval"] == "reminder_normal_path_eval"
+    assert document["metadata"]["agent_turn_trace"] == {
+        "suite": "reminder-normal",
+        "run_id": "manual-reminder-test",
+    }
     assert document["metadata"]["delivery_mode"] == "request_response"
     assert document["metadata"]["business_protocol"] == {
         "delivery_mode": "request_response",

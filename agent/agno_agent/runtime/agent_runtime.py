@@ -367,7 +367,8 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
             return "send_friend_request_by_user_link_code"
 
     if _contains_any(
-        input_message, ("好友请求", "好友申请", "待处理好友", "待处理好友请求", "未处理好友请求")
+        input_message,
+        ("好友请求", "好友申请", "待处理好友", "待处理好友请求", "未处理好友请求"),
     ) or ("friend request" in text or "friend-request" in text):
         if _contains_any(input_message, ("通过", "接受")) or _contains_any(
             text, ("accept", "approve")
@@ -399,9 +400,9 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
     ):
         return "remove_friendship"
 
-    if _contains_any(input_message, ("好友列表", "我的好友", "我有哪些好友", "都有哪些好友")) or (
-        "list friends" in text
-    ):
+    if _contains_any(
+        input_message, ("好友列表", "我的好友", "我有哪些好友", "都有哪些好友")
+    ) or ("list friends" in text):
         return "list_friends"
 
     # Friend calendar availability: "看看 X 这周哪些时间空", "X 这周空闲时间",
@@ -467,7 +468,9 @@ def _infer_scheduling_intent_from_message(input_message: str) -> str | None:
 
 
 def _is_retired_account_control_turn(input_message: str) -> bool:
-    return bool(_RETIRED_ACCOUNT_CONTROL_RE.search(_latest_user_turn_text(input_message)))
+    return bool(
+        _RETIRED_ACCOUNT_CONTROL_RE.search(_latest_user_turn_text(input_message))
+    )
 
 
 def _infer_coach_class_scheduling_intent(message: str) -> str | None:
@@ -1145,6 +1148,7 @@ def _resolve_domain_visible_text(
     for result in reversed(domain_results):
         if result.outcome != "executed":
             continue
+        summaries: list[str] = []
         for operation in result.operations:
             if not operation.ok:
                 continue
@@ -1152,7 +1156,10 @@ def _resolve_domain_visible_text(
             for key in ("visible_summary", "summary", "message"):
                 value = facts.get(key)
                 if isinstance(value, str) and value.strip():
-                    return value.strip()
+                    summaries.append(value.strip())
+                    break
+        if summaries:
+            return "\n".join(summaries)
     for result in reversed(domain_results):
         if result.domain != "scheduling" or result.outcome != "failed":
             continue
@@ -1491,7 +1498,11 @@ def _retired_account_control_result() -> DomainExecutionResult:
             intent="report_failure",
             required_facts=(),
             required_questions=(),
-            prohibited_claims=("friendship_removed", "account_blocked", "account_unblocked"),
+            prohibited_claims=(
+                "friendship_removed",
+                "account_blocked",
+                "account_unblocked",
+            ),
             allow_rephrase=True,
         ),
         error=error,
@@ -1538,21 +1549,27 @@ def _domain_visible_text_result(
         ),
         output_disposition=output_disposition,
         error_disposition=None,
-        content_evidence={
-            "input_text": input_message,
-            "visible_output_text": [message.content for message in visible_messages],
-        }
-        if visible_messages
-        else None,
+        content_evidence=(
+            {
+                "input_text": input_message,
+                "visible_output_text": [
+                    message.content for message in visible_messages
+                ],
+            }
+            if visible_messages
+            else None
+        ),
     )
     return AgentRunResult(
         visible_messages=visible_messages,
-        post_analyze_input={
-            "input_message": input_message,
-            "message_source": _message_source(agent_input, run_context),
-        }
-        if visible_messages
-        else None,
+        post_analyze_input=(
+            {
+                "input_message": input_message,
+                "message_source": _message_source(agent_input, run_context),
+            }
+            if visible_messages
+            else None
+        ),
         domain_results=domain_results,
         capability_results=(),
         metrics={"capability_result_count": 0, "domain_result_count": 1},
@@ -1756,7 +1773,13 @@ def _selected_tool_names(
     domain_results: Sequence[DomainExecutionResult],
     capability_results: Sequence[CapabilityResult],
 ) -> tuple[str, ...]:
-    names = [result.domain for result in domain_results]
+    domain_tool_names = {
+        "reminder": "reminder_domain",
+        "scheduling": "scheduling_domain",
+    }
+    names = [
+        domain_tool_names.get(result.domain, result.domain) for result in domain_results
+    ]
     names.extend(result.name for result in capability_results)
     return tuple(names)
 
@@ -1849,22 +1872,34 @@ def _build_runtime_trace(
         output=output,
         error_disposition=error_disposition,
     )
-    _emit_runtime_trace_if_configured(trace, content_evidence)
+    _emit_runtime_trace_if_configured(
+        trace,
+        content_evidence,
+        runtime_metadata=run_context.runtime_metadata,
+    )
     return trace
 
 
 def _emit_runtime_trace_if_configured(
     trace: Any,
     content_evidence: Mapping[str, Any] | None,
+    *,
+    runtime_metadata: Mapping[str, Any] | None = None,
 ) -> None:
     config = resolve_agent_turn_trace_config()
     if not config.enabled:
         return
     explicit_path = os.environ.get("COKE_AGENT_TURN_TRACE_JSONL")
     run_id = os.environ.get("COKE_AGENT_TURN_TRACE_RUN_ID")
+    suite = os.environ.get("COKE_AGENT_TURN_TRACE_SUITE", "dev")
+    if not explicit_path and not run_id:
+        metadata_trace = _metadata_trace_sink(runtime_metadata)
+        if metadata_trace is None:
+            return
+        suite = metadata_trace["suite"]
+        run_id = metadata_trace["run_id"]
     if not explicit_path and not run_id:
         return
-    suite = os.environ.get("COKE_AGENT_TURN_TRACE_SUITE", "dev")
     path = (
         Path(explicit_path)
         if explicit_path
@@ -1880,6 +1915,23 @@ def _emit_runtime_trace_if_configured(
         trace_run_id=run_id or path.stem,
         content_evidence=content_evidence,
     )
+
+
+def _metadata_trace_sink(
+    runtime_metadata: Mapping[str, Any] | None,
+) -> dict[str, str] | None:
+    if not isinstance(runtime_metadata, Mapping):
+        return None
+    trace_config = runtime_metadata.get("agent_turn_trace")
+    if not isinstance(trace_config, Mapping):
+        return None
+    suite = trace_config.get("suite")
+    run_id = trace_config.get("run_id")
+    if not isinstance(suite, str) or not suite.strip():
+        return None
+    if not isinstance(run_id, str) or not run_id.strip():
+        return None
+    return {"suite": suite.strip(), "run_id": run_id.strip()}
 
 
 async def run_agent_runtime(

@@ -364,6 +364,15 @@ def _reminder_facts(reminder: Mapping[str, Any]) -> dict[str, Any]:
 
 
 _WEEKDAY_LABELS = ("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+_RRULE_WEEKDAY_LABELS = {
+    "MO": "周一",
+    "TU": "周二",
+    "WE": "周三",
+    "TH": "周四",
+    "FR": "周五",
+    "SA": "周六",
+    "SU": "周日",
+}
 
 
 def _visible_reminder_summary(
@@ -385,14 +394,80 @@ def _visible_reminder_summary(
     if not title or not local_date or not local_time:
         summary = tool_result.get("summary")
         return str(summary) if isinstance(summary, str) and summary.strip() else None
+    rrule = str(schedule.get("rrule") or "").strip().upper()
     try:
         weekday = _WEEKDAY_LABELS[datetime.fromisoformat(local_date).weekday()]
     except (ValueError, IndexError):
         weekday = ""
     time_label = _local_time_label(local_time)
+    recurring_label = _rrule_visible_label(rrule, time_label)
+    if recurring_label:
+        return f"已创建提醒：{title}（{recurring_label}）"
     if weekday:
         return f"已创建提醒：{title}（{local_date} {weekday} {time_label}）"
     return f"已创建提醒：{title}（{local_date} {time_label}）"
+
+
+def _rrule_visible_label(rrule: str, time_label: str) -> str | None:
+    if not rrule:
+        return None
+    parts = _parse_rrule_parts(rrule)
+    freq = parts.get("FREQ")
+    if freq == "DAILY":
+        return f"每天 {time_label}"
+    if freq == "WEEKLY":
+        weekly_label = _weekly_rrule_visible_label(parts)
+        return f"{weekly_label} {time_label}"
+    if freq == "HOURLY":
+        return "每小时"
+    if freq == "MINUTELY":
+        return "每分钟"
+    if freq == "MONTHLY":
+        return f"每月 {time_label}"
+    if freq:
+        return f"循环规则 {rrule}"
+    return None
+
+
+def _weekly_rrule_visible_label(parts: Mapping[str, str]) -> str:
+    interval_label = _weekly_interval_label(parts.get("INTERVAL"))
+    byday = parts.get("BYDAY")
+    if not byday:
+        return interval_label
+    labels = [
+        _RRULE_WEEKDAY_LABELS.get(day.strip().upper(), "")
+        for day in byday.split(",")
+    ]
+    labels = [label for label in labels if label]
+    if not labels:
+        return interval_label
+    if interval_label == "每周":
+        return f"每{'、'.join(labels)}"
+    return f"{interval_label}的{'、'.join(labels)}"
+
+
+def _weekly_interval_label(interval: str | None) -> str:
+    if not interval:
+        return "每周"
+    try:
+        weeks = int(interval)
+    except (TypeError, ValueError):
+        return "每周"
+    if weeks <= 1:
+        return "每周"
+    if weeks == 2:
+        return "每两周"
+    return f"每{weeks}周"
+
+
+def _parse_rrule_parts(rrule: str) -> dict[str, str]:
+    parts: dict[str, str] = {}
+    for raw_part in str(rrule or "").split(";"):
+        if "=" not in raw_part:
+            continue
+        key, value = raw_part.split("=", 1)
+        parts[key.strip().upper()] = value.strip().upper()
+    return parts
 
 
 def _local_time_label(local_time: str) -> str:

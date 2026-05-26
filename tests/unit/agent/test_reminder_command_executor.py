@@ -243,6 +243,78 @@ def test_success_calls_tool_once_with_decision_fields_and_session_state():
     ]
 
 
+def test_recurring_create_visible_summary_uses_recurring_time_label():
+    def tool_entrypoint(**_kwargs):
+        result = _tool_reminder_result(title="锻炼")
+        result["reminder"]["schedule"]["rrule"] = "FREQ=DAILY"
+        result["summary"] = "已创建提醒：锻炼（2026-05-01 09:30）"
+        return result
+
+    decision = SimpleNamespace(
+        action="create",
+        title="锻炼",
+        trigger_at="2026-05-01T09:00:00+09:00",
+        rrule="FREQ=DAILY",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert (
+        result.operations[0].facts["visible_summary"]
+        == "已创建提醒：锻炼（每天 09:30）"
+    )
+
+
+def test_weekly_recurring_create_visible_summary_uses_weekly_label():
+    def tool_entrypoint(**_kwargs):
+        result = _tool_reminder_result(title="复盘")
+        result["reminder"]["schedule"]["rrule"] = "FREQ=WEEKLY;BYDAY=MO,WE"
+        result["summary"] = "已创建提醒：复盘（2026-05-04 09:30）"
+        return result
+
+    decision = SimpleNamespace(
+        action="create",
+        title="复盘",
+        trigger_at="2026-05-04T09:00:00+09:00",
+        rrule="FREQ=WEEKLY;BYDAY=MO,WE",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert (
+        result.operations[0].facts["visible_summary"]
+        == "已创建提醒：复盘（每周一、周三 09:30）"
+    )
+
+
+def test_hourly_recurring_create_visible_summary_keeps_recurring_label():
+    def tool_entrypoint(**_kwargs):
+        result = _tool_reminder_result(title="喝水")
+        result["reminder"]["schedule"]["rrule"] = "FREQ=HOURLY;UNTIL=20260504T080000Z"
+        result["summary"] = "已创建提醒：喝水（2026-05-04 09:30）"
+        return result
+
+    decision = SimpleNamespace(
+        action="create",
+        title="喝水",
+        trigger_at="2026-05-04T09:00:00+09:00",
+        rrule="FREQ=HOURLY;UNTIL=20260504T080000Z",
+    )
+
+    result = ReminderCommandExecutor(
+        tool_entrypoint,
+        session_state_setter=lambda session_state: None,
+    ).execute(decision, _run_context())
+
+    assert result.operations[0].facts["visible_summary"] == "已创建提醒：喝水（每小时）"
+
+
 def test_create_visible_summary_displays_nonzero_seconds():
     base_result = _tool_reminder_result()
 

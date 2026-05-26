@@ -53,6 +53,79 @@ def _run_context() -> AgentRunContext:
     )
 
 
+def test_resolve_domain_visible_text_joins_multiple_successful_operation_summaries():
+    visible_text = agent_runtime._resolve_domain_visible_text(
+        [
+            DomainExecutionResult(
+                domain="reminder",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="create",
+                        effect="write",
+                        ok=True,
+                        entity_type="reminder",
+                        entity_id="reminder-1",
+                        facts={"visible_summary": "已创建提醒：喝水（17:57）"},
+                    ),
+                    DomainOperationResult(
+                        action="create",
+                        effect="write",
+                        ok=True,
+                        entity_type="reminder",
+                        entity_id="reminder-2",
+                        facts={"visible_summary": "已创建提醒：锻炼（17:58）"},
+                    ),
+                ),
+            )
+        ]
+    )
+
+    assert visible_text == "已创建提醒：喝水（17:57）\n已创建提醒：锻炼（17:58）"
+
+
+def test_selected_tool_names_match_exposed_domain_tool_names():
+    selected_tool_names = agent_runtime._selected_tool_names(
+        [
+            DomainExecutionResult(
+                domain="reminder",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="create",
+                        effect="write",
+                        ok=True,
+                        entity_type="reminder",
+                        entity_id="reminder-1",
+                    ),
+                ),
+            ),
+            DomainExecutionResult(
+                domain="scheduling",
+                outcome="executed",
+                operations=(
+                    DomainOperationResult(
+                        action="get",
+                        effect="read",
+                        ok=True,
+                        entity_type="friend",
+                        entity_id="friend-1",
+                    ),
+                ),
+            ),
+        ],
+        [
+            CapabilityResult(
+                name="timezone",
+                ok=True,
+                content={"visible_summary": "timezone ok"},
+            )
+        ],
+    )
+
+    assert selected_tool_names == ("reminder_domain", "scheduling_domain", "timezone")
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkeypatch):
     create_kwargs = {}
@@ -100,6 +173,72 @@ async def test_run_agent_runtime_returns_agent_run_result_for_no_tool_run(monkey
     assert create_kwargs["capability_results"] == []
     assert create_kwargs["domain_results"] == []
     assert model_inputs == ["hi"]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_emits_trace_from_runtime_metadata_without_env(
+    monkeypatch,
+):
+    emitted = {}
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="ok",
+                messages=[
+                    SimpleNamespace(role="user", content="hi"),
+                    SimpleNamespace(role="assistant", content="ok"),
+                ],
+            )
+
+    def fake_emit_agent_turn_trace_jsonl(**kwargs):
+        emitted.update(kwargs)
+        return True
+
+    monkeypatch.delenv("COKE_AGENT_TURN_TRACE_JSONL", raising=False)
+    monkeypatch.delenv("COKE_AGENT_TURN_TRACE_RUN_ID", raising=False)
+    monkeypatch.delenv("COKE_AGENT_TURN_TRACE_SUITE", raising=False)
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **_: FakeAgent()
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "emit_agent_turn_trace_jsonl",
+        fake_emit_agent_turn_trace_jsonl,
+    )
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="UTC"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1",
+            platform="business",
+            route_key=None,
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="User: hi",
+        current_time=datetime(2026, 5, 9, 1, 0, tzinfo=UTC),
+        runtime_metadata={
+            "message_source": "user",
+            "agent_turn_trace": {
+                "suite": "reminder-normal",
+                "run_id": "reminder-normal-first-loop",
+            },
+        },
+    )
+
+    await agent_runtime.run_agent_runtime(
+        agent_input=_agent_input(),
+        run_context=run_context,
+    )
+
+    assert emitted["path"].as_posix() == (
+        "artifacts/evidence/agent-turn-traces/reminder-normal/"
+        "reminder-normal-first-loop.jsonl"
+    )
+    assert emitted["suite"] == "reminder-normal"
+    assert emitted["trace_run_id"] == "reminder-normal-first-loop"
 
 
 @pytest.mark.asyncio
@@ -558,7 +697,9 @@ async def test_run_agent_runtime_short_circuits_explicit_past_reminder_before_mo
     monkeypatch,
 ):
     def fail_create_interaction_agent(**kwargs):
-        raise AssertionError("explicit past reminders should be handled deterministically")
+        raise AssertionError(
+            "explicit past reminders should be handled deterministically"
+        )
 
     monkeypatch.setattr(
         agent_runtime, "_create_interaction_agent", fail_create_interaction_agent

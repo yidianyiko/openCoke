@@ -199,6 +199,7 @@ def submit_cases(
     character_id: str,
     platform: str,
     batch_id: str,
+    trace_run_id: str | None = None,
     timezone_name: str,
     use_case_timestamp: bool,
     transport: str,
@@ -215,6 +216,7 @@ def submit_cases(
         submitted_wall_at = datetime.now(timezone.utc)
         metadata = build_input_metadata(
             batch_id=batch_id,
+            trace_run_id=trace_run_id,
             case_index=case_index,
             case=case,
             transport=transport,
@@ -251,16 +253,22 @@ def submit_cases(
 def build_input_metadata(
     *,
     batch_id: str,
+    trace_run_id: str | None = None,
     case_index: int,
     case: ReminderNormalPathCase,
     transport: str,
 ) -> dict[str, Any]:
+    resolved_trace_run_id = trace_run_id or batch_id
     metadata = {
         "source": "reminder_normal_path_eval",
         "batch_id": batch_id,
         "case_index": case_index,
         "original_from_user": case.metadata.get("from_user"),
         "source_id": case.metadata.get("source_id"),
+        "agent_turn_trace": {
+            "suite": "reminder-normal",
+            "run_id": resolved_trace_run_id,
+        },
     }
     if transport == "plain":
         return metadata
@@ -501,6 +509,7 @@ def run_batch(
     timeout_seconds: float,
     platform: str,
     batch_id: str,
+    trace_run_id: str | None = None,
     character_alias: str | None,
     timezone_name: str,
     use_case_timestamp: bool,
@@ -527,6 +536,7 @@ def run_batch(
                 character_id=character_id,
                 platform=platform,
                 batch_id=batch_id,
+                trace_run_id=trace_run_id,
                 timezone_name=timezone_name,
                 use_case_timestamp=use_case_timestamp,
                 transport=transport,
@@ -549,6 +559,7 @@ def run_batch(
             character_id=character_id,
             platform=platform,
             batch_id=batch_id,
+            trace_run_id=trace_run_id,
             timezone_name=timezone_name,
             use_case_timestamp=use_case_timestamp,
             transport=transport,
@@ -670,6 +681,7 @@ def main() -> int:
                 timeout_seconds=args.timeout_seconds,
                 platform=platform,
                 batch_id=f"{run_id}-{batch.offset}",
+                trace_run_id=run_id,
                 character_alias=args.character_alias,
                 timezone_name=args.timezone,
                 use_case_timestamp=args.use_case_timestamps,
@@ -714,6 +726,7 @@ def main() -> int:
             timeout_seconds=args.timeout_seconds,
             platform=platform,
             batch_id=batch_id,
+            trace_run_id=run_id,
             character_alias=args.character_alias,
             timezone_name=args.timezone,
             use_case_timestamp=args.use_case_timestamps,
