@@ -41,3 +41,11 @@ condition belongs to the DomainExecutionResult contract and runtime guards.
 The character prompt keeps only the user-facing principle: future reminders,
 shared reminders, friend collaboration, and supervision promises must be based
 on confirmed system state.
+
+The chat-response delegation boundary no longer owns scheduling-domain
+parameter contracts, shared-reminder resolver details, friend-calendar default
+date ranges, or fitness-class default duration. The outer prompt only chooses
+the domain and high-level intent. Concrete scheduling tool arguments and
+defaults belong to the scheduling worker prompt and tool signatures.
+Friend-calendar privacy is enforced by the scheduling capability port before
+facts reach the response model.

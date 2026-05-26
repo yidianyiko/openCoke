@@ -35,13 +35,13 @@ Call exactly one scheduling tool matching the intent, except for lookup-then-act
 - accept/reject shared reminder: pass requester_name when no request_id is known; cancel shared reminder: pass invitee_name. Gateway resolves one pending shared reminder and fails closed on missing or ambiguous names.
 - create_shared_reminder: pass invitee_name when the user named a friend but not an account id; do not call list_friends. Derive title from the concrete shared item in the current user message, never product defaults or older topics.
 - list_shared_reminders: pass friend_name when named; pass status when the user asks about a specific state. For current-account overviews such as my courses today, omit friend_name and pass from_date, to_date, and timezone for the requested local day.
-- list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates cause invalid_body.
+- list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates cause invalid_body. Use only privacy-safe busy intervals to describe free time.
 
 ## Boundaries
 - Do not create shared reminder state unless the named person resolves to one active friend. Ask for clarification when the name is ambiguous.
 - Coke reminders are the source for friend availability. Do not use Google Calendar for friend availability.
 - Do not ask the backend for recommended slots.
-- Pass duration_minutes only after the conversation or policy determines it.
+- For a fitness class, lesson, or session shared reminder, use 60 minutes unless the user states another duration. Otherwise pass duration_minutes only after the conversation or policy determines it.
 - Ordinary personal reminders are not scheduling-domain work.
 - Do not treat an iLink QR as a public user-link QR.""".strip()
 

@@ -133,22 +133,22 @@ PROMPT_BUDGETS: dict[str, tuple[str, int]] = {
     "INSTRUCTIONS_QUERY_REWRITE": (INSTRUCTIONS_QUERY_REWRITE, 300),
     "COKE_SYSTEM_PROMPT": (COKE_SYSTEM_PROMPT, 2000),
     "ONBOARDING_PROMPT": (ONBOARDING_PROMPT, 450),
-    "SCHEDULING_SYSTEM_PROMPT": (_SCHEDULING_SYSTEM_PROMPT, 750),
+    "SCHEDULING_SYSTEM_PROMPT": (_SCHEDULING_SYSTEM_PROMPT, 650),
     "REMINDER_FEW_SHOTS": (format_reminder_few_shots_for_prompt(), 1200),
     "USER_VISIBLE_REPLY_BOUNDARY": (_USER_VISIBLE_REPLY_BOUNDARY, 250),
-    "DELEGATION_BOUNDARY": (_DELEGATION_BOUNDARY, 1200),
+    "DELEGATION_BOUNDARY": (_DELEGATION_BOUNDARY, 800),
     "DOMAIN_EXECUTION_RESULT_CONTRACT": (_DOMAIN_EXECUTION_RESULT_CONTRACT, 250),
     "ASSEMBLED_CHAT_RESPONSE_USER_TURN": (
         _assembled_chat_response_prompt(),
-        4200,
+        3600,
     ),
     "ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT": (
         _assembled_chat_response_prompt(is_new_user=True),
-        4500,
+        4000,
     ),
     "ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE": (
         _assembled_chat_response_prompt(reminder_fire=True),
-        4200,
+        3600,
     ),
     "ASSEMBLED_POST_ANALYZE_WITH_FOLLOWUP": (
         _assembled_post_analyze_prompt(),

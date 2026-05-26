@@ -92,10 +92,10 @@ def test_reminder_tool_boundary_is_removed():
 def test_delegation_boundary_restores_scheduling_safety_policy():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Scheduling tool boundary:" not in text
-    assert "A shared reminder requires one active friend" in text
-    assert "the user must add them as a friend first" in text
-    assert "If the friend name is ambiguous" in text
-    assert "ask the user to choose one friend" in text
+    assert "A shared reminder requires one active friend" not in text
+    assert "the user must add them as a friend first" not in text
+    assert "If the friend name is ambiguous" not in text
+    assert "ask the user to choose one friend" not in text
     assert "Do not treat an iLink QR as a public friend-link QR" in text
     assert "personal-channel binding" in text
     # The legacy "ask for confirmation" rule was over-cautious — the model
@@ -125,27 +125,38 @@ def test_friend_calendar_policy_uses_coke_reminders_not_google_calendar():
 def test_friend_calendar_policy_keeps_backend_facts_and_llm_reasoning_separate():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
 
-    assert "When no date range is provided, supply the next 7 local calendar days" in text
-    assert "only free intervals" in text
-    assert "Do not reveal reminder titles, prompts, metadata, ids, or output targets" in text
-    assert "For a reminder about attending a fitness class, lesson, or session, use 60 minutes unless the user states another duration" in text
-    assert "The tool returns busy intervals only; you calculate how to describe free time" in text
+    assert "friend availability" in text
+    assert "list_friend_calendar_facts" in text
+    assert "describe free time, not friend event details" in text
+    assert "When no date range is provided" not in text
+    assert "Do not call list_friends first" not in text
+    assert "Do not reveal reminder titles, prompts, metadata, ids, or output targets" not in text
+    assert "For a reminder about attending a fitness class" not in text
+    assert "The tool returns busy intervals only" not in text
 
 
 def test_shared_reminder_status_policy_routes_to_list_shared_reminders():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
 
     assert "For shared-reminder status, history, or own course overview queries" in text
-    assert "call list_shared_reminders" in text
-    assert "Pass friend_name when the user names a friend" in text
-    assert "pass status when the user asks about a specific state" in text
+    assert 'call scheduling_domain(intent="list_shared_reminders")' in text
+    assert "Pass friend_name when the user names a friend" not in text
+    assert "pass status when the user asks about a specific state" not in text
 
 
 def test_shared_reminder_title_policy_prefers_current_user_activity():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
 
-    assert "derive the title from the concrete shared item" in text
-    assert "Do not substitute a product-domain default" in text
+    assert "derive the title from the concrete shared item" not in text
+    assert "Do not substitute a product-domain default" not in text
+
+
+def test_delegation_boundary_keeps_inner_worker_argument_contracts_out():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "scheduling_domain accepts only one argument" not in text
+    assert "Never pass request_id" not in text
+    assert "the inner worker resolves names and IDs" not in text
 
 
 def test_chat_response_instructions_render_agent_instance_profile_before_boundaries():

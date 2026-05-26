@@ -263,7 +263,8 @@ def test_prompt_removes_broad_booking_refusal_but_keeps_shared_reminder_contract
     assert "Do not call reminder_domain or scheduling_domain for the booking itself" not in prompt
     assert "only create a reminder after the user asks for a reminder" not in prompt
     assert "shared-reminder actions" in prompt
-    assert "A shared reminder requires one active friend" in prompt
+    assert "A shared reminder requires one active friend" not in prompt
+    assert 'scheduling_domain(intent="list_shared_reminders")' in prompt
     assert "Do not claim a write occurred unless" in prompt
     assert "<onboarding_and_first_dialogue>" not in prompt
 

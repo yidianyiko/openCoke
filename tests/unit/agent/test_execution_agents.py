@@ -257,6 +257,11 @@ async def test_run_scheduling_domain_uses_friend_link_worker_prompt():
     assert "do not call list_friends" in captured["instructions"]
     assert "list_friend_calendar_facts: pass friend_name" in captured["instructions"]
     assert "Do not use Google Calendar" in captured["instructions"]
+    assert "one active friend" in captured["instructions"]
+    assert "Ask for clarification when the name is ambiguous" in captured["instructions"]
+    assert "use 60 minutes unless the user states another duration" in captured[
+        "instructions"
+    ]
 
 
 @pytest.mark.asyncio

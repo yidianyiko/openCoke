@@ -580,6 +580,65 @@ def test_list_friend_calendar_facts_is_read_only_and_forwards_range_args():
     assert captured["payload"]["to_date"] == "2026-05-31"
 
 
+def test_list_friend_calendar_facts_sanitizes_private_event_fields():
+    from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
+
+    def handler(tool_name, payload):
+        del tool_name, payload
+        return {
+            "ok": True,
+            "data": {
+                "target_account_id": "acct_friend",
+                "range": {
+                    "from": "2026-05-25",
+                    "to": "2026-05-31",
+                    "timezone": "Asia/Tokyo",
+                },
+                "busy_intervals": [
+                    {
+                        "id": "rem_1",
+                        "reminder_id": "rem_1",
+                        "title": "康复课私密标题",
+                        "prompt": "提醒具体内容",
+                        "metadata": {"private": True},
+                        "agent_output_target": {"conversation_id": "conv_private"},
+                        "start": "2026-05-25T09:00:00+09:00",
+                        "end": "2026-05-25T10:00:00+09:00",
+                        "timezone": "Asia/Tokyo",
+                    }
+                ],
+                "privacy": {"event_details_included": True},
+            },
+        }
+
+    port = SchedulingCapabilityPort(
+        tool_name="list_friend_calendar_facts",
+        handler=handler,
+    )
+
+    result = port.run(
+        "看看 Bob 这周哪些时间空？",
+        _run_context(user_id="acct_me"),
+        {
+            "friend_name": "Bob",
+            "from_date": "2026-05-25",
+            "to_date": "2026-05-31",
+            "timezone": "Asia/Tokyo",
+        },
+    )
+
+    assert result.ok is True
+    assert "target_account_id" not in result.content
+    assert result.content["privacy"]["event_details_included"] is False
+    assert result.content["range"]["timezone"] == "Asia/Tokyo"
+    busy_interval = result.content["busy_intervals"][0]
+    assert busy_interval == {
+        "start": "2026-05-25T09:00:00+09:00",
+        "end": "2026-05-25T10:00:00+09:00",
+        "timezone": "Asia/Tokyo",
+    }
+
+
 def test_list_friend_calendar_facts_forwards_friend_name_when_target_account_id_is_missing():
     from agent.agno_agent.capabilities.scheduling import SchedulingCapabilityPort
 

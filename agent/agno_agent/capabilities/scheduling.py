@@ -154,6 +154,8 @@ class SchedulingCapabilityPort:
             data = {"value": data}
         content = dict(data)
         durable_write = self.tool_name not in _READ_ONLY_TOOL_NAMES
+        if ok and self.tool_name == "list_friend_calendar_facts":
+            content = _privacy_safe_friend_calendar_facts(content)
         if (
             ok
             and self.tool_name == "get_user_link"
@@ -240,6 +242,45 @@ def _trusted_tool_payload(
         }
     )
     return payload
+
+
+_FRIEND_CALENDAR_PRIVATE_KEYS = {
+    "id",
+    "_id",
+    "reminder_id",
+    "reminderid",
+    "title",
+    "prompt",
+    "metadata",
+    "agent_output_target",
+    "agentoutputtarget",
+    "output_target",
+    "outputtarget",
+    "target_account_id",
+    "targetaccountid",
+}
+
+
+def _privacy_safe_friend_calendar_facts(content: Mapping[str, Any]) -> dict[str, Any]:
+    sanitized = _strip_friend_calendar_private_fields(content)
+    privacy = dict(sanitized.get("privacy") or {})
+    privacy["event_details_included"] = False
+    sanitized["privacy"] = privacy
+    return sanitized
+
+
+def _strip_friend_calendar_private_fields(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        sanitized = {}
+        for key, item in value.items():
+            normalized_key = str(key).replace("-", "_").lower()
+            if normalized_key in _FRIEND_CALENDAR_PRIVATE_KEYS:
+                continue
+            sanitized[str(key)] = _strip_friend_calendar_private_fields(item)
+        return sanitized
+    if isinstance(value, list):
+        return [_strip_friend_calendar_private_fields(item) for item in value]
+    return value
 
 
 def _has_explicit_visible_summary(content: Mapping[str, Any]) -> bool:

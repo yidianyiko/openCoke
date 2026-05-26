@@ -238,7 +238,7 @@ async def test_scheduling_tool_fn_dispatches_friend_name_for_friend_request_acti
     }
 
 
-def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
+def test_scheduling_execution_prompt_owns_defaults_and_backend_boundaries():
     from agent.agno_agent.runtime import execution_agents
 
     prompt = execution_agents._SCHEDULING_SYSTEM_PROMPT
@@ -248,7 +248,8 @@ def test_scheduling_execution_prompt_keeps_defaults_out_of_backend_policy():
     assert "always pass from_date + to_date" in prompt
     assert "Do not ask the backend for recommended slots" in prompt
     assert "Do not use Google Calendar for friend availability" in prompt
-    assert "Pass duration_minutes only after the conversation or policy determines it" in prompt
+    assert "use 60 minutes unless the user states another duration" in prompt
+    assert "Otherwise pass duration_minutes only after" in prompt
 
 
 @pytest.mark.asyncio

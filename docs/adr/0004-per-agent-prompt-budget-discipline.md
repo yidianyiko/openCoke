@@ -61,14 +61,14 @@ Current enforced surfaces as of 2026-05-26:
 | `INSTRUCTIONS_QUERY_REWRITE` | 300 | ~109 |
 | `COKE_SYSTEM_PROMPT` | 2000 | ~1685 |
 | `ONBOARDING_PROMPT` | 450 | ~354 |
-| `SCHEDULING_SYSTEM_PROMPT` | 750 | ~466 |
+| `SCHEDULING_SYSTEM_PROMPT` | 650 | ~507 |
 | `REMINDER_FEW_SHOTS` | 1200 | ~1119 |
 | `USER_VISIBLE_REPLY_BOUNDARY` | 250 | ~199 |
-| `DELEGATION_BOUNDARY` | 1200 | ~969 |
+| `DELEGATION_BOUNDARY` | 800 | ~579 |
 | `DOMAIN_EXECUTION_RESULT_CONTRACT` | 250 | ~183 |
-| `ASSEMBLED_CHAT_RESPONSE_USER_TURN` | 4200 | ~3537 |
-| `ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT` | 4500 | ~3899 |
-| `ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE` | 4200 | ~3607 |
+| `ASSEMBLED_CHAT_RESPONSE_USER_TURN` | 3600 | ~3147 |
+| `ASSEMBLED_CHAT_RESPONSE_FIRST_CHAT` | 4000 | ~3508 |
+| `ASSEMBLED_CHAT_RESPONSE_REMINDER_FIRE` | 3600 | ~3217 |
 | `ASSEMBLED_POST_ANALYZE_WITH_FOLLOWUP` | 1800 | ~1647 |
 | `ASSEMBLED_POST_ANALYZE_SKIP_FOLLOWUP` | 1400 | ~1283 |
 
@@ -122,9 +122,10 @@ changes structurally — never to accommodate prompt sprawl.
 
 ### Follow-up
 
-- Tighten assembled prompt ceilings after the next character-prompt or
-  delegation-boundary diet. The representative `build_chat_response_instructions()`
-  user-turn, first-chat, and reminder-fire scenarios are now covered.
+- Keep tightening assembled prompt ceilings after future character-prompt or
+  delegation-boundary diets. The representative `build_chat_response_instructions()`
+  user-turn, first-chat, and reminder-fire scenarios are covered and now have
+  post-diet ceilings.
 - Tighten post-analyze assembled prompt ceilings after the next
   follow-up-planning prompt diet. Both with-followup and skip-followup
   paths are now covered.

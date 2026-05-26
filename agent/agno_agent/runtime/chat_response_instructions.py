@@ -37,20 +37,12 @@ _DELEGATION_BOUNDARY = """Delegation boundary:
 - "我有什么提醒", "我设过哪些 X 提醒", "列一下我的提醒", and "what reminders do I have" are explicit reminder listing requests; call reminder_domain instead of asking the user to restate the query.
 - "完成今天的 X 提醒", "完成 X 提醒", and "mark the X reminder done" are explicit reminder completion requests; call reminder_domain instead of answering directly.
 - Use scheduling_domain(intent=...) only for explicit user-link, friend-request, friendship, or shared-reminder actions.
-- scheduling_domain accepts only one argument: intent. Never pass request_id, friend_request_id, id, _model_supplied_args, or other parameters; the inner worker resolves names and IDs from the user's message.
 - When the user explicitly directs a scheduling action with a clear target — send a friend request by link code, accept / reject / cancel a friend request, remove a friendship, create / accept / reject / cancel a shared reminder, get / reset / disable the user link, list friends / friend requests / shared reminders — you MUST call scheduling_domain with the matching intent in this same turn. Avoid intention-only phrasing like "我帮你看一下", "let me check", or "I'll go look" in place of the call. An explicit user directive IS the confirmation; re-prompt only if target or verb is ambiguous.
 - "加好友" / "加上 X" / "add friend" plus a user link code is a send_friend_request_by_user_link_code directive.
 - Ordinary one-person reminders must use the Reminder Runtime path, not scheduling_domain.
-- A shared reminder requires one active friend. If the named person is not an active friend, explain that the user must add them as a friend first.
-- For create_shared_reminder, derive the title from the concrete shared item the user is asking to schedule in the current turn. Do not substitute a product-domain default or an older conversation topic for the current requested item.
-- If the friend name is ambiguous, ask the user to choose one friend and do not call scheduling_domain.
 - Coke reminders are the calendar source for friend availability. Do not use Google Calendar for friend availability in this feature.
-- For friend availability ("X 这周哪些时间空", "看看 X 的空闲时间", "约 X 一起 Y" before a time is settled, or "is X free at T?"), call scheduling_domain(intent="list_friend_calendar_facts") in this same turn. Do not call list_friends first, ask whether they are friends, or block on friendship confirmation; the resolver fails closed on ambiguity.
-- For shared-reminder status, history, or own course overview queries, call list_shared_reminders. Pass friend_name when the user names a friend, pass status when the user asks about a specific state like pending, accepted, rejected, cancelled, expired, or invalidated, and omit friend_name with from_date / to_date / timezone for current-account queries such as "我今天有几节课".
-- When no date range is provided, supply the next 7 local calendar days using the target friend's timezone when available, otherwise the current conversation timezone.
-- list_friend_calendar_facts returns privacy-preserving busy intervals only. The tool returns busy intervals only; you calculate how to describe free time and you show only free intervals to the user.
-- Do not reveal reminder titles, prompts, metadata, ids, or output targets from a friend's calendar facts.
-- For a reminder about attending a fitness class, lesson, or session, use 60 minutes unless the user states another duration. This duration choice is LLM policy; the backend must only persist the chosen interval.
+- For friend availability ("X 这周哪些时间空", "看看 X 的空闲时间", "约 X 一起 Y" before a time is settled, or "is X free at T?"), call scheduling_domain(intent="list_friend_calendar_facts") in this same turn and describe free time, not friend event details.
+- For shared-reminder status, history, or own course overview queries, call scheduling_domain(intent="list_shared_reminders") in this same turn.
 - Do not treat an iLink QR as a public friend-link QR. iLink is only for the current account's personal-channel binding.
 - Use timezone, calendar_import, or url_context directly - no delegation needed.
 - For any other input, respond directly without calling a domain tool.
