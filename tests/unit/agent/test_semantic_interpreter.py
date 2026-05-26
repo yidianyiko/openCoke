@@ -1,0 +1,138 @@
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from agent.agno_agent.runtime.focus import build_focus_channel
+from agent.agno_agent.runtime.semantic_interpreter import (
+    SemanticIntentResult,
+    build_semantic_interpreter_input,
+    interpret_semantic_intent,
+)
+
+CASES_PATH = Path("tests/fixtures/semantic_router_cases.json")
+
+
+def _cases():
+    return json.loads(CASES_PATH.read_text(encoding="utf-8"))
+
+
+def _focus_for_case(case):
+    focus = case["focus"]
+    ambiguity = focus.get("ambiguity")
+    if ambiguity == "multi_pending":
+        return {
+            "current": None,
+            "ambiguity": "multi_pending",
+            "candidates": [
+                {
+                    "action_id": f"{case['id']}-{index}",
+                    "kind": kind,
+                    "allowed_actions": ("accept", "reject"),
+                    "status": "pending",
+                    "summary_for_llm": f"{kind} candidate {index}",
+                }
+                for index, kind in enumerate(focus["candidates"], start=1)
+            ],
+        }
+    if ambiguity == "none_actionable":
+        return {"current": None, "ambiguity": "none_actionable", "candidates": []}
+    return build_focus_channel(
+        [
+            {
+                "action_id": case["id"],
+                "kind": focus["kind"],
+                "allowed_actions": ("accept", "reject"),
+                "status": "pending",
+                "summary_for_llm": f"{focus['kind']} for {case['id']}",
+            }
+        ],
+        current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
+    )
+
+
+def test_semantic_intent_result_accepts_known_intents_and_confidence():
+    assert SemanticIntentResult.model_validate(
+        {"intent": "accept", "confidence": "high"}
+    ).intent == "accept"
+    assert SemanticIntentResult.model_validate(
+        {"intent": "request_change", "confidence": "medium"}
+    ).intent == "request_change"
+    assert SemanticIntentResult.model_validate(
+        {"intent": "ambiguous", "confidence": "low"}
+    ).intent == "ambiguous"
+
+
+def test_semantic_intent_result_rejects_unknown_intent():
+    with pytest.raises(ValidationError):
+        SemanticIntentResult.model_validate(
+            {"intent": "keyword_router_guess", "confidence": "high"}
+        )
+
+
+def test_semantic_router_fixture_is_representative_and_has_negative_controls():
+    cases = _cases()
+    categories = {case["category"] for case in cases}
+
+    assert 30 <= len(cases) <= 50
+    assert {
+        "single_pending_accept",
+        "single_pending_reject",
+        "multi_pending_ambiguity",
+        "ask_detail",
+        "request_change",
+        "stale_focus",
+        "expired_focus",
+        "unrelated_utterance",
+        "negative_control",
+    } <= categories
+    negative_controls = {
+        case["utterance"]: case["expected_intent"]
+        for case in cases
+        if case["category"] == "negative_control"
+    }
+    assert negative_controls["先不要"] != "reject"
+    assert negative_controls["先不要急着"] != "reject"
+    assert negative_controls["不要现在处理"] != "reject"
+
+
+def test_semantic_interpreter_input_contains_only_focus_and_current_utterance():
+    payload = build_semantic_interpreter_input(
+        focus={"ambiguity": "none_actionable"},
+        current_utterance="确认",
+    )
+
+    assert set(payload) == {"focus", "current_utterance"}
+    assert payload["current_utterance"] == "确认"
+
+
+@pytest.mark.asyncio
+async def test_semantic_interpreter_replays_fixture_with_fake_structured_client():
+    cases = _cases()
+
+    class FakeClient:
+        def __init__(self):
+            self.payloads = []
+
+        async def create(self, *, payload, schema):
+            self.payloads.append(payload)
+            case = cases[len(self.payloads) - 1]
+            return {
+                "intent": case["expected_intent"],
+                "confidence": "high",
+                "args": {},
+            }
+
+    client = FakeClient()
+
+    for case in cases:
+        result = await interpret_semantic_intent(
+            focus=_focus_for_case(case),
+            current_utterance=case["utterance"],
+            client=client,
+        )
+        assert result.intent == case["expected_intent"]
+
+    assert all(set(payload) == {"focus", "current_utterance"} for payload in client.payloads)

@@ -1,0 +1,299 @@
+[
+  {
+    "id": "accept-zh-confirm",
+    "category": "single_pending_accept",
+    "utterance": "确认",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-zh-good",
+    "category": "single_pending_accept",
+    "utterance": "好",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-zh-ok",
+    "category": "single_pending_accept",
+    "utterance": "可以",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-zh-join",
+    "category": "single_pending_accept",
+    "utterance": "那我参加",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-en-yes",
+    "category": "single_pending_accept",
+    "utterance": "yes",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-en-ok",
+    "category": "single_pending_accept",
+    "utterance": "ok",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "accept-en-approve",
+    "category": "single_pending_accept",
+    "utterance": "I approve this request",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "accept",
+    "expected_executor": "freshness_check_then_accept",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-zh-reject",
+    "category": "single_pending_reject",
+    "utterance": "拒绝",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-zh-not-approve",
+    "category": "single_pending_reject",
+    "utterance": "不通过",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-zh-disagree",
+    "category": "single_pending_reject",
+    "utterance": "不同意",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-zh-busy",
+    "category": "single_pending_reject",
+    "utterance": "我不太方便",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-en-decline",
+    "category": "single_pending_reject",
+    "utterance": "decline",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "reject-en-reject",
+    "category": "single_pending_reject",
+    "utterance": "reject",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "reject",
+    "expected_executor": "freshness_check_then_reject",
+    "expected_response_class": "success_or_state_moved"
+  },
+  {
+    "id": "multi-short-confirm",
+    "category": "multi_pending_ambiguity",
+    "utterance": "确认",
+    "focus": {"ambiguity": "multi_pending", "candidates": ["shared_reminder_request", "friend_request"]},
+    "expected_intent": "ambiguous",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "multi-short-ok",
+    "category": "multi_pending_ambiguity",
+    "utterance": "ok",
+    "focus": {"ambiguity": "multi_pending", "candidates": ["shared_reminder_request", "shared_reminder_request"]},
+    "expected_intent": "ambiguous",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "multi-pronoun",
+    "category": "multi_pending_ambiguity",
+    "utterance": "通过这个",
+    "focus": {"ambiguity": "multi_pending", "candidates": ["friend_request", "friend_request"]},
+    "expected_intent": "ambiguous",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "detail-sender",
+    "category": "ask_detail",
+    "utterance": "谁发的？",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "ask_detail",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "detail_answer"
+  },
+  {
+    "id": "detail-time",
+    "category": "ask_detail",
+    "utterance": "几点？",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "ask_detail",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "detail_answer"
+  },
+  {
+    "id": "detail-what",
+    "category": "ask_detail",
+    "utterance": "这是什么？",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "ask_detail",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "detail_answer"
+  },
+  {
+    "id": "change-later",
+    "category": "request_change",
+    "utterance": "可以改晚一点吗？",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_accept_or_reject",
+    "expected_response_class": "change_not_supported_or_clarification"
+  },
+  {
+    "id": "change-tomorrow",
+    "category": "request_change",
+    "utterance": "改到明天",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_accept_or_reject",
+    "expected_response_class": "change_not_supported_or_clarification"
+  },
+  {
+    "id": "change-other-time",
+    "category": "request_change",
+    "utterance": "换个时间",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_accept_or_reject",
+    "expected_response_class": "change_not_supported_or_clarification"
+  },
+  {
+    "id": "stale-accepted-confirm",
+    "category": "stale_focus",
+    "utterance": "确认",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "accepted"},
+    "expected_intent": "accept",
+    "expected_executor": "stale_focus_failure",
+    "expected_response_class": "state_moved_failure"
+  },
+  {
+    "id": "stale-rejected-ok",
+    "category": "stale_focus",
+    "utterance": "好",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "rejected"},
+    "expected_intent": "accept",
+    "expected_executor": "stale_focus_failure",
+    "expected_response_class": "state_moved_failure"
+  },
+  {
+    "id": "expired-confirm",
+    "category": "expired_focus",
+    "utterance": "确认",
+    "focus": {"ambiguity": "none_actionable", "kind": "shared_reminder_request", "status": "expired"},
+    "expected_intent": "ambiguous",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "expired_failure"
+  },
+  {
+    "id": "expired-accept-english",
+    "category": "expired_focus",
+    "utterance": "accept",
+    "focus": {"ambiguity": "none_actionable", "kind": "friend_request", "status": "expired"},
+    "expected_intent": "ambiguous",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "expired_failure"
+  },
+  {
+    "id": "unrelated-weather",
+    "category": "unrelated_utterance",
+    "utterance": "今天会下雨吗？",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "unrelated",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "direct_or_capability_answer"
+  },
+  {
+    "id": "unrelated-greeting",
+    "category": "unrelated_utterance",
+    "utterance": "早上好",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "unrelated",
+    "expected_executor": "no_mutation",
+    "expected_response_class": "direct_reply"
+  },
+  {
+    "id": "unrelated-reminder-question",
+    "category": "unrelated_utterance",
+    "utterance": "我明天有哪些提醒？",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "unrelated",
+    "expected_executor": "no_focus_mutation",
+    "expected_response_class": "route_other_domain_or_direct"
+  },
+  {
+    "id": "negative-wait-do-not",
+    "category": "negative_control",
+    "utterance": "先不要",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_reject",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "negative-do-not-rush",
+    "category": "negative_control",
+    "utterance": "先不要急着",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_reject",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "negative-not-now",
+    "category": "negative_control",
+    "utterance": "不要现在处理",
+    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
+    "expected_intent": "request_change",
+    "expected_executor": "no_direct_reject",
+    "expected_response_class": "clarification"
+  },
+  {
+    "id": "negative-think-first",
+    "category": "negative_control",
+    "utterance": "我想先考虑一下",
+    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
+    "expected_intent": "ask_detail",
+    "expected_executor": "no_direct_reject",
+    "expected_response_class": "clarification"
+  }
+]
