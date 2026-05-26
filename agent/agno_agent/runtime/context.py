@@ -97,12 +97,18 @@ class AgentRunContext:
     )
     is_new_user: bool = False
     runtime_metadata: Mapping[str, Any] = field(default_factory=dict)
+    session_state: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(
             self,
             "runtime_metadata",
             freeze_mapping(self.runtime_metadata),
+        )
+        object.__setattr__(
+            self,
+            "session_state",
+            freeze_mapping(self.session_state),
         )
 
 
