@@ -16,7 +16,7 @@
 - Create: `tests/unit/test_agent_turn_trace_analyzer.py`
 - Create later: `scripts/agent_turn_trace_analyzer.py`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Add tests that create synthetic JSONL records with `trace.routing.route`,
 `trace.runtime.status`, `trace.output.output_source`, `trace.agent_calls`,
@@ -31,7 +31,7 @@ Assert that:
 - findings identify fallback output, runtime errors, guardrail failures, and
   unused exposed tools
 
-- [ ] **Step 2: Verify tests fail**
+- [x] **Step 2: Verify tests fail**
 
 Run:
 
@@ -46,7 +46,7 @@ Expected: FAIL because `scripts.agent_turn_trace_analyzer` does not exist.
 **Files:**
 - Create: `scripts/agent_turn_trace_analyzer.py`
 
-- [ ] **Step 1: Implement analyzer module**
+- [x] **Step 1: Implement analyzer module**
 
 Create functions:
 
@@ -56,7 +56,7 @@ Create functions:
 
 The analyzer must read only `record["trace"]` and ignore `content_evidence`.
 
-- [ ] **Step 2: Verify analyzer tests pass**
+- [x] **Step 2: Verify analyzer tests pass**
 
 Run:
 
@@ -72,7 +72,7 @@ Expected: PASS.
 - Create: `scripts/analyze_agent_turn_traces.py`
 - Modify: `tests/unit/test_agent_turn_trace_analyzer.py`
 
-- [ ] **Step 1: Add CLI test**
+- [x] **Step 1: Add CLI test**
 
 Add a subprocess test that runs:
 
@@ -83,7 +83,7 @@ Add a subprocess test that runs:
 Assert return code `0` and the output file contains
 `schema_version == "agent_trace_analysis.v1"`.
 
-- [ ] **Step 2: Verify CLI test fails**
+- [x] **Step 2: Verify CLI test fails**
 
 Run:
 
@@ -93,12 +93,12 @@ Run:
 
 Expected: FAIL because the CLI wrapper does not exist.
 
-- [ ] **Step 3: Implement CLI wrapper**
+- [x] **Step 3: Implement CLI wrapper**
 
 Add argparse handling for positional trace paths and optional `--output`. Print
 JSON to stdout when `--output` is omitted.
 
-- [ ] **Step 4: Verify CLI test passes**
+- [x] **Step 4: Verify CLI test passes**
 
 Run:
 
@@ -114,7 +114,7 @@ Expected: PASS.
 - Create: `docs/design-docs/agent-trace-feedback-loop.md`
 - Modify: `docs/design-docs/index.md`
 
-- [ ] **Step 1: Document the loop**
+- [x] **Step 1: Document the loop**
 
 Write the durable loop:
 
@@ -123,7 +123,7 @@ Write the durable loop:
 Name the analyzer command and explain that it consumes trace metadata, not raw
 conversation memory.
 
-- [ ] **Step 2: Link from design index**
+- [x] **Step 2: Link from design index**
 
 Add `agent-trace-feedback-loop.md` to `docs/design-docs/index.md`.
 
@@ -132,7 +132,7 @@ Add `agent-trace-feedback-loop.md` to `docs/design-docs/index.md`.
 **Files:**
 - Create: `artifacts/evidence/2026-05-26-agent-trace-analyzer-verification.md`
 
-- [ ] **Step 1: Run focused tests**
+- [x] **Step 1: Run focused tests**
 
 Run:
 
@@ -140,7 +140,7 @@ Run:
 .venv/bin/python -m pytest tests/unit/test_agent_turn_trace_analyzer.py -q
 ```
 
-- [ ] **Step 2: Run analyzer on synthetic fixture from tests or temporary trace**
+- [x] **Step 2: Run analyzer on synthetic fixture from tests or temporary trace**
 
 Run:
 
@@ -148,7 +148,7 @@ Run:
 .venv/bin/python scripts/analyze_agent_turn_traces.py <trace-file>
 ```
 
-- [ ] **Step 3: Run diff-aware verification routing**
+- [x] **Step 3: Run diff-aware verification routing**
 
 Run:
 
@@ -157,15 +157,15 @@ zsh scripts/suggest-verification --base HEAD~1
 zsh scripts/review-trigger --base HEAD~1
 ```
 
-- [ ] **Step 4: Run suggested surface verification**
+- [x] **Step 4: Run suggested surface verification**
 
 Use the command suggested by `scripts/suggest-verification`.
 
-- [ ] **Step 5: Record evidence**
+- [x] **Step 5: Record evidence**
 
 Write the verification output summary to
 `artifacts/evidence/2026-05-26-agent-trace-analyzer-verification.md`.
 
-- [ ] **Step 6: Commit scoped files**
+- [x] **Step 6: Commit scoped files**
 
 Stage only analyzer-related files, docs, tests, plan, spec, and evidence.
