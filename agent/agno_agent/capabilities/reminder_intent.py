@@ -170,11 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_weekday_bare_create_trigger(
-            input_message,
-            decision,
-            run_context,
-        )
         time_evidence_result = _normalize_time_evidence_decision(
             input_message,
             decision,
@@ -706,64 +701,6 @@ def _input_has_clocked_task_before_trailing_reminder_verb(input_message: str) ->
         task_text,
     )
     return bool(task_text.strip())
-
-
-def _normalize_weekday_bare_create_trigger(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "create":
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    if _WEEKDAY_RANGE_PATTERN.search(current_user_text):
-        return decision
-    weekday = _explicit_weekday_index(current_user_text)
-    if weekday is None:
-        return decision
-    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
-    if len(matches) != 1:
-        return decision
-    parsed_clock = _parse_bare_clock_match(current_user_text, matches[0])
-    if parsed_clock is None:
-        return decision
-    hour, minute = parsed_clock
-    try:
-        timezone = ZoneInfo(run_context.user.timezone or "UTC")
-    except ZoneInfoNotFoundError:
-        timezone = ZoneInfo("UTC")
-    current_time = run_context.current_time
-    current_local = (
-        current_time.replace(tzinfo=timezone)
-        if current_time.tzinfo is None
-        else current_time.astimezone(timezone)
-    )
-    candidate = current_local.replace(
-        hour=hour,
-        minute=minute,
-        second=0,
-        microsecond=0,
-    )
-    days_ahead = (weekday - candidate.weekday()) % 7
-    candidate += timedelta(days=days_ahead)
-    if candidate <= current_local:
-        candidate += timedelta(days=7)
-
-    trigger_at = str(_decision_value(decision, "trigger_at") or "").strip()
-    if trigger_at:
-        try:
-            parsed_trigger = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-        except ValueError:
-            parsed_trigger = None
-        if parsed_trigger is not None:
-            trigger_local = (
-                parsed_trigger.replace(tzinfo=timezone)
-                if parsed_trigger.tzinfo is None
-                else parsed_trigger.astimezone(timezone)
-            )
-            if trigger_local.weekday() == weekday and trigger_local > current_local:
-                return decision
-    return _copy_decision_with_value(decision, "trigger_at", candidate.isoformat())
 
 
 def _latest_user_turn_text(input_message: str) -> str:

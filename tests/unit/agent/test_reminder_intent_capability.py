@@ -2315,7 +2315,7 @@ async def test_reminder_intent_port_normalizes_past_bare_clock_to_next_occurrenc
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_normalizes_wrong_weekday_bare_clock_to_next_matching_day():
+async def test_reminder_intent_port_routes_detector_weekday_bare_clock_date():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -2333,7 +2333,7 @@ async def test_reminder_intent_port_normalizes_wrong_weekday_bare_clock_to_next_
         intent_type="crud",
         action="create",
         title="喝水",
-        trigger_at="2026-05-26T09:00:00+08:00",
+        trigger_at="2026-06-01T09:00:00+08:00",
     )
 
     class PrimaryAgent:
