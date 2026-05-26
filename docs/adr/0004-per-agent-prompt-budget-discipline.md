@@ -34,11 +34,14 @@ be made explicit and enforced.
 
 ## Decision
 
-Every Agent role in `agent/prompt/agent_instructions_prompt.py` is bound
-by an explicit token budget enforced as a unit test in
-`tests/unit/prompt/test_prompt_token_budgets.py`.
+Every active runtime prompt surface is bound by an explicit token budget
+enforced as a unit test in
+`tests/unit/prompt/test_prompt_token_budgets.py`. The registry covers agent
+instructions, character/onboarding prompts, few-shot prompt data, and
+runtime reply boundaries that are appended outside
+`agent/prompt/agent_instructions_prompt.py`.
 
-Initial budgets (approximate-token unit, CJK-aware):
+Initial budgets (approximate-token unit, CJK-aware) from 2026-05-12:
 
 | Role | Budget | 2026-05-12 actual |
 |---|---|---|
@@ -47,6 +50,22 @@ Initial budgets (approximate-token unit, CJK-aware):
 | `INSTRUCTIONS_CHAT_RESPONSE` | 600 | ~452 |
 | `INSTRUCTIONS_POST_ANALYZE` | 400 | ~131 |
 | `INSTRUCTIONS_QUERY_REWRITE` | 300 | ~109 |
+
+Current enforced surfaces as of 2026-05-26:
+
+| Surface | Budget | 2026-05-26 actual |
+|---|---|---|
+| `INSTRUCTIONS_REMINDER_DETECT` | 1000 | ~876 |
+| `INSTRUCTIONS_POST_ANALYZE` | 400 | ~108 |
+| `INSTRUCTIONS_CHAT_RESPONSE` | 600 | ~452 |
+| `INSTRUCTIONS_QUERY_REWRITE` | 300 | ~109 |
+| `COKE_SYSTEM_PROMPT` | 2200 | ~2032 |
+| `ONBOARDING_PROMPT` | 450 | ~354 |
+| `SCHEDULING_SYSTEM_PROMPT` | 750 | ~466 |
+| `REMINDER_FEW_SHOTS` | 1200 | ~1119 |
+| `USER_VISIBLE_REPLY_BOUNDARY` | 250 | ~199 |
+| `DELEGATION_BOUNDARY` | 1200 | ~969 |
+| `DOMAIN_EXECUTION_RESULT_CONTRACT` | 250 | ~183 |
 
 Adding a rule to any prompt that pushes it over budget is a CI failure.
 To merge such a change one of the following must happen:
@@ -61,9 +80,10 @@ To merge such a change one of the following must happen:
 4. Split the role into a focused sub-agent. This is the escalation path
    for genuine new scope, not the default.
 
-Budget numbers are ceilings, not measurements. They are revisited only
-when (a) a new model needs explicit budget headroom or (b) a role's
-scope changes structurally — never to accommodate prompt sprawl.
+Budget numbers are ceilings, not measurements. The CI gate also requires
+at least 5% headroom under each ceiling. Budgets are revisited only when
+(a) a new model needs explicit budget headroom or (b) a role's scope
+changes structurally — never to accommodate prompt sprawl.
 
 ## Consequences
 
@@ -83,9 +103,9 @@ scope changes structurally — never to accommodate prompt sprawl.
 
 ### Tradeoff
 
-- The 5 budget numbers are educated guesses. The approximate-token unit
-  is not exact. If we need precise budget control later we'll add
-  `tiktoken` or similar.
+- The budget numbers are educated guesses. The approximate-token unit is
+  not exact. If we need precise budget control later we'll add `tiktoken`
+  or similar.
 - Some edge cases that current Python guards handle will need new
   few-shot data or corpus expectations to stay covered. This is a
   one-time migration, not a recurring tax.
@@ -97,9 +117,13 @@ scope changes structurally — never to accommodate prompt sprawl.
 
 ### Follow-up
 
-- Audit the other large prompts (`INSTRUCTIONS_ORCHESTRATOR` is at ~989
-  of 1100) for similar accumulated rule lists. Same diet approach as
-  reminder_detect.
+- Add budget coverage for assembled prompts returned by
+  `build_chat_response_instructions()` in representative runtime
+  scenarios. Individual prompt surfaces are covered now; the full
+  assembled prompt still needs a deliberate ceiling.
+- Keep dieting the largest active prompts (`COKE_SYSTEM_PROMPT` and
+  `REMINDER_FEW_SHOTS`) when touching them. They remain under the 95%
+  headroom gate but are still close enough to deserve review.
 - Add a corpus-severity field to
   `scripts/reminder_normal_path_expectations.json` so CI can tier its
   enforcement (`critical` 100%, `important` ≥95%, `nice` ≥80%) instead

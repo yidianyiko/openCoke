@@ -16,6 +16,11 @@ from __future__ import annotations
 
 import re
 
+from agent.agno_agent.runtime.chat_response_instructions import (
+    _DELEGATION_BOUNDARY,
+    _DOMAIN_EXECUTION_RESULT_CONTRACT,
+    _USER_VISIBLE_REPLY_BOUNDARY,
+)
 from agent.agno_agent.runtime.execution_agents import _SCHEDULING_SYSTEM_PROMPT
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_CHAT_RESPONSE,
@@ -49,6 +54,9 @@ PROMPT_BUDGETS: dict[str, tuple[str, int]] = {
     "ONBOARDING_PROMPT": (ONBOARDING_PROMPT, 450),
     "SCHEDULING_SYSTEM_PROMPT": (_SCHEDULING_SYSTEM_PROMPT, 750),
     "REMINDER_FEW_SHOTS": (format_reminder_few_shots_for_prompt(), 1200),
+    "USER_VISIBLE_REPLY_BOUNDARY": (_USER_VISIBLE_REPLY_BOUNDARY, 250),
+    "DELEGATION_BOUNDARY": (_DELEGATION_BOUNDARY, 1200),
+    "DOMAIN_EXECUTION_RESULT_CONTRACT": (_DOMAIN_EXECUTION_RESULT_CONTRACT, 250),
 }
 
 
@@ -75,6 +83,9 @@ def test_prompt_budget_registry_covers_runtime_prompt_surfaces():
         "ONBOARDING_PROMPT",
         "SCHEDULING_SYSTEM_PROMPT",
         "REMINDER_FEW_SHOTS",
+        "USER_VISIBLE_REPLY_BOUNDARY",
+        "DELEGATION_BOUNDARY",
+        "DOMAIN_EXECUTION_RESULT_CONTRACT",
     }.issubset(PROMPT_BUDGETS)
 
 
@@ -88,16 +99,13 @@ def test_scheduling_system_prompt_is_structured_for_review():
     assert "## Boundaries" in prompt
 
 
-def test_prompt_budget_headroom_warning():
-    """Soft signal: warn (via failure message structure) if any prompt is
-    within 5% of its budget; not a hard fail, but visible in test output.
-    """
+def test_prompt_budget_headroom_is_preserved():
+    """Keep at least 5% budget headroom for future prompt changes."""
     near_budget: list[str] = []
     for name, (prompt, budget) in PROMPT_BUDGETS.items():
         actual = approximate_tokens(prompt)
         if actual > budget * 0.95 and actual <= budget:
             near_budget.append(f"{name}: ~{actual}/{budget} (>95% of budget)")
-    # This test always passes; the assertion is just to surface the list.
-    # If it ever grows, that's the signal to plan a diet before the next
-    # rule addition.
-    assert near_budget == near_budget  # tautology; keeps signal visible
+    assert not near_budget, "Prompt budget headroom violations:\n  " + "\n  ".join(
+        near_budget
+    )
