@@ -170,11 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _normalize_update_trigger_from_text(
-            input_message,
-            decision,
-            run_context,
-        )
         decision = _normalize_weekday_bare_create_trigger(
             input_message,
             decision,
@@ -623,17 +618,6 @@ def _normalize_create_title_from_user_text(input_message: str, decision: Any) ->
     return decision
 
 
-# kept for Phase 3 cleanup: _normalize_update_trigger_from_text still references this helper.
-def _extract_new_trigger_at_from_update_text(
-    text: str,
-    run_context: AgentRunContext,
-) -> str:
-    parts = re.split(r"改成|改到|改为|换成|设成|调整到", text, maxsplit=1)
-    if len(parts) < 2:
-        return ""
-    return _next_future_trigger_at_for_single_bare_clock(parts[1], run_context)
-
-
 # kept for Phase 3 cleanup: _normalize_* helpers and runtime safety path still reference this helper.
 def _single_relative_delay(current_user_text: str) -> timedelta | None:
     matches = list(_RELATIVE_DELAY_PATTERN.finditer(current_user_text))
@@ -782,117 +766,11 @@ def _normalize_weekday_bare_create_trigger(
     return _copy_decision_with_value(decision, "trigger_at", candidate.isoformat())
 
 
-def _normalize_update_trigger_from_text(
-    input_message: str,
-    decision: Any,
-    run_context: AgentRunContext,
-) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "update":
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    trigger_at = _extract_new_trigger_at_from_update_text(
-        current_user_text,
-        run_context,
-    )
-    if not trigger_at:
-        return decision
-    existing = str(_decision_value(decision, "new_trigger_at") or "").strip()
-    if existing:
-        try:
-            existing_dt = datetime.fromisoformat(existing.replace("Z", "+00:00"))
-            parsed_trigger = datetime.fromisoformat(trigger_at.replace("Z", "+00:00"))
-        except ValueError:
-            existing_dt = None
-            parsed_trigger = None
-        if existing_dt is not None and parsed_trigger is not None:
-            normalized = existing_dt.replace(
-                hour=parsed_trigger.hour,
-                minute=parsed_trigger.minute,
-                second=0,
-                microsecond=0,
-            ).isoformat()
-            if normalized != existing:
-                return _copy_decision_with_value(
-                    decision,
-                    "new_trigger_at",
-                    normalized,
-                )
-            return decision
-    if existing == trigger_at:
-        return decision
-    return _copy_decision_with_value(decision, "new_trigger_at", trigger_at)
-
-
 def _latest_user_turn_text(input_message: str) -> str:
     parts = re.split(r"（[^）]*发来了文本消息）", input_message)
     if len(parts) > 1:
         return parts[-1].strip()
     return _INPUT_MESSAGE_PREFIX_PATTERN.sub("", input_message).strip()
-
-
-# kept for Phase 3 cleanup: _normalize_update_trigger_from_text still references this helper.
-def _next_future_trigger_at_for_single_bare_clock(
-    current_user_text: str,
-    run_context: AgentRunContext,
-) -> str:
-    matches = list(_SINGLE_BARE_CLOCK_EXTRACTION_PATTERN.finditer(current_user_text))
-    if len(matches) != 1:
-        return ""
-    parsed = _parse_bare_clock_match(current_user_text, matches[0])
-    if parsed is None:
-        return ""
-    hour, minute = parsed
-    try:
-        timezone = ZoneInfo(run_context.user.timezone or "UTC")
-    except ZoneInfoNotFoundError:
-        timezone = ZoneInfo("UTC")
-    current_time = run_context.current_time
-    if current_time.tzinfo is None:
-        current_local = current_time.replace(tzinfo=timezone)
-    else:
-        current_local = current_time.astimezone(timezone)
-    if _should_treat_bare_clock_as_same_afternoon(
-        current_user_text,
-        matches[0],
-        hour=hour,
-        minute=minute,
-        current_local=current_local,
-    ):
-        hour += 12
-    candidate = current_local.replace(
-        hour=hour,
-        minute=minute,
-        second=0,
-        microsecond=0,
-    )
-    if candidate <= current_local:
-        candidate += timedelta(days=1)
-    return candidate.isoformat()
-
-
-def _should_treat_bare_clock_as_same_afternoon(
-    current_user_text: str,
-    match: re.Match[str],
-    *,
-    hour: int,
-    minute: int,
-    current_local: datetime,
-) -> bool:
-    if not (1 <= hour < 12 and current_local.hour >= 12):
-        return False
-    prefix = current_user_text[max(0, match.start() - 6) : match.start()]
-    if _AM_DAY_PERIOD_PATTERN.search(prefix) or _PM_DAY_PERIOD_PATTERN.search(prefix):
-        return False
-    pm_hour = hour + 12
-    if pm_hour not in {current_local.hour, current_local.hour + 1}:
-        return False
-    candidate = current_local.replace(
-        hour=pm_hour,
-        minute=minute,
-        second=0,
-        microsecond=0,
-    )
-    return candidate > current_local
 
 
 def _parse_bare_clock_match(

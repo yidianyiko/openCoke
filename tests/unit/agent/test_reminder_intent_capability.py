@@ -1421,7 +1421,7 @@ async def test_reminder_intent_port_repairs_weekday_recurrence_update():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_normalizes_update_time_from_text():
+async def test_reminder_intent_port_routes_detector_update_time_from_text():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     run_context = AgentRunContext(
@@ -1439,7 +1439,7 @@ async def test_reminder_intent_port_normalizes_update_time_from_text():
         intent_type="crud",
         action="update",
         target_title="喝水",
-        new_trigger_at="2026-05-26T15:00:00+08:00",
+        new_trigger_at="2026-05-26T16:00:00+08:00",
     )
 
     class PrimaryAgent:
