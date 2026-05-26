@@ -52,6 +52,23 @@ def test_delegation_boundary_is_present():
     assert "Delegation boundary:" in text
 
 
+def test_trusted_context_uses_identity_environment_focus_and_conversation_blocks():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert '<trusted kind="identity">' in text
+    assert '<trusted kind="environment">' in text
+    assert '<trusted kind="focus">' in text
+    assert "<conversation>" in text
+    assert "</conversation>" in text
+
+
+def test_trusted_context_declares_conflict_and_ambiguity_rules():
+    text = build_chat_response_instructions(_run_context(), _user_turn_input())
+
+    assert "On conflict, trusted blocks win" in text
+    assert "If focus is empty or ambiguous, ask a clarifying question" in text
+
+
 def test_delegation_boundary_covers_reminder_routing():
     text = build_chat_response_instructions(_run_context(), _user_turn_input())
     assert "Use reminder_domain only when" in text
@@ -230,7 +247,8 @@ def test_chat_response_instructions_omits_agent_instance_profile_when_empty():
 def test_product_notification_metadata_is_exposed_as_trusted_context():
     text = build_chat_response_instructions(_run_context(), _product_notification_input())
 
-    assert "product_notification:" in text
+    assert "product_notification:" not in text
+    assert '<trusted kind="focus">' in text
     assert '"request_id": "srr_1"' in text
     assert '"request_type": "shared_reminder_request"' in text
     assert '"allowed_actions": ["accept", "reject"]' in text
