@@ -174,6 +174,10 @@ _REMINDER_OFFER_MARKERS = (
     "想要提醒",
     "只能帮你",
 )
+# OUTPUT SAFETY NET (not a semantic classifier): catches LLM final-text
+# claims of a completed reminder write when no tool write actually
+# succeeded. Survives the LLM-only intent migration because its purpose
+# is to compensate for LLM unreliability, not to classify user intent.
 _COMPLETED_WRITE_CLAIM_PATTERNS = (
     re.compile(r"(已经|已).{0,24}(设置|设好|创建|建了).{0,24}(提醒|通知)"),
     re.compile(r"(设置好|设好|创建好|建好).{0,8}(了|啦)"),
