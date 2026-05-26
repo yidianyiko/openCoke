@@ -1,6 +1,9 @@
 from datetime import UTC, datetime
 
-from agent.prompt.agent_instructions_prompt import get_reminder_detect_instructions
+from agent.prompt.agent_instructions_prompt import (
+    INSTRUCTIONS_REMINDER_DETECT,
+    get_reminder_detect_instructions,
+)
 
 
 def _non_empty_lines(text: str) -> list[str]:
@@ -19,8 +22,9 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
 
     # Structure: must stay under ~60 non-empty lines.
     assert len(lines) <= 60
-    # Carries the dynamic timestamp.
-    assert "Current time: 2026年04月30日12时00分" in instructions
+    # Dynamic timestamps belong in per-turn input data, not static instructions.
+    assert "Current time:" not in instructions
+    assert "2026年04月30日12时00分" not in instructions
     # Four intent classes appear by name.
     for intent in ("crud", "clarify", "query", "discussion"):
         assert f"- {intent}:" in instructions
@@ -30,6 +34,10 @@ def test_reminder_detect_instructions_are_small_positive_boundary():
     assert "prefer PM same day" in instructions
     # Output discipline.
     assert "Output only the structured decision" in instructions
+
+
+def test_static_reminder_detect_instructions_do_not_embed_dynamic_current_time():
+    assert "Current time:" not in INSTRUCTIONS_REMINDER_DETECT
 
 
 def test_reminder_detect_instructions_do_not_embed_case_examples():

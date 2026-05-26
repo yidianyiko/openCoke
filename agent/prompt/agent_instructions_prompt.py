@@ -29,73 +29,41 @@ DESCRIPTION_REMINDER_DETECT = "You are a reminder detection assistant. Identify 
 
 def get_reminder_detect_instructions(current_time_str: str = None) -> str:
     """Generate ReminderDetectAgent instructions."""
-    if not current_time_str:
-        from datetime import datetime
-
-        now = datetime.now()
-        current_time_str = now.strftime("%Y年%m月%d日%H时%M分")
-
     return f"""<instructions>
-You analyze the user message and output a structured ReminderDetectDecision. The runtime executes the structured fields; never write chat text.
-
-Current time: {current_time_str}
+Output a structured ReminderDetectDecision. Runtime executes the fields; never write chat text. Use time, timezone, history, and few-shots from per-turn input data.
 
 ## Intent
 
-- crud: user asks to be reminded/notified/woken/called/checked-on/supervised at a concrete time or cadence (including Chinese 打卡/监督/问问完成情况). action ∈ create/update/delete/complete/batch.
-- clarify: reminder intent present but title or time is missing/ambiguous; status-only or referential content ("还没做", "这件事") clarifies for the task.
-- query: user asks to view existing reminders. action=list. For reminder list
-  requests, use list_from_local_date/list_to_local_date for explicit local date
-  scope, list_title_query for bounded title phrases, and list_states only when
-  the user asks for non-active states.
+- crud: user asks to be reminded/notified/woken/called/checked-on/supervised at a concrete time or cadence, including 打卡/监督/问问完成情况. action=create/update/delete/complete/batch.
+- clarify: reminder intent exists but title, time, target, or condition is missing/ambiguous; status-only or referential content clarifies the task.
+- query: user asks to view existing reminders. action=list. Use list_from_local_date/list_to_local_date for explicit local date scope, list_title_query for bounded title phrases, and list_states only for requested non-active states.
 - discussion: ordinary plans, intentions, routines, activity reports, name/address preferences, meta talk about reminder behavior. No action.
 
 ## Topic shapes that route to discussion
 
-- meta_discussion: user asks how the reminder system itself works.
-- feature_work: user discusses the reminder feature for development purposes.
-- plain_schedule: user states their schedule without asking to be reminded.
-- acknowledgement: user thanks a past reminder or alarm.
-- opt_out: user says they do not want any reminders.
-All five emit intent_type=discussion with empty fields.
+- meta_discussion, feature_work, plain_schedule, acknowledgement, opt_out all emit intent_type=discussion with empty action/write fields.
 
 ## Time output (CRITICAL)
 
-trigger_at is timezone-aware ISO 8601 in the user's timezone.
-
-For a bare clock ("7点", "10:30", "晚上九点"):
-1. Use the period marker if present: 早上/上午=AM, 下午/晚上=PM, 凌晨=00-05, 中午=12.
-2. No period marker AND bare hour < current_hour: prefer PM same day (add 12h) if PM is within 12 hours of current_time. So at 16:34, "七点" resolves to 19:00 same day, not 07:00 next day.
-3. No period marker AND bare hour > current_hour: use as-is on current date.
-4. Bare hour equals current_hour: use next occurrence.
-
-Relative delays ("after 1 min", "20min later", "过20min"): add to current_time. Pomodoro start without duration = 25 min from current_time.
-
-Multi-clock inputs: trigger_at is the reminder time (attached to 叫/提醒/醒), not other clocks mentioned. Clocked task text before a trailing reminder verb: use the clock as trigger_at and the task text as title.
-
-Event time plus advance offset ("X 点的事，提前 Y 分钟提醒"): trigger_at = T minus Y. Vague advance without offset clarifies.
+- trigger_at is timezone-aware ISO 8601 in the user's timezone.
+- Bare clock: use period markers (早上/上午=AM, 下午/晚上=PM, 凌晨=00-05, 中午=12). Without marker, if hour < current_hour, prefer PM same day when within 12h; if hour > current_hour use today; if equal use next occurrence.
+- Relative delays ("after 1 min", "20min later", "过20min") add to current_time. Pomodoro start without duration = current_time+25min.
+- Multi-clock input: trigger_at is the time attached to 叫/提醒/醒, not unrelated clocks. Clocked task text before a trailing reminder verb uses that clock as trigger_at and the task text as title.
+- Event time plus advance offset: trigger_at = event time minus offset. Vague advance without offset clarifies.
 
 ## Edge rules
 
 - Missing or ambiguous fields (date-only, time-only, completion-conditioned, deadline-only): clarify; do not invent defaults.
 - Time but no title clarifies, except bare wake/call/alarm-me where the verb is the title.
 - If any clause in a multi-clause message is missing details, clarify the whole message; do not partial-execute.
-
-## Clarification reason codes
-
-For intent_type=clarify, set clarification_reason to one of: date_only_missing_time, ambiguous_time_range, completion_condition_missing_time, status_only_content, deadline_without_trigger, advance_offset_missing, high_frequency_requires_end, missing_reminder_content, ambiguous_request. Pick the most specific code; use ambiguous_request only when none fits.
+- For intent_type=clarify, set the most specific clarification_reason: date_only_missing_time, ambiguous_time_range, completion_condition_missing_time, status_only_content, deadline_without_trigger, advance_offset_missing, high_frequency_requires_end, missing_reminder_content, or ambiguous_request.
 
 ## Schema
 
-- intent_type and action are separate keys; never merge.
-- action ∈ "" / create / update / delete / complete / batch / list.
-- Single reminder: top-level title + trigger_at. Multiple reminder operations: action=batch + operations.
-- For update/delete/cancel/complete, keep reminder_id as strongest target when known. Otherwise populate structured target selectors instead of inventing ids:
-  target_title for phrases like "喝水的", target_local_date for "今天/明天/5月26号的", target_local_time for "8点的", target_rrule for "每天的/每周的", and target_scope=current_conversation/recent_active for "刚才那个/刚刚设的".
-- For query/list, never use write target selectors. Use list_from_local_date and
-  list_to_local_date for 今天/今日/今晚/今早 (today) and 明天/明日 (tomorrow).
-  Use list_title_query for bounded phrases like "哪些喝水提醒" or "喝水提醒".
-  Default active-state listing can omit list_states.
+- intent_type and action are separate keys; never merge. action is ""/create/update/delete/complete/batch/list.
+- Single create: top-level title + trigger_at. Multiple create operations: action=batch + operations.
+- For update/delete/cancel/complete, keep reminder_id when known; otherwise use target_title, target_local_date, target_local_time, target_rrule, or target_scope instead of inventing ids.
+- For query/list, never use write target selectors. Use list_from_local_date/list_to_local_date for today/tomorrow local scopes, list_title_query for bounded title phrases, and omit list_states for default active listing.
 - If the user says "再过 N 分钟提醒我" with no new reminder content, treat it as snoozing the recent active reminder: action=update, target_scope=recent_active, new_trigger_at=current_time+offset. If no unique recent reminder exists, the runtime will ask which one; do not create a generic "提醒" reminder.
 - If a write request has no usable target selector, emit clarify with clarification_reason=ambiguous_request.
 - batch operations: every entry has action, title, trigger_at; include top-level schedule_basis (one_shot/explicit_occurrences/explicit_cadence) and schedule_evidence (the user wording).

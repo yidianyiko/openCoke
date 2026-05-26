@@ -59,41 +59,12 @@
     }
   },
   {
-    "decision_class": "crud.update.target_time",
-    "input": "把那个 8 点的提醒改成吃药",
-    "decision": {
-      "intent_type": "crud",
-      "action": "update",
-      "target_local_time": "08:00",
-      "new_title": "吃药"
-    }
-  },
-  {
-    "decision_class": "crud.update.snooze",
-    "input": "再过 10 分钟提醒我",
-    "decision": {
-      "intent_type": "crud",
-      "action": "update",
-      "target_scope": "recent_active",
-      "new_trigger_at": "2026-05-01T10:10:00+09:00"
-    }
-  },
-  {
     "decision_class": "crud.delete",
     "input": "别再提醒我该走了",
     "decision": {
       "intent_type": "crud",
       "action": "delete",
       "keyword": "该走了"
-    }
-  },
-  {
-    "decision_class": "crud.delete.target_rrule",
-    "input": "取消每天的提醒",
-    "decision": {
-      "intent_type": "crud",
-      "action": "delete",
-      "target_rrule": "FREQ=DAILY"
     }
   },
   {

@@ -16,12 +16,16 @@ from __future__ import annotations
 
 import re
 
+from agent.agno_agent.runtime.execution_agents import _SCHEDULING_SYSTEM_PROMPT
 from agent.prompt.agent_instructions_prompt import (
     INSTRUCTIONS_CHAT_RESPONSE,
     INSTRUCTIONS_POST_ANALYZE,
     INSTRUCTIONS_QUERY_REWRITE,
     INSTRUCTIONS_REMINDER_DETECT,
 )
+from agent.prompt.character.coke_prompt import COKE_SYSTEM_PROMPT
+from agent.prompt.onboarding_prompt import ONBOARDING_PROMPT
+from agent.prompt.reminder_few_shot import format_reminder_few_shots_for_prompt
 
 
 def approximate_tokens(text: str) -> int:
@@ -41,6 +45,10 @@ PROMPT_BUDGETS: dict[str, tuple[str, int]] = {
     "INSTRUCTIONS_POST_ANALYZE": (INSTRUCTIONS_POST_ANALYZE, 400),
     "INSTRUCTIONS_CHAT_RESPONSE": (INSTRUCTIONS_CHAT_RESPONSE, 600),
     "INSTRUCTIONS_QUERY_REWRITE": (INSTRUCTIONS_QUERY_REWRITE, 300),
+    "COKE_SYSTEM_PROMPT": (COKE_SYSTEM_PROMPT, 2200),
+    "ONBOARDING_PROMPT": (ONBOARDING_PROMPT, 450),
+    "SCHEDULING_SYSTEM_PROMPT": (_SCHEDULING_SYSTEM_PROMPT, 750),
+    "REMINDER_FEW_SHOTS": (format_reminder_few_shots_for_prompt(), 1200),
 }
 
 
@@ -55,6 +63,29 @@ def test_prompt_token_budgets_are_respected():
                 f"see docs/adr/0004-per-agent-prompt-budget-discipline.md)"
             )
     assert not failures, "Prompt budget violations:\n  " + "\n  ".join(failures)
+
+
+def test_prompt_budget_registry_covers_runtime_prompt_surfaces():
+    assert {
+        "INSTRUCTIONS_REMINDER_DETECT",
+        "INSTRUCTIONS_POST_ANALYZE",
+        "INSTRUCTIONS_CHAT_RESPONSE",
+        "INSTRUCTIONS_QUERY_REWRITE",
+        "COKE_SYSTEM_PROMPT",
+        "ONBOARDING_PROMPT",
+        "SCHEDULING_SYSTEM_PROMPT",
+        "REMINDER_FEW_SHOTS",
+    }.issubset(PROMPT_BUDGETS)
+
+
+def test_scheduling_system_prompt_is_structured_for_review():
+    prompt = PROMPT_BUDGETS["SCHEDULING_SYSTEM_PROMPT"][0]
+    lines = [line for line in prompt.splitlines() if line.strip()]
+
+    assert 5 <= len(lines) <= 40
+    assert "## Role" in prompt
+    assert "## Tool selection" in prompt
+    assert "## Boundaries" in prompt
 
 
 def test_prompt_budget_headroom_warning():

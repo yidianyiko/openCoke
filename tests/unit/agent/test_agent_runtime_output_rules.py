@@ -689,7 +689,7 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
         messages=[{"role": "assistant", "content": "好啦，已经帮你和 Nora 建了共享提醒。"}],
         capability_results=[],
         monkeypatch=monkeypatch,
-        input_text="帮我和 Nora 建一个共享提醒",
+        input_text="我们聊一下共享提醒能力",
         content="好啦，已经帮你和 Nora 建了共享提醒。",
     )
 
