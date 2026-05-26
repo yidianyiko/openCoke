@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import re
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 from agno.agent import Agent
@@ -44,6 +45,18 @@ Call exactly one scheduling tool matching the intent, except for lookup-then-act
 - For a fitness class, lesson, or session shared reminder, use 60 minutes unless the user states another duration. Otherwise pass duration_minutes only after the conversation or policy determines it.
 - Ordinary personal reminders are not scheduling-domain work.
 - Do not treat an iLink QR as a public user-link QR.""".strip()
+
+_FOCUS_WRITE_TO_READ_TOOL = {
+    "accept_friend_request": "list_friend_requests",
+    "reject_friend_request": "list_friend_requests",
+    "cancel_friend_request": "list_friend_requests",
+    "accept_shared_reminder": "list_shared_reminders",
+    "reject_shared_reminder": "list_shared_reminders",
+    "cancel_shared_reminder": "list_shared_reminders",
+}
+
+_FRIEND_REQUEST_PENDING_STATUS = "pending"
+_SHARED_REMINDER_PENDING_STATUS = "pending_invitee_confirmation"
 
 
 class _SchedulingExecutionGuard:
@@ -104,6 +117,45 @@ def _scheduling_entity_id(tool_name: str, content: dict[str, Any]) -> str | None
         if value is not None and str(value):
             return str(value)
     return None
+
+
+def _stale_focus_result(
+    *,
+    tool_name: str,
+    request_id: str,
+    visible_summary: str = "这个请求现在不再可处理，可能已经处理、取消或过期了。",
+) -> DomainExecutionResult:
+    error = DomainError(
+        code="stale_focus",
+        message="Focused scheduling action is no longer actionable",
+        retryable=False,
+        detail={"tool_name": tool_name, "request_id": request_id},
+    )
+    return DomainExecutionResult(
+        domain="scheduling",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action=tool_name,
+                ok=False,
+                effect="none",
+                entity_type=_scheduling_entity_type(tool_name),
+                entity_id=request_id,
+                facts={"visible_summary": visible_summary},
+                error=error,
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary="stale_focus",
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("appointment_confirmed",),
+            allow_rephrase=True,
+        ),
+        error=error,
+    )
 
 
 def _scheduling_reply_contract(
@@ -398,6 +450,155 @@ def _normalize_forced_scheduling_call(
     return normalized_intent, normalized_args
 
 
+def _focus_action_id(run_context: AgentRunContext) -> str | None:
+    session_state = getattr(run_context, "session_state", {})
+    if not isinstance(session_state, Mapping):
+        return None
+    focus = session_state.get("focus")
+    if not isinstance(focus, Mapping):
+        return None
+    current = focus.get("current")
+    if not isinstance(current, Mapping):
+        return None
+    value = current.get("action_id") or current.get("request_id")
+    return str(value).strip() if value is not None else None
+
+
+def _record_value(record: Mapping[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = record.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _records_from_freshness_result(
+    *,
+    tool_name: str,
+    content: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    key = "friend_requests" if tool_name == "list_friend_requests" else "shared_reminders"
+    records = content.get(key)
+    if isinstance(records, list):
+        return [record for record in records if isinstance(record, Mapping)]
+    return []
+
+
+def _matching_fresh_record(
+    records: list[Mapping[str, Any]],
+    request_id: str,
+) -> Mapping[str, Any] | None:
+    for record in records:
+        candidate = _record_value(
+            record,
+            "id",
+            "request_id",
+            "requestId",
+            "friend_request_id",
+            "friendRequestId",
+            "shared_reminder_request_id",
+            "sharedReminderRequestId",
+        )
+        if candidate == request_id:
+            return record
+    return None
+
+
+def _actor_field_for_tool(tool_name: str) -> tuple[str, str]:
+    if tool_name == "cancel_friend_request":
+        return "requesterAccountId", "requester_account_id"
+    if tool_name in {"accept_friend_request", "reject_friend_request"}:
+        return "targetAccountId", "target_account_id"
+    if tool_name == "cancel_shared_reminder":
+        return "requesterAccountId", "requester_account_id"
+    return "inviteeAccountId", "invitee_account_id"
+
+
+def _fresh_record_status_is_actionable(tool_name: str, record: Mapping[str, Any]) -> bool:
+    status = _record_value(record, "status")
+    if tool_name in {
+        "accept_friend_request",
+        "reject_friend_request",
+        "cancel_friend_request",
+    }:
+        return status == _FRIEND_REQUEST_PENDING_STATUS
+    return status in {_SHARED_REMINDER_PENDING_STATUS, _FRIEND_REQUEST_PENDING_STATUS}
+
+
+def _fresh_record_belongs_to_actor(
+    *,
+    tool_name: str,
+    record: Mapping[str, Any],
+    run_context: AgentRunContext,
+) -> bool:
+    camel_key, snake_key = _actor_field_for_tool(tool_name)
+    actor_id = _record_value(record, camel_key, snake_key)
+    return bool(actor_id and actor_id == run_context.user.id)
+
+
+def _fresh_record_is_expired(
+    *,
+    record: Mapping[str, Any],
+    run_context: AgentRunContext,
+) -> bool:
+    raw = _record_value(record, "expiresAt", "expires_at")
+    if not raw:
+        return False
+    if raw.endswith("Z"):
+        raw = f"{raw[:-1]}+00:00"
+    try:
+        expires_at = datetime.fromisoformat(raw)
+    except ValueError:
+        return False
+    return expires_at <= run_context.current_time
+
+
+async def _forced_focus_freshness_failure(
+    *,
+    tool_name: str,
+    request_id: str,
+    input_message: str,
+    run_context: AgentRunContext,
+) -> DomainExecutionResult | None:
+    if _focus_action_id(run_context) != request_id:
+        return None
+    read_tool_name = _FOCUS_WRITE_TO_READ_TOOL.get(tool_name)
+    if read_tool_name is None:
+        return None
+    read_result = await _run_port(
+        SchedulingCapabilityPort(tool_name=read_tool_name),
+        input_message=input_message,
+        run_context=run_context,
+        args={},
+    )
+    if not read_result.ok:
+        return _stale_focus_result(tool_name=tool_name, request_id=request_id)
+    record = _matching_fresh_record(
+        _records_from_freshness_result(
+            tool_name=read_tool_name,
+            content=dict(read_result.content),
+        ),
+        request_id,
+    )
+    if record is None:
+        return _stale_focus_result(tool_name=tool_name, request_id=request_id)
+    if not _fresh_record_belongs_to_actor(
+        tool_name=tool_name,
+        record=record,
+        run_context=run_context,
+    ):
+        return _stale_focus_result(tool_name=tool_name, request_id=request_id)
+    if _fresh_record_is_expired(record=record, run_context=run_context):
+        return _stale_focus_result(
+            tool_name=tool_name,
+            request_id=request_id,
+            visible_summary="这个请求已经过期，现在不再可处理。",
+        )
+    if not _fresh_record_status_is_actionable(tool_name, record):
+        return _stale_focus_result(tool_name=tool_name, request_id=request_id)
+    return None
+
+
 def _scheduling_agent_input(input_message: str, intent: str) -> str:
     return (
         f"Resolved scheduling intent: {intent}\n"
@@ -495,6 +696,17 @@ async def run_scheduling_domain(
                 result = _no_scheduling_tool_called_result(intent)
                 domain_results.append(result)
                 return result.to_dict()
+            request_id = str(forced_args.get("request_id") or "").strip()
+            if request_id:
+                stale_result = await _forced_focus_freshness_failure(
+                    tool_name=tool_name,
+                    request_id=request_id,
+                    input_message=input_message,
+                    run_context=run_context,
+                )
+                if stale_result is not None:
+                    domain_results.append(stale_result)
+                    return stale_result.to_dict()
             port = SchedulingCapabilityPort(tool_name=tool_name)
             capability_result = await _run_port(
                 port,
