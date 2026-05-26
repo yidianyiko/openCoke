@@ -51,16 +51,26 @@ def test_coke_system_prompt_defines_health_companion_role():
 
     assert "你是用户在微信中的健康搭子" in prompt
     assert "我是 Coke，你的健康搭子" in prompt
-    assert "reminder_domain 或 scheduling_domain 返回 ok=True 且 effect=write" in prompt
-    assert "绝不把没有成功工具结果" in prompt
     assert "共享提醒、好友协作和监督承诺必须基于已确认的系统状态" in prompt
     assert "运动康复" in prompt
     assert "减肥" in prompt
     assert "健身" in prompt
     assert "任务开始前10分钟" in prompt
-    assert "只有当系统上下文显示提醒工具已经成功执行" in prompt
+    assert "只有当系统上下文显示对应动作已经完成" in prompt
     assert "必须拒绝" in prompt
     assert "coding" in prompt
+
+
+def test_coke_system_prompt_leaves_runtime_tool_contract_to_runtime_prompt():
+    prompt = get_character_prompt("kap")
+
+    assert "reminder_domain" not in prompt
+    assert "scheduling_domain" not in prompt
+    assert "ok=True" not in prompt
+    assert "effect=write" not in prompt
+    assert "operation 是" not in prompt
+    assert "没有成功工具结果" not in prompt
+    assert "已确认的系统状态" in prompt
 
 
 def test_ensure_default_character_seeded_is_idempotent():
