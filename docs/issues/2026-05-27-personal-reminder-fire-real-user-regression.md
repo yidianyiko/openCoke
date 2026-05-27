@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: in_progress
+status: resolved
 surface:
   - agent-runtime
   - reminder-detect
@@ -225,3 +225,40 @@ Green tests after the fix:
 ```
 
 Result: 123 passed.
+
+### Deployment And Production Verification
+
+Fix commit: `40dcf1ea fix: preserve reminder delivery route keys`.
+
+Deployment:
+
+```bash
+./scripts/deploy-compose-to-gcp.sh --restart
+```
+
+Result: deploy completed, remote health checks passed, public site check passed.
+
+Production real-user smoke after deploy used olivers with marker
+`routefix-20260527T084358Z`.
+
+Create evidence:
+
+- Input: `2分钟后提醒我喝水-routefix-20260527T084358Z。`
+- Ack output `_id=6a16af87e82b5fb64e88ed40`, `status=handled`.
+- Visible reminder `_id=6a16af83e82b5fb64e88ed3a`.
+- `agent_output_target.route_key=bc_6a16459b790c7841638352b4`.
+
+Fire evidence:
+
+- Reminder `6a16af83e82b5fb64e88ed3a` completed at
+  `2026-05-27T08:48:37.920000Z`.
+- `last_error=null`, `next_fire_at=null`.
+- Fire output `_id=6a16afe5e82b5fb64e88edd0`, `status=handled`.
+- Fire output metadata used
+  `business_conversation_key=bc_6a16459b790c7841638352b4`.
+- Gateway logs showed `/api/outbound` returned `200`.
+
+The same run also produced an internal follow-up
+`6a16af8fe82b5fb64e88ed4f`; it completed and pushed with the same real
+business key. That was useful supporting evidence, but the acceptance criterion
+for this issue is the visible reminder fire output above.

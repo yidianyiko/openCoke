@@ -65,3 +65,64 @@ Command:
 ```
 
 Result: 123 passed.
+
+## Deployment
+
+Command:
+
+```bash
+./scripts/deploy-compose-to-gcp.sh --restart
+```
+
+Result: deployment completed; remote health endpoints and public site checks
+passed.
+
+## Production Verification After Deploy
+
+Marker: `routefix-20260527T084358Z`
+
+Input through production bridge:
+
+```text
+2分钟后提醒我喝水-routefix-20260527T084358Z。
+```
+
+Bridge response:
+
+```json
+{"ok": true, "reply": "正在处理中，稍后把结果发给你。"}
+```
+
+Route queried from production Postgres:
+
+- account: `ck_SXk_J0U0V5JKcK09QHEuo`
+- display name: `olivers`
+- business route: `bc_6a16459b790c7841638352b4`
+- active: `true`
+
+Create result:
+
+- input `_id=6a16af6977c9fa7c817dd7ba`, `status=handled`
+- ack output `_id=6a16af87e82b5fb64e88ed40`, `status=handled`
+- visible reminder `_id=6a16af83e82b5fb64e88ed3a`
+- title: `喝水-routefix-20260527T084358Z`
+- `agent_output_target.route_key=bc_6a16459b790c7841638352b4`
+
+Visible fire result:
+
+- reminder lifecycle: `completed`
+- `last_fired_at=2026-05-27T08:48:33Z`
+- `completed_at=2026-05-27T08:48:37.920000Z`
+- `last_error=null`
+- fire output `_id=6a16afe5e82b5fb64e88edd0`
+- fire output `status=handled`
+- fire output metadata
+  `business_conversation_key=bc_6a16459b790c7841638352b4`
+- gateway `/api/outbound` returned `200`
+
+Supporting internal follow-up:
+
+- reminder `_id=6a16af8fe82b5fb64e88ed4f`
+- output `_id=6a16afc6e82b5fb64e88ed9c`
+- output `status=handled`
+- output metadata used the same real business key.
