@@ -4,8 +4,6 @@ from datetime import datetime, timezone
 
 import requests
 
-from connector.clawscale_bridge.customer_ids import resolve_customer_id
-
 
 class GatewayOutboundClient:
     def __init__(
@@ -24,8 +22,7 @@ class GatewayOutboundClient:
         self,
         *,
         output_id: str,
-        customer_id: str | None = None,
-        account_id: str | None = None,
+        customer_id: str,
         business_conversation_key: str,
         text: str,
         message_type: str,
@@ -46,10 +43,9 @@ class GatewayOutboundClient:
                 .isoformat()
                 .replace("+00:00", "Z")
             )
-        normalized_customer_id = resolve_customer_id(
-            customer_id=customer_id,
-            account_id=account_id,
-        )
+        normalized_customer_id = customer_id.strip()
+        if not normalized_customer_id:
+            raise ValueError("customer_id_required")
         payload = {
             "output_id": output_id,
             "customer_id": normalized_customer_id,

@@ -18,7 +18,7 @@ def test_gateway_outbound_client_posts_normalized_payload_with_auth_header():
 
     response = client.post_output(
         output_id="out_1",
-        account_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="time to eat",
         message_type="text",
@@ -34,7 +34,7 @@ def test_gateway_outbound_client_posts_normalized_payload_with_auth_header():
         "https://gateway.local/api/outbound",
         json={
             "output_id": "out_1",
-            "customer_id": "acc_1",
+            "customer_id": "ck_1",
             "business_conversation_key": "bc_1",
             "text": "time to eat",
             "message_type": "text",
@@ -65,7 +65,7 @@ def test_gateway_outbound_client_omits_optional_causal_event_id():
 
     client.post_output(
         output_id="out_1",
-        account_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="time to eat",
         message_type="text",
@@ -79,7 +79,7 @@ def test_gateway_outbound_client_omits_optional_causal_event_id():
         "https://gateway.local/api/outbound",
         json={
             "output_id": "out_1",
-            "customer_id": "acc_1",
+            "customer_id": "ck_1",
             "business_conversation_key": "bc_1",
             "text": "time to eat",
             "message_type": "text",
@@ -108,7 +108,7 @@ def test_gateway_outbound_client_serializes_media_options():
 
     client.post_output(
         output_id="out_1",
-        account_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="voice note",
         message_type="voice",
@@ -124,7 +124,7 @@ def test_gateway_outbound_client_serializes_media_options():
         "https://gateway.local/api/outbound",
         json={
             "output_id": "out_1",
-            "customer_id": "acc_1",
+            "customer_id": "ck_1",
             "business_conversation_key": "bc_1",
             "text": "voice note",
             "message_type": "voice",
@@ -138,3 +138,34 @@ def test_gateway_outbound_client_serializes_media_options():
         headers={"Authorization": "Bearer outbound-secret"},
         timeout=15,
     )
+
+
+def test_gateway_outbound_client_rejects_blank_customer_id():
+    import pytest
+
+    from connector.clawscale_bridge.gateway_outbound_client import (
+        GatewayOutboundClient,
+    )
+
+    session = MagicMock()
+
+    client = GatewayOutboundClient(
+        api_url="https://gateway.local/api/outbound",
+        api_key="outbound-secret",
+        session=session,
+    )
+
+    with pytest.raises(ValueError, match="customer_id_required"):
+        client.post_output(
+            output_id="out_1",
+            customer_id=" ",
+            business_conversation_key="bc_1",
+            text="time to eat",
+            message_type="text",
+            delivery_mode="push",
+            expect_output_timestamp="2024-03-09T16:00:00Z",
+            idempotency_key="idem_1",
+            trace_id="trace_1",
+        )
+
+    session.post.assert_not_called()
