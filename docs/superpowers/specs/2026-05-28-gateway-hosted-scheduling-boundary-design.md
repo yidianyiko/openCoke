@@ -1,11 +1,16 @@
 ---
-status: active
+status: superseded
 created_at: 2026-05-28
 owner: architecture
 kind: design
+superseded_by: 2026-05-28-direct-friendship-shared-reminders-design.md
 ---
 
 # Gateway-Hosted Scheduling Boundary Design
+
+> Superseded: this draft describes the retired pending-confirmation scheduling
+> boundary. The active product contract is
+> `2026-05-28-direct-friendship-shared-reminders-design.md`.
 
 ## Decision
 

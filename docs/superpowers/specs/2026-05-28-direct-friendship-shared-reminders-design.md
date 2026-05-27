@@ -481,6 +481,22 @@ and is a non-rolling change. Deployment order is:
 Zero-downtime expand/contract compatibility is explicitly not part of this
 design because compatibility routes and legacy pending models are being removed.
 
+## Retention
+
+Current scheduling retention policies are:
+
+- `friend_link_session_retention`: unclaimed link sessions
+- `disabled_user_link_retention`: disabled user links that remain audit-retained
+- `friendship_retention`: active or removed friendship relationship facts
+- `product_notification_retention`: delivered or failed direct-friendship and
+  shared-reminder product notifications
+
+Retired policies are not active product contracts:
+
+- friend-request retention
+- account-block retention
+- shared-reminder-request retention
+
 ## Testing And Verification
 
 Use TDD for implementation.

@@ -1802,7 +1802,9 @@ async def test_create_interaction_agent_scheduling_domain_delegates_with_intent(
         tool.entrypoint for tool in agent.tools if tool.name == "scheduling_domain"
     )
 
-    result = await scheduling_domain(intent="cancel_shared_reminder: request_id=sr_1")
+    result = await scheduling_domain(
+        intent='cancel_shared_reminder: {"shared_reminder_id":"sr_1"}'
+    )
 
     assert result is envelope
     assert captured == {
@@ -2566,8 +2568,12 @@ async def test_create_interaction_agent_scheduling_domain_reuses_exact_duplicate
     )
 
     first, second = await asyncio.gather(
-        scheduling_domain(intent={"cancel_shared_reminder": {"request_id": "sr_1"}}),
-        scheduling_domain(intent={"cancel_shared_reminder": {"request_id": "sr_1"}}),
+        scheduling_domain(
+            intent={"cancel_shared_reminder": {"shared_reminder_id": "sr_1"}}
+        ),
+        scheduling_domain(
+            intent={"cancel_shared_reminder": {"shared_reminder_id": "sr_1"}}
+        ),
     )
 
     assert calls == 1
@@ -2631,10 +2637,10 @@ async def test_create_interaction_agent_scheduling_domain_fails_different_write_
     )
 
     first = await scheduling_domain(
-        intent={"cancel_shared_reminder": {"request_id": "sr_1"}}
+        intent={"cancel_shared_reminder": {"shared_reminder_id": "sr_1"}}
     )
     second = await scheduling_domain(
-        intent={"cancel_shared_reminder": {"request_id": "sr_2"}}
+        intent={"cancel_shared_reminder": {"shared_reminder_id": "sr_2"}}
     )
 
     assert calls == 1

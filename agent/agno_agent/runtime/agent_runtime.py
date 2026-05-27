@@ -107,7 +107,7 @@ _SCHEDULING_FORCED_ARG_KEYS = {
     "requester_name",
     "target_name",
     "message",
-    "request_id",
+    "shared_reminder_id",
     "focus_token",
     "focus_handle",
     "title",
@@ -417,6 +417,31 @@ def _normalize_scheduling_intent_args(
                 },
             )
         return compact
+    if tool_name == "cancel_shared_reminder":
+        allowed_cancel_keys = {
+            "shared_reminder_id",
+            "friend_name",
+            "title",
+            "friendship_id",
+            "timezone",
+            "focus_token",
+            "focus_handle",
+            "idempotency_key",
+        }
+        invalid_keys = sorted(
+            key for key in normalized if key not in allowed_cancel_keys
+        )
+        if invalid_keys:
+            raise _SchedulingIntentError(
+                "invalid_scheduling_args",
+                "cancel_shared_reminder only accepts canonical scheduling args",
+                detail={"tool_name": tool_name, "invalid_keys": invalid_keys},
+            )
+        return {
+            key: value
+            for key, value in normalized.items()
+            if value is not None and value != ""
+        }
     allowed = set(_SCHEDULING_FORCED_ARG_KEYS)
     return {
         key: value

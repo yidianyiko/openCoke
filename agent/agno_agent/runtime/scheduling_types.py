@@ -17,7 +17,7 @@ class SharedReminderSchedulingArgs(BaseModel):
     fire_at: str | None = None
     duration_minutes: int | None = None
     timezone: str | None = None
-    request_id: str | None = None
+    shared_reminder_id: str | None = None
     status: str | None = None
     friend_name: str | None = None
     requester_name: str | None = None

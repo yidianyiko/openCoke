@@ -326,7 +326,6 @@ def _make_scheduling_tool_fn(
         duration_minutes: int | None = None,
         status: str | None = None,
         timezone: str | None = None,
-        request_id: str | None = None,
         shared_reminder_id: str | None = None,
         friend_name: str | None = None,
         requester_name: str | None = None,
@@ -377,7 +376,6 @@ def _make_scheduling_tool_fn(
                     "duration_minutes": duration_minutes,
                     "status": status,
                     "timezone": timezone,
-                    "request_id": request_id,
                     "shared_reminder_id": shared_reminder_id,
                     "friend_name": friend_name,
                     "requester_name": requester_name,
@@ -427,7 +425,6 @@ def _make_scheduling_tool_fn(
         duration_minutes: int | None = None,
         status: str | None = None,
         timezone: str | None = None,
-        request_id: str | None = None,
         shared_reminder_id: str | None = None,
         friend_name: str | None = None,
         requester_name: str | None = None,
@@ -449,7 +446,6 @@ def _make_scheduling_tool_fn(
             duration_minutes=duration_minutes,
             status=status,
             timezone=timezone,
-            request_id=request_id,
             shared_reminder_id=shared_reminder_id,
             friend_name=friend_name,
             requester_name=requester_name,
@@ -584,7 +580,7 @@ def _focus_action_id(run_context: AgentRunContext) -> str | None:
     current = focus.get("current")
     if not isinstance(current, Mapping):
         return None
-    value = current.get("action_id") or current.get("request_id")
+    value = current.get("action_id") or current.get("shared_reminder_id")
     return str(value).strip() if value is not None else None
 
 
@@ -619,8 +615,6 @@ def _matching_fresh_record(
         candidate = _record_value(
             record,
             "id",
-            "request_id",
-            "requestId",
             "shared_reminder_id",
             "sharedReminderId",
         )
@@ -755,8 +749,10 @@ async def _bind_forced_focus_selection(
             None,
             _stale_focus_result(tool_name=tool_name, request_id=focus_handle),
         )
-    request_id = str(data.get("request_id") or "").strip()
-    if not request_id:
+    shared_reminder_id = str(
+        data.get("shared_reminder_id") or data.get("request_id") or ""
+    ).strip()
+    if not shared_reminder_id:
         return (
             None,
             _stale_focus_result(tool_name=tool_name, request_id=focus_handle),
@@ -766,7 +762,7 @@ async def _bind_forced_focus_selection(
         for key, value in forced_args.items()
         if key not in {"focus_token", "focus_handle"}
     }
-    normalized_args["request_id"] = request_id
+    normalized_args["shared_reminder_id"] = shared_reminder_id
     return normalized_args, None
 
 
@@ -880,11 +876,13 @@ async def run_scheduling_domain(
                 result = _no_scheduling_tool_called_result(intent)
                 domain_results.append(result)
                 return result.to_dict()
-            request_id = str(forced_args.get("request_id") or "").strip()
-            if request_id:
+            shared_reminder_id = str(
+                forced_args.get("shared_reminder_id") or ""
+            ).strip()
+            if shared_reminder_id:
                 stale_result = await _forced_focus_freshness_failure(
                     tool_name=tool_name,
-                    request_id=request_id,
+                    request_id=shared_reminder_id,
                     input_message=input_message,
                     run_context=run_context,
                 )

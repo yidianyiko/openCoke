@@ -11,7 +11,7 @@ This document describes runtime topology. Ownership boundaries are routed by
 `docs/design-docs/coke-working-contract.md` and
 `docs/design-docs/interface-contract.md`, with feature-specific boundary
 decisions recorded in active specs such as
-`docs/superpowers/specs/2026-05-28-gateway-hosted-scheduling-boundary-design.md`.
+`docs/superpowers/specs/2026-05-28-direct-friendship-shared-reminders-design.md`.
 Planning surfaces and ownership systems are related but not identical.
 
 ## 1. Runtime Topology

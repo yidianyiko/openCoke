@@ -201,7 +201,8 @@ def test_scheduling_tool_fn_schema_exposes_friend_and_shared_reminder_arguments(
     )
     function = tool(name="create_shared_reminder")(fn)
 
-    assert "request_id" in function.parameters["properties"]
+    assert "shared_reminder_id" in function.parameters["properties"]
+    assert "request_id" not in function.parameters["properties"]
     assert "friendship_id" in function.parameters["properties"]
     assert "friend_name" in function.parameters["properties"]
 
