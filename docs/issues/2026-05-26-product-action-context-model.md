@@ -7,7 +7,7 @@ surface:
   - gateway-api
   - product-spec
 created_at: 2026-05-26
-updated_at: 2026-05-26
+updated_at: 2026-05-27
 ---
 
 # 2026-05-26 Product Action Context Model For Notification Replies
@@ -211,3 +211,74 @@ Open for design review. The observed formatted-confirmation failure has a
 runtime hotfix, but the broader context model for actionable product
 notifications still needs product and architecture agreement before further
 implementation.
+
+## 2026-05-27 Real-User Smoke Update
+
+Production real-user smoke with `olivers` and `李梓豪` used marker
+`shared-smoke-20260527T085644Z`. The shared-reminder create path succeeded,
+the invitee notification was delivered, and the inbound accept turn preserved
+trusted `metadata.product_notification` with request id, kind, allowed actions,
+and summary.
+
+The invitee replied `接受`, but the bridge response was:
+
+`我没法可靠判断你要同意还是拒绝这条请求，请再明确回复同意或拒绝。`
+
+Layer isolation showed the gateway/domain accept and requester notification
+chain were healthy. Calling the canonical gateway `accept_shared_reminder`
+tool for the same request returned `accepted`, created the invitee reminder
+projection, and delivered `shared_reminder_accepted` to `olivers`.
+
+The root cause for this run is not missing bridge metadata and not a gateway
+accept bug. A direct production semantic interpreter probe with the same focus
+and utterance returned `accept/high`, but took longer than the previous 8
+second default budget. The bridge turn started at `2026-05-27 09:01:10` and
+wrote the fail-closed clarification at `09:01:18`, matching the timeout window.
+
+Current repair: increase the semantic interpreter default timeout budget while
+preserving the current architecture: trusted product-action focus plus semantic
+classification, followed by domain validation. Do not add more confirmation
+keyword rules as the fix.
+
+Evidence:
+
+- `artifacts/evidence/shared-reminder-real-user-smoke/2026-05-27-shared-smoke-20260527T085644Z.md`
+
+## 2026-05-27 Repair Verification
+
+The semantic interpreter default timeout was increased from 8 seconds to 20
+seconds. This keeps the current product-action architecture intact: trusted
+focus, semantic classification, then domain validation. No new confirmation
+keyword rules were added.
+
+Verification:
+
+- `.venv/bin/python -m pytest tests/unit/agent/test_semantic_interpreter.py::test_semantic_interpreter_default_timeout_covers_production_latency -q`
+  failed before the default change and passed after.
+- `.venv/bin/python -m pytest tests/unit/agent/test_semantic_interpreter.py tests/unit/agent/test_agent_runtime_construction.py -q`
+  passed: 72 tests.
+- `zsh scripts/verify-surface repo-os-docs worker-runtime bridge` passed:
+  repo-OS checks, runner 71 tests, agent 539 tests, topology 7 tests, bridge
+  163 tests, message-util routing 14 tests.
+- `git diff --check` passed.
+- `zsh scripts/review-trigger --base HEAD~1` returned
+  `human_review_required: no`.
+- `./scripts/deploy-compose-to-gcp.sh --restart` completed; remote bridge,
+  gateway, and public checks passed.
+
+Production retest:
+
+- Marker: `shared-smoke-fix-20260527T092700Z`.
+- `olivers` created a shared reminder for `李梓豪`; the invite notification was
+  delivered.
+- `李梓豪` replied `接受` through the full bridge path with trusted
+  `product_notification` context.
+- Bridge returned a successful accept confirmation.
+- Postgres showed request `cmpnulkms0001o71t9pnyi5q9` as `accepted` with
+  invitee reminder `6a16b638a35295dbc5b7a7d5`.
+- Requester notification `shared_reminder_accepted` was delivered to
+  `olivers`.
+- Both future reminder projections had the correct route keys and were then
+  cancelled.
+- The exact marked shared request was deleted; final request, notification,
+  and event counts for that request id were all `0`.

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from agent.agno_agent.runtime.focus import build_focus_channel
 from agent.agno_agent.runtime.semantic_interpreter import (
     SemanticIntentResult,
+    _semantic_interpreter_timeout_seconds,
     build_semantic_interpreter_input,
     create_semantic_intent_client,
     interpret_semantic_intent,
@@ -189,6 +190,12 @@ async def test_semantic_interpreter_fails_closed_without_client_for_single_focus
 
     assert result.intent == "ambiguous"
     assert result.clarification_reason == "semantic interpreter client unavailable"
+
+
+def test_semantic_interpreter_default_timeout_covers_production_latency(monkeypatch):
+    monkeypatch.delenv("COKE_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS", raising=False)
+
+    assert _semantic_interpreter_timeout_seconds() >= 20.0
 
 
 @pytest.mark.asyncio

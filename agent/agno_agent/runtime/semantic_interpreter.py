@@ -49,7 +49,7 @@ _MUTATION_INTENTS = {
     "reset_user_link",
     "disable_user_link",
 }
-_DEFAULT_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS = 8.0
+_DEFAULT_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS = 20.0
 
 _SEMANTIC_INTERPRETER_INSTRUCTIONS = """You classify a user's current reply against a trusted product-action focus.
 Return only the structured semantic intent.
