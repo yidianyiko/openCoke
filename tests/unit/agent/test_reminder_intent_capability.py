@@ -919,6 +919,52 @@ async def test_reminder_intent_port_routes_referential_relative_delay_update_fro
 
 
 @pytest.mark.asyncio
+async def test_reminder_intent_port_repairs_create_request_misrouted_as_update():
+    from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
+
+    run_context = AgentRunContext(
+        user=TrustedUserContext(id="user-1", nickname="User", timezone="Asia/Shanghai"),
+        character=TrustedCharacterContext(id="char-1", nickname="Coke"),
+        conversation=TrustedConversationContext(
+            id="conv-1", platform="business", route_key=None
+        ),
+        relation=TrustedRelationContext(uid="user-1", cid="char-1"),
+        platform="business",
+        recent_chat_history="",
+        current_time=datetime(2026, 5, 27, 7, 35, tzinfo=UTC),
+    )
+
+    class PrimaryAgent:
+        async def arun(self, *, input, session_state, session_id=None):
+            return SimpleNamespace(
+                content=SimpleNamespace(
+                    intent_type="crud",
+                    action="update",
+                    title="喝水-fire-real-20260527T073551Z",
+                    reminder_id="fire-real-20260527T073551Z",
+                    new_trigger_at="2026-05-27T15:39:00+08:00",
+                )
+            )
+
+    class FakeExecutor:
+        def execute(self, received_decision, received_context):
+            assert received_context is run_context
+            assert received_decision.action == "create"
+            assert received_decision.title == "喝水-fire-real-20260527T073551Z"
+            assert received_decision.trigger_at == "2026-05-27T15:39:00+08:00"
+            assert received_decision.reminder_id == ""
+            assert received_decision.new_trigger_at == ""
+            return _executed_result("已创建提醒：喝水-fire-real-20260527T073551Z")
+
+    result = await ReminderIntentPort(
+        detector_agent=PrimaryAgent(),
+        command_executor=FakeExecutor(),
+    ).run("2分钟后提醒我喝水-fire-real-20260527T073551Z。", run_context)
+
+    _assert_executed(result)
+
+
+@pytest.mark.asyncio
 async def test_reminder_intent_port_routes_bare_snooze_from_detector():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 

@@ -618,6 +618,57 @@ async def test_direct_reminder_promise_fails_closed_without_confirmed_write(
 
 
 @pytest.mark.asyncio
+async def test_failed_reminder_domain_result_blocks_created_claim(monkeypatch):
+    failed_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="failed",
+        operations=(
+            DomainOperationResult(
+                action="update",
+                ok=False,
+                effect="none",
+                entity_type="reminder",
+                entity_id=None,
+                error=DomainError(
+                    code="AmbiguousReminderKeyword",
+                    message="更新提醒失败：没有找到要更新的提醒，请告诉我提醒名称。",
+                    retryable=False,
+                ),
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="report_failure",
+            prohibited_claims=("reminder_created",),
+            allow_rephrase=True,
+        ),
+        error=DomainError(
+            code="AmbiguousReminderKeyword",
+            message="更新提醒失败：没有找到要更新的提醒，请告诉我提醒名称。",
+            retryable=False,
+        ),
+    )
+    text = "提醒已创建：喝水-fire-real-20260527T073551Z，今天下午3点39分提醒。"
+
+    result = await _run_with_fake_agent(
+        messages=[{"role": "assistant", "content": text}],
+        capability_results=[],
+        domain_results=[failed_result],
+        monkeypatch=monkeypatch,
+        input_text="2分钟后提醒我喝水-fire-real-20260527T073551Z。",
+        content=text,
+    )
+
+    assert result.visible_messages == ()
+    assert result.output_disposition.status == "empty"
+    assert result.error_disposition is not None
+    assert result.error_disposition.code == "domain_reply_contract_violation"
+    assert result.error_disposition.metadata == {
+        "domain": "reminder",
+        "violations": ("prohibited claim reminder_created",),
+    }
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "model_text",
     [

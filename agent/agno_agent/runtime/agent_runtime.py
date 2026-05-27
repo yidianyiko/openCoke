@@ -15,6 +15,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from agent.agno_agent.runtime.context import AgentRunContext
+from agent.agno_agent.runtime.diagnostic_patterns import check_prohibited_claims
 from agent.agno_agent.runtime.domain_results import (
     DomainError,
     DomainExecutionResult,
@@ -1448,6 +1449,63 @@ def _check_unconfirmed_durable_write_promise(
     )
 
 
+def _check_domain_reply_contract(
+    *,
+    final_text: str,
+    domain_results: Sequence[DomainExecutionResult],
+) -> RuntimeErrorDisposition | None:
+    if not final_text:
+        return None
+    for result in domain_results:
+        contract = replace(
+            result.reply_contract,
+            prohibited_claims=tuple(
+                claim
+                for claim in result.reply_contract.prohibited_claims
+                if not _prohibited_claim_confirmed_by_write(
+                    claim,
+                    domain_results,
+                )
+            ),
+        )
+        violations = check_prohibited_claims(contract, final_text)
+        if violations:
+            return RuntimeErrorDisposition(
+                code="domain_reply_contract_violation",
+                retryable=False,
+                metadata={
+                    "domain": result.domain,
+                    "violations": violations,
+                },
+            )
+    return None
+
+
+def _prohibited_claim_confirmed_by_write(
+    claim: str,
+    domain_results: Sequence[DomainExecutionResult],
+) -> bool:
+    if claim == "reminder_created":
+        return any(
+            result.domain == "reminder"
+            and operation.ok
+            and operation.effect == "write"
+            and operation.action == "create"
+            for result in domain_results
+            for operation in result.operations
+        )
+    if claim == "appointment_confirmed":
+        return any(
+            result.domain == "scheduling"
+            and operation.ok
+            and operation.effect == "write"
+            and operation.action == "accept_shared_reminder"
+            for result in domain_results
+            for operation in result.operations
+        )
+    return False
+
+
 def _has_successful_domain_write(
     domain_results: Sequence[DomainExecutionResult],
     *,
@@ -2264,7 +2322,15 @@ async def run_agent_runtime(
         identifier_leak_error = _check_visible_identifier_leak(
             _visible_text_for_guardrails(visible_text_segments)
         )
-        runtime_contract_error = runtime_contract_error or identifier_leak_error
+        domain_reply_contract_error = _check_domain_reply_contract(
+            final_text=_visible_text_for_guardrails(visible_text_segments),
+            domain_results=captured_domain_results,
+        )
+        runtime_contract_error = (
+            runtime_contract_error
+            or domain_reply_contract_error
+            or identifier_leak_error
+        )
         if runtime_contract_error is not None:
             visible_text_segments = ()
         visible_messages = tuple(
