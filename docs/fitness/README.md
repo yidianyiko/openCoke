@@ -60,6 +60,10 @@ deploy changes. For docs-only repo-OS edits, prefer the `repo-os-docs` surface;
 it keeps verification to structure/routing checks. Use the heavier `repo-os`
 surface for guardrail scripts, `surfaces.yaml`, or verification tooling.
 
+Use [`../design-docs/test-evidence-contract.md`](../design-docs/test-evidence-contract.md)
+when deciding whether a test is valid evidence, should be rewritten, or should
+be deleted with a retired behavior.
+
 ## Coke Guardrails
 
 `surfaces.yaml` is the machine-readable surface and risk-trigger contract. It

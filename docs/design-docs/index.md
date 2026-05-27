@@ -25,6 +25,9 @@ sessions.
 - [`agent-trace-feedback-loop.md`](./agent-trace-feedback-loop.md): durable
   loop for turning `AgentTurnTrace` evidence into routing, prompt,
   tool-interface, and runtime improvements.
+- [`test-evidence-contract.md`](./test-evidence-contract.md): rules for
+  deciding when tests are real evidence, when they must be rewritten, and when
+  stale tests should be deleted with the behavior they protect.
 - [`prompt-rule-ownership.md`](./prompt-rule-ownership.md): ownership table
   for deciding whether prompt-like rules belong in prompts, schemas, tool
   contracts, runtime guards, few-shots, or eval corpus.

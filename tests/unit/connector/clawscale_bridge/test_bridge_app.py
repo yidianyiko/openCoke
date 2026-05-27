@@ -507,6 +507,24 @@ def test_bridge_internal_reminders_maps_conversation_required(monkeypatch):
     assert response.get_json() == {"ok": False, "error": "conversation_required"}
 
 
+def test_bridge_internal_reminders_maps_delivery_route_required(monkeypatch):
+    from connector.clawscale_bridge.app import create_app
+
+    app = create_app(testing=True)
+    service = MagicMock()
+    service.create_reminder.side_effect = ValueError("delivery_route_required")
+    monkeypatch.setitem(app.config, "REMINDER_MANAGEMENT_SERVICE", service)
+
+    response = app.test_client().post(
+        "/bridge/internal/reminders",
+        headers={"Authorization": "Bearer test-bridge-key"},
+        json={"customer_id": "customer-1", "title": "standup"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {"ok": False, "error": "delivery_route_required"}
+
+
 @pytest.mark.parametrize(
     ("service_method", "method", "path", "body", "expected_error"),
     [

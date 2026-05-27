@@ -764,6 +764,7 @@ def create_app(testing: bool = False):
     def _reminder_error_response(exc: ValueError):
         stable_errors = {
             "conversation_required",
+            "delivery_route_required",
             "invalid_body",
             "invalid_schedule",
             "invalid_reminder",

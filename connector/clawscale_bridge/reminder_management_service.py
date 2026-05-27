@@ -217,6 +217,12 @@ class ReminderManagementService:
             body.get("characterId") or self.character_id_provider(),
             "character_id",
         )
+        has_explicit_conversation_hint = _has_any_string(
+            body.get("businessConversationKey"),
+            body.get("business_conversation_key"),
+            body.get("gatewayConversationId"),
+            body.get("gateway_conversation_id"),
+        )
         conversation = self._find_business_conversation(
             character_id=character_id,
             business_conversation_key=body.get("businessConversationKey")
@@ -224,7 +230,7 @@ class ReminderManagementService:
             gateway_conversation_id=body.get("gatewayConversationId")
             or body.get("gateway_conversation_id"),
         )
-        if not conversation:
+        if not conversation and not has_explicit_conversation_hint:
             conversation = (
                 self.conversation_dao.find_latest_private_conversation_by_db_user_ids(
                     customer_id,
@@ -233,6 +239,9 @@ class ReminderManagementService:
             )
         if not conversation:
             raise ValueError("conversation_required")
+        route_key = _conversation_route_key(conversation)
+        if not route_key:
+            raise ValueError("delivery_route_required")
 
         command = ReminderCreateCommand(
             title=_validate_title(body.get("title")),
@@ -240,7 +249,7 @@ class ReminderManagementService:
             agent_output_target=AgentOutputTarget(
                 conversation_id=str(conversation["_id"]),
                 character_id=character_id,
-                route_key=_conversation_route_key(conversation),
+                route_key=route_key,
             ),
             created_by_system="agent",
             metadata=metadata,
@@ -475,6 +484,10 @@ def _optional_string(value: Any) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
     return value.strip()
+
+
+def _has_any_string(*values: Any) -> bool:
+    return any(_optional_string(value) is not None for value in values)
 
 
 def _conversation_route_key(conversation: dict[str, Any]) -> str | None:

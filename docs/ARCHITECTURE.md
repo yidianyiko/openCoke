@@ -174,6 +174,11 @@ The Reminder System owns assistant-created reminders and internal follow-ups:
   consumer.
 - reminder documents include schedule data, output target, lifecycle, and the
   next durable wake-up in `next_fire_at`
+- visible reminder creation through bridge/customer management must resolve a
+  durable delivery route key before it calls the Reminder Runtime Contract. If
+  an explicit business conversation hint is supplied but cannot be resolved,
+  the adapter fails closed instead of falling back to a different latest
+  conversation.
 - visible reminder schedules may include optional `duration_minutes`, exposed
   as `durationMinutes` through Bridge/Gateway APIs; positive duration makes the
   reminder occupy calendar time, while absent duration remains a point reminder

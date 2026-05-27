@@ -467,74 +467,54 @@ def test_create_reminder_resolves_explicit_business_conversation_before_latest(
     )
 
 
-def test_create_reminder_falls_back_to_latest_when_explicit_conversation_missing():
+def test_create_reminder_rejects_missing_explicit_business_conversation():
     runtime_contract = MagicMock()
-    runtime_contract.create_visible_reminder.return_value = _reminder()
     conversation_dao = MagicMock()
     conversation_dao.get_private_conversation.return_value = None
-    conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
-        "_id": "conv-latest",
-        "route_key": "latest-route",
-    }
 
-    _service(
-        reminder_runtime=runtime_contract,
-        conversation_dao=conversation_dao,
-    ).create_reminder(
-        customer_id="customer-1",
-        body={
-            "title": "standup",
-            "localDate": "2026-05-13",
-            "localTime": "09:30",
-            "timezone": "Asia/Tokyo",
-            "businessConversationKey": "missing-bc",
-        },
-    )
-
-    conversation_dao.find_latest_private_conversation_by_db_user_ids.assert_called_once_with(
-        "customer-1",
-        "char-1",
-    )
-    assert runtime_contract.create_visible_reminder.call_args.kwargs[
-        "target"
-    ] == AgentOutputTarget(
-        conversation_id="conv-latest",
-        character_id="char-1",
-        route_key="latest-route",
-    )
-
-
-def test_create_reminder_does_not_require_route_key():
-    runtime_contract = MagicMock()
-    runtime_contract.create_visible_reminder.return_value = _reminder(
-        agent_output_target=AgentOutputTarget(
-            conversation_id="conv-1",
-            character_id="char-1",
-            route_key=None,
+    with pytest.raises(ValueError) as exc:
+        _service(
+            reminder_runtime=runtime_contract,
+            conversation_dao=conversation_dao,
+        ).create_reminder(
+            customer_id="customer-1",
+            body={
+                "title": "standup",
+                "localDate": "2026-05-13",
+                "localTime": "09:30",
+                "timezone": "Asia/Tokyo",
+                "businessConversationKey": "missing-bc",
+            },
         )
-    )
+
+    assert str(exc.value) == "conversation_required"
+    conversation_dao.find_latest_private_conversation_by_db_user_ids.assert_not_called()
+    runtime_contract.create_visible_reminder.assert_not_called()
+
+
+def test_create_reminder_requires_delivery_route_key():
+    runtime_contract = MagicMock()
     conversation_dao = MagicMock()
     conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
         "_id": "conv-1"
     }
 
-    _service(
-        reminder_runtime=runtime_contract,
-        conversation_dao=conversation_dao,
-    ).create_reminder(
-        customer_id="customer-1",
-        body={
-            "title": "standup",
-            "localDate": "2026-05-13",
-            "localTime": "09:30",
-            "timezone": "Asia/Tokyo",
-        },
-    )
+    with pytest.raises(ValueError) as exc:
+        _service(
+            reminder_runtime=runtime_contract,
+            conversation_dao=conversation_dao,
+        ).create_reminder(
+            customer_id="customer-1",
+            body={
+                "title": "standup",
+                "localDate": "2026-05-13",
+                "localTime": "09:30",
+                "timezone": "Asia/Tokyo",
+            },
+        )
 
-    assert (
-        runtime_contract.create_visible_reminder.call_args.kwargs["target"].route_key
-        is None
-    )
+    assert str(exc.value) == "delivery_route_required"
+    runtime_contract.create_visible_reminder.assert_not_called()
 
 
 def test_create_reminder_uses_conversation_info_route_key():
@@ -587,7 +567,8 @@ def test_create_reminder_rejects_title_over_200_chars_as_invalid_body():
     runtime_contract = MagicMock()
     conversation_dao = MagicMock()
     conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
-        "_id": "conv-1"
+        "_id": "conv-1",
+        "route_key": "stored-route",
     }
 
     with pytest.raises(ValueError) as exc:
@@ -687,7 +668,8 @@ def test_create_reminder_maps_invalid_timezone_or_past_one_shot_to_invalid_sched
     runtime_contract.create_visible_reminder.side_effect = InvalidSchedule("past")
     conversation_dao = MagicMock()
     conversation_dao.find_latest_private_conversation_by_db_user_ids.return_value = {
-        "_id": "conv-1"
+        "_id": "conv-1",
+        "route_key": "stored-route",
     }
 
     with pytest.raises(ValueError) as exc:
