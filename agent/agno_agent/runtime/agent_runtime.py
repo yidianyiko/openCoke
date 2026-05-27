@@ -127,6 +127,21 @@ _RETIRED_ACCOUNT_CONTROL_RE = re.compile(
     r"(屏蔽|拉黑|解除屏蔽|取消屏蔽|\b(?:unblock|block)\b)",
     re.IGNORECASE,
 )
+_DIRECT_SHARED_REMINDER_INVITE_VERB_RE = re.compile(
+    r"(?:帮我|替我|给我)?\s*(?:邀请|邀约|(?<!预)约)"
+)
+_DIRECT_SHARED_REMINDER_TIME_RE = re.compile(
+    r"(\d{4}年|\d{1,2}[:：]\d{2}|\d{1,2}\s*点|今天|明天|后天|"
+    r"周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|"
+    r"\b\d{1,2}\s*(?:am|pm)\b)",
+    re.IGNORECASE,
+)
+_DIRECT_SHARED_REMINDER_DETAIL_RE = re.compile(
+    r"(标题|持续|时长|\d+\s*(?:分钟|小时)|一起|共享提醒)"
+)
+_PERSONAL_CONTACT_REMINDER_RE = re.compile(
+    r"(提醒我|到时提醒我|记得提醒我|叫我).{0,16}(联系|约|邀请|找|问)"
+)
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -254,6 +269,19 @@ def _is_retired_account_control_turn(input_message: str) -> bool:
     return bool(
         _RETIRED_ACCOUNT_CONTROL_RE.search(_latest_user_turn_text(input_message))
     )
+
+
+def _direct_shared_reminder_create_intent(input_message: str) -> str | None:
+    text = _latest_user_turn_text(input_message)
+    if _PERSONAL_CONTACT_REMINDER_RE.search(text):
+        return None
+    if not _DIRECT_SHARED_REMINDER_INVITE_VERB_RE.search(text):
+        return None
+    if not _DIRECT_SHARED_REMINDER_TIME_RE.search(text):
+        return None
+    if not _DIRECT_SHARED_REMINDER_DETAIL_RE.search(text):
+        return None
+    return "create_shared_reminder"
 
 
 def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
@@ -1944,6 +1972,7 @@ async def run_agent_runtime(
                 started_at=started_at,
                 domain_result=_retired_account_control_result(),
             )
+        direct_scheduling_intent = _direct_shared_reminder_create_intent(input_message)
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         semantic_client = (
             _create_semantic_intent_client()
@@ -1961,6 +1990,11 @@ async def run_agent_runtime(
         preselected_scheduling_intent, preselected_scheduling_args = (
             _semantic_scheduling_intent_and_args(semantic_result, focus)
         )
+        if (
+            preselected_scheduling_intent is None
+            and direct_scheduling_intent is not None
+        ):
+            preselected_scheduling_intent = direct_scheduling_intent
         if (
             preselected_scheduling_intent is None
             and _should_fail_closed_focused_semantic(focus, semantic_result)

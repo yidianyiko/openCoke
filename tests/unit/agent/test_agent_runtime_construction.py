@@ -594,6 +594,196 @@ async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_sch
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_preselects_friend_invite_with_concrete_time(
+    monkeypatch,
+):
+    captured = {}
+    preloaded_domain_result = DomainExecutionResult(
+        domain="scheduling",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create_shared_reminder",
+                ok=True,
+                effect="write",
+                entity_type="shared_reminder_request",
+                entity_id="srr-1",
+                facts={"visible_summary": "已提交共享提醒请求，等待李梓豪确认。"},
+            ),
+        ),
+        missing_fields=(),
+        safety_boundary=None,
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            required_facts=(),
+            required_questions=(),
+            prohibited_claims=("needs_more_info",),
+            allow_rephrase=True,
+        ),
+    )
+
+    async def fake_run_scheduling_domain(
+        *,
+        input_message,
+        intent,
+        run_context,
+        domain_results,
+        forced_args=None,
+    ):
+        captured.update(
+            {
+                "input_message": input_message,
+                "intent": intent,
+                "run_context": run_context,
+                "forced_args": forced_args,
+            }
+        )
+        domain_results.append(preloaded_domain_result)
+        return preloaded_domain_result.to_dict()
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="我看一下对方有没有空。",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fake_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", lambda **kwargs: FakeAgent()
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text=(
+            "帮我约李梓豪，上海时间2029年1月1日10:00，"
+            "标题是验收测试，持续5分钟。"
+        ),
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["intent"] == "create_shared_reminder"
+    assert captured["forced_args"] is None
+    assert [message.content for message in result.visible_messages] == [
+        "已提交共享提醒请求，等待李梓豪确认。"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_does_not_preselect_personal_contact_reminder(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fail_run_scheduling_domain(**_kwargs):
+        raise AssertionError("personal contact reminders must not preselect scheduling")
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="direct reminder path",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured.update(kwargs)
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fail_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        fake_create_interaction_agent,
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="提醒我明天10点联系李梓豪约测试。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured.get("preselected_scheduling_intent") is None
+    assert [message.content for message in result.visible_messages] == [
+        "direct reminder path"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_does_not_preselect_activity_reservation_phrase(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fail_run_scheduling_domain(**_kwargs):
+        raise AssertionError("activity reservations must not preselect scheduling")
+
+    class FakeAgent:
+        async def arun(self, **kwargs):
+            return SimpleNamespace(
+                content="direct agent reply",
+                messages=[SimpleNamespace(role="assistant", content="")],
+            )
+
+    def fake_create_interaction_agent(**kwargs):
+        captured.update(kwargs)
+        return FakeAgent()
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_scheduling_domain",
+        fail_run_scheduling_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime,
+        "_create_interaction_agent",
+        fake_create_interaction_agent,
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="今天上午11点帮我预约一个活动是和eva一起去奇迹创坛",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured.get("preselected_scheduling_intent") is None
+    assert [message.content for message in result.visible_messages] == [
+        "direct agent reply"
+    ]
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
     monkeypatch,
 ):
