@@ -46,3 +46,32 @@ def test_find_imported_duplicate_returns_none_when_no_match():
     )
 
     assert result is None
+
+
+def test_find_visible_by_metadata_key_only_reuses_active_reminders():
+    from dao.reminder_dao import ReminderDAO
+
+    dao = ReminderDAO.__new__(ReminderDAO)
+    dao.collection = MagicMock()
+    expected = {
+        "_id": "rem-1",
+        "lifecycle_state": "active",
+        "metadata": {"runtime_idempotency_key": "shared-reminder:sr_1:creator"},
+    }
+    dao.collection.find_one.return_value = expected
+
+    result = dao.find_visible_by_metadata_key(
+        owner_user_id="user-1",
+        key="runtime_idempotency_key",
+        value="shared-reminder:sr_1:creator",
+    )
+
+    assert result == expected
+    dao.collection.find_one.assert_called_once_with(
+        {
+            "owner_user_id": "user-1",
+            "visibility": "visible",
+            "lifecycle_state": "active",
+            "metadata.runtime_idempotency_key": "shared-reminder:sr_1:creator",
+        }
+    )

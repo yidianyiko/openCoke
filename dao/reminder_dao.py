@@ -192,6 +192,7 @@ class ReminderDAO:
             {
                 "owner_user_id": owner_user_id,
                 "visibility": "visible",
+                "lifecycle_state": "active",
                 f"metadata.{key}": value,
             }
         )
