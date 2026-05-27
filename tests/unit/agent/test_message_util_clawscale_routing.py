@@ -53,8 +53,8 @@ def test_message_util_emits_business_only_output_doc_for_reminder_message(
             "handled_timestamp": kwargs["handled_timestamp"],
             "metadata": kwargs["metadata"],
         }
-        if kwargs.get("account_id") is not None:
-            output["account_id"] = kwargs["account_id"]
+        if kwargs.get("customer_id") is not None:
+            output["customer_id"] = kwargs["customer_id"]
         if platform is not None:
             output["platform"] = platform
         if from_user is not None:
@@ -69,7 +69,7 @@ def test_message_util_emits_business_only_output_doc_for_reminder_message(
 
     message = message_util.send_message_via_context(sample_context, "提醒你喝水")
 
-    assert message["account_id"] == sample_context["user"]["id"]
+    assert message["customer_id"] == sample_context["user"]["id"]
     assert "platform" not in message
     assert message["metadata"] == {
         "business_conversation_key": "bc_1",
@@ -219,8 +219,8 @@ def test_message_util_marks_reminder_output_failed_when_business_key_missing(
             "handled_timestamp": kwargs["handled_timestamp"],
             "metadata": kwargs["metadata"],
         }
-        if kwargs.get("account_id") is not None:
-            output["account_id"] = kwargs["account_id"]
+        if kwargs.get("customer_id") is not None:
+            output["customer_id"] = kwargs["customer_id"]
         if platform is not None:
             output["platform"] = platform
         return output
@@ -269,8 +269,8 @@ def test_message_util_does_not_auto_inject_clawscale_metadata_for_non_proactive_
             "message": message,
             "metadata": kwargs["metadata"],
         }
-        if kwargs.get("account_id") is not None:
-            output["account_id"] = kwargs["account_id"]
+        if kwargs.get("customer_id") is not None:
+            output["customer_id"] = kwargs["customer_id"]
         if platform is not None:
             output["platform"] = platform
         return output
@@ -281,6 +281,7 @@ def test_message_util_does_not_auto_inject_clawscale_metadata_for_non_proactive_
 
     assert message["metadata"] == {}
     assert "account_id" not in message
+    assert "customer_id" not in message
 
 
 def test_message_util_injects_business_key_into_clawscale_sync_reply_metadata(

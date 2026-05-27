@@ -255,7 +255,7 @@ def send_message_via_context(
     status = "pending"
     handled_timestamp = expect_output_timestamp
     is_proactive_message = context.get("message_source") == "reminder"
-    account_id = None
+    customer_id = None
     append_to_existing_sync_reply = False
     if not is_proactive_message:
         # 从 inputmessage 复制 metadata（用于需要回传信息的平台）
@@ -282,8 +282,8 @@ def send_message_via_context(
             )
         )
     elif get_agent_entity_id(context.get("user")):
-        account_id = get_agent_entity_id(context.get("user"))
-        clawscale_metadata = build_clawscale_push_metadata(account_id, context=context)
+        customer_id = get_agent_entity_id(context.get("user"))
+        clawscale_metadata = build_clawscale_push_metadata(customer_id, context=context)
         if clawscale_metadata:
             metadata = {**clawscale_metadata, **metadata}
         else:
@@ -296,8 +296,8 @@ def send_message_via_context(
             }
             logger.warning(
                 "missing_clawscale_business_conversation_key: failed to build "
-                "clawscale proactive output for account_id=%s conversation_id=%s",
-                account_id,
+                "clawscale proactive output for customer_id=%s conversation_id=%s",
+                customer_id,
                 _extract_clawscale_conversation_id_from_context(context),
             )
 
@@ -327,7 +327,7 @@ def send_message_via_context(
         status=status,
         expect_output_timestamp=expect_output_timestamp,
         handled_timestamp=handled_timestamp,
-        account_id=account_id,
+        customer_id=customer_id,
         metadata=metadata,
     )
     _remember_clawscale_sync_reply_output(
@@ -490,8 +490,9 @@ def _inject_business_key_into_clawscale_reply_metadata(
 
 
 def build_clawscale_push_metadata(
-    user_id: str, now_ts: int | None = None, context: dict | None = None
+    customer_id: str, now_ts: int | None = None, context: dict | None = None
 ):
+    del customer_id, now_ts
     business_conversation_key = _extract_clawscale_conversation_id_from_context(context)
     if business_conversation_key is None:
         return {}
@@ -576,6 +577,7 @@ def send_message(
     status="pending",
     expect_output_timestamp=None,
     handled_timestamp=None,
+    customer_id=None,
     account_id=None,
     metadata={},
 ):
@@ -594,6 +596,8 @@ def send_message(
         "message": message,  # 实际消息，格式另行约定
         "metadata": metadata,
     }
+    if customer_id is not None:
+        outputmessage["customer_id"] = customer_id
     if account_id is not None:
         outputmessage["account_id"] = account_id
     if from_user is not None:

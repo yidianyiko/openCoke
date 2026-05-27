@@ -289,6 +289,10 @@ agent outputmessages
   -> ClawScale-managed personal route or shared-channel provider route
 ```
 
+Push `outputmessages` that are dispatched through the bridge/gateway outbound
+path carry the current `customer_id` identifier. `account_id` is not an active
+outbound dispatch selector.
+
 For personal `wechat_personal`, delivery is ClawScale-backed. For active
 shared-channel experiments, gateway dispatches through the provider-specific
 delivery branch for `whatsapp_evolution`, `wechat_ecloud`, or `linq`. Retired

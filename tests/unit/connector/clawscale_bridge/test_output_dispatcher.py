@@ -6,7 +6,7 @@ import pytest
 def _build_message_doc(**overrides):
     doc = {
         "_id": "out_1",
-        "account_id": "acc_1",
+        "customer_id": "ck_1",
         "status": "pending",
         "message": "记得开会",
         "message_type": "text",
@@ -21,6 +21,31 @@ def _build_message_doc(**overrides):
     }
     doc.update(overrides)
     return doc
+
+
+def _expected_claim_query(now, output_dispatcher):
+    return {
+        "customer_id": {"$exists": True},
+        "expect_output_timestamp": {"$lte": now},
+        "metadata.business_conversation_key": {"$exists": True},
+        "metadata.delivery_mode": "push",
+        "metadata.output_id": {"$exists": True},
+        "$or": [
+            {"status": "pending"},
+            {
+                "status": "dispatching",
+                "$or": [
+                    {
+                        "dispatching_timestamp": {
+                            "$lte": now
+                            - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
+                        }
+                    },
+                    {"dispatching_timestamp": {"$exists": False}},
+                ],
+            },
+        ],
+    }
 
 
 def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_gateway(
@@ -50,41 +75,13 @@ def test_output_dispatcher_claims_pending_message_before_sending_and_posts_to_ga
 
     assert handled is True
     collection.find_one_and_update.assert_called_once_with(
-        {
-            "$and": [
-                {
-                    "$or": [
-                        {"customer_id": {"$exists": True}},
-                        {"account_id": {"$exists": True}},
-                    ]
-                }
-            ],
-            "expect_output_timestamp": {"$lte": now},
-            "metadata.business_conversation_key": {"$exists": True},
-            "metadata.delivery_mode": "push",
-            "metadata.output_id": {"$exists": True},
-            "$or": [
-                {"status": "pending"},
-                {
-                    "status": "dispatching",
-                    "$or": [
-                        {
-                            "dispatching_timestamp": {
-                                "$lte": now
-                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
-                            }
-                        },
-                        {"dispatching_timestamp": {"$exists": False}},
-                    ],
-                },
-            ],
-        },
+        _expected_claim_query(now, output_dispatcher),
         {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
         return_document=output_dispatcher.ReturnDocument.AFTER,
     )
     gateway_client.post_output.assert_called_once_with(
         output_id="out_1",
-        customer_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="记得开会",
         message_type="text",
@@ -232,7 +229,7 @@ def test_output_dispatcher_marks_malformed_claimed_message_failed(monkeypatch):
     collection = MagicMock()
     collection.find_one_and_update.return_value = {
         "_id": "out_1",
-        "account_id": "acc_1",
+        "customer_id": "ck_1",
         "status": "dispatching",
         "message": "记得开会",
         "metadata": {
@@ -298,7 +295,7 @@ def test_output_dispatcher_forwards_trimmed_image_url(monkeypatch):
     assert handled is True
     gateway_client.post_output.assert_called_once_with(
         output_id="out_1",
-        customer_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="记得开会",
         message_type="image",
@@ -347,7 +344,7 @@ def test_output_dispatcher_forwards_voice_url_as_voice(monkeypatch):
     assert handled is True
     gateway_client.post_output.assert_called_once_with(
         output_id="out_1",
-        customer_id="acc_1",
+        customer_id="ck_1",
         business_conversation_key="bc_1",
         text="记得开会",
         message_type="voice",
@@ -525,25 +522,18 @@ def test_output_dispatcher_reclaims_stale_dispatching_message(monkeypatch):
     collection.find_one_and_update.assert_called_once()
 
 
-def test_output_dispatcher_claims_customer_id_messages_during_compatibility_window(
-    monkeypatch,
-):
+def test_output_dispatcher_does_not_claim_account_id_only_messages(monkeypatch):
     import connector.clawscale_bridge.output_dispatcher as output_dispatcher
 
     now = 1710000000
     monkeypatch.setattr(output_dispatcher.time, "time", lambda: now)
 
     collection = MagicMock()
-    collection.find_one_and_update.return_value = _build_message_doc(
-        account_id=None,
-        customer_id="ck_123",
-        status="dispatching",
-    )
+    collection.find_one_and_update.return_value = None
 
     mongo = MagicMock()
     mongo.get_collection.return_value = collection
     gateway_client = MagicMock()
-    gateway_client.post_output.return_value.status_code = 200
 
     dispatcher = output_dispatcher.ClawScaleOutputDispatcher(
         mongo=mongo,
@@ -552,54 +542,13 @@ def test_output_dispatcher_claims_customer_id_messages_during_compatibility_wind
 
     handled = dispatcher.dispatch_once()
 
-    assert handled is True
+    assert handled is False
     collection.find_one_and_update.assert_called_once_with(
-        {
-            "$and": [
-                {
-                    "$or": [
-                        {"customer_id": {"$exists": True}},
-                        {"account_id": {"$exists": True}},
-                    ]
-                }
-            ],
-            "expect_output_timestamp": {"$lte": now},
-            "metadata.business_conversation_key": {"$exists": True},
-            "metadata.delivery_mode": "push",
-            "metadata.output_id": {"$exists": True},
-            "$or": [
-                {"status": "pending"},
-                {
-                    "status": "dispatching",
-                    "$or": [
-                        {
-                            "dispatching_timestamp": {
-                                "$lte": now
-                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
-                            }
-                        },
-                        {"dispatching_timestamp": {"$exists": False}},
-                    ],
-                },
-            ],
-        },
+        _expected_claim_query(now, output_dispatcher),
         {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
         return_document=output_dispatcher.ReturnDocument.AFTER,
     )
-    gateway_client.post_output.assert_called_once_with(
-        output_id="out_1",
-        customer_id="ck_123",
-        business_conversation_key="bc_1",
-        text="记得开会",
-        message_type="text",
-        delivery_mode="push",
-        expect_output_timestamp=1710000000,
-        idempotency_key="idem_1",
-        trace_id="trace_1",
-        causal_inbound_event_id=None,
-        media_urls=None,
-        audio_as_voice=False,
-    )
+    gateway_client.post_output.assert_not_called()
 
 
 def test_output_dispatcher_posts_promoted_late_reply_to_gateway(monkeypatch):
@@ -610,7 +559,6 @@ def test_output_dispatcher_posts_promoted_late_reply_to_gateway(monkeypatch):
 
     promoted_late_reply = _build_message_doc(
         _id="out_late_missing_ctx",
-        account_id=None,
         customer_id="acct_1",
         status="dispatching",
         message="缺少路由上下文后补发",
@@ -640,35 +588,7 @@ def test_output_dispatcher_posts_promoted_late_reply_to_gateway(monkeypatch):
 
     assert handled is True
     collection.find_one_and_update.assert_called_once_with(
-        {
-            "$and": [
-                {
-                    "$or": [
-                        {"customer_id": {"$exists": True}},
-                        {"account_id": {"$exists": True}},
-                    ]
-                }
-            ],
-            "expect_output_timestamp": {"$lte": now},
-            "metadata.business_conversation_key": {"$exists": True},
-            "metadata.delivery_mode": "push",
-            "metadata.output_id": {"$exists": True},
-            "$or": [
-                {"status": "pending"},
-                {
-                    "status": "dispatching",
-                    "$or": [
-                        {
-                            "dispatching_timestamp": {
-                                "$lte": now
-                                - output_dispatcher.STALE_DISPATCHING_TIMEOUT_SECONDS
-                            }
-                        },
-                        {"dispatching_timestamp": {"$exists": False}},
-                    ],
-                },
-            ],
-        },
+        _expected_claim_query(now, output_dispatcher),
         {"$set": {"status": "dispatching", "dispatching_timestamp": now}},
         return_document=output_dispatcher.ReturnDocument.AFTER,
     )

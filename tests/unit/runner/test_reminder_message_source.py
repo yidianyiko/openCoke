@@ -64,7 +64,7 @@ def test_message_util_treats_reminders_as_push_outputs(
             "to_user": to_user,
             "chatroom_name": chatroom_name,
             "metadata": kwargs["metadata"],
-            "account_id": kwargs.get("account_id"),
+            "customer_id": kwargs.get("customer_id"),
             "message": message,
         },
     )
@@ -75,5 +75,5 @@ def test_message_util_treats_reminders_as_push_outputs(
     assert output["from_user"] is None
     assert output["to_user"] is None
     assert output["chatroom_name"] is None
-    assert output["account_id"] == sample_context["user"]["id"]
+    assert output["customer_id"] == sample_context["user"]["id"]
     assert output["metadata"]["delivery_mode"] == "push"
