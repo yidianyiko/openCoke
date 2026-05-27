@@ -2,7 +2,11 @@
 title: Shared-reminder real-user smoke routes friend invite wording to reminder detector
 kind: incident
 date: 2026-05-27
-status: active
+status: resolved
+resolved_at: 2026-05-27T04:53:08Z
+fix_commits:
+  - 34b290f9
+  - 8e3b5c20
 affected_surfaces:
   - agent/agno_agent/runtime/chat_response_instructions.py
   - agent/agno_agent/runtime/agent_runtime.py
@@ -80,3 +84,72 @@ This is not a reason to reintroduce stale payload aliases such as
 - Real-user olivers -> 李梓豪 create/accept smoke using a unique marker and
   cleanup through runtime reminder cancellation plus exact marked Postgres
   deletion.
+
+## Resolution
+
+Implemented a two-layer fix:
+
+- The prompt/tool contract now explicitly routes `帮我约/邀请 <friend>` with a
+  concrete appointment time/title/duration to `scheduling_domain` as
+  `create_shared_reminder`.
+- The runtime now preselects `create_shared_reminder` for high-confidence
+  direct friend-invite creates before the outer model can drift into friend
+  availability or personal reminder paths.
+
+The preselection deliberately stays narrow. It excludes personal contact
+reminders such as `提醒我明天10点联系李梓豪约测试` and avoids treating
+`预约一个活动` as a shared-reminder invite.
+
+## Final Verification
+
+Local verification:
+
+- `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py::test_run_agent_runtime_preselects_friend_invite_with_concrete_time tests/unit/agent/test_agent_runtime_construction.py::test_run_agent_runtime_does_not_preselect_personal_contact_reminder tests/unit/agent/test_agent_runtime_construction.py::test_run_agent_runtime_does_not_preselect_activity_reservation_phrase -q`
+  passed.
+- `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_output_rules.py::test_shared_reminder_invite_sent_claim_fails_closed_without_confirmed_write tests/unit/agent/test_agent_runtime_output_rules.py::test_shared_reminder_invite_sent_claim_requires_create_shared_reminder_write tests/unit/agent/test_agent_runtime_output_rules.py::test_shared_reminder_invite_sent_claim_allowed_after_create_write -q`
+  passed.
+- `zsh scripts/verify-surface repo-os-docs worker-runtime` passed:
+  `scripts/check`, runner 67 tests, agent 528 tests, topology 7 tests.
+- `git diff --check` passed.
+- `zsh scripts/review-trigger --base HEAD~1` returned
+  `human_review_required: no`.
+
+Production deployment:
+
+- `./scripts/deploy-compose-to-gcp.sh --restart` completed.
+- Compose showed `coke-agent`, `coke-bridge`, and `gateway` running, with
+  bridge/gateway healthy.
+- Public `https://coke.keep4oforever.com/health` returned ok.
+- Public `https://coke.keep4oforever.com/bridge/healthz` returned ok.
+
+Real-user smoke:
+
+- Marker: `server-smoke-20260527T044852Z`.
+- Requester route: olivers, `ck_SXk_J0U0V5JKcK09QHEuo`, active route
+  `bc_6a16459b790c7841638352b4`.
+- Invitee route: 李梓豪, `ck_CsFu-A91jbCSBwtizPx1K`, active route
+  `bc_6a1019b60fedec4719365fd5`.
+- Friendship `cmpmw9gs60001ru1tc4y12851` was active.
+- Requester bridge input:
+  `帮我约李梓豪，上海时间2029年1月1日10:00，标题是验收测试-server-smoke-20260527T044852Z，持续5分钟。`
+- Created request `cmpnl6hxz0001pl1tvmyyyhoq` with status
+  `pending_invitee_confirmation`, fire_at `2029-01-01 02:00:00`,
+  duration 5, requester reminder `6a167839e5522f8de29458d1`.
+- B-side invite notification `shared_reminder_request` delivered to
+  `ck_CsFu-A91jbCSBwtizPx1K`.
+- Invitee bridge input with product notification focus:
+  `确认这个系统测试邀约`.
+- Accept response: `已接受共享提醒。`
+- Final request status: `accepted`, requester reminder
+  `6a167839e5522f8de29458d1`, invitee reminder
+  `6a167884e5522f8de29458d3`, resolved at `2026-05-27 04:52:20.666`.
+- A-side accepted notification `shared_reminder_accepted` delivered to
+  `ck_SXk_J0U0V5JKcK09QHEuo` at `2026-05-27 04:52:21.258`.
+- Both future runtime reminders were cancelled through bridge internal reminder
+  API, then the exact marked shared request and its two product notifications
+  were deleted. Follow-up counts for the marker and request notifications were
+  both 0.
+
+Evidence file:
+
+- `artifacts/evidence/shared-reminder-real-user-smoke/2026-05-27-server-smoke-20260527T044852Z.md`
