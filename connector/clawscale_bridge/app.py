@@ -486,7 +486,7 @@ class BusinessOnlyBridgeGateway:
             else:
                 reply = self.reply_waiter.wait_for_reply(causal_inbound_event_id)
         except TimeoutError:
-            customer_id = inbound.get("coke_account_id") or inbound.get("customer_id")
+            customer_id = inbound.get("coke_account_id")
             if (
                 self.late_reply_fallback is not None
                 and isinstance(customer_id, str)

@@ -94,10 +94,34 @@ and Channel-owned for provider semantics.
 
 ### Internal API
 
+- `/api/outbound` — Channel System bridge-to-gateway outbound dispatch
 - `/api/internal/coke-bindings` — Platform System
 - `/api/internal/coke-delivery` — Channel System
 - `/api/internal/coke-users/provision` — Platform System
 - `/bridge/internal/agent-instances` — Bridge internal edge, Agent Runtime semantics
+
+## Active Payload Compatibility
+
+These are current contracts, not open-ended compatibility permission. New
+callers should use the canonical field names.
+
+- `/bridge/inbound` accepts both gateway-normalized top-level snake_case fields
+  and ClawScale live-message `metadata` camelCase fields. The bridge normalizes
+  `coke_account_id`, `customer_id`, `customerId`, `metadata.cokeAccountId`,
+  `metadata.customerId`, and `metadata.customer_id` to the internal
+  `coke_account_id` field before enqueueing.
+- `/api/outbound` requires `customer_id` at the HTTP edge. `account_id` is not
+  an accepted request alias. Its idempotency comparison may still read
+  historical text-only stored payloads that predate `mediaUrls` and
+  `audioAsVoice`; this is stored-data compatibility only.
+- `/api/internal/coke-bindings` requires `customer_id` for the account to bind.
+  `account_id` and `coke_account_id` are retired HTTP aliases for this route.
+- `/api/internal/coke-users/provision` accepts `customer_id` and
+  `coke_account_id`. The latter remains active for synthetic smoke-account
+  provisioning until that seeding path is migrated. `account_id` is retired.
+- `/api/internal/scheduling/tools/create_shared_reminder` accepts canonical
+  invitee fields: `invitee_account_id`, `invitee_name`, or `friendship_id`.
+  `friend_id` is retired at the gateway route boundary.
 
 ## Forbidden Public Patterns
 
