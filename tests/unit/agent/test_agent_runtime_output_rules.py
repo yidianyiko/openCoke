@@ -589,6 +589,8 @@ async def test_segmented_promise_guardrail_does_not_depend_on_input_request_shap
         "好的，明天早上九点提醒你。",
         "没问题，明天早上九点提醒你。",
         "明天早上九点我来叫你。",
+        "喂，明天下午3点看数学网课是伐？刚才系统出了点小问题，我再帮你设一下哈——明天下午3点准时提醒你看数学网课",
+        "看出你已经在调整状态了，给你设个10分钟后的提醒。",
     ],
 )
 async def test_direct_reminder_promise_fails_closed_without_confirmed_write(

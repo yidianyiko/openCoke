@@ -184,6 +184,8 @@ _REMINDER_OFFER_MARKERS = (
 _COMPLETED_WRITE_CLAIM_PATTERNS = (
     re.compile(r"(已经|已).{0,24}(设置|设好|创建|建了).{0,24}(提醒|通知)"),
     re.compile(r"(设置好|设好|创建好|建好).{0,8}(了|啦)"),
+    re.compile(r"我再帮你.{0,8}(设一下|设置一下|安排一下).{0,80}(提醒|通知)"),
+    re.compile(r"给你.{0,8}(设个|设置个|安排个).{0,16}\d+\s*分钟后.{0,8}(提醒|通知)"),
 )
 
 
@@ -1063,7 +1065,10 @@ def _check_unconfirmed_durable_write_promise(
         return None
     matched = [
         pattern
-        for pattern in _UNCONFIRMED_DURABLE_WRITE_PATTERNS
+        for pattern in (
+            *_UNCONFIRMED_DURABLE_WRITE_PATTERNS,
+            *_COMPLETED_WRITE_CLAIM_PATTERNS,
+        )
         if pattern.search(final_text)
     ]
     if not matched:
@@ -1080,6 +1085,7 @@ def _check_unconfirmed_durable_write_promise(
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[5],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[6],
             _UNCONFIRMED_DURABLE_WRITE_PATTERNS[7],
+            *_COMPLETED_WRITE_CLAIM_PATTERNS,
         )
         if not any(pattern.search(final_text) for pattern in direct_promise_patterns):
             return None
