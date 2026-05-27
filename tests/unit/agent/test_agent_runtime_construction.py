@@ -1250,6 +1250,41 @@ async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_n
     ]
 
 
+def test_focus_from_multi_pending_notification_carries_delivered_at():
+    from agent.agno_agent.runtime.focus import focus_from_product_notification
+
+    product_notification = {
+        "ambiguity": "multi_pending",
+        "candidates": [
+            {
+                "request_id": "rid_1",
+                "request_type": "shared_reminder_request",
+                "delivered_at": "2026-05-27T14:07:38.968Z",
+                "allowed_actions": ["accept", "reject"],
+                "summary_for_llm": "李梓豪邀请你参加「数学课」，时间2026-05-28 20:00。",
+            },
+            {
+                "request_id": "rid_2",
+                "request_type": "shared_reminder_request",
+                "delivered_at": "2026-05-27T13:40:37.376Z",
+                "allowed_actions": ["accept", "reject"],
+                "summary_for_llm": "李梓豪邀请你参加「数学课」，时间2026-05-28 20:00。",
+            },
+        ],
+    }
+    focus = focus_from_product_notification(
+        product_notification,
+        current_time=datetime(2026, 5, 27, 14, 8, tzinfo=UTC),
+    )
+    assert focus.ambiguity == "multi_pending"
+    assert focus.current is None
+    assert [candidate.action_id for candidate in focus.candidates] == ["rid_1", "rid_2"]
+    assert [candidate.delivered_at for candidate in focus.candidates] == [
+        datetime(2026, 5, 27, 14, 7, 38, 968000, tzinfo=UTC),
+        datetime(2026, 5, 27, 13, 40, 37, 376000, tzinfo=UTC),
+    ]
+
+
 @pytest.mark.asyncio
 async def test_run_agent_runtime_fails_closed_when_focused_semantic_intent_is_ambiguous(
     monkeypatch,

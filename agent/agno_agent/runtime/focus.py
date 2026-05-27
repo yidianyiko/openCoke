@@ -17,6 +17,7 @@ class PendingAction(BaseModel):
     allowed_actions: tuple[str, ...]
     status: str
     expires_at: datetime | None = None
+    delivered_at: datetime | None = None
     summary_for_llm: str
 
 
@@ -90,6 +91,7 @@ def _action_input_from_product_notification(
         or ("accept", "reject"),
         "status": product_notification.get("status") or "pending",
         "expires_at": product_notification.get("expires_at"),
+        "delivered_at": product_notification.get("delivered_at"),
         "summary_for_llm": product_notification.get("summary_for_llm")
         or product_notification.get("summary")
         or _fallback_summary(product_notification),
@@ -107,6 +109,7 @@ def _pending_action_from_mapping(
     expires_at = _parse_datetime(value.get("expires_at"))
     if expires_at is not None and expires_at <= current_time:
         return None
+    delivered_at = _parse_datetime(value.get("delivered_at"))
     action_id = str(value.get("action_id") or value.get("request_id") or "").strip()
     kind = str(value.get("kind") or value.get("request_type") or "").strip()
     summary = str(value.get("summary_for_llm") or value.get("summary") or "").strip()
@@ -118,6 +121,7 @@ def _pending_action_from_mapping(
         allowed_actions=_allowed_actions(value.get("allowed_actions")),
         status=status,
         expires_at=expires_at,
+        delivered_at=delivered_at,
         summary_for_llm=summary,
     )
 
