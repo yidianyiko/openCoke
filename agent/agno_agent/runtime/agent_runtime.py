@@ -152,6 +152,16 @@ _DIRECT_SHARED_REMINDER_DETAIL_RE = re.compile(
 _PERSONAL_CONTACT_REMINDER_RE = re.compile(
     r"(提醒我|到时提醒我|记得提醒我|叫我).{0,16}(联系|约|邀请|找|问)"
 )
+_DIRECT_PERSONAL_REMINDER_CRUD_RE = re.compile(
+    r"(完成|标记.{0,8}完成|取消|删除|删掉|关掉|修改|更新|改到|改成|推迟|提前|延后|挪到|"
+    r"列(?:一下)?|查(?:一下)?|看看|有哪些)"
+    r".{0,48}(提醒|reminder|notification)"
+    r"|"
+    r"(提醒|reminder|notification)"
+    r".{0,48}(完成|取消|删除|删掉|关掉|修改|更新|改到|改成|推迟|提前|延后|挪到|"
+    r"列(?:一下)?|查(?:一下)?|看看|有哪些)",
+    re.IGNORECASE,
+)
 _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
     re.compile(
         r"(\u6211\u4f1a|\u5230\u65f6\u5019|\u5df2\u7ecf|\u5df2|\u5e2e\u4f60)"
@@ -321,7 +331,12 @@ def _direct_personal_reminder_domain_required(input_message: str) -> bool:
         return False
     if _direct_shared_reminder_create_intent(input_message) is not None:
         return False
-    return bool(reminder_intent._REMINDER_VERB_PATTERN.search(text))
+    if "共享提醒" in text:
+        return False
+    return bool(
+        reminder_intent._REMINDER_VERB_PATTERN.search(text)
+        or _DIRECT_PERSONAL_REMINDER_CRUD_RE.search(text)
+    )
 
 
 def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:

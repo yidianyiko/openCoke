@@ -929,6 +929,84 @@ async def test_run_agent_runtime_directly_executes_explicit_personal_reminder(
 
 
 @pytest.mark.asyncio
+async def test_run_agent_runtime_directly_executes_explicit_personal_reminder_crud(
+    monkeypatch,
+):
+    reminder_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="complete",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"visible_summary": "已完成提醒：做俯卧撑"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("not_completed", "needs_more_info"),
+        ),
+    )
+    captured = {}
+
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        domain_results,
+    ):
+        captured["input_message"] = input_message
+        domain_results.append(reminder_result)
+        return reminder_result.to_dict()
+
+    def fail_create_interaction_agent(**_kwargs):
+        raise AssertionError(
+            "explicit personal reminder CRUD should not wait for model tool selection"
+        )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="完成做俯卧撑这个提醒。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["input_message"] == "完成做俯卧撑这个提醒。"
+    assert [message.content for message in result.visible_messages] == [
+        "已完成提醒：做俯卧撑"
+    ]
+    assert result.domain_results == (reminder_result,)
+
+
+def test_direct_personal_reminder_route_ignores_shared_reminder_acceptance():
+    assert (
+        agent_runtime._direct_personal_reminder_domain_required(
+            "接受 olivers 发来的 羽毛球 共享提醒。"
+        )
+        is False
+    )
+
+
+@pytest.mark.asyncio
 async def test_run_agent_runtime_prefers_reminder_list_visible_summary(monkeypatch):
     list_result = DomainExecutionResult(
         domain="reminder",
