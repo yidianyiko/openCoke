@@ -47,10 +47,10 @@ def _product_notification_input():
         payload=UserTurnPayload(
             metadata={
                 "product_notification": {
-                    "request_id": "srr_1",
-                    "request_type": "shared_reminder_request",
-                    "allowed_actions": ["accept", "reject"],
-                    "kind": "shared_reminder_request",
+                    "shared_reminder_id": "sr_1",
+                    "resource_type": "shared_reminder",
+                    "kind": "shared_reminder_created",
+                    "status": "active",
                 }
             }
         ),
@@ -308,4 +308,4 @@ def test_product_notification_metadata_is_not_used_as_focus_truth():
     assert '<trusted kind="focus">' in text
     assert '"current": null' in text
     assert '"ambiguity": "none_actionable"' in text
-    assert '"request_id": "srr_1"' not in text
+    assert '"shared_reminder_id": "sr_1"' not in text

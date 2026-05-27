@@ -33,7 +33,7 @@ Call exactly one scheduling tool matching the intent.
 
 ## Tool selection
 - Add friend by public user-link code: call create_friendship_by_user_link_code with user_link_code.
-- cancel_shared_reminder: pass request_id, friendship_id, friend_name, and/or title when known. Gateway resolves the active shared reminder and fails closed on missing or ambiguous matches.
+- cancel_shared_reminder: pass shared_reminder_id, friendship_id, friend_name, and/or title when known. Gateway resolves the active shared reminder and fails closed on missing or ambiguous matches.
 - create_shared_reminder: pass receiver_name when the user named a friend but not an account id; do not call list_friends. Derive title from the concrete shared item in the current user message, never product defaults or older topics.
 - list_shared_reminders: pass friend_name when named; pass status when the user asks about a specific state. For current-account overviews such as my courses today, omit friend_name and pass from_date, to_date, and timezone for the requested local day.
 - list_friend_calendar_facts: pass friend_name and always pass from_date + to_date as ISO YYYY-MM-DD strings plus timezone. Default to today and today+7 days when no range is stated. Do NOT call list_friends first; the gateway resolver does it. Missing dates or timezone cause invalid_body. Use only privacy-safe busy intervals to describe free time.
@@ -327,6 +327,7 @@ def _make_scheduling_tool_fn(
         status: str | None = None,
         timezone: str | None = None,
         request_id: str | None = None,
+        shared_reminder_id: str | None = None,
         friend_name: str | None = None,
         requester_name: str | None = None,
         friendship_id: str | None = None,
@@ -377,6 +378,7 @@ def _make_scheduling_tool_fn(
                     "status": status,
                     "timezone": timezone,
                     "request_id": request_id,
+                    "shared_reminder_id": shared_reminder_id,
                     "friend_name": friend_name,
                     "requester_name": requester_name,
                     "friendship_id": normalized_friendship_id,
@@ -426,6 +428,7 @@ def _make_scheduling_tool_fn(
         status: str | None = None,
         timezone: str | None = None,
         request_id: str | None = None,
+        shared_reminder_id: str | None = None,
         friend_name: str | None = None,
         requester_name: str | None = None,
         friendship_id: str | None = None,
@@ -447,6 +450,7 @@ def _make_scheduling_tool_fn(
             status=status,
             timezone=timezone,
             request_id=request_id,
+            shared_reminder_id=shared_reminder_id,
             friend_name=friend_name,
             requester_name=requester_name,
             friendship_id=friendship_id,

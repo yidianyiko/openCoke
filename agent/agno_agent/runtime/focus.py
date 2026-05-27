@@ -7,7 +7,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 FocusAmbiguity = Literal["none", "multi_candidate", "none_actionable"]
-_RETIRED_FOCUS_KINDS = {"friend_request", "shared_reminder_request"}
 
 
 class PendingAction(BaseModel):
@@ -140,10 +139,8 @@ def _pending_action_from_mapping(
     if expires_at is not None and expires_at <= current_time:
         return None
     delivered_at = _parse_datetime(value.get("delivered_at"))
-    action_id = str(value.get("action_id") or value.get("request_id") or "").strip()
-    kind = str(value.get("kind") or value.get("request_type") or "").strip()
-    if kind in _RETIRED_FOCUS_KINDS:
-        return None
+    action_id = str(value.get("action_id") or "").strip()
+    kind = str(value.get("kind") or "").strip()
     summary = str(value.get("summary_for_llm") or value.get("summary") or "").strip()
     if not action_id or not kind or not summary:
         return None
@@ -184,7 +181,7 @@ def _agent_focus_summary(value: Any) -> str:
         return ""
     title = str(value.get("title") or "").strip()
     creator_name = str(
-        value.get("creator_name") or value.get("requester_name") or ""
+        value.get("creator_name") or ""
     ).strip()
     friend_name = str(
         value.get("friend_name") or value.get("counterparty_name") or ""
@@ -201,7 +198,6 @@ def _agent_focus_summary(value: Any) -> str:
     resource_id = str(
         value.get("shared_reminder_id")
         or value.get("friendship_id")
-        or value.get("request_id")
         or ""
     ).strip()
     if resource_id:
@@ -219,7 +215,6 @@ def _fallback_summary(product_notification: Mapping[str, Any]) -> str:
         product_notification.get("shared_reminder_id")
         or product_notification.get("friendship_id")
         or product_notification.get("action_id")
-        or product_notification.get("request_id")
         or ""
     )
     return f"{resource_type} {resource_id}".strip()

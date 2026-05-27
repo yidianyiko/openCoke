@@ -119,17 +119,21 @@ callers should use the canonical field names.
   `coke_account_id`. The latter remains active for synthetic smoke-account
   provisioning until that seeding path is migrated. `account_id` is retired.
 - `/api/internal/scheduling/tools/create_shared_reminder` accepts canonical
-  invitee fields: `invitee_account_id`, `invitee_name`, or `friendship_id`.
-  `friend_id` is retired at the gateway route boundary.
+  active-sharing fields: `receiver_account_id`, `receiver_name`, or
+  `friendship_id`. `friend_id` and invitee-shaped fields are retired at the
+  gateway route boundary.
+- `/api/internal/scheduling/tools/cancel_shared_reminder` accepts
+  `shared_reminder_id`, `friendship_id`, `friend_name`, and/or `title` for
+  active shared reminders. Pending-request IDs are not active cancellation
+  identifiers.
 - `/api/internal/scheduling/focus/resolve` and
   `/api/internal/scheduling/focus/bind` are Scheduling Domain Contract
   endpoints for Agent Runtime focus. Agent callers pass `customer_id` plus a
   conversation key to resolve focus, then pass `focus_token` and opaque
   `handle` to bind a selected candidate. Inbound `product_notification`
   candidate payloads are not the source of actionable request IDs.
-- Bulk shared-reminder tools are active on
-  `/api/internal/scheduling/tools/{accept_pending_shared_reminders_from,reject_pending_shared_reminders_from,cancel_pending_shared_reminders_for}`
-  and return per-candidate outcomes instead of all-or-nothing batch state.
+- Shared-reminder confirmation tools are retired. Do not expose accept,
+  reject, or pending-bulk shared-reminder tool routes.
 
 ## Forbidden Public Patterns
 

@@ -270,9 +270,10 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
                 "metadata": {
                     "source": "clawscale",
                     "product_notification": {
-                        "request_id": "srr_1",
-                        "request_type": "shared_reminder_request",
-                        "allowed_actions": ["accept", "reject"],
+                        "shared_reminder_id": "sr_1",
+                        "resource_type": "shared_reminder",
+                        "kind": "shared_reminder_created",
+                        "status": "active",
                     },
                 },
             }
@@ -281,9 +282,10 @@ def test_agent_handler_extracts_product_notification_metadata_for_runtime(monkey
 
     assert metadata == {
         "product_notification": {
-            "request_id": "srr_1",
-            "request_type": "shared_reminder_request",
-            "allowed_actions": ["accept", "reject"],
+            "shared_reminder_id": "sr_1",
+            "resource_type": "shared_reminder",
+            "kind": "shared_reminder_created",
+            "status": "active",
         },
         "product_notification_input_text": "确认",
     }

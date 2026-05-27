@@ -216,9 +216,9 @@ async def test_make_scheduling_tool_fn_passes_non_none_args_to_port():
         run_context=_run_context(),
         domain_results=[],
     )
-    await fn(request_id="srr_123", timezone=None)
+    await fn(shared_reminder_id="sr_123", timezone=None)
 
-    assert received_args == [{"request_id": "srr_123"}]
+    assert received_args == [{"shared_reminder_id": "sr_123"}]
 
 
 @pytest.mark.asyncio
@@ -291,13 +291,13 @@ async def test_run_scheduling_domain_passes_resolved_intent_to_worker_input():
         ):
             await run_scheduling_domain(
                 input_message="cancel that",
-                intent="cancel_shared_reminder request_id=srr_1",
+                intent="cancel_shared_reminder shared_reminder_id=sr_1",
                 run_context=_run_context(),
                 domain_results=[],
             )
 
     assert (
-        "Resolved scheduling intent: cancel_shared_reminder request_id=srr_1"
+        "Resolved scheduling intent: cancel_shared_reminder shared_reminder_id=sr_1"
         in captured["input"]
     )
     assert "User message: cancel that" in captured["input"]

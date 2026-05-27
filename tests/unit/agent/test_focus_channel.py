@@ -7,37 +7,6 @@ from agent.agno_agent.runtime.focus import (
 )
 
 
-def _retired_pending_action(**overrides):
-    action = {
-        "action_id": "req_shared_1",
-        "kind": "shared_reminder_request",
-        "allowed_actions": ("accept", "reject"),
-        "status": "pending",
-        "expires_at": datetime(2026, 5, 26, 12, 30, tzinfo=UTC),
-        "summary_for_llm": "Eva invited you to join yoga at 12:30.",
-    }
-    action.update(overrides)
-    return action
-
-
-def test_build_focus_channel_ignores_retired_pending_invitation_actions():
-    focus = build_focus_channel(
-        [
-            _retired_pending_action(),
-            _retired_pending_action(
-                action_id="req_friend_1",
-                kind="friend_request",
-                summary_for_llm="Legacy friendship action.",
-            ),
-        ],
-        current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
-    )
-
-    assert focus.ambiguity == "none_actionable"
-    assert focus.current is None
-    assert focus.candidates == ()
-
-
 def test_build_focus_channel_marks_empty_actions_as_none_actionable():
     focus = build_focus_channel(
         [],
@@ -95,11 +64,14 @@ def test_multiple_active_focus_actions_use_neutral_multi_candidate_name():
 def test_build_focus_channel_marks_expired_action_as_none_actionable():
     focus = build_focus_channel(
         [
-            _retired_pending_action(
-                kind="legacy_action",
-                expires_at=datetime(2026, 5, 26, 12, 0, tzinfo=UTC)
+            {
+                "action_id": "candidate_1",
+                "kind": "future_product_candidate",
+                "status": "pending",
+                "summary_for_llm": "Expired product candidate.",
+                "expires_at": datetime(2026, 5, 26, 12, 0, tzinfo=UTC)
                 - timedelta(seconds=1),
-            )
+            }
         ],
         current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
     )
