@@ -1,6 +1,6 @@
 ---
 kind: active_issue
-status: active
+status: resolved
 surface:
   - agent-runtime
   - reminder-intent
@@ -117,11 +117,12 @@ Updated fix direction:
 
 ## Superseded Status
 
-Resolved locally. Reminder intent normalization now defaults create and
-batch-create durations to 60 minutes when the user did not provide a positive
-duration.
+This section records the old 2026-05-25 local resolution and is superseded by
+the 2026-05-27 production regression above. Reminder creation must not default
+missing duration to 60 minutes. Missing duration is a point reminder
+(`duration_minutes=None`).
 
-Fresh live smoke passed:
+The old live smoke passed, but validated the superseded 60-minute behavior:
 
 - Artifact:
   `artifacts/evidence/shared-reminder-agent-smoke/shared-reminder-agent-smoke-reminder-default-duration-complete-20260525t090315Z.json`
@@ -142,3 +143,60 @@ Fresh live smoke passed:
   `.venv/bin/python -m pytest tests/unit/agent/test_reminder_intent_capability.py -q`
   and
   `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py -q`
+
+## Final Verification
+
+Resolved by commit `1ac16de6` and deployed with:
+
+```bash
+./scripts/deploy-compose-to-gcp.sh --restart
+```
+
+Production real-user retest used `olivers` through the live bridge with marker
+`fix-personal-20260527T063806Z`.
+
+Create input:
+
+```text
+2029年1月6日10:00提醒我喝水-fix-personal-20260527T063806Z。
+```
+
+Production state after create:
+
+- Reminder `_id=6a1691f66645e7bf138ae48d`
+- `owner_user_id=ck_SXk_J0U0V5JKcK09QHEuo`
+- `title=喝水-fix-personal-20260527T063806Z`
+- `schedule.duration_minutes=None`
+- `schedule.anchor_at=2029-01-06 02:00:00+00:00`
+- `lifecycle_state=active`
+- `next_fire_at=2029-01-06 02:00:00+00:00`
+- Output `_id=6a1691fb6645e7bf138ae493`, `status=handled`, message:
+  `已创建提醒：喝水-fix-personal-20260527T063806Z（2029-01-06 周六 10:00）`
+
+Cleanup used natural user language from the same production account:
+
+```text
+取消喝水-fix-personal-20260527T063806Z这个提醒。
+```
+
+Production state after cancel:
+
+- Reminder `_id=6a1691f66645e7bf138ae48d`
+- `lifecycle_state=cancelled`
+- `next_fire_at=None`
+- `cancelled_at=2026-05-27 06:42:15.764000+00:00`
+- Output `_id=6a16924a6645e7bf138ae4fc`, `status=handled`, message:
+  `已取消提醒：喝水-fix-personal-20260527T063806Z`
+
+Full verification run before deploy:
+
+```bash
+.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py tests/unit/agent/test_reminder_intent_capability.py -q
+zsh scripts/verify-surface repo-os-docs worker-runtime
+zsh scripts/review-trigger --base HEAD~1
+git diff --check
+```
+
+`verify-surface` passed `scripts/check`, `tests/unit/runner/`,
+`tests/unit/agent/`, and `tests/unit/test_clawscale_only_topology.py`.
+`review-trigger` reported `human_review_required: no`.
