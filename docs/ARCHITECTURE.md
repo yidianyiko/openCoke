@@ -120,6 +120,11 @@ Key points:
 - `gateway/packages/api/src/lib/route-message.ts` and shared-channel
   provisioning map external senders onto Coke customers and delivery routes
   before handing messages to the bridge.
+- Worker conversation state must preserve the trusted
+  `business_conversation_key` supplied by bridge/gateway delivery-route
+  binding. Coke workers must not synthesize `business_conversation_key` values
+  from Mongo conversation ids, because proactive outputs use that key as the
+  gateway delivery-route lookup key.
 - `util/redis_stream.py` is only a wake-up path; MongoDB remains the source of truth.
 - `agent/runner/message_processor.py` still acquires work from `inputmessages` and conversation locks in MongoDB.
 

@@ -135,6 +135,49 @@ async def test_handler_resolves_target_acquires_lock_writes_output_and_returns_f
 
 
 @pytest.mark.asyncio
+async def test_handler_prefers_event_route_key_over_conversation_business_key():
+    event = build_event(
+        agent_output_target=AgentOutputTarget(
+            "conv-1",
+            "char-1",
+            "bc_real_route",
+        )
+    )
+    conversation = {
+        "_id": "conv-1",
+        "platform": "business",
+        "chatroom_name": None,
+        "business_conversation_key": "bc_conv-1",
+        "conversation_info": {"business_conversation_key": "bc_conv-1"},
+        "talkers": [{"db_user_id": "user-1"}, {"db_user_id": "char-1"}],
+    }
+    owner = {"_id": "user-1", "nickname": "Owner"}
+    character = {"_id": "char-1", "nickname": "Assistant"}
+    context = {"conversation": dict(conversation), "user": owner, "character": character}
+    output_writer = Mock(return_value={"_id": "out-1"})
+
+    handler = ReminderFireEventHandler(
+        conversation_dao=Mock(get_conversation_by_id=Mock(return_value=conversation)),
+        user_dao=Mock(get_user_by_id=Mock(side_effect=[owner, character])),
+        lock_manager=FakeLockManager(),
+        output_writer=output_writer,
+        context_builder=Mock(return_value=context),
+        existing_output_lookup=Mock(return_value=None),
+    )
+
+    result = await handler.handle(event)
+
+    assert result.ok is True
+    delivered_context = output_writer.call_args.args[0]
+    assert delivered_context["conversation"]["business_conversation_key"] == (
+        "bc_real_route"
+    )
+    assert delivered_context["conversation"]["conversation_info"][
+        "business_conversation_key"
+    ] == "bc_real_route"
+
+
+@pytest.mark.asyncio
 async def test_output_writer_returning_none_returns_failed_result():
     handler = build_handler(Mock(return_value=None))
 

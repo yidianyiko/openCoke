@@ -173,6 +173,24 @@ def _build_character_metadata(value: Mapping[str, Any]) -> dict[str, Any]:
     return {"description": description}
 
 
+def _conversation_route_key(
+    conversation: Mapping[str, Any],
+    conversation_info: Mapping[str, Any],
+) -> str | None:
+    for value in (
+        conversation.get("route_key"),
+        conversation.get("delivery_route_key"),
+        conversation.get("business_conversation_key"),
+        conversation_info.get("route_key"),
+        conversation_info.get("delivery_route_key"),
+        conversation_info.get("business_conversation_key"),
+    ):
+        route_key = _optional_str(value)
+        if route_key is not None:
+            return route_key
+    return None
+
+
 def build_agent_run_context(
     legacy_context: dict[str, Any],
     *,
@@ -218,7 +236,7 @@ def build_agent_run_context(
         conversation=TrustedConversationContext(
             id=conversation_id,
             platform=platform,
-            route_key=conversation.get("route_key"),
+            route_key=_conversation_route_key(conversation, conversation_info),
         ),
         relation=TrustedRelationContext(
             uid=relation_uid,

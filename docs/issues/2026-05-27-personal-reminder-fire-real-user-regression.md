@@ -5,6 +5,7 @@ surface:
   - agent-runtime
   - reminder-detect
   - reminder-intent
+  - reminder-fire
   - production-smoke
 created_at: 2026-05-27
 updated_at: 2026-05-27
@@ -141,3 +142,86 @@ Results:
 Evidence file:
 
 - `artifacts/evidence/shared-reminder-agent-smoke/personal-reminder-create-routing-20260527T082116Z.md`
+
+## Production Fire Follow-Up
+
+After `8744a0dc` was deployed, production real-user smoke repeated the same
+olivers account path with marker `fire-arch-20260527T083300Z`.
+
+Creation was fixed:
+
+- Mongo `reminders` created `_id=6a16ac5a01542df2f901c8c1`.
+- Title: `喝水-fire-arch-20260527T083300Z`.
+- Owner: `ck_SXk_J0U0V5JKcK09QHEuo`.
+- `next_fire_at=2026-05-27T08:35:00Z`.
+- Late ack output said the reminder was created for 16:35 local time.
+
+The fire path still failed:
+
+- Scheduler fired at `2026-05-27T08:35:00Z`.
+- Reminder lifecycle moved to `completed`.
+- Fire output `_id=6a16acb901542df2f901c93c` was written with
+  `status=failed`.
+- The output metadata used
+  `business_conversation_key=bc_6a166d315ce854421a7e2c6f`.
+- The user's current active `delivery_routes.business_conversation_key` was
+  `bc_6a16459b790c7841638352b4`.
+
+This is not the older "account has no delivery route" case from
+`2026-05-25-reminder-fire-missing-delivery-route.md`. The user did have an
+active delivery route. The failure was that the worker persisted and reused a
+synthetic `bc_<conversation_id>` key instead of the trusted bridge/gateway
+route key.
+
+### Additional Root Cause
+
+`MessageProcessor._ensure_business_conversation_key` minted
+`bc_<conversation_id>` for ClawScale request-response turns and did not prefer
+the inbound `business_protocol.business_conversation_key`. `AgentRunContext`
+and `CokeReminderAdapter` also did not treat a persisted
+`business_conversation_key` as the reminder output route. As a result,
+newly-created reminders could store `agent_output_target.route_key=None`, and
+delayed fires fell back to the synthetic conversation key.
+
+### Additional Fix
+
+- Worker acquisition now persists the inbound
+  `business_protocol.business_conversation_key` and no longer mints a synthetic
+  delivery key when no trusted inbound route exists.
+- `AgentRunContext` derives `conversation.route_key` from current
+  `route_key`, `delivery_route_key`, or `business_conversation_key`.
+- `CokeReminderAdapter` derives `AgentOutputTarget.route_key` from the same
+  trusted route fields.
+- `ReminderFireEventHandler` applies the durable
+  `event.agent_output_target.route_key` to the output context before calling
+  the output writer, so a reminder fire does not use stale conversation-level
+  synthetic keys.
+
+Red tests before the fix:
+
+```bash
+.venv/bin/python -m pytest \
+  tests/unit/runner/test_message_acquirer_clawscale.py::test_message_acquirer_persists_inbound_business_key_for_request_response \
+  tests/unit/agent/test_agent_runtime_types.py::test_agent_run_context_uses_business_conversation_key_as_route_key \
+  tests/unit/agent/test_visible_reminder_protocol_tool.py::test_coke_reminder_adapter_uses_business_conversation_key_as_route_key \
+  tests/unit/runner/test_reminder_event_handler.py::test_handler_prefers_event_route_key_over_conversation_business_key \
+  -q
+```
+
+Result: 4 failed for the expected missing route propagation and fire override.
+
+Green tests after the fix:
+
+```bash
+.venv/bin/python -m pytest \
+  tests/unit/runner/test_message_acquirer_clawscale.py \
+  tests/unit/agent/test_agent_runtime_types.py \
+  tests/unit/agent/test_visible_reminder_protocol_tool.py \
+  tests/unit/agent/test_reminder_command_executor.py \
+  tests/unit/runner/test_reminder_event_handler.py \
+  tests/unit/agent/test_message_util_clawscale_routing.py \
+  tests/unit/runner/test_reminder_message_source.py \
+  -q
+```
+
+Result: 123 passed.

@@ -43,8 +43,11 @@ class CokeReminderAdapter:
             session_state.get("route_key")
             or session_state.get("delivery_route_key")
             or conversation.get("route_key")
+            or conversation.get("delivery_route_key")
+            or conversation.get("business_conversation_key")
             or conversation_info.get("route_key")
             or conversation_info.get("delivery_route_key")
+            or conversation_info.get("business_conversation_key")
         )
         timezone = self._string_value(
             user.get("effective_timezone")

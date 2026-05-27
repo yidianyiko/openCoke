@@ -105,6 +105,27 @@ def test_agent_run_context_metadata_does_not_smuggle_raw():
     assert "raw" not in context.relation.metadata
 
 
+def test_agent_run_context_uses_business_conversation_key_as_route_key():
+    context = build_agent_run_context(
+        {
+            "user": {"id": "user-1", "nickname": "User", "timezone": "Asia/Tokyo"},
+            "character": {"id": "char-1", "nickname": "Coke"},
+            "conversation": {
+                "id": "conv-1",
+                "platform": "business",
+                "business_conversation_key": "bc_real_route",
+                "conversation_info": {
+                    "business_conversation_key": "bc_info_route",
+                },
+            },
+            "relation": {"uid": "user-1", "cid": "char-1"},
+        },
+        current_time=datetime(2026, 5, 1, 1, 0, tzinfo=UTC),
+    )
+
+    assert context.conversation.route_key == "bc_real_route"
+
+
 def test_agent_run_context_carries_file_backed_character_description():
     context = build_agent_run_context(
         {

@@ -108,6 +108,7 @@ class ReminderFireEventHandler:
             context = self.context_builder(owner, character, conversation)
             if isinstance(context, dict):
                 context.setdefault("message_source", "reminder")
+                self._apply_event_route_key(context, event)
             if self.runtime_event_handler is not None:
                 return await self._handle_with_typed_runtime(event, context)
 
@@ -233,6 +234,22 @@ class ReminderFireEventHandler:
             error_code=None,
             error_message=None,
         )
+
+    def _apply_event_route_key(
+        self,
+        context: dict[str, Any],
+        event: ReminderFiredEvent,
+    ) -> None:
+        route_key = event.agent_output_target.route_key
+        if not route_key:
+            return
+        conversation = context.get("conversation")
+        if not isinstance(conversation, dict):
+            return
+        conversation["business_conversation_key"] = route_key
+        conversation_info = conversation.setdefault("conversation_info", {})
+        if isinstance(conversation_info, dict):
+            conversation_info["business_conversation_key"] = route_key
 
     def _find_existing_output(self, event: ReminderFiredEvent) -> Any:
         return MongoDBBase().find_one(

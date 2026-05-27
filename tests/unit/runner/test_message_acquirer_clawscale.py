@@ -87,6 +87,96 @@ def test_message_acquirer_uses_virtual_wechat_identity_for_clawscale_request_res
     assert top_message.get("status") == "pending"
 
 
+def test_message_acquirer_persists_inbound_business_key_for_request_response(
+    monkeypatch,
+):
+    from agent.runner import message_processor as mp
+
+    fake_user_dao = types.SimpleNamespace(
+        get_user_by_id=lambda user_id: (
+            {
+                "_id": "69d3db920cb4b1810d8e5fca",
+                "display_name": "ydyk",
+                "platforms": {},
+            }
+            if user_id == "69d3db920cb4b1810d8e5fca"
+            else {
+                "_id": "65f000000000000000000002",
+                "name": "coke",
+                "platforms": {},
+            }
+        ),
+        find_characters=lambda query: [],
+    )
+    persisted_updates = []
+    fake_conversation_dao = types.SimpleNamespace(
+        get_or_create_private_conversation=lambda **kwargs: ("conv_virtual", True),
+        get_conversation_by_id=lambda conversation_id: {
+            "_id": conversation_id,
+            "conversation_info": {},
+        },
+        update_conversation=lambda conversation_id, update_data: persisted_updates.append(
+            (conversation_id, update_data)
+        )
+        or True,
+        get_private_conversation=lambda platform, user_id1, user_id2: None,
+    )
+    fake_lock_manager = types.SimpleNamespace(
+        acquire_lock=lambda *args, **kwargs: "lock_1",
+    )
+
+    monkeypatch.setattr(mp, "UserDAO", lambda *args, **kwargs: fake_user_dao)
+    monkeypatch.setattr(
+        mp, "ConversationDAO", lambda *args, **kwargs: fake_conversation_dao
+    )
+    monkeypatch.setattr(
+        mp, "MongoDBLockManager", lambda *args, **kwargs: fake_lock_manager
+    )
+    monkeypatch.setattr(
+        mp,
+        "read_all_inputmessages",
+        lambda from_user, to_user, platform, status=None: [{"_id": "msg_1"}],
+    )
+
+    acquirer = mp.MessageAcquirer("[W1]")
+    top_message = {
+        "_id": "msg_top",
+        "from_user": "69d3db920cb4b1810d8e5fca",
+        "to_user": "65f000000000000000000002",
+        "platform": "business",
+        "status": "pending",
+        "message_type": "text",
+        "message": "第一条业务消息",
+        "metadata": {
+            "source": "clawscale",
+            "business_protocol": {
+                "delivery_mode": "request_response",
+                "business_conversation_key": "bc_real_route",
+                "gateway_conversation_id": "gw_conv_1",
+                "causal_inbound_event_id": "in_evt_1",
+            },
+        },
+    }
+
+    ctx = acquirer._try_acquire_message(top_message, set())
+
+    assert ctx is not None
+    assert ctx.conversation["business_conversation_key"] == "bc_real_route"
+    assert (
+        ctx.conversation["conversation_info"]["business_conversation_key"]
+        == "bc_real_route"
+    )
+    assert persisted_updates == [
+        (
+            "conv_virtual",
+            {
+                "business_conversation_key": "bc_real_route",
+                "conversation_info.business_conversation_key": "bc_real_route",
+            },
+        )
+    ]
+
+
 def test_message_acquirer_uses_virtual_character_identity_when_character_has_no_wechat_platform(
     monkeypatch,
 ):
@@ -172,7 +262,7 @@ def test_message_acquirer_uses_virtual_character_identity_when_character_has_no_
     assert top_message.get("status") == "pending"
 
 
-def test_message_acquirer_mints_and_persists_business_key_for_first_turn(
+def test_message_acquirer_does_not_mint_business_key_without_inbound_route(
     monkeypatch,
 ):
     from agent.runner import message_processor as mp
@@ -245,20 +335,9 @@ def test_message_acquirer_mints_and_persists_business_key_for_first_turn(
     ctx = acquirer._try_acquire_message(top_message, set())
 
     assert ctx is not None
-    assert ctx.conversation["business_conversation_key"] == "bc_conv_virtual"
-    assert (
-        ctx.conversation["conversation_info"]["business_conversation_key"]
-        == "bc_conv_virtual"
-    )
-    assert persisted_updates == [
-        (
-            "conv_virtual",
-            {
-                "business_conversation_key": "bc_conv_virtual",
-                "conversation_info.business_conversation_key": "bc_conv_virtual",
-            },
-        )
-    ]
+    assert "business_conversation_key" not in ctx.conversation
+    assert "business_conversation_key" not in ctx.conversation["conversation_info"]
+    assert persisted_updates == []
 
 
 def test_message_acquirer_reuses_existing_gateway_thread_when_business_key_appears(

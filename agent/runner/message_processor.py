@@ -374,6 +374,26 @@ class MessageAcquirer:
         ):
             return conversation
 
+        inbound_key = business_protocol.get("business_conversation_key")
+        if isinstance(inbound_key, str) and inbound_key.strip():
+            inbound_key = inbound_key.strip()
+            conversation.setdefault("conversation_info", {})
+            existing_key = conversation.get("business_conversation_key")
+            existing_info_key = conversation["conversation_info"].get(
+                "business_conversation_key"
+            )
+            if existing_key != inbound_key or existing_info_key != inbound_key:
+                self.conversation_dao.update_conversation(
+                    conversation_id,
+                    {
+                        "business_conversation_key": inbound_key,
+                        "conversation_info.business_conversation_key": inbound_key,
+                    },
+                )
+            conversation["business_conversation_key"] = inbound_key
+            conversation["conversation_info"]["business_conversation_key"] = inbound_key
+            return conversation
+
         existing_key = conversation.get("business_conversation_key")
         if isinstance(existing_key, str) and existing_key.strip():
             conversation.setdefault("conversation_info", {})
@@ -382,17 +402,7 @@ class MessageAcquirer:
             )
             return conversation
 
-        minted_key = f"bc_{conversation_id}"
-        self.conversation_dao.update_conversation(
-            conversation_id,
-            {
-                "business_conversation_key": minted_key,
-                "conversation_info.business_conversation_key": minted_key,
-            },
-        )
-        conversation["business_conversation_key"] = minted_key
         conversation.setdefault("conversation_info", {})
-        conversation["conversation_info"]["business_conversation_key"] = minted_key
         return conversation
 
     def _resolve_platform_profiles(

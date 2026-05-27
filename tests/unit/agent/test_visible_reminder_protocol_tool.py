@@ -267,6 +267,26 @@ def test_coke_reminder_adapter_derives_context_from_session_state():
     assert context.current_time == datetime(2026, 5, 15, 1, 0, tzinfo=UTC)
 
 
+def test_coke_reminder_adapter_uses_business_conversation_key_as_route_key():
+    from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
+
+    context = CokeReminderAdapter().derive_context(
+        {
+            "user": {"id": "user-1", "timezone": "Asia/Tokyo"},
+            "character": {"id": "char-1"},
+            "conversation": {
+                "id": "conv-1",
+                "business_conversation_key": "bc_real_route",
+                "conversation_info": {
+                    "business_conversation_key": "bc_info_route",
+                },
+            },
+        }
+    )
+
+    assert context.target.route_key == "bc_real_route"
+
+
 def test_coke_reminder_adapter_raises_when_runtime_missing():
     from agent.agno_agent.adapters.coke_reminder_adapter import CokeReminderAdapter
     from agent.reminder.runtime import (
