@@ -30,7 +30,7 @@ def test_gateway_identity_client_posts_expected_payload_and_returns_binding_data
             tenant_id="ten_1",
             channel_id="ch_1",
             external_id="ext_1",
-            account_id="acct_1",
+            customer_id="ck_1",
         )
 
     assert result == {
@@ -44,7 +44,7 @@ def test_gateway_identity_client_posts_expected_payload_and_returns_binding_data
             "tenant_id": "ten_1",
             "channel_id": "ch_1",
             "external_id": "ext_1",
-            "customer_id": "acct_1",
+            "customer_id": "ck_1",
         },
         headers={
             "Authorization": "Bearer secret",
@@ -78,7 +78,7 @@ def test_gateway_identity_client_raises_on_non_ok_response_payload():
                 tenant_id="ten_1",
                 channel_id="ch_1",
                 external_id="ext_1",
-                account_id="acct_1",
+                customer_id="ck_1",
             )
         except GatewayIdentityClientError as exc:
             assert str(exc) == "end_user_already_bound"
@@ -106,7 +106,7 @@ def test_gateway_identity_client_wraps_request_timeout_as_explicit_failure():
                 tenant_id="ten_1",
                 channel_id="ch_1",
                 external_id="ext_1",
-                account_id="acct_1",
+                customer_id="ck_1",
             )
         except GatewayIdentityClientError as exc:
             assert str(exc) == "gateway_identity_request_failed"
@@ -138,9 +138,38 @@ def test_gateway_identity_client_wraps_malformed_json_payload_as_explicit_failur
                 tenant_id="ten_1",
                 channel_id="ch_1",
                 external_id="ext_1",
-                account_id="acct_1",
+                customer_id="ck_1",
             )
         except GatewayIdentityClientError as exc:
             assert str(exc) == "invalid_gateway_identity_response"
         else:
             raise AssertionError("expected GatewayIdentityClientError")
+
+
+def test_gateway_identity_client_rejects_blank_customer_id_before_post():
+    from connector.clawscale_bridge.gateway_identity_client import (
+        GatewayIdentityClient,
+        GatewayIdentityClientError,
+    )
+
+    with patch(
+        "connector.clawscale_bridge.gateway_identity_client.requests.post"
+    ) as mock_post:
+        client = GatewayIdentityClient(
+            api_url="https://gateway.coke.local/api/internal/coke-bindings",
+            api_key="secret",
+        )
+
+        try:
+            client.bind_identity(
+                tenant_id="ten_1",
+                channel_id="ch_1",
+                external_id="ext_1",
+                customer_id=" ",
+            )
+        except GatewayIdentityClientError as exc:
+            assert str(exc) == "customer_id_required"
+        else:
+            raise AssertionError("expected GatewayIdentityClientError")
+
+    mock_post.assert_not_called()

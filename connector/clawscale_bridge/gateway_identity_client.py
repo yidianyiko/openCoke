@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import requests
 
-from connector.clawscale_bridge.customer_ids import resolve_customer_id
-
 
 class GatewayIdentityClientError(RuntimeError):
     pass
@@ -20,15 +18,11 @@ class GatewayIdentityClient:
         tenant_id: str,
         channel_id: str,
         external_id: str,
-        customer_id: str | None = None,
-        account_id: str | None = None,
-        coke_account_id: str | None = None,
+        customer_id: str,
     ):
-        normalized_customer_id = resolve_customer_id(
-            customer_id=customer_id,
-            account_id=account_id,
-            coke_account_id=coke_account_id,
-        )
+        normalized_customer_id = customer_id.strip()
+        if not normalized_customer_id:
+            raise GatewayIdentityClientError("customer_id_required")
         try:
             response = requests.post(
                 url=self.api_url,
@@ -67,15 +61,11 @@ class GatewayIdentityClient:
         tenant_id: str,
         channel_id: str,
         external_id: str,
-        customer_id: str | None = None,
-        account_id: str | None = None,
-        coke_account_id: str | None = None,
+        customer_id: str,
     ):
         return self.bind_identity(
             tenant_id=tenant_id,
             channel_id=channel_id,
             external_id=external_id,
             customer_id=customer_id,
-            account_id=account_id,
-            coke_account_id=coke_account_id,
         )
