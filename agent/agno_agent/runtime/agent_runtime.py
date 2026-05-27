@@ -313,6 +313,17 @@ def _direct_shared_reminder_create_intent(input_message: str) -> str | None:
     return "create_shared_reminder"
 
 
+def _direct_personal_reminder_domain_required(input_message: str) -> bool:
+    from agent.agno_agent.capabilities import reminder_intent
+
+    text = reminder_intent._latest_user_turn_text(input_message)
+    if not text:
+        return False
+    if _direct_shared_reminder_create_intent(input_message) is not None:
+        return False
+    return bool(reminder_intent._REMINDER_VERB_PATTERN.search(text))
+
+
 def _normalize_scheduling_intent(raw_intent: Any, input_message: str) -> str:
     del input_message
     if isinstance(raw_intent, str):
@@ -2022,7 +2033,10 @@ async def run_agent_runtime(
     agent_input: AgentInput,
     run_context: AgentRunContext,
 ) -> AgentRunResult:
-    from agent.agno_agent.runtime.execution_agents import run_scheduling_domain
+    from agent.agno_agent.runtime.execution_agents import (
+        run_reminder_domain,
+        run_scheduling_domain,
+    )
 
     capability_results: list[CapabilityResult] = []
     domain_results: list[DomainExecutionResult] = []
@@ -2067,6 +2081,30 @@ async def run_agent_runtime(
                 domain_result=_retired_account_control_result(),
             )
         direct_scheduling_intent = _direct_shared_reminder_create_intent(input_message)
+        if (
+            direct_scheduling_intent is None
+            and agent_input.input_type == "user.turn"
+            and _direct_personal_reminder_domain_required(input_message)
+        ):
+            await run_reminder_domain(
+                input_message=input_message,
+                run_context=run_context,
+                domain_results=domain_results,
+            )
+            direct_reminder_result = domain_results[-1] if domain_results else None
+            domain_visible_text = _resolve_domain_visible_text(domain_results)
+            if (
+                direct_reminder_result is not None
+                and direct_reminder_result.outcome != "no_action"
+                and domain_visible_text
+            ):
+                return _domain_visible_text_result(
+                    agent_input=agent_input,
+                    run_context=run_context,
+                    input_message=input_message,
+                    started_at=started_at,
+                    domain_result=direct_reminder_result,
+                )
         preloaded_scheduling_domain_result: dict[str, Any] | None = None
         semantic_client = (
             _create_semantic_intent_client()

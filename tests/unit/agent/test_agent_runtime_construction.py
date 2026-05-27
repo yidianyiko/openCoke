@@ -292,28 +292,45 @@ async def test_run_agent_runtime_uses_captured_capability_results(monkeypatch):
 @pytest.mark.asyncio
 async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypatch):
     created = {}
+    reminder_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"visible_summary": "已创建提醒：出门（2026-05-10 18:05）"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("not_created", "needs_more_info"),
+        ),
+    )
 
-    class FakeAgent:
-        async def arun(self, **kwargs):
-            created["model_input"] = kwargs["input"]
-            return SimpleNamespace(
-                content="",
-                messages=[SimpleNamespace(role="assistant", content="")],
-            )
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        domain_results,
+    ):
+        del run_context
+        created["input_message"] = input_message
+        domain_results.append(reminder_result)
+        return reminder_result.to_dict()
 
     def fake_create_interaction_agent(**kwargs):
-        created["called"] = True
-        assert kwargs["input_message"] == "18:05提醒我出门"
-        kwargs["capability_results"].append(
-            CapabilityResult(
-                name="reminder",
-                ok=True,
-                content={"summary": "已创建提醒：出门（2026-05-10 18:05）"},
-                metadata={"durable_write": True},
-            )
+        raise AssertionError(
+            "explicit personal reminders should execute before agent tool selection"
         )
-        return FakeAgent()
 
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
     monkeypatch.setattr(
         agent_runtime, "_create_interaction_agent", fake_create_interaction_agent
     )
@@ -334,11 +351,10 @@ async def test_run_agent_runtime_routes_explicit_reminder_through_agent(monkeypa
     )
 
     assert result.visible_messages[0].content == "已创建提醒：出门（2026-05-10 18:05）"
-    assert [tool.name for tool in result.capability_results] == ["reminder"]
+    assert result.capability_results == ()
     assert result.trace.runtime.name == "agent_runtime"
-    assert result.trace.routing.route == "utility_capability"
-    assert created["called"] is True
-    assert created["model_input"] == "18:05提醒我出门"
+    assert result.trace.routing.route == "reminder_domain"
+    assert created["input_message"] == "18:05提醒我出门"
 
 
 @pytest.mark.asyncio
@@ -840,6 +856,76 @@ async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
         "这个提醒时间已经过去了，请告诉我一个未来的时间。"
     ]
     assert result.domain_results == (past_result,)
+
+
+@pytest.mark.asyncio
+async def test_run_agent_runtime_directly_executes_explicit_personal_reminder(
+    monkeypatch,
+):
+    reminder_result = DomainExecutionResult(
+        domain="reminder",
+        outcome="executed",
+        operations=(
+            DomainOperationResult(
+                action="create",
+                ok=True,
+                effect="write",
+                entity_type="reminder",
+                entity_id="rem-1",
+                facts={"visible_summary": "已创建提醒：喝水（2029-01-06 10:00）"},
+            ),
+        ),
+        reply_contract=ReplyContract(
+            intent="confirm_execution",
+            prohibited_claims=("not_created", "needs_more_info"),
+        ),
+    )
+    captured = {}
+
+    async def fake_run_reminder_domain(
+        *,
+        input_message,
+        run_context,
+        domain_results,
+    ):
+        captured["input_message"] = input_message
+        captured["run_context"] = run_context
+        domain_results.append(reminder_result)
+        return reminder_result.to_dict()
+
+    def fail_create_interaction_agent(**_kwargs):
+        raise AssertionError(
+            "explicit personal reminders should not wait for model tool selection"
+        )
+
+    monkeypatch.setattr(
+        "agent.agno_agent.runtime.execution_agents.run_reminder_domain",
+        fake_run_reminder_domain,
+    )
+    monkeypatch.setattr(
+        agent_runtime, "_create_interaction_agent", fail_create_interaction_agent
+    )
+
+    agent_input = _agent_input()
+    agent_input = type(agent_input)(
+        input_type=agent_input.input_type,
+        conversation_id=agent_input.conversation_id,
+        text="2029年1月6日10:00提醒我喝水。",
+        payload=agent_input.payload,
+        occurred_at=agent_input.occurred_at,
+        metadata=agent_input.metadata,
+    )
+
+    result = await agent_runtime.run_agent_runtime(
+        agent_input=agent_input,
+        run_context=_run_context(),
+    )
+
+    assert captured["input_message"] == "2029年1月6日10:00提醒我喝水。"
+    assert [message.content for message in result.visible_messages] == [
+        "已创建提醒：喝水（2029-01-06 10:00）"
+    ]
+    assert result.domain_results == (reminder_result,)
 
 
 @pytest.mark.asyncio
@@ -1492,7 +1578,7 @@ async def test_run_agent_runtime_fails_closed_on_unconfirmed_reminder_promise(
     agent_input = type(agent_input)(
         input_type=agent_input.input_type,
         conversation_id=agent_input.conversation_id,
-        text="今天17:57提醒我喝水呀",
+        text="今天17:57我想喝水呀",
         payload=agent_input.payload,
         occurred_at=agent_input.occurred_at,
         metadata=agent_input.metadata,

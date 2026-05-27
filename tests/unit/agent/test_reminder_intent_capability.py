@@ -335,7 +335,7 @@ async def test_reminder_intent_port_routes_detector_duration_minutes_and_strippe
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_routes_detector_default_create_duration():
+async def test_reminder_intent_port_normalizes_zero_create_duration_to_point_reminder():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     decision = SimpleNamespace(
@@ -343,7 +343,7 @@ async def test_reminder_intent_port_routes_detector_default_create_duration():
         action="create",
         title="做平板支撑",
         trigger_at="2026-05-07T08:00:00+09:00",
-        duration_minutes=60,
+        duration_minutes=0,
     )
 
     class FakeAgent:
@@ -355,7 +355,7 @@ async def test_reminder_intent_port_routes_detector_default_create_duration():
         def execute(self, received_decision, run_context):
             del run_context
             assert received_decision.title == "做平板支撑"
-            assert received_decision.duration_minutes == 60
+            assert received_decision.duration_minutes is None
             return _executed_result("已创建提醒：做平板支撑")
 
     result = await ReminderIntentPort(
@@ -367,15 +367,15 @@ async def test_reminder_intent_port_routes_detector_default_create_duration():
 
 
 @pytest.mark.asyncio
-async def test_reminder_intent_port_routes_detector_default_batch_create_duration():
+async def test_reminder_intent_port_normalizes_zero_batch_create_duration_to_point_reminder():
     from agent.agno_agent.capabilities.reminder_intent import ReminderIntentPort
 
     decision = SimpleNamespace(
         intent_type="crud",
         action="batch",
         operations=[
-            {"action": "create", "title": "拉伸", "duration_minutes": 60},
-            {"action": "create", "title": "喝水", "duration_minutes": 60},
+            {"action": "create", "title": "拉伸", "duration_minutes": 0},
+            {"action": "create", "title": "喝水", "duration_minutes": None},
         ],
     )
 
@@ -390,8 +390,8 @@ async def test_reminder_intent_port_routes_detector_default_batch_create_duratio
             assert [
                 item["duration_minutes"] for item in received_decision.operations
             ] == [
-                60,
-                60,
+                None,
+                None,
             ]
             return _executed_result("已创建提醒")
 

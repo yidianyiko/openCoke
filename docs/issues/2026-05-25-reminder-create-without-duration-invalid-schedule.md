@@ -1,11 +1,11 @@
 ---
 kind: active_issue
-status: resolved
+status: active
 surface:
   - agent-runtime
   - reminder-intent
 created_at: 2026-05-25
-updated_at: 2026-05-25
+updated_at: 2026-05-27
 ---
 
 # 2026-05-25 Reminder Create Without Duration Fails InvalidSchedule
@@ -64,7 +64,58 @@ Control run with explicit duration passed:
   `title=做平板支撑`, `duration_minutes=5`,
   `lifecycle_state=completed`, `next_fire_at=None`, `completed_at` present.
 
-## Current Status
+## 2026-05-27 Regression
+
+Production real-user smoke with `olivers` on 2026-05-27 reproduced the same
+class of failure:
+
+- Input:
+  `2029年1月6日10:00提醒我喝水-regression-personal-20260527T061438Z。`
+- Route: production `/bridge/inbound` as `olivers`.
+- Domain: `reminder_domain`, not `scheduling_domain`.
+- Tool result:
+  `InvalidSchedule: 创建提醒失败：Reminder duration must be positive`.
+- User-visible reply incorrectly asked for duration instead of creating a point
+  reminder.
+
+The active architecture contract says reminder duration is optional: absent
+duration remains a point reminder. The previous local resolution defaulted
+missing/non-positive create durations to 60 minutes, which is no longer the
+desired contract.
+
+Current fix direction:
+
+- Preserve `agent.reminder.schedule.validate_duration_minutes`: positive values
+  still represent occupied calendar time; invalid positive validation still
+  protects the storage model.
+- Normalize detector output `duration_minutes <= 0` to `None` before invoking
+  the reminder protocol. This treats model-emitted `0` as "no duration", not as
+  a user-facing error.
+- Remove stale unit expectations that personal reminders default to 60 minutes
+  when no duration was provided.
+
+Post-deploy retest with marker `fix-personal-20260527T062239Z` exposed a
+second path:
+
+- Input:
+  `2029年1月6日10:00提醒我喝水-fix-personal-20260527T062239Z。`
+- The chat model did not call `reminder_domain`; it directly replied:
+  `这个提醒也需要设置时长哦。你想持续多长时间？5分钟、10分钟还是其他？`
+- Production logs for the same marker had no reminder domain result. The
+  remaining failure was runtime routing, not schedule validation.
+
+Updated fix direction:
+
+- Keep the detector-level normalization above for model-emitted
+  `duration_minutes=0`.
+- Route explicit personal reminder requests directly through
+  `run_reminder_domain` before the general chat model decides whether to call a
+  tool. Shared-reminder creates keep the existing scheduling preselection.
+- If the reminder detector says `no_action`, fall back to ordinary chat; if it
+  executes and produces a visible summary, return the structured domain result
+  directly.
+
+## Superseded Status
 
 Resolved locally. Reminder intent normalization now defaults create and
 batch-create durations to 60 minutes when the user did not provide a positive
@@ -82,7 +133,12 @@ Fresh live smoke passed:
 
 ## Resolution
 
-- Fix: `agent/agno_agent/capabilities/reminder_intent.py` defaults missing or
-  non-positive create durations to 60 minutes before command execution.
+- Fix: `agent/agno_agent/capabilities/reminder_intent.py` normalizes
+  non-positive create durations to `None` before command execution.
+- Fix: `agent/agno_agent/runtime/agent_runtime.py` directly executes explicit
+  personal reminder requests through Reminder Runtime, avoiding model-only
+  duration clarification replies.
 - Regression tests:
   `.venv/bin/python -m pytest tests/unit/agent/test_reminder_intent_capability.py -q`
+  and
+  `.venv/bin/python -m pytest tests/unit/agent/test_agent_runtime_construction.py -q`

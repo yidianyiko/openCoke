@@ -180,6 +180,7 @@ class ReminderIntentPort:
             return _invalid_decision_clarification_result()
         if _should_reject_missing_scheduled_clauses(input_message, decision):
             return _invalid_decision_clarification_result()
+        decision = _normalize_point_reminder_duration(decision)
         return self.command_executor.execute(decision, run_context)
 
 
@@ -721,6 +722,79 @@ def _copy_decision_with_operations(decision: Any, operations: list[Any]) -> Any:
         return decision
     data["operations"] = operations
     return SimpleNamespace(**data)
+
+
+def _copy_decision_with_field(decision: Any, field: str, value: Any) -> Any:
+    if isinstance(decision, Mapping):
+        return {**dict(decision), field: value}
+    model_dump = getattr(decision, "model_dump", None)
+    if callable(model_dump):
+        data = model_dump()
+        data[field] = value
+        return SimpleNamespace(**data)
+    try:
+        data = vars(decision).copy()
+    except TypeError:
+        return decision
+    data[field] = value
+    return SimpleNamespace(**data)
+
+
+def _normalize_point_reminder_duration(decision: Any) -> Any:
+    action = str(_decision_value(decision, "action") or "").strip()
+    if action == "create":
+        duration = _decision_value(decision, "duration_minutes")
+        normalized = _duration_or_none_for_point_reminder(duration)
+        if normalized is not duration:
+            return _copy_decision_with_field(decision, "duration_minutes", normalized)
+        return decision
+
+    if action != "batch":
+        return decision
+
+    operations = _decision_value(decision, "operations") or []
+    normalized_operations: list[Any] = []
+    changed = False
+    for operation in operations:
+        normalized = _normalize_point_reminder_operation_duration(operation)
+        normalized_operations.append(normalized)
+        changed = changed or normalized is not operation
+    if changed:
+        return _copy_decision_with_operations(decision, normalized_operations)
+    return decision
+
+
+def _normalize_point_reminder_operation_duration(operation: Any) -> Any:
+    if isinstance(operation, Mapping):
+        if str(operation.get("action") or "").strip() != "create":
+            return operation
+        duration = operation.get("duration_minutes")
+        normalized = _duration_or_none_for_point_reminder(duration)
+        if normalized is duration:
+            return operation
+        return {**dict(operation), "duration_minutes": normalized}
+
+    action = str(getattr(operation, "action", "") or "").strip()
+    if action != "create":
+        return operation
+    duration = getattr(operation, "duration_minutes", None)
+    normalized = _duration_or_none_for_point_reminder(duration)
+    if normalized is duration:
+        return operation
+    try:
+        data = vars(operation).copy()
+    except TypeError:
+        return operation
+    data["duration_minutes"] = normalized
+    return SimpleNamespace(**data)
+
+
+def _duration_or_none_for_point_reminder(duration: Any) -> Any:
+    if duration is None or isinstance(duration, bool):
+        return duration
+    if isinstance(duration, (int, float)) and duration <= 0:
+        return None
+    return duration
 
 
 # OUTPUT SAFETY NET: rejects creates whose title was lifted from text before the reminder request.
