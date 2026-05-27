@@ -25,15 +25,14 @@ def _cases():
 def _focus_for_case(case):
     focus = case["focus"]
     ambiguity = focus.get("ambiguity")
-    if ambiguity == "multi_pending":
+    if ambiguity == "multi_candidate":
         return {
             "current": None,
-            "ambiguity": "multi_pending",
+            "ambiguity": "multi_candidate",
             "candidates": [
                 {
                     "action_id": f"{case['id']}-{index}",
                     "kind": kind,
-                    "allowed_actions": ("accept", "reject"),
                     "status": "pending",
                     "summary_for_llm": f"{kind} candidate {index}",
                 }
@@ -47,7 +46,6 @@ def _focus_for_case(case):
             {
                 "action_id": case["id"],
                 "kind": focus["kind"],
-                "allowed_actions": ("accept", "reject"),
                 "status": "pending",
                 "summary_for_llm": f"{focus['kind']} for {case['id']}",
             }
@@ -58,14 +56,17 @@ def _focus_for_case(case):
 
 def test_semantic_intent_result_accepts_known_intents_and_confidence():
     assert SemanticIntentResult.model_validate(
-        {"intent": "accept", "confidence": "high"}
-    ).intent == "accept"
-    assert SemanticIntentResult.model_validate(
         {"intent": "request_change", "confidence": "medium"}
     ).intent == "request_change"
     assert SemanticIntentResult.model_validate(
         {"intent": "ambiguous", "confidence": "low"}
     ).intent == "ambiguous"
+
+
+@pytest.mark.parametrize("intent", ["accept", "reject"])
+def test_semantic_intent_result_rejects_retired_focus_mutations(intent):
+    with pytest.raises(ValidationError):
+        SemanticIntentResult.model_validate({"intent": intent, "confidence": "high"})
 
 
 def test_semantic_intent_result_rejects_unknown_intent():
@@ -81,13 +82,15 @@ def test_semantic_router_fixture_is_representative_and_has_negative_controls():
 
     assert 30 <= len(cases) <= 50
     assert {
-        "single_pending_accept",
-        "single_pending_reject",
-        "multi_pending_ambiguity",
+        "create_shared_reminder",
+        "cancel_shared_reminder",
+        "create_friendship_by_user_link_code",
+        "friendship_management",
+        "user_link",
+        "friend_calendar",
+        "list_shared_reminders",
         "ask_detail",
         "request_change",
-        "stale_focus",
-        "expired_focus",
         "unrelated_utterance",
         "negative_control",
     } <= categories
@@ -96,9 +99,9 @@ def test_semantic_router_fixture_is_representative_and_has_negative_controls():
         for case in cases
         if case["category"] == "negative_control"
     }
-    assert negative_controls["先不要"] != "reject"
-    assert negative_controls["先不要急着"] != "reject"
-    assert negative_controls["不要现在处理"] != "reject"
+    assert negative_controls["先不要"] == "ambiguous"
+    assert negative_controls["先不要急着"] == "ambiguous"
+    assert negative_controls["不要现在处理"] == "ambiguous"
 
 
 def test_semantic_interpreter_input_contains_only_focus_and_current_utterance():
@@ -173,10 +176,9 @@ async def test_semantic_interpreter_fails_closed_without_client_for_single_focus
         [
             {
                 "action_id": "fr_1",
-                "kind": "friend_request",
-                "allowed_actions": ("accept", "reject"),
+                "kind": "future_product_candidate",
                 "status": "pending",
-                "summary_for_llm": "好友申请。",
+                "summary_for_llm": "Future product candidate.",
             }
         ],
         current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
@@ -207,10 +209,9 @@ async def test_semantic_interpreter_uses_configured_timeout_and_fails_closed(
         [
             {
                 "action_id": "fr_1",
-                "kind": "friend_request",
-                "allowed_actions": ("accept", "reject"),
+                "kind": "future_product_candidate",
                 "status": "pending",
-                "summary_for_llm": "好友申请。",
+                "summary_for_llm": "Future product candidate.",
             }
         ],
         current_time=datetime(2026, 5, 26, 12, 0, tzinfo=UTC),
@@ -219,7 +220,7 @@ async def test_semantic_interpreter_uses_configured_timeout_and_fails_closed(
     class SlowClient:
         async def create(self, *, payload, schema):
             await asyncio.sleep(0.05)
-            return {"intent": "accept", "confidence": "high"}
+            return {"intent": "create_shared_reminder", "confidence": "high"}
 
     result = await interpret_semantic_intent(
         focus=focus,

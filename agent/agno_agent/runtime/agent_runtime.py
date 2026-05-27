@@ -154,7 +154,7 @@ _UNCONFIRMED_DURABLE_WRITE_PATTERNS = (
         re.IGNORECASE,
     ),
 )
-_SHARED_REMINDER_PENDING_CONFIRMATION_CLAIM_PATTERNS = (
+_STALE_SHARED_REMINDER_INVITE_CLAIM_PATTERNS = (
     re.compile(r"(邀请|邀约|共享提醒请求).{0,24}(发给|发过去|发出|发送|提交)"),
     re.compile(r"(发给|发过去|发出|发送|提交).{0,24}(邀请|邀约|共享提醒请求)"),
     re.compile(r"(等|等待).{0,16}(确认|接受|同意)"),
@@ -509,6 +509,7 @@ def _semantic_scheduling_intent_and_args(
     semantic_result: SemanticIntentResult,
     focus: Any,
 ) -> tuple[str | None, dict[str, Any]]:
+    del focus
     if semantic_result.intent in {
         "ambiguous",
         "ask_detail",
@@ -526,55 +527,7 @@ def _semantic_scheduling_intent_and_args(
             semantic_result.intent,
             semantic_result.args,
         )
-    focus_current = getattr(focus, "current", None)
-    if focus_current is None:
-        if getattr(focus, "ambiguity", None) == "multi_pending":
-            focus_current = _focus_candidate_from_semantic_args(
-                focus,
-                semantic_result.args,
-            )
-        if focus_current is None:
-            return None, {}
-    if semantic_result.intent not in {"accept", "reject"}:
-        return None, {}
-    mapped_intent = _focus_action_scheduling_intent(
-        kind=str(getattr(focus_current, "kind", "")),
-        action=semantic_result.intent,
-    )
-    if mapped_intent is None:
-        return None, {}
-    focus_token = _focus_action_value(focus_current, "focus_token")
-    action_id = _focus_action_value(focus_current, "action_id")
-    if focus_token:
-        return mapped_intent, {
-            "focus_token": focus_token,
-            "focus_handle": action_id,
-        }
-    return mapped_intent, {"request_id": action_id}
-
-
-def _focus_candidate_from_semantic_args(
-    focus: Any,
-    args: Mapping[str, Any],
-) -> Any | None:
-    if not isinstance(args, Mapping):
-        return None
-    handle = str(
-        args.get("focus_handle")
-        or args.get("handle")
-        or args.get("action_id")
-        or args.get("request_id")
-        or ""
-    ).strip()
-    if not handle:
-        return None
-    candidates = getattr(focus, "candidates", None)
-    if not isinstance(candidates, Sequence):
-        return None
-    for candidate in candidates:
-        if str(_focus_action_value(candidate, "action_id") or "").strip() == handle:
-            return candidate
-    return None
+    return None, {}
 
 
 def _focus_action_value(action: Any, field: str) -> Any:
@@ -609,8 +562,8 @@ def _focused_semantic_failure_result(
     *,
     run_context: AgentRunContext | None = None,
 ) -> DomainExecutionResult:
-    if getattr(focus, "ambiguity", None) == "multi_pending":
-        return _multi_pending_clarification_result(
+    if getattr(focus, "ambiguity", None) == "multi_candidate":
+        return _multi_candidate_clarification_result(
             focus, semantic_result, run_context=run_context
         )
     return _single_candidate_focus_failure_result(focus, semantic_result)
@@ -662,7 +615,7 @@ def _single_candidate_focus_failure_result(
     )
 
 
-def _multi_pending_clarification_result(
+def _multi_candidate_clarification_result(
     focus: Any,
     semantic_result: SemanticIntentResult,
     *,
@@ -681,7 +634,7 @@ def _multi_pending_clarification_result(
         facts.append(ReplyFactRequirement(path=f"candidates[{index}].summary_for_llm"))
     summary_text = "\n".join(lines)
     error = DomainError(
-        code="semantic_focus_multi_pending",
+        code="semantic_focus_multi_candidate",
         message=semantic_result.clarification_reason or summary_text,
         retryable=True,
         detail={
@@ -705,7 +658,7 @@ def _multi_pending_clarification_result(
             ),
         ),
         missing_fields=(),
-        safety_boundary="semantic_focus_multi_pending",
+        safety_boundary="semantic_focus_multi_candidate",
         reply_contract=ReplyContract(
             intent="ask_clarification",
             required_facts=tuple(facts),
@@ -752,21 +705,11 @@ def _should_fail_closed_focused_semantic(
     focus: Any,
     semantic_result: SemanticIntentResult,
 ) -> bool:
-    if getattr(focus, "ambiguity", None) == "multi_pending":
-        if semantic_result.intent in {"accept", "reject"}:
-            return (
-                _focus_candidate_from_semantic_args(focus, semantic_result.args) is None
-            )
     return _focus_has_actionable_candidates(focus) and semantic_result.intent in {
         "ambiguous",
         "ask_detail",
         "request_change",
     }
-
-
-def _focus_action_scheduling_intent(*, kind: str, action: str) -> str | None:
-    del kind, action
-    return None
 
 
 def _current_utterance_for_semantic_interpreter(
@@ -1452,11 +1395,11 @@ def _check_unconfirmed_durable_write_promise(
 ) -> RuntimeErrorDisposition | None:
     if agent_input.input_type != "user.turn" or not final_text:
         return None
-    shared_reminder_pending_confirmation_claim = any(
+    stale_shared_reminder_invite_claim = any(
         pattern.search(final_text)
-        for pattern in _SHARED_REMINDER_PENDING_CONFIRMATION_CLAIM_PATTERNS
+        for pattern in _STALE_SHARED_REMINDER_INVITE_CLAIM_PATTERNS
     )
-    if shared_reminder_pending_confirmation_claim:
+    if stale_shared_reminder_invite_claim:
         return RuntimeErrorDisposition(
             code="unconfirmed_durable_write_promise",
             retryable=False,

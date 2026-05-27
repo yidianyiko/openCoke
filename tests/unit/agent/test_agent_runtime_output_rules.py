@@ -826,7 +826,7 @@ async def test_shared_reminder_creation_claim_fails_closed_without_confirmed_wri
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_pending_confirmation_claim_fails_closed(
+async def test_stale_shared_reminder_invite_claim_fails_closed(
     monkeypatch,
 ):
     text = "搞定了！今天上午11点去奇迹创坛的邀请已经发给 eva 了，等他确认～"
@@ -846,7 +846,7 @@ async def test_shared_reminder_pending_confirmation_claim_fails_closed(
 
 
 @pytest.mark.asyncio
-async def test_shared_reminder_pending_confirmation_claim_rejected_after_other_write(
+async def test_stale_shared_reminder_invite_claim_rejected_after_other_write(
     monkeypatch,
 ):
     unrelated_write = DomainExecutionResult(

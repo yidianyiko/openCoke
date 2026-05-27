@@ -1,299 +1,254 @@
 [
   {
-    "id": "accept-zh-confirm",
-    "category": "single_pending_accept",
-    "utterance": "确认",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "shared-reminder-zh-invite-time",
+    "category": "create_shared_reminder",
+    "utterance": "帮我约 Eva 明天上午 10 点一起练瑜伽，持续 60 分钟",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_shared_reminder"
   },
   {
-    "id": "accept-zh-good",
-    "category": "single_pending_accept",
-    "utterance": "好",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "shared-reminder-zh-course",
+    "category": "create_shared_reminder",
+    "utterance": "邀请小李周五晚上8点一起上普拉提，标题写普拉提课",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_shared_reminder"
   },
   {
-    "id": "accept-zh-ok",
-    "category": "single_pending_accept",
-    "utterance": "可以",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "shared-reminder-en-invite",
+    "category": "create_shared_reminder",
+    "utterance": "Invite Nora to join climbing tomorrow at 7pm for 90 minutes",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_shared_reminder"
   },
   {
-    "id": "accept-zh-join",
-    "category": "single_pending_accept",
-    "utterance": "那我参加",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "shared-reminder-explicit",
+    "category": "create_shared_reminder",
+    "utterance": "创建一个和 Alex 共享的提醒：周六下午3点去奇迹创坛",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_shared_reminder"
   },
   {
-    "id": "accept-en-yes",
-    "category": "single_pending_accept",
-    "utterance": "yes",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "shared-reminder-with-duration",
+    "category": "create_shared_reminder",
+    "utterance": "和 Ming 建个共享提醒，5月30日14:00 开会，持续半小时",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_shared_reminder"
   },
   {
-    "id": "accept-en-ok",
-    "category": "single_pending_accept",
-    "utterance": "ok",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "cancel-shared-reminder-zh",
+    "category": "cancel_shared_reminder",
+    "utterance": "取消我和 Eva 明天瑜伽的共享提醒",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "cancel_shared_reminder"
   },
   {
-    "id": "accept-en-approve",
-    "category": "single_pending_accept",
-    "utterance": "I approve this request",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "accept",
-    "expected_executor": "freshness_check_then_accept",
-    "expected_response_class": "success_or_state_moved"
+    "id": "cancel-shared-reminder-en",
+    "category": "cancel_shared_reminder",
+    "utterance": "Cancel the shared reminder with Nora for climbing",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "cancel_shared_reminder"
   },
   {
-    "id": "reject-zh-reject",
-    "category": "single_pending_reject",
-    "utterance": "拒绝",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "cancel-shared-reminder-id",
+    "category": "cancel_shared_reminder",
+    "utterance": "把这个 shared reminder sr_123 取消掉",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "cancel_shared_reminder"
   },
   {
-    "id": "reject-zh-not-approve",
-    "category": "single_pending_reject",
-    "utterance": "不通过",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "friend-link-code-zh",
+    "category": "create_friendship_by_user_link_code",
+    "utterance": "通过链接码 AbCdEfGhIjK_ 添加好友",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_friendship_by_user_link_code"
   },
   {
-    "id": "reject-zh-disagree",
-    "category": "single_pending_reject",
-    "utterance": "不同意",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "friend-link-code-en",
+    "category": "create_friendship_by_user_link_code",
+    "utterance": "Add friend using code ZXCVBNM1234",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_friendship_by_user_link_code"
   },
   {
-    "id": "reject-zh-busy",
-    "category": "single_pending_reject",
-    "utterance": "我不太方便",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "friend-link-code-short",
+    "category": "create_friendship_by_user_link_code",
+    "utterance": "加好友 code keep4eva_2026",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_friendship_by_user_link_code"
   },
   {
-    "id": "reject-en-decline",
-    "category": "single_pending_reject",
-    "utterance": "decline",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "friend-link-code-directive",
+    "category": "create_friendship_by_user_link_code",
+    "utterance": "用这个好友链接码 LNK_2026_ABC 帮我加上 Ming",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "create_friendship_by_user_link_code"
   },
   {
-    "id": "reject-en-reject",
-    "category": "single_pending_reject",
-    "utterance": "reject",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "reject",
-    "expected_executor": "freshness_check_then_reject",
-    "expected_response_class": "success_or_state_moved"
+    "id": "list-friends-zh",
+    "category": "friendship_management",
+    "utterance": "我有哪些好友？",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friends"
   },
   {
-    "id": "multi-short-confirm",
-    "category": "multi_pending_ambiguity",
-    "utterance": "确认",
-    "focus": {"ambiguity": "multi_pending", "candidates": ["shared_reminder_request", "friend_request"]},
-    "expected_intent": "ambiguous",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "clarification"
+    "id": "list-friends-en",
+    "category": "friendship_management",
+    "utterance": "Show my friends",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friends"
   },
   {
-    "id": "multi-short-ok",
-    "category": "multi_pending_ambiguity",
-    "utterance": "ok",
-    "focus": {"ambiguity": "multi_pending", "candidates": ["shared_reminder_request", "shared_reminder_request"]},
-    "expected_intent": "ambiguous",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "clarification"
+    "id": "remove-friend-zh",
+    "category": "friendship_management",
+    "utterance": "把 Nora 从好友里移除",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "remove_friendship"
   },
   {
-    "id": "multi-pronoun",
-    "category": "multi_pending_ambiguity",
-    "utterance": "通过这个",
-    "focus": {"ambiguity": "multi_pending", "candidates": ["friend_request", "friend_request"]},
-    "expected_intent": "ambiguous",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "clarification"
+    "id": "remove-friend-en",
+    "category": "friendship_management",
+    "utterance": "Remove Alex as a friend",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "remove_friendship"
   },
   {
-    "id": "detail-sender",
-    "category": "ask_detail",
-    "utterance": "谁发的？",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "ask_detail",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "detail_answer"
+    "id": "get-user-link",
+    "category": "user_link",
+    "utterance": "给我我的好友链接",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "get_user_link"
   },
   {
-    "id": "detail-time",
-    "category": "ask_detail",
-    "utterance": "几点？",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "ask_detail",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "detail_answer"
+    "id": "get-user-link-en",
+    "category": "user_link",
+    "utterance": "Show my user link",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "get_user_link"
   },
   {
-    "id": "detail-what",
+    "id": "reset-user-link",
+    "category": "user_link",
+    "utterance": "重置我的好友链接",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "reset_user_link"
+  },
+  {
+    "id": "disable-user-link",
+    "category": "user_link",
+    "utterance": "停用我的用户链接",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "disable_user_link"
+  },
+  {
+    "id": "friend-calendar-week",
+    "category": "friend_calendar",
+    "utterance": "看看 Eva 这周哪些时间空",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friend_calendar_facts"
+  },
+  {
+    "id": "friend-calendar-specific",
+    "category": "friend_calendar",
+    "utterance": "Ming 明天下午有空吗？",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friend_calendar_facts"
+  },
+  {
+    "id": "friend-calendar-en",
+    "category": "friend_calendar",
+    "utterance": "When is Nora free this weekend?",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friend_calendar_facts"
+  },
+  {
+    "id": "friend-calendar-before-time-settled",
+    "category": "friend_calendar",
+    "utterance": "约 Alex 一起跑步，他这周什么时间方便？",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_friend_calendar_facts"
+  },
+  {
+    "id": "list-shared-reminders-zh",
+    "category": "list_shared_reminders",
+    "utterance": "我有哪些共享提醒？",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_shared_reminders"
+  },
+  {
+    "id": "list-shared-reminders-status",
+    "category": "list_shared_reminders",
+    "utterance": "看看我和 Eva 还在进行中的共享提醒",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_shared_reminders"
+  },
+  {
+    "id": "list-shared-reminders-en",
+    "category": "list_shared_reminders",
+    "utterance": "List my shared reminders",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "list_shared_reminders"
+  },
+  {
+    "id": "detail-focused-candidate",
     "category": "ask_detail",
     "utterance": "这是什么？",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "ask_detail",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "detail_answer"
+    "focus": {"ambiguity": "none", "kind": "future_product_candidate", "status": "pending"},
+    "expected_intent": "ask_detail"
   },
   {
-    "id": "change-later",
+    "id": "change-focused-candidate",
     "category": "request_change",
     "utterance": "可以改晚一点吗？",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_accept_or_reject",
-    "expected_response_class": "change_not_supported_or_clarification"
+    "focus": {"ambiguity": "none", "kind": "future_product_candidate", "status": "pending"},
+    "expected_intent": "request_change"
   },
   {
-    "id": "change-tomorrow",
-    "category": "request_change",
-    "utterance": "改到明天",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_accept_or_reject",
-    "expected_response_class": "change_not_supported_or_clarification"
-  },
-  {
-    "id": "change-other-time",
-    "category": "request_change",
-    "utterance": "换个时间",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_accept_or_reject",
-    "expected_response_class": "change_not_supported_or_clarification"
-  },
-  {
-    "id": "stale-accepted-confirm",
-    "category": "stale_focus",
-    "utterance": "确认",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "accepted"},
-    "expected_intent": "accept",
-    "expected_executor": "stale_focus_failure",
-    "expected_response_class": "state_moved_failure"
-  },
-  {
-    "id": "stale-rejected-ok",
-    "category": "stale_focus",
-    "utterance": "好",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "rejected"},
-    "expected_intent": "accept",
-    "expected_executor": "stale_focus_failure",
-    "expected_response_class": "state_moved_failure"
-  },
-  {
-    "id": "expired-confirm",
-    "category": "expired_focus",
-    "utterance": "确认",
-    "focus": {"ambiguity": "none_actionable", "kind": "shared_reminder_request", "status": "expired"},
-    "expected_intent": "ambiguous",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "expired_failure"
-  },
-  {
-    "id": "expired-accept-english",
-    "category": "expired_focus",
-    "utterance": "accept",
-    "focus": {"ambiguity": "none_actionable", "kind": "friend_request", "status": "expired"},
-    "expected_intent": "ambiguous",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "expired_failure"
+    "id": "multi-candidate-unclear",
+    "category": "negative_control",
+    "utterance": "处理这个",
+    "focus": {"ambiguity": "multi_candidate", "candidates": ["future_product_candidate", "future_product_candidate"]},
+    "expected_intent": "ambiguous"
   },
   {
     "id": "unrelated-weather",
     "category": "unrelated_utterance",
     "utterance": "今天会下雨吗？",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "unrelated",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "direct_or_capability_answer"
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "unrelated"
   },
   {
     "id": "unrelated-greeting",
     "category": "unrelated_utterance",
     "utterance": "早上好",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "unrelated",
-    "expected_executor": "no_mutation",
-    "expected_response_class": "direct_reply"
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "unrelated"
   },
   {
-    "id": "unrelated-reminder-question",
+    "id": "unrelated-personal-reminder",
     "category": "unrelated_utterance",
-    "utterance": "我明天有哪些提醒？",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "unrelated",
-    "expected_executor": "no_focus_mutation",
-    "expected_response_class": "route_other_domain_or_direct"
+    "utterance": "提醒我明天联系 Eva",
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "unrelated"
   },
   {
     "id": "negative-wait-do-not",
     "category": "negative_control",
     "utterance": "先不要",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_reject",
-    "expected_response_class": "clarification"
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "ambiguous"
   },
   {
     "id": "negative-do-not-rush",
     "category": "negative_control",
     "utterance": "先不要急着",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_reject",
-    "expected_response_class": "clarification"
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "ambiguous"
   },
   {
     "id": "negative-not-now",
     "category": "negative_control",
     "utterance": "不要现在处理",
-    "focus": {"ambiguity": "none", "kind": "shared_reminder_request", "status": "pending"},
-    "expected_intent": "request_change",
-    "expected_executor": "no_direct_reject",
-    "expected_response_class": "clarification"
-  },
-  {
-    "id": "negative-think-first",
-    "category": "negative_control",
-    "utterance": "我想先考虑一下",
-    "focus": {"ambiguity": "none", "kind": "friend_request", "status": "pending"},
-    "expected_intent": "ask_detail",
-    "expected_executor": "no_direct_reject",
-    "expected_response_class": "clarification"
+    "focus": {"ambiguity": "none_actionable"},
+    "expected_intent": "ambiguous"
   }
 ]

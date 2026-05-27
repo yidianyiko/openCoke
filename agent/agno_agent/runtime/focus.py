@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-FocusAmbiguity = Literal["none", "multi_pending", "none_actionable"]
+FocusAmbiguity = Literal["none", "multi_candidate", "none_actionable"]
 _RETIRED_FOCUS_KINDS = {"friend_request", "shared_reminder_request"}
 
 
@@ -15,7 +15,6 @@ class PendingAction(BaseModel):
 
     action_id: str
     kind: str
-    allowed_actions: tuple[str, ...]
     status: str
     focus_token: str | None = None
     expires_at: datetime | None = None
@@ -47,7 +46,7 @@ def build_focus_channel(
     if not actions:
         return FocusChannel(current=None, ambiguity="none_actionable")
     if len(actions) > 1:
-        return FocusChannel(current=None, ambiguity="multi_pending", candidates=actions)
+        return FocusChannel(current=None, ambiguity="multi_candidate", candidates=actions)
     action = actions[0]
     return FocusChannel(current=action, ambiguity="none", candidates=(action,))
 
@@ -57,24 +56,8 @@ def focus_from_product_notification(
     *,
     current_time: datetime,
 ) -> FocusChannel:
-    if not isinstance(product_notification, Mapping):
-        return FocusChannel(current=None, ambiguity="none_actionable")
-    candidates = product_notification.get("candidates")
-    if isinstance(candidates, Sequence) and not isinstance(
-        candidates, (str, bytes, bytearray)
-    ):
-        return build_focus_channel(
-            [
-                _action_input_from_product_notification(candidate)
-                for candidate in candidates
-                if isinstance(candidate, Mapping)
-            ],
-            current_time=current_time,
-        )
-    return build_focus_channel(
-        [_action_input_from_product_notification(product_notification)],
-        current_time=current_time,
-    )
+    del product_notification, current_time
+    return FocusChannel(current=None, ambiguity="none_actionable")
 
 
 def focus_from_agent_focus_binding(
@@ -125,24 +108,6 @@ def focus_to_session_state(focus: FocusChannel) -> dict[str, Any]:
     return focus.model_dump(mode="json")
 
 
-def _action_input_from_product_notification(
-    product_notification: Mapping[str, Any],
-) -> dict[str, Any]:
-    return {
-        "action_id": product_notification.get("action_id")
-        or product_notification.get("request_id"),
-        "kind": product_notification.get("kind")
-        or product_notification.get("request_type"),
-        "allowed_actions": product_notification.get("allowed_actions") or (),
-        "status": product_notification.get("status") or "pending",
-        "expires_at": product_notification.get("expires_at"),
-        "delivered_at": product_notification.get("delivered_at"),
-        "summary_for_llm": product_notification.get("summary_for_llm")
-        or product_notification.get("summary")
-        or _fallback_summary(product_notification),
-    }
-
-
 def _action_input_from_agent_focus_candidate(
     candidate: Mapping[str, Any],
     *,
@@ -153,7 +118,6 @@ def _action_input_from_agent_focus_candidate(
     return {
         "action_id": candidate.get("handle"),
         "kind": candidate.get("kind"),
-        "allowed_actions": candidate.get("allowed_actions") or (),
         "status": candidate.get("status") or "pending",
         "focus_token": focus_token,
         "expires_at": expires_at,
@@ -181,27 +145,17 @@ def _pending_action_from_mapping(
     if kind in _RETIRED_FOCUS_KINDS:
         return None
     summary = str(value.get("summary_for_llm") or value.get("summary") or "").strip()
-    allowed_actions = _allowed_actions(value.get("allowed_actions"))
-    if not action_id or not kind or not summary or not allowed_actions:
+    if not action_id or not kind or not summary:
         return None
     return PendingAction(
         action_id=action_id,
         kind=kind,
-        allowed_actions=allowed_actions,
         status=status,
         focus_token=_optional_string(value.get("focus_token")),
         expires_at=expires_at,
         delivered_at=delivered_at,
         summary_for_llm=summary,
     )
-
-
-def _allowed_actions(value: Any) -> tuple[str, ...]:
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        actions = tuple(str(item).strip() for item in value if str(item).strip())
-        if actions:
-            return actions
-    return ()
 
 
 def _parse_datetime(value: Any) -> datetime | None:

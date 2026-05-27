@@ -9,8 +9,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 SemanticIntentName = Literal[
-    "accept",
-    "reject",
     "ask_detail",
     "request_change",
     "unrelated",
@@ -29,8 +27,6 @@ SemanticIntentName = Literal[
 SemanticConfidence = Literal["low", "medium", "high"]
 
 _MUTATION_INTENTS = {
-    "accept",
-    "reject",
     "create_shared_reminder",
     "cancel_shared_reminder",
     "create_friendship_by_user_link_code",
@@ -41,21 +37,21 @@ _MUTATION_INTENTS = {
 _DEFAULT_SEMANTIC_INTERPRETER_TIMEOUT_SECONDS = 20.0
 
 _SEMANTIC_INTERPRETER_INSTRUCTIONS = (
-    """You classify a user's current reply against a trusted product-action focus.
+    """You classify a user's current reply into the active scheduling intent set.
 Return only the structured semantic intent.
 
 Rules:
-- Use the trusted focus and allowed_actions as the action boundary.
-- Interpret natural-language confirmation or rejection semantically, not by fixed keyword matching.
-- If the user confirms the focused action, return intent "accept".
-- If the user refuses the focused action, return intent "reject".
-- If the focus has multiple candidates and the user clearly selects one candidate by ordinal, offered time, or summary text, return "accept" or "reject" with args {"focus_handle": "<selected action_id>"}.
-- If the user asks to accept, reject, or cancel all currently focused shared reminders, return the matching bulk shared-reminder intent.
-- If the user asks what the focused action is about, return "ask_detail".
-- If the user asks to change the focused action rather than accept or reject it, return "request_change".
-- If the user is talking about something unrelated to the focused action, return "unrelated".
-- If the focus is missing, stale, multi-candidate without a clear selected candidate, or the reply is unclear, return "ambiguous".
-- Use high confidence only when the action meaning is clear from the current utterance and trusted focus.
+- Product notifications for direct friendship or shared reminders are informational; do not create pending focus actions from them.
+- For explicit user-link, friendship, friend availability, or shared-reminder requests, return the matching scheduling intent.
+- Return create_friendship_by_user_link_code only when the user provides a user link code or a clear add-by-code directive.
+- Return create_shared_reminder only for an explicit shared reminder or friend invite with concrete scheduling details.
+- Return cancel_shared_reminder only when the user asks to cancel an existing shared reminder.
+- Return list_shared_reminders, list_friends, list_friend_calendar_facts, get_user_link, reset_user_link, disable_user_link, or remove_friendship for the matching direct request.
+- If the user asks what a non-mutating focused candidate is about, return "ask_detail".
+- If the user asks to change a non-mutating focused candidate, return "request_change".
+- If the user is talking about something unrelated to scheduling, return "unrelated".
+- If the action is missing, stale, multi-candidate without a clear active intent, or the reply is unclear, return "ambiguous".
+- Use high confidence only when the active intent is clear from the current utterance and trusted context.
 """.strip()
 )
 
