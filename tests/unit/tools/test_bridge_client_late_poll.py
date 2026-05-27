@@ -72,8 +72,9 @@ def test_poll_late_reply_text_returns_immediate_matching_reply(monkeypatch):
     assert reply_text == "已经帮你约好了。"
     assert output_doc == {"_id": "out1", "status": "handled", "message": "已经帮你约好了。"}
     query = outputmessages.queries[0]
+    assert {"customer_id": "ck_alice"} in query["$and"][0]["$or"]
     assert {"to_user": "ck_alice"} in query["$and"][0]["$or"]
-    assert {"account_id": "ck_alice"} in query["$and"][0]["$or"]
+    assert {"account_id": "ck_alice"} not in query["$and"][0]["$or"]
     assert {
         "metadata.business_protocol.causal_inbound_event_id": "evt1"
     } in query["$and"][1]["$or"]

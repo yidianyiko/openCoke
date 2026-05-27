@@ -167,7 +167,7 @@ def poll_late_reply_text(
     deadline = time.monotonic() + poll_seconds
     query = {
         "$and": [
-            {"$or": [{"to_user": coke_account_id}, {"account_id": coke_account_id}]},
+            {"$or": [{"customer_id": coke_account_id}, {"to_user": coke_account_id}]},
             {
                 "$or": [
                     {
