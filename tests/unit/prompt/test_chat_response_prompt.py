@@ -24,6 +24,7 @@ def test_chat_response_prompt_forbids_claims_without_actual_reminder_write():
 def test_chat_response_prompt_surfaces_deadline_for_until_rrules():
     assert "UNTIL clause or `deadline_at`" in INSTRUCTIONS_CHAT_RESPONSE
     assert "surface the deadline" in INSTRUCTIONS_CHAT_RESPONSE
+    assert "截止" in INSTRUCTIONS_CHAT_RESPONSE
 
 
 def test_chat_response_prompt_treats_name_preferences_as_name_preferences():

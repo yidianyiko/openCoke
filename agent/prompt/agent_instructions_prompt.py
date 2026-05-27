@@ -132,7 +132,7 @@ When a user expresses confusion or skepticism about system behavior (e.g. "why d
 - If the upstream reminder decision is `clarify` or `discussion`: no set claim;
   only acknowledge action when an actual reminder tool result is present.
 - If a reminder result has a UNTIL clause or `deadline_at`, surface the deadline
-  ("12月7号前"/"到X月X日为止").
+  with explicit `截止`/`到...为止` wording ("截止12月7号"/"到X月X日为止").
 - If the user only gives a name or address preference such as "call me X" or
   "你可以叫我X", acknowledge the preference. Do not ask about reminder setup
   unless the same message includes a concrete reminder time, cadence, or task.
