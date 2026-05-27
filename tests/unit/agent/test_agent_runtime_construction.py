@@ -530,7 +530,7 @@ async def test_run_agent_runtime_visible_text_falls_back_to_visible_summary_when
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_scheduling_action(
+async def test_run_agent_runtime_keeps_agent_text_for_explicit_scheduling_action(
     monkeypatch,
 ):
     preloaded_domain_result = DomainExecutionResult(
@@ -610,7 +610,7 @@ async def test_run_agent_runtime_prefers_domain_visible_summary_for_explicit_sch
     )
 
     assert [message.content for message in result.visible_messages] == [
-        "已通过好友请求。"
+        "哎呀，系统刚才出了点状况，没能成功处理你的好友请求。"
     ]
     assert result.domain_results == (preloaded_domain_result,)
 
@@ -780,7 +780,7 @@ async def test_run_agent_runtime_does_not_preselect_activity_reservation_phrase(
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
+async def test_run_agent_runtime_falls_back_to_explicit_past_reminder_failure_text(
     monkeypatch,
 ):
     past_result = DomainExecutionResult(
@@ -816,7 +816,7 @@ async def test_run_agent_runtime_prefers_explicit_past_reminder_failure_text(
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="我没接住你刚才的意思。你可以换个说法再说一次吗？",
+                content="",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -988,7 +988,9 @@ async def test_run_agent_runtime_does_not_directly_execute_explicit_personal_rem
     assert result.domain_results == (reminder_result,)
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_prefers_reminder_list_visible_summary(monkeypatch):
+async def test_run_agent_runtime_falls_back_to_reminder_list_visible_summary(
+    monkeypatch,
+):
     list_result = DomainExecutionResult(
         domain="reminder",
         outcome="executed",
@@ -1020,7 +1022,7 @@ async def test_run_agent_runtime_prefers_reminder_list_visible_summary(monkeypat
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content='{"MultiModalResponses":[{"type":"text","content":"你今天有2个提醒：\\n- 喝水"}]}',
+                content="",
                 messages=[SimpleNamespace(role="assistant", content="")],
             )
 
@@ -1127,7 +1129,7 @@ async def test_run_agent_runtime_dispatches_semantic_focus_action_from_product_n
 
     class FakeAgent:
         async def arun(self, **kwargs):
-            return SimpleNamespace(content="ignored", messages=[])
+            return SimpleNamespace(content="已通过好友请求。", messages=[])
 
     semantic_client = object()
 
@@ -1536,17 +1538,19 @@ async def test_run_agent_runtime_treats_domain_write_as_confirmed_reminder_promi
 
 
 @pytest.mark.asyncio
-async def test_run_agent_runtime_prefers_domain_summary_for_superseding_batched_write(
+async def test_run_agent_runtime_uses_agent_synthesis_for_superseding_batched_write(
     monkeypatch,
 ):
+    synthesized_reply = "好的，已按最新消息改成周一 9 点喝水提醒。"
+
     class FakeAgent:
         async def arun(self, **kwargs):
             return SimpleNamespace(
-                content="已设置周一9点喝水提醒。再给你5个健康早餐推荐：燕麦。",
+                content=synthesized_reply,
                 messages=[
                     SimpleNamespace(
                         role="assistant",
-                        content="已设置周一9点喝水提醒。再给你5个健康早餐推荐：燕麦。",
+                        content=synthesized_reply,
                     )
                 ],
             )
@@ -1605,7 +1609,7 @@ async def test_run_agent_runtime_prefers_domain_summary_for_superseding_batched_
     )
 
     assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：喝水（2026-06-01 09:00）"
+        synthesized_reply
     ]
 
 

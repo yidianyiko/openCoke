@@ -1229,43 +1229,6 @@ def _operation_has_visible_text(operation: DomainOperationResult) -> bool:
     return False
 
 
-def _should_prefer_domain_visible_text(
-    *,
-    domain_results: Sequence[DomainExecutionResult],
-) -> bool:
-    if any(
-        result.domain == "reminder"
-        and result.outcome == "failed"
-        and result.safety_boundary == "explicit_past"
-        for result in domain_results
-    ):
-        return True
-    if any(
-        result.domain == "reminder"
-        and result.outcome == "executed"
-        and any(
-            operation.effect == "write"
-            and operation.ok
-            and _operation_has_visible_text(operation)
-            for operation in result.operations
-        )
-        for result in domain_results
-    ):
-        return True
-    return any(
-        result.domain == "reminder"
-        and result.outcome == "executed"
-        and any(
-            operation.action == "list"
-            and operation.ok
-            and operation.effect == "read"
-            and _operation_has_visible_text(operation)
-            for operation in result.operations
-        )
-        for result in domain_results
-    )
-
-
 def _latest_user_turn_text(input_message: str) -> str:
     parts = re.split(r"（[^）]*发来了文本消息）", input_message)
     if len(parts) > 1:
@@ -2203,14 +2166,6 @@ async def run_agent_runtime(
         final_text = _string_content(getattr(run_output, "content", None))
         if not final_text:
             final_text = _latest_assistant_text(run_output)
-        if preselected_scheduling_intent:
-            domain_visible_text = _resolve_domain_visible_text(domain_results)
-            if domain_visible_text:
-                final_text = domain_visible_text
-        elif _should_prefer_domain_visible_text(
-            domain_results=domain_results,
-        ):
-            final_text = _resolve_domain_visible_text(domain_results)
         final_text_segments = _parse_visible_text_segments(final_text)
         unconfirmed_promise_error = _check_unconfirmed_durable_write_promise(
             agent_input=agent_input,
@@ -2227,6 +2182,8 @@ async def run_agent_runtime(
         )
         runtime_contract_error = durable_write_error or unconfirmed_promise_error
         visible_text_segments = final_text_segments
+        output_source = "model"
+        fallback_reason = None
         if not final_text:
             fallback_text = _resolve_visible_text("", captured_capability_results)
             if not fallback_text:
@@ -2234,6 +2191,12 @@ async def run_agent_runtime(
                     captured_domain_results,
                     include_failed_generic=True,
                 )
+                if fallback_text:
+                    output_source = "domain_summary"
+                    fallback_reason = "empty_agent_output"
+            elif fallback_text:
+                output_source = "capability_summary"
+                fallback_reason = "empty_agent_output"
             visible_text_segments = (fallback_text,) if fallback_text else ()
         identifier_leak_error = _check_visible_identifier_leak(
             _visible_text_for_guardrails(visible_text_segments)
@@ -2256,14 +2219,6 @@ async def run_agent_runtime(
 
         if visible_messages and runtime_contract_error is None:
             output_disposition = OutputDisposition(status="ok")
-            output_source = (
-                "domain_summary"
-                if preselected_scheduling_intent
-                or _should_prefer_domain_visible_text(
-                    domain_results=captured_domain_results,
-                )
-                else "model"
-            )
             trace = _build_runtime_trace(
                 agent_input=agent_input,
                 run_context=run_context,
@@ -2290,7 +2245,7 @@ async def run_agent_runtime(
                     visible_message_count=len(visible_messages),
                     output_reference_count=0,
                     post_analyze_requested=True,
-                    fallback_reason=None,
+                    fallback_reason=fallback_reason,
                 ),
                 output_disposition=output_disposition,
                 error_disposition=None,

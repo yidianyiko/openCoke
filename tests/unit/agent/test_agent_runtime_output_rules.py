@@ -192,7 +192,9 @@ async def test_failed_tool_message_is_not_joined_with_success_summary(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_reminder_write_uses_domain_summary_to_preserve_exact_title(monkeypatch):
+async def test_reminder_write_domain_summary_does_not_replace_nonempty_agent_text(
+    monkeypatch,
+):
     emoji_title = "🍅 番茄钟 ⏰"
     reminder_result = DomainExecutionResult(
         domain="reminder",
@@ -235,7 +237,7 @@ async def test_reminder_write_uses_domain_summary_to_preserve_exact_title(monkey
     )
 
     assert [message.content for message in result.visible_messages] == [
-        "已创建提醒：🍅 番茄钟 ⏰（2026-05-27 周三 09:00）"
+        "好嘞，明天早上9点🍅番茄钟提醒已经设好了~"
     ]
 
 
