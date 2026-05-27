@@ -40,6 +40,15 @@ def test_static_reminder_detect_instructions_do_not_embed_dynamic_current_time()
     assert "Current time:" not in INSTRUCTIONS_REMINDER_DETECT
 
 
+def test_reminder_detect_instructions_own_create_routing_and_id_source():
+    instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
+
+    assert "Create wording plus a concrete schedule is action=create" in instructions
+    assert "Do not convert create wording to update" in instructions
+    assert "Do not set reminder_id from user title/content" in instructions
+    assert "trusted runtime context" in instructions
+
+
 def test_reminder_detect_instructions_do_not_embed_case_examples():
     instructions = get_reminder_detect_instructions("2026年04月30日12时00分")
 

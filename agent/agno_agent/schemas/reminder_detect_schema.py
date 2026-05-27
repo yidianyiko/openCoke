@@ -30,7 +30,14 @@ class ReminderOperation(BaseModel):
         default=None,
         description="Optional positive duration in minutes for create operations.",
     )
-    reminder_id: str = Field(default="", description="Exact reminder id if known.")
+    reminder_id: str = Field(
+        default="",
+        description=(
+            "Exact existing reminder id from trusted runtime context. "
+            "Leave empty for create; never copy user title/content or arbitrary "
+            "id-like text."
+        ),
+    )
     keyword: str = Field(default="", description="Reminder target keyword.")
     target_title: str | None = Field(
         default=None,
@@ -48,9 +55,9 @@ class ReminderOperation(BaseModel):
         default=None,
         description='Structured write target recurrence selector such as "FREQ=DAILY".',
     )
-    target_scope: Literal["current_conversation", "recent_active", "all_active"] | None = (
-        Field(default=None, description="Structured write target search scope.")
-    )
+    target_scope: (
+        Literal["current_conversation", "recent_active", "all_active"] | None
+    ) = Field(default=None, description="Structured write target search scope.")
     new_title: str = Field(
         default="",
         description="Updated title; update only, do not use for create.",
@@ -75,6 +82,8 @@ class ReminderOperation(BaseModel):
             raise ValueError("batch create operation requires title and trigger_at")
         if self.action == "create" and _is_generic_reminder_title(self.title):
             raise ValueError("batch create operation requires non-generic title")
+        if self.action == "create" and self.reminder_id:
+            raise ValueError("batch create operation must not include reminder_id")
         return self
 
 
@@ -122,7 +131,14 @@ class ReminderDetectDecision(BaseModel):
             "Use when the user explicitly states how long the reminder lasts."
         ),
     )
-    reminder_id: str = Field(default="", description="Exact reminder id if known.")
+    reminder_id: str = Field(
+        default="",
+        description=(
+            "Exact existing reminder id from trusted runtime context. "
+            "Leave empty for create; never copy user title/content or arbitrary "
+            "id-like text."
+        ),
+    )
     keyword: str = Field(default="", description="Reminder target keyword for crud.")
     target_title: str | None = Field(
         default=None,
@@ -140,9 +156,9 @@ class ReminderDetectDecision(BaseModel):
         default=None,
         description='Structured write target recurrence selector such as "FREQ=DAILY".',
     )
-    target_scope: Literal["current_conversation", "recent_active", "all_active"] | None = (
-        Field(default=None, description="Structured write target search scope.")
-    )
+    target_scope: (
+        Literal["current_conversation", "recent_active", "all_active"] | None
+    ) = Field(default=None, description="Structured write target search scope.")
     new_title: str = Field(default="", description="Updated title; crud update only.")
     new_trigger_at: str = Field(
         default="",
@@ -317,6 +333,8 @@ class ReminderDetectDecision(BaseModel):
                 raise ValueError("create action requires title and trigger_at")
             if self.action == "create" and _is_generic_reminder_title(self.title):
                 raise ValueError("create action requires non-generic title")
+            if self.action == "create" and self.reminder_id:
+                raise ValueError("create action must not include reminder_id")
             self._validate_executable_datetimes()
             self._validate_target_selector()
             self._validate_schedule_basis()
@@ -368,15 +386,15 @@ class ReminderDetectDecision(BaseModel):
 
         for index, operation in enumerate(self.operations):
             operation_date = str(operation.target_local_date or "").strip()
-            if operation_date and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", operation_date):
+            if operation_date and not re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}", operation_date
+            ):
                 raise ValueError(
                     f"operations[{index}].target_local_date must be YYYY-MM-DD"
                 )
             operation_time = str(operation.target_local_time or "").strip()
             if operation_time and not re.fullmatch(r"\d{2}:\d{2}", operation_time):
-                raise ValueError(
-                    f"operations[{index}].target_local_time must be HH:MM"
-                )
+                raise ValueError(f"operations[{index}].target_local_time must be HH:MM")
 
     def _validate_list_scope(self) -> None:
         from_date = str(self.list_from_local_date or "").strip()
@@ -491,4 +509,3 @@ def _strip_executable_fields_for_clarification(data: dict[str, Any]) -> dict[str
 def _is_generic_reminder_title(value: str) -> bool:
     normalized = re.sub(r"[\s，,。.!！?？]+", "", str(value or "").strip())
     return normalized in {"提醒", "提醒我", "提醒一下", "提醒一下我"}
-

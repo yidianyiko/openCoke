@@ -170,7 +170,6 @@ class ReminderIntentPort:
             return _unbounded_high_frequency_cadence_clarification_result(decision)
         if not _should_execute_decision(decision):
             return _invalid_decision_clarification_result()
-        decision = _repair_create_request_misrouted_as_update(input_message, decision)
         if _should_reject_title_schedule_evidence_leak(decision):
             return _invalid_decision_clarification_result()
         if _should_reject_weekday_mismatch(input_message, decision, run_context):
@@ -189,84 +188,6 @@ def _should_execute_decision(decision: Any) -> bool:
     intent_type = _decision_value(decision, "intent_type")
     action = _decision_value(decision, "action")
     return intent_type == "crud" or (intent_type == "query" and action == "list")
-
-
-_UPDATE_REQUEST_PATTERN = re.compile(
-    r"(改|修改|更新|推迟|提前|延后|挪到|改成|改到|取消|删除|删掉|完成|标记.{0,8}完成|"
-    r"\b(update|change|reschedule|snooze|cancel|delete|complete)\b)",
-    re.IGNORECASE,
-)
-
-
-def _repair_create_request_misrouted_as_update(
-    input_message: str,
-    decision: Any,
-) -> Any:
-    if str(_decision_value(decision, "action") or "").strip() != "update":
-        return decision
-    current_user_text = _latest_user_turn_text(input_message)
-    if not _REMINDER_VERB_PATTERN.search(current_user_text):
-        return decision
-    if _UPDATE_REQUEST_PATTERN.search(current_user_text):
-        return decision
-    if not (
-        _RELATIVE_DELAY_PATTERN.search(current_user_text)
-        or _EXPLICIT_DATE_PATTERN.search(current_user_text)
-        or _BARE_CLOCK_PATTERN.search(current_user_text)
-    ):
-        return decision
-
-    title = str(
-        _decision_value(decision, "title")
-        or _decision_value(decision, "new_title")
-        or ""
-    ).strip()
-    trigger_at = str(
-        _decision_value(decision, "trigger_at")
-        or _decision_value(decision, "new_trigger_at")
-        or ""
-    ).strip()
-    if not title or not trigger_at:
-        return decision
-
-    data = _decision_as_dict(decision)
-    data.update(
-        {
-            "intent_type": "crud",
-            "action": "create",
-            "title": title,
-            "trigger_at": trigger_at,
-            "reminder_id": "",
-            "keyword": "",
-            "target_title": None,
-            "target_local_date": None,
-            "target_local_time": None,
-            "target_rrule": None,
-            "target_scope": None,
-            "new_title": "",
-            "new_trigger_at": "",
-            "rrule": str(_decision_value(decision, "rrule") or ""),
-            "deadline_at": str(_decision_value(decision, "deadline_at") or ""),
-            "schedule_basis": str(_decision_value(decision, "schedule_basis") or ""),
-            "schedule_evidence": str(
-                _decision_value(decision, "schedule_evidence") or ""
-            ),
-            "operations": [],
-            "clarification_reason": "",
-        }
-    )
-    return ReminderDetectDecision.model_validate(data)
-
-
-def _decision_as_dict(decision: Any) -> dict[str, Any]:
-    if isinstance(decision, ReminderDetectDecision):
-        return decision.model_dump()
-    if isinstance(decision, Mapping):
-        return dict(decision)
-    return {
-        field_name: _decision_value(decision, field_name)
-        for field_name in ReminderDetectDecision.model_fields
-    }
 
 
 def _is_unrecognized_decision(decision: Any) -> bool:
@@ -421,7 +342,9 @@ def _has_exact_clock_evidence(current_user_text: str) -> bool:
     )
 
 
-def _extract_single_clock_evidence(current_user_text: str) -> tuple[int, int, int] | None:
+def _extract_single_clock_evidence(
+    current_user_text: str,
+) -> tuple[int, int, int] | None:
     seconds_match = _single_seconds_clock_match(current_user_text)
     if seconds_match is not None:
         return seconds_match
@@ -477,7 +400,9 @@ def _current_local_datetime(run_context: AgentRunContext) -> datetime:
 
 def _runtime_local_datetime(run_context: AgentRunContext) -> datetime:
     current_time = run_context.current_time
-    return current_time.astimezone() if current_time.tzinfo is not None else current_time
+    return (
+        current_time.astimezone() if current_time.tzinfo is not None else current_time
+    )
 
 
 def _explicit_local_date_from_text(

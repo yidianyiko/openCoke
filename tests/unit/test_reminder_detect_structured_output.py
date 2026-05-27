@@ -83,6 +83,43 @@ def test_reminder_detect_schema_rejects_generic_create_title():
         )
 
 
+def test_reminder_detect_schema_rejects_create_with_reminder_id():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(
+        ValidationError, match="create action must not include reminder_id"
+    ):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="create",
+            title="喝水-fire-real-20260527T073551Z",
+            trigger_at="2026-05-27T15:39:00+08:00",
+            reminder_id="fire-real-20260527T073551Z",
+        )
+
+
+def test_reminder_detect_schema_rejects_batch_create_operation_with_reminder_id():
+    from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
+    with pytest.raises(
+        ValidationError, match="batch create operation must not include reminder_id"
+    ):
+        ReminderDetectDecision(
+            intent_type="crud",
+            action="batch",
+            operations=[
+                {
+                    "action": "create",
+                    "title": "喝水-fire-real-20260527T073551Z",
+                    "trigger_at": "2026-05-27T15:39:00+08:00",
+                    "reminder_id": "fire-real-20260527T073551Z",
+                }
+            ],
+            schedule_basis="explicit_occurrences",
+            schedule_evidence="2分钟后",
+        )
+
+
 def test_reminder_detect_schema_rejects_generic_batch_create_title():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
@@ -253,7 +290,9 @@ def test_reminder_detect_schema_rejects_list_scope_fields_on_write_decisions():
 def test_reminder_detect_schema_rejects_invalid_list_scope_shapes():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
 
-    with pytest.raises(ValidationError, match="list_from_local_date must be YYYY-MM-DD"):
+    with pytest.raises(
+        ValidationError, match="list_from_local_date must be YYYY-MM-DD"
+    ):
         ReminderDetectDecision(
             intent_type="query",
             action="list",
@@ -520,6 +559,22 @@ def test_reminder_detect_title_schema_preserves_quoted_content():
     assert "task governed by the reminder verb" in description
 
 
+def test_reminder_detect_reminder_id_schema_limits_ids_to_existing_context():
+    from agent.agno_agent.schemas.reminder_detect_schema import (
+        ReminderDetectDecision,
+        ReminderOperation,
+    )
+
+    top_level_description = ReminderDetectDecision.model_fields[
+        "reminder_id"
+    ].description
+    operation_description = ReminderOperation.model_fields["reminder_id"].description
+
+    for description in (top_level_description, operation_description):
+        assert "trusted runtime context" in description
+        assert "Leave empty for create" in description
+        assert "never copy user title" in description
+
 
 def test_reminder_detect_schema_rejects_free_form_workflow_key():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
@@ -537,8 +592,11 @@ def test_reminder_detect_clarify_requires_clarification_reason():
     import pytest
     from pydantic import ValidationError
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
     with pytest.raises(ValidationError, match="clarification_reason"):
-        ReminderDetectDecision(intent_type="clarify", action="", clarification_reason="")
+        ReminderDetectDecision(
+            intent_type="clarify", action="", clarification_reason=""
+        )
 
 
 def test_reminder_detect_non_clarify_with_reason_normalizes_to_clarify():
@@ -562,6 +620,7 @@ def test_reminder_detect_non_clarify_with_reason_normalizes_to_clarify():
 
 def test_reminder_detect_clarify_accepts_known_reason():
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
     decision = ReminderDetectDecision(
         intent_type="clarify",
         action="",
@@ -574,6 +633,7 @@ def test_reminder_detect_rejects_unknown_clarification_reason():
     import pytest
     from pydantic import ValidationError
     from agent.agno_agent.schemas.reminder_detect_schema import ReminderDetectDecision
+
     with pytest.raises(ValidationError):
         ReminderDetectDecision(
             intent_type="clarify",
