@@ -220,19 +220,17 @@ run start -> Focus construction -> semantic interpreter -> executor freshness ch
 
 The Focus channel is a typed runtime pointer to the one actionable product
 object the turn may act on. It is exposed through `AgentRunContext.session_state`
-with `ambiguity=none`, `multi_pending`, or `none_actionable`. Inbound product
-notification metadata is only a low-cardinality hint that focus may exist; the
-Agent Runtime resolves actionable candidates through the Gateway-hosted
-Scheduling Domain Contract at `/api/internal/scheduling/focus/resolve`. The
-contract mints opaque `focus_token` and candidate handles, persists those
-bindings in Postgres-owned Scheduling state, and validates a selected handle at
-`/api/internal/scheduling/focus/bind` before any focused scheduling mutation
-receives a real request id. `none_actionable` fails closed, and `multi_pending`
-requires a semantic candidate selection by ordinal, offered time, or summary
-text before acting. Keyword or regex routing on user utterances is not part of
-the active runtime contract; regexes may remain only for output guardrails,
-model-output parsing, typed payload validation, trace mechanics, or temporary
-input normalization.
+with `ambiguity=none`, `multi_candidate`, or `none_actionable`. Direct
+friendship and shared-reminder product notifications are informational and do
+not create pending accept/reject actions. If a future focused scheduling
+mutation needs disambiguation, the Agent Runtime resolves active candidates
+through the Gateway-hosted Scheduling Domain Contract at
+`/api/internal/scheduling/focus/resolve`; `none_actionable` fails closed, and
+`multi_candidate` requires semantic candidate selection by ordinal, offered
+time, or summary text before acting. Keyword or regex routing on user utterances
+is not part of the active runtime contract; regexes may remain only for output
+guardrails, model-output parsing, typed payload validation, trace mechanics, or
+temporary input normalization.
 
 The response prompt renders trusted blocks for identity, environment, and Focus
 plus one conversation block. Trusted blocks are authoritative system-derived
@@ -256,13 +254,12 @@ grounding, traces, metrics, manager payloads, tests, and eval evidence, not a
 production output rewrite or reply-quality gate. The scheduling domain
 delegates execution to friend-link and shared-reminder tools:
 `get_user_link`, `reset_user_link`, `disable_user_link`,
-`list_friend_requests`, `accept_friend_request`, `reject_friend_request`,
-`cancel_friend_request`, `list_friends`, `remove_friendship`, `block_account`,
-`unblock_account`, `list_friend_calendar_facts`, `create_shared_reminder`,
-`list_pending_shared_reminders`, `accept_shared_reminder`,
-`reject_shared_reminder`, `cancel_shared_reminder`,
-`accept_pending_shared_reminders_from`, `reject_pending_shared_reminders_from`,
-and `cancel_pending_shared_reminders_for`. The runner remains
+`create_friendship_by_user_link_code`, `list_friends`, `remove_friendship`,
+`list_friend_calendar_facts`, `create_shared_reminder`,
+`list_shared_reminders`, and `cancel_shared_reminder`. Friend links create
+active friendships directly, and shared reminders become active immediately
+after the receiver conflict check passes; pending request accept/reject flows
+and account block/unblock tools are retired. The runner remains
 responsible for locks, rollback, output writes, replay checks, scheduler boot,
 post-analyze dispatch, and delivery state transitions. The former prepare/chat
 workflow runtime, legacy multi-agent runtime, and module-level Agno agent
