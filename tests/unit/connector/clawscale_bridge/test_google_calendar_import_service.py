@@ -27,7 +27,7 @@ def test_preflight_returns_target_conversation_identity_and_timezone():
 
     service = GoogleCalendarImportService(
         conversation_dao=conversation_dao,
-        reminder_service=MagicMock(),
+        reminder_runtime_contract=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=user_dao,
     )
@@ -57,12 +57,14 @@ def test_preflight_prefers_whatsapp_business_conversation_key_when_present():
         "conversation_info": {},
     }
     user_dao = MagicMock(
-        get_user_by_id=MagicMock(return_value={"_id": "ck_email", "timezone": "Asia/Tokyo"})
+        get_user_by_id=MagicMock(
+            return_value={"_id": "ck_email", "timezone": "Asia/Tokyo"}
+        )
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=conversation_dao,
-        reminder_service=MagicMock(),
+        reminder_runtime_contract=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=user_dao,
     )
@@ -96,7 +98,7 @@ def test_preflight_raises_conversation_required_when_missing():
         conversation_dao=MagicMock(
             find_latest_private_conversation_by_db_user_ids=MagicMock(return_value=None)
         ),
-        reminder_service=MagicMock(),
+        reminder_runtime_contract=MagicMock(),
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(get_user_by_id=MagicMock(return_value={"_id": "ck_1"})),
     )
@@ -112,14 +114,12 @@ def test_import_events_creates_future_single_event_with_event_timezone_override(
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(return_value=None)
-    )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -163,14 +163,16 @@ def test_import_events_creates_future_single_event_with_event_timezone_override(
     assert result["skipped_count"] == 0
     assert result["warning_count"] == 0
     assert result["warnings"] == []
-    reminder_service.create_imported_reminder.assert_called_once()
-    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
+    reminder_runtime_contract.create_imported_reminder.assert_called_once()
+    kwargs = reminder_runtime_contract.create_imported_reminder.call_args.kwargs
     assert kwargs["owner_user_id"] == "ck_1"
     assert kwargs["command"].agent_output_target.character_id == "char_1"
     assert kwargs["command"].agent_output_target.conversation_id == "conv-1"
     assert kwargs["command"].title == "Team sync"
     assert kwargs["command"].schedule.timezone == "America/New_York"
-    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 23, 12, 30, tzinfo=UTC)
+    assert kwargs["command"].schedule.anchor_at == datetime(
+        2026, 4, 23, 12, 30, tzinfo=UTC
+    )
     assert kwargs["import_metadata"] == {
         "import_provider": "google_calendar",
         "import_run_id": "run-1",
@@ -185,16 +187,14 @@ def test_import_events_skips_duplicate_and_uses_all_day_target_timezone():
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(
-            side_effect=[{"_id": "existing-1"}, None]
-        )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(
+        side_effect=[{"_id": "existing-1"}, None]
     )
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -231,14 +231,87 @@ def test_import_events_skips_duplicate_and_uses_all_day_target_timezone():
     assert result["imported_count"] == 1
     assert result["skipped_count"] == 1
     assert result["warning_count"] == 1
-    reminder_service.create_imported_reminder.assert_called_once()
-    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
+    reminder_runtime_contract.create_imported_reminder.assert_called_once()
+    kwargs = reminder_runtime_contract.create_imported_reminder.call_args.kwargs
     assert kwargs["command"].schedule.timezone == "Asia/Tokyo"
-    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 24, 0, 0, tzinfo=UTC)
+    assert kwargs["command"].schedule.anchor_at == datetime(
+        2026, 4, 24, 0, 0, tzinfo=UTC
+    )
     assert kwargs["import_metadata"]["source_event_id"] == "evt-all-day"
+    assert reminder_runtime_contract.find_imported_duplicate.call_args_list[
+        0
+    ].kwargs == {
+        "owner_user_id": "ck_1",
+        "import_provider": "google_calendar",
+        "source_event_id": "evt-dup",
+        "source_original_start_time": "2026-04-23",
+    }
+    assert reminder_runtime_contract.find_imported_duplicate.call_args_list[
+        1
+    ].kwargs == {
+        "owner_user_id": "ck_1",
+        "import_provider": "google_calendar",
+        "source_event_id": "evt-all-day",
+        "source_original_start_time": "2026-04-24",
+    }
     assert result["warnings"] == [
         {"event_id": "evt-dup", "reason": "duplicate_existing_reminder"}
     ]
+
+
+def test_import_events_records_past_single_event_through_runtime_contract():
+    from connector.clawscale_bridge.google_calendar_import_service import (
+        GoogleCalendarImportService,
+    )
+
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
+
+    service = GoogleCalendarImportService(
+        conversation_dao=MagicMock(),
+        reminder_runtime_contract=reminder_runtime_contract,
+        character_id_provider=lambda: "char_1",
+        user_dao=MagicMock(),
+        now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
+    )
+
+    result = service.import_events(
+        target={
+            "conversation_id": "conv-1",
+            "user_id": "ck_1",
+            "character_id": "char_1",
+            "timezone": "UTC",
+        },
+        run_id="run-past",
+        provider_account_email="alice@example.com",
+        calendar_defaults={"timezone": "UTC", "default_reminders": []},
+        events=[
+            {
+                "id": "evt-past",
+                "status": "confirmed",
+                "summary": "Past sync",
+                "start": {"dateTime": "2026-04-20T09:00:00Z"},
+                "end": {"dateTime": "2026-04-20T10:00:00Z"},
+            }
+        ],
+    )
+
+    assert result["imported_count"] == 1
+    reminder_runtime_contract.create_imported_reminder.assert_not_called()
+    reminder_runtime_contract.record_historical_import.assert_called_once()
+    kwargs = reminder_runtime_contract.record_historical_import.call_args.kwargs
+    assert kwargs["owner_user_id"] == "ck_1"
+    assert kwargs["title"] == "Past sync"
+    assert kwargs["schedule"].anchor_at == datetime(2026, 4, 20, 9, 0, tzinfo=UTC)
+    assert kwargs["agent_output_target"].conversation_id == "conv-1"
+    assert kwargs["agent_output_target"].character_id == "char_1"
+    assert kwargs["import_metadata"] == {
+        "import_provider": "google_calendar",
+        "import_run_id": "run-past",
+        "provider_account_email": "alice@example.com",
+        "source_event_id": "evt-past",
+        "source_original_start_time": "2026-04-20T09:00:00Z",
+    }
 
 
 def test_import_events_skips_exception_bearing_recurring_series_with_warning():
@@ -246,14 +319,12 @@ def test_import_events_skips_exception_bearing_recurring_series_with_warning():
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(return_value=None)
-    )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -295,7 +366,7 @@ def test_import_events_skips_exception_bearing_recurring_series_with_warning():
     assert result["warnings"] == [
         {"event_id": "evt-series", "reason": "unsupported_recurring_exceptions"}
     ]
-    reminder_service.create_imported_reminder.assert_not_called()
+    reminder_runtime_contract.create_imported_reminder.assert_not_called()
 
 
 def test_import_events_imports_recurring_master_when_only_exception_is_tombstone_cancel():
@@ -303,14 +374,12 @@ def test_import_events_imports_recurring_master_when_only_exception_is_tombstone
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(return_value=None)
-    )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -348,7 +417,7 @@ def test_import_events_imports_recurring_master_when_only_exception_is_tombstone
     assert result["skipped_count"] == 0
     assert result["warning_count"] == 0
     assert result["warnings"] == []
-    reminder_service.create_imported_reminder.assert_called_once()
+    reminder_runtime_contract.create_imported_reminder.assert_called_once()
 
 
 def test_import_events_ignores_tombstone_only_cancellation_artifacts():
@@ -356,14 +425,12 @@ def test_import_events_ignores_tombstone_only_cancellation_artifacts():
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(return_value=None)
-    )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
     )
@@ -401,14 +468,12 @@ def test_import_events_does_not_use_calendar_defaults_when_use_default_false_wit
         GoogleCalendarImportService,
     )
 
-    reminder_service = MagicMock()
-    reminder_service.reminder_dao = MagicMock(
-        find_imported_duplicate=MagicMock(return_value=None)
-    )
+    reminder_runtime_contract = MagicMock()
+    reminder_runtime_contract.find_imported_duplicate = MagicMock(return_value=None)
 
     service = GoogleCalendarImportService(
         conversation_dao=MagicMock(),
-        reminder_service=reminder_service,
+        reminder_runtime_contract=reminder_runtime_contract,
         character_id_provider=lambda: "char_1",
         user_dao=MagicMock(),
         now_provider=lambda: datetime(2026, 4, 22, 0, 0, tzinfo=UTC),
@@ -443,5 +508,7 @@ def test_import_events_does_not_use_calendar_defaults_when_use_default_false_wit
 
     assert result["imported_count"] == 1
     assert result["warning_count"] == 0
-    kwargs = reminder_service.create_imported_reminder.call_args.kwargs
-    assert kwargs["command"].schedule.anchor_at == datetime(2026, 4, 23, 9, 0, tzinfo=UTC)
+    kwargs = reminder_runtime_contract.create_imported_reminder.call_args.kwargs
+    assert kwargs["command"].schedule.anchor_at == datetime(
+        2026, 4, 23, 9, 0, tzinfo=UTC
+    )

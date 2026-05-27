@@ -62,6 +62,51 @@ class ReminderRuntimeContract:
             command=command,
         )
 
+    def create_imported_reminder(
+        self,
+        *,
+        owner_user_id: str,
+        command: ReminderCreateCommand,
+        import_metadata: dict,
+    ) -> Reminder:
+        return self.reminder_service.create_imported_reminder(
+            owner_user_id=owner_user_id,
+            command=command,
+            import_metadata=import_metadata,
+        )
+
+    def record_historical_import(
+        self,
+        *,
+        owner_user_id: str,
+        title: str,
+        schedule: ReminderSchedule,
+        agent_output_target: AgentOutputTarget,
+        import_metadata: dict,
+    ) -> Reminder:
+        return self.reminder_service.record_historical_import(
+            owner_user_id=owner_user_id,
+            title=title,
+            schedule=schedule,
+            agent_output_target=agent_output_target,
+            import_metadata=import_metadata,
+        )
+
+    def find_imported_duplicate(
+        self,
+        *,
+        owner_user_id: str,
+        import_provider: str,
+        source_event_id: str,
+        source_original_start_time: str,
+    ) -> dict | None:
+        return self.reminder_service.find_imported_duplicate(
+            owner_user_id=owner_user_id,
+            import_provider=import_provider,
+            source_event_id=source_event_id,
+            source_original_start_time=source_original_start_time,
+        )
+
     def update_visible_reminder(
         self,
         *,

@@ -20,21 +20,25 @@ class GoogleCalendarImportService:
         self,
         *,
         conversation_dao: ConversationDAO | None = None,
-        reminder_service=None,
+        reminder_runtime_contract=None,
         character_id_provider=None,
         user_dao: UserDAO | None = None,
         default_timezone_provider=None,
         now_provider=None,
     ) -> None:
-        if reminder_service is None:
-            from agent.reminder.service import ReminderService
+        if reminder_runtime_contract is None:
+            from agent.reminder.runtime_contract import ReminderRuntimeContract
 
-            reminder_service = ReminderService()
+            reminder_runtime_contract = ReminderRuntimeContract()
         self.conversation_dao = conversation_dao or ConversationDAO()
-        self.reminder_service = reminder_service
-        self.character_id_provider = character_id_provider or ensure_default_character_seeded
+        self.reminder_runtime_contract = reminder_runtime_contract
+        self.character_id_provider = (
+            character_id_provider or ensure_default_character_seeded
+        )
         self.user_dao = user_dao or UserDAO()
-        self.default_timezone_provider = default_timezone_provider or get_default_timezone
+        self.default_timezone_provider = (
+            default_timezone_provider or get_default_timezone
+        )
         self.now_provider = now_provider or (lambda: datetime.now(UTC))
 
     def preflight(
@@ -199,7 +203,7 @@ class GoogleCalendarImportService:
                     conversation_id=target["conversation_id"],
                     rrule=self._normalize_rrule(event.get("recurrence")),
                 )
-                self.reminder_service.create_imported_reminder(
+                self.reminder_runtime_contract.create_imported_reminder(
                     owner_user_id=target["user_id"],
                     command=command,
                     import_metadata=metadata,
@@ -216,13 +220,13 @@ class GoogleCalendarImportService:
                     conversation_id=target["conversation_id"],
                     rrule=None,
                 )
-                self.reminder_service.create_imported_reminder(
+                self.reminder_runtime_contract.create_imported_reminder(
                     owner_user_id=target["user_id"],
                     command=command,
                     import_metadata=metadata,
                 )
             else:
-                self.reminder_service.record_historical_import(
+                self.reminder_runtime_contract.record_historical_import(
                     owner_user_id=target["user_id"],
                     title=title,
                     schedule=self._build_schedule(
@@ -260,10 +264,7 @@ class GoogleCalendarImportService:
         source_event_id: str,
         source_original_start_time: str,
     ) -> dict[str, Any] | None:
-        reminder_dao = getattr(self.reminder_service, "reminder_dao", None)
-        if reminder_dao is None or not hasattr(reminder_dao, "find_imported_duplicate"):
-            return None
-        return reminder_dao.find_imported_duplicate(
+        return self.reminder_runtime_contract.find_imported_duplicate(
             owner_user_id=user_id,
             import_provider="google_calendar",
             source_event_id=source_event_id,
@@ -428,7 +429,14 @@ class GoogleCalendarImportService:
             return False
         return not any(
             event.get(field)
-            for field in ("summary", "description", "location", "start", "end", "recurrence")
+            for field in (
+                "summary",
+                "description",
+                "location",
+                "start",
+                "end",
+                "recurrence",
+            )
         )
 
     def _parse_datetime(self, value: str, timezone_name: str) -> datetime:

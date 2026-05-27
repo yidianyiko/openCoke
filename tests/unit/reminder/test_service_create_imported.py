@@ -8,7 +8,6 @@ from agent.reminder.models import (
 )
 from agent.reminder.service import ReminderService
 
-
 NOW = datetime(2026, 4, 28, 1, 0, tzinfo=UTC)
 FUTURE = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
 
@@ -16,11 +15,16 @@ FUTURE = datetime(2026, 4, 29, 1, 0, tzinfo=UTC)
 class InMemoryReminderDAO:
     def __init__(self) -> None:
         self.documents: dict[str, dict] = {}
+        self.find_imported_duplicate_calls: list[dict] = []
 
     def insert_reminder(self, document: dict) -> str:
         reminder_id = "rem-1"
         self.documents[reminder_id] = {**document, "_id": reminder_id}
         return reminder_id
+
+    def find_imported_duplicate(self, **kwargs):
+        self.find_imported_duplicate_calls.append(kwargs)
+        return {"_id": "existing-reminder"}
 
 
 def test_create_imported_reminder_writes_metadata_and_registers_scheduler():
@@ -67,3 +71,29 @@ def test_create_imported_reminder_writes_metadata_and_registers_scheduler():
     }
     assert dao.documents["rem-1"]["metadata"] == reminder.metadata
     scheduler.register_reminder.assert_called_once_with(reminder)
+
+
+def test_find_imported_duplicate_delegates_to_reminder_dao():
+    dao = InMemoryReminderDAO()
+    service = ReminderService(
+        reminder_dao=dao,
+        scheduler=Mock(),
+        now_provider=lambda: NOW,
+    )
+
+    result = service.find_imported_duplicate(
+        owner_user_id="user-1",
+        import_provider="google_calendar",
+        source_event_id="evt-1",
+        source_original_start_time="2026-04-29T10:00:00",
+    )
+
+    assert result == {"_id": "existing-reminder"}
+    assert dao.find_imported_duplicate_calls == [
+        {
+            "owner_user_id": "user-1",
+            "import_provider": "google_calendar",
+            "source_event_id": "evt-1",
+            "source_original_start_time": "2026-04-29T10:00:00",
+        }
+    ]

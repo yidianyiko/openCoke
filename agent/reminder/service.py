@@ -174,6 +174,21 @@ class ReminderService:
         document["_id"] = reminder_id
         return self._map_document(document)
 
+    def find_imported_duplicate(
+        self,
+        *,
+        owner_user_id: str,
+        import_provider: str,
+        source_event_id: str,
+        source_original_start_time: str,
+    ) -> dict[str, Any] | None:
+        return self.reminder_dao.find_imported_duplicate(
+            owner_user_id=owner_user_id,
+            import_provider=import_provider,
+            source_event_id=source_event_id,
+            source_original_start_time=source_original_start_time,
+        )
+
     def update(
         self,
         *,

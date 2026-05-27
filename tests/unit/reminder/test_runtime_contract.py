@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, time
 
 from agent.reminder.models import (
     AgentOutputTarget,
+    ReminderCreateCommand,
     ReminderPatch,
     ReminderQuery,
     ReminderSchedule,
@@ -50,6 +51,18 @@ class RecordingReminderService:
 
     def clear_internal_followup(self, **kwargs):
         self.calls.append(("clear_internal_followup", kwargs))
+        return self.result
+
+    def create_imported_reminder(self, **kwargs):
+        self.calls.append(("create_imported_reminder", kwargs))
+        return self.result
+
+    def record_historical_import(self, **kwargs):
+        self.calls.append(("record_historical_import", kwargs))
+        return self.result
+
+    def find_imported_duplicate(self, **kwargs):
+        self.calls.append(("find_imported_duplicate", kwargs))
         return self.result
 
 
@@ -239,6 +252,80 @@ def test_internal_followup_methods_delegate_to_service():
         "clear_internal_followup",
         {"owner_user_id": "user-1", "conversation_id": "conv-1"},
     )
+
+
+def test_calendar_import_methods_delegate_to_service():
+    service = RecordingReminderService()
+    contract = ReminderRuntimeContract(reminder_service=service)
+    command = ReminderCreateCommand(
+        title="imported event",
+        schedule=sample_schedule(),
+        agent_output_target=sample_target(),
+        created_by_system="agent",
+    )
+    metadata = {
+        "import_provider": "google_calendar",
+        "source_event_id": "evt-1",
+        "source_original_start_time": "2026-05-16T10:00:00",
+    }
+
+    assert (
+        contract.create_imported_reminder(
+            owner_user_id="user-1",
+            command=command,
+            import_metadata=metadata,
+        )
+        is service.result
+    )
+    assert (
+        contract.record_historical_import(
+            owner_user_id="user-1",
+            title="past event",
+            schedule=sample_schedule(),
+            agent_output_target=sample_target(),
+            import_metadata=metadata,
+        )
+        is service.result
+    )
+    assert (
+        contract.find_imported_duplicate(
+            owner_user_id="user-1",
+            import_provider="google_calendar",
+            source_event_id="evt-1",
+            source_original_start_time="2026-05-16T10:00:00",
+        )
+        is service.result
+    )
+
+    assert service.calls == [
+        (
+            "create_imported_reminder",
+            {
+                "owner_user_id": "user-1",
+                "command": command,
+                "import_metadata": metadata,
+            },
+        ),
+        (
+            "record_historical_import",
+            {
+                "owner_user_id": "user-1",
+                "title": "past event",
+                "schedule": sample_schedule(),
+                "agent_output_target": sample_target(),
+                "import_metadata": metadata,
+            },
+        ),
+        (
+            "find_imported_duplicate",
+            {
+                "owner_user_id": "user-1",
+                "import_provider": "google_calendar",
+                "source_event_id": "evt-1",
+                "source_original_start_time": "2026-05-16T10:00:00",
+            },
+        ),
+    ]
 
 
 def test_reminder_runtime_starts_loads_and_shuts_down_scheduler():
