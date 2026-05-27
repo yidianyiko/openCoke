@@ -2,7 +2,11 @@
 title: Shared-reminder create may retry on stale friend_id args and accept does not notify requester
 kind: incident
 date: 2026-05-27
-status: active
+status: resolved
+resolved_at: 2026-05-27T03:45:00Z
+fix_commits:
+  - gateway: fc1dfa26
+  - root: f28566b1
 affected_surfaces:
   - agent/agno_agent/runtime/agent_runtime.py
   - agent/agno_agent/runtime/execution_agents.py
@@ -62,6 +66,20 @@ There are two separate defects.
    projection, but it does not enqueue a product notification to the requester.
    The requester-facing success copy says the invite will synchronize after
    confirmation, but the durable workflow has no requester notification step.
+
+## Current Contract Update
+
+The requester acceptance notification portion is resolved by gateway commit
+`fc1dfa26` and production compensation evidence below.
+
+The earlier `friend_id` normalization direction in this issue is superseded by
+the later product decision that the runtime does not need historical-system or
+historical-data compatibility. Root commit `f28566b1` now enforces the current
+contract instead: shared-reminder create uses `create_shared_reminder` with
+canonical args such as `invitee_name` / `invitee_account_id` /
+`friendship_id`, `title`, and `fire_at`; stale model-shaped aliases including
+`friend_id`, `start_time`, `start_datetime`, and `date_time` fail closed
+instead of being normalized.
 
 ## Cleanup Direction
 
